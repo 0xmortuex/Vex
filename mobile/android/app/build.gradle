@@ -63,6 +63,10 @@ dependencies {
     implementation "com.google.mlkit:genai-summarization:$mlkitGenAiVersion"
     implementation "com.google.mlkit:genai-proofreading:$mlkitGenAiVersion"
     implementation "com.google.mlkit:genai-rewriting:$mlkitGenAiVersion"
+    // Translation that never leaves the phone. The models are downloaded on
+    // request, one language at a time, so these add little to the APK.
+    implementation "com.google.mlkit:translate:$mlkitTranslateVersion"
+    implementation "com.google.mlkit:language-id:$mlkitLanguageIdVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
 }

@@ -18,6 +18,7 @@ const VexLibrary = (() => {
       ['toolbar', 'Toolbar', 'Top or bottom, hiding as you scroll, with the buttons you choose.', () => VexPanels.appearance()]
     ]],
     ['Reading', [
+      ['translate-device', 'Translate a page on the phone', 'ML Kit\u2019s models run here. Once a language is downloaded a page translates with no connection at all, and nothing is sent anywhere — which is more than Chrome or Samsung Internet does.', () => VexPanels.translation()],
       ['reader', 'Reader', 'The article, without the rest of the page, in the browser’s own type.', () => VexViews.openReader()],
       ['read-aloud', 'Read aloud', 'The article, in the phone’s own voice, a paragraph at a time — skip, slow down, carry on. It stops when you leave Vex.', () => VexUI.readAloud()],
       ['reading-list', 'Reading list', 'Pages kept for later, marked off as you read them.', () => VexPanels.readingList()],
@@ -37,7 +38,7 @@ const VexLibrary = (() => {
       ['ask', 'Ask about this page', 'A question about what is on screen, answered by your own worker.', () => VexViews.openAI()],
       ['agent', 'Let it do things', '"Close all the YouTube tabs." It works in steps, and shows you each one.', () => VexViews.openAI('agent')],
       ['summarise', 'Summarise', 'The page, shorter.', () => VexViews.summarisePage()],
-      ['translate', 'Translate', 'The page in another language, through your worker.', () => VexUI.translatePage()],
+      ['translate', 'Translate', 'The page in another language, through your worker — when the phone cannot do it itself.', () => VexUI.translatePage()],
       ['memory', 'What it remembers', 'Facts you have told it to keep.', () => VexPanels.assistantSettings()],
       ['backup', 'Backup', 'Everything in one encrypted file, for moving to another phone. Not your saved logins — those cannot leave the Keystore.', () => VexPanels.backup()],
       ['diagnostics', 'Diagnostics', 'What this phone is, what its WebView can do, and the last problems — copyable for a bug report.', () => VexPanels.diagnostics()],

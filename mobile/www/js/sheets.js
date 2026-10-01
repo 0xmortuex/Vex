@@ -116,7 +116,11 @@ const VexSheets = (() => {
       },
       run: () => VexUI.speakSettings()
     },
-    translate: { icon: 'translate', label: 'Translate page', needsPage: true, run: () => VexUI.translatePage() },
+    translate: {
+      icon: 'translate', label: 'Translate page', needsPage: true,
+      note: tab => (VexTranslate.showing(tab.id) ? 'Show the original' : 'On the phone, nothing sent anywhere'),
+      run: () => VexUI.translatePage()
+    },
     find: { icon: 'find', label: 'Find in page', needsPage: true, run: () => VexUI.openFind() },
     site: {
       icon: 'shield', label: 'This site', needsPage: true,

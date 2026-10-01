@@ -19,7 +19,10 @@
 const VexBridge = (() => {
   const listeners = new Map();              // event -> Set<fn>
   const devSecrets = Object.create(null);   // fallback only; never persisted
-  const plugins = { VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null, VexRemind: null, VexLocalAI: null, VexSpeak: null };
+  const plugins = {
+    VexTabs: null, VexBlock: null, VexSecrets: null, VexSystem: null,
+    VexRemind: null, VexLocalAI: null, VexSpeak: null, VexTranslate: null
+  };
   let native = false;
 
   function emit(event, payload) {
@@ -209,6 +212,31 @@ const VexBridge = (() => {
     };
   })();
 
+  // Translating, without a phone. There is no on-device model in a desktop
+  // browser, so the stand-in marks each string with the language it was asked
+  // for: visibly not a translation, which is the point — it exercises the
+  // collect / translate / write-back loop and the "show the original" path
+  // without pretending to be ML Kit.
+  const translateFallback = (() => {
+    const downloaded = new Set(['en']);
+    return {
+      languages: () => ({
+        languages: ['en', 'de', 'fr', 'es', 'tr', 'ja'].map(language => ({
+          language,
+          label: language,
+          downloaded: downloaded.has(language)
+        }))
+      }),
+      // Non-ASCII means "not English" and that is as far as a stand-in should go.
+      identify: ({ text }) => ({ language: /[^\u0000-\u007f]/.test(String(text || '')) ? 'tr' : 'en' }),
+      ensureModel: ({ from, to }) => { downloaded.add(from); downloaded.add(to); return { ready: true }; },
+      translate: ({ to, texts }) => ({
+        texts: (texts || []).map(text => (text ? '[' + to + '] ' + text : ''))
+      }),
+      deleteModel: ({ language }) => { downloaded.delete(language); return { deleted: true }; }
+    };
+  })();
+
   // A valid one-page PDF reading "Vex reads PDFs", for development and for the
   // walkthrough. Built rather than downloaded, so it depends on nothing.
   const DEVELOPMENT_PDF = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCAyNDAgMTIwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ0Pj5zdHJlYW0KQlQgL0YxIDI0IFRmIDI0IDUyIFRkIChWZXggcmVhZHMgUERGcykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDMwOCAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjM3MQolJUVPRgo=';
@@ -218,7 +246,8 @@ const VexBridge = (() => {
     if (!plugin) {
       const stub = pluginName === 'VexTabs' ? fallback[method]
         : pluginName === 'VexLocalAI' ? localFallback[method]
-        : pluginName === 'VexSpeak' ? speakFallback[method] : null;
+        : pluginName === 'VexSpeak' ? speakFallback[method]
+        : pluginName === 'VexTranslate' ? translateFallback[method] : null;
       if (!stub) return Promise.resolve({});
       // The stand-in throws the way the plugin rejects, so callers see one shape.
       try { return Promise.resolve(stub(args || {})); } catch (error) { return Promise.reject(error); }
@@ -384,6 +413,21 @@ const VexBridge = (() => {
 
     // A file the chrome was shown and decided to keep after all.
     saveFile(tabId, url, filename) { return tabs('save', { id: tabId, url, filename }); },
+
+    // ── Translating on the device ──────────────────────────────────────────
+    translateLanguages() { return call('VexTranslate', 'languages', {}); },
+    async translateIdentify(text) {
+      const result = await call('VexTranslate', 'identify', { text });
+      return (result && result.language) || '';
+    },
+    translateEnsureModel(from, to, wifiOnly = true) {
+      return call('VexTranslate', 'ensureModel', { from, to, wifiOnly });
+    },
+    async translateTexts(from, to, texts) {
+      const result = await call('VexTranslate', 'translate', { from, to, texts });
+      return (result && result.texts) || [];
+    },
+    translateDeleteModel(language) { return call('VexTranslate', 'deleteModel', { language }); },
 
     // ── Reading aloud ──────────────────────────────────────────────────────
     async speakAvailable() {

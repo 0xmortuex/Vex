@@ -17,6 +17,7 @@ import com.vex.browser.block.VexBlockPlugin;
 import com.vex.browser.localai.VexLocalAIPlugin;
 import com.vex.browser.speech.VexSpeakPlugin;
 import com.vex.browser.tabs.VexTabsPlugin;
+import com.vex.browser.translate.VexTranslatePlugin;
 import com.vex.browser.remind.VexRemindPlugin;
 import com.vex.browser.system.VexSystemPlugin;
 import com.vex.browser.vault.VexSecretsPlugin;
@@ -61,6 +62,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(VexRemindPlugin.class);
         registerPlugin(VexLocalAIPlugin.class);
         registerPlugin(VexSpeakPlugin.class);
+        registerPlugin(VexTranslatePlugin.class);
         super.onCreate(savedInstanceState);
 
         // The chrome has a hole in it where the page goes; a solid background

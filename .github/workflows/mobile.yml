@@ -126,7 +126,7 @@ jobs:
           # a digit straight after the coordinate found only the pinned
           # transitive ones. Keep the whole line, arrow and all.
           versions=$(./gradlew --no-daemon --quiet :app:dependencies --configuration debugRuntimeClasspath \
-            | grep -E "litertlm-android|genai-" \
+            | grep -E "litertlm-android|genai-|com.google.mlkit:translate|com.google.mlkit:language-id" \
             | sed -E 's/^[^a-z]*//; s/ \(\*\)$//' | sort -u | tr '\n' ';' | sed 's/;/; /g')
           echo "$versions"
           echo "AI_VERSIONS=$versions" >> "$GITHUB_ENV"

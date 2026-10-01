@@ -570,6 +570,30 @@ results.contentAfterSpeakBar = await contentHeight();
 results.speakInMenu = await page.evaluate(() =>
   VexSheets.DEFAULT_ORDER.includes('read-aloud') && !!VexSheets.ACTIONS['read-aloud']);
 
+// ── Translation, on the device ──────────────────────────────────────────────
+// The page rewrite needs a native WebView to evaluate a script in, which this
+// machine does not have. What it can drive is everything around it: the plugin
+// calls, the panel, and the sentences the chrome says when it declines.
+results.translateLanguages = await page.evaluate(async () => {
+  const languages = await VexTranslate.languages();
+  return languages.map(entry => entry.language + (entry.downloaded ? '*' : ''));
+});
+results.translateRound = await page.evaluate(async () => {
+  const identified = await VexBridge.translateIdentify('Dies ist ein deutscher Satz mit Umlauten: schön.');
+  await VexBridge.translateEnsureModel(identified, 'en', false);
+  const texts = await VexBridge.translateTexts(identified, 'en', ['Guten Tag', '']);
+  return { identified, texts };
+});
+// Without a page to evaluate in, it declines in words rather than throwing.
+results.translateDeclines = await page.evaluate(() =>
+  VexTranslate.page(VexTabStore.active(), 'en').then(result => result.why || 'ok'));
+await page.evaluate(() => VexPanels.translation());
+await page.waitForTimeout(400);
+results.translationPanel = await page.textContent('#panel-title');
+results.translationRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
+await shot('12d-translation');
+await page.evaluate(() => VexPanels.close());
+
 // ── Launcher shortcuts and the widget ───────────────────────────────────────
 // The four targets the launcher and the widget both send. Each has to land
 // somewhere in the chrome rather than being dropped on the floor.
@@ -1011,6 +1035,8 @@ const expected = {
   speakRate: 1.25,
   speakRateShown: '1.25×',
   sharedTextOpens: true,
+  translationPanel: 'Translation',
+  translateDeclines: 'There is no text on this page to translate',
   clearPanelTitle: 'Clear browsing data',
   clearBackGoesUp: 'Storage',
   widgetOpensOmnibox: true, widgetDictates: true,
@@ -1038,6 +1064,19 @@ if (String(results.clearDefaults) !== 'true,true,true,false,false,false') {
   failures.push('clearDefaults: the tick boxes do not start where they should (' + results.clearDefaults + ')');
 }
 if (results.clearRows < 9) failures.push('clearRows: the clear panel lost rows (' + results.clearRows + ')');
+if (String(results.translateLanguages).indexOf('en*') !== 0) {
+  failures.push('translateLanguages: English should be there already (' + results.translateLanguages + ')');
+}
+if (results.translateRound.identified !== 'tr') {
+  failures.push('translateRound: the stand-in should call that not-English ('
+    + results.translateRound.identified + ')');
+}
+if (String(results.translateRound.texts) !== '[en] Guten Tag,') {
+  failures.push('translateRound: a string came back wrong (' + JSON.stringify(results.translateRound.texts) + ')');
+}
+if (results.translationRows < 3) {
+  failures.push('translationRows: the translation panel lost rows (' + results.translationRows + ')');
+}
 if (results.shortcutTargets.newTab !== 1) {
   failures.push('shortcutTargets: "new tab" opened ' + results.shortcutTargets.newTab + ' tabs');
 }

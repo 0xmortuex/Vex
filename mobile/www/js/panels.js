@@ -102,6 +102,7 @@ const VexPanels = (() => {
     storage: () => VexPanels.storage(),
     clearData: () => VexPanels.clearData(),
     customEngine: () => VexPanels.customEngine(),
+    translation: () => VexPanels.translation(),
     addLogin: () => VexPanels.addLogin(),
     ai: () => VexViews.openAI()
   };
@@ -961,6 +962,8 @@ const VexPanels = (() => {
             VexSheets.close();
             this.settings();
           })));
+      body.appendChild(valueRow('Translation', 'On the phone, with nothing sent anywhere', null,
+        () => this.translation()));
       body.appendChild(toggleRow('Search suggestions',
         'What the engine thinks you are typing, as you type it. It sees the letters before you press '
         + 'go — never in a private tab, and never on something that is already an address.',
@@ -1066,6 +1069,65 @@ const VexPanels = (() => {
         label: 'Vex for Android',
         note: VexUI.version + ' · ' + (VexBridge.isNative ? 'system WebView' : 'development fallback')
       }));
+    },
+
+    // ── Translation, on the phone ──────────────────────────────────────────
+    async translation() {
+      const body = openShell('translation', 'Translation');
+      const mine = drawn;
+      const languages = await VexTranslate.languages();
+      if (mine !== drawn) return;
+
+      body.appendChild(el('div', 'field-note',
+        'Vex translates a page on the phone. Chrome and Samsung Internet both send it to a server; this '
+        + 'does not, which means a page you would rather nobody else read, and a page translated on a '
+        + 'train with no signal. Each language is a download of roughly thirty megabytes, kept until you '
+        + 'delete it, and English is always there.'));
+
+      body.appendChild(toggleRow('Translate on the phone',
+        'Off sends the page to your own assistant instead, which needs a connection and a worker',
+        VexStore.get('vex.translateOnDevice', true) !== false,
+        value => VexStore.set('vex.translateOnDevice', value)));
+      body.appendChild(toggleRow('Download models on Wi-Fi only',
+        'A language pair is tens of megabytes',
+        VexTranslate.wifiOnly(), value => VexStore.set('vex.translateWifiOnly', value)));
+
+      const recent = VexStore.get('vex.translateTo', 'en');
+      body.appendChild(valueRow('Translate into', 'What the menu offers first',
+        (VexTools.LANGUAGES.find(pair => pair[0] === recent) || [, recent])[1],
+        () => VexSheets.choose('Translate into',
+          VexTools.LANGUAGES.map(([code, name]) => ({ id: code, label: name, selected: code === recent })),
+          async code => { await VexStore.set('vex.translateTo', code); VexSheets.close(); this.translation(); })));
+
+      const here = languages.filter(entry => entry.downloaded);
+      body.appendChild(heading(here.length
+        ? 'On this phone · ' + here.length + ' languages'
+        : 'Nothing downloaded yet'));
+      if (!here.length) {
+        body.appendChild(el('div', 'field-note',
+          'The first page you translate downloads what it needs. Nothing is fetched before then.'));
+      }
+      for (const entry of here) {
+        body.appendChild(VexSheets.row({
+          icon: 'check', label: entry.label || entry.language, note: entry.language,
+          run: async () => {
+            if (!(await VexUI.confirm('Delete the ' + (entry.label || entry.language) + ' model?'))) return true;
+            await VexTranslate.deleteModel(entry.language);
+            VexUI.toast('Deleted — it will download again when you need it');
+            this.translation();
+            return true;
+          }
+        }));
+      }
+
+      if (languages.length) {
+        body.appendChild(heading('Everything it can translate'));
+        body.appendChild(el('div', 'field-note',
+          languages.map(entry => entry.label || entry.language).sort().join(', ') + '.'));
+      } else {
+        body.appendChild(el('div', 'field-note',
+          'The list of languages comes from the phone, so it is empty in the development fallback.'));
+      }
     },
 
     // ── A search engine of your own ────────────────────────────────────────

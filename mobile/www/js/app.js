@@ -95,6 +95,8 @@
     VexStore.prime('vex.speakRate', 1),
     VexStore.prime('vex.speakVoice', ''),
     VexStore.prime('vex.autoplay', false),
+    VexStore.prime('vex.translateWifiOnly', true),
+    VexStore.prime('vex.translateOnDevice', true),
     VexStore.prime('vex.customEngine', null),
     VexStore.prime('vex.clearItems', null),
     VexStore.prime('vex.clearOnExit', false),
@@ -214,6 +216,8 @@
       // than leaving a voice reading a page that is no longer there.
       if (VexSpeak.state.loaded && VexSpeak.state.url && data.url
         && data.url !== VexSpeak.state.url) VexSpeak.stop();
+      // The translated page's text nodes went with the document.
+      VexTranslate.forget(data.id);
     });
 
     VexBridge.on('loadProgress', data => {

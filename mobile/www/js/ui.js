@@ -875,13 +875,36 @@ const VexUI = (() => {
   async function translatePage() {
     const tab = VexTabStore.active();
     if (!tab) return;
+    // Already translated: the menu entry is the way back.
+    if (VexTranslate.showing(tab.id)) {
+      await VexTranslate.original(tab);
+      toast('Showing the original');
+      return;
+    }
     const recent = VexStore.get('vex.translateTo', 'en');
+    const onDevice = VexStore.get('vex.translateOnDevice', true) !== false;
     VexSheets.choose('Translate this page into',
       VexTools.LANGUAGES.map(([code, name]) => ({ id: code, label: name, selected: code === recent })),
       async language => {
         VexSheets.close();
         await VexStore.set('vex.translateTo', language);
         toast('Translating…', 1500);
+
+        // On the phone first: it rewrites the page where it stands, it works
+        // with no connection once the pair is downloaded, and nothing leaves.
+        if (onDevice && VexBridge.isNative) {
+          const result = await VexTranslate.page(tab, language);
+          if (result.ok) {
+            toast('Translated ' + result.nodes + ' pieces of text, on the phone', 4000,
+              { label: 'Original', run: () => VexTranslate.original(tab) });
+            return;
+          }
+          // "Already in that language" is an answer, not a reason to send the
+          // page to a worker.
+          if (/already in that language/i.test(result.why)) { toast(result.why, 3000); return; }
+          toast(result.why, 4500);
+        }
+
         try {
           const result = await VexTools.translate(tab, language);
           if (result.via === 'web') {
@@ -891,7 +914,7 @@ const VexUI = (() => {
           }
           VexViews.openAI();
         } catch (error) { toast(error.message, 3500); }
-      }, 'Through your own assistant, when one is set up');
+      }, onDevice ? 'On the phone, with nothing sent anywhere' : 'Through your own assistant');
   }
 
   // ── Logins ───────────────────────────────────────────────────────────────
