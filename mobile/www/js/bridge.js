@@ -308,7 +308,7 @@ const VexBridge = (() => {
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
         'longPress', 'fullscreen', 'scroll', 'selection', 'command',
-        'streamProgress', 'streamDone', 'streamFailed']) {
+        'streamProgress', 'streamDone', 'streamFailed', 'openedInApp']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));
@@ -356,6 +356,7 @@ const VexBridge = (() => {
     setPrivacy(options = {}) { return tabs('setPrivacy', options); },
     setPullToRefresh(enabled) { return tabs('setPullToRefresh', { enabled: !!enabled }); },
     setScrollButtons(enabled) { return tabs('setScrollButtons', { enabled: !!enabled }); },
+    setOpenInApps(enabled) { return tabs('setOpenInApps', { enabled: !!enabled }); },
     setBackgroundAudio(enabled) { return tabs('setBackgroundAudio', { enabled: !!enabled }); },
     evaluate(id, code) { return tabs('evaluate', { id, code }); },
     clearData(options = {}) { return tabs('clearData', options); },

@@ -52,6 +52,7 @@
     VexStore.prime('vex.pullToRefresh', true),
     VexStore.prime('vex.scrollButtons', false),
     VexStore.prime('vex.hideStatusBar', false),
+    VexStore.prime('vex.openInApps', true),
     VexStore.prime('vex.readerSize', 19),
     // Typeface, measure, line spacing and paper: named once, in views.js, and
     // primed from that table so adding a fifth needs nothing here.
@@ -133,6 +134,7 @@
   await VexBridge.setPullToRefresh(VexStore.get('vex.pullToRefresh', true) !== false);
   await VexBridge.setScrollButtons(VexStore.get('vex.scrollButtons', false) === true);
   if (VexStore.get('vex.hideStatusBar', false) === true) await VexBridge.setStatusBarHidden(true);
+  await VexBridge.setOpenInApps(VexStore.get('vex.openInApps', true) !== false);
   await VexBridge.setBackgroundAudio(VexStore.get('vex.backgroundAudio', false) === true);
   await VexBridge.setKeepAwake(VexStore.get('vex.keepAwake', false) === true);
   await VexBridge.setPrivacy({
@@ -381,6 +383,21 @@
     });
 
     VexBridge.on('scroll', data => VexUI.onPageScroll(data));
+
+    // A tapped link went to the app that owns it. Said once, with the way to
+    // stop it right there, because a link leaving the browser is a surprise
+    // the first time.
+    VexBridge.on('openedInApp', data => {
+      const host = VexSearch.prettyHost((data && data.url) || '');
+      VexUI.toast('Opened ' + (host || 'that link') + ' in its app', 4000, {
+        label: 'Keep links here',
+        run: async () => {
+          await VexStore.set('vex.openInApps', false);
+          await VexBridge.setOpenInApps(false);
+          VexUI.toast('Links stay in Vex — Settings → Tabs to change it');
+        }
+      });
+    });
 
     // "Ask Vex", "Translate", "Keep as a note" on selected text — the menu
     // Android shows when you select something, with Vex's own items added.

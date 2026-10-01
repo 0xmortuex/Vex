@@ -33,6 +33,7 @@ Everything else below is either matched or bettered.
 | Find on page from the address bar | ✅ | Typing offers "find it on this page"; Samsung needs the menu |
 | Desktop site | ✅ | Global default and per site |
 | Open links in new tab | ✅ | Settings → Tabs |
+| Open links in apps | ✅ | A tapped link to another site that an app owns opens in that app (Android 11+, never a browser, never from a private tab); the toast offers to keep links in Vex. Settings → Tabs. An intent:// link with no app goes to the page it names, as in Chrome |
 | Block pop-ups | ✅ | A window you tapped for still opens |
 | Multi-window / split screen | ✅ | Android's own; Vex is a normal resizable activity |
 | Tab bar on tablets | ✅ | A chip per tab above the page, shown when the window is at least 600px wide — a tablet, a split screen, a big phone sideways. Settings → Appearance → Tab bar to force it on or off |

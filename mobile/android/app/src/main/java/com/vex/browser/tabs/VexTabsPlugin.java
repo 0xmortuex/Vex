@@ -597,6 +597,13 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         });
     }
 
+    /** Hand tapped links to the apps that own them, or keep everything here. */
+    @PluginMethod
+    public void setOpenInApps(PluginCall call) {
+        TabWebView.setOpenInApps(!Boolean.FALSE.equals(call.getBoolean("enabled", true)));
+        call.resolve();
+    }
+
     /** Samsung's scroll buttons, on or off. */
     @PluginMethod
     public void setScrollButtons(PluginCall call) {

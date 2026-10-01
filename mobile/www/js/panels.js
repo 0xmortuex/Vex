@@ -1865,6 +1865,12 @@ const VexPanels = (() => {
     // ── Tabs ───────────────────────────────────────────────────────────────
     tabsSettings() {
       const body = openShell('tabsSettings', 'Tabs');
+      body.appendChild(toggleRow('Open links in their apps',
+        'A YouTube link in YouTube, a post in its app — when you tap it, from another site, and never from a private tab',
+        VexStore.get('vex.openInApps', true) !== false, async value => {
+          await VexStore.set('vex.openInApps', value);
+          await VexBridge.setOpenInApps(value);
+        }));
       body.appendChild(toggleRow('Open links in a new tab', 'Instead of replacing this page',
         VexStore.get('vex.linksInNewTab', false), value => VexStore.set('vex.linksInNewTab', value)));
       body.appendChild(toggleRow('Restore tabs when Vex starts', null,

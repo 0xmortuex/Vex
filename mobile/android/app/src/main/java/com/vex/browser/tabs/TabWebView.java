@@ -128,6 +128,24 @@ public class TabWebView extends WebView {
         return incognito;
     }
 
+    // Hand a tapped link to the app that owns it (Samsung's "open links in
+    // apps"). Static like the privacy switches: it is one setting for every tab.
+    private static volatile boolean openInApps = true;
+
+    public static void setOpenInApps(boolean enabled) { openInApps = enabled; }
+
+    /** Close enough to "the same site": the last two labels of the host. */
+    static boolean sameSite(String a, String b) {
+        if (a == null || b == null) return false;
+        return siteOf(a).equals(siteOf(b));
+    }
+
+    private static String siteOf(String host) {
+        String[] labels = host.toLowerCase(java.util.Locale.ROOT).split("\\.");
+        int n = labels.length;
+        return n >= 2 ? labels[n - 2] + "." + labels[n - 1] : host.toLowerCase(java.util.Locale.ROOT);
+    }
+
     public static void setPrivacy(boolean upgradeToHttps, boolean doNotTrack) {
         httpsOnly = upgradeToHttps;
         sendDnt = doNotTrack;
@@ -809,6 +827,31 @@ public class TabWebView extends WebView {
             Uri uri = request.getUrl();
             String scheme = uri.getScheme();
             if (scheme == null) return false;
+            // A link you tapped to another site that an app owns — a YouTube
+            // video, a post on X — opens in that app, as Samsung Internet and
+            // Chrome do. Only a tap (a redirect or a script is not you), only
+            // to another site (a page you are using in the browser keeps its
+            // own links), never from a private tab, and only an app that is not
+            // a browser: FLAG_ACTIVITY_REQUIRE_NON_BROWSER makes Android refuse
+            // rather than offer Vex itself or another browser.
+            if (openInApps && !incognito && request.isForMainFrame() && request.hasGesture()
+                    && ("http".equals(scheme) || "https".equals(scheme))
+                    && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R
+                    && uri.getHost() != null && !sameSite(uri.getHost(), pageHost)) {
+                Intent app = new Intent(Intent.ACTION_VIEW, uri);
+                app.addCategory(Intent.CATEGORY_BROWSABLE);
+                app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER);
+                try {
+                    getContext().startActivity(app);
+                    JSObject data = new JSObject();
+                    data.put("id", id);
+                    data.put("url", uri.toString());
+                    host.emit("openedInApp", data);
+                    return true;
+                } catch (ActivityNotFoundException ignored) {
+                    // No app for it: the browser it is.
+                }
+            }
             if (scheme.equals("http") && httpsOnly) {
                 view.loadUrl(uri.buildUpon().scheme("https").build().toString());
                 return true;
@@ -828,10 +871,16 @@ public class TabWebView extends WebView {
                 return true;
             }
             // mailto:, tel:, intent:, market: … belong to other apps.
+            String fallback = null;
             try {
                 Intent intent = scheme.equals("intent")
                         ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
                         : new Intent(Intent.ACTION_VIEW, uri);
+                // An intent: link names a web page to use when the app is not
+                // installed — Maps, the "open in the app" banners. Chrome goes
+                // there; Vex said "No app can open intent:" instead.
+                String named = intent.getStringExtra("browser_fallback_url");
+                if (named != null && (named.startsWith("https://") || named.startsWith("http://"))) fallback = named;
                 // An intent: URL is written by the page, so everything in it that
                 // could aim it somewhere a web page should not reach is removed.
                 // A component or a selector picked by the page is how an intent:
@@ -850,6 +899,10 @@ public class TabWebView extends WebView {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 getContext().startActivity(intent);
             } catch (ActivityNotFoundException | java.net.URISyntaxException ex) {
+                if (fallback != null) {
+                    view.loadUrl(fallback);
+                    return true;
+                }
                 JSObject data = new JSObject();
                 data.put("id", id);
                 data.put("description", "No app can open " + scheme + ":");
