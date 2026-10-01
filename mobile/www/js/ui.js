@@ -432,11 +432,29 @@ const VexUI = (() => {
 
   async function renderSuggestions(text) {
     const list = clear($('omni-results'));
-    const rows = VexSearch.suggest(text);
-    for (const row of rows) list.appendChild(suggestionRow(row, text));
-
     const typed = String(text || '').trim();
     suggestFor = typed;
+
+    // A tab you already have open beats opening it again. Only this side of
+    // the private line: a normal tab's omnibox does not list private ones.
+    const here = VexTabStore.active();
+    if (typed.length >= 2) {
+      const needle = typed.toLowerCase();
+      const open = (here && here.incognito ? VexTabStore.private() : VexTabStore.normal())
+        .filter(tab => tab !== here && tab.url && tab.url !== 'about:blank'
+          && ((tab.title || '') + ' ' + tab.url).toLowerCase().includes(needle))
+        .sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0))
+        .slice(0, 2);
+      for (const tab of open) {
+        list.appendChild(suggestionRow({
+          kind: 'tab', title: tab.title || VexSearch.prettyHost(tab.url), url: tab.url, tabId: tab.id,
+          snippet: 'Switch to this tab · ' + VexSearch.prettyHost(tab.url)
+        }, text));
+      }
+    }
+
+    const rows = VexSearch.suggest(text);
+    for (const row of rows) list.appendChild(suggestionRow(row, text));
 
     // "Find it on this page" — one journey instead of opening the menu and then
     // the find bar. Only with a page to search, and only when what was typed is
@@ -498,6 +516,7 @@ const VexUI = (() => {
     if (row.icon) kind.appendChild(el('img', { src: row.icon, alt: '' }));
     else kind.appendChild(icon(row.kind === 'search' || row.kind === 'suggest' ? 'search'
       : row.kind === 'find' ? 'find'
+      : row.kind === 'tab' ? 'tabs'
       : row.kind === 'bookmark' ? 'star' : row.kind === 'recall' ? 'book' : 'history'));
     item.appendChild(kind);
     const lines = el('div', 'lines');
@@ -535,6 +554,7 @@ const VexUI = (() => {
     item.onclick = () => {
       closeOmnibox();
       if (row.kind === 'find') { findOnPage(row.title); return; }
+      if (row.kind === 'tab' && VexTabStore.get(row.tabId)) { VexTabStore.activate(row.tabId); return; }
       openUrl(row.url);
     };
     return item;

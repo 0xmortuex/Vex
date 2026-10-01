@@ -1526,6 +1526,24 @@ results.rowSwipeRemoves = await page.evaluate(async () => {
   return [before - after, undo].join(' ');
 });
 
+// Typing the name of a tab already open offers to switch to it.
+results.switchToTab = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  for (const tab of VexTabStore.all()) await VexTabStore.close(tab.id);
+  const first = await VexTabStore.create('https://harbour.example/tides');
+  VexTabStore.update(first.id, { url: 'https://harbour.example/tides', title: 'Tide tables' });
+  await VexTabStore.create('https://other.example/');
+  VexUI.openOmnibox('tide');
+  await VexUI.renderSuggestions('tide');
+  await wait(100);
+  const row = [...document.querySelectorAll('#omni-results .omni-row')]
+    .find(node => node.textContent.includes('Switch to this tab'));
+  if (!row) return 'no row';
+  row.click();
+  await wait(150);
+  return String(VexTabStore.activeId() === first.id) + ' ' + String(document.getElementById('omnibox').hidden);
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1614,6 +1632,7 @@ const expected = {
   promptEnter: 'Typed',
   swipeCloses: '2 2 1 true',
   rowSwipeRemoves: '1 true',
+  switchToTab: 'true true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,
