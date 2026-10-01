@@ -276,6 +276,7 @@ public final class BlockEngine {
         blockRules = blocks;
         allowRules = allows;
         cosmetic = hide == null ? Collections.<String, List<String>>emptyMap() : new HashMap<>(hide);
+        cachedHost = null;
     }
 
     /**
@@ -509,8 +510,24 @@ public final class BlockEngine {
     }
 
     /** CSS selectors to hide on this host, joined for one injected style rule. */
+    // The last host's CSS. It is asked for twice a navigation (page start and
+    // finish) and rebuilding four thousand selectors each time is a few
+    // hundred kilobytes of garbage per page; any change to the rules drops it.
+    private volatile String cachedHost = null;
+    private volatile String cachedCss = "";
+
     public String cosmeticCss(String host) {
         if (!enabled || host == null || isSiteAllowed(host)) return "";
+        String key = host.toLowerCase(Locale.US);
+        String last = cachedHost;
+        if (key.equals(last)) return cachedCss;
+        String css = buildCosmeticCss(key);
+        cachedCss = css;
+        cachedHost = key;
+        return css;
+    }
+
+    private String buildCosmeticCss(String host) {
         List<String> selectors = new ArrayList<>();
         List<String> generic = cosmetic.get("*");
         if (generic != null) selectors.addAll(generic);
