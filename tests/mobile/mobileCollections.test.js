@@ -126,6 +126,67 @@ describe('the start page’s tiles', () => {
   });
 });
 
+describe('putting things back', () => {
+  it('restores a removed bookmark exactly — id, folder and date — not as a new one', async () => {
+    const kept = await bookmarks.add({ url: 'https://k.example/', title: 'Kept', folder: 'Work' });
+    kept.at = 12345;                       // as if it were months old
+    await window.VexStore.set('vex.bookmarks', [kept]);
+    await bookmarks.remove(kept.url);
+    expect(bookmarks.all()).toEqual([]);
+    await bookmarks.restore(kept);
+    expect(bookmarks.all()).toEqual([kept]);
+    // And twice is not two.
+    await bookmarks.restore(kept);
+    expect(bookmarks.all()).toHaveLength(1);
+  });
+
+  it('restores a reading-list entry with its read mark', async () => {
+    const entry = await reading.add({ url: 'https://r.example/', title: 'R' });
+    await reading.markRead(entry.url, true);
+    const before = reading.all()[0];
+    await reading.remove(entry.url);
+    await reading.restore(before);
+    expect(reading.all()[0]).toEqual(before);
+  });
+
+  it('restores a session under its own id', async () => {
+    const session = await sessions.save('Monday', [{ url: 'https://s.example/', title: 'S' }]);
+    await sessions.remove(session.id);
+    await sessions.restore(session);
+    expect(sessions.all()).toEqual([session]);
+    await sessions.restore(session);
+    expect(sessions.all()).toHaveLength(1);
+  });
+});
+
+describe('folders', () => {
+  it('rename carries every bookmark in the folder with it', async () => {
+    await bookmarks.add({ url: 'https://a.example/', title: 'A', folder: 'Work' });
+    await bookmarks.add({ url: 'https://b.example/', title: 'B', folder: 'Home' });
+    await bookmarks.addFolder('Work');
+    await bookmarks.renameFolder('Work', '  Office ');
+    expect(bookmarks.get('https://a.example/').folder).toBe('Office');
+    expect(bookmarks.get('https://b.example/').folder).toBe('Home');
+    expect(bookmarks.folders()).toContain('Office');
+    expect(bookmarks.folders()).not.toContain('Work');
+  });
+
+  it('refuses an empty name, or the same one', async () => {
+    await bookmarks.add({ url: 'https://a.example/', title: 'A', folder: 'Work' });
+    expect(await bookmarks.renameFolder('Work', '   ')).toBe(null);
+    expect(await bookmarks.renameFolder('Work', 'Work')).toBe(null);
+    expect(bookmarks.get('https://a.example/').folder).toBe('Work');
+  });
+
+  it('removing a folder keeps its bookmarks, in Unsorted', async () => {
+    await bookmarks.add({ url: 'https://a.example/', title: 'A', folder: 'Work' });
+    await bookmarks.addFolder('Work');
+    await bookmarks.removeFolder('Work');
+    expect(bookmarks.get('https://a.example/').folder).toBe('');
+    expect(bookmarks.folders()).not.toContain('Work');
+  });
+});
+
 describe('tab groups', () => {
   it('keeps a tab in exactly one group', async () => {
     await groups.create('Work', ['t1']);

@@ -83,6 +83,26 @@ describe('exporting them', () => {
   });
 });
 
+describe('deleting one', () => {
+  it('can be undone, with the note coming back under its own id and date', async () => {
+    window.VexDB.put = vi.fn(async (store, record) => {
+      rows[store] = rows[store].filter(row => row.id !== record.id).concat([record]);
+      return record.id;
+    });
+    const note = await VexNotes.add({ url: 'https://a.example/', text: 'worth keeping' });
+    const kept = rows.notes[0];
+    await VexNotes.remove(note.id);
+    expect(rows.notes).toHaveLength(0);
+    await VexNotes.restore(kept);
+    expect(rows.notes).toEqual([kept]);
+  });
+
+  it('restores nothing that never had an id', () => {
+    expect(VexNotes.restore({ text: 'loose' })).toBe(null);
+    expect(VexNotes.restore(null)).toBe(null);
+  });
+});
+
 describe('finding one again', () => {
   it('searches the text, the title and the host', async () => {
     await VexNotes.add({ url: 'https://a.example/', title: 'Annual report', text: 'the figures' });

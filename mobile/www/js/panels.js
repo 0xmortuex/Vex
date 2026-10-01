@@ -264,25 +264,70 @@ const VexPanels = (() => {
         return;
       }
       for (const [folder, entries] of groups) {
-        body.appendChild(heading(folder || 'Unsorted'));
+        const head = heading(folder || 'Unsorted');
+        // A folder could be made and never renamed or removed: both existed in
+        // the model and nothing reached them. The heading is where to look.
+        if (folder) {
+          head.classList.add('tappable');
+          head.onclick = () => this.folderActions(folder, query);
+        }
+        body.appendChild(head);
         for (const entry of entries) {
           body.appendChild(listRow(entry, {
             sub: item => VexSearch.prettyHost(item.url),
             onOpen: item => { close(); VexUI.openUrl(item.url); },
-            actions: [{
-              icon: 'layers', label: 'Move to folder', run: item => this.pickFolder(item)
-            }],
+            actions: [
+              { icon: 'text', label: 'Rename', run: item => this.renameBookmark(item, query) },
+              { icon: 'layers', label: 'Move to folder', run: item => this.pickFolder(item, query) }
+            ],
             onRemove: async item => {
               await VexCollections.bookmarks.remove(item.url);
               VexSync.schedulePush();
               this.bookmarks(query);
+              // One tap on an × is too easy a way to lose something you kept.
+              VexUI.toast('Removed ' + (item.title || VexSearch.prettyHost(item.url)), 4500, {
+                label: 'Undo',
+                run: async () => {
+                  await VexCollections.bookmarks.restore(item);
+                  VexSync.schedulePush();
+                  this.bookmarks(query);
+                }
+              });
             }
           }));
         }
       }
     },
 
-    pickFolder(bookmark) {
+    async renameBookmark(bookmark, query = '') {
+      const name = await VexUI.prompt('Rename', 'What to call it', bookmark.title || '');
+      if (name === null || !name.trim()) return;
+      await VexCollections.bookmarks.update(bookmark.id, { title: name.trim() });
+      VexSync.schedulePush();
+      this.bookmarks(query);
+    },
+
+    folderActions(folder, query = '') {
+      VexSheets.choose(folder, [
+        { id: 'rename', label: 'Rename this folder' },
+        { id: 'remove', label: 'Remove the folder', note: 'Its bookmarks move to Unsorted', danger: true }
+      ], async choice => {
+        VexSheets.close();
+        if (choice === 'rename') {
+          const name = await VexUI.prompt('Rename the folder', 'A name for it', folder);
+          if (name === null || !name.trim()) return;
+          await VexCollections.bookmarks.renameFolder(folder, name);
+        } else if (choice === 'remove') {
+          if (!(await VexUI.confirm('Remove the folder ' + folder + '? Its bookmarks stay, in Unsorted.'))) return;
+          await VexCollections.bookmarks.removeFolder(folder);
+        }
+        VexSync.schedulePush();
+        this.bookmarks(query);
+      });
+      return true;
+    },
+
+    pickFolder(bookmark, query = '') {
       const folders = VexCollections.bookmarks.folders();
       VexSheets.choose('Move to folder',
         [{ id: '', label: 'Unsorted', selected: !bookmark.folder }]
@@ -299,7 +344,7 @@ const VexPanels = (() => {
             await VexCollections.bookmarks.move(bookmark.id, choice);
           }
           VexSync.schedulePush();
-          this.bookmarks();
+          this.bookmarks(query);
         });
     },
 
@@ -366,6 +411,14 @@ const VexPanels = (() => {
             await VexCollections.reading.remove(item.url);
             VexSync.schedulePush();
             this.readingList(filter);
+            VexUI.toast('Removed from the reading list', 4500, {
+              label: 'Undo',
+              run: async () => {
+                await VexCollections.reading.restore(item);
+                VexSync.schedulePush();
+                this.readingList(filter);
+              }
+            });
           }
         }));
       }
@@ -439,7 +492,16 @@ const VexPanels = (() => {
         if (note.url) row.onclick = () => { close(); VexUI.openUrl(note.url); };
         const remove = el('button', { class: 'x', 'aria-label': 'Delete' });
         remove.appendChild(icon('trash'));
-        remove.onclick = async event => { event.stopPropagation(); await VexNotes.remove(note.id); this.notes(query); };
+        remove.onclick = async event => {
+          event.stopPropagation();
+          await VexNotes.remove(note.id);
+          this.notes(query);
+          // A note is something you wrote; a trash icon is one tap.
+          VexUI.toast('Note deleted', 4500, {
+            label: 'Undo',
+            run: async () => { await VexNotes.restore(note); this.notes(query); }
+          });
+        };
         row.appendChild(remove);
         body.appendChild(row);
       }
@@ -566,14 +628,36 @@ const VexPanels = (() => {
           sub: () => session.tabs.length + ' tabs · ' + when(Date.parse(session.createdAt)),
           onOpen: async () => {
             close();
-            for (const tab of session.tabs) await VexTabStore.create(tab.url, { background: true });
+            // Lazily: each tab goes where it is going when you open it, rather
+            // than a session of twenty starting twenty page loads at once.
+            for (const tab of session.tabs) {
+              await VexTabStore.create(tab.url, { background: true, lazy: true, title: tab.title });
+            }
             VexUI.toast('Opened ' + session.tabs.length + ' tabs');
             VexUI.renderToolbar();
           },
+          actions: [{
+            icon: 'text', label: 'Rename',
+            run: async () => {
+              const name = await VexUI.prompt('Rename the session', 'A name for it', session.name);
+              if (name === null || !name.trim()) return;
+              await VexCollections.sessions.rename(session.id, name.trim());
+              VexSync.schedulePush();
+              this.sessions();
+            }
+          }],
           onRemove: async () => {
             await VexCollections.sessions.remove(session.id);
             VexSync.schedulePush();
             this.sessions();
+            VexUI.toast('Deleted ' + session.name, 4500, {
+              label: 'Undo',
+              run: async () => {
+                await VexCollections.sessions.restore(session);
+                VexSync.schedulePush();
+                this.sessions();
+              }
+            });
           }
         }));
       }

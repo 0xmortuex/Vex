@@ -54,6 +54,16 @@ const VexCollections = (() => {
       await VexStore.set('vex.bookmarks', this.all().filter(entry => entry.url !== url));
     },
 
+    /**
+     * Put back one that was removed, exactly as it was — its id, its folder, its
+     * date — rather than adding a new one with today's. Undo has to be undo.
+     */
+    async restore(entry) {
+      if (!entry || !entry.url || this.has(entry.url)) return null;
+      await VexStore.set('vex.bookmarks', [entry, ...this.all()].slice(0, 5000));
+      return entry;
+    },
+
     async update(bookmarkId, patch) {
       const next = this.all().map(entry => (entry.id === bookmarkId ? Object.assign({}, entry, patch) : entry));
       await VexStore.set('vex.bookmarks', next);
@@ -68,6 +78,17 @@ const VexCollections = (() => {
       folders.add(clean);
       await VexStore.set('vex.bookmarkFolders', [...folders]);
       return clean;
+    },
+
+    /** A folder is a name the bookmarks carry, so renaming it renames theirs. */
+    async renameFolder(from, to) {
+      const name = String(to || '').trim();
+      if (!name || name === from) return null;
+      await VexStore.set('vex.bookmarkFolders', [...new Set(list('vex.bookmarkFolders')
+        .map(folder => (folder === from ? name : folder)).concat([name]))]);
+      await VexStore.set('vex.bookmarks', this.all().map(entry =>
+        entry.folder === from ? Object.assign({}, entry, { folder: name }) : entry));
+      return name;
     },
 
     async removeFolder(name) {
@@ -149,6 +170,12 @@ const VexCollections = (() => {
       await VexStore.set('vex.readingList', this.all().filter(entry => entry.url !== url));
     },
 
+    async restore(entry) {
+      if (!entry || !entry.url || this.has(entry.url)) return null;
+      await VexStore.set('vex.readingList', [entry, ...this.all()].slice(0, 500));
+      return entry;
+    },
+
     async markRead(url, read = true) {
       await VexStore.set('vex.readingList', this.all().map(entry =>
         entry.url === url ? Object.assign({}, entry, { read }) : entry));
@@ -184,6 +211,12 @@ const VexCollections = (() => {
     async rename(sessionId, name) {
       await VexStore.set('vex.sessions', this.all().map(session =>
         session.id === sessionId ? Object.assign({}, session, { name }) : session));
+    },
+
+    async restore(session) {
+      if (!session || !session.id || this.all().some(other => other.id === session.id)) return null;
+      await VexStore.set('vex.sessions', [session, ...this.all()].slice(0, 50));
+      return session;
     }
   };
 

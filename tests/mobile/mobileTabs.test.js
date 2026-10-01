@@ -146,8 +146,54 @@ describe('the session', () => {
     expect(count).toBe(2);
     expect(VexTabStore.all()).toHaveLength(2);
     expect(VexTabStore.active().url).toBe('https://b.example/');
-    // Where you were on the page is part of where you were.
-    expect(window.VexBridge.restoreScroll).toHaveBeenCalledWith(expect.any(String), 640);
+
+    // Where you were on the page is part of where you were — once the page is
+    // there. Restoring it before would scroll the blank document a lazy tab
+    // starts on.
+    const a = VexTabStore.all().find(tab => tab.url === 'https://a.example/');
+    expect(window.VexBridge.restoreScroll).not.toHaveBeenCalled();
+    await VexTabStore.activate(a.id);
+    expect(window.VexBridge.restoreScroll).toHaveBeenCalledWith(a.id, 640);
+  });
+
+  it('loads only the tab in front; the rest wait until they are opened', async () => {
+    // Thirty tabs left open used to mean thirty page loads on every cold start.
+    store['vex.openTabs'] = [
+      { url: 'https://a.example/', title: 'A' },
+      { url: 'https://b.example/', title: 'B' },
+      { url: 'https://c.example/', title: 'C' }
+    ];
+    store['vex.activeTabUrl'] = 'https://b.example/';
+    await VexTabStore.restore();
+
+    // Every native tab started blank, and only B was sent anywhere.
+    expect(created.map(entry => entry.url)).toEqual(['about:blank', 'about:blank', 'about:blank']);
+    expect(navigated.map(entry => entry.url)).toEqual(['https://b.example/']);
+
+    // The others still know where they are, for the switcher and for the next launch.
+    const c = VexTabStore.all().find(tab => tab.url === 'https://c.example/');
+    expect(c.lazy).toBe(true);
+    expect(c.title).toBe('C');
+
+    // Opening one is what loads it.
+    await VexTabStore.activate(c.id);
+    expect(navigated.map(entry => entry.url)).toEqual(['https://b.example/', 'https://c.example/']);
+    expect(VexTabStore.get(c.id).lazy).toBe(false);
+  });
+
+  it('does not let a lazy tab take the blank page’s address or title', () => {
+    // Its WebView is showing about:blank, and every event it raises says so.
+    return VexTabStore.create('https://d.example/', { background: true, lazy: true, title: 'D' }).then(tab => {
+      VexTabStore.update(tab.id, { url: 'about:blank', title: '', loading: false, canGoBack: false });
+      expect(VexTabStore.get(tab.id)).toMatchObject({ url: 'https://d.example/', title: 'D', lazy: true });
+    });
+  });
+
+  it('a new tab is never lazy, and neither is a blank one', async () => {
+    const fresh = await VexTabStore.create('https://e.example/');
+    expect(fresh.lazy).toBeFalsy();
+    const blank = await VexTabStore.create('about:blank', { lazy: true, background: true });
+    expect(blank.lazy).toBeFalsy();
   });
 
   it('restores nothing when there was nothing open', async () => {

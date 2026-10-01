@@ -597,7 +597,7 @@ const VexUI = (() => {
     for (const tab of tabs) {
       const group = VexCollections.groups.of(tab.id);
       const card = el('div', 'tabcard' + (tab.id === VexTabStore.activeId() ? ' active' : '')
-        + (tab.asleep ? ' asleep' : ''));
+        + (tab.asleep || tab.lazy ? ' asleep' : ''));
       if (group) card.style.borderColor = group.color;
       const shot = el('div', 'tabcard-shot');
       if (tab.snapshot) shot.style.backgroundImage = 'url("' + tab.snapshot + '")';
@@ -609,7 +609,8 @@ const VexUI = (() => {
         + (tab.title || VexSearch.prettyHost(tab.url) || 'New tab')));
       // Asleep is worth saying: it explains why the card looks faded, and that
       // nothing is lost — tapping it is instant.
-      if (tab.asleep) bar.appendChild(el('span', 'tabcard-asleep', 'asleep'));
+      if (tab.lazy) bar.appendChild(el('span', 'tabcard-asleep', 'not loaded'));
+      else if (tab.asleep) bar.appendChild(el('span', 'tabcard-asleep', 'asleep'));
       const close = el('button', { class: 'tabcard-x', 'aria-label': 'Close tab' });
       close.appendChild(icon('close'));
       close.onclick = async event => {

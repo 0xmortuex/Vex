@@ -229,9 +229,11 @@
         loading: true, progress: 6, pendingUrl: data.url || '', blocked: 0, themeColor: ''
       });
       // Reading aloud belongs to one article. Navigating away ends it rather
-      // than leaving a voice reading a page that is no longer there.
-      if (VexSpeak.state.loaded && VexSpeak.state.url && data.url
-        && data.url !== VexSpeak.state.url) VexSpeak.stop();
+      // than leaving a voice reading a page that is no longer there — but only
+      // the tab in front: a background tab loading is not you navigating away,
+      // and opening a saved session starts a dozen of those at once.
+      if (data.id === VexTabStore.activeId() && VexSpeak.state.loaded && VexSpeak.state.url
+        && data.url && data.url !== VexSpeak.state.url) VexSpeak.stop();
       // The translated page's text nodes went with the document.
       VexTranslate.forget(data.id);
     });
@@ -249,7 +251,9 @@
         canGoBack: !!data.canGoBack,
         canGoForward: !!data.canGoForward
       });
-      if (!tab) return;
+      // A lazy tab finishing its blank page is not a visit: nothing is recorded,
+      // indexed or offered until it has actually gone where it is going.
+      if (!tab || tab.lazy) return;
       VexTabStore.persist();
       await recordHistory(tab);
       await VexSiteRules.applyTo(tab);

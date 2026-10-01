@@ -598,6 +598,30 @@ results.linkSheetRows = await page.$$eval('#sheet-list .sheet-row', rows => rows
 await shot('12-longpress');
 await page.evaluate(() => VexSheets.close());
 
+// ── Removing a bookmark, and taking it back ─────────────────────────────────
+// Driven through the panel itself: the × on the row, the toast it raises, and
+// Undo putting back the same bookmark rather than a new one with today's date.
+results.bookmarkUndo = await page.evaluate(async () => {
+  await VexCollections.bookmarks.add({ url: 'https://undo-me.example/', title: 'Undo me', folder: 'Smoke' });
+  const before = VexCollections.bookmarks.get('https://undo-me.example/');
+  VexPanels.bookmarks();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const row = [...document.querySelectorAll('#panel-body .list-row')]
+    .find(node => node.textContent.includes('Undo me'));
+  row.querySelector('.x').click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const gone = !VexCollections.bookmarks.has('https://undo-me.example/');
+  const toast = [...document.querySelectorAll('#toasts .toast')].pop();
+  toast.querySelector('button').click();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const after = VexCollections.bookmarks.get('https://undo-me.example/');
+  const folderHeading = [...document.querySelectorAll('#panel-body .list-head')]
+    .some(node => node.textContent === 'Smoke' && node.classList.contains('tappable'));
+  await VexCollections.bookmarks.remove('https://undo-me.example/');
+  VexPanels.close();
+  return [gone, !!after && after.id === before.id && after.folder === 'Smoke', folderHeading].join(',');
+});
+
 // ── The number on the tabs button ───────────────────────────────────────────
 // It has to be the number of cards the switcher will show, which is the side you
 // are on: a normal tab counting the private ones tells whoever is holding the
@@ -1286,6 +1310,7 @@ const expected = {
   sharedTextOpens: true,
   undoPrivate: true,
   privateRelocks: 'true,true,true,2',
+  bookmarkUndo: 'true,true,true',
   findRowOffered: 'true,true,knot',
   readerLookDefault: '-,-,-,-',
   readerLook: 'serif,paper',

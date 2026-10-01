@@ -505,6 +505,10 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .list-row .u { display: block; font-size: var(--text-xs); color: var(--vex-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-row .x { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; color: var(--vex-text-muted); }
 .list-head { padding: 16px 16px 6px; font-size: var(--text-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--vex-text-muted); }
+/* A heading that is also a way in — a bookmark folder's, for renaming it. The
+   ellipsis says so without a button taking a row of its own. */
+.list-head.tappable { cursor: pointer; }
+.list-head.tappable::after { content: ' ⋯'; letter-spacing: 0; }
 .list-empty { padding: 48px 24px; text-align: center; color: var(--vex-text-muted); font-size: var(--text-sm); line-height: 1.55; }
 .field { display: flex; align-items: center; gap: 12px; padding: 10px 16px; min-height: var(--tap); }
 .field label { flex: 1 1 auto; font-size: var(--text-md); }

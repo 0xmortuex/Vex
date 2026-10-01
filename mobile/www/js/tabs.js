@@ -56,11 +56,27 @@ const VexTabStore = (() => {
     activeId() { return activeId; },
     count(incognito) { return this.all().filter(tab => !!tab.incognito === !!incognito).length; },
 
+    /**
+     * A new tab. `lazy` makes one that knows its address but has not gone there:
+     * the WebView exists, blank, and the page loads the first time the tab is
+     * brought to the front.
+     *
+     * That is what a restored session needs. Thirty tabs left open meant thirty
+     * page loads on every cold start, all at once, before anything had been
+     * touched — the network, the battery and the first page you actually wanted
+     * all queuing behind pages you might not open today.
+     */
     async create(url, opts = {}) {
       const target = url || 'about:blank';
-      const { id } = await VexBridge.createTab(target, { incognito: !!opts.incognito });
+      const lazy = opts.lazy === true && target !== 'about:blank';
+      const { id } = await VexBridge.createTab(lazy ? 'about:blank' : target, { incognito: !!opts.incognito });
       if (!id) return null;
       const tab = record(id, target, opts.incognito);
+      if (lazy) {
+        tab.lazy = true;
+        tab.pendingUrl = '';
+        tab.title = opts.title || '';
+      }
       tabs.set(id, tab);
       order.push(id);
       if (opts.background !== true) await this.activate(id);
@@ -76,6 +92,7 @@ const VexTabStore = (() => {
       // Native wakes it as part of activating; this is the chrome agreeing.
       tabs.get(id).asleep = false;
       await VexBridge.activateTab(id);
+      await this.load(id);
       emit();
       this.persist();
     },
@@ -115,9 +132,40 @@ const VexTabStore = (() => {
     },
 
     // Native events land here; everything the chrome draws flows from this.
+    /**
+     * Send a lazy tab to the address it was holding. Called on activation; safe
+     * to call on any tab, because a tab that is not lazy has nowhere pending.
+     * Where you were on the page waits for the real document: restoring it
+     * earlier would scroll the blank one.
+     */
+    async load(id) {
+      const tab = tabs.get(id);
+      if (!tab || !tab.lazy) return false;
+      tab.lazy = false;
+      tab.pendingUrl = tab.url;
+      tab.loading = true;
+      emit();
+      await VexBridge.load(id, tab.url);
+      if (tab.scrollY > 0 && VexBridge.restoreScroll) VexBridge.restoreScroll(id, tab.scrollY);
+      return true;
+    },
+
     update(id, patch) {
       const tab = tabs.get(id);
       if (!tab) return null;
+      // A lazy tab's WebView is showing about:blank, and every event it raises
+      // is about that blank page. Its address and title are the ones it was
+      // created with until it is woken, so the blank page's are not taken.
+      if (tab.lazy && patch) {
+        patch = Object.assign({}, patch);
+        delete patch.url;
+        delete patch.title;
+        delete patch.pendingUrl;
+        delete patch.loading;
+        delete patch.progress;
+        delete patch.canGoBack;
+        delete patch.canGoForward;
+      }
       Object.assign(tab, patch);
       emit();
       return tab;
@@ -149,16 +197,16 @@ const VexTabStore = (() => {
       let restoredActive = null;
       for (const entry of saved) {
         if (!entry || !entry.url) continue;
-        const tab = await this.create(entry.url, { background: true });
+        // Lazily: only the tab you were looking at loads now. The rest know
+        // where they are and go there when you open them.
+        const tab = await this.create(entry.url, { background: true, lazy: true, title: entry.title });
         if (!tab) continue;
         tab.title = entry.title || '';
         tab.icon = entry.icon || '';
         if (entry.lastActiveAt) tab.lastActiveAt = entry.lastActiveAt;
-        // Where you were on the page is part of where you were.
-        if (entry.scrollY > 0) {
-          tab.scrollY = entry.scrollY;
-          VexBridge.restoreScroll(tab.id, entry.scrollY);
-        }
+        // Where you were on the page is part of where you were; load() puts it
+        // back once the real page is there.
+        if (entry.scrollY > 0) tab.scrollY = entry.scrollY;
         if (entry.url === wanted) restoredActive = tab.id;
       }
       const first = this.all()[0];

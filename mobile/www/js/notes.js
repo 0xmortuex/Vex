@@ -38,6 +38,10 @@ const VexNotes = (() => {
 
     remove(id) { return VexDB.delete('notes', id); },
 
+    // Undo: the same row under the same id, so its date and its place in the
+    // list come back with it.
+    restore(note) { return note && note.id != null ? VexDB.put('notes', note) : null; },
+
     clear() { return VexDB.clear('notes'); },
 
     /**
