@@ -6,6 +6,10 @@
 // protect the request it missed — then the chrome, then the session.
 
 (async function boot() {
+  // First, before anything that can fail: a recorder that starts late misses
+  // exactly the failures worth recording, which are the ones during boot.
+  VexReport.bind();
+
   await VexStore.init();
 
   await Promise.all([

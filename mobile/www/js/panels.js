@@ -71,6 +71,7 @@ const VexPanels = (() => {
     quickAccess: () => VexPanels.quickAccess(),
     assistant: () => VexPanels.assistantSettings(),
     localai: () => VexPanels.localAI(),
+    diagnostics: () => VexPanels.diagnostics(),
     privacy: () => VexPanels.privacy(),
     ai: () => VexViews.openAI()
   };
@@ -956,6 +957,9 @@ const VexPanels = (() => {
       body.appendChild(valueRow('Make Vex the default browser',
         (await VexBridge.isDefaultBrowser()) ? 'Vex is the default' : 'Opens Android settings', null,
         () => VexBridge.openDefaultBrowserSettings()));
+      body.appendChild(valueRow('Diagnostics',
+        'What this phone is, what its WebView can do, and the last problems', '',
+        () => this.diagnostics()));
       body.appendChild(VexSheets.row({
         label: 'Vex for Android',
         note: VexUI.version + ' · ' + (VexBridge.isNative ? 'system WebView' : 'development fallback')
@@ -1502,6 +1506,93 @@ const VexPanels = (() => {
         'A model that runs inside Vex, and Gemini Nano where the phone has it',
         localMode === 'off' ? 'Off' : localMode === 'only' ? 'On-device only' : 'Preferred',
         () => this.localAI()));
+    },
+
+    /**
+     * What this phone is, and what has gone wrong on it.
+     *
+     * Vex has no crash reporter and is not getting one, so this is where a
+     * problem goes instead: the last hundred failures, on the device, with one
+     * button that copies the lot as text for pasting into a bug report. The
+     * WebView's feature list is here because half of what Vex does is
+     * conditional on it, and when one of those things silently does nothing this
+     * is the page that says why.
+     */
+    async diagnostics() {
+      const body = openShell('diagnostics', 'Diagnostics');
+      const device = await VexReport.device();
+      const features = device.webviewFeatures || {};
+
+      body.appendChild(heading('This phone'));
+      body.appendChild(VexSheets.row({
+        icon: 'info', label: device.device || 'Unknown device',
+        note: 'Android ' + (device.android || '?') + ' · API ' + (device.sdk || '?')
+          + (device.abi ? ' · ' + device.abi : '')
+      }));
+      body.appendChild(VexSheets.row({
+        icon: 'globe', label: 'WebView',
+        note: (device.webview || 'unknown') + ' ' + (device.webviewVersion || '')
+      }));
+      if (Number(device.freeBytes) > 0) {
+        body.appendChild(VexSheets.row({
+          icon: 'save', label: 'Free space',
+          note: (Number(device.freeBytes) / 1073741824).toFixed(1) + ' GB'
+        }));
+      }
+
+      body.appendChild(heading('What this WebView can do'));
+      const FEATURES = [
+        ['multiProfile', 'Separate cookie jar for private tabs',
+          'Without it, private tabs still leave no history, but they share cookies with the rest.'],
+        ['documentStartScript', 'The fingerprint shield, before page scripts',
+          'Without it the shield runs at page start, which a fast tracker can beat.'],
+        ['algorithmicDarkening', 'Dark mode for pages that have none',
+          'Without it, "dark pages" does nothing on sites with no dark theme of their own.']
+      ];
+      for (const [key, label, why] of FEATURES) {
+        body.appendChild(VexSheets.row({
+          icon: features[key] ? 'check' : 'close',
+          label, note: features[key] ? 'Yes' : 'No — ' + why
+        }));
+      }
+
+      body.appendChild(heading('Storage'));
+      const stats = await VexHistory.stats();
+      body.appendChild(VexSheets.row({
+        icon: 'history', label: stats.visits.toLocaleString() + ' visits',
+        note: stats.pages.toLocaleString() + ' pages searchable · ' + stats.saved + ' saved offline',
+        run: async () => { await this.storage(); return true; }
+      }));
+
+      body.appendChild(heading('The last problems'));
+      const errors = await VexReport.all(40);
+      if (!errors.length) {
+        body.appendChild(el('div', 'field-note',
+          'Nothing has gone wrong since this was last cleared. Errors are kept on the phone and sent '
+          + 'nowhere: there is no crash reporter in Vex.'));
+      }
+      for (const entry of errors) {
+        body.appendChild(VexSheets.row({
+          icon: entry.kind === 'note' ? 'info' : 'warning',
+          label: entry.message || 'Something failed',
+          note: VexDom.when(entry.at) + (entry.where ? ' · ' + entry.where : ''),
+          run: async () => { await VexUI.offer(entry.message + (entry.where ? '\n\n' + entry.where : ''), 'Copy', 'Problem')
+            && VexUI.copy(entry.message + ' ' + entry.where); return true; }
+        }));
+      }
+
+      body.appendChild(heading('For a bug report'));
+      body.appendChild(valueRow('Copy all of this as text',
+        'The phone, the WebView, what it can do, and the last twenty problems', '', async () => {
+          await VexUI.copy(await VexReport.asText());
+          VexUI.toast('Copied');
+        }));
+      if (errors.length) {
+        body.appendChild(VexSheets.row({
+          icon: 'close', label: 'Clear the list', danger: true,
+          run: async () => { await VexReport.clear(); this.diagnostics(); return true; }
+        }));
+      }
     },
 
     /**

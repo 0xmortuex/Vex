@@ -6,6 +6,7 @@ import android.app.role.RoleManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -21,7 +22,10 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.graphics.drawable.IconCompat;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 
+import java.io.File;
 import java.net.HttpURLConnection;
 
 import com.getcapacitor.JSObject;
@@ -278,6 +282,59 @@ public class VexSystemPlugin extends Plugin {
                 if (connection != null) connection.disconnect();
             }
         }).start();
+    }
+
+    // ── What this phone actually is ──────────────────────────────────────────
+
+    /**
+     * The facts a bug report needs and the chrome cannot see.
+     *
+     * Half of what Vex does is conditional on the WebView: private tabs need
+     * multi-profile, the fingerprint shield needs document-start scripts, dark
+     * pages need algorithmic darkening. When one of them silently does nothing,
+     * the first question is which of those this phone has.
+     *
+     * Only features already used elsewhere in this app are reported, because a
+     * WebViewFeature constant that does not exist in the library is a compile
+     * error rather than something a try/catch can save.
+     */
+    @PluginMethod
+    public void deviceReport(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("android", Build.VERSION.RELEASE);
+        result.put("sdk", Build.VERSION.SDK_INT);
+        result.put("device", Build.MANUFACTURER + " " + Build.MODEL);
+        result.put("abi", Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "");
+
+        PackageInfo webview = null;
+        try { webview = WebViewCompat.getCurrentWebViewPackage(getContext()); } catch (Throwable ignored) { }
+        result.put("webview", webview == null ? "unknown" : webview.packageName);
+        result.put("webviewVersion", webview == null ? "unknown" : webview.versionName);
+
+        JSObject features = new JSObject();
+        features.put("multiProfile", supports(WebViewFeature.MULTI_PROFILE));
+        features.put("documentStartScript", supports(WebViewFeature.DOCUMENT_START_SCRIPT));
+        features.put("algorithmicDarkening", supports(WebViewFeature.ALGORITHMIC_DARKENING));
+        result.put("webviewFeatures", features);
+
+        try {
+            File files = getContext().getFilesDir();
+            result.put("freeBytes", files.getUsableSpace());
+        } catch (Throwable ignored) {
+            result.put("freeBytes", -1);
+        }
+        try {
+            PackageInfo self = getContext().getPackageManager()
+                    .getPackageInfo(getContext().getPackageName(), 0);
+            result.put("version", self.versionName);
+        } catch (Throwable ignored) {
+            result.put("version", "");
+        }
+        call.resolve(result);
+    }
+
+    private static boolean supports(String feature) {
+        try { return WebViewFeature.isFeatureSupported(feature); } catch (Throwable error) { return false; }
     }
 
     // ── Being the browser ────────────────────────────────────────────────────

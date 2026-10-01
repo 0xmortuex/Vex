@@ -144,7 +144,7 @@ rewrite** needed (weeks, new subsystem) · **❌ not possible** in a WebView app
 | Home-screen search widget | ✅ | Samsung's, not the desktop's: a resizable bar whose three targets are the address bar, dictation and the QR scanner |
 | Dictation, QR scan and share | ✅ | System recogniser; jsQR and qrcode-generator, both on-device |
 | Picture-in-picture, background audio | ✅ | Samsung's "video assistant", as Android's own PiP |
-| Crash log, safe mode | 🟡 | Worth rebuilding; `restart-smoke.js` has an Android analogue in instrumented tests |
+| Crash log, safe mode | ✅ partial | Settings → Diagnostics: the last hundred failures, the WebView's version and feature list, storage, all copyable as text. No crash reporter and no safe mode |
 | DevTools | 🟡 | `chrome://inspect` from desktop Chrome |
 
 ---

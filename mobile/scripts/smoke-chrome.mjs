@@ -273,6 +273,30 @@ await page.evaluate(async () => {
   VexPanels.close();
 });
 
+// ── Diagnostics ─────────────────────────────────────────────────────────────
+// What a bug report needs: the phone, what its WebView can do, and the last
+// problems. The recorder is checked by giving it one.
+await page.evaluate(() => VexReport.note('A problem, for the diagnostics page', 'smoke'));
+await page.evaluate(() => VexPanels.diagnostics());
+await page.waitForTimeout(400);
+results.diagnosticsRows = await page.$$eval('#panel-body .sheet-row', rows => rows.length);
+const diagnosticsText = (await page.textContent('#panel-body')) || '';
+results.diagnosticsWebView = diagnosticsText.includes('WebView');
+results.diagnosticsFeatures = diagnosticsText.includes('fingerprint shield');
+results.diagnosticsShowsProblem = diagnosticsText.includes('A problem, for the diagnostics page');
+results.diagnosticsText = await page.evaluate(async () => {
+  const text = await VexReport.asText();
+  return text.includes('WebView features:') && text.includes('A problem, for the diagnostics page');
+});
+// A token in an error message is exactly the thing not to put on a page people
+// screenshot.
+results.diagnosticsRedacts = await page.evaluate(() => {
+  const entry = VexReport.note('failed: https://x.example/a?token=SECRETVALUE&b=1', '');
+  return !entry.message.includes('SECRETVALUE');
+});
+await shot('15-diagnostics');
+await page.evaluate(() => VexPanels.close());
+
 // ── Polishing a selection ───────────────────────────────────────────────────
 // The sheet Nano's three jobs are offered through, and the fallback when there
 // is no Nano: a worker answer, shown with something to do about it.
@@ -802,7 +826,9 @@ const expected = {
   localAiPrompt: true, localAiImported: true, localAiLoads: true,
   localAiHandlesNow: true, localAiStreamed: true,
   chatOnDeviceTag: true, chatOnDeviceAnswer: true,
-  polishSheet: 5, polishOffersGrammar: true
+  polishSheet: 5, polishOffersGrammar: true,
+  diagnosticsWebView: true, diagnosticsFeatures: true, diagnosticsShowsProblem: true,
+  diagnosticsText: true, diagnosticsRedacts: true
 };
 
 const failures = [];
@@ -829,6 +855,7 @@ if (results.agentClosesTabs && !results.agentClosesTabs.sentTools) failures.push
 if (results.libraryRows < 25) failures.push('libraryRows: ' + results.libraryRows);
 if (results.localAiRows < 4) failures.push('localAiRows: the on-device panel is missing rows ('
   + results.localAiRows + ')');
+if (results.diagnosticsRows < 6) failures.push('diagnosticsRows: ' + results.diagnosticsRows);
 if (results.libraryShelves < 5) failures.push('libraryShelves: ' + results.libraryShelves);
 if (!(results.librarySearch || []).includes('saved')) failures.push('librarySearch: ' + JSON.stringify(results.librarySearch));
 if (!String(results.privateEmptyCopy).startsWith('No private tabs')) failures.push('privateEmptyCopy: ' + results.privateEmptyCopy);

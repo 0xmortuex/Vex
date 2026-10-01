@@ -37,6 +37,7 @@ const VexLibrary = (() => {
       ['summarise', 'Summarise', 'The page, shorter.', () => VexViews.summarisePage()],
       ['translate', 'Translate', 'The page in another language, through your worker.', () => VexUI.translatePage()],
       ['memory', 'What it remembers', 'Facts you have told it to keep.', () => VexPanels.assistantSettings()],
+      ['diagnostics', 'Diagnostics', 'What this phone is, what its WebView can do, and the last problems — copyable for a bug report.', () => VexPanels.diagnostics()],
       ['on-device', 'On-device AI', 'A model that runs inside Vex with no network at all, and Gemini Nano where the phone has it.', () => VexPanels.localAI()],
       ['nano', 'Summarise with Gemini Nano', 'Instant, on the phone, nothing stored by Vex — the weights belong to Android.', () => VexPanels.localAI()]
     ]],

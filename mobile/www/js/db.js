@@ -22,7 +22,7 @@
 
 const VexDB = (() => {
   const NAME = 'vex';
-  const VERSION = 2;
+  const VERSION = 3;
   let database = null;
   let broken = false;
 
@@ -60,6 +60,12 @@ const VexDB = (() => {
         if (!db.objectStoreNames.contains('downloads')) {
           const downloads = db.createObjectStore('downloads', { keyPath: 'id', autoIncrement: true });
           downloads.createIndex('at', 'at');
+        }
+        // Version 3: the last few things that went wrong. A browser that cannot
+        // say what it failed at is a browser you cannot report a bug about.
+        if (!db.objectStoreNames.contains('errors')) {
+          const errors = db.createObjectStore('errors', { keyPath: 'id', autoIncrement: true });
+          errors.createIndex('at', 'at');
         }
       };
       request.onsuccess = () => { database = request.result; resolve(database); };

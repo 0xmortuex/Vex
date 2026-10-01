@@ -322,6 +322,19 @@ const VexBridge = (() => {
     },
     openDefaultBrowserSettings() { return system('openDefaultBrowserSettings', {}); },
 
+    // What this phone is, for the diagnostics page and a bug report.
+    async deviceReport() {
+      if (!plugins.VexSystem) {
+        return {
+          android: '—', sdk: 0, device: 'development fallback', abi: '',
+          webview: 'the browser you are running this in', webviewVersion: '',
+          webviewFeatures: { multiProfile: false, documentStartScript: false, algorithmicDarkening: false },
+          freeBytes: -1, version: ''
+        };
+      }
+      return system('deviceReport', {});
+    },
+
     // A plain GET through native, for the search engine's suggestions: the
     // endpoints send no CORS header, so the chrome cannot ask them itself.
     async fetchText(url) {
