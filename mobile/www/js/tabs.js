@@ -123,8 +123,12 @@ const VexTabStore = (() => {
       if (!window.VexStore) return;
       clearTimeout(this._persistTimer);
       this._persistTimer = setTimeout(() => {
+        // lastActiveAt has to survive the restart, or "close tabs you have not
+        // opened in a month" can never fire: a restored tab was created a
+        // moment ago, so every tab looks new on every launch.
         const open = this.normal().map(tab => ({
-          url: tab.url, title: tab.title, icon: tab.icon || '', scrollY: tab.scrollY || 0
+          url: tab.url, title: tab.title, icon: tab.icon || '', scrollY: tab.scrollY || 0,
+          lastActiveAt: tab.lastActiveAt || tab.createdAt || Date.now()
         }));
         VexStore.set('vex.openTabs', open);
         const active = this.active();
@@ -144,6 +148,7 @@ const VexTabStore = (() => {
         if (!tab) continue;
         tab.title = entry.title || '';
         tab.icon = entry.icon || '';
+        if (entry.lastActiveAt) tab.lastActiveAt = entry.lastActiveAt;
         // Where you were on the page is part of where you were.
         if (entry.scrollY > 0) {
           tab.scrollY = entry.scrollY;

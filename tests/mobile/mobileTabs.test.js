@@ -105,8 +105,34 @@ describe('the session', () => {
     await VexTabStore.activate(first.id);
     VexTabStore.persist();
     await new Promise(resolve => setTimeout(resolve, 500));
-    expect(store['vex.openTabs']).toEqual([{ url: 'https://a.example/', title: '', icon: '', scrollY: 0 }]);
+    expect(store['vex.openTabs']).toEqual([{
+      url: 'https://a.example/', title: '', icon: '', scrollY: 0, lastActiveAt: expect.any(Number)
+    }]);
     expect(store['vex.activeTabUrl']).toBe('https://a.example/');
+  });
+
+  it('remembers when each tab was last in front, so a stale tab stays stale', async () => {
+    // "Close tabs you have not opened in a month" measures from lastActiveAt.
+    // If that does not survive the restart, every restored tab looks like it
+    // was opened a moment ago and the setting can never fire once.
+    window.VexBridge.restoreScroll = vi.fn(async () => {});
+    const old = Date.now() - 40 * 86400000;
+    store['vex.openTabs'] = [
+      { url: 'https://stale.example/', title: 'Stale', lastActiveAt: old },
+      { url: 'https://fresh.example/', title: 'Fresh' }
+    ];
+    store['vex.activeTabUrl'] = 'https://fresh.example/';
+    await VexTabStore.restore();
+    const stale = VexTabStore.all().find(tab => tab.url === 'https://stale.example/');
+    expect(stale.lastActiveAt).toBe(old);
+    // The one you were last looking at counts as opened now.
+    expect(VexTabStore.active().lastActiveAt).toBeGreaterThan(old);
+
+    // And it goes back out the way it came in.
+    VexTabStore.persist();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const saved = store['vex.openTabs'].find(entry => entry.url === 'https://stale.example/');
+    expect(saved.lastActiveAt).toBe(old);
   });
 
   it('brings the last session back, with the front tab and where it was scrolled', async () => {

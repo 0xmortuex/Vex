@@ -358,6 +358,8 @@ const VexUI = (() => {
 
   function closeOmnibox() {
     if ($('omnibox').hidden) return;
+    // Nothing a slow query answers belongs in a closed omnibox.
+    suggestFor = '';
     $('omnibox').hidden = true;
     $('omni-input').blur();
     cover(false);
@@ -425,6 +427,9 @@ const VexUI = (() => {
     const query = String(text || '').trim();
     if (query.length >= 3) {
       const hits = await VexHistory.recall(query, 4);
+      // Reading the page text out of IndexedDB takes long enough that two more
+      // letters, or a closed omnibox, are both likely by the time it answers.
+      if (suggestFor !== query) return;
       const known = new Set(rows.map(row => row.url));
       const fresh = hits.filter(hit => !known.has(hit.url));
       if (fresh.length) {
@@ -566,8 +571,11 @@ const VexUI = (() => {
       { id: 'qr', label: 'Show as QR code' },
       { id: 'share', label: 'Share' }
     ].filter(Boolean), async choice => {
-      VexSheets.close();
       if (choice === 'group') {
+        // This row replaces the sheet's contents with the group picker rather
+        // than acting, so it has to return exactly true: anything else — and an
+        // async handler's promise is anything else — closes the sheet, which
+        // took the picker with it and left tab groups impossible to make.
         const groups = VexCollections.groups.all();
         VexSheets.choose('Group', groups.map(entry => ({ id: entry.id, label: entry.name }))
           .concat([{ id: '__new', label: 'New group…' }]), async target => {
@@ -581,7 +589,10 @@ const VexUI = (() => {
           }
           renderTabGrid();
         });
-      } else if (choice === 'ungroup') {
+        return true;
+      }
+      VexSheets.close();
+      if (choice === 'ungroup') {
         await VexCollections.groups.removeTab(tab.id);
         renderTabGrid();
       } else if (choice === 'close-others') {

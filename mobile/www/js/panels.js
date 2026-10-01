@@ -10,8 +10,15 @@ const VexPanels = (() => {
   const { $, el, icon, clear, favicon, when, bytes } = VexDom;
   let stack = [];
   let totpTimer = null;
+  // Which drawing a body belongs to. Several panels fill themselves from
+  // IndexedDB, and the search field re-opens the panel on every keystroke, so
+  // an answer can arrive after its body has been cleared and refilled by a
+  // later one — two sets of rows in one list, the stale ones underneath.
+  // Each draw takes a number and stops if the number has moved on.
+  let drawn = 0;
 
   function openShell(name, title, { search, action } = {}) {
+    drawn++;
     stopTotp();
     $('panel-title').textContent = title;
     const searchWrap = $('panel-search');
@@ -90,6 +97,10 @@ const VexPanels = (() => {
     diagnostics: () => VexPanels.diagnostics(),
     backup: () => VexPanels.backup(),
     privacy: () => VexPanels.privacy(),
+    // Two panels used to open under their parent's name, which left Back with
+    // nothing to pop and closed the whole panel instead of stepping up one.
+    storage: () => VexPanels.storage(),
+    addLogin: () => VexPanels.addLogin(),
     ai: () => VexViews.openAI()
   };
 
@@ -179,7 +190,9 @@ const VexPanels = (() => {
           run: async () => { await VexHistory.clear(); this.history(); VexUI.toast('History cleared'); }
         }
       });
+      const mine = drawn;
       const entries = await VexHistory.search(query, 400);
+      if (mine !== drawn) return;
       if (!entries.length) {
         body.appendChild(empty(query ? 'Nothing matches “' + query + '”.' : 'Pages you visit show up here.'));
         return;
@@ -204,14 +217,17 @@ const VexPanels = (() => {
           onInput: value => this.recall(value)
         }
       });
+      const mine = drawn;
       if (!query.trim()) {
         const stats = await VexHistory.stats();
+        if (mine !== drawn) return;
         body.appendChild(empty('Vex keeps the text of the pages you read, on the device, so you can find '
           + 'one by what it said rather than what it was called.\n\n'
           + stats.pages.toLocaleString() + ' pages are searchable.'));
         return;
       }
       const hits = await VexHistory.recall(query, 60);
+      if (mine !== drawn) return;
       if (!hits.length) {
         body.appendChild(empty('No page you have read contains all of those words.'));
         return;
@@ -348,7 +364,9 @@ const VexPanels = (() => {
     // ── Saved pages ────────────────────────────────────────────────────────
     async savedPages() {
       const body = openShell('saved', 'Saved pages');
+      const mine = drawn;
       const pages = await VexTools.savedPages();
+      if (mine !== drawn) return;
       if (!pages.length) {
         body.appendChild(empty('A saved page is the whole document, kept on the phone. It opens with no '
           + 'connection at all — the tunnel, the plane, the dead spot on the way home.'));
@@ -379,7 +397,9 @@ const VexPanels = (() => {
           }
         }
       });
+      const mine = drawn;
       const notes = await VexNotes.search(query);
+      if (mine !== drawn) return;
       if (!notes.length) {
         body.appendChild(empty(query
           ? 'Nothing matches “' + query + '”.'
@@ -542,12 +562,14 @@ const VexPanels = (() => {
       const body = openShell('downloads', 'Downloads', {
         action: { label: 'Clear list', run: async () => { await VexDB.clear('downloads'); this.downloads(); } }
       });
+      const mine = drawn;
       const rows = await VexDB.scan('downloads', { limit: 200 });
       let live = [];
       try {
         const status = await VexBridge.downloadStatus();
         live = (status && status.downloads) || [];
       } catch { live = []; }
+      if (mine !== drawn) return;
 
       if (!rows.length && !live.length) {
         body.appendChild(empty('Files you download land in the phone’s Downloads folder, and are listed here.'));
@@ -609,6 +631,15 @@ const VexPanels = (() => {
         return;
       }
 
+      // The vault locks itself five minutes after you unlocked it, and again
+      // the moment Vex goes to the background. A panel left open has to honour
+      // that: the codes it ticks and the password behind the copy button both
+      // came out of the vault, so a phone put down on this screen must not go
+      // on handing them out. Everything below re-reads the entry out of the
+      // vault by id rather than trusting the copy it captured.
+      const current = id => VexVault.all().find(row => row.id === id) || null;
+      const relock = () => { stopTotp(); this.passwords(); };
+
       const codeNodes = [];
       for (const entry of entries) {
         const node = el('div', 'list-row');
@@ -637,14 +668,22 @@ const VexPanels = (() => {
         fill.onclick = async () => {
           const tab = VexTabStore.active();
           if (!tab) return;
+          if (VexVault.locked() && !(await VexVault.unlock('Fill this login'))) { relock(); return; }
+          const fresh = current(entry.id);
+          if (!fresh) { relock(); return; }
           close();
-          const filled = await VexVault.fill(tab.id, entry);
+          const filled = await VexVault.fill(tab.id, fresh);
           VexUI.toast(filled ? 'Filled — you press the button' : 'No login form on this page');
         };
         actions.appendChild(fill);
         const copy = el('button', { 'aria-label': 'Copy password' });
         copy.appendChild(icon('copy'));
-        copy.onclick = () => VexUI.copy(entry.password);
+        copy.onclick = async () => {
+          if (VexVault.locked() && !(await VexVault.unlock('Copy this password'))) { relock(); return; }
+          const fresh = current(entry.id);
+          if (!fresh) { relock(); return; }
+          VexUI.copy(fresh.password);
+        };
         actions.appendChild(copy);
         node.appendChild(actions);
 
@@ -661,9 +700,14 @@ const VexPanels = (() => {
 
       // The codes tick over every second, and the ring empties as they age.
       const tick = async () => {
+        // No biometric prompt here — a timer must never raise one. When the
+        // lock has fallen the panel simply goes back to its locked face.
+        if (VexVault.locked()) { relock(); return; }
         for (const item of codeNodes) {
           try {
-            item.code.textContent = await VexVault.totp(item.entry.secret);
+            const fresh = current(item.entry.id);
+            if (!fresh || !fresh.secret) { item.code.textContent = '······'; continue; }
+            item.code.textContent = await VexVault.totp(fresh.secret);
             const left = VexVault.secondsLeft();
             item.ring.querySelector('.fill').setAttribute('stroke-dashoffset', String(56.5 * (1 - left / 30)));
           } catch {
@@ -678,7 +722,7 @@ const VexPanels = (() => {
 
     async addLogin(prefill = {}) {
       if (!(await VexVault.unlock('Add a login'))) { VexUI.toast('Not unlocked'); return; }
-      const body = openShell('passwords', 'Add a login');
+      const body = openShell('addLogin', 'Add a login');
       const fields = {};
       for (const [key, label, type] of [
         ['host', 'Site', 'text'], ['username', 'Username', 'text'],
@@ -995,8 +1039,10 @@ const VexPanels = (() => {
 
     // ── Storage ────────────────────────────────────────────────────────────
     async storage() {
-      const body = openShell('settings', 'Storage');
+      const body = openShell('storage', 'Storage');
+      const mine = drawn;
       const stats = await VexHistory.stats();
+      if (mine !== drawn) return;
       body.appendChild(heading('What is kept'));
       body.appendChild(valueRow('History', 'Every page you opened', stats.visits.toLocaleString(), () => this.history()));
       body.appendChild(valueRow('Searchable pages', 'The text behind Recall', stats.pages.toLocaleString(), () => this.recall()));
@@ -1546,7 +1592,9 @@ const VexPanels = (() => {
     async backup() {
       const body = openShell('backup', 'Backup');
       const withHistory = VexStore.get('vex.backupHistory', false) === true;
+      const mine = drawn;
       const counts = await VexBackup.summary({ history: withHistory });
+      if (mine !== drawn) return;
 
       body.appendChild(el('div', 'field-note',
         'One file, encrypted with a passphrase you choose, holding every setting, your bookmarks and '
@@ -1629,7 +1677,9 @@ const VexPanels = (() => {
      */
     async diagnostics() {
       const body = openShell('diagnostics', 'Diagnostics');
+      const mine = drawn;
       const device = await VexReport.device();
+      if (mine !== drawn) return;
       const features = device.webviewFeatures || {};
 
       body.appendChild(heading('This phone'));

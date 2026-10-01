@@ -64,6 +64,36 @@ for (const file of walk(www)) {
   }
 }
 
+// Every panel has to be reopenable by the name it pushes on the stack. Back
+// pops the current name, pops the one under it and looks that up in REOPEN; a
+// panel that opened under another panel's name therefore left Back with nothing
+// to pop and closed the whole panel instead of stepping up one, and a name with
+// no REOPEN entry drops you on the page. Both are invisible until you press
+// Back in the one place it happens.
+{
+  const panels = fs.readFileSync(path.join(www, 'js', 'panels.js'), 'utf8');
+  const reopen = new Set([...panels.matchAll(/^    (\w+): \(\) =>/gm)].map(match => match[1]));
+  const opened = new Map();          // stack name -> titles it opens under
+  for (const file of walk(path.join(www, 'js')).filter(name => name.endsWith('.js'))) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/openShell\('(\w+)',\s*'([^']*)'/g)) {
+      if (!opened.has(match[1])) opened.set(match[1], []);
+      opened.get(match[1]).push(match[2]);
+    }
+  }
+  for (const [name, titles] of opened) {
+    checked++;
+    if (!reopen.has(name)) {
+      failures.push('panels.js opens a panel as \'' + name + '\' but REOPEN has no entry for it, '
+        + 'so Back from anything above it closes the panel instead of returning');
+    }
+    if (titles.length > 1) {
+      failures.push('two panels open under the stack name \'' + name + '\' (' + titles.join(', ')
+        + '), so Back from the second one has nothing to pop — give each its own name');
+    }
+  }
+}
+
 // The Android side: every plugin method the bridge calls has to exist, in the
 // plugin it calls it on. A chrome that ships a call into a method nobody wrote
 // fails at runtime, on a device, with "no such method" — which is exactly the
