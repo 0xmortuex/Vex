@@ -9,9 +9,10 @@
 //
 // Rule format handed to native is a parsed subset of EasyList:
 //   { block: [...], allow: [...], hide: { "host": ["selector", ...] } }
-// Network rules are matched as substrings with optional ||domain anchors and
-// $third-party / $domain= options; cosmetic rules are injected as CSS by the
-// native layer once the document starts.
+// Network rules are matched natively with their anchors, wildcards and
+// separators, $third-party (and its inverse) and $domain= (and its
+// exclusions), through a token index (BlockEngine.java); cosmetic rules are
+// injected as CSS, a rule per selector, once the document starts.
 
 const VexBlock = (() => {
   const DEFAULT_LISTS = [
