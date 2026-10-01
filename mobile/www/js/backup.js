@@ -33,6 +33,10 @@ const VexBackup = (() => {
     'vex.activeTabUrl',
     'vex.closedTabs',
     'vex.sync',              // the sync key is bound to its own recovery code
+    // Which sites have a saved login: the logins themselves stay in this
+    // phone's Keystore, so on another phone this list would offer to fill
+    // logins that are not there.
+    'vex.loginHosts',
     'vex.blockRules'         // gone in version 5; still named so an old one is never copied
   ]);
 
@@ -165,15 +169,27 @@ const VexBackup = (() => {
         await VexStore.set(key, value);
         applied++;
       }
+      // Notes and history are added to what is here, so restoring the same
+      // file twice must not leave two of everything: what is already here, by
+      // the same page at the same moment, is skipped.
+      const noteKey = note => (note.url || '') + '|' + (note.at || 0) + '|' + String(note.text || '').slice(0, 80);
+      const visitKey = visit => (visit.url || '') + '|' + (visit.at || 0);
+      const haveNotes = new Set((await VexDB.scan('notes', { limit: 5000 }).catch(() => [])).map(noteKey));
+      const haveVisits = new Set((await VexDB.scan('history', { limit: HISTORY_CAP * 2 }).catch(() => [])).map(visitKey));
+
       let notes = 0;
       for (const note of (data && data.notes) || []) {
+        if (!note || haveNotes.has(noteKey(note))) continue;
         const { id, ...rest } = note;          // let the store assign its own
         await VexDB.add('notes', rest).catch(() => {});
+        haveNotes.add(noteKey(note));
         notes++;
       }
       let history = 0;
       for (const entry of (data && data.history) || []) {
         if (!entry || !entry.url) continue;
+        if (haveVisits.has(visitKey(entry))) continue;
+        haveVisits.add(visitKey(entry));
         await VexDB.add('history', {
           url: entry.url, title: entry.title || '', at: entry.at || Date.now(),
           icon: entry.icon || '',

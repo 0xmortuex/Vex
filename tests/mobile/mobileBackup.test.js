@@ -113,6 +113,9 @@ describe('putting it back', () => {
     db.history = [{ url: 'https://h.example/', title: 'H', at: 1 }];
     const data = await VexBackup.decrypt(
       JSON.parse(await VexBackup.write('a good passphrase', { history: true })), 'a good passphrase');
+    // Restored on another phone, which has a note of its own already.
+    db.notes = [{ id: 1, text: 'the other phone’s', at: 5 }];
+    db.history = [];
     const applied = await VexBackup.restore(data);
     expect(applied.notes).toBe(1);
     expect(applied.history).toBe(1);
@@ -120,6 +123,30 @@ describe('putting it back', () => {
     // per-site grouping both miss everything that came out of a backup.
     expect(db.history.at(-1).host).toBe('h.example');
     expect(db.notes.length).toBe(2);
+  });
+
+  it('restoring the same file twice adds nothing the second time', async () => {
+    const data = {
+      settings: {},
+      notes: [{ id: 9, url: 'https://n.example/', text: 'A line', at: 100 }],
+      history: [{ url: 'https://h.example/', title: 'H', at: 200 }]
+    };
+    const first = await VexBackup.restore(data);
+    const second = await VexBackup.restore(data);
+    expect([first.notes, first.history]).toEqual([1, 1]);
+    expect([second.notes, second.history]).toEqual([0, 0]);
+    expect(db.notes).toHaveLength(1);
+    expect(db.history).toHaveLength(1);
+  });
+
+  it('never brings across which sites have saved logins, since the logins cannot come', async () => {
+    store.set('vex.loginHosts', ['bank.example']);
+    const text = await VexBackup.write('a long passphrase');
+    const data = await VexBackup.decrypt(JSON.parse(text), 'a long passphrase');
+    expect(data.settings['vex.loginHosts']).toBeUndefined();
+    store.delete('vex.loginHosts');
+    await VexBackup.restore({ settings: { 'vex.loginHosts': ['bank.example'] } });
+    expect(store.has('vex.loginHosts')).toBe(false);
   });
 
   it('ignores anything in the file that is not a Vex setting', async () => {
