@@ -550,3 +550,46 @@ describe('Send to My Devices', () => {
     await expect(mobile.sync.sendToDevices('file:///sdcard/x')).rejects.toThrow(/web addresses/);
   });
 });
+
+describe('v2.35.2 (§5.4, §6 rule 11)', () => {
+  it('§5.4: joining keeps a local bookmark whose address the account only has as a tombstone', async () => {
+    await desktopWithAccount();
+    // The PC deletes its second bookmark: the account now holds it as a tombstone.
+    pc.local.set('vex.bookmarks', JSON.stringify([
+      { id: 'bmdesk1', url: 'https://desk.example/one', title: 'Desk one', folder: 'Work', at: 1700000000001 }
+    ]));
+    await pc.engine.pushNow();
+    const mobile = phone(stand);
+    await mobile.sync.setWorkerUrl(stand.base);
+    await mobile.bookmarks.add({ url: 'https://desk.example/two', title: 'Saved on the phone' });
+    await mobile.bookmarks.add({ url: 'https://desk.example/one', title: 'Same page, phone id' });
+    await mobile.sync.signIn(EMAIL, await codeFor(mobile, EMAIL), recovery);
+    // The live match is dropped for the account's copy; the tombstoned one stays.
+    expect(mobile.bookmarks.all().map(item => item.url).sort()).toEqual(['https://desk.example/one', 'https://desk.example/two']);
+    expect(mobile.bookmarks.all().find(item => item.url === 'https://desk.example/one').id).toBe('bmdesk1');
+    const { doc } = await accountDocument(stand, recovery);
+    const live = Object.entries(doc.records).filter(([key, r]) => sourceOf(key) === 'preference:vex.bookmarks' && !r.deleted && r.value && r.value.item)
+      .map(([, r]) => r.value.item);
+    expect(live.map(item => item.url).sort()).toEqual(['https://desk.example/one', 'https://desk.example/two']);
+    expect(live.find(item => item.url === 'https://desk.example/two').id).not.toBe('bmdesk2');
+  });
+
+  it('rule 11: a record of a source it does not own that fails the contracts is carried, not refused', async () => {
+    await desktopWithAccount();
+    const { doc } = await accountDocument(stand, recovery);
+    // A property name data-contracts rejects, in a source nobody here owns.
+    doc.records['["preference:vex.fromTheFuture","type"]'] = { clock: { future1: 1 }, deleted: false, value: 'scalar', at: 1, conflicts: [] };
+    doc.records['["preference:vex.fromTheFuture","value"]'] = { clock: { future1: 1 }, deleted: false, value: JSON.parse('{"constructor":1,"b":[2]}'), at: 1, conflicts: [] };
+    await stand.putDocument(doc, recovery);
+    const before = recordTexts((await accountDocument(stand, recovery)).doc);
+    const mobile = await joinedPhone();
+    await mobile.bookmarks.add({ url: 'https://phone.example/rule11', title: 'Still syncs' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const after = recordTexts((await accountDocument(stand, recovery)).doc);
+    expect(after['["preference:vex.fromTheFuture","type"]']).toBe(before['["preference:vex.fromTheFuture","type"]']);
+    expect(after['["preference:vex.fromTheFuture","value"]']).toBe(before['["preference:vex.fromTheFuture","value"]']);
+    expect(Object.values(after).some(text => text.includes('https://phone.example/rule11'))).toBe(true);
+    // And the v2.35.2 desktop, which does not read it either, still syncs.
+    expect((await pc.engine.pushNow()).ok !== false).toBe(true);
+  });
+});
