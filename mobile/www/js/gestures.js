@@ -70,7 +70,65 @@ const VexGestures = (() => {
     element.addEventListener('touchcancel', () => { cancel(); fired = false; }, { passive: true });
   }
 
-  return { swipe, longPress };
+  /**
+   * Swipe something sideways to throw it away — a tab card, the way Samsung
+   * Internet and Chrome close one. The element follows the finger and fades;
+   * past a third of its width, or flicked, it goes, and `onDismiss` is told
+   * which way. Anything less springs back.
+   *
+   * It only takes the gesture once the finger is plainly moving sideways, so
+   * scrolling the grid up and down still scrolls it. A drag that moved the
+   * card never becomes a tap on it either.
+   */
+  function dismiss(element, onDismiss) {
+    let startX = 0, startY = 0, startAt = 0, dx = 0, state = 'idle';
+    const reset = animate => {
+      element.style.transition = animate ? 'transform 180ms ease, opacity 180ms ease' : '';
+      element.style.transform = '';
+      element.style.opacity = '';
+    };
+    element.addEventListener('touchstart', event => {
+      if (event.touches.length !== 1) { state = 'idle'; return; }
+      const touch = event.touches[0];
+      startX = touch.clientX; startY = touch.clientY; startAt = Date.now(); dx = 0;
+      state = 'pending';
+      element.style.transition = '';
+    }, { passive: true });
+    element.addEventListener('touchmove', event => {
+      if (state === 'idle' || state === 'scrolling') return;
+      const touch = event.touches[0];
+      const moveX = touch.clientX - startX, moveY = touch.clientY - startY;
+      if (state === 'pending') {
+        if (Math.abs(moveY) > 10 && Math.abs(moveY) > Math.abs(moveX)) { state = 'scrolling'; return; }
+        if (Math.abs(moveX) < 12 || Math.abs(moveX) < Math.abs(moveY) * 1.5) return;
+        state = 'dragging';
+      }
+      dx = moveX;
+      if (event.cancelable) event.preventDefault();
+      const width = element.offsetWidth || 1;
+      element.style.transform = 'translateX(' + dx + 'px)';
+      element.style.opacity = String(Math.max(0.15, 1 - Math.abs(dx) / width));
+    }, { passive: false });
+    element.addEventListener('touchend', event => {
+      const was = state;
+      state = 'idle';
+      if (was !== 'dragging') return;
+      if (event.cancelable) event.preventDefault();       // a drag is not a tap
+      const width = element.offsetWidth || 1;
+      const speed = Math.abs(dx) / Math.max(1, Date.now() - startAt);
+      if (Math.abs(dx) > width / 3 || (speed > 0.6 && Math.abs(dx) > 40)) {
+        element.style.transition = 'transform 160ms ease, opacity 160ms ease';
+        element.style.transform = 'translateX(' + (dx < 0 ? -1 : 1) * width * 1.2 + 'px)';
+        element.style.opacity = '0';
+        setTimeout(() => onDismiss(dx < 0 ? 'left' : 'right'), 150);
+      } else {
+        reset(true);
+      }
+    }, { passive: false });
+    element.addEventListener('touchcancel', () => { state = 'idle'; reset(true); }, { passive: true });
+  }
+
+  return { swipe, longPress, dismiss };
 })();
 
 if (typeof window !== 'undefined') window.VexGestures = VexGestures;

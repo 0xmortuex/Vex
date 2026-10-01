@@ -631,6 +631,8 @@ const VexUI = (() => {
 
       card.onclick = async () => { closeTabGrid(); await VexTabStore.activate(tab.id); };
       VexGestures.longPress(card, () => tabActions(tab));
+      // Thrown aside, it closes — with the same Undo the × offers.
+      VexGestures.dismiss(card, () => closeTabWithUndo(tab));
       list.appendChild(card);
     }
   }

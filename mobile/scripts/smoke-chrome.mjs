@@ -1465,6 +1465,41 @@ results.promptEnter = await page.evaluate(async () => {
   return await answer;
 });
 
+// A tab card swiped aside closes; a nudge springs back; a vertical drag is
+// left to the grid's scrolling.
+results.swipeCloses = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  for (const tab of VexTabStore.all()) await VexTabStore.close(tab.id);
+  await VexTabStore.create('https://one.example/');
+  await VexTabStore.create('https://two.example/');
+  await VexUI.openTabGrid();
+  await wait(150);
+  const drag = async (card, toX, toY) => {
+    const box = card.getBoundingClientRect();
+    const x = box.left + box.width / 2, y = box.top + box.height / 2;
+    const touch = (cx, cy) => new Touch({ identifier: 1, target: card, clientX: cx, clientY: cy });
+    card.dispatchEvent(new TouchEvent('touchstart', { touches: [touch(x, y)], changedTouches: [touch(x, y)], bubbles: true, cancelable: true }));
+    for (let step = 1; step <= 6; step++) {
+      const p = touch(x + (toX * step) / 6, y + (toY * step) / 6);
+      card.dispatchEvent(new TouchEvent('touchmove', { touches: [p], changedTouches: [p], bubbles: true, cancelable: true }));
+      await wait(16);
+    }
+    const end = touch(x + toX, y + toY);
+    card.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [end], bubbles: true, cancelable: true }));
+    await wait(400);
+  };
+  const cards = () => [...document.querySelectorAll('#tabgrid-list .tabcard')];
+  await drag(cards()[0], 30, 0);
+  const afterNudge = VexTabStore.normal().length;
+  await drag(cards()[0], 0, -140);
+  const afterScroll = VexTabStore.normal().length;
+  await drag(cards()[0], -260, 6);
+  const afterSwipe = VexTabStore.normal().length;
+  const undo = !!document.querySelector('#toasts .toast button');
+  VexUI.closeTabGrid();
+  return [afterNudge, afterScroll, afterSwipe, undo].join(' ');
+});
+
 // ── Saving a video ──────────────────────────────────────────────────────────
 // A plain file goes to the download queue; a player built on a blob: URL is
 // found through the playlist its page requested, saved as a stream job whose
@@ -1551,6 +1586,7 @@ const expected = {
   privateLockEverywhere: 'true true false true',
   privateStartPage: 'true false true',
   promptEnter: 'Typed',
+  swipeCloses: '2 2 1 true',
   videoDownload: 'A clip the one.webm | true | Streamed | true | true | true',
   backOutOfHistory: 'false 2 true false true',
   panelKeepsPlace: true, historyPrune: '0 2 fresh', localAiPanelFollows: true,

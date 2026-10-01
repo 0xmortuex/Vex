@@ -13,7 +13,7 @@ Everything else below is either matched or bettered.
 
 | Samsung Internet | Vex | Notes |
 |---|---|---|
-| Tabs, grid switcher | ✅ | Plus tab search and tab groups |
+| Tabs, grid switcher | ✅ | Plus tab search and tab groups; swipe a card aside to close it, with Undo |
 | Secret mode | ✅ | Private tabs; own WebView profile on WebView 116+ |
 | Secret mode lock (biometrics) | ✅ | Settings → Privacy → Lock private tabs |
 | Close tabs after N days | ✅ | Settings → Tabs |
