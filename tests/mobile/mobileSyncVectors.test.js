@@ -134,9 +134,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
-const SPEC = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'SYNC_PROTOCOL.md'), 'utf8');
+// Git on Windows checks the spec out with CRLF line endings; the vectors are
+// defined over LF text (the plaintext is hashed and encrypted byte for byte),
+// so the file is read back to LF before any block is taken out of it.
+const SPEC = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'SYNC_PROTOCOL.md'), 'utf8').replace(/\r\n/g, '\n');
 const SECTION = SPEC.slice(SPEC.indexOf('### 3.6 Test vector'), SPEC.indexOf('## 4. Document'));
 const BLOCKS = [...SECTION.matchAll(/```[a-z]*\n([\s\S]*?)\n```/g)].map(match => match[1]);
+if (BLOCKS.length < 5) {
+  throw new Error('SYNC_PROTOCOL.md §3.6 should hold 5 code blocks, found ' + BLOCKS.length + ' — has the section moved or been reformatted?');
+}
 const SPEC_SOURCES = JSON.parse(BLOCKS[1]);
 const SPEC_PLAINTEXT = BLOCKS[2];
 const SPEC_BLOB = BLOCKS[3];
