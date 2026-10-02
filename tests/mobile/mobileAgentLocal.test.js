@@ -207,3 +207,19 @@ describe('extract_elements', () => {
     expect(declared.parameters).toEqual({ type: 'object', properties: { contains: { type: 'string' } } });
   });
 });
+
+describe('a click with no real target', () => {
+  it('says so in words the model can act on, never "null"', async () => {
+    const answers = [];
+    window.VexBridge.evaluate.mockImplementation(async () => ({ result: null }));   // a page script that threw
+    script = async onTool => {
+      answers.push(await onTool('click', { selector: '' }));
+      answers.push(await onTool('click', { selector: '#made-up' }));
+      return 'Could not find it.';
+    };
+    await VexAgent.pursue('click contact');
+    expect(answers[0].result).toMatch(/^no selector given — call extract_elements/);
+    expect(answers[1].result).toMatch(/^nothing on the page matches "#made-up"/);
+    expect(JSON.stringify(answers)).not.toMatch(/"null"/);
+  });
+});

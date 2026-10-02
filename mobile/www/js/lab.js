@@ -112,12 +112,15 @@ const VexLab = (() => {
   async function getModel(entry, after) {
     if (VexLocalAI.state.downloading) { VexUI.toast('Another model is downloading'); return; }
     if (entry.gated && !VexLocalAI.hfToken()) {
-      const ok = await VexUI.confirm(entry.label + ' is behind Google’s licence on Hugging Face. Accept it once on '
-        + 'the model’s page, make a read token at huggingface.co/settings/tokens, and paste it here. '
-        + 'The token stays on this phone and is only sent to huggingface.co.\n\nOpen the model’s page now?',
-        'Licence first');
-      if (ok) { VexPanels.close(); VexUI.openUrl(entry.page, { newTab: true }); return; }
-      const token = await VexUI.prompt('Hugging Face token', 'Paste a read token (hf_…), or leave empty to cancel');
+      // Three honest choices rather than a Yes/No whose "No" secretly meant
+      // "I have a token" (found by walking through it).
+      const choice = await new Promise(resolve => VexSheets.choose(entry.label + ' needs Google’s licence', [
+        { id: 'page', label: 'Open its page to accept the licence', note: 'Once, on Hugging Face; then come back here' },
+        { id: 'token', label: 'I have accepted it: paste my token', note: 'A read token from huggingface.co/settings/tokens. It stays on this phone' }
+      ], id => { VexSheets.close(); resolve(id); }, 'Hugging Face asks for it before the download'));
+      if (choice === 'page') { VexPanels.close(); VexUI.openUrl(entry.page, { newTab: true }); return; }
+      if (choice !== 'token') return;
+      const token = await VexUI.prompt('Hugging Face token', 'Paste a read token (hf_…)');
       if (!token) return;
       await VexLocalAI.setHfToken(token);
     }
@@ -131,7 +134,9 @@ const VexLab = (() => {
   }
 
   /** When nothing that can do this is on the phone: what to get. */
+  let waiting = null;          // the feature showing this, so a finished download redraws it
   function needModel(body, task, onChange) {
+    waiting = task;
     body.appendChild(el('div', 'field-note',
       'Nothing on this phone can do this yet. Any of these can — downloads resume if the connection drops.'));
     const downloading = VexLocalAI.state.downloading;
@@ -1488,15 +1493,20 @@ const VexLab = (() => {
       if (!followed) {
         followed = true;
         // A download finishing while a feature waits for its model redraws it.
+        // A feature showing "get a model" redraws as its download moves, and
+        // once more when the model lands — then it is the feature itself. (It
+        // used to redraw only while the model was still missing, so the one
+        // redraw that mattered never happened: found by using Tiny Garden.)
         VexLocalAI.onChange(() => {
-          const top = FEATURES.find(item => VexPanels.top() === item.panel);
-          if (top && !busy && !modelFor(top.id) && !$('panel').hidden) {
+          const top = waiting && feature(waiting);
+          if (top && VexPanels.top() === top.panel && !busy) {
             clearTimeout(this._redraw);
-            this._redraw = setTimeout(() => OPEN[top.id](), 500);
+            this._redraw = setTimeout(() => { if (VexPanels.top() === top.panel) OPEN[top.id](); }, 400);
           }
         });
       }
       if (!OPEN[id]) return home();
+      waiting = null;
       if (!Object.keys(VexLocalAI.state.models || {}).length) await VexLocalAI.refresh();
       return OPEN[id]();
     }

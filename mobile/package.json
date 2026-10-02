@@ -2,7 +2,7 @@
   "name": "vex-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Vex for Android — the Vex browser as a native Android shell (Capacitor + system WebView)",
+  "description": "Vex for Android \u2014 the Vex browser as a native Android shell (Capacitor + system WebView)",
   "license": "MIT",
   "author": {
     "name": "0xmortuex",
@@ -22,7 +22,8 @@
     "themes": "node scripts/sync-themes.mjs",
     "shared": "node scripts/sync-shared.mjs",
     "smoke": "node scripts/smoke-chrome.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "explore": "node scripts/explore-chrome.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

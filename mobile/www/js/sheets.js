@@ -46,7 +46,10 @@ const VexSheets = (() => {
 
   // A row: icon, label, optional note, and either a switch or a value.
   function row({ icon: iconName, label, note, toggle, value, danger, run, reserveIcon }) {
-    const node = el('div', 'sheet-row' + (danger ? ' danger' : ''));
+    // A row with nothing to do is information, and must not light up under a
+    // finger as if it were a button (found by tapping every row: Diagnostics'
+    // facts and Backup's contents did, and then did nothing).
+    const node = el('div', 'sheet-row' + (danger ? ' danger' : '') + (run || toggle !== undefined ? '' : ' static'));
     if (iconName) {
       const wrap = el('span', 'row-icon');
       wrap.appendChild(icon(iconName));

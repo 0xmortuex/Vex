@@ -61,7 +61,8 @@ const VexAgent = (() => {
 })()`;
 
   const clickScript = selector => `(function(){
-  var node = document.querySelector(${JSON.stringify(selector)});
+  var node;
+  try { node = document.querySelector(${JSON.stringify(selector)}); } catch (error) { return 'bad-selector'; }
   if (!node) return 'not-found';
   node.scrollIntoView({ block: 'center' });
   node.click();
@@ -69,7 +70,8 @@ const VexAgent = (() => {
 })()`;
 
   const typeScript = (selector, text, clearFirst) => `(function(){
-  var node = document.querySelector(${JSON.stringify(selector)});
+  var node;
+  try { node = document.querySelector(${JSON.stringify(selector)}); } catch (error) { return 'bad-selector'; }
   if (!node) return 'not-found';
   var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   if (node.tagName === 'TEXTAREA') setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
@@ -177,17 +179,22 @@ const VexAgent = (() => {
         const { result } = await VexBridge.evaluate(tab.id, extractScript(p.contains));
         return unwrap(result);
       }
-      case 'click': {
-        if (!tab) return 'no tab';
-        const { result } = await VexBridge.evaluate(tab.id, clickScript(p.selector));
-        await settle();
-        return unwrap(result);
-      }
+      // A selector the model made up, or none at all, used to come back from
+      // the page as "null" — shown to the person, and useless to the model.
+      // Said in words it can act on instead.
+      case 'click':
       case 'type_text': {
         if (!tab) return 'no tab';
-        const { result } = await VexBridge.evaluate(tab.id, typeScript(p.selector, p.text || '', p.clearFirst !== false));
+        if (!String(p.selector || '').trim()) return 'no selector given — call extract_elements and use one of the selectors it lists';
+        const { result } = await VexBridge.evaluate(tab.id, tool === 'click'
+          ? clickScript(p.selector)
+          : typeScript(p.selector, p.text || '', p.clearFirst !== false));
         await settle();
-        return unwrap(result);
+        const outcome = unwrap(result);
+        if (outcome === 'not-found' || outcome === 'bad-selector' || outcome == null) {
+          return 'nothing on the page matches ' + JSON.stringify(p.selector) + ' — call extract_elements and use one of the selectors it lists';
+        }
+        return outcome;
       }
       case 'scroll': {
         if (!tab) return 'no tab';

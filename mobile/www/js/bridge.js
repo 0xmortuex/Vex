@@ -57,7 +57,12 @@ const VexBridge = (() => {
           border: '0', display: 'none', background: '#fff'
         });
         frame.addEventListener('load', () => {
-          emit('loadEnd', { id, url: frame.src, title: frame.src, canGoBack: false, canGoForward: false });
+          // A page from this origin can be read like a WebView's: its real
+          // address (links followed inside it) and its title.
+          let url = frame.src;
+          let title = frame.src;
+          try { url = frame.contentWindow.location.href; title = frame.contentDocument.title || url; } catch { /* cross-origin */ }
+          emit('loadEnd', { id, url, title, canGoBack: false, canGoForward: false });
         });
         ensureHost().appendChild(frame);
         frames.set(id, frame);
@@ -96,7 +101,15 @@ const VexBridge = (() => {
         if (frame) frame.srcdoc = html;
         return {};
       },
-      evaluate() { return { result: null }; },
+      // Like WebView.evaluateJavascript: the value, JSON-encoded. Only a page
+      // from this origin can be reached; anything else answers null, as before.
+      evaluate({ id, code }) {
+        const frame = frames.get(id);
+        try {
+          const value = frame.contentWindow.eval(code);
+          return { result: value === undefined || (value && typeof value.then === 'function') ? null : JSON.stringify(value) };
+        } catch { return { result: null }; }
+      },
       snapshot() { return { dataUrl: '' }; },
       // Downloads have nowhere to go here; the ids are enough for the chrome to
       // draw them, and the walkthrough drives the stream's events by hand.

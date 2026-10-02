@@ -470,6 +470,7 @@ body.private .urlpill-text.muted { color: rgba(255, 255, 255, .75); }
 .sheet-list { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 0 10px; }
 .sheet-row { display: flex; align-items: center; gap: 14px; min-height: var(--tap); padding: 11px 18px; font-size: var(--text-md); }
 .sheet-row:active { background: var(--vex-bg-deep); }
+.sheet-row.static:active { background: none; }
 .sheet-row .row-icon { flex: 0 0 auto; width: 22px; color: var(--vex-text-muted); }
 .sheet-row .row-label { flex: 1 1 auto; min-width: 0; }
 .sheet-row .row-note { display: block; font-size: var(--text-xs); color: var(--vex-text-muted); margin-top: 2px; }

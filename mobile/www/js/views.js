@@ -284,8 +284,12 @@ const VexViews = (() => {
     wrap.appendChild(modes);
     wrap.appendChild(el('div', { class: 'chat-log', id: 'vex-chat-log' }));
 
-    const context = VexAI.state.context;
-    if (context) wrap.appendChild(el('div', 'chat-context', 'About: ' + (context.title || context.url)));
+    // What the next question will be about: the tab in front now. It showed
+    // the page of the last question, so after moving on it named the wrong one.
+    const front = VexTabStore.active();
+    if (front && front.url && front.url !== 'about:blank') {
+      wrap.appendChild(el('div', 'chat-context', 'About: ' + (front.title || VexSearch.prettyHost(front.url))));
+    }
 
     wrap.appendChild(el('div', { class: 'chat-suggest', id: 'vex-chat-suggest' }));
 
