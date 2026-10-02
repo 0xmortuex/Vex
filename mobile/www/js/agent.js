@@ -15,7 +15,7 @@
 const VexAgent = (() => {
   const MAX_STEPS = 10;
 
-  const state = { running: false, steps: [], goal: '', stop: false };
+  const state = { running: false, steps: [], goal: '', stop: false, onDevice: false };
 
   // What the model is allowed to ask for. Each one maps to something the
   // chrome can actually do on this phone.
@@ -221,6 +221,108 @@ const VexAgent = (() => {
     }
   }
 
+  // ── On the phone ─────────────────────────────────────────────────────────
+  //
+  // Gemma 4 calls tools natively (LiteRT-LM's tool calling, the way the AI
+  // Edge Gallery's agent runs), so with it on the phone the loop needs no
+  // worker: the model asks for a tool, the same run() does it, the same
+  // chromeRisk() stops and asks first, and the result goes straight back
+  // into the model. A 1B model could not do this — which is why the agent
+  // used to be the worker's alone — and Gemma 3 still is not trusted with it.
+
+  const LOCAL_TOOLS = TOOLS.filter(tool => tool.name !== 'finish').map(tool => {
+    const properties = {};
+    for (const [key, type] of Object.entries(tool.parameters)) properties[key] = { type };
+    const required = Object.keys(tool.parameters).filter(key => key !== 'clearFirst' && key !== 'ms');
+    const description = {
+      click: 'Click an element, by a selector extract_elements returned',
+      type_text: 'Type into an input, by a selector extract_elements returned. End the text with \n to submit',
+      scroll: 'Scroll the page: direction is "up" or "down"'
+    }[tool.name] || tool.description;
+    return Object.keys(properties).length
+      ? { name: tool.name, description, parameters: { type: 'object', properties, ...(required.length ? { required } : {}) } }
+      : { name: tool.name, description };
+  });
+
+  const LOCAL_SYSTEM = 'You operate the Vex web browser on this phone for the person, using the tools. '
+    + 'Work one step at a time. Before clicking or typing, call extract_elements and use only the selectors it '
+    + 'returns — never invent one. Call read_page to read what is on the page. '
+    + 'When the goal is done, or cannot be done, stop calling tools and reply with one short sentence saying what you did.';
+
+  /** An on-device model that can run the loop itself, on this phone. */
+  function localModel() {
+    if (typeof VexLocalAI === 'undefined' || !VexLocalAI.state.supported) return null;
+    const candidates = VexLocalAI.modelsFor('agent');
+    const chosen = VexLocalAI.model(VexLocalAI.chosenModel());
+    if (chosen && candidates.includes(chosen) && VexLocalAI.fileOf(chosen)) return chosen;
+    return candidates.find(entry => VexLocalAI.fileOf(entry)) || null;
+  }
+
+  /** Where the next goal would run: 'device', 'worker', or null for nowhere. */
+  async function where() {
+    if (typeof VexLocalAI !== 'undefined') await VexLocalAI.refresh();
+    const worker = await VexAI.configured();
+    const local = localModel();
+    const mode = typeof VexLocalAI !== 'undefined' ? VexLocalAI.mode() : 'off';
+    if (local && (!worker || mode !== 'off')) return 'device';
+    if (worker && mode !== 'only') return 'worker';
+    return null;
+  }
+
+  function whyNot() {
+    const mode = typeof VexLocalAI !== 'undefined' ? VexLocalAI.mode() : 'off';
+    if (mode === 'only') {
+      return '“Do it” on the phone needs a model that can use tools: Gemma 4 E2B or E4B '
+        + '(Settings → Assistant → On-device AI). The other models cannot run its step-by-step loop.';
+    }
+    return '“Do it” needs Gemma 4 on the phone (Settings → Assistant → On-device AI) or your AI worker '
+      + '(Settings → Assistant).';
+  }
+
+  const brief = value => {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return text.length > 3000 ? text.slice(0, 3000) + '…(cut)' : text;
+  };
+
+  async function pursueOnDevice(goal, entry, onStep) {
+    let count = 0;
+    let lastCall = '';
+    const onTool = async (tool, parameters) => {
+      if (state.stop) return { error: 'The person stopped you. Reply only with: Stopped.' };
+      if (++count > MAX_STEPS) return { error: 'Step limit reached. Do not call any more tools; reply with one sentence on what was done.' };
+      const signature = tool + ':' + JSON.stringify(parameters || {});
+      if (signature === lastCall) {
+        onStep({ kind: 'note', text: 'It tried the same step twice' });
+        lastCall = '';
+        return { error: 'That call was identical to the last one. Try something else, or reply with what you found.' };
+      }
+      lastCall = signature;
+      const call = { tool, parameters: parameters || {} };
+      onStep({ kind: 'step', tool, parameters: call.parameters });
+      state.steps.push(call);
+      const judged = await chromeRisk(call, VexTabStore.active());
+      if (judged && judged.refuse) {
+        onStep({ kind: 'note', text: judged.refuse });
+        return { error: judged.refuse };
+      }
+      if (judged && !(await VexUI.confirm(judged, 'Are you sure?'))) {
+        onStep({ kind: 'note', text: 'Refused' });
+        return { error: 'The person refused that step.' };
+      }
+      const result = await run(tool, call.parameters, onStep);
+      onStep({ kind: 'result', text: brief(result).slice(0, 300) });
+      return { result: brief(result) };
+    };
+    const tab = VexTabStore.active();
+    const page = tab && tab.url && tab.url !== 'about:blank' ? (tab.title || '') + ' — ' + tab.url : 'no page open';
+    await VexLocalAI.use('agent-browser', {
+      model: VexLocalAI.fileOf(entry), system: LOCAL_SYSTEM, tools: LOCAL_TOOLS, onTool, fresh: true,
+      sampler: { topK: 64, topP: 0.95, temperature: 0.3 }
+    });
+    const text = await VexLocalAI.generate('Goal: ' + goal + '\nThe tab in front: ' + page, { purpose: 'agent-browser' });
+    return finish(state.stop ? 'Stopped' : (text || 'Done'), onStep);
+  }
+
   // Navigation and clicks need a moment before the next step reads the page.
   function settle() {
     return new Promise(resolve => setTimeout(resolve, 1400));
@@ -232,7 +334,14 @@ const VexAgent = (() => {
 
     running() { return state.running; },
 
-    stop() { state.stop = true; },
+    stop() {
+      state.stop = true;
+      if (state.onDevice && typeof VexLocalAI !== 'undefined') VexLocalAI.stop();
+    },
+
+    where,
+    whyNot,
+    LOCAL_TOOLS,
 
     /**
      * Work at a goal, one tool call at a time. onStep is called with every
@@ -240,16 +349,23 @@ const VexAgent = (() => {
      */
     async pursue(goal, onStep = () => {}) {
       if (state.running) throw new Error('The agent is already working on something');
-      if (!(await VexAI.configured())) throw new Error('Set up the assistant first (Settings → Assistant)');
+      const place = await where();
+      if (!place) throw new Error(whyNot());
       // The agent sends the page it is working on to the worker at every step.
       // That is the one thing a private tab promises will not happen, so it
-      // does not run in one at all.
+      // does not run in one at all — unless the model is on the phone, where
+      // nothing is sent anywhere.
       const started = VexTabStore.active();
-      if (started && started.incognito) throw new Error('The agent does not work in a private tab');
+      if (place === 'worker' && started && started.incognito) throw new Error('The agent does not work in a private tab');
       state.running = true;
       state.stop = false;
       state.goal = goal;
       state.steps = [];
+      state.onDevice = place === 'device';
+      if (state.onDevice) {
+        try { return await pursueOnDevice(goal, localModel(), onStep); }
+        finally { state.running = false; state.onDevice = false; }
+      }
 
       let lastResult = null;
       let lastCall = '';

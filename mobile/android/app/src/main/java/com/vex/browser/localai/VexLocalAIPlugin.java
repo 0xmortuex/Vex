@@ -82,7 +82,9 @@ public class VexLocalAIPlugin extends Plugin {
         data.put("args", argumentsJson);
         notifyListeners("toolCall", data);
         try {
-            if (!done.await(90, TimeUnit.SECONDS)) return "{\"error\":\"The tool took too long\"}";
+            // Five minutes: a tool may be waiting on a person ("Press Buy on
+            // this site?"), and a person takes longer than a fetch.
+            if (!done.await(300, TimeUnit.SECONDS)) return "{\"error\":\"The tool took too long\"}";
             String[] answer = toolAnswers.remove(callId);
             return answer == null ? "{}" : answer[0];
         } catch (InterruptedException interrupted) {

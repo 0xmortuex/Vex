@@ -97,7 +97,8 @@ const VexViews = (() => {
       const empty = el('div', 'list-empty');
       empty.appendChild(document.createTextNode(
         'Say what you want done — "close every YouTube tab", "find the cheapest one and open it". '
-        + 'It works one step at a time, you watch each one, and anything it marks risky stops and asks.'));
+        + 'It works one step at a time, you watch each one, and anything that buys, sends or deletes stops and asks. '
+        + 'With Gemma 4 on the phone it runs right here; otherwise on your AI worker.'));
       log.appendChild(empty);
     }
     for (const step of agentSteps) {
@@ -431,11 +432,10 @@ const VexViews = (() => {
           if (mode !== 'agent') renderChat();
         }
       }
-      const local = mode !== 'agent' && VexAI.staysHere('chat');
-      if (!local && !(await VexAI.configured())) {
+      const local = mode === 'agent' ? (await VexAgent.where()) !== null : VexAI.staysHere('chat');
+      if (!local && (mode === 'agent' || !(await VexAI.configured()))) {
         if (mode === 'agent') {
-          const why = '“Do it” needs your AI worker — Settings → Assistant takes its URL and access token. '
-            + 'It is never handed to an on-device model, which cannot run its tool loop reliably.';
+          const why = VexAgent.whyNot();
           const last = agentSteps[agentSteps.length - 1];
           if (!(last && last.kind === 'error' && last.text === why)) agentSteps.push({ kind: 'error', text: why });
           renderAgent();
