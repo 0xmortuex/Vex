@@ -145,3 +145,65 @@ describe('the loop, on the phone', () => {
     expect(window.VexAI.ask).not.toHaveBeenCalled();
   });
 });
+
+describe('when the model writes a step the engine cannot read', () => {
+  // The exact failure seen on a Galaxy S25 with Gemma 4 E2B.
+  const GARBLED = 'Status Code: 3. Message: Failed to parse tool calls from code block: '
+    + 'call:extract_elements{selector:<|"|>a<|"|>CONTACT US<|"|>}\nfull response: …';
+
+  it('starts again with the steps already done and what was wrong, and finishes', async () => {
+    let round = 0;
+    const prompts = [];
+    local.generate.mockImplementation(async prompt => {
+      prompts.push(prompt);
+      const onTool = used.at(-1)[1].onTool;
+      round++;
+      if (round === 1) {
+        await onTool('read_page', {});
+        throw new Error(GARBLED);
+      }
+      await onTool('extract_elements', { contains: 'contact' });
+      return 'Found the contact link.';
+    });
+    const steps = [];
+    const outcome = await VexAgent.pursue('find the contact page', step => steps.push(step));
+    expect(outcome.summary).toBe('Found the contact link.');
+    expect(used.map(([purpose, options]) => [purpose, options.fresh])).toEqual([['agent-browser', true], ['agent-browser', true]]);
+    expect(prompts[1]).toContain('Steps already done:\n- read_page {} → The page, as text.');
+    expect(prompts[1]).toContain('call:extract_elements{selector:"a"CONTACT US"}');
+    expect(steps.some(step => step.kind === 'note' && /could not be read/.test(step.text))).toBe(true);
+    local.generate.mockImplementation(async () => script(used.at(-1)[1].onTool));
+  });
+
+  it('gives up after three unreadable replies, saying what to do', async () => {
+    local.generate.mockClear().mockImplementation(async () => { throw new Error(GARBLED); });
+    const outcome = await VexAgent.pursue('find the contact page');
+    expect(outcome.summary).toMatch(/shorter, more specific request/);
+    expect(local.generate).toHaveBeenCalledTimes(3);
+    local.generate.mockImplementation(async () => script(used.at(-1)[1].onTool));
+  });
+
+  it('reports any other engine failure in one line', async () => {
+    local.generate.mockImplementationOnce(async () => { throw new Error('Out of memory\nstack…'); });
+    await expect(VexAgent.pursue('anything')).rejects.toThrow(/^The on-device model stopped: Out of memory$/);
+  });
+});
+
+describe('extract_elements', () => {
+  it('can keep only the controls whose text has a word, so the model need not invent a filter', async () => {
+    document.body.innerHTML = '<a href="/a">Home</a><a href="/c">CONTACT US</a><button>Contact sales</button><button>Buy</button>';
+    // jsdom has no layout and no innerText; a WebView has both.
+    for (const node of document.querySelectorAll('a, button')) {
+      node.getBoundingClientRect = () => ({ width: 10, height: 10 });
+      Object.defineProperty(node, 'innerText', { value: node.textContent });
+    }
+    let captured = '';
+    window.VexBridge.evaluate.mockImplementationOnce(async (id, code) => { captured = code; return { result: '[]' }; });
+    script = async onTool => { await onTool('extract_elements', { contains: 'Contact' }); return 'ok'; };
+    await VexAgent.pursue('find contact');
+    const found = JSON.parse((0, eval)(captured));
+    expect(found.map(item => item.text)).toEqual(['CONTACT US', 'Contact sales']);
+    const declared = used.at(-1)[1].tools.find(tool => tool.name === 'extract_elements');
+    expect(declared.parameters).toEqual({ type: 'object', properties: { contains: { type: 'string' } } });
+  });
+});

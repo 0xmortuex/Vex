@@ -23,7 +23,7 @@ const VexAgent = (() => {
     { name: 'navigate', description: 'Go to a URL in the current tab', parameters: { url: 'string' } },
     { name: 'search', description: 'Search the web for a query', parameters: { query: 'string' } },
     { name: 'read_page', description: 'Read the current page as text', parameters: {} },
-    { name: 'extract_elements', description: 'List the links, buttons and inputs on the page with selectors', parameters: {} },
+    { name: 'extract_elements', description: 'List the links, buttons and inputs on the page with selectors; "contains" keeps only those whose text has it', parameters: { contains: 'string' } },
     { name: 'click', description: 'Click an element by selector', parameters: { selector: 'string' } },
     { name: 'type_text', description: 'Type into an input by selector', parameters: { selector: 'string', text: 'string', clearFirst: 'boolean' } },
     { name: 'scroll', description: 'Scroll the page up or down', parameters: { direction: 'string' } },
@@ -36,7 +36,8 @@ const VexAgent = (() => {
 
   // Runs in the page. Tags what can be interacted with and hands back a short
   // list — the model cannot be given a whole DOM, and does not need one.
-  const EXTRACT = `(function(){
+  const extractScript = contains => `(function(){
+  var want = ${JSON.stringify(String(contains || '').trim().toLowerCase())};
   var out = [];
   var nodes = document.querySelectorAll('a[href], button, input:not([type=hidden]), textarea, select, [role=button], [onclick]');
   var index = 0;
@@ -47,6 +48,7 @@ const VexAgent = (() => {
     var id = 'vex-' + (index++);
     node.setAttribute('data-vex-id', id);
     var label = (node.innerText || node.value || node.placeholder || node.getAttribute('aria-label') || '').trim();
+    if (want && label.toLowerCase().indexOf(want) < 0) continue;
     out.push({
       selector: '[data-vex-id="' + id + '"]',
       tag: node.tagName.toLowerCase(),
@@ -172,7 +174,7 @@ const VexAgent = (() => {
       }
       case 'extract_elements': {
         if (!tab) return 'no tab';
-        const { result } = await VexBridge.evaluate(tab.id, EXTRACT);
+        const { result } = await VexBridge.evaluate(tab.id, extractScript(p.contains));
         return unwrap(result);
       }
       case 'click': {
@@ -233,7 +235,7 @@ const VexAgent = (() => {
   const LOCAL_TOOLS = TOOLS.filter(tool => tool.name !== 'finish').map(tool => {
     const properties = {};
     for (const [key, type] of Object.entries(tool.parameters)) properties[key] = { type };
-    const required = Object.keys(tool.parameters).filter(key => key !== 'clearFirst' && key !== 'ms');
+    const required = Object.keys(tool.parameters).filter(key => !['clearFirst', 'ms', 'contains'].includes(key));
     const description = {
       click: 'Click an element, by a selector extract_elements returned',
       type_text: 'Type into an input, by a selector extract_elements returned. End the text with \n to submit',
@@ -286,6 +288,7 @@ const VexAgent = (() => {
 
   async function pursueOnDevice(goal, entry, onStep) {
     let count = 0;
+    const transcript = [];
     let lastCall = '';
     const onTool = async (tool, parameters) => {
       if (state.stop) return { error: 'The person stopped you. Reply only with: Stopped.' };
@@ -311,16 +314,42 @@ const VexAgent = (() => {
       }
       const result = await run(tool, call.parameters, onStep);
       onStep({ kind: 'result', text: brief(result).slice(0, 300) });
+      transcript.push('- ' + tool + ' ' + JSON.stringify(call.parameters) + ' → ' + brief(result).slice(0, 160).replace(/\s+/g, ' '));
       return { result: brief(result) };
     };
-    const tab = VexTabStore.active();
-    const page = tab && tab.url && tab.url !== 'about:blank' ? (tab.title || '') + ' — ' + tab.url : 'no page open';
-    await VexLocalAI.use('agent-browser', {
-      model: VexLocalAI.fileOf(entry), system: LOCAL_SYSTEM, tools: LOCAL_TOOLS, onTool, fresh: true,
-      sampler: { topK: 64, topP: 0.95, temperature: 0.3 }
-    });
-    const text = await VexLocalAI.generate('Goal: ' + goal + '\nThe tab in front: ' + page, { purpose: 'agent-browser' });
-    return finish(state.stop ? 'Stopped' : (text || 'Done'), onStep);
+    const page = () => {
+      const tab = VexTabStore.active();
+      return tab && tab.url && tab.url !== 'about:blank' ? (tab.title || '') + ' — ' + tab.url : 'no page open';
+    };
+    let prompt = 'Goal: ' + goal + '\nThe tab in front: ' + page();
+    // A 2B model sometimes writes a tool call the engine cannot read — on a
+    // Galaxy S25, Gemma 4 gave extract_elements a parameter it does not have
+    // in a broken string, and LiteRT-LM failed the whole reply with it. The
+    // work done so far is not lost: a fresh conversation gets the goal, the
+    // steps already taken and what was wrong, and carries on. Twice at most.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await VexLocalAI.use('agent-browser', {
+        model: VexLocalAI.fileOf(entry), system: LOCAL_SYSTEM, tools: LOCAL_TOOLS, onTool, fresh: true,
+        sampler: { topK: 64, topP: 0.95, temperature: 0.3 }
+      });
+      try {
+        const text = await VexLocalAI.generate(prompt, { purpose: 'agent-browser' });
+        return finish(state.stop ? 'Stopped' : (text || 'Done'), onStep);
+      } catch (error) {
+        const message = String((error && error.message) || error);
+        if (state.stop) return finish('Stopped', onStep);
+        const garbled = /parse[^\n]*tool call/i.test(message);
+        if (!garbled) throw new Error('The on-device model stopped: ' + message.split('\n')[0].slice(0, 200));
+        if (attempt === 2 || count >= MAX_STEPS) break;
+        const raw = (message.match(/call:\w+\{[^}]*\}/) || [''])[0].replace(/<\|"\|>/g, '"').slice(0, 160);
+        onStep({ kind: 'note', text: 'It wrote a step that could not be read' + (raw ? ' (' + raw + ')' : '') + ' — asking again' });
+        prompt = 'Goal: ' + goal + '\nThe tab in front: ' + page()
+          + (transcript.length ? '\nSteps already done:\n' + transcript.join('\n') : '')
+          + '\nYour last tool call could not be read' + (raw ? ': ' + raw : '')
+          + '. Call one tool at a time, with only the parameters that tool lists, each value a plain string.';
+      }
+    }
+    return finish('It kept writing steps that could not be read — try a shorter, more specific request.', onStep);
   }
 
   // Navigation and clicks need a moment before the next step reads the page.
