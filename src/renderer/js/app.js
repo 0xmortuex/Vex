@@ -1400,6 +1400,9 @@ function vexOwnTextFocused(doc) {
   document.getElementById('setting-issues-link')?.addEventListener('click', (e) => {
     e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
   });
+  document.querySelectorAll('#setting-legal-links [data-legal-doc]').forEach((link) => link.addEventListener('click', (e) => {
+    e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/blob/main/' + link.dataset.legalDoc, true); SidebarManager.hideActivePanel();
+  }));
 
   // === Default browser: handle incoming URLs from external apps ===
   console.log('[Vex URL] renderer: registering onOpenUrl handler. window.vex present?', !!window.vex, 'onOpenUrl present?', !!window.vex?.onOpenUrl);

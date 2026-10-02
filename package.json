@@ -76,6 +76,10 @@
     "files": [
       "src/**/*",
       "CHANGELOG.md",
+      "LICENSE",
+      "PRIVACY.md",
+      "TERMS.md",
+      "THIRD_PARTY_NOTICES.md",
       "assets/icon.svg",
       "assets/icon.ico",
       "assets/theme-previews/*.png",
