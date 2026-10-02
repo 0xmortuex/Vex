@@ -23,6 +23,9 @@ const VexAI = (() => {
   const TIMEOUT_MS = 45000;
   const HISTORY_LIMIT = 12;
 
+  // Why the on-device model failed on the question being asked, if it did.
+  let localFailure = '';
+
   const state = {
     messages: [],        // { role: 'user' | 'assistant' | 'error', text, at }
     busy: false,
@@ -140,6 +143,11 @@ const VexAI = (() => {
       return parts.join(' ');
     },
 
+    /** Take back "there is nothing to answer with" once that is no longer so. */
+    forgetNoChat() {
+      state.messages = state.messages.filter(message => !message.noChat);
+    },
+
     staysHere(action) {
       if (typeof VexLocalAI === 'undefined') return false;
       return VexLocalAI.nanoHandles(action) || VexLocalAI.handles(action);
@@ -185,6 +193,9 @@ const VexAI = (() => {
         const action = options.action || 'chat';
         // Whether the page may be read at all depends on where the answer is
         // coming from, so that question is settled first.
+        // The model list is filled in a moment after launch; ask before
+        // deciding, so a question asked straight away is not turned down.
+        if (!silent && typeof VexLocalAI !== 'undefined' && VexLocalAI.mode() !== 'off') await VexLocalAI.refresh();
         const staysHere = !silent && this.staysHere(action);
         const context = options.context === null
           ? null
@@ -194,6 +205,7 @@ const VexAI = (() => {
         // On-device first, when it is wanted and able. The agent never comes
         // here: it needs valid JSON out of a tool loop, which a 1B model on a
         // phone does not reliably produce.
+        localFailure = '';
         const local = !silent ? await this.locally(action, question, context, options) : null;
         if (local !== null) {
           state.messages.push({ role: 'assistant', text: local, at: Date.now(), followUps: [], onDevice: true });
@@ -202,7 +214,14 @@ const VexAI = (() => {
 
         // Nothing here took it and there is no worker to send it to: say so
         // in words that help, rather than "add your worker URL".
-        if (!(await this.configured())) throw new Error(this.whyNoChat());
+        // When the phone's model was tried and failed, that failure is the
+        // answer — "download a model" to someone who has one is a lie (seen
+        // on a Galaxy S25 with Gemma 4 downloaded and chosen).
+        if (!(await this.configured())) {
+          throw new Error(localFailure
+            ? 'The on-device model could not answer: ' + localFailure
+            : this.whyNoChat());
+        }
 
         const result = await call(Object.assign({
           action: options.action || 'chat',
@@ -236,7 +255,7 @@ const VexAI = (() => {
         // The same failure twice in a row is one bubble, not a wall of them.
         const last = state.messages[state.messages.length - 1];
         if (!silent && !(last && last.role === 'error' && last.text === err.message)) {
-          state.messages.push({ role: 'error', text: err.message, at: Date.now() });
+          state.messages.push({ role: 'error', text: err.message, at: Date.now(), noChat: err.message === this.whyNoChat() });
         }
         throw err;
       } finally {
@@ -273,6 +292,7 @@ const VexAI = (() => {
         return await VexLocalAI.generate(prompt, { onToken: options.onToken });
       } catch (error) {
         if (VexLocalAI.insists()) throw error;
+        localFailure = error.message || String(error);
         // The page was read on the understanding that it was staying here. If the
         // model failed and the worker is about to be asked instead, a private
         // tab's text must not go with the question.

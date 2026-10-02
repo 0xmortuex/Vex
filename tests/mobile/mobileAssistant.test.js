@@ -127,7 +127,7 @@ describe('when it goes wrong', () => {
     const had = window.VexLocalAI;
     window.VexLocalAI = {
       state: { nano: 'available', models: {} },
-      nanoMode: () => true, mode: () => 'only', insists: () => true,
+      nanoMode: () => true, mode: () => 'only', insists: () => true, refresh: async () => {},
       nanoHandles: action => action === 'summarize', handles: () => false
     };
     try {
@@ -142,6 +142,60 @@ describe('when it goes wrong', () => {
       // of each, never stacked back to back.
       const roles = VexAI.state.messages.map(message => message.role);
       expect(roles).toEqual(['user', 'error', 'user', 'error']);
+    } finally {
+      window.VexLocalAI = had;
+    }
+  });
+
+  it('asks what is on the phone before turning a question down (a model found after launch)', async () => {
+    await VexAI.setWorkerUrl('');
+    const had = window.VexLocalAI;
+    const state = { nano: 'unavailable', models: {} };
+    window.VexLocalAI = {
+      state, nanoMode: () => false, mode: () => 'prefer', insists: () => false,
+      // The boot refresh has not run yet; the ask's own refresh finds the model.
+      refresh: async () => { state.models = { 'gemma-4-E2B-it.litertlm': 2588147712 }; },
+      nanoHandles: () => false,
+      handles: () => !!state.models['gemma-4-E2B-it.litertlm'],
+      promptFor: (action, question) => question,
+      generate: async () => 'Answered on the phone.'
+    };
+    try {
+      expect(await VexAI.ask('hi')).toBe('Answered on the phone.');
+    } finally {
+      window.VexLocalAI = had;
+    }
+  });
+
+  it('a model that fails says why, rather than telling you to download one you have', async () => {
+    await VexAI.setWorkerUrl('');
+    const had = window.VexLocalAI;
+    window.VexLocalAI = {
+      state: { nano: 'unavailable', models: { 'gemma-4-E2B-it.litertlm': 1 } },
+      nanoMode: () => false, mode: () => 'prefer', insists: () => false, refresh: async () => {},
+      nanoHandles: () => false, handles: () => true, promptFor: (action, question) => question,
+      generate: async () => { throw new Error('Failed to create engine (on the GPU backend — CPU may still work)'); }
+    };
+    try {
+      await expect(VexAI.ask('hi')).rejects.toThrow(/on-device model could not answer: Failed to create engine/);
+      expect(VexAI.state.messages.at(-1).text).not.toMatch(/download a model/);
+    } finally {
+      window.VexLocalAI = had;
+    }
+  });
+
+  it('takes back the "download a model" bubble once a model is there', async () => {
+    await VexAI.setWorkerUrl('');
+    const had = window.VexLocalAI;
+    window.VexLocalAI = {
+      state: { nano: 'unavailable', models: {} }, nanoMode: () => false, mode: () => 'prefer', insists: () => false,
+      refresh: async () => {}, nanoHandles: () => false, handles: () => false
+    };
+    try {
+      await expect(VexAI.ask('hi')).rejects.toThrow(/download a model/);
+      expect(VexAI.state.messages.some(message => message.noChat)).toBe(true);
+      VexAI.forgetNoChat();
+      expect(VexAI.state.messages.map(message => message.role)).toEqual(['user']);
     } finally {
       window.VexLocalAI = had;
     }

@@ -422,6 +422,15 @@ const VexViews = (() => {
       // A phone running its own model needs no worker to chat: only the agent
       // (which the model is not trusted with) does. The error used to greet
       // everyone without a worker, on-device AI or not.
+      // What is on the phone now, not what was there when the app started:
+      // the list is filled in a moment after launch.
+      if (typeof VexLocalAI !== 'undefined' && VexLocalAI.mode() !== 'off') {
+        await VexLocalAI.refresh();
+        if (VexLocalAI.ready() && VexAI.state.messages.some(message => message.noChat)) {
+          VexAI.forgetNoChat();
+          if (mode !== 'agent') renderChat();
+        }
+      }
       const local = mode !== 'agent' && VexAI.staysHere('chat');
       if (!local && !(await VexAI.configured())) {
         if (mode === 'agent') {
@@ -437,7 +446,8 @@ const VexViews = (() => {
         const why = VexAI.whyNoChat();
         const last = VexAI.state.messages[VexAI.state.messages.length - 1];
         if (!(last && last.role === 'error' && last.text === why)) {
-          VexAI.state.messages.push({ role: 'error', text: why, at: Date.now() });
+          VexAI.forgetNoChat();
+          VexAI.state.messages.push({ role: 'error', text: why, at: Date.now(), noChat: true });
         }
         renderChat();
         this.offerWhatWorks();
