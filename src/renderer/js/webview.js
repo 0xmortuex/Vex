@@ -154,6 +154,14 @@ const WebviewManager = {
             body: el ? solid(getComputedStyle(el).backgroundColor) : '',
             html: document.documentElement ? solid(getComputedStyle(document.documentElement).backgroundColor) : '',
             dark: matchMedia('(prefers-color-scheme: dark)').matches,
+            // What the page's text is drawn in, and what scheme it declared.
+            // A page that never opted into dark keeps black text in dark
+            // mode, and must keep the white canvas Chrome gives it.
+            ink: el ? getComputedStyle(el).color : '',
+            scheme: [
+              document.documentElement ? getComputedStyle(document.documentElement).colorScheme : '',
+              (document.querySelector('meta[name="color-scheme"]') || {}).content || '',
+            ].join(' '),
           };
         })()`)
           .then(seen => {
@@ -1771,12 +1779,47 @@ const WebviewManager = {
   // stops the body's background propagating to the canvas, so a site that
   // styles only its body would get our colour showing through its margins.
   // And even then at zero specificity, so anything the page adds later wins.
+  //
+  // Dark only when the page itself is drawn for dark: its text is light (the
+  // JSON and text viewers, a `light dark` page in dark mode, a `color-scheme:
+  // dark` page in either mode). Reporting dark mode is not enough — an
+  // ordinary page that never opted in keeps black text, and Chrome gives it a
+  // white canvas; a dark base put that text on #202124 (found 2026-10-03).
   baseColourFor(seen) {
     if (!seen) return null;
     const painted = seen.html || seen.body;
     if (painted) return { element: painted, inject: null };
-    const base = seen.dark ? '#202124' : '#ffffff';
+    const base = this.pageIsDrawnForDark(seen) ? '#202124' : '#ffffff';
     return { element: base, inject: ':where(html){background-color:' + base + '}' };
+  },
+
+  // Is a page that paints no background drawn for a dark canvas? Its text
+  // colour answers that directly; the scheme it declared is the fallback for
+  // a colour that cannot be read.
+  pageIsDrawnForDark(seen) {
+    const light = this.inkIsLight(seen.ink);
+    if (light !== null) return light;
+    const words = String(seen.scheme || '').toLowerCase().split(/\s+/);
+    if (!words.includes('dark')) return false;
+    return !words.includes('light') || !!seen.dark;
+  },
+
+  // true for light text, false for dark text, null when the colour is not
+  // one this can read (or is fully transparent).
+  inkIsLight(ink) {
+    const m = /^(rgba?|color)\((.*)\)$/i.exec(String(ink || '').trim());
+    if (!m) return null;
+    const parts = m[2].replace(/[,/]/g, ' ').trim().split(/\s+/);
+    let scale = 255;
+    if (m[1].toLowerCase() === 'color') {
+      if (parts.shift() !== 'srgb') return null;
+      scale = 1;
+    }
+    const [r, g, b, a] = parts.map(Number);
+    if (![r, g, b].every(Number.isFinite)) return null;
+    if (a === 0) return null;
+    const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / scale;
+    return luma > 0.5;
   },
 
   _updateFavicon(tabId, url) {

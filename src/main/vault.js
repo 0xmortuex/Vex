@@ -159,7 +159,9 @@ async function addMissing(entries) {
     if (seen.has(k)) { duplicates++; continue; }
     seen.add(k);
     arr.push({ host, username, password, updatedAt: now });
-    added.push({ host, username });
+    // updatedAt lets an undo tell a login still as imported from one the
+    // person has changed since (vault:list reports the same value).
+    added.push({ host, username, updatedAt: now });
   }
   if (added.length) await vaultSave(arr);
   return { added, duplicates };

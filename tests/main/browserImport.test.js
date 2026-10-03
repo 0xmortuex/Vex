@@ -28,6 +28,10 @@ function makeChromeHistory(file) {
   add.run('https://mid.example/', '', 1, webkit(T2), 0);
   add.run('https://hidden.example/', 'Hidden', 1, webkit(T3), 1);
   add.run('chrome://settings/', 'Settings', 1, webkit(T2), 0);
+  // Never importable, and newer than everything: these must neither be
+  // counted nor take a place under the limit.
+  add.run('file:///C:/Users/me/page.html', 'A file', 1, webkit(T3 + 2000), 0);
+  add.run('javascript:void(0)', 'Bookmarklet', 1, webkit(T3 + 1000), 0);
   db.close();
 }
 
@@ -41,6 +45,7 @@ function makePlaces(file) {
   place.run(3, 'https://tagged.example/', 'Tagged only', 1, 0, null);
   place.run(4, 'place:sort=8&maxResults=10', 'Most visited', 0, 0, null);
   place.run(5, 'https://unfiled.example/', 'Unfiled', 1, 0, T1 * 1000);
+  place.run(6, 'file:///home/me/notes.html', 'Notes', 1, 0, (T3 + 1000) * 1000);
   const bm = db.prepare('INSERT INTO moz_bookmarks (id, type, fk, parent, position, title, dateAdded, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   bm.run(1, 2, null, 0, 0, '', 0, 'root________');
   bm.run(2, 2, null, 1, 0, 'menu', 0, 'menu________');
@@ -126,13 +131,15 @@ describe('a Chromium profile', () => {
     expect(r.history.items.map(h => h.url)).toEqual(['https://new.example/', 'https://mid.example/', 'https://old.example/']);
     expect(r.history.items[0]).toMatchObject({ title: 'New', visits: 5, visitedAt: new Date(T3).toISOString() });
     expect(r.history.items[1].title).toBe('https://mid.example/');   // no title: the address stands in
-    expect(r.history.total).toBe(4);   // chrome://settings is counted by the browser, not brought over
+    // Only rows that can be brought over are counted: not chrome://settings,
+    // file:// or javascript: ("the latest 2 of 3" counted those).
+    expect(r.history.total).toBe(3);
   });
 
   it('stops at the limit and says how many there were', () => {
     const r = bi.readProfile('chrome', 'Default', { env, limit: 1 });
     expect(r.history.items.map(h => h.url)).toEqual(['https://new.example/']);
-    expect(r.history.total).toBe(4);
+    expect(r.history.total).toBe(3);
   });
 
   it('a profile with bookmarks and no History file still imports its bookmarks', () => {
@@ -173,7 +180,12 @@ describe('a Firefox profile', () => {
     const r = bi.readProfile('firefox', 'Profiles/abcd1234.default-release', { env });
     expect(r.history.items.map(h => h.url)).toEqual(['https://folder.example/page', 'https://mozilla.example/', 'https://unfiled.example/']);
     expect(r.history.items[0].visitedAt).toBe(new Date(T3).toISOString());
-    expect(r.history.total).toBe(3);
+    expect(r.history.total).toBe(3);   // the newer file:// visit is not counted
+  });
+
+  it('a file:// visit does not take a place under the limit', () => {
+    const r = bi.readProfile('firefox', 'Profiles/abcd1234.default-release', { env, limit: 1 });
+    expect(r.history.items.map(h => h.url)).toEqual(['https://folder.example/page']);
   });
 });
 
@@ -233,7 +245,9 @@ describe('adding imported logins to the vault', () => {
       { host: 'b.test', username: 'me', password: 'new' },
       { host: 'b.test', username: 'me', password: 'twice in the file' },
     ]);
-    expect(r).toEqual({ added: [{ host: 'b.test', username: 'me' }], duplicates: 2 });
+    expect(r).toEqual({ added: [{ host: 'b.test', username: 'me', updatedAt: expect.any(String) }], duplicates: 2 });
+    // The same saved time vault:list reports, so an undo can tell it is unchanged.
+    expect(handlers['vault:list']().find(e => e.host === 'b.test').updatedAt).toBe(r.added[0].updatedAt);
     expect(handlers['vault:get']({}, 'a.test')[0].password).toBe('mine');
     expect(handlers['vault:get']({}, 'b.test')[0].password).toBe('new');
     await svc.flushVault();

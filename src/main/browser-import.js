@@ -36,6 +36,10 @@ const HISTORY_LIMIT = 5000;
 const CSV_MAX_BYTES = 20 * 1024 * 1024;
 
 const isWeb = (u) => typeof u === 'string' && /^https?:\/\//i.test(u) && u.length <= 8192;
+// The same test in SQL (LIKE ignores ASCII case, as isWeb does), so the total
+// shown as "the latest N of M" counts only rows that can be brought over, and
+// file://, javascript:, chrome:// rows do not eat into the limit either.
+const WEB_SQL = "(url LIKE 'http://%' OR url LIKE 'https://%') AND length(url) <= 8192";
 const clip = (s, n = 500) => (typeof s === 'string' ? s : '').slice(0, n);
 // Chromium counts microseconds from 1601-01-01; Firefox from 1970.
 // A Chromium time in microseconds is past what a JS number holds exactly, so
@@ -174,8 +178,8 @@ function chromiumHistory(file, tmp, browserName, limit) {
   if (!fs.existsSync(file)) return { total: 0, items: [] };
   const db = openCopy(file, tmp, browserName);
   try {
-    const total = db.prepare('SELECT COUNT(*) AS n FROM urls WHERE hidden = 0 AND last_visit_time > 0').get().n;
-    const rows = db.prepare('SELECT url, title, visit_count, last_visit_time / 1000 AS ms FROM urls WHERE hidden = 0 AND last_visit_time > 0 ORDER BY last_visit_time DESC LIMIT ?').all(limit);
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM urls WHERE hidden = 0 AND last_visit_time > 0 AND ${WEB_SQL}`).get().n;
+    const rows = db.prepare(`SELECT url, title, visit_count, last_visit_time / 1000 AS ms FROM urls WHERE hidden = 0 AND last_visit_time > 0 AND ${WEB_SQL} ORDER BY last_visit_time DESC LIMIT ?`).all(limit);
     const items = rows.filter(r => isWeb(r.url)).map(r => ({ url: r.url, title: clip(r.title) || r.url, visitedAt: iso(fromWebkitMs(r.ms)), visits: Number(r.visit_count) || 1 }));
     return { total: Number(total), items };
   } finally { db.close(); }
@@ -205,8 +209,8 @@ function firefoxPlaces(file, tmp, limit) {
       const root = rows.find(r => r.guid === guid && r.type === 2);
       if (root) walk(root.id, [label], 0);
     }
-    const total = db.prepare('SELECT COUNT(*) AS n FROM moz_places WHERE hidden = 0 AND last_visit_date IS NOT NULL').get().n;
-    const hist = db.prepare('SELECT url, title, visit_count, last_visit_date / 1000 AS ms FROM moz_places WHERE hidden = 0 AND last_visit_date IS NOT NULL ORDER BY last_visit_date DESC LIMIT ?').all(limit);
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM moz_places WHERE hidden = 0 AND last_visit_date IS NOT NULL AND ${WEB_SQL}`).get().n;
+    const hist = db.prepare(`SELECT url, title, visit_count, last_visit_date / 1000 AS ms FROM moz_places WHERE hidden = 0 AND last_visit_date IS NOT NULL AND ${WEB_SQL} ORDER BY last_visit_date DESC LIMIT ?`).all(limit);
     const items = hist.filter(r => isWeb(r.url)).map(r => ({ url: r.url, title: clip(r.title) || r.url, visitedAt: iso(fromPrTimeMs(r.ms)), visits: Number(r.visit_count) || 1 }));
     return { bookmarks, history: { total: Number(total), items } };
   } finally { db.close(); }
@@ -281,8 +285,9 @@ function credentialsFromCsv(text) {
 }
 
 // Ask for the file here, read it here, and add what is new to the vault here:
-// not one password crosses to the window. It is told the hosts and usernames
-// that were added (what vault:list shows anyway), so it can undo the import.
+// not one password crosses to the window. It is told the hosts, usernames and
+// saved times that were added (what vault:list shows anyway), so it can undo
+// the import — and leave a login alone that was changed since.
 async function importPasswordCsv({ dialog, win, addToVault }) {
   const pick = await dialog.showOpenDialog(win, {
     title: 'Choose the passwords file you exported',

@@ -16,12 +16,55 @@ import { describe, it, expect } from 'vitest';
 require('../../src/renderer/js/vex-utils.js');
 const { WebviewManager } = require('../../src/renderer/js/webview.js');
 
+const DARK = { element: '#202124', inject: ':where(html){background-color:#202124}' };
+const WHITE = { element: '#ffffff', inject: ':where(html){background-color:#ffffff}' };
+
 describe('what to paint behind a page', () => {
-  it('gives a page that paints nothing a base that matches its scheme', () => {
-    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true }))
-      .toEqual({ element: '#202124', inject: ':where(html){background-color:#202124}' });
-    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false }))
-      .toEqual({ element: '#ffffff', inject: ':where(html){background-color:#ffffff}' });
+  // The values below are what Chromium 148 in Vex really reported for each
+  // kind of page (probe, 2026-10-03).
+  it('gives the JSON and text viewers a dark base in dark mode (their text is white)', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: 'rgb(255, 255, 255)', scheme: 'normal ' })).toEqual(DARK);
+  });
+
+  it('gives the same viewers a white base in light mode', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false, ink: 'rgb(0, 0, 0)', scheme: 'normal ' })).toEqual(WHITE);
+  });
+
+  // The bug: <p>hi</p> in dark mode came out black on #202124. Chrome gives
+  // a page that never opted into dark a white canvas.
+  it('gives an ordinary page a white base even when dark mode is reported', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: 'rgb(0, 0, 0)', scheme: 'normal ' })).toEqual(WHITE);
+  });
+
+  it('follows a page that declared light dark', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: 'rgb(255, 255, 255)', scheme: 'normal light dark' })).toEqual(DARK);
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false, ink: 'rgb(0, 0, 0)', scheme: 'normal light dark' })).toEqual(WHITE);
+  });
+
+  // color-scheme: dark draws white text even in light mode; a white base put
+  // it on white.
+  it('gives a color-scheme: dark page a dark base in light mode too', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false, ink: 'rgb(255, 255, 255)', scheme: 'dark ' })).toEqual(DARK);
+  });
+
+  it('falls back to the declared scheme when the text colour cannot be read', () => {
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: '', scheme: 'normal ' })).toEqual(WHITE);
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false, ink: 'oklch(0.9 0 0)', scheme: 'dark' })).toEqual(DARK);
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: '', scheme: 'normal light dark' })).toEqual(DARK);
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: false, ink: '', scheme: 'light dark' })).toEqual(WHITE);
+    // An old probe result with neither field: never dark by default.
+    expect(WebviewManager.baseColourFor({ body: '', html: '', dark: true })).toEqual(WHITE);
+  });
+
+  it('reads the text colour formats Chromium reports', () => {
+    expect(WebviewManager.inkIsLight('rgb(232, 227, 216)')).toBe(true);
+    expect(WebviewManager.inkIsLight('rgba(20, 20, 20, 0.9)')).toBe(false);
+    expect(WebviewManager.inkIsLight('color(srgb 0.95 0.95 0.95)')).toBe(true);
+    expect(WebviewManager.inkIsLight('color(srgb 0.1 0.1 0.1 / 0.5)')).toBe(false);
+    expect(WebviewManager.inkIsLight('rgba(255, 255, 255, 0)')).toBe(null);
+    expect(WebviewManager.inkIsLight('color(display-p3 1 1 1)')).toBe(null);
+    expect(WebviewManager.inkIsLight('lab(90 0 0)')).toBe(null);
+    expect(WebviewManager.inkIsLight(undefined)).toBe(null);
   });
 
   // The important half: a site that paints its own background is not touched,
@@ -40,7 +83,7 @@ describe('what to paint behind a page', () => {
 
   // Zero specificity: anything the page itself sets, later, still wins.
   it('injects at a specificity the page can always beat', () => {
-    const { inject } = WebviewManager.baseColourFor({ body: '', html: '', dark: true });
+    const { inject } = WebviewManager.baseColourFor({ body: '', html: '', dark: true, ink: 'rgb(255, 255, 255)' });
     expect(inject.startsWith(':where(html)')).toBe(true);
   });
 });

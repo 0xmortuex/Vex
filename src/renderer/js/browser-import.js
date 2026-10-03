@@ -9,9 +9,19 @@
 // Every import shows its counts first, skips what Vex already has (same
 // address, or same site + username for a login), puts bookmarks under
 // "Imported from <Browser>", and is remembered so it can be undone exactly:
-// the ids of the bookmarks and visits it added, and the site + username of
-// each login. Nothing that was already in Vex is changed.
+// the bookmarks and visits it added as they were added, and the site,
+// username and saved time of each login. Nothing that was already in Vex is
+// changed, and undo leaves anything changed since where it is.
+//
+// Every import has its own undo, not just the latest: importing Chrome and
+// then Firefox left the Chrome one impossible to take back (found
+// 2026-10-03). The last KEEP of each kind are remembered.
 const BrowserImport = {
+  IMPORTS_KEY: 'vex.browserImports',
+  LOGIN_IMPORTS_KEY: 'vex.passwordImports',
+  KEEP: 10,
+  // Before 2026-10-03 only the latest import of each kind was remembered;
+  // such a record is moved into the list the first time the list is read.
   LAST_KEY: 'vex.lastBrowserImport',
   LAST_LOGINS_KEY: 'vex.lastPasswordImport',
 
@@ -59,7 +69,10 @@ const BrowserImport = {
     if (typeof Bookmarks === 'undefined' || typeof HistoryPanel === 'undefined') throw new Error('Bookmarks and history are not ready yet — try again in a moment');
     HistoryPanel._hydrate();
     const p = this.plan(data, { bookmarks: Bookmarks.items, history: HistoryPanel.entries });
-    const record = { at: Date.now(), browserName: data.browserName, profileName: data.profile && data.profile.name, bookmarkIds: [], historyIds: [], historyDropped: 0 };
+    const record = { id: this._id('imp'), at: Date.now(), browserName: data.browserName, profileName: data.profile && data.profile.name, bookmarkIds: [], historyIds: [], historyDropped: 0 };
+    // What undo checks each item against: as added, so a bookmark renamed or
+    // moved since, or a page visited again since, is the person's now.
+    let bookmarkRefs = [], historyRefs = [];
     if (takeBookmarks && p.bookmarks.length) {
       const now = Date.now();
       const items = p.bookmarks.map(b => ({
@@ -71,6 +84,7 @@ const BrowserImport = {
       Bookmarks.items = Bookmarks.items.concat(items);
       Bookmarks.save();
       record.bookmarkIds = items.map(b => b.id);
+      bookmarkRefs = items.map(b => ({ id: b.id, url: b.url, title: b.title, folder: b.folder }));
     }
     if (takeHistory && p.history.length) {
       const items = p.history.map(h => ({
@@ -80,61 +94,169 @@ const BrowserImport = {
       const ids = new Set(items.map(h => h.id));
       HistoryPanel.entries = HistoryPanel.entries.concat(items).sort((a, b) => HistoryPanel._when(b) - HistoryPanel._when(a));
       HistoryPanel.save();   // keeps the newest MAX_ENTRIES
-      record.historyIds = HistoryPanel.entries.filter(h => ids.has(h.id)).map(h => h.id);
+      const kept = HistoryPanel.entries.filter(h => ids.has(h.id));
+      record.historyIds = kept.map(h => h.id);
       record.historyDropped = items.length - record.historyIds.length;
+      historyRefs = kept.map(h => ({ id: h.id, at: h.visitedAt }));
       HistoryPanel._refreshIfOpen?.();
     }
-    if (record.bookmarkIds.length || record.historyIds.length) this._remember(this.LAST_KEY, record);
+    if (record.bookmarkIds.length || record.historyIds.length) {
+      this._addImport({
+        id: record.id, at: record.at, browserName: record.browserName, profileName: record.profileName,
+        added: { bookmarks: bookmarkRefs.length, history: historyRefs.length },
+        bookmarks: bookmarkRefs, history: historyRefs,
+      });
+    }
     return record;
   },
 
-  _remember(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); }
-    catch (err) { console.error('[BrowserImport] could not remember the import for undo:', err.message); }
+  // --- The remembered imports ------------------------------------------------
+
+  _read(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); }
+    catch (err) { throw new Error('The list of past imports could not be read: ' + err.message, { cause: err }); }
   },
-  _recall(key) {
-    try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v && typeof v === 'object' ? v : null; }
-    catch { return null; }
+  _write(key, list) {
+    localStorage.setItem(key, JSON.stringify(list));
   },
 
-  // Take back exactly what the last import added — a bookmark or visit the
-  // person deleted since is simply not there to remove.
-  undo() {
-    const r = this._recall(this.LAST_KEY);
-    if (!r) return { bookmarks: 0, history: 0 };
-    const bm = new Set(r.bookmarkIds || []), hi = new Set(r.historyIds || []);
-    const before = { b: Bookmarks.items.length };
-    Bookmarks.items = Bookmarks.items.filter(b => !bm.has(b.id));
-    Bookmarks.save();
+  // The bookmarks-and-history imports, newest first.
+  imports() {
+    const saved = this._read(this.IMPORTS_KEY);
+    const list = Array.isArray(saved) ? saved : [];
+    const legacy = this._read(this.LAST_KEY);
+    if (legacy && typeof legacy === 'object') {
+      // An old record has ids only: undo matches those by id, as it always did.
+      const bookmarks = (legacy.bookmarkIds || []).map(id => ({ id }));
+      const history = (legacy.historyIds || []).map(id => ({ id }));
+      list.unshift({
+        id: 'imp_legacy_' + (legacy.at || 0), at: legacy.at || 0, browserName: legacy.browserName || 'another browser', profileName: legacy.profileName,
+        added: { bookmarks: bookmarks.length, history: history.length }, bookmarks, history,
+      });
+      list.sort((a, b) => (b.at || 0) - (a.at || 0));
+      this._write(this.IMPORTS_KEY, list.slice(0, this.KEEP));
+      localStorage.removeItem(this.LAST_KEY);
+    }
+    return list.slice(0, this.KEEP);
+  },
+
+  _addImport(entry) {
+    // Items deleted since can never be undone; dropping them keeps the list
+    // small (a history import alone can be 5,000 visits).
+    const haveB = new Set(Bookmarks.items.map(b => b.id));
+    const haveH = new Set(HistoryPanel.entries.map(h => h.id));
+    const older = this.imports().map(r => ({
+      ...r,
+      bookmarks: (r.bookmarks || []).filter(b => haveB.has(b.id)),
+      history: (r.history || []).filter(h => haveH.has(h.id)),
+    })).filter(r => r.bookmarks.length || r.history.length);
+    try { this._write(this.IMPORTS_KEY, [entry, ...older].slice(0, this.KEEP)); }
+    catch (err) { throw new Error('The import was added, but Vex could not remember it for undo: ' + err.message, { cause: err }); }
+  },
+
+  // Take back exactly what one import added and is still as it was added —
+  // a bookmark or visit deleted since is not there to remove, and one
+  // changed since is kept.
+  undo(id) {
+    const list = this.imports();
+    const r = list.find(x => x.id === id);
+    if (!r) throw new Error('That import is no longer in the list');
+    const same = (ref, item) => ref.url === undefined || (item.url === ref.url && item.title === ref.title && item.folder === ref.folder);
+    const bm = new Map((r.bookmarks || []).map(b => [b.id, b]));
+    let kept = 0;
+    const bBefore = Bookmarks.items.length;
+    Bookmarks.items = Bookmarks.items.filter(b => {
+      const ref = bm.get(b.id);
+      if (!ref) return true;
+      if (same(ref, b)) return false;
+      kept++;
+      return true;
+    });
+    const bookmarks = bBefore - Bookmarks.items.length;
+    if (bookmarks) Bookmarks.save();
     HistoryPanel._hydrate();
+    const hi = new Map((r.history || []).map(h => [h.id, h]));
     const hBefore = HistoryPanel.entries.length;
-    HistoryPanel.entries = HistoryPanel.entries.filter(h => !hi.has(h.id));
-    HistoryPanel.save();
-    HistoryPanel._refreshIfOpen?.();
-    localStorage.removeItem(this.LAST_KEY);
-    return { bookmarks: before.b - Bookmarks.items.length, history: hBefore - HistoryPanel.entries.length };
+    HistoryPanel.entries = HistoryPanel.entries.filter(h => {
+      const ref = hi.get(h.id);
+      if (!ref) return true;
+      if (ref.at === undefined || h.visitedAt === ref.at) return false;
+      kept++;
+      return true;
+    });
+    const history = hBefore - HistoryPanel.entries.length;
+    if (history) { HistoryPanel.save(); HistoryPanel._refreshIfOpen?.(); }
+    this._write(this.IMPORTS_KEY, list.filter(x => x.id !== id));
+    return { bookmarks, history, kept };
   },
 
-  async importPasswords() {
+  // The passwords imports, newest first.
+  loginImports() {
+    const saved = this._read(this.LOGIN_IMPORTS_KEY);
+    const list = Array.isArray(saved) ? saved : [];
+    const legacy = this._read(this.LAST_LOGINS_KEY);
+    if (legacy && typeof legacy === 'object') {
+      list.unshift({ id: 'pw_legacy_' + (legacy.at || 0), at: legacy.at || 0, file: legacy.file || 'a file', logins: legacy.logins || [] });
+      list.sort((a, b) => (b.at || 0) - (a.at || 0));
+      this._write(this.LOGIN_IMPORTS_KEY, list.slice(0, this.KEEP));
+      localStorage.removeItem(this.LAST_LOGINS_KEY);
+    }
+    return list.slice(0, this.KEEP);
+  },
+
+  async importPasswords({ browserName } = {}) {
     const r = await window.vex.browserImportPasswordsCsv();
     if (!r || r.canceled) return null;
-    if (r.added.length) this._remember(this.LAST_LOGINS_KEY, { at: Date.now(), file: r.file, logins: r.added });
+    if (r.added.length) {
+      // Hosts, usernames and saved times only — never a password.
+      const entry = { id: this._id('pw'), at: Date.now(), browserName, file: r.file, logins: r.added.map(l => ({ host: l.host, username: l.username, updatedAt: l.updatedAt })) };
+      try { this._write(this.LOGIN_IMPORTS_KEY, [entry, ...this.loginImports()].slice(0, this.KEEP)); }
+      catch (err) { throw new Error('The logins were added, but Vex could not remember them for undo: ' + err.message, { cause: err }); }
+    }
     return r;
   },
 
-  async undoPasswords() {
-    const r = this._recall(this.LAST_LOGINS_KEY);
-    if (!r) return { removed: 0, failed: 0 };
-    let removed = 0, failed = 0;
+  // Deletes the logins one import added that are still as imported. A login
+  // changed since (its saved time moved on) is kept. One that could not be
+  // deleted stays in the record, so Undo can be pressed again.
+  async undoPasswords(id) {
+    const list = this.loginImports();
+    const r = list.find(x => x.id === id);
+    if (!r) throw new Error('That import is no longer in the list');
+    const now = new Map((await window.vex.vaultList()).map(e => [e.host + '\n' + e.username, e.updatedAt]));
+    let removed = 0, kept = 0;
+    const failed = [];
     for (const l of r.logins || []) {
+      const k = l.host + '\n' + l.username;
+      if (!now.has(k)) continue;   // deleted since
+      // A record from before saved times were kept matches on site + username.
+      if (l.updatedAt !== undefined && now.get(k) !== l.updatedAt) { kept++; continue; }
       const res = await window.vex.vaultDelete({ host: l.host, username: l.username });
-      if (res && res.ok) removed++; else failed++;
+      if (res && res.ok) removed++; else failed.push(l);
     }
-    if (!failed) localStorage.removeItem(this.LAST_LOGINS_KEY);
-    return { removed, failed };
+    this._write(this.LOGIN_IMPORTS_KEY, failed.length
+      ? list.map(x => (x.id === id ? { ...x, logins: failed } : x))
+      : list.filter(x => x.id !== id));
+    return { removed, failed: failed.length, kept };
   },
 
   _n(n, one, many) { return n.toLocaleString() + ' ' + (n === 1 ? one : many); },
+
+  _when(at) {
+    return at ? new Date(at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'an earlier version of Vex';
+  },
+
+  // One line per import: where from, what, when, how much.
+  describeImport(r) {
+    const a = r.added || { bookmarks: (r.bookmarks || []).length, history: (r.history || []).length };
+    const kind = a.bookmarks && a.history ? 'Bookmarks and history' : a.bookmarks ? 'Bookmarks' : 'History';
+    const counts = [a.bookmarks ? this._n(a.bookmarks, 'bookmark', 'bookmarks') : '', a.history ? this._n(a.history, 'visit', 'visits') : ''].filter(Boolean).join(', ');
+    return kind + ' from ' + r.browserName + (r.profileName ? ' (' + r.profileName + ')' : '') + ' · ' + this._when(r.at) + ' · ' + counts;
+  },
+
+  describeLoginImport(r) {
+    return 'Passwords' + (r.browserName ? ' from ' + r.browserName : '') + ' (' + r.file + ') · ' + this._when(r.at) + ' · ' + this._n((r.logins || []).length, 'login', 'logins');
+  },
 
   async open() {
     document.getElementById('vex-browser-import')?.remove();
@@ -156,7 +278,7 @@ const BrowserImport = {
       + '<div class="vexsr-row" style="margin-top:10px;justify-content:flex-end"><button id="bi-go" class="vexsr-go">Import</button></div>'
       + '</div>'
       + '<div id="bi-msg" class="vexsr-msg" role="status"></div>'
-      + '<div id="bi-undo-row" class="vexsr-row" hidden style="align-items:center"><span id="bi-undo-what" class="vexsr-sub" style="flex:1"></span><button id="bi-undo" class="vexsr-x">' + VexIcons.svg('undo', { size: 12 }) + ' Undo</button></div>'
+      + '<div id="bi-imports" hidden style="margin-top:10px"><div class="vexsr-sub" style="font-weight:600">Your imports — the last ' + this.KEEP + ' can be undone</div><div id="bi-imports-rows"></div></div>'
       + '<div class="vexsr-note"><div style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--text);font-size:12.5px">' + VexIcons.svg('key', { size: 13 }) + 'Passwords</div>'
       + '<div style="margin-top:4px">Vex does not read another browser\'s saved passwords. Export them from that browser yourself, then choose the file here — Vex adds every login it does not already have.</div>'
       + '<div class="vexsr-row" style="margin-top:8px"><select id="bi-pw-browser" class="vexsr-input" aria-label="Export passwords from">'
@@ -164,7 +286,7 @@ const BrowserImport = {
       + '<button id="bi-pw-go" class="vexsr-go">Choose the exported file…</button></div>'
       + '<div id="bi-pw-steps" style="margin-top:8px"></div>'
       + '<div id="bi-pw-msg" class="vexsr-msg" role="status"></div>'
-      + '<div id="bi-pw-undo-row" class="vexsr-row" hidden style="align-items:center"><span id="bi-pw-undo-what" class="vexsr-sub" style="flex:1"></span><button id="bi-pw-undo" class="vexsr-x">' + VexIcons.svg('undo', { size: 12 }) + ' Undo</button></div>'
+      + '<div id="bi-pw-imports" hidden style="margin-top:8px"><div id="bi-pw-imports-rows"></div></div>'
       + '<div style="margin-top:6px">The exported file holds every password in plain text. Delete it once Vex has them, and empty the Recycle Bin.</div>'
       + '</div></div>';
     document.body.appendChild(m);
@@ -187,13 +309,59 @@ const BrowserImport = {
     $('#bi-close').addEventListener('click', close);
     $('#bi-close').focus({ preventScroll: true });
 
+    // One row per remembered import, each with its own Undo.
+    const rowsInto = (wrap, rows, list, describe, onUndo) => {
+      rows.textContent = '';
+      wrap.hidden = !list.length;
+      for (const r of list) {
+        const row = document.createElement('div');
+        row.className = 'vexsr-row bi-import';
+        row.style.alignItems = 'center';
+        row.dataset.importId = r.id;
+        const what = document.createElement('span');
+        what.className = 'vexsr-sub';
+        what.style.flex = '1';
+        what.textContent = describe(r);
+        const btn = document.createElement('button');
+        btn.className = 'vexsr-x';
+        btn.innerHTML = VexIcons.svg('undo', { size: 12 }) + ' Undo';
+        btn.setAttribute('aria-label', 'Undo: ' + what.textContent);
+        btn.addEventListener('click', () => onUndo(r));
+        row.append(what, btn);
+        rows.appendChild(row);
+      }
+    };
     const showUndo = () => {
-      const r = this._recall(this.LAST_KEY);
-      $('#bi-undo-row').hidden = !r;
-      if (r) $('#bi-undo-what').textContent = 'Last import from ' + r.browserName + ': ' + this._n((r.bookmarkIds || []).length, 'bookmark', 'bookmarks') + ', ' + this._n((r.historyIds || []).length, 'visit', 'visits') + '.';
-      const p = this._recall(this.LAST_LOGINS_KEY);
-      $('#bi-pw-undo-row').hidden = !p;
-      if (p) $('#bi-pw-undo-what').textContent = 'Last passwords import (' + p.file + '): ' + this._n((p.logins || []).length, 'login', 'logins') + '.';
+      try { rowsInto($('#bi-imports'), $('#bi-imports-rows'), this.imports(), r => this.describeImport(r), undoImport); }
+      catch (err) { msg(err.message, true); }
+      try { rowsInto($('#bi-pw-imports'), $('#bi-pw-imports-rows'), this.loginImports(), r => this.describeLoginImport(r), undoLogins); }
+      catch (err) { pwMsg(err.message, true); }
+    };
+
+    const undoImport = async (r) => {
+      const a = r.added || {};
+      const ok = await vexConfirm({ title: 'Undo this import?', message: 'This removes the ' + this._n(a.bookmarks || 0, 'bookmark', 'bookmarks') + ' and ' + this._n(a.history || 0, 'visit', 'visits') + ' brought over from ' + r.browserName + ' on ' + this._when(r.at) + '. Any you have changed since stay, and nothing else is touched.', okLabel: 'Undo import' });
+      if (!ok) return;
+      try {
+        const done = this.undo(r.id);
+        msg('Removed ' + this._n(done.bookmarks, 'bookmark', 'bookmarks') + ' and ' + this._n(done.history, 'visit', 'visits') + '.'
+          + (done.kept ? ' Kept ' + this._n(done.kept, 'item', 'items') + ' you changed since.' : ''));
+      } catch (err) { msg(err.message, true); }
+      showUndo();
+    };
+
+    const undoLogins = async (r) => {
+      const exact = (r.logins || []).every(l => l.updatedAt !== undefined);
+      const ok = await vexConfirm({ title: 'Undo this passwords import?', message: 'This deletes the ' + this._n((r.logins || []).length, 'login', 'logins') + ' added from ' + r.file + ' on ' + this._when(r.at)
+        + (exact ? '. Logins you have changed since, and those that were already in Vex, are kept.' : ' — including any you have changed since. Logins that were already in Vex are not touched.'), okLabel: 'Delete them' });
+      if (!ok) return;
+      try {
+        const done = await this.undoPasswords(r.id);
+        pwMsg('Removed ' + this._n(done.removed, 'login', 'logins') + '.'
+          + (done.kept ? ' Kept ' + this._n(done.kept, 'login', 'logins') + ' you changed since.' : '')
+          + (done.failed ? ' ' + this._n(done.failed, 'could not be removed', 'could not be removed') + ' — try Undo again.' : ''), !!done.failed);
+      } catch (err) { pwMsg(err.message, true); }
+      showUndo();
     };
     showUndo();
 
@@ -260,22 +428,11 @@ const BrowserImport = {
       } catch (err) { msg(err.message, true); }
     });
 
-    $('#bi-undo').addEventListener('click', async () => {
-      const r = this._recall(this.LAST_KEY);
-      if (!r) return;
-      const ok = await vexConfirm({ title: 'Undo the import?', message: 'This removes the ' + this._n((r.bookmarkIds || []).length, 'bookmark', 'bookmarks') + ' and ' + this._n((r.historyIds || []).length, 'visit', 'visits') + ' brought over from ' + r.browserName + '. Nothing else is touched.', okLabel: 'Undo import' });
-      if (!ok) return;
-      try {
-        const done = this.undo();
-        msg('Removed ' + this._n(done.bookmarks, 'bookmark', 'bookmarks') + ' and ' + this._n(done.history, 'visit', 'visits') + '.');
-        showUndo();
-      } catch (err) { msg(err.message, true); }
-    });
-
     $('#bi-pw-go').addEventListener('click', async () => {
       pwMsg('');
       try {
-        const r = await this.importPasswords();
+        const sel = $('#bi-pw-browser');
+        const r = await this.importPasswords({ browserName: sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '' });
         if (!r) return;
         const left = [];
         if (r.duplicates) left.push(this._n(r.duplicates, 'was', 'were') + ' already saved');
@@ -286,17 +443,6 @@ const BrowserImport = {
       } catch (err) { pwMsg(err.message, true); }
     });
 
-    $('#bi-pw-undo').addEventListener('click', async () => {
-      const r = this._recall(this.LAST_LOGINS_KEY);
-      if (!r) return;
-      const ok = await vexConfirm({ title: 'Undo the passwords import?', message: 'This deletes the ' + this._n((r.logins || []).length, 'login', 'logins') + ' added from ' + r.file + ' — including any you have changed since. Logins that were already in Vex are not touched.', okLabel: 'Delete them' });
-      if (!ok) return;
-      try {
-        const done = await this.undoPasswords();
-        pwMsg('Removed ' + this._n(done.removed, 'login', 'logins') + '.' + (done.failed ? ' ' + this._n(done.failed, 'could not be removed', 'could not be removed') + ' — try Undo again.' : ''), !!done.failed);
-        showUndo();
-      } catch (err) { pwMsg(err.message, true); }
-    });
   },
 };
 
