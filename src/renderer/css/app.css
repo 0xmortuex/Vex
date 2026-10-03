@@ -162,6 +162,30 @@ body {
   flex-shrink: 0;
 }
 
+/* "Add to Vex" on a Chrome Web Store extension page (js/web-store.js). The
+   accent and text tokens are the look's own in the browser looks too
+   (gui-browser.css bridges them), so it needs no per-look rule. */
+#btn-webstore-add {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--primary, var(--vex-accent));
+  background: color-mix(in srgb, var(--primary, var(--vex-accent)) 14%, transparent);
+  color: var(--text, var(--vex-text-primary));
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#btn-webstore-add:hover { background: color-mix(in srgb, var(--primary, var(--vex-accent)) 26%, transparent); }
+#btn-webstore-add:focus-visible { outline: 2px solid var(--primary, var(--vex-accent)); outline-offset: 1px; }
+
 #url-input {
   flex: 1;
   /* flex: 1 sizes it; the zero width only swaps the input's own intrinsic

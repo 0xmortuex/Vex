@@ -2354,6 +2354,13 @@ function _readScopes() {
   catch (err) { console.error('[Extensions] scope file unreadable, using defaults:', err.message); return {}; }
 }
 
+// Which folders came from the Chrome Web Store (extensions.js readSources).
+// Unreadable, the extensions still list; only "Update from Web Store" is gone.
+function _readSources() {
+  try { return extHelpers.readSources(extensionsDir); }
+  catch (err) { console.error('[Extensions] sources file unreadable:', err.message); return {}; }
+}
+
 // The sessions one extension belongs in (src/main/extensions.js partitionsFor):
 // the default session and the browsing partitions always; an app panel's
 // partition only when the extension names that site, or its scope is
@@ -2493,8 +2500,12 @@ function _removeSupersededCopies(keepPath, name) {
 function _installedCopyOf(newFolder) {
   const manifest = JSON.parse(fs.readFileSync(path.join(newFolder, 'manifest.json'), 'utf-8'));
   const name = extHelpers.localize(manifest.name, extHelpers.readMessages(newFolder, manifest.default_locale));
+  return _installedCopyNamed(name, newFolder);
+}
+
+function _installedCopyNamed(name, exceptFolder) {
   if (!name) return null;
-  const copies = _extEntriesOnDisk().filter(e => e.manifest && path.resolve(e.path) !== path.resolve(newFolder)
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && (!exceptFolder || path.resolve(e.path) !== path.resolve(exceptFolder))
     && extHelpers.localize(e.manifest.name, e.messages) === name);
   if (!copies.length) return null;
   let loaded = [];
@@ -2550,7 +2561,7 @@ async function _replaceInPlace(previous, staged) {
     fs.rmSync(backup, { recursive: true, force: true });
     _tidyReplaced(backupDir, previous.folder);
     _extLoadErrors.delete(previous.folder);
-    return { ok: true, id: null, name, version: manifest.version, disabled: true };
+    return { ok: true, id: null, name, version: manifest.version, disabled: true, folder: previous.folder };
   }
   if (_boot.safeMode) {
     // Safe mode loads no extensions: an update went live anyway, perhaps the
@@ -2558,7 +2569,7 @@ async function _replaceInPlace(previous, staged) {
     // place and it loads on a normal start.
     fs.rmSync(backup, { recursive: true, force: true });
     _tidyReplaced(backupDir, previous.folder);
-    return { ok: true, id: null, name, version: manifest.version, afterRestart: true };
+    return { ok: true, id: null, name, version: manifest.version, afterRestart: true, folder: previous.folder };
   }
   const { extension, errors } = await _loadExtensionEverywhere(previous.path);
   if (!extension) {
@@ -2572,7 +2583,7 @@ async function _replaceInPlace(previous, staged) {
   _tidyReplaced(backupDir, previous.folder);
   _extLoadErrors.delete(previous.folder);
   _removeSupersededCopies(previous.path, extension.name);
-  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version, folder: previous.folder };
 }
 
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
@@ -2590,7 +2601,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate) {
     // Placed but not loaded in safe mode, like an update (_replaceInPlace).
     const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
     const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
-    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true };
+    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true, folder: path.basename(destFolder) };
   }
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
@@ -2600,7 +2611,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate) {
   }
   _extLoadErrors.delete(path.basename(destFolder));
   _removeSupersededCopies(destFolder, extension.name);
-  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version, folder: path.basename(destFolder) };
 }
 
 // Extensions must also reach partitions created AFTER startup — a container
@@ -2670,6 +2681,7 @@ ipcMain.handle('extensions:list', () => {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
   const scopes = _readScopes();
+  const sources = _readSources();
   return _extEntriesOnDisk().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
@@ -2696,6 +2708,8 @@ ipcMain.handle('extensions:list', () => {
         ? `chrome-extension://${live.id}/${String(pages.options).replace(/^\/+/, '')}`
         : null,
       iconPath: icon ? path.join(e.path, icon) : null,
+      // Installed from the Chrome Web Store: its id there, for "Update from Web Store".
+      webstore: (sources[e.folder] && sources[e.folder].webstore) || null,
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
@@ -2848,7 +2862,13 @@ async function _downloadBuffer(url) {
 // every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
 // buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
 // a re-install can find + replace the old copy.
-async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
+// opts.skipPrefixes: archive paths left out (a Web Store package's _metadata/,
+// which Chromium refuses in an unpacked extension: names starting "_" are
+// reserved). opts.manifestKey: written into manifest.json as "key", so
+// Chromium gives the extension its Web Store id rather than one made from the
+// folder's path.
+async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts = {}) {
+  const skipPrefixes = Array.isArray(opts.skipPrefixes) ? opts.skipPrefixes : [];
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
   if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
@@ -2867,7 +2887,18 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
   }
   if (!manifestEntry) return { ok: false, error: 'No manifest.json in archive' };
   const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
-  const slug = forceSlug || String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  let slug = forceSlug;
+  if (!slug) {
+    // The archive's own _locales name the folder, as in extensions:install-zip.
+    const localeEntry = manifest.default_locale ? entries.find(e => e.entryName === `${rootPath}_locales/${manifest.default_locale}/messages.json`) : null;
+    const messages = Object.create(null);
+    if (localeEntry) {
+      for (const [key, value] of Object.entries(JSON.parse(localeEntry.getData().toString('utf-8').replace(/^\uFEFF/, '')))) {
+        if (value && typeof value.message === 'string') messages[key] = value.message;
+      }
+    }
+    slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, messages));
+  }
   const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
   fs.mkdirSync(destFolder, { recursive: true });
   for (const entry of entries) {
@@ -2876,14 +2907,26 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
     if (rootPath && !name.startsWith(rootPath)) continue;
     const rel = rootPath ? name.slice(rootPath.length) : name;
     if (!rel) continue;
+    if (skipPrefixes.some(p => rel.startsWith(p))) continue;
     let outPath;
     try { outPath = safeJoin(destFolder, rel); } catch { continue; }
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, entry.getData());
   }
-  if (!fs.existsSync(path.join(destFolder, 'manifest.json'))) {
+  const placedManifest = path.join(destFolder, 'manifest.json');
+  if (!fs.existsSync(placedManifest)) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
+  }
+  if (opts.manifestKey) {
+    try {
+      const placed = JSON.parse(fs.readFileSync(placedManifest, 'utf-8').replace(/^\uFEFF/, ''));
+      placed.key = opts.manifestKey;
+      fs.writeFileSync(placedManifest, JSON.stringify(placed, null, 2));
+    } catch (err) {
+      fs.rmSync(destFolder, { recursive: true, force: true });
+      return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
+    }
   }
   return await _activateInstalledFolder(destFolder, copyToUpdate);
 }
@@ -2910,6 +2953,65 @@ ipcMain.handle('extensions:install-catalog', async (_e, id) => {
     return done.ok ? { ...done, release: release.tag_name || '', file: asset.name } : done;
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Install from the Chrome Web Store (main/webstore.js). The package comes from
+// Google's own update server, as in Chrome, Brave and Vivaldi, and is used only
+// when its CRX3 signatures, the developer's and the Web Store's, check out.
+// Two steps, so the person sees what it may do before anything is written:
+// webstore-preview downloads, verifies and describes it; install-webstore
+// installs that same verified package (downloaded again after ten minutes).
+// Both take one string, an extension id or a store link, and main finds the
+// id in it itself. Refused in private windows by the IPC policy (extensions:).
+let _webStoreLazy = null;
+function _webStoreInstaller() {
+  if (!_webStoreLazy) {
+    _webStoreLazy = require('./main/webstore').createWebStoreInstaller({
+      fetch: boundedNetFetch, chromeVersion: process.versions.chrome,
+      AdmZip: require('adm-zip'), validateZip: require('./main/archive-security').validateZip,
+    });
+  }
+  return _webStoreLazy;
+}
+
+// The installed copy a Web Store install updates: the folder recorded for that
+// id, else one carrying the same key, else one of the same name.
+function _webStoreCopyOf(id, name, keyB64) {
+  const sources = _readSources();
+  const entries = _extEntriesOnDisk().filter(e => e.manifest);
+  return entries.find(e => sources[e.folder] && sources[e.folder].webstore === id)
+    || entries.find(e => keyB64 && e.manifest.key === keyB64)
+    || _installedCopyNamed(name);
+}
+
+ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
+  try {
+    const p = await _webStoreInstaller().preview(input);
+    const have = _webStoreCopyOf(p.id, p.name, null);
+    return { ok: true, ...p, installed: have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null, safeMode: !!_boot.safeMode };
+  } catch (err) {
+    return { ok: false, error: err.message, code: err.code || null };
+  }
+});
+
+ipcMain.handle('extensions:install-webstore', async (_e, input) => {
+  try {
+    const pkg = await _webStoreInstaller().take(input);
+    const keyB64 = pkg.publicKey.toString('base64');
+    const previous = _webStoreCopyOf(pkg.id, pkg.info.name, keyB64);
+    // The extension gets its Web Store id (its key in the manifest), except
+    // when it updates a copy installed without one: that copy's id comes from
+    // its folder, and changing it would empty its storage.
+    const manifestKey = previous && !previous.manifest.key ? null : keyB64;
+    const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
+    if (!done.ok) return done;
+    const sources = _readSources();
+    sources[done.folder] = { webstore: pkg.id };
+    extHelpers.writeSources(extensionsDir, sources);
+    return { ...done, webstore: pkg.id, updated: !!previous, previousVersion: previous ? (previous.manifest.version || '') : null };
+  } catch (err) {
+    return { ok: false, error: err.message, code: err.code || null };
   }
 });
 
@@ -3033,6 +3135,8 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
     _extLoadErrors.delete(folderName);
     const disabled = _readDisabledFolders();
     if (disabled.delete(folderName)) extHelpers.writeDisabled(extensionsDir, disabled);
+    const sources = _readSources();
+    if (sources[folderName]) { delete sources[folderName]; extHelpers.writeSources(extensionsDir, sources); }
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };

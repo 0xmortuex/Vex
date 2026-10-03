@@ -7,6 +7,8 @@
 //
 //   vexConfirm('Delete it?')                          -> Promise<boolean>
 //   vexConfirm({ title, message, okLabel, cancelLabel, danger })
+//   vexConfirm({ ..., html, wide })  html: markup the CALLER has built and
+//                                     escaped (icons, lists); shown under message
 //   vexPrompt('New name', 'default value')            -> Promise<string|null>
 //   vexPrompt({ title, message, label, value, placeholder, okLabel })
 //   vexPrompt({ ..., multiline: true, wide: true })     -> a scrollable text box
@@ -40,9 +42,10 @@
       // before it goes somewhere — a problem report. The wide dialog gives it room.
       const multi = !!(opts.input && opts.input.multiline);
       overlay.innerHTML = `
-        <div class="vex-dialog${opts.wide ? ' vex-dialog-wide' : ''}" role="${opts.danger ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="${id}-title"${opts.message ? ` aria-describedby="${id}-msg"` : ''}>
+        <div class="vex-dialog${opts.wide ? ' vex-dialog-wide' : ''}" role="${opts.danger ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="${id}-title"${opts.message || opts.html ? ` aria-describedby="${id}-msg"` : ''}>
           <div class="vex-dialog-title" id="${id}-title">${esc(opts.title || 'Vex')}</div>
           ${opts.message ? `<div class="vex-dialog-msg" id="${id}-msg">${esc(opts.message)}</div>` : ''}
+          ${opts.html ? `<div class="vex-dialog-body"${opts.message ? '' : ` id="${id}-msg"`}>${opts.html}</div>` : ''}
           ${opts.input ? `
             ${opts.input.label ? `<label class="vex-dialog-label" for="${id}-input">${esc(opts.input.label)}</label>` : ''}
             ${multi

@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.36.1 (2026-10-04) — Install extensions from the Chrome Web Store
+
+### New
+- **Install extensions from the Chrome Web Store.** Open an extension's page in Vex and click **Add to Vex** in the address bar, paste its link in Settings › Extensions, or use Ctrl+K → "Install this extension from the Web Store". Vex downloads the package from Google's own update server, as Chrome, Brave and Vivaldi do, and installs it only if both the developer's and the Web Store's signatures check out. Before anything is installed you see what it can read and do, and what will not work in Vex. **Update from Web Store** on its card fetches the newest version and keeps its settings. Not available in private windows or Tor tabs.
+
+### Fixes
+- The extension help no longer sends you to crxextractor.com, which stopped handing out packages.
+- The list of what extensions cannot do here is up to date: opening tabs and storage.sync work now; cookies, navigation events, user scripts and side panels do not.
+
 ## v2.36.0 (2026-10-03) — Profiles, browser import, a better reader, and privacy by default
 
 ### New

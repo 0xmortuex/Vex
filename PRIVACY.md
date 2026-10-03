@@ -2,7 +2,7 @@
 
 # Vex privacy policy
 
-Effective date: 2026-10-02
+Effective date: 2026-10-04
 
 Vex is a web browser for Windows made by 0xmortuex (https://github.com/0xmortuex/Vex). This page explains, feature by feature, what data leaves your PC, who receives it and why, and what Vex keeps on your PC. It is written from what the Vex code actually does.
 
@@ -132,6 +132,7 @@ These run **only when you use them:**
 | Tor | archive.torproject.org (one-time download of Tor), then the Tor network; check.torproject.org to confirm the connection | Your Tor tab traffic goes through Tor |
 | Mail panel | Your mail provider's IMAP server (Gmail, Yahoo, iCloud, or a local bridge) | Your login (an app password), to read your mail. Vex only reads mail; it never sends or changes it |
 | Extension catalogue | GitHub (api.github.com and github.com) | Which extension to download |
+| Install or update an extension from the Chrome Web Store | Google's extension update server (clients2.google.com), which hands the download to clients2.googleusercontent.com | The extension's id, Vex's Chromium version (for example 148.0) and, as with any request, your IP address. Only when you click Add to Vex, Install or Update from Web Store; never from a private window, a Tor tab or a burner tab. Vex sends no Google account, cookie or list of your other extensions, and does not check for updates by itself |
 | Vencord for the Discord panel | GitHub (Vendicated/Vencord releases) | A normal download |
 | Discord/Roblox "Strong" or "Auto" bypass | GitHub (one-time ByeDPI download); test requests to discord.com and roblox.com | A normal download and test visits |
 | Secure DNS (DNS over HTTPS) | The provider you pick: Cloudflare, Google or Quad9 | The names of the sites you visit. Off by default |

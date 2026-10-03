@@ -189,6 +189,29 @@ function writeScopes(extensionsDir, scopes) {
   fs.writeFileSync(scopePath(extensionsDir), JSON.stringify(scopes, null, 2));
 }
 
+// Where an installed extension came from, so it can be fetched again later:
+// { <folder>: { webstore: '<32-letter id>' } }. Only Web Store installs are
+// recorded; a folder with no entry was installed from a file or a folder.
+const SOURCES_FILE = 'sources.json';
+function sourcesPath(extensionsDir) {
+  return path.join(extensionsDir, SOURCES_FILE);
+}
+function readSources(extensionsDir) {
+  const file = sourcesPath(extensionsDir);
+  if (!fs.existsSync(file)) return {};
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Extension sources file is corrupt: expected an object of folder → source');
+  const out = {};
+  for (const [folder, src] of Object.entries(parsed)) {
+    if (src && typeof src.webstore === 'string' && /^[a-p]{32}$/.test(src.webstore)) out[folder] = { webstore: src.webstore };
+  }
+  return out;
+}
+function writeSources(extensionsDir, sources) {
+  fs.mkdirSync(extensionsDir, { recursive: true });
+  fs.writeFileSync(sourcesPath(extensionsDir), JSON.stringify(sources, null, 2));
+}
+
 // An update sets the installed copy aside in extensions-replaced/<folder>-<ms>
 // until the new one has loaded. Once it has, every set-aside copy of that
 // folder goes — one left by an update that was cut short too — and so does
@@ -204,7 +227,7 @@ function tidyReplaced(backupDir, folder) {
 }
 
 module.exports = {
-  tidyReplaced,
+  tidyReplaced, SOURCES_FILE, readSources, writeSources,
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
   archiveProblem, disabledPath, readDisabled, writeDisabled,

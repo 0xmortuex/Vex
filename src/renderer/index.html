@@ -125,6 +125,10 @@
       <div id="url-bar">
         <svg id="url-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5V13.5M2.5 8H13.5M3.5 5H12.5M3.5 11H12.5" stroke="currentColor" stroke-width="1"/></svg>
         <input type="text" id="url-input" placeholder="Search or enter URL..." spellcheck="false" autocomplete="off">
+        <!-- Only on an extension's page on the Chrome Web Store (js/web-store.js):
+             installs it in Vex from Google's own server. Vex's button, nothing is
+             put into Google's page. -->
+        <button id="btn-webstore-add" type="button" title="Install this extension in Vex from the Chrome Web Store" hidden></button>
         <button id="btn-copy-url" class="nav-btn" title="Copy URL" style="width:24px;height:24px;flex-shrink:0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
@@ -1455,6 +1459,8 @@
   <script src="js/shortcuts-registry.js"></script>
   <script src="js/shortcut-editor.js"></script>
   <script src="js/extension-catalog.js"></script>
+  <script src="js/web-store-link.js"></script>
+  <script src="js/web-store.js"></script>
   <script src="js/extensions-settings.js"></script>
   <script src="js/permission-prompts.js"></script>
   <script src="js/hid-picker.js"></script>

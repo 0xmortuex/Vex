@@ -639,8 +639,21 @@ set), adaptive (skips missing targets), Back/Next/Skip + arrows/Esc, `vex.tourSe
 
 Chrome extension support (`extensions-settings.js` + main loader, adm-zip): install from **unpacked
 folder** or **.zip/.crx** (CRX v2/v3 header stripping, zip-slip-safe), list (name/version/desc/folder),
-uninstall (needs restart to unload from live tabs), open folder. In-app guidance points to crxextractor
-for Web Store and GitHub source; MV3 works best. Loaded into every session.
+uninstall (needs restart to unload from live tabs), open folder. MV3 works best. Loaded into every session.
+
+**Chrome Web Store** (`src/main/webstore.js`, `js/web-store.js`, `js/web-store-link.js`): Vex fetches the
+official CRX3 from Google's update server (`clients2.google.com/service/update2/crx?response=redirect&
+prodversion=<process.versions.chrome>…`), like Brave/Vivaldi, and installs it only when every proof
+verifies, the signed crx_id is the requested id, the developer's key hashes to it, and the Web Store
+publisher key (Chromium's pinned `kPublisherKeyHash`, ECDSA) signed it. Flow: `extensions:webstore-preview`
+(download + verify + describe, cached 10 min) → vexConfirm with permissions/hosts/what will not work →
+`extensions:install-webstore`. `_metadata/` is dropped (Chromium refuses "_" names unpacked) and the
+developer key goes into manifest.json `key`, so the extension gets its real store id; an update of a copy
+installed without a key keeps that copy's path id (and so its storage). The source is recorded in
+`extensions/sources.json`, which drives "Update from Web Store" on the card. Ways in: Settings › Extensions
+field, the "Add to Vex" chip in the URL bar on chromewebstore.google.com/detail/… (nothing injected into
+Google's page), Ctrl+K "Install this extension from the Web Store". Refused in private windows (IPC policy)
+and from Tor/OTR/burner tabs (renderer).
 
 ---
 

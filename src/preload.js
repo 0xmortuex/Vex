@@ -486,6 +486,9 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
   extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
+  // A Chrome Web Store link or extension id: what it is and may do, then install it.
+  extensionsWebStorePreview: (input) => ipcRenderer.invoke('extensions:webstore-preview', input),
+  extensionsInstallWebStore: (input) => ipcRenderer.invoke('extensions:install-webstore', input),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),

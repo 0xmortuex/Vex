@@ -32,9 +32,17 @@ describe('extension catalogue', () => {
 
   it('lists the limits a user would otherwise blame on themselves', () => {
     const text = VexExtensionCatalog.UNSUPPORTED.join(' ').toLowerCase();
-    for (const missing of ['contextmenus', 'commands', 'storage.sync', 'tabs.create', 'tor']) {
+    for (const missing of ['contextmenus', 'commands', 'storage.sync', 'cookies', 'tor']) {
       expect(text, missing).toContain(missing);
     }
+  });
+
+  // tabs.create works through Vex's stand-in (preload-webview.js), so it is
+  // no longer listed as missing; storage.sync works but stays on this machine.
+  it('does not list what Vex now provides', () => {
+    const text = VexExtensionCatalog.UNSUPPORTED.join(' ').toLowerCase();
+    expect(text).not.toContain('tabs.create');
+    expect(text).toMatch(/storage\.sync works/);
   });
 
   it('has unique ids and no emoji', () => {

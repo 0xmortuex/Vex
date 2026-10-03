@@ -80,6 +80,13 @@ const ExtensionsSettings = (() => {
       .ext-unsupported{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-muted,#9a9aa5);line-height:1.6;}
       .ext-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
       .ext-note{margin-top:5px;font-size:11px;line-height:1.45;color:#f59e0b;}
+      .ext-webstore{margin:12px 0 4px;}
+      .ext-webstore-label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--text,#e9e9ee);margin-bottom:5px;}
+      .ext-webstore-row{display:flex;gap:8px;}
+      .ext-webstore-row input{flex:1;min-width:0;font:inherit;font-size:12.5px;padding:6px 9px;border-radius:7px;
+        background:var(--bg,transparent);color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));}
+      .ext-webstore-row input:focus-visible{outline:2px solid var(--primary,#6366f1);outline-offset:0;}
+      .ext-webstore-note{font-size:11px;color:var(--text-muted,#9a9aa5);margin-top:5px;line-height:1.4;}
       .ext-scope{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--surface,rgba(255,255,255,0.04));
         color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));cursor:pointer;}
     `;
@@ -133,7 +140,7 @@ const ExtensionsSettings = (() => {
 
     container.innerHTML = `
       <div class="extensions-panel">
-        <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular and container tabs, and into a sidebar panel (Discord, Spotify…) only when they name that site &mdash; or when set to run everywhere below. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
+        <p class="setting-info muted" style="margin-bottom:12px">Vex supports Chrome extensions from the Chrome Web Store, or loaded from a folder, <code>.zip</code>, or <code>.crx</code>. Extensions load into regular and container tabs, and into a sidebar panel (Discord, Spotify…) only when they name that site &mdash; or when set to run everywhere below. Private, Off-the-Record and Tor tabs never load extensions &mdash; Electron can't put them in a temporary session.</p>
 
         ${listError ? `<div class="ext-state-error">Couldn't read the installed extensions: ${_esc(listError)}</div>` : ''}
         ${stateError ? `<div class="ext-state-error">${_esc(stateError)}</div>` : ''}
@@ -144,16 +151,25 @@ const ExtensionsSettings = (() => {
           <button class="btn-link" id="btn-open-ext-folder">Open extensions folder</button>
         </div>
 
+        <div class="ext-webstore">
+          <label class="ext-webstore-label" for="ext-webstore-input">${VexIcons.svg('puzzle', { size: 14 })} Paste a Chrome Web Store link</label>
+          <div class="ext-webstore-row">
+            <input id="ext-webstore-input" type="text" spellcheck="false" autocomplete="off" placeholder="https://chromewebstore.google.com/detail/&hellip; or an extension id">
+            <button class="btn-primary" id="btn-install-webstore">Install</button>
+          </div>
+          <div class="ext-webstore-note">Vex downloads it from Google&rsquo;s own update server and installs it only if its signatures check out. You see what it can do before anything is installed.</div>
+        </div>
+
         <div class="extensions-help">
           <details>
             <summary>How do I get Chrome extensions?</summary>
             <div class="help-content">
-              <p><strong>Option 1 &mdash; Chrome Web Store via a .crx extractor</strong></p>
+              <p><strong>Option 1 &mdash; the Chrome Web Store</strong></p>
               <ol>
-                <li>Find an extension at <a href="#" data-open="https://chromewebstore.google.com/">chromewebstore.google.com</a></li>
-                <li>Copy the page URL</li>
-                <li>Paste it at <a href="#" data-open="https://crxextractor.com/">crxextractor.com</a> &rarr; download .crx</li>
-                <li>Click &quot;Install from .zip / .crx&quot; above &rarr; pick the file</li>
+                <li>Open the extension&rsquo;s page at <a href="#" data-open="https://chromewebstore.google.com/">chromewebstore.google.com</a> in a Vex tab</li>
+                <li>Click <strong>Add to Vex</strong> in the address bar (or Ctrl+K &rarr; &quot;Install this extension from the Web Store&quot;), or copy the page&rsquo;s address and paste it in the field above</li>
+                <li>Read what it can do and what will not work here, then click <strong>Add to Vex</strong></li>
+                <li>Later, <strong>Update from Web Store</strong> on its card fetches the newest version; its settings stay</li>
               </ol>
               <p><strong>Option 2 &mdash; GitHub (for open-source extensions)</strong></p>
               <ol>
@@ -161,7 +177,7 @@ const ExtensionsSettings = (() => {
                 <li>Extract it, locate the folder containing <code>manifest.json</code></li>
                 <li>Click &quot;Install from folder&quot; &rarr; pick that folder</li>
               </ol>
-              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code>, <code>chrome.tabs</code>, <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, options pages and toolbar popups.</p>
+              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code> (<code>storage.sync</code> is kept on this machine, not synced), <code>chrome.tabs</code> (including opening and closing tabs), <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, <code>chrome.permissions</code>, options pages and toolbar popups.</p>
               <p><strong>What Electron can't do:</strong></p>
               <ul class="ext-unsupported">${VexExtensionCatalog.UNSUPPORTED.map(u => `<li>${_esc(u)}</li>`).join('')}</ul>
             </div>
@@ -221,6 +237,7 @@ const ExtensionsSettings = (() => {
                 <div class="ext-card-actions">
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
+                  ${e.webstore ? `<button class="ext-open-btn" data-webstore-update="${_esc(e.webstore)}" title="Download the newest version from the Chrome Web Store">Update from Web Store</button>` : ''}
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
                   <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
@@ -259,6 +276,32 @@ const ExtensionsSettings = (() => {
         btn.disabled = false;
         btn.textContent = label;
       });
+    });
+    // The Chrome Web Store (js/web-store.js): main downloads and checks it, the
+    // dialog says what it can do, and only then is it installed.
+    const webStoreInstall = async (input, btn) => {
+      if (typeof VexWebStore === 'undefined') { _toast('Installing from the Web Store is not available in this window', 'error'); return; }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        const r = await VexWebStore.install(input);
+        if (r && r.ok) { render(container); return; }
+      } finally {
+        if (btn.isConnected) { btn.disabled = false; btn.textContent = label; }
+      }
+    };
+    const wsInput = container.querySelector('#ext-webstore-input');
+    const wsButton = container.querySelector('#btn-install-webstore');
+    if (wsInput && wsButton) {
+      wsButton.addEventListener('click', () => {
+        if (!wsInput.value.trim()) { _toast('Paste a Chrome Web Store link or an extension id first', 'info'); wsInput.focus(); return; }
+        webStoreInstall(wsInput.value, wsButton);
+      });
+      wsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); wsButton.click(); } });
+    }
+    container.querySelectorAll('[data-webstore-update]').forEach(btn => {
+      btn.addEventListener('click', () => webStoreInstall(btn.dataset.webstoreUpdate, btn));
     });
     document.getElementById('btn-install-zip')?.addEventListener('click', async () => {
       const r = await window.vex.extensionsInstallZip();
@@ -342,4 +385,10 @@ const ExtensionsSettings = (() => {
 })();
 
 window.ExtensionsSettings = ExtensionsSettings;
+// Installed from somewhere else (the address bar's "Add to Vex", the command
+// bar) while this list is open: show it.
+window.addEventListener('vex-extensions-changed', () => {
+  const c = document.getElementById('extensions-panel-content');
+  if (c && c.querySelector('.extensions-panel')) ExtensionsSettings.render(c);
+});
 if (typeof module !== 'undefined' && module.exports) module.exports = { ExtensionsSettings };
