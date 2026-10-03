@@ -17,7 +17,15 @@ beforeEach(() => {
 });
 
 describe('SponsorSkip', () => {
+  it('is off until turned on: a fresh profile sends nothing to sponsor.ajay.app', async () => {
+    expect(S.enabled()).toBe(false);
+    await S.onNavigated({ tabId: 't1', url: 'https://www.youtube.com/watch?v=abc123' });
+    expect(asked).toEqual([]);
+    expect(injected).toEqual([]);
+  });
+
   it('asks for a watched video\'s segments by id only, and hands them to the page', async () => {
+    S.setEnabled(true);
     await S.onNavigated({ tabId: 't1', url: 'https://www.youtube.com/watch?v=abc123&t=5' });
     expect(asked[0]).toMatch(/^https:\/\/sponsor\.ajay\.app\/api\/skipSegments\?videoID=abc123&categories=/);
     expect(injected[0]).toContain('[[10.5,64.8]]');
@@ -25,6 +33,7 @@ describe('SponsorSkip', () => {
   });
 
   it('a video nobody marked, a page that is not a video, or the setting off: nothing is injected', async () => {
+    S.setEnabled(true);
     await S.onNavigated({ tabId: 't1', url: 'https://www.youtube.com/watch?v=none' });
     await S.onNavigated({ tabId: 't1', url: 'https://www.youtube.com/feed/subscriptions' });
     S.setEnabled(false);
@@ -35,6 +44,7 @@ describe('SponsorSkip', () => {
 
   it('a failure is recorded, not thrown into the page load', async () => {
     window.VexNet.fetch = vi.fn(async () => ({ status: 500, ok: false }));
+    S.setEnabled(true);
     await S.onNavigated({ tabId: 't1', url: 'https://www.youtube.com/watch?v=x' });
     expect(window.VexProblems.note).toHaveBeenCalledWith('SponsorBlock', expect.any(String), expect.any(Error));
   });

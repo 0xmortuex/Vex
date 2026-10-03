@@ -26,6 +26,10 @@ function vexOwnTextFocused(doc) {
     timed('storage', t0);
   }
 
+  // New privacy defaults reach new profiles only; an existing one keeps what
+  // it had, and is told once what changed (js/onboarding.js).
+  Onboarding.migratePrivacyDefaults();
+
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
     try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '["*"]').join(', '); } catch {}
@@ -392,6 +396,23 @@ function vexOwnTextFocused(doc) {
     // Mirror to the start page (separate session) so its search box matches.
     if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', searchEngineSelect.value);
   });
+
+  // Search suggestions: main reads this from the main window's settings for
+  // the address bar and every New Tab page (src/main.js, web-suggest). A
+  // private window never asks, so its copy of the switch is not the one.
+  const suggestToggle = document.getElementById('setting-search-suggest');
+  if (suggestToggle) {
+    suggestToggle.checked = VexTypedAddress.suggestionsOn(localStorage.getItem(VexTypedAddress.SUGGEST_KEY));
+    if (window.VexTabPolicy?.isPrivateWindow) {
+      suggestToggle.checked = false;
+      suggestToggle.disabled = true;
+      suggestToggle.title = 'A private window never sends what you type for suggestions';
+    }
+    suggestToggle.addEventListener('change', () => {
+      localStorage.setItem(VexTypedAddress.SUGGEST_KEY, suggestToggle.checked ? 'on' : 'off');
+      SmartSearchbar.close?.();
+    });
+  }
 
   adBlockerToggle.addEventListener('change', () => {
     settings.adBlocker = adBlockerToggle.checked;
@@ -923,6 +944,8 @@ function vexOwnTextFocused(doc) {
   UpdateNotifier.init();
   const channelSel = document.getElementById('setting-update-channel');
   if (channelSel) { channelSel.value = UpdateNotifier.channel(); channelSel.addEventListener('change', () => UpdateNotifier.setChannel(channelSel.value)); }
+  const updateOnStart = document.getElementById('setting-update-on-start');
+  if (updateOnStart) { updateOnStart.checked = UpdateNotifier.checksOnStart(); updateOnStart.addEventListener('change', () => UpdateNotifier.setChecksOnStart(updateOnStart.checked)); }
 
   // Downloads: subscribe to events at startup so downloads before panel-open
   // still register (toast + badge).

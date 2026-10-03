@@ -2,17 +2,34 @@ const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
 
-async function atomicWrite(file, bytes, { backup = true } = {}) {
+// On Windows another program (Defender, search indexing, a backup tool) can
+// hold the file open for a moment; replacing it then fails with EPERM, EBUSY
+// or EACCES. Saving settings failed outright and Vex said "Changes could not
+// be saved" (seen live, 2026-10-03). Those errors are retried for a few
+// seconds; anything else, or a lock that lasts, is still raised.
+const TRANSIENT = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RETRY_DELAYS_MS = [20, 50, 100, 200, 400, 800, 1500];
+async function withRetry(op, delays = RETRY_DELAYS_MS) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await op(); }
+    catch (e) {
+      if (!TRANSIENT.has(e && e.code) || attempt >= delays.length) throw e;
+      await new Promise(r => setTimeout(r, delays[attempt]));
+    }
+  }
+}
+
+async function atomicWrite(file, bytes, { backup = true, retryDelays = RETRY_DELAYS_MS } = {}) {
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = file + '.' + randomUUID() + '.tmp';
   try {
     const handle = await fs.promises.open(temp, 'wx', 0o600);
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
     if (backup) {
-      try { await fs.promises.copyFile(file, file + '.bak'); }
+      try { await withRetry(() => fs.promises.copyFile(file, file + '.bak'), retryDelays); }
       catch (e) { if (e.code !== 'ENOENT') throw e; }
     }
-    await fs.promises.rename(temp, file);
+    await withRetry(() => fs.promises.rename(temp, file), retryDelays);
   } finally { await fs.promises.rm(temp, { force: true }).catch(() => {}); }
 }
 

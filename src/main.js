@@ -1013,6 +1013,8 @@ ipcMain.handle('app:diagnostics', () => {
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
     safeMode: _boot.safeMode, bootFails: _boot.fails, extensionTimes: _diag.extensionTimes,
     crashHistory: _crashLog.recent(),
+    // The Windows build, for a problem report (js/report-problem.js).
+    os: process.getSystemVersion(), arch: process.arch,
   };
 });
 
@@ -1472,7 +1474,10 @@ ipcMain.on('vex-lock:state', (e, locked) => {
     _hiddenByLock = [];
   }
 });
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+// Bookmarks and history from Chrome, Edge, Brave and Firefox on this PC, and
+// passwords from a CSV the person exported themselves (main/browser-import.js).
+require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -5087,46 +5092,53 @@ ipcMain.handle('get-start-page-url', () => {
   return pathToFileURL(filePath).toString();
 });
 
-// === Google Suggest proxy (web search predictions) ===
-// Fetched in the MAIN process because Google Suggest returns NO CORS header,
-// so a webSecurity:true renderer/webview fetch is blocked. Both the address
-// bar (window.vex.webSuggest) and the start-page guest (__vexSuggestBridge.
-// suggest) funnel here. Fail-silent: any error/offline → [] (never throws).
+// === Search suggestions (web search predictions) ===
+// Fetched in the MAIN process because the engines' suggestion addresses send
+// NO CORS header, so a webSecurity:true renderer/webview fetch is blocked. Both
+// the address bar (window.vex.webSuggest) and the start-page guest
+// (__vexSuggestBridge.suggest) funnel here. Fail-silent: any error/offline → []
+// (never throws).
 //
-// _parseGoogleSuggest is a byte-identical inline copy of parseGoogleSuggest in
-// src/renderer/js/smart-searchbar.js — the two MUST stay in sync. The canonical
-// copy (pinned by unit tests) lives in smart-searchbar.js.
-function _parseGoogleSuggest(raw) {
-  try {
-    const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && Array.isArray(arr[1])) {
-      return arr[1].filter(s => typeof s === 'string');
-    }
-  } catch {}
-  return [];
+// What you type went to Google whatever engine you had chosen, also from a
+// private window. Now this decides, from the main window's own settings (the
+// renderer and the New Tab page cannot pick another address): suggestions
+// come only from the chosen engine (js/typed-address.js), not at all when
+// Settings › General › Search suggestions is off, and never from a private
+// window (src/main/ipc-policy.js answers those before this runs), a Tor tab
+// or a burner tab.
+const _typedAddress = require('./renderer/js/typed-address');
+function _suggestAllowedFrom(sender) {
+  if (!sender || sender.isDestroyed()) return false;
+  if (sender.getType() !== 'webview') return true;          // the address bar
+  // A burner's session is kept in memory only; Tor as for geolocation.
+  return sender.session.isPersistent() && !_locationRefused(sender);
 }
 // LRU + TTL cache so repeat/backspaced queries return instantly without a
 // network hit (the renderer caches too; this also helps the start-page bridge).
-const _suggestCache = new Map(); // q -> { list, ts }
+const _suggestCache = new Map(); // engine \n q -> { list, ts }
 const SUGGEST_TTL = 10 * 60 * 1000;
 const SUGGEST_MAX = 600;
-ipcMain.handle('web-suggest', async (_event, query) => {
-  const q = (query == null ? '' : String(query)).trim();
-  if (!q) return [];
+ipcMain.handle('web-suggest', async (event, query) => {
+  const text = (query == null ? '' : String(query)).trim();
+  if (!text || !_suggestAllowedFrom(event.sender)) return [];
+  if (!_typedAddress.suggestionsOn(_readPersistString(_typedAddress.SUGGEST_KEY, 'on'))) return [];
+  const engine = _typedAddress.engineOf(_readPersistString('vex.searchEngine', 'google'));
+  const url = _typedAddress.suggestUrl(text, engine);
+  if (!url) return [];
+  const q = engine + '\n' + text;
   const hit = _suggestCache.get(q);
   if (hit && (Date.now() - hit.ts) < SUGGEST_TTL) {
     _suggestCache.delete(q); _suggestCache.set(q, hit); // LRU bump
     return hit.list;
   }
   try {
-    const url = 'https://suggestqueries.google.com/complete/search?client=firefox&q=' + encodeURIComponent(q);
     // Bound the wait so a slow/hung request can't stall the dropdown.
     const ctrl = new AbortController();
     const to = setTimeout(() => { try { ctrl.abort(); } catch {} }, 2500);
     let list = [];
     try {
       const r = await boundedNetFetch(url, { signal: ctrl.signal });
-      if (r.ok) list = _parseGoogleSuggest(await r.text());
+      if (r.ok) list = _typedAddress.parseSuggestions(await r.text());
     } finally { clearTimeout(to); }
     _suggestCache.set(q, { list, ts: Date.now() });
     if (_suggestCache.size > SUGGEST_MAX) _suggestCache.delete(_suggestCache.keys().next().value);

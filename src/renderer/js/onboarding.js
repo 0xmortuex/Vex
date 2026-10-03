@@ -45,10 +45,45 @@ const Onboarding = {
     // A private window keeps its own storage, so it always looks like a first
     // run — it is not one, and the setup wizard is not what it was opened for.
     if (window.VexTabPolicy?.isPrivateWindow) return;
-    const EVIDENCE = ['vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.notes', 'vex.history', 'vex.aiWorkerUrl', 'vex.userName', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'];
-    const used = EVIDENCE.some(k => { try { return localStorage.getItem(k) != null; } catch { return false; } });
-    if (used) { this.finish(); return; }            // existing install — mark done, don't nag
+    if (this._usedBefore()) { this.finish(); return; }   // existing install — mark done, don't nag
     setTimeout(() => this.start(), 900);
+  },
+  _usedBefore() {
+    const EVIDENCE = ['vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.notes', 'vex.history', 'vex.aiWorkerUrl', 'vex.userName', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'];
+    return EVIDENCE.some(k => { try { return localStorage.getItem(k) != null; } catch { return false; } });
+  },
+
+  // === Privacy defaults ==================================================
+  //
+  // Three things changed: search suggestions go to the engine you chose (they
+  // went to Google whatever you chose), the New Tab weather no longer looks
+  // you up by IP address unless you ask it to, and SponsorBlock is off until
+  // turned on. A new default never reaches a profile that already exists by
+  // itself, and should not here except where the old way was a leak: an
+  // existing profile keeps SponsorBlock as it was (on, unless turned off), and
+  // is told once where its suggestions now come from. Runs once per profile,
+  // before anything reads these settings (js/app.js).
+  PRIVACY_DEFAULTS_KEY: 'vex.privacyDefaults',
+  migratePrivacyDefaults() {
+    if (window.VexTabPolicy?.isPrivateWindow) return null;
+    if (localStorage.getItem(this.PRIVACY_DEFAULTS_KEY) != null) return null;
+    let told = null;
+    if (this.done() || this._usedBefore()) {
+      if (localStorage.getItem(SponsorSkip.KEY) == null) localStorage.setItem(SponsorSkip.KEY, 'on');
+      const TA = window.VexTypedAddress;
+      const engine = TA.currentEngine();
+      if (engine !== 'google' && TA.suggestionsOn(localStorage.getItem(TA.SUGGEST_KEY))) {
+        told = 'Search suggestions now come from ' + TA.SEARCH_ENGINES[engine].name + ', the search engine you chose, instead of Google. Settings › General can turn them off.';
+      }
+    }
+    localStorage.setItem(this.PRIVACY_DEFAULTS_KEY, '1');
+    if (told) {
+      setTimeout(() => {
+        if (typeof window.showToast !== 'function') { console.error('[setup] could not say where suggestions now come from: no toast'); return; }
+        window.showToast(told, 'info', 10000);
+      }, 6000);
+    }
+    return told;
   },
 
   // How much of the wizard to walk: 'quick' is the handful that change how
@@ -124,6 +159,7 @@ const Onboarding = {
       case 'weather':        return this._has('vex.weatherLoc');
       case 'github':         return this._has('vex.githubUsername');
       case 'search':         return this._has('vex.searchEngine');
+      case 'privacy':        return this._flag('vex.privacyChosen');
       case 'defaultbrowser': return this._flag('vex.defaultBrowserConfigured');
       case 'aicloud':        return this._has('vex.aiWorkerUrl');
       case 'ollama':         return this._flag('vex.preferLocalAI');
@@ -184,6 +220,7 @@ const Onboarding = {
       { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
       { key: 'github',         title: 'GitHub username',          sub: 'Optional — shows your repo/follower stats + activity on the start page.' , secs: 20},
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
+      { key: 'privacy',        title: 'Privacy choices',          sub: 'Three features that ask a service on the internet. Each is yours to choose, and each is a switch in Settings later.' , quick: true, secs: 20},
       { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' , quick: true, secs: 15},
       { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' , secs: 45},
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
@@ -290,7 +327,7 @@ const Onboarding = {
       </button>`;
     body.innerHTML =
       card('quick', 'Just the essentials — about ' + mins(all.filter(x => x.quick)) + ' minutes',
-        'How Vex looks, which panels you keep, your name, your search engine, and whether links open here. Everything else has a sensible default and lives in Settings.', pace !== 'full')
+        'How Vex looks, which panels you keep, your name, your search engine, three privacy choices, and whether links open here. Everything else has a sensible default and lives in Settings.', pace !== 'full')
       + card('full', 'Everything — about ' + mins(all) + ' minutes',
         'The same, plus speed and memory, what Vex may read, your job tools, language, the daily verse, weather, GitHub, the three kinds of AI, Sync, passwords and notifications.', pace === 'full')
       + `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;line-height:1.5">Either way, every step has a <b>Skip</b>, nothing here is permanent, and <b>Skip setup</b> leaves the whole thing. Vex works before you answer a single question.</div>`;
@@ -698,6 +735,8 @@ const Onboarding = {
         body.querySelectorAll('[data-engine]').forEach(x => x.style.borderColor = 'var(--border)');
         b.style.borderColor = 'var(--primary)';
       }));
+    } else if (key === 'privacy') {
+      this._renderPrivacy(body);
     } else if (key === 'defaultbrowser') {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
@@ -1099,6 +1138,56 @@ const Onboarding = {
       { key: 'emailAutoSubmit', control: 'setting-emailcode-autosubmit', label: 'Submit the code automatically', help: 'Press the button for you once the code is in.' },
     ];
   },
+  // --- Privacy choices: the three features that send something to a service
+  // on the internet. Defaults lean private: suggestions on, from your own
+  // engine only; weather off until a city is set; SponsorBlock off.
+  PRIVACY_FIELDS() {
+    const TA = window.VexTypedAddress;
+    const engine = TA.SEARCH_ENGINES[TA.currentEngine()].name;
+    return [
+      { key: 'suggest', label: 'Search suggestions', help: 'Suggestions as you type, from ' + engine + ' — only the search engine you already search with. Never from a private window.' },
+      { key: 'weather', label: 'Weather on the New Tab page', help: 'Asks for your city, then gets its forecast from Open-Meteo. Nothing is looked up until you set one.' },
+      { key: 'sponsor', label: 'SponsorBlock', help: 'Skips sponsor segments on YouTube. Sends the id of each YouTube video you open to sponsor.ajay.app.' },
+    ];
+  },
+  _privacyNow() {
+    const TA = window.VexTypedAddress;
+    return {
+      suggest: TA.suggestionsOn(localStorage.getItem(TA.SUGGEST_KEY)),
+      weather: this._has('vex.weatherLoc'),
+      sponsor: SponsorSkip.enabled(),
+    };
+  },
+  _renderPrivacy(body) {
+    if (!this._session.privacy) { const now = this._privacyNow(); this._session.privacy = { was: now, cur: { ...now } }; }
+    const cur = this._session.privacy.cur;
+    body.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">${this.PRIVACY_FIELDS().map(f => `
+      <label style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);cursor:pointer">
+        <input type="checkbox" data-key="${f.key}" ${cur[f.key] ? 'checked' : ''} style="width:18px;height:18px;flex:none;accent-color:var(--primary);cursor:pointer">
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600;color:var(--text)">${this._esc(f.label)}</span><span style="display:block;font-size:11.5px;color:var(--text-muted);line-height:1.4">${this._esc(f.help)}</span></span>
+      </label>`).join('')}</div>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0;line-height:1.5">Settings › General has the suggestions switch, Settings › Privacy &amp; Security the SponsorBlock one, and the New Tab page’s weather card its city.</p>`;
+    body.querySelectorAll('[data-key]').forEach(el => el.addEventListener('change', () => { cur[el.dataset.key] = el.checked; }));
+  },
+  _applyPrivacy() {
+    const p = this._session.privacy;
+    if (!p) throw new Error('the privacy choices were never shown');
+    const missing = [];
+    if (!this._setControl('setting-search-suggest', !!p.cur.suggest)) missing.push('Search suggestions');
+    if (!this._setControl('setting-sponsor-skip', !!p.cur.sponsor)) missing.push('SponsorBlock');
+    if (missing.length) window.showToast?.('Not available in this build: ' + missing.join(', '), 'error');
+    if (p.cur.weather && !this._has('vex.weatherLoc')) {
+      // Weather on asks for the city next, whichever pace this is.
+      const steps = this.activeSteps || (this.activeSteps = this._stepsForPace());
+      if (!steps.slice(this.step + 1).some(s => s.key === 'weather')) steps.splice(this.step + 1, 0, this.STEPS().find(s => s.key === 'weather'));
+    } else if (!p.cur.weather && p.was.weather) {
+      this._setStart('vex.weatherLoc', null);
+      this._setStart('vex.weatherCache', null);
+    }
+    p.was = { ...p.cur };
+    localStorage.setItem('vex.privacyChosen', 'true');
+  },
+
   _controlValue(control) {
     const el = document.getElementById(control);
     if (!el) return null;
@@ -1475,6 +1564,8 @@ const Onboarding = {
           await VexStorage.saveSettings(s);
         }
       } catch {}
+    } else if (key === 'privacy') {
+      this._applyPrivacy();
     } else if (key === 'aicloud') {
       const v = overlay.querySelector('#ob-ai-url')?.value.trim() || '';
       try { v ? localStorage.setItem('vex.aiWorkerUrl', v) : localStorage.removeItem('vex.aiWorkerUrl'); } catch {}

@@ -202,6 +202,10 @@ define('recall:search', [string(512), optional(shape({
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384) })]);
 define('vault:delete', [shape({ host: string(253), username: string(4096) })]);
+// Import from another browser (main/browser-import.js): a browser and a profile
+// id from browser-import:sources, never a path; the CSV is chosen in main.
+define('browser-import:sources browser-import:passwords-csv', []);
+define('browser-import:read', [oneOf(['chrome', 'edge', 'brave', 'firefox']), string(400)]);
 define('totp:add', [value => string(16384)(value) || shape({ secret: string(16384), label: optional(string(4096)), issuer: optional(string(4096)) })(value)]);
 // remember: true / false, 'session' (this visit) or 'day'. It said boolean,
 // and "Allow this visit" sends 'session' — so that button was refused and the

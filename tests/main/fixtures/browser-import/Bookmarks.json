@@ -1,0 +1,63 @@
+{
+   "checksum": "00000000000000000000000000000000",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13370000000000000",
+            "id": "5",
+            "name": "News",
+            "type": "url",
+            "url": "https://news.example/"
+         }, {
+            "children": [ {
+               "date_added": "13370000000000000",
+               "id": "7",
+               "name": "Docs",
+               "type": "url",
+               "url": "https://docs.example/start"
+            }, {
+               "children": [ {
+                  "date_added": "13370000000000000",
+                  "id": "9",
+                  "name": "Deep link",
+                  "type": "url",
+                  "url": "https://deep.example/a"
+               } ],
+               "id": "8",
+               "name": "Reference",
+               "type": "folder"
+            }, {
+               "id": "10",
+               "name": "A bookmarklet",
+               "type": "url",
+               "url": "javascript:alert(1)"
+            } ],
+            "id": "6",
+            "name": "Work",
+            "type": "folder"
+         } ],
+         "id": "1",
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13370000000000000",
+            "id": "11",
+            "name": "Already in Vex",
+            "type": "url",
+            "url": "https://dupe.example/"
+         } ],
+         "id": "2",
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [ ],
+         "id": "3",
+         "name": "Mobile bookmarks",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

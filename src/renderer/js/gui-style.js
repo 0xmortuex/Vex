@@ -226,6 +226,8 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'gui-shortcuts-bar';
+      bar.setAttribute('role', 'navigation');
+      bar.setAttribute('aria-label', 'Shortcuts');
       const top = document.getElementById('top-bar');
       if (top && top.parentNode) top.parentNode.insertBefore(bar, top.nextSibling);
       else document.body.appendChild(bar);

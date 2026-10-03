@@ -113,7 +113,7 @@
       --vex-border-subtle: #1a1a2e; --vex-border-medium: #1a1a2e; --vex-border-strong: #2a2a4a;
       --vex-border-accent: #8b5cf6; --vex-border-accent-strong: #8b5cf6;
       --vex-accent: #8b5cf6; --vex-accent-dim: #8b5cf638; --vex-accent-glow: #8b5cf62e;
-      --vex-text-primary: #e0e0f0; --vex-text-secondary: #9090c0; --vex-text-muted: #6060a0;
+      --vex-text-primary: #e0e0f0; --vex-text-secondary: #9090c0; --vex-text-muted: #7878b8;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -193,7 +193,7 @@
       --vex-border-subtle: #14301a; --vex-border-medium: #14301a; --vex-border-strong: #1d4a28;
       --vex-border-accent: #22c55e; --vex-border-accent-strong: #22c55e;
       --vex-accent: #22c55e; --vex-accent-dim: #22c55e38; --vex-accent-glow: #22c55e2e;
-      --vex-text-primary: #b8f0c0; --vex-text-secondary: #6fae7a; --vex-text-muted: #4f8458;
+      --vex-text-primary: #b8f0c0; --vex-text-secondary: #6fae7a; --vex-text-muted: #548c5d;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -211,9 +211,9 @@
       --vex-bg-base: #00252e; --vex-glass-strong: #073642; --vex-glass-medium: #002b36;
       --vex-glass-light: #073642; --vex-glass-input: #00252e;
       --vex-border-subtle: #0a4150; --vex-border-medium: #0a4150; --vex-border-strong: #14586a;
-      --vex-border-accent: #268bd2; --vex-border-accent-strong: #268bd2;
-      --vex-accent: #268bd2; --vex-accent-dim: #268bd238; --vex-accent-glow: #268bd22e;
-      --vex-text-primary: #93a1a1; --vex-text-secondary: #839496; --vex-text-muted: #586e75;
+      --vex-border-accent: #3a9be0; --vex-border-accent-strong: #3a9be0;
+      --vex-accent: #3a9be0; --vex-accent-dim: #3a9be038; --vex-accent-glow: #3a9be02e;
+      --vex-text-primary: #b3bfbf; --vex-text-secondary: #a0afb1; --vex-text-muted: #839496;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -840,6 +840,7 @@
       gap: 4px;
     }
     .loc-btn:hover { border-color: var(--vex-accent); }
+    .weather-approx-btn { margin-top: 10px; }
     .loc-modal {
       position: fixed; inset: 0; z-index: 1000;
       background: rgba(0,0,0,0.55);
@@ -1893,9 +1894,10 @@
 
   <div class="weather-section">
     <div class="weather-card">
-      <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your location"></button></h4>
+      <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your city"></button></h4>
       <div class="weather-temp" id="weather-temp">--°</div>
       <div class="weather-desc" id="weather-desc">Loading...</div>
+      <button class="loc-btn weather-approx-btn" id="weather-approx-btn" type="button" style="display:none" title="Looks up your IP address once (ipapi.co) and saves the town it finds">Use my approximate location</button>
     </div>
     <div class="github-card">
       <h4>GitHub</h4>
@@ -2325,10 +2327,11 @@
       console.log('VEX_CMD:' + JSON.stringify({ type: 'start-tiles', loading: true, handed: localStorage.getItem(HANDED_KEY) === '1', tiles: Array.isArray(saved) ? saved : null }));
     })();
 
-    // Search — with Google Suggest predictions (pure web suggest; no local
-    // history/tab/bookmark blending here). Suggestions come from the main
-    // process via window.__vexSuggestBridge (exposed by preload-webview.js for
-    // the vex:// origin) because Google Suggest sends no CORS header. Debounced,
+    // Search — with suggestions from the chosen search engine (pure web
+    // suggest; no local history/tab/bookmark blending here). They come from the
+    // main process via window.__vexSuggestBridge (exposed by preload-webview.js
+    // for this page), which picks the engine and honours Settings › General ›
+    // Search suggestions and private windows (src/main.js, web-suggest). Debounced,
     // stale-cancelled, and fail-silent: any error/offline → no dropdown, and
     // typing/Enter is never blocked.
     (function setupStartSearch() {
@@ -2489,9 +2492,13 @@
       });
     })();
 
-    // Weather. Uses a saved location (Set location button) if present, else falls
-    // back to approximate IP geolocation. The "Set location" button hides once a
-    // location has been saved.
+    // Weather. Only for a saved location (Set your city button). It used to
+    // look you up by IP address (ipapi.co, then ipwho.is or geojs.io) on every
+    // New Tab when no city was set; now nothing is asked of anyone until you
+    // set a city, or press "Use my approximate location", which looks you up
+    // once and saves what it finds. The forecast is kept for 30 minutes, so a
+    // run of New Tabs asks Open-Meteo once, not each time.
+    const WEATHER_TTL = 30 * 60 * 1000;
     function getSavedLoc() {
       try { const l = JSON.parse(localStorage.getItem('vex.weatherLoc') || 'null'); return (l && l.lat != null && l.lon != null) ? l : null; } catch { return null; }
     }
@@ -2501,11 +2508,13 @@
       // Keep the button ALWAYS available so the location can be changed anytime —
       // it used to vanish once a location was saved, trapping a wrong
       // detected/saved city with no way to fix it. Just relabel it.
-      btn.innerHTML = VexIcons.svg('pin', { size: 13 }) + '<span>' + (getSavedLoc() ? 'Change' : 'Set location') + '</span>';
+      btn.innerHTML = VexIcons.svg('pin', { size: 13 }) + '<span>' + (getSavedLoc() ? 'Change' : 'Set your city') + '</span>';
+      const approx = document.getElementById('weather-approx-btn');
+      if (approx) approx.style.display = getSavedLoc() ? 'none' : '';
     }
-    // Approximate location from IP. Tries multiple free providers in order and
-    // validates the coordinates, so one provider failing/rate-limiting doesn't
-    // break the weather (the old code sent `undefined` coords to the API).
+    // Approximate location from IP — only when "Use my approximate location"
+    // is pressed. Tries multiple free providers in order and validates the
+    // coordinates, so one provider failing/rate-limiting doesn't break it.
     async function ipGeo() {
       const providers = [
         ['https://ipapi.co/json/',            j => ({ lat: +j.latitude, lon: +j.longitude, city: j.city })],
@@ -2531,34 +2540,58 @@
       };
       const tempEl = document.getElementById('weather-temp');
       const descEl = document.getElementById('weather-desc');
+      syncLocBtn();
+      const saved = getSavedLoc();
+      if (!saved) {
+        tempEl.textContent = '--°';
+        descEl.textContent = 'Set your city to see its weather';
+        return;
+      }
+      const lat = +saved.lat, lon = +saved.lon, city = saved.city;
+      // The last reading, for this same place.
+      const place = lat.toFixed(3) + ',' + lon.toFixed(3);
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem('vex.weatherCache') || 'null'); } catch (err) { console.warn('[Weather] the kept forecast could not be read:', err && err.message); }
+      if (!cached || cached.place !== place || cached.temp == null) cached = null;
+      if (cached && Date.now() - cached.t < WEATHER_TTL) {
+        tempEl.textContent = `${cached.temp}°C`;
+        descEl.textContent = cached.desc || '';
+        return;
+      }
       try {
-        let lat, lon, city;
-        const saved = getSavedLoc();
-        if (saved) { lat = saved.lat; lon = saved.lon; city = saved.city; }
-        else {
-          const g = await ipGeo();
-          if (!g) throw new Error('geo unavailable');
-          lat = g.lat; lon = g.lon; city = g.city;
-        }
-        if (!Number.isFinite(+lat) || !Number.isFinite(+lon)) throw new Error('bad coords');
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('bad coords');
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&temperature_unit=celsius`);
         const data = await res.json();
         if (!data || !data.current_weather) throw new Error('no weather');
         const temp = Math.round(data.current_weather.temperature);
         tempEl.textContent = `${temp}°C`;
         descEl.textContent = (codes[data.current_weather.weathercode] || 'Unknown') + (city ? ` · ${city}` : '');
-        try { localStorage.setItem('vex.weatherCache', JSON.stringify({ temp, desc: descEl.textContent, t: Date.now() })); } catch {}
-      } catch {
-        // Fall back to the last good reading if we have one; else a clear,
-        // actionable message instead of a dead "Unable to load weather".
-        let shown = false;
-        try { const c = JSON.parse(localStorage.getItem('vex.weatherCache') || 'null'); if (c && c.temp != null) { tempEl.textContent = `${c.temp}°C`; descEl.textContent = (c.desc || '') + ' · offline'; shown = true; } } catch {}
-        if (!shown) { tempEl.textContent = '--°'; descEl.textContent = getSavedLoc() ? 'Weather unavailable — retrying' : 'Set your location'; }
+        try { localStorage.setItem('vex.weatherCache', JSON.stringify({ temp, desc: descEl.textContent, t: Date.now(), place })); }
+        catch (err) { console.warn('[Weather] the forecast could not be kept:', err && err.message); }
+      } catch (err) {
+        console.warn('[Weather] the forecast could not be loaded:', err && err.message);
+        // Fall back to the last good reading for this place if there is one.
+        if (cached) { tempEl.textContent = `${cached.temp}°C`; descEl.textContent = (cached.desc || '') + ' · offline'; }
+        else { tempEl.textContent = '--°'; descEl.textContent = 'Weather unavailable right now'; }
       }
-      syncLocBtn();
     }
     syncLocBtn();
     loadWeather();
+
+    // "Use my approximate location": the one IP lookup, asked for, and saved
+    // like a city, so it is not repeated on the next New Tab.
+    document.getElementById('weather-approx-btn')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const descEl = document.getElementById('weather-desc');
+      btn.disabled = true;
+      descEl.textContent = 'Looking up your approximate location…';
+      const g = await ipGeo();
+      btn.disabled = false;
+      if (!g) { descEl.textContent = 'Your approximate location could not be found — set your city instead'; return; }
+      try { localStorage.setItem('vex.weatherLoc', JSON.stringify({ lat: g.lat, lon: g.lon, city: g.city || 'Approximate location', approx: true })); }
+      catch (err) { descEl.textContent = 'Could not save that location: ' + (err && err.message); return; }
+      loadWeather();
+    });
 
     // --- Set-location modal (city → geocode via open-meteo) ---
     (function () {

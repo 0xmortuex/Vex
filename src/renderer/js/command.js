@@ -79,7 +79,9 @@ const CommandBar = {
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
+    { id: 'browser-import', label: 'Import from Another Browser', hint: 'Bookmarks and history from Chrome, Edge, Brave or Firefox — and passwords from a file you export there', icon: 'download', action: () => { if (typeof BrowserImport !== 'undefined') BrowserImport.open(); } },
     { id: 'keys-sheet', label: 'What You Can Press — Shortcut Sheet', hint: 'Every key Vex answers to, over whatever you are doing, with the ones that matter here first', icon: 'keyboard', shortcut: 'Ctrl+Shift+K', action: () => { if (typeof KeysSheet !== 'undefined') KeysSheet.open(); } },
+    { id: 'report-problem', label: 'Report a Problem', hint: 'A GitHub issue with your versions, look and Vex’s recent problems filled in — shown to you first, to edit; nothing is sent until you press Open on GitHub', icon: 'flag', action: () => { if (typeof VexReport !== 'undefined') VexReport.open().catch(e => window.showToast?.(e.message, 'error')); } },
     { id: 'why-slow', label: 'Why Is Vex Slow Right Now?', hint: 'One screen: what is holding the processor, what is holding the memory, whether a route is on and whether a game has the card', icon: 'activity', isPrimary: true, action: () => { if (typeof WhySlow !== 'undefined') WhySlow.open(); } },
     { id: 'site-routes', label: 'Site Rules — Always Open These Sites Through Tor', hint: 'Name a site and it opens in a routed session of its own, every time, without routing the rest of your browsing', icon: 'globe', action: () => { if (typeof SiteRoutes !== 'undefined') SiteRoutes.open(); } },
     { id: 'skin', label: 'Skin', hint: 'A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light', icon: 'palette', isPrimary: true, action: () => { if (typeof VexSkins !== 'undefined') VexSkins.open(); } },
@@ -563,6 +565,8 @@ const CommandBar = {
     // Tool results come from the Toolbox packs, which load on first use.
     if (window.Toolbox && typeof Toolbox.ensurePacks === 'function') Toolbox.ensurePacks().catch(() => {});
 
+    // Where the keyboard was, so closing puts it back (it fell to the page body).
+    if (!this.isOpen) this._returnFocus = document.activeElement;
     overlay.style.display = 'flex';
     this.isOpen = true;
     input.value = '';
@@ -571,9 +575,16 @@ const CommandBar = {
   },
 
   close() {
-    document.getElementById('command-overlay').style.display = 'none';
+    const overlay = document.getElementById('command-overlay');
+    overlay.style.display = 'none';
     this.isOpen = false;
     this.selectedIndex = 0;
+    const back = this._returnFocus;
+    this._returnFocus = null;
+    const now = document.activeElement;
+    if (back && back !== document.body && document.contains(back) && (!now || now === document.body || overlay.contains(now))) {
+      try { back.focus(); } catch { /* gone or not focusable any more */ }
+    }
   },
 
   search(query) {

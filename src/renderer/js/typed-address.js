@@ -12,14 +12,23 @@
 // One answer now, used by all of them.
 (function () {
   // The New Tab page loads this file and offers exactly these (start.html).
+  // `suggest` is the engine's own suggestion address (all six answer in the
+  // OpenSearch shape ["query", ["one", "two", ...]]). Suggestions used to go
+  // to Google whatever engine was chosen; now they go only to the engine you
+  // search with, and an engine without one gets none (src/main.js, web-suggest).
   const SEARCH_ENGINES = {
-    google:     { name: 'Google',     q: 'https://www.google.com/search?q=%s' },
-    bing:       { name: 'Bing',       q: 'https://www.bing.com/search?q=%s' },
-    duckduckgo: { name: 'DuckDuckGo', q: 'https://duckduckgo.com/?q=%s' },
-    brave:      { name: 'Brave',      q: 'https://search.brave.com/search?q=%s' },
-    startpage:  { name: 'Startpage',  q: 'https://www.startpage.com/sp/search?query=%s' },
-    ecosia:     { name: 'Ecosia',     q: 'https://www.ecosia.org/search?q=%s' },
+    google:     { name: 'Google',     q: 'https://www.google.com/search?q=%s',           suggest: 'https://suggestqueries.google.com/complete/search?client=firefox&q=%s' },
+    bing:       { name: 'Bing',       q: 'https://www.bing.com/search?q=%s',             suggest: 'https://api.bing.com/osjson.aspx?query=%s' },
+    duckduckgo: { name: 'DuckDuckGo', q: 'https://duckduckgo.com/?q=%s',                 suggest: 'https://duckduckgo.com/ac/?q=%s&type=list' },
+    brave:      { name: 'Brave',      q: 'https://search.brave.com/search?q=%s',         suggest: 'https://search.brave.com/api/suggest?q=%s' },
+    startpage:  { name: 'Startpage',  q: 'https://www.startpage.com/sp/search?query=%s', suggest: 'https://www.startpage.com/osuggestions?q=%s' },
+    ecosia:     { name: 'Ecosia',     q: 'https://www.ecosia.org/search?q=%s',           suggest: 'https://ac.ecosia.org/autocomplete?q=%s&type=list' },
   };
+
+  // Settings › General › Search suggestions. Missing means on: what you type
+  // goes to the engine you already search with, never anywhere else.
+  const SUGGEST_KEY = 'vex.searchSuggest';
+  function suggestionsOn(value) { return value !== 'off'; }
 
   const SCHEME = /^(https?|file|about|vex|view-source|chrome|data|mailto|blob):/i;
   const LOCAL_HOST = /^(localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\])(:\d{1,5})?([/?#]\S*)?$/i;
@@ -92,7 +101,25 @@
     return SEARCH_ENGINES[id].q.replace('%s', encodeURIComponent(String(text || '').trim()));
   }
 
-  const api = { SEARCH_ENGINES, addressFor, engineOf, currentEngine, searchUrl };
+  // The address that asks engineId for suggestions for text, or null when
+  // that engine has none.
+  function suggestUrl(text, engineId) {
+    const e = SEARCH_ENGINES[engineOf(engineId)];
+    const q = String(text || '').trim();
+    if (!e.suggest || !q) return null;
+    return e.suggest.replace('%s', encodeURIComponent(q));
+  }
+
+  // Shape every suggestion answer as string[]; anything else is [].
+  function parseSuggestions(raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && Array.isArray(arr[1])) return arr[1].filter(s => typeof s === 'string');
+    } catch { /* not JSON: an error page, a block page */ }
+    return [];
+  }
+
+  const api = { SEARCH_ENGINES, SUGGEST_KEY, addressFor, engineOf, currentEngine, searchUrl, suggestUrl, suggestionsOn, parseSuggestions };
   if (typeof window !== 'undefined') window.VexTypedAddress = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

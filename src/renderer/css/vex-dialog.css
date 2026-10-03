@@ -63,6 +63,23 @@
   font-family: inherit;
 }
 
+/* The multi-line box (vexPrompt multiline): a report the user reads and edits
+   before it is shared. It scrolls; the dialog around it does not grow past the
+   window. */
+.vex-dialog.vex-dialog-wide { width: 720px; }
+.vex-dialog-textarea {
+  display: block;
+  min-height: 220px;
+  max-height: 50vh;
+  resize: vertical;
+  overflow: auto;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
 .vex-dialog-input:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;

@@ -135,7 +135,16 @@ const PersistentStorage = {
     }
     if (failure) {
       window.dispatchEvent(new CustomEvent('vex-storage-status', { detail: { source: 'preferences', ok: false, message: 'Changes could not be saved. Retry before closing.' } }));
-      if (++this._failures <= 3 && !this._timer) this._timer = setTimeout(() => this._flush().catch(() => {}), this._failures * 1000);
+      // The reason was never recorded, and after three tries Vex stopped
+      // trying until the next change (found 2026-10-03). Keep trying, a little
+      // slower each time, and say why in Problems.
+      this._failures++;
+      if (this._failures === 1 || this._failures % 10 === 0) {
+        console.error('[Storage] saving settings failed (try ' + this._failures + '):', failure);
+        try { if (typeof VexProblems !== 'undefined') VexProblems.note('Storage', 'Settings could not be saved (try ' + this._failures + ')', failure && failure.message); }
+        catch (err) { console.error('[Storage] could not record the problem:', err); }
+      }
+      if (!this._timer) this._timer = setTimeout(() => this._flush().catch(() => {}), Math.min(30000, this._failures * 1000));
       throw failure;
     }
     this._failures = 0;

@@ -316,14 +316,14 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-accent-glow: #8b5cf62e;
   --vex-text-primary: #e0e0f0;
   --vex-text-secondary: #9090c0;
-  --vex-text-muted: #6060a0;
+  --vex-text-muted: #7878b8;
   --vex-text-accent: #c084fc;
   --vex-success: #4ade80;
   --vex-danger: #f87171;
   --vex-danger-hover: #fca5a5;
   --vex-warning: #fbbf24;
   --bg: #05050a; --bg-2: #0a0a14; --sidebar: #05050a; --surface: #10101e;
-  --border: #1a1a2e; --text: #e0e0f0; --text-muted: #6060a0;
+  --border: #1a1a2e; --text: #e0e0f0; --text-muted: #7878b8;
   --primary: #8b5cf6; --primary-hover: #a78bfa; --accent: #c084fc;
   --tab-active: #1a1a2e; --tab-hover: #10101e;
   --danger: #f87171; --success: #4ade80; --warning: #fbbf24;

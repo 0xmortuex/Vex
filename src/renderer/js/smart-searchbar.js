@@ -15,16 +15,16 @@
 // hoisted to module scope (mirrors tab-grouper.js's _domain/_similarity) so
 // they're unit-testable under vitest without any DOM or storage.
 //
-// Google Suggest web predictions (a NETWORK source) are fetched in the MAIN
-// process (Google Suggest sends no CORS header, so a webSecurity:true renderer
-// fetch is blocked) and reach this module via window.vex.webSuggest(q). The raw
-// response is parsed by parseGoogleSuggest below.
+// Web predictions (a NETWORK source) come from the search engine you chose —
+// only that one — and are fetched in the MAIN process (the engines send no
+// CORS header, so a webSecurity:true renderer fetch is blocked); they reach
+// this module via window.vex.webSuggest(q). Main decides the engine and
+// whether suggestions are on (src/main.js, web-suggest).
 
-// Parse a Google Suggest response into a flat string[] of predictions.
+// Parse a suggestion response into a flat string[] of predictions.
 // Response shape: ["query", ["sugg1","sugg2",...], ...]. Anything malformed,
-// empty, non-array, or an HTML error page yields []. CANONICAL COPY — a byte-
-// identical inline copy lives in src/main.js (the web-suggest IPC handler);
-// the two MUST stay in sync. This copy is the one pinned by the unit tests.
+// empty, non-array, or an HTML error page yields []. The same rule as
+// parseSuggestions in js/typed-address.js, which main uses.
 function parseGoogleSuggest(raw) {
   try {
     const arr = JSON.parse(raw);
@@ -105,7 +105,7 @@ function rankSuggestions(query, items, cap = 8) {
 
 const SmartSearchbar = (() => {
   const DEBOUNCE_MS = 35;           // local sources (instant); tiny coalesce only
-  const WEB_DEBOUNCE_MS = 45;       // network debounce for Google Suggest (was 150)
+  const WEB_DEBOUNCE_MS = 45;       // network debounce for web suggestions (was 150)
   const MAX_RESULTS = 8;            // local cap
   const MAX_WEB_RESULTS = 8;        // web cap
 
@@ -212,7 +212,7 @@ const SmartSearchbar = (() => {
       }
       const isWeb = r.kind === 'web';
       const text = isWeb ? r.query : (r.title || r.url);
-      const sub = isWeb ? 'Google Suggest' : _displayUrl(r.url);
+      const sub = isWeb ? (r.engine || 'Search engine') + ' suggestion' : _displayUrl(r.url);
       const row = document.createElement('div');
       row.className = 'sb-suggestion' + (i === _selectedIndex ? ' selected' : '');
       row.dataset.index = String(i);
@@ -283,19 +283,38 @@ const SmartSearchbar = (() => {
   // Fetch Google Suggest via the main process (window.vex.webSuggest). Debounced
   // separately from locals, fail-silent, and guarded against out-of-order
   // responses with a monotonic sequence id.
-  function _applyWeb(q, arr) {
+  function _applyWeb(q, arr, engine) {
     _webResults = arr.slice(0, MAX_WEB_RESULTS)
       .filter(s => typeof s === 'string' && s.trim())
-      .map(s => ({ query: s, kind: 'web' }));
+      .map(s => ({ query: s, kind: 'web', engine }));
     if ((_input.value || '').trim() === q) _render();
+  }
+
+  // Not asked at all with suggestions off, in a private window, or while the
+  // tab you are typing in is a Tor or burner tab (main refuses these too).
+  function _webAllowed() {
+    const TA = typeof window !== 'undefined' ? window.VexTypedAddress : null;
+    if (!TA) return false;
+    if (window.VexTabPolicy?.isPrivateWindow) return false;
+    let pref = null;
+    try { pref = localStorage.getItem(TA.SUGGEST_KEY); } catch (err) { console.warn('[Search] could not read the suggestions setting:', err && err.message); return false; }
+    if (!TA.suggestionsOn(pref)) return false;
+    const tab = typeof TabManager !== 'undefined' && typeof TabManager.getActiveTab === 'function' ? TabManager.getActiveTab() : null;
+    const partition = tab && tab.partition;
+    if (partition && (!String(partition).startsWith('persist:') || String(partition).startsWith('persist:route-tor'))) return false;
+    return true;
   }
 
   function _fetchWeb(q) {
     clearTimeout(_webTimer);
-    if (!q) { _webResults = []; return; }
+    if (!q || !_webAllowed()) { _webResults = []; return; }
+    const TA = window.VexTypedAddress;
+    const engineId = TA.currentEngine();
+    const engine = TA.SEARCH_ENGINES[engineId].name;
+    const key = engineId + '\n' + q;
     // Instant cache hit — no debounce, no IPC, no network.
-    const cached = _cacheGet(q);
-    if (cached) { _webSeq++; _applyWeb(q, cached); return; }
+    const cached = _cacheGet(key);
+    if (cached) { _webSeq++; _applyWeb(q, cached, engine); return; }
     const bridge = (typeof window !== 'undefined' && window.vex && typeof window.vex.webSuggest === 'function')
       ? window.vex.webSuggest : null;
     if (!bridge) { _webResults = []; return; }
@@ -303,12 +322,12 @@ const SmartSearchbar = (() => {
     _webTimer = setTimeout(() => {
       Promise.resolve(bridge(q)).then((list) => {
         const arr = Array.isArray(list) ? list : [];
-        _cacheSet(q, arr); // cache regardless of staleness — value is query-keyed
+        _cacheSet(key, arr); // cache regardless of staleness — value is engine+query-keyed
         // Ignore stale responses (a newer keystroke already fired) and any
         // response whose query no longer matches what's in the box.
         if (seq !== _webSeq) return;
         if ((_input.value || '').trim() !== q) return;
-        _applyWeb(q, arr);
+        _applyWeb(q, arr, engine);
       }).catch(() => { /* fail-silent: keep locals */ });
     }, WEB_DEBOUNCE_MS);
   }

@@ -67,7 +67,7 @@
 </head>
 <body>
   <!-- Top Bar -->
-  <div id="top-bar">
+  <div id="top-bar" role="navigation" aria-label="Toolbar">
     <div id="top-bar-drag"></div>
 
     <div id="top-bar-left">
@@ -198,17 +198,17 @@
   </div>
 
   <!-- Horizontal tab bar (shown when body[data-tab-layout="horizontal"]) -->
-  <div class="top-tab-bar" id="top-tab-bar">
-    <div class="top-tabs-list" id="top-tabs-list"></div>
+  <div class="top-tab-bar" id="top-tab-bar" role="region" aria-label="Tab strip">
+    <div class="top-tabs-list" id="top-tabs-list" role="tablist" aria-label="Tabs"></div>
     <div class="tab-bar-trailing">
-      <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)">+</button>
+      <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)" aria-label="New tab" aria-keyshortcuts="Control+T">+</button>
     </div>
   </div>
 
   <!-- Main Layout -->
   <div id="main-layout">
     <!-- Icon Sidebar -->
-    <div id="icon-sidebar">
+    <div id="icon-sidebar" role="navigation" aria-label="Panels">
       <button class="sidebar-icon active" data-panel="start" title="Start Page">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 7.5L10 2.5L17 7.5V16C17 16.55 16.55 17 16 17H4C3.45 17 3 16.55 3 16V7.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 17V10.5H12.5V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -310,7 +310,8 @@
     </div>
 
     <!-- Content Area -->
-    <div id="content-area">
+    <div id="content-area" role="main">
+      <h1 class="vex-sr-only">Vex</h1>
       <!-- Sidebar Panels (hidden by default) -->
       <div id="panels-container">
         <div class="panel" id="panel-start" style="display: none;"></div>
@@ -353,6 +354,10 @@
                 <option value="startpage">Startpage</option>
                 <option value="ecosia">Ecosia</option>
               </select>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Search suggestions <span style="color:var(--text-muted);font-size:11px">· as you type in the address bar or the New Tab search box, the text goes to your search engine for suggestions — only that engine, and never from a private window, Tor tab or burner tab</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-search-suggest" aria-label="Search suggestions" checked><span class="toggle-slider"></span></label>
+              </div>
             </div>
 
             <div class="setting-group">
@@ -385,8 +390,8 @@
                 <div id="lock-pin-state" class="setting-hint" style="margin-top:4px"></div>
               </div>
               <div class="setting-toggle-row">
-                <span>Skip sponsor segments on YouTube (SponsorBlock — sends only the video's id)</span>
-                <label class="toggle"><input type="checkbox" id="setting-sponsor-skip" checked><span class="toggle-slider"></span></label>
+                <span>Skip sponsor segments on YouTube <span style="color:var(--text-muted);font-size:11px">· SponsorBlock: the id of each YouTube video you open is sent to sponsor.ajay.app</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sponsor-skip" aria-label="Skip sponsor segments on YouTube"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Block ads and trackers</span>
@@ -752,6 +757,10 @@
                 <button id="setting-open-backup" class="btn-secondary">Back up or restore…</button>
               </div>
               <div class="setting-toggle-row">
+                <span>Import from another browser<br><span style="font-size:11.5px;color:var(--text-muted)">Bookmarks with their folders and your history from Chrome, Edge, Brave or Firefox on this PC — and passwords from a file you export from that browser. Shows what it will add first, and can be undone.</span></span>
+                <button id="setting-open-browser-import" class="btn-secondary">Import…</button>
+              </div>
+              <div class="setting-toggle-row">
                 <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All 222 features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
                 <button id="setting-open-library" class="btn-secondary">Open the Library…</button>
               </div>
@@ -1042,6 +1051,14 @@
                 <button id="btn-check-updates" class="btn-primary">Check for Updates</button>
                 <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <button type="button" id="btn-report-problem" class="btn-secondary">Report a problem…</button>
+                <span style="font-size:11px;color:var(--text-muted)">Opens a GitHub issue with your versions and Vex's recent problems filled in. You see and can edit all of it first.</span>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:12px">
+                <span>Check for updates when Vex starts <span style="color:var(--text-muted);font-size:11px">· asks GitHub for the latest release; off, Vex only checks when you press Check for Updates</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-update-on-start" aria-label="Check for updates when Vex starts" checked><span class="toggle-slider"></span></label>
+              </div>
               <div class="setting-row" style="margin-bottom:16px">
                 <div class="setting-label" style="display:block"><strong>Update channel</strong>
                   <span class="setting-hint">Latest tells you about every release. Stable waits until the newest has been out two days, so a busy day of releases is one prompt, not several.</span></div>
@@ -1129,10 +1146,10 @@
 
   <!-- Command Bar Overlay -->
   <div id="command-overlay" style="display: none;">
-    <div id="command-bar">
+    <div id="command-bar" role="dialog" aria-modal="true" aria-label="Command bar">
       <div id="command-input-wrapper">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <input type="text" id="command-input" placeholder="Type a URL, search, or &gt; for commands..." spellcheck="false" autocomplete="off">
+        <input type="text" id="command-input" aria-label="Address, search, or &gt; for a command" placeholder="Type a URL, search, or &gt; for commands..." spellcheck="false" autocomplete="off">
         <kbd>ESC</kbd>
       </div>
       <div id="command-results"></div>
@@ -1174,7 +1191,7 @@
        around them. The six stacked control strips that used to sit between the
        header and the first message are now one row inside the composer, so the
        conversation gets the height instead. -->
-  <div id="ai-panel">
+  <div id="ai-panel" role="complementary" aria-label="AI assistant">
     <div class="ai-header">
       <div class="ai-title">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -1345,6 +1362,7 @@
   <script src="js/theme-picker.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/horizontal-tabs.js"></script>
+  <script src="js/a11y-keys.js"></script>
   <script src="js/webview.js"></script>
   <script src="js/discord-memory.js"></script>
   <script src="js/sidebar.js"></script>
@@ -1469,6 +1487,7 @@
   <script src="js/job-work-panel.js"></script>
   <script src="js/typed-address.js"></script>
   <script src="js/command.js"></script>
+  <script src="js/report-problem.js"></script>
   <script src="js/ask-ai-bar.js"></script>
   <script src="js/smart-searchbar.js"></script>
   <script src="js/search-shortcuts.js"></script>
@@ -1484,6 +1503,7 @@
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>
+  <script src="js/browser-import.js"></script>
   <script src="js/feature-details.js"></script>
   <script src="js/feature-library.js"></script>
   <script src="js/peek.js"></script>
@@ -1536,7 +1556,6 @@
   <script src="js/accessibility.js"></script>
   <script src="js/annotations.js"></script>
   <script src="js/recall.js"></script>
-  <script src="vendor/jsQR.js"></script>
   <script src="js/authenticator.js"></script>
   <script src="js/autofill-log.js"></script>
   <script src="js/totp-autofill.js"></script>

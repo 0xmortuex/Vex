@@ -279,6 +279,11 @@ contextBridge.exposeInMainWorld('vex', {
   vaultHealth: () => ipcRenderer.invoke('vault:health'),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+  // Import from another browser (main/browser-import.js). The passwords CSV is
+  // chosen, read and saved in main; only hosts and usernames come back.
+  browserImportSources: () => ipcRenderer.invoke('browser-import:sources'),
+  browserImportRead: (browser, profileId) => ipcRenderer.invoke('browser-import:read', browser, profileId),
+  browserImportPasswordsCsv: () => ipcRenderer.invoke('browser-import:passwords-csv'),
   // TOTP authenticator (2FA). Secrets stay in the main process — the renderer
   // only ever gets metadata (totpList) and the finished 6-digit codes (totpCodes).
   totpList: () => ipcRenderer.invoke('totp:list'),

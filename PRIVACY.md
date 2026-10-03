@@ -11,7 +11,8 @@ Vex is a web browser for Windows made by 0xmortuex (https://github.com/0xmortuex
 - **Vex has no analytics, telemetry or crash reporting.** The author does not collect usage data, and Vex does not send crash reports anywhere.
 - **Vex does not come connected to a server run by the author.** Sync and cloud AI are off until you type in the address of a server. You normally deploy that server yourself on your own Cloudflare account (see [SELF_HOSTING.md](SELF_HOSTING.md)).
 - **Your data stays on your PC** unless you use a feature that needs the internet. The sections below list every such feature.
-- Some things do go online by default: the update check (GitHub), the ad-blocker lists and spell-check dictionary on first start, the Widevine DRM module (Google), search suggestions (Google), the New Tab weather and daily verse, and SponsorBlock on YouTube. Each is explained below, with how to turn it off where that is possible.
+- Some things do go online by default: the update check (GitHub), the ad-blocker lists and spell-check dictionary on first start, the Widevine DRM module (Google), search suggestions (from the search engine you chose, never from a private window), and the New Tab daily verse. Each is explained below, with how to turn it off where that is possible.
+- Off until you choose them (first-run setup asks, under "Privacy choices"): the New Tab weather, which needs your city, and SponsorBlock on YouTube.
 
 ## Who is responsible
 
@@ -103,9 +104,9 @@ Private and Tor tabs are never read for AI.
 
 ## 4. Updates
 
-**What happens:** about 4 seconds after Vex starts (not in private windows), and when you click "Check for Updates", Vex downloads `latest.yml` from the Vex releases on **GitHub** (github.com). If you choose to update, it downloads the installer (or only the changed parts) and the changelog from GitHub and checks it against a SHA-512 hash.
+**What happens:** about 4 seconds after Vex starts (not in private windows, and not if you turned off "Check for updates when Vex starts" in Settings › About), and when you click "Check for Updates", Vex downloads `latest.yml` from the Vex releases on **GitHub** (github.com). If you choose to update, it downloads the installer (or only the changed parts) and the changelog from GitHub and checks it against a SHA-512 hash.
 
-**What GitHub sees:** your IP address and a `User-Agent` header with your Vex version (for example `Vex/2.35.2`). Vex sends nothing else. GitHub's privacy policy applies. The update check cannot currently be turned off; the "Stable" channel only delays the prompt.
+**What GitHub sees:** your IP address and a `User-Agent` header with your Vex version (for example `Vex/2.35.2`). Vex sends nothing else. GitHub's privacy policy applies. Turn off "Check for updates when Vex starts" in Settings › About and Vex only checks when you click "Check for Updates". The "Stable" channel does not reduce checking; it only delays the prompt.
 
 ## 5. Other features that use the internet
 
@@ -113,11 +114,9 @@ These are **on by default:**
 
 | Feature | Sent to | What is sent | When |
 |---|---|---|---|
-| Search suggestions | Google (suggestqueries.google.com) | What you type in the address bar or New Tab search box | As you type, whatever search engine you chose |
+| Search suggestions | Only the search engine you chose: Google (suggestqueries.google.com), Bing (api.bing.com), DuckDuckGo (duckduckgo.com), Brave (search.brave.com), Startpage (www.startpage.com) or Ecosia (ac.ecosia.org) | What you type in the address bar or New Tab search box | As you type. Never from a private window, a Tor tab or a burner tab. Turn off in Settings › General › Search suggestions |
 | Search | Your chosen search engine (Google by default; Bing, DuckDuckGo, Brave, Startpage or Ecosia) | Your search | When you search |
-| New Tab weather | ipapi.co, then ipwho.is or get.geojs.io if that fails; then Open-Meteo (api.open-meteo.com) | Your IP address (to guess your city), then your approximate coordinates | Each time the New Tab page opens. Setting a city yourself skips the IP lookup; searching for a city sends what you type to geocoding-api.open-meteo.com |
 | New Tab daily verse | AlQuran Cloud (api.alquran.cloud) | Which verse to fetch | Once a day. Choose another source or "off" to stop it |
-| SponsorBlock (skip sponsor segments on YouTube) | sponsor.ajay.app | The YouTube video ID | When you open a YouTube video. Turn off in Settings › Privacy |
 | Ad and tracker blocker | raw.githubusercontent.com (Ghostery's filter lists) | Nothing beyond a normal download | On first start, then saved |
 | Spell check dictionary | Google (redirector.gvt1.com) | Nothing beyond a normal download | Once, on first start |
 | DRM (Widevine) | Google, through the component updater built into castLabs Electron | What Chromium's component updater normally sends (such as version and platform) | At start, when the module is missing or out of date |
@@ -128,6 +127,8 @@ These run **only when you use them:**
 
 | Feature | Sent to | What is sent |
 |---|---|---|
+| New Tab weather | Open-Meteo (api.open-meteo.com); searching for a city goes to geocoding-api.open-meteo.com | Off until you set a city. Then the city's coordinates, at most once every 30 minutes (the forecast is kept in between); a city search sends what you type. "Use my approximate location" looks up your IP address once at ipapi.co (then ipwho.is or get.geojs.io if that fails) and saves the town it finds |
+| SponsorBlock (skip sponsor segments on YouTube) | sponsor.ajay.app | The ID of each YouTube video you open. Off until you turn it on in first-run setup or Settings › Privacy & Security (profiles from before it was off by default kept it as they had it) |
 | Tor | archive.torproject.org (one-time download of Tor), then the Tor network; check.torproject.org to confirm the connection | Your Tor tab traffic goes through Tor |
 | Mail panel | Your mail provider's IMAP server (Gmail, Yahoo, iCloud, or a local bridge) | Your login (an app password), to read your mail. Vex only reads mail; it never sends or changes it |
 | Extension catalogue | GitHub (api.github.com and github.com) | Which extension to download |

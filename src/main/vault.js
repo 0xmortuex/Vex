@@ -144,6 +144,27 @@ ipcMain.handle('vault:delete', async (_e, { host, username } = {}) => {
 });
 
 
-return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes };
+// Logins brought over from another browser's CSV export (main/browser-import.js).
+// Only a host + username the vault does not already have is added: a saved
+// password is never overwritten by an import, so undoing it (vault:delete of
+// exactly what is returned) puts the vault back as it was.
+async function addMissing(entries) {
+  const arr = vaultLoad();
+  const seen = new Set(arr.map(e => e.host + '\n' + e.username));
+  const added = [];
+  let duplicates = 0;
+  const now = new Date().toISOString();
+  for (const { host, username, password } of entries) {
+    const k = host + '\n' + username;
+    if (seen.has(k)) { duplicates++; continue; }
+    seen.add(k);
+    arr.push({ host, username, password, updatedAt: now });
+    added.push({ host, username });
+  }
+  if (added.length) await vaultSave(arr);
+  return { added, duplicates };
+}
+
+return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes, addMissing };
 }
 module.exports = { createVaultService };

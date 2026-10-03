@@ -220,8 +220,8 @@ Rules:
 };
 
 // Per-IP rate limit backed by VEX_AI_KV. This worker proxies a PAID model with
-// the project's OpenRouter key and its URL ships in the public app, so without a
-// limit anyone who reads the URL can drain credits or use it as a free relay.
+// the OpenRouter key of whoever deployed it, and anyone who learns its URL can
+// call it, so without a limit they could drain credits or use it as a free relay.
 // Two windows (burst + daily), serialized by VexAIState. Fail closed on storage errors.
 async function aiRateLimited(env, ip) {
   if (!env.VEX_AI_KV) return true;

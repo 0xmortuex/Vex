@@ -29,7 +29,7 @@ const VexJobs = {
     return { stop: () => this.stop(name) };
   },
 
-  stop(name) { this._jobs.delete(name); },
+  stop(name) { this._jobs.delete(name); this._arm(); },
 
   // Why a job of this kind should wait right now, or '' to run it.
   heldBecause(when) {
@@ -55,6 +55,7 @@ const VexJobs = {
       job.next = Date.now() + job.ms;
       this._run(job);
     }
+    this._arm();
   },
 
   _run(job) {
@@ -72,9 +73,24 @@ const VexJobs = {
   },
 
   _start() {
-    if (this._tick) return;
-    this._tick = setInterval(() => this.tick(), this.TICK_MS);
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) this.resume(); });
+    if (!this._wired && typeof document !== 'undefined') {
+      this._wired = true;
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) this.resume(); });
+    }
+    this._arm();
+  },
+
+  // One timer, set for the next job that is due — not a tick every second.
+  // The jobs run every half-minute or more, so a 1 s tick woke Vex sixty
+  // times a minute to find nothing due. TICK_MS stays the shortest wait, so
+  // jobs due together still run together.
+  _arm() {
+    if (this._tick) { clearTimeout(this._tick); this._tick = null; }
+    if (!this._jobs.size) return;
+    let next = Infinity;
+    for (const job of this._jobs.values()) if (job.next < next) next = job.next;
+    const wait = Math.min(Math.max(this.TICK_MS, next - Date.now()), 2147483647);
+    this._tick = setTimeout(() => { this._tick = null; this.tick(); this._arm(); }, wait);
   },
 
   // For Memory › Health.

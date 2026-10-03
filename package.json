@@ -83,7 +83,10 @@
       "assets/icon.svg",
       "assets/icon.ico",
       "assets/theme-previews/*.png",
-      "package.json"
+      "package.json",
+      "!node_modules/sharp/**",
+      "!node_modules/@img/**",
+      "!node_modules/onnxruntime-node/**"
     ],
     "fileAssociations": [
       {
