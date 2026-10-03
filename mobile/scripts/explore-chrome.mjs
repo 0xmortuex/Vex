@@ -193,6 +193,7 @@ async function type(selector, text, enter = false) {
 }
 
 async function open(url) {
+  await home();
   await tap('#tb-url');
   await type('#omni-input', url, true);
   await wait(900);
@@ -484,6 +485,176 @@ for (const [id, label] of [['chat', 'AI Chat'], ['image', 'Ask Image'], ['audio'
   });
   await home();
 }
+
+// ── 2b. The rest of a day: each thing checked by what it leaves behind ──────
+const toastText = () => page.$$eval('#toasts > *', nodes => nodes.map(node => node.textContent).join(' | '));
+const until = async (test, ms = 4000) => { for (let t = 0; t < ms; t += 200) { if (await test()) return true; await wait(200); } return false; };
+const panelRows = () => page.$$eval('#panel-body .list-row, #panel-body .sheet-row:not(.static)', nodes => nodes.length);
+const menu = async label => { await tap('#tb-menu'); return tapText(label, '#sheet-list'); };
+
+await step('save the article for offline, then open it from Saved pages', async () => {
+  await open(site('article.html'));
+  await menu('Save page for offline');
+  if (!(await until(async () => /Saved|could not|failed/i.test(await toastText())))) found('saving for offline said nothing');
+  const said = await toastText();
+  if (!/Saved/.test(said)) found('saving for offline: ' + said.slice(0, 120));
+  await home();
+  await menu('Saved pages');
+  if ((await panelRows()) < 1) found('Saved pages is empty after saving one');
+});
+
+await step('remind me about this page', async () => {
+  await open(site('article.html'));
+  await menu('Remind me about this');
+  const choices = await page.$$eval('#sheet-list .sheet-row .row-label', nodes => nodes.map(node => node.childNodes[0].textContent.trim()));
+  if (!choices.length) { found('“Remind me about this” offered no times'); return; }
+  await tapText(choices[0], '#sheet-list');
+  await dismissDialog('ok');
+  await home();
+  await menu('Reminders');
+  if ((await panelRows()) < 1) found('Reminders is empty after setting one (' + choices[0] + ')');
+});
+
+await step('show the page as a QR code', async () => {
+  await open(site('article.html'));
+  await menu('Show as QR code');
+  if (!(await page.isVisible('#qrshare'))) { found('the QR code did not show'); return; }
+  const size = await page.$eval('#qrshare-canvas canvas', node => node.width).catch(() => 0);
+  if (!size) found('the QR code is empty');
+});
+
+await step('copy the link', async () => {
+  await open(site('article.html'));
+  await menu('Copy link');
+  if (!(await until(async () => /Copied|copied/.test(await toastText()), 1500))) found('Copy link said nothing: ' + await toastText());
+});
+
+await step('close a tab and reopen it from the menu', async () => {
+  await open(site('shop.html'));
+  await tap('#tb-tabs');
+  await tap('#tg-new');
+  await open(site('contact.html'));
+  const before = await page.evaluate(() => VexTabStore.normal().length);
+  await page.evaluate(() => VexUI.closeTabWithUndo(VexTabStore.active().id));
+  await wait(300);
+  await home();
+  await menu('Reopen closed tab');
+  await wait(600);
+  const after = await page.evaluate(() => VexTabStore.normal().length);
+  if (after !== before) found('Reopen closed tab: ' + before + ' tabs before closing, ' + after + ' after reopening');
+});
+
+await step('find a page by what it said', async () => {
+  await open(site('article.html'));
+  await wait(1500);                   // indexed after it loads
+  await menu('Search what you read');
+  await page.fill('#panel-search-input', 'spring tides');
+  await page.dispatchEvent('#panel-search-input', 'input');
+  await wait(800);
+  if ((await panelRows()) < 1) found('Search what you read found nothing for “spring tides” after reading the tides article');
+});
+
+await step('sessions: keep this set of tabs', async () => {
+  await menu('Sessions');
+  const action = await page.$eval('#panel-action', node => !node.hidden && node.textContent).catch(() => false);
+  if (action) {
+    await tap('#panel-action');
+    if (await page.evaluate(() => !document.getElementById('dialog').hidden)) {
+      if (await page.evaluate(() => !document.getElementById('dialog-input').hidden)) await page.fill('#dialog-input', 'Lamps');
+      await page.click('#dialog-ok', { force: true });
+      await wait(400);
+    }
+    if ((await panelRows()) < 1) found('Sessions is empty after saving one');
+  }
+});
+
+await step('history: clear it all', async () => {
+  await menu('History');
+  if (!(await page.$eval('#panel-action', node => !node.hidden))) { found('History has no Clear'); return; }
+  await tap('#panel-action');
+  await dismissDialog('ok');
+  await wait(400);
+  const left = await page.evaluate(async () => (await VexHistory.search('', 50)).length);
+  if (left) found('Clear left ' + left + ' visits in history');
+});
+
+await step('bookmarks: remove one, then undo', async () => {
+  await open(site('article.html'));
+  await page.evaluate(() => VexCollections.bookmarks.add({ url: location.origin + '/fixtures/shop.html', title: 'Lamp Shop' }));
+  await menu('Bookmarks');
+  const before = await page.evaluate(() => VexCollections.bookmarks.all().length);
+  const remove = await page.$('#panel-body .list-row button.x');
+  if (!remove) { found('no way to remove a bookmark from the list'); return; }
+  await remove.click({ force: true });
+  await wait(300);
+  const removed = await page.evaluate(() => VexCollections.bookmarks.all().length);
+  if (removed !== before - 1) found('removing a bookmark left ' + removed + ' of ' + before);
+  const undo = await page.$('#toasts button');
+  if (!undo) { found('no Undo after removing a bookmark'); return; }
+  await undo.click({ force: true });
+  await wait(400);
+  if ((await page.evaluate(() => VexCollections.bookmarks.all().length)) !== before) found('Undo did not bring the bookmark back');
+});
+
+await step('reading list: open what was saved', async () => {
+  await menu('Reading list');
+  const row = await page.$('#panel-body .list-row');
+  if (!row) { found('the reading list is empty'); return; }
+  await row.click({ force: true });
+  await wait(900);
+  if (await page.isVisible('#panel')) found('opening a reading-list item left the list open');
+});
+
+await step('appearance: change the theme', async () => {
+  await page.evaluate(() => VexPanels.appearance());
+  await wait(300);
+  const before = await page.evaluate(() => document.documentElement.dataset.theme + '|' + getComputedStyle(document.body).backgroundColor);
+  const cards = await page.$$('#panel-body .theme-card');
+  if (cards.length < 2) { found('Appearance shows ' + cards.length + ' themes'); return; }
+  await cards[cards.length - 1].click({ force: true });
+  await wait(400);
+  const after = await page.evaluate(() => document.documentElement.dataset.theme + '|' + getComputedStyle(document.body).backgroundColor);
+  if (after === before) found('choosing another theme changed nothing (' + before + ')');
+  // The page redraws with the new theme ticked: find the first card again.
+  await page.click('#panel-body .theme-card', { force: true });
+  await wait(300);
+});
+
+await step('start page: a new tab, then a tile', async () => {
+  await tap('#tb-tabs');
+  await tap('#tg-new');
+  await wait(400);
+  // A new tab opens the address bar, ready to type; Back shows the start page.
+  if (!(await page.isVisible('#omnibox'))) found('a new tab did not open the address bar');
+  await page.evaluate(() => VexUI.handleBack());
+  await wait(300);
+  if (!(await page.isVisible('#start'))) { found('Back from a new tab’s address bar did not show the start page'); return; }
+  const tile = await page.$('#start-tiles .tile');
+  if (!tile) { found('the start page has no tiles after a day of browsing'); return; }
+  const label = await tile.textContent();
+  await tile.click({ force: true });
+  await wait(1500);
+  if (await page.isVisible('#start')) found('tapping the start-page tile “' + label + '” went nowhere; the tab is at ' + await page.evaluate(() => VexTabStore.active().url));
+});
+
+await step('sync: try to sign in with no worker set', async () => {
+  await page.evaluate(() => VexPanels.sync());
+  await wait(300);
+  const text = (await page.$eval('#panel-body', node => node.innerText)).slice(0, 300);
+  if (!/worker|Worker/.test(text)) found('Sync does not say it needs a worker: ' + text.replace(/\s+/g, ' ').slice(0, 120));
+  await shot('09-sync');
+});
+
+await step('backup: start one, then think better of it', async () => {
+  await page.evaluate(() => VexPanels.backup());
+  await wait(300);
+  const rows = await page.$$eval('#panel-body .sheet-row:not(.static) .row-label', nodes => nodes.map(node => node.childNodes[0].textContent.trim()));
+  const make = rows.find(label => /^(Make|Create|Back up|Save)/i.test(label));
+  if (!make) { found('Backup offers nothing to make one: ' + rows.join(', ')); return; }
+  await tapText(make);
+  await wait(400);
+  await dismissDialog();
+});
 
 // ── 3. The crawl ────────────────────────────────────────────────────────────
 await open(site('article.html'));

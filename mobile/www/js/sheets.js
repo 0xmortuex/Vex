@@ -15,7 +15,16 @@ const VexSheets = (() => {
 
   function shell() { return $('sheet'); }
 
+  // How many times the sheet has been given new contents. A row whose action
+  // opens another sheet — "Remind me about this" opens the times to choose
+  // from — must not close it on the way out; that closed the times the
+  // moment they appeared, so the reminder could never be set (found by using
+  // it, as a person would). Comparing this before and after the action is
+  // how a row knows.
+  let generation = 0;
+
   function reset(title, subtitle) {
+    generation++;
     const titleEl = $('sheet-title');
     const subEl = $('sheet-sub');
     titleEl.hidden = !title;
@@ -70,8 +79,9 @@ const VexSheets = (() => {
       // replaced the sheet's contents. Anything else — including the promise
       // an async handler returns, which is truthy — closes it.
       node.onclick = async () => {
+        const before = generation;
         const keep = await run(node);
-        if (keep !== true) close();
+        if (keep !== true && generation === before) close();
       };
     }
     return node;

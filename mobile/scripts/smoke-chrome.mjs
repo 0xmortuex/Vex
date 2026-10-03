@@ -671,6 +671,26 @@ results.labAgent = await page.evaluate(async () => {
 });
 await shot('46-agent-skills');
 
+// A menu row whose action opens another sheet keeps it open: "Remind me about
+// this" opened its times and the menu closed them as it went, so a reminder
+// could never be set from the menu.
+results.menuOpensSheet = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  VexPanels.close();
+  if (!VexTabStore.active() || VexTabStore.active().url === 'about:blank') await VexUI.openUrl('https://example.com/');
+  await wait(200);
+  VexSheets.menu();
+  await wait(150);
+  const row = [...document.querySelectorAll('#sheet-list .sheet-row')].find(node => /Remind me about this/.test(node.textContent));
+  if (!row) return 'no row';
+  row.click();
+  await wait(300);
+  const open = !document.getElementById('sheet').hidden;
+  const title = document.getElementById('sheet-title').textContent;
+  VexSheets.close();
+  return open + ' ' + title;
+});
+
 // ── Vex Sync's screens ──────────────────────────────────────────────────────
 // Signed out, the panel asks for the worker, an email and a code; the
 // desktop's notes can be read, edited (the edit keeps every other field and
@@ -2114,6 +2134,7 @@ const expected = {
   readingOffline: 'true true',
   syncScreens: 'true From the PC true true true true',
   aiPanelsSteady: '0 1 true',
+  menuOpensSheet: 'true Bring this back',
   labHome: '8 0 AI Chat,Ask Image,Audio Scribe,Prompt Lab,Agent Skills,Tiny Garden,Mobile Actions,Scrapbook',
   labGarden: '1 🌱 true',
   labActions: 'Did turn on flashlightturn on flashlight',
