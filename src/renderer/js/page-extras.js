@@ -159,6 +159,101 @@ function vexTtsPage(lib, mode) {
   };
 }
 
+// ---- What language is this text in? ----
+// A page that declares no <html lang> was read with the system's default
+// voice, whatever it was: on a PC set up in Turkish, English pages came out
+// in a Turkish voice (found 2026-10-03). Chromium's own detector is not
+// reachable here (no LanguageDetector, Translator or chrome.i18n in a Vex
+// window, Chromium 148), so this is a small local guess: the writing system
+// first, then, for Latin script, counts of each language's commonest words.
+// It answers '' when it cannot tell, and the caller then keeps the default.
+const VexTextLang = {
+  // The commonest short words of each language, chosen to tell them apart.
+  // Words several languages share ("de", "la", "en") count for all of them;
+  // the words they do not share decide.
+  WORDS: {
+    en: 'the and of to is in that it was for with are this on as be have not you by from they which at or but has were will would can their an its been there what about more when who into than them these also only our after could should because how',
+    tr: 've bir bu da de için ile çok ama olarak daha gibi ne en o var yok değil sonra kadar her şey ben sen biz onun olan oldu şu mi mı ya ki veya ise göre nasıl neden çünkü bunu diye tüm ilk yeni büyük önce şimdi zaman bile artık',
+    de: 'der die und das ist nicht ein eine zu den mit sich des auf für im dem von auch es an werden wird sind wie oder aber nach bei noch wir ich sie er nur kann hat war über dass einen einem durch zum zur sehr schon wenn',
+    fr: 'le la les et des est une un du que qui dans pour pas sur au avec ce il elle sont ne se plus par mais nous vous ont été cette aux son sa leur comme ou très je être fait aussi tout bien',
+    es: 'el la los las y que de en es un una por con para no se del al lo como más pero sus su está son este esta ya muy también fue ha hay cuando sobre entre todo porque yo ser puede desde hasta',
+    it: 'il la di che e è un una per non sono del della con si le gli da nel alla ma anche come più questo questa ha ho dei delle lo ci nella molto perché essere stato quando io sul anni dopo',
+    pt: 'o a os as e de que do da em um uma para com não é se no na por mais dos das ao mas foi como ele ela são está também muito já isso seu sua quando eu você pelo pela foram tem',
+    nl: 'de het een en van is dat op te in zijn niet met voor die er aan ook als maar om bij door wordt naar was worden dan nog wat kan hij ze we ik hebben heeft deze uit zo wel geen',
+  },
+  // Letters only one of those languages uses: each word holding one counts
+  // twice more for it.
+  MARKS: { tr: /[ğış]/, de: /ß/, es: /[ñ¿¡]/, pt: /[ãõ]/, fr: /œ|^(?:qu|j)'/, nl: /ij/ },
+  _sets: null,
+
+  // The language of `text` as a BCP-47 primary tag ('en', 'tr', 'ru', 'zh'),
+  // or '' when it cannot tell.
+  detect(text) {
+    const t = String(text || '').slice(0, 6000);
+    if (!t.trim()) return '';
+    const count = (re) => (t.match(re) || []).length;
+    const letters = count(/\p{L}/gu);
+    if (letters < 12) return '';
+    const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    const scripts = [
+      ['ja', kana],
+      ['ko', count(/\p{Script=Hangul}/gu)],
+      ['zh', count(/\p{Script=Han}/gu)],
+      ['ru', count(/\p{Script=Cyrillic}/gu)],
+      ['ar', count(/\p{Script=Arabic}/gu)],
+      ['he', count(/\p{Script=Hebrew}/gu)],
+      ['el', count(/\p{Script=Greek}/gu)],
+      ['th', count(/\p{Script=Thai}/gu)],
+      ['hi', count(/\p{Script=Devanagari}/gu)],
+      ['ka', count(/\p{Script=Georgian}/gu)],
+      ['hy', count(/\p{Script=Armenian}/gu)],
+      ['la', count(/\p{Script=Latin}/gu)],
+    ];
+    // Japanese mixes kana with kanji (Han): any real share of kana is Japanese.
+    if (kana >= letters * 0.1) return 'ja';
+    scripts.sort((a, b) => b[1] - a[1]);
+    const [script, n] = scripts[0];
+    if (n < letters * 0.5) return '';
+    if (script === 'ru') {
+      if (/[їєґ]/i.test(t) || count(/і/gi) > 2) return 'uk';
+      return 'ru';
+    }
+    if (script === 'ar') {
+      if (/[ٹڈڑںے]/.test(t)) return 'ur';
+      if (/[پچژگک]/.test(t) && !/[ة]/.test(t)) return 'fa';
+      return 'ar';
+    }
+    if (script !== 'la') return script;
+    return this._latin(t);
+  },
+
+  _latin(t) {
+    if (!this._sets) {
+      this._sets = {};
+      for (const [k, v] of Object.entries(this.WORDS)) this._sets[k] = new Set(v.split(' '));
+    }
+    // Turkish capital 'İ' lowercases to 'i' plus a combining dot, which would
+    // split the word; it is just 'i'.
+    const words = t.replace(/İ/g, 'i').toLowerCase().replace(/[’ʼ]/g, "'").match(/\p{L}+(?:'\p{L}+)?/gu) || [];
+    if (words.length < 4) return '';
+    const score = {};
+    for (const k of Object.keys(this._sets)) score[k] = 0;
+    for (const w of words.slice(0, 1500)) {
+      for (const k in this._sets) {
+        if (this._sets[k].has(w)) score[k]++;
+        else if (w.includes("'")) { const head = w.split("'")[0]; if (this._sets[k].has(head)) score[k] += 0.5; }
+        if (this.MARKS[k] && this.MARKS[k].test(w)) score[k] += 2;
+      }
+    }
+    const ranked = Object.entries(score).sort((a, b) => b[1] - a[1]);
+    const [best, top] = ranked[0];
+    const second = ranked[1][1];
+    // Too little to go on, or two languages neck and neck: no guess.
+    if (top < 3 || top < words.length * 0.08 || top < second * 1.25) return '';
+    return best;
+  },
+};
+
 const ReadAloud = {
   KEY: 'vex.readAloud',
   RATES: [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2],
@@ -226,7 +321,10 @@ const ReadAloud = {
     }
     let url = '';
     try { url = wv.getURL(); } catch { url = ''; }
-    const s = { wv, tabId, url, segs: info.segs, units: info.units, heads: Array.isArray(info.heads) ? info.heads : [], mode: info.mode, title: info.title, lang: info.lang, idx: 0, token: 0, paused: false, fails: 0, watchdog: null, utterance: null, unwatch: null };
+    // The page's declared language, or a guess from its text when it has none.
+    const lang = this._langTag(info.lang);
+    const detected = lang ? '' : VexTextLang.detect(info.segs.slice(0, 150).map(x => x && x.text).join(' '));
+    const s = { wv, tabId, url, segs: info.segs, units: info.units, heads: Array.isArray(info.heads) ? info.heads : [], mode: info.mode, title: info.title, lang, detected, picked: '', note: '', noted: false, idx: 0, token: 0, paused: false, fails: 0, watchdog: null, utterance: null, unwatch: null };
     this._s = s;
     this._watch(s);
     this._showBar();
@@ -234,23 +332,69 @@ const ReadAloud = {
     return true;
   },
 
-  _voice() {
+  // A language tag, lower-cased with '-' ('en-gb'), or '' for nothing usable
+  // ('und', 'x-default', junk). Old and alternative codes map to the ones
+  // voices use.
+  ALIASES: { iw: 'he', in: 'id', ji: 'yi', no: 'nb', tl: 'fil' },
+  _langTag(raw) {
+    const t = String(raw || '').trim().replace(/_/g, '-').toLowerCase();
+    if (!/^[a-z]{2,3}(-[a-z0-9]{1,8})*$/.test(t)) return '';
+    const parts = t.split('-');
+    if (['und', 'zxx', 'mul', 'mis'].includes(parts[0])) return '';
+    if (this.ALIASES[parts[0]]) parts[0] = this.ALIASES[parts[0]];
+    return parts.join('-');
+  },
+  _langName(tag) {
+    try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(tag.split('-')[0]) || tag; } catch { return tag; }
+  },
+
+  // The voice for the reading in progress: the voice you picked for its
+  // language; else the one you used last if it speaks that language; else an
+  // installed voice for it, the exact locale (en-GB) before the same language
+  // (en-US), the system default and local voices first. The language is the
+  // page's own <html lang>, or, when it declares none, a guess from the text.
+  // With no voice for it installed, `missing` names the language and the
+  // reading goes on in your last voice or the system default.
+  _pickVoice() {
     const s = this._s;
     let voices = [];
     try { voices = speechSynthesis.getVoices() || []; } catch { voices = []; }
-    if (!voices.length) return null;
+    if (!voices.length) return { voice: null, missing: '' };
     const st = this.settings();
-    const lang = String((s && s.lang) || '').toLowerCase().split('-')[0];
-    const byName = (n) => (n ? voices.find(v => v.name === n) : null);
-    if (lang) {
-      const chosen = byName(st.voices[lang]);
-      if (chosen) return chosen;
-      const last = byName(st.voice);
-      if (last && String(last.lang || '').toLowerCase().startsWith(lang)) return last;
-      const fit = voices.filter(v => String(v.lang || '').toLowerCase().startsWith(lang));
-      return fit.find(v => v.localService) || fit[0] || last || null;
-    }
-    return byName(st.voice) || null;
+    const byName = (n) => (n ? voices.find(v => v.name === n) || null : null);
+    // Picked in the bar during this reading: that is the voice, whatever the
+    // page's language seems to be.
+    const picked = s && byName(s.picked);
+    if (picked) return { voice: picked, missing: '' };
+    const tag = (s && (s.lang || s.detected)) || '';
+    if (!tag) return { voice: byName(st.voice), missing: '' };
+    const primary = tag.split('-')[0];
+    const chosen = byName(st.voices[primary]);
+    if (chosen) return { voice: chosen, missing: '' };
+    const same = voices.filter(v => this._langTag(v.lang).split('-')[0] === primary);
+    if (!same.length) return { voice: byName(st.voice), missing: tag };
+    const last = byName(st.voice);
+    if (last && same.includes(last)) return { voice: last, missing: '' };
+    const exact = same.filter(v => this._langTag(v.lang) === tag);
+    const pool = exact.length ? exact : same;
+    return { voice: pool.find(v => v.default) || pool.find(v => v.localService) || pool[0], missing: '' };
+  },
+  _voice() { return this._pickVoice().voice; },
+
+  // Said once per reading, in the bar: no installed voice speaks the page's
+  // language, so what you hear is another language's voice.
+  _noteMissing(s, tag, voice) {
+    if (s.noted) return;
+    s.noted = true;
+    let using = voice;
+    if (!using) { try { using = (speechSynthesis.getVoices() || []).find(v => v.default) || null; } catch { using = null; } }
+    const lang = this._langName(tag);
+    const who = using ? ' Reading with ' + this._voiceLabel(using) + '.' : '';
+    s.note = (s.lang ? 'This page is in ' + lang : 'This page looks like ' + lang) + ', but no ' + lang + ' voice is installed.' + who;
+    this._updateBar();
+  },
+  _voiceLabel(v) {
+    return String(v.name || '').replace(/^Microsoft\s+/, '').replace(/\s+-\s+.*$/, '') + ' (' + v.lang + ')';
   },
 
   _speak(i) {
@@ -265,8 +409,10 @@ const ReadAloud = {
     const u = new SpeechSynthesisUtterance(seg.text);
     u.rate = st.rate;
     u.volume = this.volume;
-    const v = this._voice();
-    if (v) { u.voice = v; u.lang = v.lang; } else if (s.lang) u.lang = s.lang;
+    const pick = this._pickVoice();
+    const v = pick.voice;
+    if (v) { u.voice = v; u.lang = v.lang; } else if (s.lang || s.detected) u.lang = s.lang || s.detected;
+    if (pick.missing) this._noteMissing(s, pick.missing, v);
     const live = () => this._s === s && s.token === token;
     u.onend = () => { if (!live()) return; clearTimeout(s.watchdog); s.fails = 0; this._speak(s.idx + 1); };
     u.onerror = (e) => {
@@ -371,6 +517,7 @@ const ReadAloud = {
     const lang = String(v.lang || '').toLowerCase().split('-')[0];
     this._save({ voice: v.name, voices: lang ? { ...st.voices, [lang]: v.name } : st.voices });
     const s = this._s;
+    if (s) s.picked = v.name;
     if (s && !s.paused) this._jump(s.idx);
   },
 
@@ -437,7 +584,8 @@ const ReadAloud = {
       + `<button type="button" class="vex-tts-btn" data-act="stop" aria-label="Stop reading" title="Stop reading">${this._icon('stop')}</button>`
       + `</span>`
       + `<label class="vex-tts-field">Speed <select data-act="rate" aria-label="Reading speed">${rates}</select></label>`
-      + `<label class="vex-tts-field">Voice <select data-act="voice" aria-label="Voice"></select></label>`;
+      + `<label class="vex-tts-field">Voice <select data-act="voice" aria-label="Voice"></select></label>`
+      + `<span class="vex-tts-note" role="status" hidden></span>`;
     document.body.appendChild(bar);
     this._bar = bar;
     bar.addEventListener('click', (e) => {
@@ -474,7 +622,7 @@ const ReadAloud = {
     for (const v of voices) {
       const o = document.createElement('option');
       o.value = v.name;
-      o.textContent = v.name.replace(/^Microsoft\s+/, '').replace(/\s+-\s+.*$/, '') + ' (' + v.lang + ')' + (v.localService ? '' : ' · online');
+      o.textContent = this._voiceLabel(v) + (v.localService ? '' : ' · online');
       // Nothing chosen: the system's default voice is the one speaking.
       if (cur ? v.name === cur.name : v.default) o.selected = true;
       sel.appendChild(o);
@@ -491,6 +639,9 @@ const ReadAloud = {
     bar.querySelector('.vex-tts-pos').textContent = s.mode === 'selection'
       ? `Sentence ${s.idx + 1} of ${s.segs.length}`
       : (s.heads[unit] ? 'Heading' : `Paragraph ${Math.max(1, at)} of ${Math.max(1, paras)}`);
+    const note = bar.querySelector('.vex-tts-note');
+    if (note.textContent !== s.note) note.textContent = s.note;
+    note.hidden = !s.note;
     const play = bar.querySelector('[data-act="play"]');
     play.innerHTML = this._icon(s.paused ? 'play' : 'pause');
     play.setAttribute('aria-label', s.paused ? 'Resume' : 'Pause');
@@ -727,4 +878,4 @@ const CopyUnlock = {
 };
 
 if (typeof window !== 'undefined') { window.ReadAloud = ReadAloud; window.ConsentBlock = ConsentBlock; window.CopyUnlock = CopyUnlock; }
-if (typeof module !== 'undefined' && module.exports) module.exports = { ReadAloud, ConsentBlock, CopyUnlock, vexTtsPage };
+if (typeof module !== 'undefined' && module.exports) module.exports = { ReadAloud, ConsentBlock, CopyUnlock, vexTtsPage, VexTextLang };

@@ -50,7 +50,9 @@
 .sidebar-icon.active {
   background: var(--vex-accent-dim);
   border-color: var(--vex-border-accent-strong);
-  color: var(--vex-accent);
+  /* The accent as a glyph, made to read (gui-browser.css): Wine's crimson on
+     its own tinted pill was 2.6:1. */
+  color: var(--vex-accent-fg, var(--vex-accent));
 }
 
 .sidebar-icon.active::before {
