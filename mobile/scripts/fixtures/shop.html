@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lamp Shop — Desk lamps</title></head>
+<body><h1>Desk lamps</h1>
+<form action="shop.html" method="get"><input type="search" name="q" placeholder="Search lamps"><button type="submit">Search</button></form>
+<ul>
+<li><a href="lamp-1.html">Brass desk lamp</a> — €49 <button class="buy">Buy now</button></li>
+<li><a href="lamp-2.html">Clip-on reading light</a> — €19 <button class="buy">Buy now</button></li>
+<li><a href="lamp-3.html">Arc floor lamp</a> — €129 <button class="buy">Buy now</button></li>
+</ul>
+<footer><a href="contact.html">CONTACT US</a> · <a href="article.html">Our blog</a></footer>
+<script>for (const b of document.querySelectorAll('.buy')) b.onclick = () => { document.title = 'Bought!'; };</script>
+</body></html>
