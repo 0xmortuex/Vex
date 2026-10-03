@@ -481,6 +481,7 @@ const TabManager = {
     const urlInput = document.getElementById('url-input');
     if (urlInput && document.activeElement === urlInput) urlInput.blur();
     this.updateUrlBar(tab);
+    window.dispatchEvent(new CustomEvent('vex:tab-activated', { detail: { tabId: id, url: tab.url } }));
 
     // Match Chrome/Edge: when the active tab is a start page, put the caret in
     // the URL bar so Ctrl+T → type/paste lands there instead of being lost.

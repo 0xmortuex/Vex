@@ -149,10 +149,14 @@ const GameMode = {
     this.apply();
     if (this._watching) return;
     this._watching = true;
-    // Capture starts and stops through these, and both already fire.
+    // Capture starts and stops through these, and both already fire — a tab,
+    // a panel and the screen recorder each announce it — so nothing polls.
     document.addEventListener('vex:media-capture', () => this.apply());
     document.addEventListener('vex:memory-event', () => this.apply());
-    setInterval(() => { if (this.mode() === 'auto') this.apply(); }, 5000);
+    // A tab closed mid-share takes its capture with it without a capture
+    // event; vex:tab-closed fires before the tab leaves the list, so look
+    // once it has gone.
+    document.addEventListener('vex:tab-closed', () => setTimeout(() => { if (this.mode() === 'auto') this.apply(); }, 0));
   },
 };
 

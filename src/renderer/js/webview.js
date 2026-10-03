@@ -393,6 +393,7 @@ const WebviewManager = {
       const shown = TabManager.tabs.find(t => t.id === tab.id);
       if (shown && /^view-source:/i.test(shown.url || '') && shown.url.slice(12) === url) return;
       TabManager.updateTab(tab.id, { url });
+      window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url } }));
       this._updateFavicon(tab.id, url);
       if (typeof VexBoosts !== 'undefined') { try { VexBoosts.applyTo(webview, url); } catch {} }
       // A site rule's "always muted" and "never let it sleep" apply to where
@@ -429,6 +430,7 @@ const WebviewManager = {
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
         TabManager.updateTab(tab.id, { url: e.url });
+        window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
         document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
       }
     });
@@ -504,13 +506,14 @@ const WebviewManager = {
         // Only honour it from the trusted Vex start page.
         let emitterUrl = '';
         try { emitterUrl = webview.getURL(); } catch {}
-        // Reading mode's own page (a data: page) may ask for one thing only:
-        // to leave reading mode, on a tab that is in it. Its "Exit Reading
-        // Mode" button did nothing (found 2026-09-29).
+        // Reading mode's own page (a data: page) may ask for three things only,
+        // on a tab that is in it: to leave reading mode, to keep its text
+        // settings, and to read itself aloud (ReadingMode.onReaderCommand).
+        // Its "Exit Reading Mode" button did nothing (found 2026-09-29).
         if (/^data:text\/html/i.test(emitterUrl) && typeof ReadingMode !== 'undefined' && (ReadingMode._originalUrls.has(tab.id) || ReadingMode.sourceOf(emitterUrl))) {
           let asked = null;
           try { asked = JSON.parse(e.message.slice(8)); } catch (err) { console.error('VEX_CMD parse error:', err); return; }
-          if (asked && asked.type === 'exit-reading') ReadingMode.exitReadingMode(tab.id);
+          ReadingMode.onReaderCommand(tab.id, asked);
           return;
         }
         if (!_isTrustedStartPage(emitterUrl)) return;
@@ -1492,7 +1495,9 @@ const WebviewManager = {
       }
       textItems.push({
         label: 'Read aloud',
-        action: () => { try { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(e.params.selectionText)); } catch {} }
+        // Through Read Aloud, so the selection gets the bar, the highlight and
+        // a stop; a bare utterance had none of them.
+        action: () => { if (typeof ReadAloud !== 'undefined') ReadAloud.start({ wv: webview, selection: true }); }
       });
     }
     groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));

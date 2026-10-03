@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
+  <link rel="stylesheet" href="css/read-aloud.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
   <link rel="stylesheet" href="css/discover.css">
@@ -63,6 +64,7 @@
   <link rel="stylesheet" href="css/quick-reminder.css">
   <link rel="stylesheet" href="css/clock-panel.css">
   <link rel="stylesheet" href="css/tor-indicator.css">
+  <link rel="stylesheet" href="css/profiles.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -179,6 +181,9 @@
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
+      <!-- Profiles (js/profiles-ui.js): which profile this window is, and the
+           menu that opens, adds and deletes them. Filled with a VexIcons icon. -->
+      <button id="btn-profile" class="nav-btn" type="button" title="Profiles" aria-label="Profiles"></button>
     </div>
 
     <!-- Its own item of the top bar, not the last button of #top-bar-right:
@@ -571,6 +576,15 @@
                   <option value="1600">1.6 GB (relaxed)</option>
                   <option value="2400">2.4 GB (max)</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- Profiles (js/profiles-ui.js, src/main/profiles.js) -->
+            <div class="setting-group" id="settings-profiles">
+              <label class="setting-label">Profiles</label>
+              <div class="setting-hint">Each profile is a separate Vex with its own tabs, bookmarks, history, passwords, extensions, sync and settings, and runs in its own window. Open, add, rename and delete them from the profile button on the toolbar.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button id="setting-profiles-open" class="btn-secondary" type="button">Manage profiles</button>
               </div>
             </div>
 
@@ -967,6 +981,10 @@
               <div class="setting-toggle-row">
                 <span>Always allow copy &amp; right-click (bypass site blocks)</span>
                 <label class="toggle"><input type="checkbox" id="setting-copyunlock"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Float a playing video when you switch tabs (Picture-in-Picture)</span>
+                <label class="toggle"><input type="checkbox" id="setting-auto-pip" aria-label="Float a playing video when you switch tabs"><span class="toggle-slider"></span></label>
               </div>
               <p class="setting-info muted" style="margin-top:6px">Re-enables text selection, copying, and right-click on sites that disable them. Applies on next page load. You can also unlock a single page on demand from the command bar (Ctrl+K → “Unlock Copy &amp; Right-Click”). Doesn’t work on canvas-based editors like Google Docs and never affects DRM-protected media.</p>
             </div>
@@ -1504,7 +1522,7 @@
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>
   <script src="js/browser-import.js"></script>
-  <script src="js/feature-details.js"></script>
+  <!-- feature-details.js is lazy-loaded via VexLazy when the Library opens (FeatureLibrary._details) -->
   <script src="js/feature-library.js"></script>
   <script src="js/peek.js"></script>
   <script src="js/oauth-popup-backdrop.js"></script>
@@ -1594,6 +1612,7 @@
   <script src="js/linked-scroll.js"></script>
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
+  <script src="js/profiles-ui.js"></script>
   <script src="js/app.js"></script>
   <script src="js/i18n-ui.js"></script>
 </body>

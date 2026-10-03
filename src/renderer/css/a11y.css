@@ -28,8 +28,22 @@ webview:focus-visible {
 /* A tab on the strip takes keyboard focus now (js/a11y-keys.js): its ring sits
  * inside the tab, where the strip's overflow cannot clip it. */
 .top-tab:focus-visible,
-.top-group-label:focus-visible {
+.top-group-label:focus-visible,
+#tabs-sidebar :is(.tab-item, .pinned-tab, .tab-group-header):focus-visible {
   outline-offset: -2px;
+}
+
+/* The address field. Every look showed its focus only as a change of border
+ * colour or a faint glow (the browser looks also drop the input's own ring),
+ * which is not a focus indicator by WCAG 2.2: it must be at least a 2px ring
+ * around the control at 3:1 against what it sits on. This one is drawn just
+ * outside the field in the toolbar's text colour (currentColor — the field's
+ * colour is inherited from the toolbar), which check:ui already holds to 4.5:1
+ * against the toolbar in every look and theme. The look's own border and glow
+ * stay as they were. */
+#url-bar:has(#url-input:focus-visible) {
+  outline: 2px solid currentColor !important;
+  outline-offset: 2px !important;
 }
 
 /* Read by a screen reader, never drawn: the window's one heading. */

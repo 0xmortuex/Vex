@@ -104,6 +104,9 @@ const SyncEngine = (() => {
     syncing: false,
     lastError: null
   };
+  // Every change to `state` is announced, so the toolbar indicator can follow
+  // it without asking once a second (js/app.js).
+  const stateChanged = () => window.dispatchEvent(new CustomEvent('vex-sync-state', { detail: getState() }));
 
   let pushTimer = null;
   let pullTimer = null;
@@ -167,6 +170,7 @@ const SyncEngine = (() => {
       syncing: false,
       lastError: null
     };
+    stateChanged();
 
     await saveStateToDisk(keyHex);
     revision = 0;
@@ -208,6 +212,7 @@ const SyncEngine = (() => {
       syncing: false,
       lastError: null
     };
+    stateChanged();
 
     await saveStateToDisk(cleanHex);
     // Pull cloud data first (it's authoritative when restoring on a new device)
@@ -271,6 +276,7 @@ const SyncEngine = (() => {
       emailHash: null, encryptionKey: null,
       lastPushAt: null, lastPullAt: null, syncing: false, lastError: null
     };
+    stateChanged();
   }
 
   // ===== SHORTCUT TILES =====
@@ -550,6 +556,7 @@ const SyncEngine = (() => {
     const second = await pushOnce();
     if (second.conflict) {
       state.lastError = second.reason;
+      stateChanged();
       window.dispatchEvent(new CustomEvent('vex-sync-status', { detail: { error: state.lastError } }));
       return { ok: false, reason: second.reason };
     }
@@ -564,6 +571,7 @@ const SyncEngine = (() => {
     }
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
+    stateChanged();
     // This push carries the marker; the one pullNow scheduled is not needed.
     if (markerTimer) { clearTimeout(markerTimer); markerTimer = null; }
     try {
@@ -592,6 +600,7 @@ const SyncEngine = (() => {
       return { ok: false, reason: state.lastError };
     } finally {
       state.syncing = false;
+      stateChanged();
       window.dispatchEvent(new CustomEvent('vex-sync-status', { detail: { error: state.lastError } }));
     }
   }
@@ -603,6 +612,7 @@ const SyncEngine = (() => {
     }
     if (!state.enabled || state.syncing) return { ok: false, reason: 'not-ready' };
     state.syncing = true;
+    stateChanged();
     try {
       const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/pull`, {
         headers: { 'Authorization': `Bearer ${state.sessionToken}` }
@@ -665,6 +675,7 @@ const SyncEngine = (() => {
       return { ok: false, reason: state.lastError };
     } finally {
       state.syncing = false;
+      stateChanged();
       window.dispatchEvent(new CustomEvent('vex-sync-status', { detail: { error: state.lastError } }));
     }
   }
@@ -789,6 +800,7 @@ const SyncEngine = (() => {
         syncing: false,
         lastError: null
       };
+      stateChanged();
 
       startAutoSync();
       // Kick off a pull shortly; don't block init.

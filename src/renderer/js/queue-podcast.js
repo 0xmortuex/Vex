@@ -20,6 +20,8 @@ const QueuePodcast = {
     this._items = (all || []).filter(i => i && i.url && !i.read);
     if (!this._items.length) { window.showToast?.('Read Later is empty — save some articles first'); return; }
     if (!('speechSynthesis' in window)) { window.showToast?.('Text-to-speech isn\'t available'); return; }
+    // One voice at a time: Read Aloud talks through the same speech engine.
+    if (typeof ReadAloud !== 'undefined' && ReadAloud._s && typeof ReadAloud.stop === 'function') ReadAloud.stop(true);
     this._idx = 0; this._paused = false;
     this._buildBar();
     window.showToast?.('Playing ' + this._items.length + ' saved article' + (this._items.length === 1 ? '' : 's'));

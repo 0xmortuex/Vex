@@ -393,6 +393,15 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
+  // Profiles (js/profiles-ui.js, src/main/profiles.js): each one a separate Vex.
+  profiles: {
+    list: () => ipcRenderer.invoke('profiles:list'),
+    create: (look) => ipcRenderer.invoke('profiles:create', look),
+    update: (id, look) => ipcRenderer.invoke('profiles:update', id, look),
+    open: (id) => ipcRenderer.invoke('profiles:open', id),
+    remove: (id) => ipcRenderer.invoke('profiles:delete', id),
+    createShortcut: (id) => ipcRenderer.invoke('profiles:shortcut', id),
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),

@@ -47,13 +47,15 @@ describe('background pollers are started once', () => {
     expect(intervals).toBe(1);
   });
 
-  it('Automations.start keeps its two tickers at two', async () => {
+  // One ticker: the clock-time rules. URL rules follow the tab events instead
+  // of a 3 s poll (tests/renderer/eventedPolls.test.js).
+  it('Automations.start keeps its one ticker at one', async () => {
     await import('../../src/renderer/js/automations.js');
     const automations = window.Automations;
     automations._started = false;
     automations.start();
     automations.start();
-    expect(intervals).toBe(2);
+    expect(intervals).toBe(1);
   });
 
   it('TabArchiver.init, and dispose lets it start again', async () => {

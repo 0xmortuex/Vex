@@ -1309,8 +1309,9 @@ function vexOwnTextFocused(doc) {
 
   // === Phase 13: Vex Sync — restore session if present & keep indicator in sync ===
   if (typeof SyncEngine !== 'undefined') {
-    SyncEngine.initFromDisk().catch(err => console.error('[Sync] init failed:', err));
-    setInterval(() => {
+    // Drawn when the engine says its state changed (vex-sync-state), not on
+    // a one-second poll that woke the window all day for nothing.
+    const drawSyncIndicator = () => {
       const indicator = document.getElementById('sync-indicator');
       if (!indicator) return;
       const s = SyncEngine.getState();
@@ -1322,7 +1323,10 @@ function vexOwnTextFocused(doc) {
         const pull = s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never';
         indicator.title = `Vex Sync — pushed ${push} · pulled ${pull}${s.lastError ? ' · error: ' + s.lastError : ''}`;
       }
-    }, 1000);
+    };
+    window.addEventListener('vex-sync-state', drawSyncIndicator);
+    drawSyncIndicator();
+    SyncEngine.initFromDisk().catch(err => console.error('[Sync] init failed:', err));
     document.getElementById('sync-indicator')?.addEventListener('click', () => {
       if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('settings');
       setTimeout(() => {

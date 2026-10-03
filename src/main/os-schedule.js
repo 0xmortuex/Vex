@@ -27,9 +27,16 @@ const ps = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 const pad = (n) => String(n).padStart(2, '0');
 const isoMinute = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-function taskName(id) {
+// `scope` is the profile (src/main/profiles.js) for every profile but the
+// default one, whose tasks keep the name they always had. Two profiles can
+// then never replace or remove each other's tasks, and deleting a profile
+// removes exactly its own (unregisterScopeScript).
+const SCOPE_RE = /^p-[a-z0-9]{8}$/;
+function taskName(id, scope) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(id))) throw new Error('Reminder id is not safe for a task name');
-  return 'Vex Reminder ' + id;
+  if (scope == null) return 'Vex Reminder ' + id;
+  if (!SCOPE_RE.test(String(scope))) throw new Error('Profile id is not safe for a task name');
+  return 'Vex Reminder ' + scope + ' ' + id;
 }
 
 // The command line Windows must run to bring Vex up. In development Electron's
@@ -46,8 +53,8 @@ function launchSpec({ execPath, appPath, packaged, id, extraArgs = [] }) {
   return { execute: execPath, argument: args.join(' ') };
 }
 
-function registerScript({ id, at, execPath, appPath, packaged, extraArgs }) {
-  const name = taskName(id);
+function registerScript({ id, at, execPath, appPath, packaged, extraArgs, scope }) {
+  const name = taskName(id, scope);
   const { execute, argument } = launchSpec({ execPath, appPath, packaged, id, extraArgs });
   const start = isoMinute(at);
   const end = isoMinute(new Date(at.getTime() + 24 * 3600 * 1000));
@@ -64,15 +71,28 @@ function registerScript({ id, at, execPath, appPath, packaged, extraArgs }) {
   ].join('; ');
 }
 
-function unregisterScript(id) {
-  const name = taskName(id);
+function unregisterScript(id, scope) {
+  const name = taskName(id, scope);
   return [
     '$ErrorActionPreference = "Stop"',
     `if (Get-ScheduledTask -TaskPath ${ps(TASK_PATH)} -TaskName ${ps(name)} -ErrorAction SilentlyContinue) { Unregister-ScheduledTask -TaskPath ${ps(TASK_PATH)} -TaskName ${ps(name)} -Confirm:$false; 'removed' } else { 'absent' }`,
   ].join('; ');
 }
 
-function createOsScheduler({ platform, execFile, execPath, appPath, packaged, extraArgs = [], log, timeoutMs = 30000 }) {
+// Every task of one profile, for when that profile is deleted: its wake-ups
+// would otherwise start Vex for a profile that is gone. Prints the count.
+function unregisterScopeScript(scope) {
+  if (!SCOPE_RE.test(String(scope))) throw new Error('Profile id is not safe for a task name');
+  const prefix = 'Vex Reminder ' + scope + ' ';
+  return [
+    '$ErrorActionPreference = "Stop"',
+    `$tasks = @(Get-ScheduledTask -TaskPath ${ps(TASK_PATH)} -ErrorAction SilentlyContinue | Where-Object { $_.TaskName.StartsWith(${ps(prefix)}) })`,
+    `foreach ($t in $tasks) { Unregister-ScheduledTask -TaskPath ${ps(TASK_PATH)} -TaskName $t.TaskName -Confirm:$false }`,
+    '$tasks.Count',
+  ].join('; ');
+}
+
+function createOsScheduler({ platform, execFile, execPath, appPath, packaged, extraArgs = [], scope, log, timeoutMs = 30000 }) {
   const note = typeof log === 'function' ? log : () => {};
   const shell = process.env.SystemRoot
     ? `${process.env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
@@ -96,25 +116,33 @@ function createOsScheduler({ platform, execFile, execPath, appPath, packaged, ex
 
   return {
     supported: platform === 'win32',
-    scriptFor: { register: registerScript, unregister: unregisterScript },
+    scriptFor: { register: registerScript, unregister: unregisterScript, unregisterScope: unregisterScopeScript },
 
     // Resolves to the next run time Windows reports, so the caller can prove
     // the task exists rather than trust that the command returned quietly.
     async register(id, at) {
       if (platform !== 'win32') throw unsupported();
       if (!(at instanceof Date) || Number.isNaN(at.getTime())) throw new Error('A reminder needs a real time');
-      const out = await run(registerScript({ id, at, execPath, appPath, packaged, extraArgs }));
+      const out = await run(registerScript({ id, at, execPath, appPath, packaged, extraArgs, scope }));
       note(`[Reminders] Windows task registered for ${id}, next run ${out}`);
       return out;
     },
 
     async unregister(id) {
       if (platform !== 'win32') return 'unsupported';
-      const out = await run(unregisterScript(id));
+      const out = await run(unregisterScript(id, scope));
       note(`[Reminders] Windows task for ${id}: ${out}`);
+      return out;
+    },
+
+    // Another profile's tasks, removed when that profile is deleted.
+    async unregisterScope(otherScope) {
+      if (platform !== 'win32') return 'unsupported';
+      const out = await run(unregisterScopeScript(otherScope));
+      note(`[Reminders] Windows tasks of profile ${otherScope} removed: ${out}`);
       return out;
     },
   };
 }
 
-module.exports = { createOsScheduler, registerScript, unregisterScript, launchSpec, taskName, TASK_PATH };
+module.exports = { createOsScheduler, registerScript, unregisterScript, unregisterScopeScript, launchSpec, taskName, TASK_PATH };

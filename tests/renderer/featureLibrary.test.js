@@ -105,10 +105,10 @@ describe('the three buttons', () => {
     expect(q).toMatch(/say you do not know/);
   });
 
-  it('Ask Vex opens the panel and sends it', () => {
+  it('Ask Vex opens the panel and sends it', async () => {
     const sent = [];
     globalThis.AIPanel = { open: vi.fn(), sendMessage: (m) => sent.push(m) };
-    FeatureLibrary.ask('ai-panel');
+    await FeatureLibrary.ask('ai-panel');
     expect(AIPanel.open).toHaveBeenCalled();
     expect(sent[0]).toContain('Feature: AI Panel');
   });

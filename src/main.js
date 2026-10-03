@@ -36,6 +36,26 @@ app.commandLine.appendSwitch('enable-print-preview');
 // suspended until a same-page gesture, which a host-side slider doesn't provide).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
+// === Profiles (src/main/profiles.js) =========================================
+// Which profile this launch is: `--profile=<id>`, or the default (the userData
+// folder Vex always used). Points userData at it HERE, before anything below
+// reads userData (Memory Saver's flags, the single-instance lock, storage, the
+// crash log, sessions) — so every one of them is that profile's own.
+let _profile;
+try {
+  _profile = require('./main/profiles').selectProfile({ app, argv: process.argv, fs: require('fs') });
+} catch (err) {
+  console.error('[Profiles]', err.message);
+  // A reminder's wake-up for a profile deleted since quietly does nothing;
+  // anything else (a shortcut to a deleted profile, a damaged profile list)
+  // says what is wrong instead of opening some other profile.
+  if (!(err.code === 'VEX_PROFILE_MISSING' && process.argv.some(a => /^--reminder=|^vex:\/\//.test(a)))) {
+    dialog.showErrorBox('Vex could not open this profile', err.message);
+  }
+  process.exit(1);
+}
+console.log('[Profiles] this is profile', _profile.id, '-', _profile.dir);
+
 // Disable Chromium's third-party storage partitioning. Since Chrome ~115 this
 // is on by default and it BREAKS redirect-based federated sign-in: Firebase's
 // signInWithRedirect (used by ElevenLabs' "Sign in with Google", many others)
@@ -497,12 +517,29 @@ const gotTheLock = app.requestSingleInstanceLock();
 console.log('[Vex URL] gotLock:', gotTheLock);
 if (!gotTheLock) {
   console.log('[Vex URL] another instance already holds the lock — quitting (this argv should reach the primary via second-instance)');
-  app.quit();
+  // Out now, not app.quit(): quit let the rest of this file run, and its boot
+  // guard wrote "starting" over the running copy's state — two such launches
+  // (two links from another app, opening an open profile twice) and the next
+  // start came up in safe mode. The argv was already handed over: the lock
+  // call returns only once the running copy has it.
+  process.exit(0);
+} else if (process.argv.includes('--vex-close-for-update')) {
+  // Another profile installing an update asked this profile to close, but it
+  // had already closed by the time this launch ran: there is nothing to do.
+  console.log('[Profiles] asked to close for an update, and was not running');
+  process.exit(0);
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     console.log('[Vex URL] second-instance fired.');
     console.log('[Vex URL]   commandLine:', JSON.stringify(commandLine));
     console.log('[Vex URL]   workingDirectory:', workingDirectory);
+    // Another profile is installing an update (src/main/profiles.js): close the
+    // way the window's X does, which saves everything, and quit. This profile's
+    // own pending install, if any, is dropped — only one installer runs.
+    if (commandLine.includes('--vex-close-for-update')) {
+      _closeForOtherProfileUpdate();
+      return;
+    }
     // A Snooze / Open button on a reminder's toast arrives as vex://…
     if (commandLine.some(a => handleVexAction(a))) return;
     // "Start in safe mode" from the taskbar while Vex is already running:
@@ -535,6 +572,9 @@ if (!gotTheLock) {
       pendingOpenUrl = url;
     } else {
       console.log('[Vex URL]   no URL found in second-instance argv — nothing to forward');
+      // Starting a profile that is already open (its shortcut, the profile
+      // menu, the Start menu) brings its window forward.
+      focusMainWindow();
     }
   });
 }
@@ -828,10 +868,14 @@ app.whenReady().then(() => {
   // Right-click Vex on the taskbar › "Start in safe mode": the way in when an
   // extension or setting stops Vex starting. Packaged only: in development
   // the executable is bare Electron and the entry would not start Vex.
+  // Writing the jump list takes ~130 ms of the main thread, so it waits until
+  // the first window is on screen instead of holding up the start.
   if (process.platform === 'win32' && app.isPackaged) {
-    try {
-      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
-    } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+    app.once('browser-window-created', (_ev, win) => win.once('show', () => setTimeout(() => {
+      try {
+        app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
+      } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+    }, 1000)));
   }
 });
 app.on('browser-window-created', (_e, win) => {
@@ -2004,9 +2048,14 @@ ipcMain.handle('links:check', async (_e, urls) => {
 
 // A read-only inbox over IMAP (src/main/mail.js). Accounts — addresses and
 // app passwords — live in one file encrypted by Windows.
+// imapflow and mailparser bring ~190 modules (pino, html-to-text, iconv-lite…)
+// that most launches never use, so they load on the first connection instead
+// of at every start.
+let _mailLibs = null;
+const _mailLib = () => _mailLibs || (_mailLibs = { ImapFlow: require('imapflow').ImapFlow, simpleParser: require('mailparser').simpleParser });
 const _mail = require('./main/mail').createMail({
-  ImapFlow: require('imapflow').ImapFlow,
-  simpleParser: require('mailparser').simpleParser,
+  ImapFlow: function ImapFlow(options) { return new (_mailLib().ImapFlow)(options); },
+  simpleParser: (...a) => _mailLib().simpleParser(...a),
   // secretStore is declared further down this file; reach it when used.
   secrets: { read: (...a) => secretStore.read(...a), write: (...a) => secretStore.write(...a) },
   file: path.join(userDataPath, 'mail-accounts.enc'),
@@ -6113,7 +6162,10 @@ ipcMain.handle('updates:install', async (event, version) => {
   // If saving fails the window stays open and says so, and nothing installs.
   const win = mainWindow;
   _pendingInstall = plan;
-  const quit = () => app.quit();
+  // The installer replaces Vex.exe under every profile, so the other profiles
+  // that are open close too — saved, the way their X does — once this one has
+  // closed; the default profile reopens them after the update.
+  const quit = () => { _closeOtherProfilesForUpdate(); app.quit(); };
   win.once('closed', quit);
   setTimeout(() => {
     if (win.isDestroyed()) return;
@@ -6146,6 +6198,134 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   try { return { ok: true, text: _updateBackups.read(name) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+
+// === Profiles: the switcher (js/profiles-ui.js) and running side by side ====
+// _profile was chosen at the top of this file (src/main/profiles.js). Each
+// profile is its own Vex process; opening one starts Vex with --profile=<id>,
+// and if that profile is already open the single-instance lock hands the
+// launch to it, which brings its window forward (second-instance above).
+const _profiles = require('./main/profiles');
+function _launchProfile(id, extra = []) {
+  const args = _profiles.launchArgs({ id, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv, extra });
+  const child = require('child_process').spawn(process.execPath, args, { detached: true, stdio: 'ignore' });
+  child.on('error', err => console.error('[Profiles] could not start profile', id + ':', err.message));
+  child.unref();
+  console.log('[Profiles] started profile', id, extra.join(' '));
+}
+function _closeOtherProfilesForUpdate() {
+  try {
+    const open = _profile.store.list().filter(p => p.id !== _profile.id && _profile.store.isRunning(p.id)).map(p => p.id);
+    for (const id of open) _launchProfile(id, ['--vex-close-for-update']);
+    // The installer starts the default profile again; it reopens the rest.
+    const reopen = [...open, _profile.id].filter(id => id !== _profiles.DEFAULT_ID);
+    if (reopen.length) _profile.store.noteReopen(reopen, app.getVersion());
+    console.log('[Profiles] closing for the update:', open.join(', ') || 'no other profile open', '| reopen after:', reopen.join(', ') || 'none');
+  } catch (err) { console.error('[Profiles] could not close the other profiles for the update:', err.message); }
+}
+function _closeForOtherProfileUpdate() {
+  console.log('[Profiles] another profile is installing an update — closing');
+  _pendingInstall = null;
+  if (!mainWindow || mainWindow.isDestroyed()) { app.quit(); return; }
+  const win = mainWindow;
+  win.once('closed', () => app.quit());
+  win.close();
+}
+function _profilesFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window manages profiles');
+}
+function _profileDetails(entry) {
+  return _profiles.appDetails({ id: entry.id, name: entry.name, execPath: process.execPath, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv });
+}
+// Each extra profile's windows group on their own on the taskbar, and a
+// pinned one starts that profile. The process keeps Vex's own id, which is
+// what Windows toasts are shown under.
+function _applyProfileDetails(win) {
+  if (process.platform !== 'win32' || _profile.id === _profiles.DEFAULT_ID || !win || win.isDestroyed()) return;
+  try { win.setAppDetails(_profileDetails(_profile.store.get(_profile.id))); }
+  catch (err) { console.error('[Profiles] could not set the taskbar identity:', err.message); }
+}
+app.on('browser-window-created', (_e, win) => _applyProfileDetails(win));
+// The default profile, started again by an update's installer, reopens the
+// profiles that update closed (_closeOtherProfilesForUpdate).
+if (_profile.id === _profiles.DEFAULT_ID) {
+  app.whenReady().then(() => {
+    let ids = [];
+    try { ids = _profile.store.takeReopen(); }
+    catch (err) { console.error('[Profiles] could not read which profiles to reopen:', err.message); }
+    for (const id of ids) _launchProfile(id);
+  });
+}
+function _profileView() {
+  const list = _profile.store.list();
+  return {
+    current: _profile.id,
+    profiles: list.map(p => ({
+      id: p.id, name: p.name, color: p.color, icon: p.icon, created: p.created, isDefault: p.isDefault,
+      current: p.id === _profile.id,
+      running: p.id === _profile.id || _profile.store.isRunning(p.id),
+    })),
+  };
+}
+ipcMain.handle('profiles:list', (event) => { _profilesFromMainWindow(event); return _profileView(); });
+ipcMain.handle('profiles:create', (event, look) => {
+  _profilesFromMainWindow(event);
+  const entry = _profile.store.create(look);
+  console.log('[Profiles] created', entry.id, entry.dir);
+  return _profileView();
+});
+ipcMain.handle('profiles:update', (event, id, patch) => {
+  _profilesFromMainWindow(event);
+  _profile.store.update(id, patch);
+  if (id === _profile.id) for (const w of BrowserWindow.getAllWindows()) _applyProfileDetails(w);
+  return _profileView();
+});
+ipcMain.handle('profiles:open', (event, id) => {
+  _profilesFromMainWindow(event);
+  _profile.store.get(id);
+  if (id === _profile.id) { focusMainWindow(); return { ok: true, focused: true }; }
+  _launchProfile(id);
+  return { ok: true };
+});
+// The desktop shortcuts a profile's "Create desktop shortcut" made: found by
+// the --profile argument they start, whatever the profile is called now.
+function _profileShortcutsOnDesktop(id) {
+  const desktop = app.getPath('desktop');
+  let names;
+  try { names = fs.readdirSync(desktop).filter(n => /^Vex \(.*\)\.lnk$/i.test(n)); }
+  catch (err) { console.error('[Profiles] could not read the desktop folder:', err.message); return []; }
+  return names.map(n => path.join(desktop, n)).filter(file => {
+    try { return String(shell.readShortcutLink(file).args || '').split(/\s+/).includes('--profile=' + id); }
+    catch { return false; }
+  });
+}
+ipcMain.handle('profiles:shortcut', (event, id) => {
+  _profilesFromMainWindow(event);
+  const entry = _profile.store.get(id);
+  const spec = _profiles.shortcutSpec({ id, name: entry.name, execPath: process.execPath, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv, desktopDir: app.getPath('desktop') });
+  if (!shell.writeShortcutLink(spec.file, 'create', spec.options)) throw new Error('Windows did not create the shortcut ' + spec.file);
+  console.log('[Profiles] desktop shortcut written:', spec.file);
+  return { ok: true, file: spec.file };
+});
+ipcMain.handle('profiles:delete', async (event, id) => {
+  _profilesFromMainWindow(event);
+  const shortcuts = _profileShortcutsOnDesktop(id);
+  _profile.store.remove(id, { currentId: _profile.id });
+  console.log('[Profiles] deleted', id);
+  for (const file of shortcuts) {
+    try { fs.rmSync(file, { force: true }); console.log('[Profiles] removed its desktop shortcut', file); }
+    catch (err) { console.error('[Profiles] could not remove the desktop shortcut', file + ':', err.message); }
+  }
+  // Its reminders' wake-ups would start Vex for a profile that is gone.
+  const scheduler = require('./main/os-schedule').createOsScheduler({
+    platform: process.env.VEX_NO_OS_SCHEDULE === '1' ? 'none' : process.platform,
+    execFile: require('child_process').execFile, log: (m) => console.log(m),
+  });
+  let tasks;
+  try { tasks = await scheduler.unregisterScope(id); }
+  catch (err) { console.error('[Profiles] could not remove the deleted profile\'s reminder tasks:', err.message); tasks = 'failed: ' + err.message; }
+  return { ..._profileView(), removedShortcuts: shortcuts.length, tasks };
+});
+
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).
@@ -6332,7 +6512,9 @@ function focusMainWindow() {
 //   vex://snooze/<id>   push the reminder back nine minutes
 //   vex://open/<id>     open it in the interface
 function handleVexAction(arg) {
-  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?$/.exec(String(arg || ''));
+  // `?profile=<id>`: the profile the toast came from (main/notify.js), already
+  // used to pick this profile at launch.
+  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?(?:\?profile=[a-z0-9-]{1,40})?$/.exec(String(arg || ''));
   if (!m) return false;
   const [, action, id] = m;
   focusMainWindow();
@@ -6360,6 +6542,8 @@ const notifier = require('./main/notify').createNotifier({
       try { mainWindow.webContents.send('reminders:clicked', { id: tag }); } catch {}
     }
   },
+  // A toast's buttons reopen this profile, not the default one.
+  profile: _profile.id === 'default' ? null : _profile.id,
   log: (m) => console.log(m),
 });
 // Windows heads a toast with the Start Menu shortcut that targets the process.
@@ -6390,7 +6574,9 @@ function startReminders() {
     packaged: app.isPackaged,
     // A Vex running on a non-default profile must be woken into the same one;
     // the reminder is in that profile's store and nowhere else.
-    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)),
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
+    // Each Vex profile's tasks are named apart (main/os-schedule.js).
+    scope: _profile.id === 'default' ? undefined : _profile.id,
     log: (m) => console.log(m),
   });
   reminders = require('./main/reminders').createReminders({

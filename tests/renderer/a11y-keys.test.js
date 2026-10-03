@@ -19,9 +19,24 @@ beforeEach(async () => {
       <div class="top-group-label">Work</div>
       <div class="top-tab in-group sleeping" data-tab-id="c"><span class="tab-title">Gamma</span></div>
     </div>
+    <div id="tabs-sidebar">
+      <div id="tabs-header"><button id="btn-new-tab">+</button></div>
+      <div class="pinned-tabs-container"><div class="pinned-tab" data-tab-id="p" title="Mail"><img src="m.ico"></div></div>
+      <div id="tab-groups-container">
+        <div class="tab-group" data-group-id="g1">
+          <div class="tab-group-header"><div class="tab-group-dot"></div><span class="tab-group-name">Work</span><span class="tab-group-count">1</span></div>
+          <div class="tab-group-tabs"><div class="tab-item sleeping" data-tab-id="w"><div class="tab-info"><div class="tab-title">Docs</div></div><button class="tab-close"></button></div></div>
+        </div>
+      </div>
+      <div id="tabs-list">
+        <div class="tab-item active" data-tab-id="x"><div class="tab-info"><div class="tab-title">Home</div></div><span class="tab-audio" aria-label="Playing audio"></span><button class="tab-close"></button></div>
+        <div class="tab-item private-tab" data-tab-id="y"><div class="tab-info"><div class="tab-title">Secret</div></div><button class="tab-close"></button></div>
+      </div>
+    </div>
     <div id="panels-container"><div id="panel-settings"><input id="inside"></div></div>
     <button class="sidebar-icon" data-panel="settings">S</button>`;
   delete document.body.querySelector('#top-tabs-list').dataset.a11yWired;
+  delete document.body.querySelector('#tabs-sidebar').dataset.a11yWired;
   vi.resetModules();
   ({ VexA11yKeys } = await import('../../src/renderer/js/a11y-keys.js?' + Math.random()));
 });
@@ -76,6 +91,114 @@ describe('the tab strip as a tablist', () => {
     globalThis.TabManager = { closeTab: vi.fn() };
     press(document.activeElement, 'Delete');
     expect(globalThis.TabManager.closeTab).toHaveBeenCalledWith('a');
+  });
+});
+
+// The tabs down the side (the vertical layout): pinned, a group, loose tabs.
+describe('the side tabs as vertical tablists', () => {
+  const side = () => document.getElementById('tabs-sidebar');
+  const tab = (id) => side().querySelector(`[data-tab-id=${id}]`);
+  const header = () => side().querySelector('.tab-group-header');
+  const flush = () => new Promise(r => setTimeout(r, 0));
+
+  it('is a vertical tablist per list, a labelled group per group, and names each tab with its states', () => {
+    const loose = document.getElementById('tabs-list');
+    expect(loose.getAttribute('role')).toBe('tablist');
+    expect(loose.getAttribute('aria-orientation')).toBe('vertical');
+    expect(side().querySelector('.pinned-tabs-container').getAttribute('aria-label')).toBe('Pinned tabs');
+    const group = side().querySelector('.tab-group');
+    expect(group.getAttribute('role')).toBe('group');
+    expect(group.getAttribute('aria-label')).toBe('Group Work');
+    expect(header().getAttribute('role')).toBe('button');
+    expect(header().getAttribute('aria-expanded')).toBe('true');
+    expect(header().getAttribute('aria-label')).toBe('Group Work, 1 tab');
+    expect(group.querySelector('.tab-group-tabs').getAttribute('role')).toBe('tablist');
+
+    expect(tab('p').getAttribute('aria-label')).toBe('Mail (pinned)');
+    expect(tab('w').getAttribute('aria-label')).toBe('Docs (sleeping, in group Work)');
+    expect(tab('x').getAttribute('aria-label')).toBe('Home (playing audio)');
+    expect(tab('y').getAttribute('aria-label')).toBe('Secret (private)');
+    expect(tab('x').getAttribute('aria-selected')).toBe('true');
+    expect(tab('y').getAttribute('aria-selected')).toBe('false');
+    // One tab stop for the whole side, on the selected tab; the crosses are off it.
+    expect([...side().querySelectorAll('[tabindex="0"]')].map(e => e.dataset.tabId)).toEqual(['x']);
+    expect([...side().querySelectorAll('.tab-close')].every(b => b.tabIndex === -1)).toBe(true);
+    expect(tab('p').querySelector('img').getAttribute('alt')).toBe('');
+  });
+
+  it('reads the tab from TabManager when it has it (a pinned icon shows none of it)', async () => {
+    globalThis.TabManager = { tabs: [{ id: 'p', title: 'Inbox', pinned: true, sleeping: true, muted: true, partition: 'tor-1' }] };
+    VexA11yKeys.decorate();
+    expect(tab('p').getAttribute('aria-label')).toBe('Inbox (pinned, sleeping, muted, Tor)');
+  });
+
+  it('walks pinned tabs, group header, grouped and loose tabs as one list with Up, Down, Home and End', () => {
+    tab('x').focus();
+    press(tab('x'), 'ArrowDown');
+    expect(document.activeElement.dataset.tabId).toBe('y');
+    press(document.activeElement, 'ArrowDown');
+    expect(document.activeElement.dataset.tabId).toBe('p');
+    press(document.activeElement, 'ArrowDown');
+    expect(document.activeElement).toBe(header());
+    press(document.activeElement, 'ArrowDown');
+    expect(document.activeElement.dataset.tabId).toBe('w');
+    press(document.activeElement, 'End');
+    expect(document.activeElement.dataset.tabId).toBe('y');
+    press(document.activeElement, 'Home');
+    expect(document.activeElement.dataset.tabId).toBe('p');
+    press(document.activeElement, 'ArrowUp');
+    expect(document.activeElement.dataset.tabId).toBe('y');
+    expect([...side().querySelectorAll('[tabindex="0"]')]).toHaveLength(1);
+  });
+
+  it('folds a group on Enter and says it is folded', async () => {
+    header().addEventListener('click', () => header().parentElement.classList.toggle('collapsed'));
+    header().focus();
+    press(header(), 'Enter');
+    await flush();
+    expect(header().getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(header());
+  });
+
+  it('switches on Enter or Space, closes on Delete, and opens the menu on Shift+F10', async () => {
+    const clicked = vi.fn();
+    tab('y').addEventListener('click', clicked);
+    tab('y').focus();
+    press(tab('y'), ' ');
+    expect(clicked).toHaveBeenCalledTimes(1);
+    const menu = vi.fn();
+    tab('y').addEventListener('contextmenu', menu);
+    press(tab('y'), 'F10', { shiftKey: true });
+    press(tab('y'), 'ContextMenu');
+    expect(menu).toHaveBeenCalledTimes(2);
+    globalThis.TabManager = { tabs: [], closeTab: vi.fn() };
+    press(tab('y'), 'Delete');
+    expect(globalThis.TabManager.closeTab).toHaveBeenCalledWith('y');
+  });
+
+  it('keeps focus on the same tab when the list is rebuilt under it', async () => {
+    tab('y').focus();
+    document.getElementById('tabs-list').innerHTML =
+      '<div class="tab-item active" data-tab-id="x"><div class="tab-title">Home</div></div>' +
+      '<div class="tab-item" data-tab-id="y"><div class="tab-title">Secret</div></div>';
+    await flush();
+    expect(document.activeElement).toBe(tab('y'));
+    expect(tab('y').tabIndex).toBe(0);
+  });
+
+  it('does not pull focus back once the keyboard has left the list', async () => {
+    tab('y').focus();
+    document.getElementById('inside').focus();
+    await flush();
+    document.getElementById('tabs-list').innerHTML = '<div class="tab-item active" data-tab-id="x"><div class="tab-title">Home</div></div>';
+    await flush();
+    expect(document.activeElement.id).toBe('inside');
+  });
+
+  it('drops the tablist role from a list with no tab in it', async () => {
+    document.getElementById('tabs-list').innerHTML = '';
+    await flush();
+    expect(document.getElementById('tabs-list').hasAttribute('role')).toBe(false);
   });
 });
 

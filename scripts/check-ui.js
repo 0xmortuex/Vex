@@ -28,12 +28,18 @@
 //   2. We never screenshot. A minimised window cannot be captured and
 //      Page.captureScreenshot simply HANGS forever instead of failing. Every
 //      measurement here comes from the DOM.
-//   3. The onboarding wizard is finished first, and kept finished. Otherwise a
-//      full-window overlay (#vex-onboarding, z-index 100060) sits over the whole
-//      chrome and NOTHING is hittable. Calling finish() once is not enough:
-//      maybeStart() schedules start() on a 900ms timer, so an early dismissal is
-//      silently undone when that timer fires. This cost a debugging cycle — the
-//      check "passed" on browser looks purely because it was measuring an overlay.
+//   3. The onboarding wizard never opens. Otherwise a full-window overlay
+//      (#vex-onboarding, z-index 100060) sits over the whole chrome and NOTHING
+//      is hittable. Dismissing it by script was a race: maybeStart() schedules
+//      start() on a 900ms timer, and a run on a busy machine saw it come back
+//      after the "clear for 1.2s" window and judged 0 colours. The throwaway
+//      profile is now seeded with the wizard already done (seedProfile), the
+//      way a profile that finished it looks, and the run fails loudly if the
+//      overlay is there anyway.
+//
+// And the window must keep drawing while covered: Chromium stops painting a
+// window another one hides, so every requestAnimationFrame below waited for
+// minutes. scripts/check-ui-probe.js turns that off in the measured app.
 //
 // And a fourth rule that keeps findings honest: we only judge an element that
 // document.elementFromPoint actually resolves to at its own centre (or to a
@@ -64,6 +70,13 @@ const EXCEPTIONS = [
     reason: 'The Windows-98 look\'s caption boxes are authentic at 16x14. ' +
       'gui-browser.css gives each an ::after with inset -4px -2px, so the real ' +
       'hit area is 20x22 — bigger than the 16x16 floor even though the painted box is not.',
+  },
+  {
+    check: 'contrast',
+    selector: '#vex-logo > span',
+    reason: 'The "Vex" wordmark beside the logo is the logotype, in the theme\'s accent. ' +
+      'WCAG 1.4.3 exempts text that is part of a logo or brand name; it is ' +
+      'not information, and the window\'s name is read out from its title.',
   },
 ];
 
@@ -666,25 +679,68 @@ async function waitForRenderer(cdp, timeoutMs) {
   throw new Error('the renderer never finished starting up: ' + last);
 }
 
-// TRAP 3. Onboarding.finish() removes #vex-onboarding, but maybeStart() has
-// already scheduled start() on a 900ms timer and start() does not re-check the
-// "done" flag — so a single early finish() is undone a moment later. Dismiss
-// repeatedly until the overlay STAYS gone.
-async function dismissOnboarding(cdp) {
-  const deadline = Date.now() + 15000;
-  let clearPolls = 0;
+// The chrome is laid out more than once while Vex starts: about 2.3s in, the
+// classic toolbar's right side collapsed for one frame (its buttons 16px wide,
+// 195px of them in a 41px box) and the first sample, measured on that frame,
+// reported six overlaps and two clipped buttons that are not there. Measure
+// only once the chrome has held still for a while. Polling the boxes could miss
+// a change that lasts one frame, so the page itself notes the time of every
+// resize of a chrome element, of the window, and of a change to body's data-*
+// switches (look, layout, theme colours).
+async function waitForStableLayout(cdp, timeoutMs) {
+  await evaluate(cdp, `(() => {
+    if (window.__vexCheckUiMoves) return;
+    const st = window.__vexCheckUiMoves = { last: performance.now() };
+    const bump = () => { st.last = performance.now(); };
+    const ro = new ResizeObserver(bump);
+    for (const el of document.querySelectorAll('#top-bar, #top-bar *, #top-tab-bar, #top-tab-bar *, #icon-sidebar, #icon-sidebar *')) ro.observe(el);
+    addEventListener('resize', bump);
+    new MutationObserver(bump).observe(document.body, { attributes: true });
+  })()`);
+  const QUIET_MS = 1500;
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const present = await evaluate(cdp, `(() => {
-      try { localStorage.setItem('vex.onboardingDone', 'true'); } catch (e) { /* storage blocked */ }
-      const el = document.getElementById('vex-onboarding');
-      if (el && window.Onboarding && window.Onboarding.finish) window.Onboarding.finish();
-      return !!el;
-    })()`);
-    clearPolls = present ? 0 : clearPolls + 1;
-    if (clearPolls >= 6) return; // ~1.2s clear: comfortably past the 900ms timer
-    await sleep(200);
+    const quiet = await evaluate(cdp, 'performance.now() - window.__vexCheckUiMoves.last');
+    if (quiet >= QUIET_MS) return;
+    await sleep(Math.max(100, QUIET_MS - quiet));
   }
-  throw new Error('the onboarding wizard would not stay dismissed — it covers the whole window, so nothing could be measured');
+  throw new Error('the chrome never stopped moving — something in it changed size at least every ' + (QUIET_MS / 1000) + 's for ' + Math.round(timeoutMs / 1000) + 's, so no measurement would describe what the user sees');
+}
+
+// TRAP 3. The profile says the wizard is done before Vex starts, so it is never
+// scheduled. The preference file is the one Vex hydrates localStorage from
+// (js/storage.js) before app.js asks Onboarding.maybeStart().
+const SEEDED_PREFERENCES = {
+  'vex.onboardingDone': 'true',   // Onboarding.KEY
+  'vex.tourSeen': '1',            // what finish() also sets: no tour offer either
+  'vex.privacyDefaults': '1',     // Onboarding.PRIVACY_DEFAULTS_KEY: nothing to migrate or announce
+  // A profile that finished the wizard but never ran gets app.js's older
+  // "Welcome to Vex" card instead (.welcome-overlay, z-index 100000) — the
+  // cause of "judged 0 foreground colours at classic/oxford".
+  'vex.hasRunBefore': 'true',
+};
+
+function seedProfile(userDataDir) {
+  fs.mkdirSync(userDataDir, { recursive: true });
+  fs.writeFileSync(path.join(userDataDir, 'vex-persist.json'), JSON.stringify(SEEDED_PREFERENCES));
+}
+
+// Proof the seed took, rather than hoping: the flag reads as set in the page,
+// and the toolbar is what a click at its centre lands on — not the wizard, the
+// welcome card or any other first-run sheet over the window.
+async function assertNothingCovers(cdp) {
+  const state = await evaluate(cdp, `(() => {
+    const bar = document.querySelector('#top-bar');
+    const r = bar ? bar.getBoundingClientRect() : null;
+    const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+    const top = hit && !(bar.contains(hit) || hit.contains(bar)) ? hit.closest('body > *') || hit : null;
+    return {
+      done: !!(window.Onboarding && window.Onboarding.done()),
+      cover: top ? ((top.id ? '#' + top.id : '') + '.' + String(top.className || top.tagName)).slice(0, 80) : null
+    };
+  })()`);
+  if (!state.done) throw new Error('the seeded profile did not mark onboarding done — vex-persist.json was not read');
+  if (state.cover) throw new Error('something covers the toolbar (' + state.cover + ') in a profile seeded past first run — nothing under it could be measured');
 }
 
 async function evaluate(cdp, expression) {
@@ -704,14 +760,19 @@ async function main() {
   const started = Date.now();
   const port = await freePort();
   const userDataDir = path.join(os.tmpdir(), 'vex-check-ui-' + process.pid + '-' + Date.now());
+  seedProfile(userDataDir);
 
   // Equivalent to `npx electron . --user-data-dir=… --remote-debugging-port=…`,
   // but resolving the binary through require('electron') the way the repo's
-  // other Electron harnesses do (no npx resolution step on Windows).
+  // other Electron harnesses do (no npx resolution step on Windows). `-r` loads
+  // the probe into the main process before src/main.js (Electron's own option).
   const child = spawn(electronPath, [
+    '-r', path.join(__dirname, 'check-ui-probe.js'),
     '.',
     '--user-data-dir=' + userDataDir,
     '--remote-debugging-port=' + port,
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
   ], {
     cwd: REPO,
     // --keep-open is only useful if the app OUTLIVES this script, so there it
@@ -756,8 +817,17 @@ async function main() {
     } catch { /* already dead */ }
     // Nothing sweeps Temp on Windows: five quick retries lost to Vex's exiting
     // child processes and the profile stayed for good.
-    try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); }
-    catch (err) { console.warn('could not remove ' + userDataDir + ': ' + err.message); }
+    // rmSync's own retries do not cover EPERM on a file Windows still holds
+    // for the exiting processes, so it gave up at once and a profile was left
+    // behind every run; a few seconds later the same delete succeeds.
+    const until = Date.now() + 15000;
+    for (;;) {
+      try { fs.rmSync(userDataDir, { recursive: true, force: true }); break; }
+      catch (err) {
+        if (Date.now() > until) { console.warn('could not remove ' + userDataDir + ': ' + err.message); break; }
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); // the 'exit' handler cannot await
+      }
+    }
   };
 
   // Always kill the app and drop the throwaway profile, including on failure.
@@ -770,7 +840,17 @@ async function main() {
     await cdp.send('Runtime.enable');
     await waitForRenderer(cdp, 60000);
 
-    await dismissOnboarding(cdp);
+    await waitForStableLayout(cdp, 30000);
+    await assertNothingCovers(cdp);
+    // The probe prints the list it handed Chromium each time main.js sets it.
+    // Without it a covered window stalls the run for many minutes, so its
+    // absence is a harness failure. (--keep-open drops the app's output.)
+    if (!KEEP_OPEN) {
+      const lists = appLog.split('\n').filter(l => l.includes('[check-ui-probe] disable-features='));
+      if (!lists.length || !/\bCalculateNativeWinOcclusion\b/.test(lists[lists.length - 1])) {
+        throw new Error('scripts/check-ui-probe.js did not run in the app — the window would stop drawing whenever it is covered');
+      }
+    }
 
     const installed = await evaluate(cdp, PAGE_LIB);
     if (installed !== 'installed') throw new Error('audit library did not install');

@@ -530,6 +530,15 @@ const CommandBar = {
       if (e.target === overlay) this.close();
     });
 
+    // A combobox and its listbox: the keyboard stays in the box, and
+    // aria-activedescendant tells a screen reader which result the arrows have
+    // highlighted (it heard nothing as the highlight moved).
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', 'command-results');
+    input.setAttribute('aria-expanded', 'false');
+    results.setAttribute('aria-label', 'Results');
+
     // Input handling
     input.addEventListener('input', () => {
       this.search(input.value);
@@ -579,6 +588,7 @@ const CommandBar = {
     overlay.style.display = 'none';
     this.isOpen = false;
     this.selectedIndex = 0;
+    this._ariaSync(null);
     const back = this._returnFocus;
     this._returnFocus = null;
     const now = document.activeElement;
@@ -990,22 +1000,34 @@ const CommandBar = {
     resultsEl.innerHTML = '';
 
     if (this.results.length === 0) {
-      resultsEl.innerHTML = '<div class="command-empty">No results found</div>';
+      // Not a listbox with nothing in it: a line that is read out.
+      resultsEl.removeAttribute('role');
+      resultsEl.innerHTML = '<div class="command-empty" role="status">No results found</div>';
+      this._ariaSync(null);
       return;
     }
+    resultsEl.setAttribute('role', 'listbox');
 
     this.results.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = `command-result${i === this.selectedIndex ? ' selected' : ''}`;
+      // The title names the option; the hint and the key describe it.
+      const id = 'command-opt-' + i;
+      el.id = id;
+      el.setAttribute('role', 'option');
+      el.setAttribute('aria-selected', String(i === this.selectedIndex));
 
       el.innerHTML = `
-        <div class="command-result-icon${item.isPrimary ? ' primary' : ''}">${this._iconMarkup(item.icon)}</div>
+        <div class="command-result-icon${item.isPrimary ? ' primary' : ''}" aria-hidden="true">${this._iconMarkup(item.icon)}</div>
         <div class="command-result-info">
-          <div class="command-result-title"></div>
-          ${item.hint ? '<div class="command-result-hint"></div>' : ''}
+          <div class="command-result-title" id="${id}-t"></div>
+          ${item.hint ? `<div class="command-result-hint" id="${id}-h"></div>` : ''}
         </div>
-        ${item.shortcut ? '<div class="command-result-shortcut"></div>' : ''}
+        ${item.shortcut ? `<div class="command-result-shortcut" id="${id}-k"></div>` : ''}
       `;
+      el.setAttribute('aria-labelledby', id + '-t');
+      const described = [item.hint && id + '-h', item.shortcut && id + '-k'].filter(Boolean);
+      if (described.length) el.setAttribute('aria-describedby', described.join(' '));
       el.querySelector('.command-result-title').textContent = item.label == null ? '' : String(item.label);
       if (item.hint) el.querySelector('.command-result-hint').textContent = String(item.hint);
       if (item.shortcut) el.querySelector('.command-result-shortcut').textContent = String(item.shortcut);
@@ -1021,6 +1043,16 @@ const CommandBar = {
 
       resultsEl.appendChild(el);
     });
+    this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
+  },
+
+  // The box says whether its list is showing and which result is highlighted.
+  _ariaSync(selected) {
+    const input = document.getElementById('command-input');
+    if (!input) return;   // the results list alone (tests render it without the box)
+    input.setAttribute('aria-expanded', String(!!(this.isOpen && selected)));
+    if (selected) input.setAttribute('aria-activedescendant', selected.id);
+    else input.removeAttribute('aria-activedescendant');
   },
 
   selectNext() {
@@ -1038,11 +1070,13 @@ const CommandBar = {
   updateSelection() {
     document.querySelectorAll('.command-result').forEach((el, i) => {
       el.classList.toggle('selected', i === this.selectedIndex);
+      el.setAttribute('aria-selected', String(i === this.selectedIndex));
     });
 
     // Scroll into view
     const selected = document.querySelector('.command-result.selected');
     if (selected) selected.scrollIntoView({ block: 'nearest' });
+    this._ariaSync(selected);
   },
 
   executeSelected() {

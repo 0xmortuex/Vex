@@ -220,6 +220,16 @@ define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // Guest compatibility bridges use sender-derived identity; legacy arguments are ignored.
 define('geolocation:get geolocation:check-permission compatibility:get privacy:config-sync', [optional(string())]);
+// Profiles (src/main/profiles.js, js/profiles-ui.js): ids are 'default' or
+// p-xxxxxxxx; the look is a name, a #rrggbb colour and a VexIcons name.
+const profileId = value => typeof value === 'string' && /^(?:default|p-[a-z0-9]{8})$/.test(value);
+const profileLook = value => object(value) && Object.keys(value).every(k => ['name', 'color', 'icon'].includes(k))
+  && optional(string(40))(value.name) && optional(v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v))(value.color)
+  && optional(v => typeof v === 'string' && /^[a-z][a-z0-9-]{0,23}$/.test(v))(value.icon);
+define('profiles:list', []);
+define('profiles:create', [profileLook]);
+define('profiles:update', [profileId, profileLook]);
+define('profiles:open profiles:delete profiles:shortcut', [profileId]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);
