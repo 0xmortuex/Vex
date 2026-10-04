@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.36.2 (2026-10-04) — Extensions that work on the page, not just in their popup
+
+### Fixes
+- **Extensions that keep their settings in sync storage now work on web pages too.** Material Icons for GitHub changed no icons, because its page script could not read its settings. It now replaces GitHub's file and folder icons, and changes made in its popup reach the page.
+- **An extension's popup now knows which page it was opened over.** As in Chrome, clicking an extension that asks for "the page you are on" lets it see that tab's address, title and icon. Material Icons for GitHub said "Not Supported" on GitHub; it now shows its settings.
+
 ## v2.36.1 (2026-10-04) — Install extensions from the Chrome Web Store
 
 ### New

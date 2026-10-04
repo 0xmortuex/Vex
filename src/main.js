@@ -2415,11 +2415,31 @@ function _releaseSessionExtensions(ses) {
   _coveredSessions.delete(ses);
 }
 
+// chrome.storage.sync for an extension's content scripts (extensions.js,
+// withContentShim): the shim file is (re)written into the folder and listed
+// first in its content-script entries, before the extension loads anywhere;
+// Chromium reads the content scripts when it loads the extension. Every other
+// place that loads an extension loads a folder that came through here.
+let _contentShimText = null;
+function _prepareContentShim(extPath) {
+  const manifestPath = path.join(extPath, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8').replace(/^\uFEFF/, ''));
+  const plan = extHelpers.withContentShim(manifest);
+  if (!plan.uses) return;
+  if (_contentShimText === null) _contentShimText = extHelpers.contentShimSource(fs.readFileSync(path.join(__dirname, 'preload-extension-sw.js'), 'utf-8'));
+  const shimPath = path.join(extPath, extHelpers.CONTENT_SHIM_FILE);
+  if (!fs.existsSync(shimPath) || fs.readFileSync(shimPath, 'utf-8') !== _contentShimText) fs.writeFileSync(shimPath, _contentShimText);
+  if (plan.manifest) fs.writeFileSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
+}
+
 async function _loadExtensionEverywhere(extPath, manifest) {
   // A lazy session only while it has pages (it was covered when the first one appeared).
   const sessions = _sessionsFor(extPath, manifest).filter(ses => !_isLazySession(ses) || _coveredSessions.has(ses));
   let loaded = null;
   const errors = [];
+  // Not given it, the extension still loads, as before; the reason is said.
+  try { _prepareContentShim(extPath); }
+  catch (err) { console.error(`[Extensions] ${path.basename(extPath)}: its content scripts get no chrome.storage.sync — ${err.message}`); }
   for (const ses of sessions) {
     try {
       ensureExtensionSwPreload(ses);
@@ -3190,15 +3210,37 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
 // to its content the way Chrome does — a fixed window clips every popup that
 // isn't exactly the size we guessed.
 let _extPopupWindow = null;
-let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null }
+let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null, grant: origin | null }
 // Asked by the open popup's own extension (the stand-ins wrap chrome.tabs.query
 // in its pages and its service worker); any other extension gets nothing.
-function _popupTabFor(senderUrl, ses) {
+//
+// Clicking an extension's button in Chrome grants an extension that declares
+// "activeTab" that tab: its url, title and favicon become readable. Electron
+// knows no such grant and leaves them out of tabs.get for an extension with
+// neither "tabs" nor a host permission for the page, so Material Icons for
+// GitHub read no address, failed on new URL('') and said "Not Supported" on
+// GitHub (found 2026-10-04). The answer carries them, while the tab is still
+// on the site the popup was opened over (Chrome takes the grant back when the
+// tab leaves it).
+async function _popupTabFor(senderUrl, ses) {
   const over = _extPopupOver;
   if (!over || !_extPopupWindow || _extPopupWindow.isDestroyed()) return null;
   if (!String(senderUrl || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
   if (ses !== over.session) return null;
-  return { popup: over.popup, tab: over.tab };
+  const answer = { popup: over.popup, tab: over.tab };
+  const page = over.grant && over.tab != null ? webContents.fromId(over.tab) : null;
+  if (!page || page.isDestroyed() || _originOf(page.getURL()) !== over.grant) return answer;
+  answer.url = page.getURL();
+  answer.title = page.getTitle();
+  const host = secureSessions.owner(page);
+  if (host && host.win && !host.win.isDestroyed()) {
+    const icon = await host.win.webContents.executeJavaScript(`(() => { const t = TabManager.tabsByPageId(${JSON.stringify([over.tab])}).tabs[0]; return t && typeof t.favicon === 'string' ? t.favicon : null; })()`);
+    if (icon) answer.favIconUrl = icon;
+  }
+  return answer;
+}
+function _originOf(url) {
+  try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u.origin : null; } catch { return null; }
 }
 ipcMain.handle('extensions:popup-tab', (event) => _popupTabFor(event.senderFrame?.url, event.sender.session));
 
@@ -3433,7 +3475,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     // focus: Dark Reader's popup said "This page is protected by browser"
     // about itself (2026-09-28). Remember the tab it was opened over.
     const under = tabUnder && tabUnder.session === ses ? tabUnder.id : null;
-    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under };
+    const activeTab = Array.isArray(entry.manifest.permissions) && entry.manifest.permissions.includes('activeTab');
+    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under, grant: activeTab && under != null ? _originOf(tabUnder.getURL()) : null };
     win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
     win.on('closed', () => { if (_extPopupWindow === win) { _extPopupWindow = null; _extPopupOver = null; } });
     // A link in the popup (target=_blank, window.open) closed the popup and

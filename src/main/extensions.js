@@ -226,7 +226,60 @@ function tidyReplaced(backupDir, folder) {
   if (!fs.readdirSync(backupDir).length) fs.rmdirSync(backupDir);
 }
 
+// ---- chrome.storage.sync in content scripts ---------------------------------
+// Electron's storage.sync fails in every context. Vex's stand-in for it
+// (vexStorageSyncShim) reaches an extension's pages through
+// preload-webview.js and its service worker through preload-extension-sw.js,
+// but a content script runs in the extension's own isolated world inside a
+// web page, where no preload reaches. Material Icons for GitHub read its
+// settings there with storage.sync.get, threw '"sync" is not available in
+// this instance of Chrome' and never changed an icon (found 2026-10-04).
+// So an extension that keeps storage gets the same shim as a file of its own,
+// listed first in each of its content-script entries: it runs before the
+// extension's scripts, in their world. A content script in the page's own
+// world ("world": "MAIN") has no chrome.storage, and a css-only entry no
+// world at all; both are left as they are.
+const CONTENT_SHIM_FILE = 'vex-storage-sync.js';
+const SHIM_BEGIN = '// === BEGIN vex-storage-sync-shim ===';
+const SHIM_END = '// === END vex-storage-sync-shim ===';
+
+// The shim file, from the shim block of a preload's source text (the one copy
+// Vex keeps of it; a test holds the two preloads' copies identical).
+function contentShimSource(preloadText) {
+  const text = String(preloadText || '').replace(/\r\n/g, '\n');
+  const start = text.indexOf(SHIM_BEGIN);
+  const end = text.indexOf(SHIM_END);
+  if (start < 0 || end < start) throw new Error('contentShimSource: the preload has no vex-storage-sync-shim block');
+  return '// Written by Vex: chrome.storage.sync for this extension\'s content scripts.\n'
+    + '// Electron has no storage.sync; Vex keeps it in storage.local. Vex rewrites this file.\n'
+    + text.slice(start, end + SHIM_END.length) + '\n'
+    + 'vexStorageSyncShim(typeof chrome !== \'undefined\' ? chrome : null);\n';
+}
+
+// { uses, manifest }: uses is whether the extension gets the shim at all (it
+// keeps storage and has a content-script entry running JavaScript in its own
+// world); manifest is the manifest with the shim listed first in each such
+// entry, or null when it already is.
+function withContentShim(manifest) {
+  const none = { uses: false, manifest: null };
+  if (!manifest || typeof manifest !== 'object') return none;
+  const perms = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+  if (!perms.includes('storage') || !Array.isArray(manifest.content_scripts)) return none;
+  const isShim = (f) => typeof f === 'string' && f.replace(/^\.?\//, '') === CONTENT_SHIM_FILE;
+  let uses = false, changed = false;
+  const scripts = manifest.content_scripts.map((cs) => {
+    if (!cs || typeof cs !== 'object' || !Array.isArray(cs.js) || !cs.js.some(f => !isShim(f))) return cs;
+    if (String(cs.world || 'ISOLATED').toUpperCase() === 'MAIN') return cs;
+    uses = true;
+    if (isShim(cs.js[0]) && !cs.js.slice(1).some(isShim)) return cs;
+    changed = true;
+    return { ...cs, js: [CONTENT_SHIM_FILE, ...cs.js.filter(f => !isShim(f))] };
+  });
+  return { uses, manifest: changed ? { ...manifest, content_scripts: scripts } : null };
+}
+
 module.exports = {
+  CONTENT_SHIM_FILE, contentShimSource, withContentShim,
   tidyReplaced, SOURCES_FILE, readSources, writeSources,
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
