@@ -400,6 +400,39 @@ const VexUI = (() => {
     return next;
   }
 
+  /**
+   * A recovery code, to be written down: its dashed groups laid out as a grid
+   * that is never wider than the dialog — four to a row where they fit, two
+   * where they do not, one at the largest text sizes — and never split inside
+   * a group. It was one long line in a <pre>, which cannot wrap, and ran off
+   * the edge of a phone. The text itself is still the canonical dashed form
+   * (each group carries its dash), and Copy copies exactly that.
+   */
+  function renderCode(box, code) {
+    const groups = code.split('-');
+    const grid = el('div', { class: 'rc-grid', role: 'text', 'aria-label': code.split('').join(' ') });
+    groups.forEach((group, index) => {
+      const cell = el('span', 'rc-group');
+      cell.appendChild(document.createTextNode(group));
+      if (index < groups.length - 1) cell.appendChild(el('span', { class: 'rc-dash', 'aria-hidden': 'true' }, '-'));
+      grid.appendChild(cell);
+    });
+    // Laid out as a grid, a selection of it copies as eight lines with no
+    // dashes. Whatever way it is copied — this button, or Android's own Copy
+    // on a long-press selection — what lands on the clipboard is the code.
+    grid.addEventListener('copy', event => {
+      if (!event.clipboardData) return;
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', code);
+    });
+    box.appendChild(grid);
+    const copyButton = el('button', { class: 'chip rc-copy', type: 'button' });
+    copyButton.appendChild(icon('copy'));
+    copyButton.appendChild(document.createTextNode('Copy'));
+    copyButton.onclick = () => copy(code);
+    box.appendChild(copyButton);
+  }
+
   function showDialog({ title, message, input, code, okLabel = 'OK', cancelLabel = 'Cancel', hideCancel }) {
     return new Promise(resolve => {
       $('dialog-title').textContent = title || 'Vex';
@@ -411,7 +444,8 @@ const VexUI = (() => {
       inputEl.value = input || '';
       const codeEl = $('dialog-code');
       codeEl.hidden = !code;
-      codeEl.textContent = code || '';
+      clear(codeEl);
+      if (code) renderCode(codeEl, String(code));
       $('dialog-ok').textContent = okLabel;
       const cancel = $('dialog-cancel');
       cancel.hidden = !!hideCancel;

@@ -691,6 +691,28 @@ results.menuOpensSheet = await page.evaluate(async () => {
   return open + ' ' + title;
 });
 
+// A recovery code fits its dialog and copies whole. It was one line in a <pre>
+// and ran off the side of a phone; now its eight groups sit in a grid that
+// never splits a group, and any copy of it is the canonical dashed code.
+results.recoveryCodeFits = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const code = 'D126283F-4CFCB07E-63FB1F46-ACB4E2D9-1F0A33C7-9B8E7D6C-5A4B3C2D-E1F0A9B8';
+  VexUI.showRecoveryCode(code);
+  await wait(250);
+  const card = document.querySelector('.dialog-card').getBoundingClientRect();
+  const groups = [...document.querySelectorAll('#dialog-code .rc-group')];
+  const inside = groups.every(node => { const box = node.getBoundingClientRect(); return box.left >= card.left && box.right <= card.right; });
+  const rows = new Set(groups.map(node => Math.round(node.getBoundingClientRect().top))).size;
+  let copied = '';
+  const grid = document.querySelector('#dialog-code .rc-grid');
+  const event = new Event('copy', { bubbles: true, cancelable: true });
+  event.clipboardData = { setData: (type, value) => { copied = value; } };
+  grid.dispatchEvent(event);
+  document.getElementById('dialog-ok').click();
+  await wait(100);
+  return [groups.length, inside, rows, grid.textContent === code, copied === code].join(' ');
+});
+
 // ── Vex Sync's screens ──────────────────────────────────────────────────────
 // Signed out, the panel asks for the worker, an email and a code; the
 // desktop's notes can be read, edited (the edit keeps every other field and
@@ -2135,6 +2157,7 @@ const expected = {
   syncScreens: 'true From the PC true true true true',
   aiPanelsSteady: '0 1 true',
   menuOpensSheet: 'true Bring this back',
+  recoveryCodeFits: '8 true 2 true true',
   labHome: '8 0 AI Chat,Ask Image,Audio Scribe,Prompt Lab,Agent Skills,Tiny Garden,Mobile Actions,Scrapbook',
   labGarden: '1 🌱 true',
   labActions: 'Did turn on flashlightturn on flashlight',

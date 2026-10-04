@@ -915,12 +915,30 @@ body[data-toolbar="stacked"].toolbar-hidden .toolbar { transform: translateY(200
 .locked-note { padding: 40px 24px; text-align: center; color: var(--vex-text-muted); font-size: var(--text-sm); line-height: 1.6; }
 
 /* ── Sync ────────────────────────────────────────────────────────────────── */
+/* A recovery code, to be copied out by hand. Eight groups of eight, laid out
+   by how many fit across the box at the text size in use — the queries are
+   in em, so a larger system or Vex text size moves to fewer columns rather
+   than off the edge: four to a row, two, or (at the very largest sizes on
+   the narrowest phones) one. A group is never broken. */
 .recovery-code {
-  margin: 12px 16px; padding: 14px; border-radius: var(--radius); user-select: text;
+  margin: 4px 0 16px; padding: 12px 5px 10px; border-radius: var(--radius);
   background: var(--vex-bg-deep); border: 1px dashed var(--vex-border-strong);
-  font: 500 var(--text-md)/1.7 ui-monospace, "JetBrains Mono", monospace;
-  letter-spacing: .08em; text-align: center; word-break: break-all;
+  font: 600 var(--text-md)/1.6 ui-monospace, "Roboto Mono", "JetBrains Mono", "Droid Sans Mono", monospace;
+  container-type: inline-size; max-width: 100%; overflow: hidden;
 }
+.rc-grid {
+  display: grid; grid-template-columns: repeat(2, max-content); justify-content: center;
+  gap: .35em .6em; user-select: all; -webkit-user-select: all;
+}
+/* A group is 8 characters of 0.6em; four of them and their gaps are 21em. */
+@container (min-width: 21em) { .rc-grid { grid-template-columns: repeat(4, max-content); } }
+@container (max-width: 10.4em) { .rc-grid { grid-template-columns: max-content; } }
+.rc-group { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The dash is in the text — what is selected and copied is the dashed code —
+   but takes no room: the gap between the groups shows where one ends. */
+.rc-dash { display: inline-block; width: 0; overflow: hidden; vertical-align: top; }
+.rc-copy { display: flex; align-items: center; gap: 6px; margin: 10px auto 0; font-family: var(--font-ui, inherit); }
+.rc-copy svg { width: 14px; height: 14px; }
 .status-line { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: var(--text-sm); color: var(--vex-text-muted); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vex-text-muted); flex: 0 0 auto; }
 .status-dot.on { background: var(--vex-success); }
@@ -943,7 +961,10 @@ body[data-toolbar="stacked"].toolbar-hidden .toolbar { transform: translateY(200
 /* ── Dialogs ─────────────────────────────────────────────────────────────── */
 .dialog { position: fixed; inset: 0; z-index: 58; display: grid; place-items: center; padding: 20px; }
 .dialog-card {
-  position: relative; width: min(92vw, 400px); padding: 20px;
+  position: relative; width: min(92vw, 440px); padding: 20px;
+  /* A long dialog on a phone held sideways scrolls inside itself rather than
+     running off the top and bottom. */
+  max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto;
   background: var(--vex-bg-elevated); border: 1px solid var(--vex-border-subtle);
   border-radius: calc(var(--radius) + 6px); box-shadow: var(--elevation) var(--vex-shadow);
   animation: sheet-up .18s var(--ease) both;
@@ -957,6 +978,15 @@ body[data-toolbar="stacked"].toolbar-hidden .toolbar { transform: translateY(200
 }
 .dialog-buttons { display: flex; gap: 10px; }
 .dialog-buttons .pill-btn { min-height: 42px; }
+/* Held sideways there is width to spare and little height: a wider card puts a
+   recovery code in two rows instead of four. */
+@media (orientation: landscape) and (min-width: 600px) {
+  .dialog-card { width: min(92vw, 560px); }
+}
+@media (max-width: 360px) {
+  .dialog { padding: 12px; }
+  .dialog-card { width: calc(100vw - 24px); padding: 16px; }
+}
 
 /* The configurable ends of the toolbar. */
 .tb-slot { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
