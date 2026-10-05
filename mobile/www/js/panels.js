@@ -384,10 +384,12 @@ const VexPanels = (() => {
         search: { value: query, placeholder: 'Search bookmarks', onInput: value => this.bookmarks(value) },
         action: { label: 'Edit', run: () => this.bookmarksMenu() }
       });
-      const groups = VexCollections.bookmarks.grouped(query);
+      // Folders with nothing in them yet are shown too: a new folder that did
+      // not appear until something was in it looked like it had not been made.
+      const groups = VexCollections.bookmarks.grouped(query, { includeEmpty: !query });
       if (!groups.length) {
         body.appendChild(empty(query ? 'Nothing matches “' + query + '”.'
-          : 'Star a page from the menu and it will be here.'));
+          : 'Tap the star on a page, or Bookmark in the menu, and it will be here.'));
         return;
       }
       for (const [folder, entries] of groups) {
@@ -399,6 +401,10 @@ const VexPanels = (() => {
           head.onclick = () => this.folderActions(folder, query);
         }
         body.appendChild(head);
+        if (!entries.length) {
+          body.appendChild(el('div', 'field-note', 'Empty — move a bookmark here with its folder button, '
+            + 'or choose this folder when you bookmark a page.'));
+        }
         for (const entry of entries) {
           body.appendChild(listRow(entry, {
             sub: item => VexSearch.prettyHost(item.url),
@@ -454,7 +460,13 @@ const VexPanels = (() => {
       return true;
     },
 
-    pickFolder(bookmark, query = '') {
+    /**
+     * Choose a bookmark's folder. From the list it redraws the list; from a
+     * page (`stay`: the star, the toast after bookmarking) it says where the
+     * bookmark went and leaves you on the page.
+     */
+    pickFolder(bookmark, query = '', { stay = false } = {}) {
+      if (!bookmark) return;
       const folders = VexCollections.bookmarks.folders();
       VexSheets.choose('Move to folder',
         [{ id: '', label: 'Unsorted', selected: !bookmark.folder }]
@@ -471,8 +483,12 @@ const VexPanels = (() => {
             await VexCollections.bookmarks.move(bookmark.id, choice);
           }
           VexSync.schedulePush();
-          this.bookmarks(query);
+          if (stay) {
+            const now = VexCollections.bookmarks.all().find(entry => entry.id === bookmark.id);
+            VexUI.toast(now && now.folder ? 'In ' + now.folder : 'In Unsorted');
+          } else this.bookmarks(query);
         });
+      return true;
     },
 
     bookmarksMenu() {
@@ -484,7 +500,20 @@ const VexPanels = (() => {
         VexSheets.close();
         if (choice === 'folder') {
           const name = await VexUI.prompt('New folder', 'Folder name');
-          if (name) { await VexCollections.bookmarks.addFolder(name); this.bookmarks(); }
+          if (!name || !name.trim()) return;
+          const folder = await VexCollections.bookmarks.addFolder(name);
+          // Made from the list while a page is open that is not kept yet: that
+          // page is most likely why — offer to put it in.
+          const tab = VexTabStore.active();
+          if (folder && tab && tab.url && tab.url !== 'about:blank' && !tab.incognito
+            && !VexCollections.bookmarks.has(tab.url)
+            && await VexUI.confirm('Bookmark “' + (tab.title || VexSearch.prettyHost(tab.url)) + '” in ' + folder + '?', 'New folder')) {
+            await VexCollections.bookmarks.add({ url: tab.url, title: tab.title, icon: tab.icon, folder });
+            VexSync.schedulePush();
+            VexUI.renderToolbar();
+          }
+          VexUI.toast('Folder “' + folder + '” made');
+          this.bookmarks();
         } else if (choice === 'export') {
           VexUI.downloadText('vex-bookmarks.html', VexCollections.bookmarks.exportHtml(), 'text/html');
         } else if (choice === 'import') {

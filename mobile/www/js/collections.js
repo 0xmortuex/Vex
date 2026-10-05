@@ -106,11 +106,12 @@ const VexCollections = (() => {
     },
 
     // Grouped for the panel: Unsorted first, then folders alphabetically.
-    grouped(query = '') {
+    grouped(query = '', { includeEmpty = false } = {}) {
       const needle = query.trim().toLowerCase();
       const matching = this.all().filter(entry =>
         !needle || (entry.title + ' ' + entry.url + ' ' + (entry.folder || '')).toLowerCase().includes(needle));
       const groups = new Map();
+      if (includeEmpty) for (const name of this.folders()) groups.set(name, []);
       for (const entry of matching) {
         const name = entry.folder || '';
         if (!groups.has(name)) groups.set(name, []);

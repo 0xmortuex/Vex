@@ -175,7 +175,14 @@ const VexUI = (() => {
     reload: { icon: 'reload', label: 'Reload', run: tab => tab && VexBridge.reload(tab.id) },
     home: { icon: 'home', label: 'Home', run: () => goHome() },
     tabs: { icon: null, label: 'Tabs', run: () => openTabGrid(), counter: true },
-    bookmarks: { icon: 'star', label: 'Bookmarks', run: () => VexPanels.bookmarks() },
+    // The star bookmarks the page in front, as a star does everywhere else; it
+    // opened the list, so on a phone with it in the bottom bar (the Samsung and
+    // Safari looks) there was no way to bookmark anything from it. The list is
+    // a long-press away, and what the star does with no page open.
+    bookmarks: {
+      icon: 'star', label: 'Bookmark this page', run: tab => starPage(tab),
+      on: tab => !!(tab && tab.url && VexCollections.bookmarks.has(tab.url))
+    },
     reading: { icon: 'list', label: 'Reading list', run: () => VexPanels.readingList() },
     menu: { icon: 'menu', label: 'Menu', run: () => VexSheets.menu() },
     search: { icon: 'search', label: 'Search', run: () => openOmnibox('') },
@@ -227,6 +234,7 @@ const VexUI = (() => {
             button.appendChild(icon(id === 'menu' ? menuIcon : spec.icon));
           }
           button.onclick = () => spec.run(VexTabStore.active());
+          if (id === 'bookmarks') VexGestures.longPress(button, () => VexPanels.bookmarks());
           if (id === 'back') VexGestures.longPress(button, () => tabHistory(-1));
           if (id === 'forward') VexGestures.longPress(button, () => tabHistory(1));
           slot.appendChild(button);
@@ -240,6 +248,11 @@ const VexUI = (() => {
         const button = $('tb-' + id);
         if (!spec || !button) continue;
         if (spec.enabled) button.disabled = !spec.enabled(tab);
+        if (spec.on) {
+          const on = !startVisible() && spec.on(tab);
+          button.classList.toggle('on', on);
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        }
         if (spec.counter) {
           // The side you are on, not both: the number on the toolbar has to be
           // the number of cards the switcher will show you, and a normal tab
@@ -1202,9 +1215,39 @@ const VexUI = (() => {
       toast('Bookmark removed');
     } else {
       await VexCollections.bookmarks.add({ url: tab.url, title: tab.title, icon: tab.icon });
-      toast('Bookmarked', 3000, { label: 'Folder', run: () => VexPanels.pickFolder(VexCollections.bookmarks.get(tab.url)) });
+      toast('Bookmarked', 4000, { label: 'Folder', run: () => VexPanels.pickFolder(VexCollections.bookmarks.get(tab.url), '', { stay: true }) });
     }
     VexSync.schedulePush();
+    renderToolbar();
+  }
+
+  /**
+   * The toolbar's star. On a page it is not yet keeping, it keeps it, and the
+   * toast offers a folder. On one it already keeps, it says where and offers
+   * to move or remove it. With no page in front it is the list.
+   */
+  async function starPage(tab) {
+    if (!tab || !tab.url || tab.url === 'about:blank' || startVisible()) { VexPanels.bookmarks(); return; }
+    const kept = VexCollections.bookmarks.get(tab.url);
+    if (!kept) { await toggleBookmark(); return; }
+    VexSheets.choose(kept.title || VexSearch.prettyHost(kept.url), [
+      { id: 'folder', label: 'Move to folder', note: kept.folder ? 'In ' + kept.folder : 'In Unsorted' },
+      { id: 'list', label: 'All bookmarks' },
+      { id: 'remove', label: 'Remove the bookmark', danger: true }
+    ], async choice => {
+      VexSheets.close();
+      if (choice === 'folder') VexPanels.pickFolder(kept, '', { stay: true });
+      if (choice === 'list') VexPanels.bookmarks();
+      if (choice === 'remove') {
+        await VexCollections.bookmarks.remove(kept.url);
+        VexSync.schedulePush();
+        renderToolbar();
+        toast('Bookmark removed', 4500, {
+          label: 'Undo',
+          run: async () => { await VexCollections.bookmarks.restore(kept); VexSync.schedulePush(); renderToolbar(); }
+        });
+      }
+    }, 'Bookmarked');
   }
 
   /**
@@ -1424,7 +1467,7 @@ const VexUI = (() => {
     renderToolbar, renderProgress, renderTabGrid, renderTabStrip, renderSuggestions, refreshMediaBar,
     renderSpeakBar, readAloud, speakSettings,
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
-    openUrl, newTab, copy, toggleBookmark, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
+    openUrl, newTab, copy, toggleBookmark, starPage, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage, tabHistory,
     offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
 

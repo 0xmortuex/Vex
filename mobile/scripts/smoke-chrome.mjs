@@ -713,6 +713,43 @@ results.recoveryCodeFits = await page.evaluate(async () => {
   return [groups.length, inside, rows, grid.textContent === code, copied === code].join(' ');
 });
 
+// The toolbar star bookmarks the page in front (it opened the list, so in the
+// Samsung and Safari looks nothing could be bookmarked from it), and a new
+// folder shows in the list before anything is in it.
+results.starBookmarks = await page.evaluate(async () => {
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  VexPanels.close();
+  const saved = VexStore.get('vex.toolbarButtons', null);
+  await VexStore.set('vex.toolbarButtons', { left: ['back'], right: ['bookmarks', 'tabs', 'menu'] });
+  VexUI.renderToolbar();
+  // In a tab of its own, closed afterwards: later steps read the page in front.
+  const before = VexTabStore.active();
+  await VexUI.openUrl('https://star.example/page', { newTab: true });
+  await wait(300);
+  const tab = VexTabStore.active();
+  tab.title = 'A starred page';
+  if (VexCollections.bookmarks.has(tab.url)) await VexCollections.bookmarks.remove(tab.url);
+  VexUI.renderToolbar();
+  document.getElementById('tb-bookmarks').click();
+  await wait(250);
+  const kept = VexCollections.bookmarks.has(tab.url);
+  const filled = document.getElementById('tb-bookmarks').classList.contains('on');
+  const panelOpened = !document.getElementById('panel').hidden;
+  await VexCollections.bookmarks.addFolder('Empty for now');
+  VexPanels.bookmarks();
+  await wait(150);
+  const shown = [...document.querySelectorAll('#panel-body .list-head')].some(node => node.textContent === 'Empty for now');
+  VexPanels.close();
+  await VexCollections.bookmarks.removeFolder('Empty for now');
+  await VexCollections.bookmarks.remove(tab.url);
+  await VexTabStore.close(tab.id);
+  if (before) await VexTabStore.activate(before.id);
+  if (saved) await VexStore.set('vex.toolbarButtons', saved); else await VexStore.set('vex.toolbarButtons', null);
+  VexUI.renderToolbar();
+  await wait(200);
+  return [kept, filled, panelOpened, shown].join(' ');
+});
+
 // ── Vex Sync's screens ──────────────────────────────────────────────────────
 // Signed out, the panel asks for the worker, an email and a code; the
 // desktop's notes can be read, edited (the edit keeps every other field and
@@ -2158,6 +2195,7 @@ const expected = {
   aiPanelsSteady: '0 1 true',
   menuOpensSheet: 'true Bring this back',
   recoveryCodeFits: '8 true 2 true true',
+  starBookmarks: 'true true false true',
   labHome: '8 0 AI Chat,Ask Image,Audio Scribe,Prompt Lab,Agent Skills,Tiny Garden,Mobile Actions,Scrapbook',
   labGarden: '1 🌱 true',
   labActions: 'Did turn on flashlightturn on flashlight',

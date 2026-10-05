@@ -251,6 +251,9 @@ body.private .tabstrip-tab, body.private .tabstrip-new { color: #fff; }
   transition: background-color .12s, transform .12s var(--ease);
 }
 .tb-btn:disabled { opacity: .3; }
+/* The star of a page you keep: filled, in the accent. */
+.tb-btn.on { color: var(--vex-accent); }
+.tb-btn.on svg { fill: currentColor; }
 .tb-btn:active:not(:disabled) { background: var(--vex-accent-dim); transform: scale(.94); }
 .tb-tabs {
   width: 32px; height: 30px; margin: 0 3px;
