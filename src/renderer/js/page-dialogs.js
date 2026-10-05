@@ -6,8 +6,10 @@
 // asked — that tab's or panel's area only. The rest of Vex keeps working; only
 // that page waits for the answer, as in Chrome.
 //
-// A tab or panel that is not on screen gets a marker instead, and the
-// question comes up when it is shown. A page that is neither a tab nor a
+// A tab or panel that is not on screen gets a marker instead, a card in the
+// window's corner names it ("Prime Video asks a question — Open"), and the
+// question comes up when it is shown. A question out of sight holds nothing:
+// no keys, no focus, no pointer. A page that is neither a tab nor a
 // panel and not on screen (a hidden helper page) gets "Cancel" at once: nobody
 // could ever answer it. From a page's second dialog on, the question offers to
 // stop the page showing any more.
@@ -34,10 +36,36 @@ const PageDialogs = (() => {
     return null;
   }
 
+  // Can the question be SEEN over this page right now? Only then may it take
+  // the page's pointer and the keys. The question is drawn in the window's
+  // ordinary stacking, so anything in fullscreen is above it: a video in
+  // fullscreen in the Prime panel hid its own question, everything else in
+  // the window went inert behind the fullscreen page, and Escape left the
+  // window's fullscreen while the page stayed the document's fullscreen
+  // element (its renderer is waiting for the answer) — nothing in Vex could
+  // be clicked (reported 2026-10-05; found live under CDP).
   function onScreen(wv) {
     if (!wv.isConnected || document.body.classList.contains('vex-locked')) return false;
+    const fs = document.fullscreenElement;
+    if (fs && (fs === wv || !fs.contains(wv))) return false;
     const r = wv.getBoundingClientRect();
-    return r.width >= 40 && r.height >= 40 && getComputedStyle(wv).visibility !== 'hidden';
+    // The part of it inside the window.
+    const w = Math.min(r.left + r.width, window.innerWidth) - Math.max(r.left, 0);
+    const h = Math.min(r.top + r.height, window.innerHeight) - Math.max(r.top, 0);
+    if (w < 40 || h < 40) return false;
+    if (typeof wv.checkVisibility === 'function' && !wv.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+    return getComputedStyle(wv).visibility !== 'hidden';
+  }
+
+  // The asking page is the one in fullscreen: nothing can be drawn over it,
+  // so it leaves fullscreen and is asked in its tab or panel, as Chrome does.
+  // Vex leaves it from the window's side — the page itself cannot, it is
+  // waiting for the answer.
+  function leaveFullscreenFor(entry) {
+    const fs = document.fullscreenElement;
+    if (!fs || !(fs === entry.wv || fs.contains(entry.wv)) || entry.leaving === fs) return;
+    entry.leaving = fs;   // once: refresh runs on every change while it leaves
+    Promise.resolve(document.exitFullscreen()).catch(err => window.VexProblems?.note('Page dialog', 'Could not leave fullscreen to show a page\'s question', err));
   }
 
   // ---- markers on a tab or a panel's icon that is not on screen ------------
@@ -122,7 +150,16 @@ const PageDialogs = (() => {
     const answer = (yes) => respond(entry, yes, input ? input.value : undefined, !!(stop && stop.checked));
     ok.addEventListener('click', () => answer(true));
     if (cancel) cancel.addEventListener('click', () => answer(false));
+    // A click on the dimmed area around the question keeps the keys with the
+    // question, so Enter and Escape still answer it.
+    overlay.addEventListener('mousedown', (e) => {
+      if (e.target !== overlay) return;
+      e.preventDefault();
+      entry.focusTarget.focus();
+    });
     overlay.addEventListener('keydown', (e) => {
+      // Only a question on screen answers keys.
+      if (overlay.hidden || !entry.visible) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); answer(d.type === 'alert'); return; }
       if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.type !== 'checkbox') { e.preventDefault(); answer(true); return; }
       if (e.key === 'Tab') {
@@ -177,7 +214,7 @@ const PageDialogs = (() => {
   // slows the timers of a window that is covered, and the question stayed
   // hidden after switching back to its tab (found live, 2026-10-05).
   let watcher = null, queued = false;
-  const ours = (node) => !!(node && node.nodeType === 1 && (node.classList.contains('vex-page-dialog-mark') || node.closest('.vex-page-dialog-overlay, .vex-page-dialog-mark')));
+  const ours = (node) => !!(node && node.nodeType === 1 && (node.classList.contains('vex-page-dialog-mark') || node.closest('.vex-page-dialog-overlay, .vex-page-dialog-mark, .vex-page-dialog-card')));
   function onChange(records) {
     const outside = records.some(rec => rec.type === 'attributes'
       ? !ours(rec.target)
@@ -191,40 +228,143 @@ const PageDialogs = (() => {
       watcher = new MutationObserver(onChange);
       watcher.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
       window.addEventListener('resize', refresh);
+      document.addEventListener('fullscreenchange', onFullscreen);
     } else if (!on && watcher) {
       watcher.disconnect(); watcher = null;
       window.removeEventListener('resize', refresh);
+      document.removeEventListener('fullscreenchange', onFullscreen);
     }
+  }
+  // Something went into fullscreen over the card: it is put back on top.
+  function onFullscreen() {
+    if (card && !card.hidden && card.popover && card.matches(':popover-open')) { card.hidePopover(); card.showPopover(); }
+    refresh();
+  }
+
+  // ---- the corner card: a question nobody can see is never silent ----------
+  // A question waiting behind a hidden panel, a closed sidebar or a tab in the
+  // background is named here, with a way to it. It takes no keys and no focus:
+  // the rest of Vex is used as before. It sits in the top layer where the
+  // window has one (a popover), so a video in fullscreen does not hide it.
+  let card = null;
+  function labelOf(entry) {
+    const p = entry.place;
+    if (p && p.panel) {
+      const name = typeof SidebarManager !== 'undefined' && SidebarManager.panelLabel ? SidebarManager.panelLabel(p.panel) : '';
+      return name || p.panel;
+    }
+    if (p && p.tab && typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs)) {
+      const tab = TabManager.tabs.find(x => x.id === p.tab);
+      if (tab && tab.title) return tab.title;
+    }
+    return entry.d.origin || t('pageDialogAPage', 'A page');
+  }
+  function buildCard() {
+    card = document.createElement('div');
+    card.className = 'vex-page-dialog-card';
+    card.setAttribute('role', 'status');
+    card.setAttribute('aria-live', 'polite');
+    if ('popover' in card) card.popover = 'manual';
+    const icon = document.createElement('span');
+    icon.className = 'vex-page-dialog-card-icon';
+    icon.innerHTML = VexIcons.svg('message', { size: 16 });
+    const text = document.createElement('div');
+    text.className = 'vex-page-dialog-card-text';
+    const title = document.createElement('div');
+    title.className = 'vex-page-dialog-card-title';
+    const sub = document.createElement('div');
+    sub.className = 'vex-page-dialog-card-sub';
+    text.append(title, sub);
+    const open = document.createElement('button');
+    open.className = 'vex-dialog-btn primary vex-page-dialog-card-open';
+    open.textContent = t('pageDialogOpen', 'Open');
+    open.addEventListener('click', () => { if (card.__entry) openEntry(card.__entry); });
+    card.append(icon, text, open);
+    card.hidden = true;
+    document.body.appendChild(card);
+  }
+  function updateCard() {
+    const away = waiting.filter(e => e.marked);
+    if (!away.length) {
+      if (card && !card.hidden) {
+        if (card.popover && card.matches(':popover-open')) card.hidePopover();
+        card.hidden = true;
+        card.__entry = null;
+      }
+      return;
+    }
+    if (!card || !card.isConnected) buildCard();
+    const entry = away[0];
+    card.__entry = entry;
+    const title = t('pageDialogAsks', '{name} asks a question').replace('{name}', labelOf(entry));
+    const more = away.length > 1 ? ' ' + t('pageDialogMore', '(+{n} more)').replace('{n}', String(away.length - 1)) : '';
+    // While another page is in fullscreen the rest of the window is inert:
+    // the card can be seen but not clicked until fullscreen is left.
+    const sub = document.fullscreenElement ? t('pageDialogLeaveFullscreen', 'Press Esc to leave fullscreen and answer')
+      : entry.d.origin ? t('pageDialogSays', '{site} says').replace('{site}', entry.d.origin) : t('pageDialogThisPage', 'This page says');
+    const titleEl = card.querySelector('.vex-page-dialog-card-title');
+    const subEl = card.querySelector('.vex-page-dialog-card-sub');
+    // Written only when it changed, so the card is not itself a change to react to.
+    if (titleEl.textContent !== title + more) titleEl.textContent = title + more;
+    if (subEl.textContent !== sub) subEl.textContent = sub;
+    if (card.hidden) {
+      card.hidden = false;
+      if (card.popover) card.showPopover();
+    }
+  }
+
+  // "Open" on the card: the panel or tab is shown, and its question with it.
+  function openEntry(entry) {
+    if (!waiting.includes(entry)) return;
+    entry.wantFocus = true;
+    if (document.fullscreenElement) {
+      Promise.resolve(document.exitFullscreen()).catch(err => window.VexProblems?.note('Page dialog', 'Could not leave fullscreen to show a page\'s question', err));
+    }
+    const p = entry.place;
+    if (p && p.panel) {
+      if (SidebarManager.activePanel !== p.panel && SidebarManager.sidePanel !== p.panel) SidebarManager.showPanel(p.panel);
+    } else if (p && p.tab) {
+      TabManager.switchTab(p.tab);
+    }
+    refresh();
   }
 
   function refresh() {
     const shownFor = new Set();
     for (const entry of waiting) {
+      if (entry.wv.isConnected) leaveFullscreenFor(entry);
       const visible = onScreen(entry.wv) && !shownFor.has(entry.wv);
       if (visible) {
         shownFor.add(entry.wv);
         const fresh = !entry.overlay;
         if (fresh) build(entry);
         if (!entry.overlay.isConnected) entry.wv.insertAdjacentElement('afterend', entry.overlay);
-        const wasHidden = entry.overlay.hidden;
-        if (wasHidden) entry.overlay.hidden = false;
+        const cameBack = !entry.visible;
+        if (entry.overlay.hidden) entry.overlay.hidden = false;
+        entry.visible = true;
         place(entry);
         holdPage(entry, true);
         entry.marked = false;
         setMarker(entry, false);
         // The page the user is in takes the keys; one in a panel beside it
-        // does not pull them away from what they are typing.
-        if (fresh || wasHidden) {
+        // does not pull them away from what they are typing. "Open" on the
+        // card always hands them over.
+        if (cameBack) {
           const a = document.activeElement;
-          if (!a || a === document.body || a === entry.wv) entry.focusTarget.focus();
+          if (entry.wantFocus || !a || a === document.body || a === entry.wv) entry.focusTarget.focus();
+          entry.wantFocus = false;
         }
       } else {
+        // Out of sight it holds nothing: not the keys, not the page's pointer.
+        if (entry.overlay && entry.overlay.contains(document.activeElement)) document.activeElement.blur();
         if (entry.overlay && !entry.overlay.hidden) entry.overlay.hidden = true;
+        entry.visible = false;
         holdPage(entry, false);
         entry.marked = true;
         setMarker(entry, true);
       }
     }
+    updateCard();
     watch(waiting.length > 0);
     if (!waiting.length && timer) { clearInterval(timer); timer = null; }
   }
@@ -233,10 +373,22 @@ const PageDialogs = (() => {
     const at = waiting.indexOf(entry);
     if (at >= 0) waiting.splice(at, 1);
     if (entry.overlay) entry.overlay.remove();
+    entry.visible = false;
     holdPage(entry, false);
     entry.marked = false;
     setMarker(entry, false);
     refresh();
+  }
+
+  // Every question a page asks is noted in Problems (Memory panel › Health),
+  // so what a site asks can be seen afterwards: which site (its host, never
+  // the address with its query), in which tab or panel, the kind, and the
+  // first 200 characters of its text. Kept in this profile only.
+  function record(entry) {
+    const p = entry.place;
+    const where = p && p.panel ? 'the ' + labelOf(entry) + ' panel' : p && p.tab ? 'a tab' : 'a page outside any tab';
+    window.VexProblems?.note('Page dialog', entry.d.type + '() from ' + (entry.d.origin || 'a local page') + ' in ' + where,
+      String(entry.d.message || '').slice(0, 200));
   }
 
   function respond(entry, ok, value, stop) {
@@ -252,7 +404,8 @@ const PageDialogs = (() => {
   function show(d) {
     if (!d || typeof d.id !== 'string') return;
     const wv = webviewFor(d.guestId);
-    const entry = { d, wv, overlay: null, place: wv ? placeOf(wv) : null };
+    const entry = { d, wv, overlay: null, place: wv ? placeOf(wv) : null, visible: false };
+    record(entry);
     // Nobody can see this page and it is no tab or panel to come back to.
     if (!wv || (!entry.place && !onScreen(wv))) {
       window.vex.pageDialogAnswer({ id: d.id, ok: d.type === 'alert', stop: false });
@@ -275,7 +428,7 @@ const PageDialogs = (() => {
     window.vex.onPageDialogClose(close);
   }
 
-  return { init, show, close, waiting, _refresh: refresh };
+  return { init, show, close, waiting, _refresh: refresh, _card: () => card, _open: openEntry };
 })();
 
 window.PageDialogs = PageDialogs;

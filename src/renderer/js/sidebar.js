@@ -602,6 +602,14 @@ const SidebarManager = {
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);
     });
+    // The page called window.close(). A panel is not the page's window: it
+    // stays open and on its page (a question the page asked stays with it),
+    // and the attempt is noted in Problems so it can be seen afterwards.
+    wv.addEventListener('close', () => {
+      let origin = '';
+      try { origin = new URL(wv.getURL()).host; } catch { /* no page */ }
+      window.VexProblems?.note('Panels', this.panelLabel(panelName) + '\'s page tried to close itself; the panel stays open', origin);
+    });
     wv.style.width = '100%';
     wv.style.height = '100%';
     // Wire the guest right-click → Vex context menu, exactly like normal

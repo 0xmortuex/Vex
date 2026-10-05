@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.36.4 (2026-10-05) — A full-screen video that asks something no longer freezes Vex
+
+### Fixes
+- **A question from a page in full screen froze Vex.** Prime Video in its sidebar panel, playing in full screen, asked something; the question ended up hidden underneath the full-screen video, and everything else stopped taking clicks. Now a page in full screen that asks a question leaves full screen first and asks over its panel.
+- **A question you cannot see takes no clicks or keys.** Its tab or panel is marked, and a card in the corner says who is asking, with Open.
+- Every page question is listed under Problems (the site, where, what kind, and its first 200 characters), so you can see what a page asked.
+- A page in a sidebar panel that tries to close itself no longer affects the panel.
+
 ## v2.36.3 (2026-10-05) — No more frozen Vex
 
 ### Fixes
