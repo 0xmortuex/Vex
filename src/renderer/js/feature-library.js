@@ -100,7 +100,20 @@ const FeatureLibrary = {
     this._drawNever(host);
     this._drawCats(host);
     this._drawList(host);
+    // The longer paragraphs (js/feature-details.js, ~46 KB) load the first
+    // time the Library is opened, not at every start; the cards are drawn
+    // again once they are here.
+    if (typeof FeatureDetails === 'undefined') {
+      this._details().then(() => { if (host.isConnected) this._drawList(host); })
+        .catch(err => window.showToast?.('The feature descriptions could not load: ' + ((err && err.message) || err), 'error'));
+    }
     return host;
+  },
+
+  _details() {
+    if (typeof FeatureDetails !== 'undefined') return Promise.resolve(true);
+    if (!window.VexLazy) return Promise.reject(new Error('the lazy loader is missing'));
+    return window.VexLazy.ensure('js/feature-details.js');
   },
 
   // ---- Ask Vex what you don't know ----------------------------------------
@@ -318,7 +331,10 @@ const FeatureLibrary = {
     ].filter(Boolean).join('\n');
   },
 
-  ask(id) {
+  async ask(id) {
+    // The question carries the feature's longer paragraph, so have it first.
+    try { await this._details(); }
+    catch (err) { window.showToast?.('The feature descriptions could not load: ' + ((err && err.message) || err), 'error'); return; }
     const q = this.question(id);
     if (!q) return;
     if (typeof AIPanel === 'undefined' || typeof AIPanel.open !== 'function') { window.showToast?.('The AI panel is not available in this window', 'error'); return; }

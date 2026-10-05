@@ -79,7 +79,9 @@ const CommandBar = {
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
+    { id: 'browser-import', label: 'Import from Another Browser', hint: 'Bookmarks and history from Chrome, Edge, Brave or Firefox — and passwords from a file you export there', icon: 'download', action: () => { if (typeof BrowserImport !== 'undefined') BrowserImport.open(); } },
     { id: 'keys-sheet', label: 'What You Can Press — Shortcut Sheet', hint: 'Every key Vex answers to, over whatever you are doing, with the ones that matter here first', icon: 'keyboard', shortcut: 'Ctrl+Shift+K', action: () => { if (typeof KeysSheet !== 'undefined') KeysSheet.open(); } },
+    { id: 'report-problem', label: 'Report a Problem', hint: 'A GitHub issue with your versions, look and Vex’s recent problems filled in — shown to you first, to edit; nothing is sent until you press Open on GitHub', icon: 'flag', action: () => { if (typeof VexReport !== 'undefined') VexReport.open().catch(e => window.showToast?.(e.message, 'error')); } },
     { id: 'why-slow', label: 'Why Is Vex Slow Right Now?', hint: 'One screen: what is holding the processor, what is holding the memory, whether a route is on and whether a game has the card', icon: 'activity', isPrimary: true, action: () => { if (typeof WhySlow !== 'undefined') WhySlow.open(); } },
     { id: 'site-routes', label: 'Site Rules — Always Open These Sites Through Tor', hint: 'Name a site and it opens in a routed session of its own, every time, without routing the rest of your browsing', icon: 'globe', action: () => { if (typeof SiteRoutes !== 'undefined') SiteRoutes.open(); } },
     { id: 'skin', label: 'Skin', hint: 'A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light', icon: 'palette', isPrimary: true, action: () => { if (typeof VexSkins !== 'undefined') VexSkins.open(); } },
@@ -273,6 +275,8 @@ const CommandBar = {
     { id: 'split', label: 'Split Screen', hint: 'Toggle split-screen view', shortcut: 'Ctrl+Shift+S', icon: 'split', action: () => SplitScreen.toggle() },
     { id: 'split3', label: 'Split into 3 panes', hint: 'Three tabs side by side', icon: 'split', action: () => SplitScreen.setLayout(3) },
     { id: 'split4', label: 'Split into 4 panes', hint: 'Four tabs in a 2×2 grid', icon: 'grid', action: () => SplitScreen.setLayout(4) },
+    // Only on an extension's page on the Chrome Web Store (js/web-store.js).
+    { id: 'webstore-install', label: 'Install this extension from the Web Store', hint: 'Add the extension on this Chrome Web Store page to Vex', icon: 'puzzle', when: () => !!(window.VexWebStore && window.VexWebStore.activeStorePage()), action: () => window.VexWebStore.installActive() },
     // Tool commands
     { id: 'flashmind', label: 'FlashMind', hint: 'AI-powered flashcard study tool', icon: 'bulb', when: () => typeof VexTools !== 'undefined' && VexTools.tools.some(t => t.id === 'flashmind'), action: () => VexTools.openToolById('flashmind') },
     { id: 'loopholemap', label: 'LoopholeMap', hint: 'Legal loophole mapper', icon: 'map', when: () => typeof VexTools !== 'undefined' && VexTools.tools.some(t => t.id === 'loopholemap'), action: () => VexTools.openToolById('loopholemap') },
@@ -528,6 +532,15 @@ const CommandBar = {
       if (e.target === overlay) this.close();
     });
 
+    // A combobox and its listbox: the keyboard stays in the box, and
+    // aria-activedescendant tells a screen reader which result the arrows have
+    // highlighted (it heard nothing as the highlight moved).
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', 'command-results');
+    input.setAttribute('aria-expanded', 'false');
+    results.setAttribute('aria-label', 'Results');
+
     // Input handling
     input.addEventListener('input', () => {
       this.search(input.value);
@@ -563,6 +576,8 @@ const CommandBar = {
     // Tool results come from the Toolbox packs, which load on first use.
     if (window.Toolbox && typeof Toolbox.ensurePacks === 'function') Toolbox.ensurePacks().catch(() => {});
 
+    // Where the keyboard was, so closing puts it back (it fell to the page body).
+    if (!this.isOpen) this._returnFocus = document.activeElement;
     overlay.style.display = 'flex';
     this.isOpen = true;
     input.value = '';
@@ -571,9 +586,17 @@ const CommandBar = {
   },
 
   close() {
-    document.getElementById('command-overlay').style.display = 'none';
+    const overlay = document.getElementById('command-overlay');
+    overlay.style.display = 'none';
     this.isOpen = false;
     this.selectedIndex = 0;
+    this._ariaSync(null);
+    const back = this._returnFocus;
+    this._returnFocus = null;
+    const now = document.activeElement;
+    if (back && back !== document.body && document.contains(back) && (!now || now === document.body || overlay.contains(now))) {
+      try { back.focus(); } catch { /* gone or not focusable any more */ }
+    }
   },
 
   search(query) {
@@ -979,22 +1002,34 @@ const CommandBar = {
     resultsEl.innerHTML = '';
 
     if (this.results.length === 0) {
-      resultsEl.innerHTML = '<div class="command-empty">No results found</div>';
+      // Not a listbox with nothing in it: a line that is read out.
+      resultsEl.removeAttribute('role');
+      resultsEl.innerHTML = '<div class="command-empty" role="status">No results found</div>';
+      this._ariaSync(null);
       return;
     }
+    resultsEl.setAttribute('role', 'listbox');
 
     this.results.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = `command-result${i === this.selectedIndex ? ' selected' : ''}`;
+      // The title names the option; the hint and the key describe it.
+      const id = 'command-opt-' + i;
+      el.id = id;
+      el.setAttribute('role', 'option');
+      el.setAttribute('aria-selected', String(i === this.selectedIndex));
 
       el.innerHTML = `
-        <div class="command-result-icon${item.isPrimary ? ' primary' : ''}">${this._iconMarkup(item.icon)}</div>
+        <div class="command-result-icon${item.isPrimary ? ' primary' : ''}" aria-hidden="true">${this._iconMarkup(item.icon)}</div>
         <div class="command-result-info">
-          <div class="command-result-title"></div>
-          ${item.hint ? '<div class="command-result-hint"></div>' : ''}
+          <div class="command-result-title" id="${id}-t"></div>
+          ${item.hint ? `<div class="command-result-hint" id="${id}-h"></div>` : ''}
         </div>
-        ${item.shortcut ? '<div class="command-result-shortcut"></div>' : ''}
+        ${item.shortcut ? `<div class="command-result-shortcut" id="${id}-k"></div>` : ''}
       `;
+      el.setAttribute('aria-labelledby', id + '-t');
+      const described = [item.hint && id + '-h', item.shortcut && id + '-k'].filter(Boolean);
+      if (described.length) el.setAttribute('aria-describedby', described.join(' '));
       el.querySelector('.command-result-title').textContent = item.label == null ? '' : String(item.label);
       if (item.hint) el.querySelector('.command-result-hint').textContent = String(item.hint);
       if (item.shortcut) el.querySelector('.command-result-shortcut').textContent = String(item.shortcut);
@@ -1010,6 +1045,16 @@ const CommandBar = {
 
       resultsEl.appendChild(el);
     });
+    this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
+  },
+
+  // The box says whether its list is showing and which result is highlighted.
+  _ariaSync(selected) {
+    const input = document.getElementById('command-input');
+    if (!input) return;   // the results list alone (tests render it without the box)
+    input.setAttribute('aria-expanded', String(!!(this.isOpen && selected)));
+    if (selected) input.setAttribute('aria-activedescendant', selected.id);
+    else input.removeAttribute('aria-activedescendant');
   },
 
   selectNext() {
@@ -1027,11 +1072,13 @@ const CommandBar = {
   updateSelection() {
     document.querySelectorAll('.command-result').forEach((el, i) => {
       el.classList.toggle('selected', i === this.selectedIndex);
+      el.setAttribute('aria-selected', String(i === this.selectedIndex));
     });
 
     // Scroll into view
     const selected = document.querySelector('.command-result.selected');
     if (selected) selected.scrollIntoView({ block: 'nearest' });
+    this._ariaSync(selected);
   },
 
   executeSelected() {

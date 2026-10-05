@@ -78,6 +78,8 @@ const Authenticator = {
     const form = el.querySelector('#auth-add-form');
     if (form && form.style.display === 'none') form.style.display = 'block';
     if (!file || !/^image\//.test(file.type || '')) { if (status) status.textContent = 'That’s not an image.'; return; }
+    // The QR reader (250 KB) loads the first time it is needed, not at every start.
+    try { await VexLazy.ensure('vendor/jsQR.js'); } catch (err) { console.error('[Authenticator] QR reader:', err); }
     if (typeof jsQR === 'undefined') { if (status) status.textContent = 'QR reader failed to load.'; return; }
     if (status) status.textContent = 'Reading QR…';
     let text = null;

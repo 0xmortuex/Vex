@@ -10,7 +10,9 @@
      here; everything else follows the theme (see applyThemeColor). */
   border: 1px solid var(--workspace-color, var(--vex-border-accent));
   background: var(--vex-accent-dim);
-  color: var(--vex-accent);
+  /* The accent tinted toward the text colour: the bare accent on its own dim
+     tint was 3:1 (Solarized) to 3.7:1 (Midnight). */
+  color: color-mix(in srgb, var(--vex-accent) 25%, var(--vex-text-primary));
   border-radius: var(--vex-radius-sm); cursor: pointer;
   font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500;
   transition: all 0.15s ease; -webkit-app-region: no-drag;

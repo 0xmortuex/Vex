@@ -80,7 +80,9 @@ describe('reading mode', () => {
     const html = decodeLoaded(wv);
     expect(html).toContain('<img src="https://cdn.test/pic.png" alt="">');
     expect(html).not.toContain('javascript:alert(1)');
-    expect(html).not.toContain('<script>');
+    // The one script is the reader's own controls, and none of the page is in it.
+    expect(html.match(/<script/g)).toHaveLength(1);
+    expect(html.slice(html.indexOf('<script>'))).not.toContain('alert');
   });
 
   it('says so when there is nothing to read instead of loading an empty document', async () => {

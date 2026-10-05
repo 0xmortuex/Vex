@@ -1,6 +1,6 @@
 {
   "name": "vex",
-  "version": "2.35.2",
+  "version": "2.36.2",
   "description": "Vex — a browser built just for you",
   "author": {
     "name": "0xmortuex",
@@ -76,10 +76,17 @@
     "files": [
       "src/**/*",
       "CHANGELOG.md",
+      "LICENSE",
+      "PRIVACY.md",
+      "TERMS.md",
+      "THIRD_PARTY_NOTICES.md",
       "assets/icon.svg",
       "assets/icon.ico",
       "assets/theme-previews/*.png",
-      "package.json"
+      "package.json",
+      "!node_modules/sharp/**",
+      "!node_modules/@img/**",
+      "!node_modules/onnxruntime-node/**"
     ],
     "fileAssociations": [
       {

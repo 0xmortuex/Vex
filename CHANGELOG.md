@@ -1,5 +1,53 @@
 # Changelog
 
+## v2.36.2 (2026-10-04) — Extensions that work on the page, not just in their popup
+
+### Fixes
+- **Extensions that keep their settings in sync storage now work on web pages too.** Material Icons for GitHub changed no icons, because its page script could not read its settings. It now replaces GitHub's file and folder icons, and changes made in its popup reach the page.
+- **An extension's popup now knows which page it was opened over.** As in Chrome, clicking an extension that asks for "the page you are on" lets it see that tab's address, title and icon. Material Icons for GitHub said "Not Supported" on GitHub; it now shows its settings.
+
+## v2.36.1 (2026-10-04) — Install extensions from the Chrome Web Store
+
+### New
+- **Install extensions from the Chrome Web Store.** Open an extension's page in Vex and click **Add to Vex** in the address bar, paste its link in Settings › Extensions, or use Ctrl+K → "Install this extension from the Web Store". Vex downloads the package from Google's own update server, as Chrome, Brave and Vivaldi do, and installs it only if both the developer's and the Web Store's signatures check out. Before anything is installed you see what it can read and do, and what will not work in Vex. **Update from Web Store** on its card fetches the newest version and keeps its settings. Not available in private windows or Tor tabs.
+
+### Fixes
+- The extension help no longer sends you to crxextractor.com, which stopped handing out packages.
+- The list of what extensions cannot do here is up to date: opening tabs and storage.sync work now; cookies, navigation events, user scripts and side panels do not.
+
+## v2.36.0 (2026-10-03) — Profiles, browser import, a better reader, and privacy by default
+
+### New
+- **Profiles.** Keep separate Vexes for work, school or anyone else on the PC. Each profile has its own tabs, bookmarks, history, passwords, extensions, Vex Sync account, settings and cookies, and runs in its own window, so two can be open at once. Add, rename, recolour and delete them from the new profile button on the toolbar (or Settings › Profiles), open one in its own window, or put a shortcut to it on the desktop. Your existing Vex is the Default profile and nothing in it moves. An update closes and reopens all your open profiles.
+- **Import from another browser.** Bring your bookmarks (folders and all) and recent history over from Chrome, Edge, Brave or Firefox on this PC: pick the browser and profile, see what will be added, and undo it if you change your mind. Passwords come from a file you export from that browser yourself (the steps are on screen); Vex never reads another browser's saved passwords.
+- **Report a problem.** Settings › About and the command bar open a GitHub issue already filled in with your versions, look and theme, and Vex's recent problems. You see the whole text first and can edit it; your Windows user folder, query strings, emails and tokens are taken out, and nothing is sent until you press Open on GitHub.
+- **Reader view finds the article** and leaves menus, sidebars and comments out, keeps links, tables and code, and has a toolbar for font, size, width, line spacing and theme. Esc puts you back where you were on the page.
+- **Read aloud reads the whole article**, or your selection, a sentence at a time: it highlights the sentence and keeps it in view, and you can pause, skip, change speed and pick a voice. It speaks the page's language, working it out from the text when the page does not say, and tells you when no voice for it is installed.
+- **Picture-in-Picture floats the main video** on the page, even inside an embedded or custom player, and asks before overriding a site that turned it off. New setting: float a playing video when you switch tabs.
+
+### Privacy
+- **What you type is no longer sent to Google unless Google is your search engine.** Suggestions come only from the search engine you chose, never from a private window, a Tor tab or a burner, and can be turned off (Settings › General).
+- **The New Tab weather no longer looks you up by IP address.** It shows "Set your city" until you set one, or until you press "Use my approximate location".
+- **SponsorBlock is off on new profiles** (it sends the id of each YouTube video you open to sponsor.ajay.app); profiles that used it keep it.
+- **Setup has a Privacy choices step**, and "Check for updates when Vex starts" can be turned off.
+- Sync and AI memory settings now say accurately what syncs and what the server can see.
+- The privacy policy, terms, license and third-party notices are linked from Settings › About.
+
+### Faster and lighter
+- **The installer is much smaller**: two libraries Vex never used are no longer shipped.
+- **Vex starts sooner**: the mail reader's libraries load the first time you open mail.
+- **Less work while idle**: background jobs, the clock, the sync indicator, URL automations, site reminders and streamer mode react to changes instead of checking several times a second.
+
+### Easier to use
+- **Readable in every theme and look**: text and icons meet WCAG AA contrast everywhere, the New Tab page too.
+- **Keyboard and screen reader**: Tab reaches the tabs (top or side); arrow keys move, Enter switches, Delete closes, Shift+F10 opens the tab menu. Escape closes the panel you are in, the command bar tells a screen reader which result is highlighted, and the address field shows a clear focus ring.
+
+### Fixes
+- **"Changes could not be saved"** appeared when another program (antivirus, search indexing) held Vex's settings file for a moment. Vex now waits and tries again, keeps trying in the background, and records the reason in Problems.
+- **Opening Vex while it was already running** (a link from another app, a reminder's button) could make the next start come up in safe mode with no extensions. It no longer does, and those launches hand over much faster.
+- **An ordinary page that sets no background showed black text on a dark grey page** when Windows was in dark mode. Such pages now get the white page Chrome gives them; the dark one stays for pages drawn for dark (the JSON and text viewers, pages that ask for a dark scheme). A dark page while Windows is light no longer shows white text on white.
+- **Every import can be undone**, not only the latest: your last 10 imports are listed with their own Undo, which keeps anything you changed since. The "latest N of M" history count no longer counts entries that can never be imported.
+
 ## v2.35.2 (2026-10-02) — Sync plays fair with your other devices
 
 ### Fixes

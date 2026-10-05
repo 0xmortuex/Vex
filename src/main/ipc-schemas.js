@@ -12,6 +12,9 @@ const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
 define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
 define('extensions:install-catalog', [string(60)]);
+// A Chrome Web Store link or a 32-letter extension id; main finds the id in it
+// and refuses anything else (src/main/webstore.js).
+define('extensions:webstore-preview extensions:install-webstore', [string(2048)]);
 // The update cover (js/update-notifier.js): a version such as 2.35.0.
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);
@@ -202,6 +205,10 @@ define('recall:search', [string(512), optional(shape({
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384) })]);
 define('vault:delete', [shape({ host: string(253), username: string(4096) })]);
+// Import from another browser (main/browser-import.js): a browser and a profile
+// id from browser-import:sources, never a path; the CSV is chosen in main.
+define('browser-import:sources browser-import:passwords-csv', []);
+define('browser-import:read', [oneOf(['chrome', 'edge', 'brave', 'firefox']), string(400)]);
 define('totp:add', [value => string(16384)(value) || shape({ secret: string(16384), label: optional(string(4096)), issuer: optional(string(4096)) })(value)]);
 // remember: true / false, 'session' (this visit) or 'day'. It said boolean,
 // and "Allow this visit" sends 'session' — so that button was refused and the
@@ -216,6 +223,16 @@ define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // Guest compatibility bridges use sender-derived identity; legacy arguments are ignored.
 define('geolocation:get geolocation:check-permission compatibility:get privacy:config-sync', [optional(string())]);
+// Profiles (src/main/profiles.js, js/profiles-ui.js): ids are 'default' or
+// p-xxxxxxxx; the look is a name, a #rrggbb colour and a VexIcons name.
+const profileId = value => typeof value === 'string' && /^(?:default|p-[a-z0-9]{8})$/.test(value);
+const profileLook = value => object(value) && Object.keys(value).every(k => ['name', 'color', 'icon'].includes(k))
+  && optional(string(40))(value.name) && optional(v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v))(value.color)
+  && optional(v => typeof v === 'string' && /^[a-z][a-z0-9-]{0,23}$/.test(v))(value.icon);
+define('profiles:list', []);
+define('profiles:create', [profileLook]);
+define('profiles:update', [profileId, profileLook]);
+define('profiles:open profiles:delete profiles:shortcut', [profileId]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);

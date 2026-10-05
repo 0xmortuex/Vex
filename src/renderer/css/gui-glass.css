@@ -248,3 +248,6 @@ body[data-gui-style="glass"] .sidebar-icon.active {
 body[data-gui-style="glass"] :is(#vex-logo, #workspace-btn) {
   color: color-mix(in srgb, var(--vex-accent) 45%, #eef0ff) !important;
 }
+/* …and the button's fill is the glass, as for the tool buttons beside it:
+   Oxford's opaque pale accent tint left that light ink at 2.1:1. */
+body[data-gui-style="glass"] #workspace-btn { background: rgba(255, 255, 255, 0.10) !important; }

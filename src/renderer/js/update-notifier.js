@@ -8,7 +8,8 @@
 //                       again on the new version by itself (src/main/updates.js);
 //   Later               nothing is remembered: asked again at the next start;
 //   Skip this version   silent until a version newer than this one is out.
-// Settings › About › Check for Updates opens the same cover.
+// Settings › About › Check for Updates opens the same cover, and its "Check
+// for updates when Vex starts" switch turns the check at start off.
 // Only the main window shows it: a private window never checks.
 
 const UpdateNotifier = {
@@ -24,13 +25,21 @@ const UpdateNotifier = {
   CHANNEL_KEY: 'vex.updateChannel',
   STABLE_MS: 2 * 24 * 3600 * 1000,
 
+  // Settings › About › Check for updates when Vex starts. On unless turned
+  // off; off, nothing is asked of GitHub until Check for Updates is pressed.
+  ON_START_KEY: 'vex.updateCheckOnStart',
+
   init() {
     if (window.VexTabPolicy?.isPrivateWindow) return;
     window.vex.updates?.onProgress?.((p) => this._progress(p));
     window.vex.updates?.onInstallFailed?.((p) => this._fail((p && p.error) || 'Vex did not close to install the update.'));
+    if (!this.checksOnStart()) return;
     // A few seconds after launch, so the window and its tabs are up first.
     setTimeout(() => this.checkOnStartup(), 4000);
   },
+
+  checksOnStart() { return localStorage.getItem(this.ON_START_KEY) !== 'off'; },
+  setChecksOnStart(on) { localStorage.setItem(this.ON_START_KEY, on ? 'on' : 'off'); },
 
   snoozedUntil() { const n = Number(localStorage.getItem(this.SNOOZE_KEY)); return Number.isFinite(n) ? n : 0; },
   skippedVersion() { return localStorage.getItem(this.SKIP_KEY) || ''; },

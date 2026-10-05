@@ -19,7 +19,10 @@
 // assuming.
 //
 // Everything is injected so the module is testable without Electron.
-function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000 }) {
+// `profile` (src/main/profiles.js) is set for every profile but the default:
+// a toast's buttons start Vex through the vex:// protocol with no profile of
+// their own, so the URL carries it, and the launch picks that profile.
+function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000, profile = null }) {
   if (!Notification) throw new Error('createNotifier needs Electron\'s Notification class');
   const note = typeof log === 'function' ? log : () => {};
 
@@ -43,13 +46,14 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // signals) Vex with it, and main.js reads the action from argv. That works
   // even after the toast has sat in Action Center for an hour.
   const xmlEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const inProfile = profile && /^p-[a-z0-9]{8}$/.test(String(profile)) ? '?profile=' + profile : '';
   function toastXml({ title, body, tag, iconPath: img }) {
     const image = img ? `<image placement="appLogoOverride" src="${xmlEsc(img)}"/>` : '';
-    return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}">
+    return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}${inProfile}">
   <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
   <actions>
-    <action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}"/>
-    <action content="Open" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}"/>
+    <action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}${inProfile}"/>
+    <action content="Open" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}${inProfile}"/>
   </actions>
 </toast>`;
   }

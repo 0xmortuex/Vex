@@ -6,7 +6,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).
 // routing:forget/prune follow the main window's site rules, as routing:set does.
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart)/;
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:)/;
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -83,6 +83,9 @@ function installIpcPolicy(ipcMain, security) {
       if (channel === 'recall:search') return { total: 0, hits: [], terms: [], took: 0, private: true };
       if (channel === 'recall:stats') return { pages: 0, bytes: 0, oldest: 0, newest: 0, hosts: [], private: true };
       if (channel === 'gui-style:set') return true;
+      // What is typed in a private window is never sent anywhere for
+      // suggestions, from its address bar or its New Tab page.
+      if (channel === 'web-suggest') return [];
       if (PRIVATE_DISABLED.test(channel)) throw new Error('This operation is unavailable in a private window');
     }
     return callback(event, ...args);

@@ -7,8 +7,11 @@
 //
 //   vexConfirm('Delete it?')                          -> Promise<boolean>
 //   vexConfirm({ title, message, okLabel, cancelLabel, danger })
+//   vexConfirm({ ..., html, wide })  html: markup the CALLER has built and
+//                                     escaped (icons, lists); shown under message
 //   vexPrompt('New name', 'default value')            -> Promise<string|null>
 //   vexPrompt({ title, message, label, value, placeholder, okLabel })
+//   vexPrompt({ ..., multiline: true, wide: true })     -> a scrollable text box
 //   vexAlert('Done!') / vexAlert({ title, message })  -> Promise<void>
 //
 // Escape cancels, Enter confirms, Tab is trapped inside the dialog, and
@@ -35,13 +38,19 @@
       const id = 'vex-dialog-' + (++counter);
       const overlay = document.createElement('div');
       overlay.className = 'vex-dialog-overlay';
+      // A multi-line box (input.multiline) is for text the user reads and edits
+      // before it goes somewhere — a problem report. The wide dialog gives it room.
+      const multi = !!(opts.input && opts.input.multiline);
       overlay.innerHTML = `
-        <div class="vex-dialog" role="${opts.danger ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="${id}-title">
+        <div class="vex-dialog${opts.wide ? ' vex-dialog-wide' : ''}" role="${opts.danger ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="${id}-title"${opts.message || opts.html ? ` aria-describedby="${id}-msg"` : ''}>
           <div class="vex-dialog-title" id="${id}-title">${esc(opts.title || 'Vex')}</div>
-          ${opts.message ? `<div class="vex-dialog-msg">${esc(opts.message)}</div>` : ''}
+          ${opts.message ? `<div class="vex-dialog-msg" id="${id}-msg">${esc(opts.message)}</div>` : ''}
+          ${opts.html ? `<div class="vex-dialog-body"${opts.message ? '' : ` id="${id}-msg"`}>${opts.html}</div>` : ''}
           ${opts.input ? `
             ${opts.input.label ? `<label class="vex-dialog-label" for="${id}-input">${esc(opts.input.label)}</label>` : ''}
-            <input class="vex-dialog-input" id="${id}-input" type="text" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">` : ''}
+            ${multi
+              ? `<textarea class="vex-dialog-input vex-dialog-textarea" id="${id}-input" rows="14" spellcheck="false" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}"></textarea>`
+              : `<input class="vex-dialog-input" id="${id}-input" type="text" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">`}` : ''}
           <div class="vex-dialog-actions">
             ${opts.extra ? `<button class="vex-dialog-btn" data-extra style="margin-right:auto">${esc(opts.extra.label)}</button>` : ''}
             ${opts.cancelLabel === null ? '' : `<button class="vex-dialog-btn" data-cancel>${esc(opts.cancelLabel || t('cancel', 'Cancel'))}</button>`}
@@ -74,9 +83,10 @@
 
       overlay.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { e.preventDefault(); done(cancelResult()); return; }
-        if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); done(okResult()); return; }
+        // Enter in a multi-line box is a new line, not OK.
+        if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); done(okResult()); return; }
         if (e.key === 'Tab') {
-          const focusables = [...overlay.querySelectorAll('input, button')].filter(el => !el.disabled);
+          const focusables = [...overlay.querySelectorAll('input, textarea, button')].filter(el => !el.disabled);
           if (!focusables.length) return;
           const first = focusables[0];
           const last = focusables[focusables.length - 1];
@@ -89,7 +99,9 @@
         || (opts.danger && overlay.querySelector('[data-cancel]'))
         || overlay.querySelector('[data-ok]');
       initialFocus.focus();
-      if (input) input.select();
+      // A long text is read from the top, not selected for overwriting.
+      if (input && !multi) input.select();
+      else if (input) { input.setSelectionRange(0, 0); input.scrollTop = 0; }
     });
   }
 
@@ -110,7 +122,8 @@
       message: o.message,
       okLabel: o.okLabel,
       cancelLabel: o.cancelLabel,
-      input: { value: o.value, label: o.label, placeholder: o.placeholder },
+      input: { value: o.value, label: o.label, placeholder: o.placeholder, multiline: !!o.multiline },
+      wide: !!o.wide,
     });
   };
 })();

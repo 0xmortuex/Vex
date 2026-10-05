@@ -213,10 +213,22 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
   // popup asks its service worker, which heard [] and the popup drew nothing
   // (found 2026-09-29). A question that also filters (url, title, …) is left
   // to Electron.
+  //
+  // Opening the popup grants an extension with "activeTab" the tab under it,
+  // as clicking its button does in Chrome: main then also answers that tab's
+  // url, title and favIconUrl, which Electron's tabs.get leaves out for an
+  // extension with no "tabs" or host permission. Material Icons for GitHub
+  // read no address there and said "Not Supported" (found 2026-10-04).
   var WINDOW_ONLY = ['active', 'currentWindow', 'lastFocusedWindow', 'windowId', 'windowType'];
   if (typeof askPopupTab === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
     var query = c.tabs.query.bind(c.tabs);
     var get = c.tabs.get.bind(c.tabs);
+    var granted = function (tab, over) {
+      if (!tab || !over || over.tab !== tab.id) return tab;
+      var seen = {};
+      ['url', 'title', 'favIconUrl'].forEach(function (k) { if (typeof over[k] === 'string' && !tab[k]) seen[k] = over[k]; });
+      return Object.keys(seen).length ? Object.assign({}, tab, seen) : tab;
+    };
     c.tabs.query = function (q, cb) {
       var p = query(q || {}).then(function (tabs) {
         tabs = tabs || [];
@@ -225,10 +237,19 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
           if (!over) return tabs;
           var rest = tabs.filter(function (t) { return t.id !== over.popup && t.id !== over.tab; });
           if (over.tab == null) return rest;
-          return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, tab, { active: true })].concat(rest) : rest; });
+          return get(over.tab).then(function (tab) { return tab ? [Object.assign({}, granted(tab, over), { active: true })].concat(rest) : rest; });
         });
       });
       return answerWith(p, cb);
+    };
+    // A tab that is not there still fails in Electron's own words.
+    c.tabs.get = function (id, cb) {
+      var withGrant = function (tab) { return tab ? askPopupTab().then(function (over) { return granted(tab, over); }) : tab; };
+      if (typeof cb !== 'function') return Promise.resolve(get(id)).then(withGrant);
+      return get(id, function (tab) {
+        if (!tab) return cb(tab);
+        answerWith(Promise.resolve(withGrant(tab)), cb);
+      });
     };
   }
 

@@ -279,6 +279,11 @@ contextBridge.exposeInMainWorld('vex', {
   vaultHealth: () => ipcRenderer.invoke('vault:health'),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+  // Import from another browser (main/browser-import.js). The passwords CSV is
+  // chosen, read and saved in main; only hosts and usernames come back.
+  browserImportSources: () => ipcRenderer.invoke('browser-import:sources'),
+  browserImportRead: (browser, profileId) => ipcRenderer.invoke('browser-import:read', browser, profileId),
+  browserImportPasswordsCsv: () => ipcRenderer.invoke('browser-import:passwords-csv'),
   // TOTP authenticator (2FA). Secrets stay in the main process — the renderer
   // only ever gets metadata (totpList) and the finished 6-digit codes (totpCodes).
   totpList: () => ipcRenderer.invoke('totp:list'),
@@ -388,6 +393,15 @@ contextBridge.exposeInMainWorld('vex', {
     onProgress: (cb) => subscribe('updates:progress', cb),
     onInstallFailed: (cb) => subscribe('updates:install-failed', cb),
   },
+  // Profiles (js/profiles-ui.js, src/main/profiles.js): each one a separate Vex.
+  profiles: {
+    list: () => ipcRenderer.invoke('profiles:list'),
+    create: (look) => ipcRenderer.invoke('profiles:create', look),
+    update: (id, look) => ipcRenderer.invoke('profiles:update', id, look),
+    open: (id) => ipcRenderer.invoke('profiles:open', id),
+    remove: (id) => ipcRenderer.invoke('profiles:delete', id),
+    createShortcut: (id) => ipcRenderer.invoke('profiles:shortcut', id),
+  },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getReleaseNotes: (tag) => ipcRenderer.invoke('updates:notes', tag),
   getReleaseList: () => ipcRenderer.invoke('updates:list'),
@@ -472,6 +486,9 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
   extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
+  // A Chrome Web Store link or extension id: what it is and may do, then install it.
+  extensionsWebStorePreview: (input) => ipcRenderer.invoke('extensions:webstore-preview', input),
+  extensionsInstallWebStore: (input) => ipcRenderer.invoke('extensions:install-webstore', input),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),

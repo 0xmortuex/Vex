@@ -432,7 +432,9 @@ const syncHandler = {
         // ====== DROP — cross-device tab handoff ("Send to Phone/Desktop") ======
         // A small mailbox per account: POST adds {url,title} stamped with the
         // sending device; GET delivers (and consumes) every item that was NOT
-        // sent by the requesting device. Plain URLs/titles only — no page data.
+        // sent by the requesting device. Each item is encrypted on the sending
+        // device (a URL and title inside); the server keeps only that
+        // ciphertext, the sending device and the time it was sent.
         if (path === '/sync/drop' && request.method === 'POST') {
           const { encryptedBlob } = await boundedJson(request);
           if (typeof encryptedBlob !== 'string' || !encryptedBlob || encryptedBlob.length > 16384) {

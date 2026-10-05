@@ -9,6 +9,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 require('../../src/renderer/js/vex-utils.js'); // installs window.escapeHtml (loaded first in index.html)
 require('../../src/renderer/js/vex-icons.js'); // installs window.VexIcons (loaded first in index.html)
 require('../../src/renderer/js/geo-search.js');  // installs window.VexGeo — the weather step searches through it
+require('../../src/renderer/js/typed-address.js'); // installs window.VexTypedAddress — the privacy step names the engine
+globalThis.SponsorSkip = require('../../src/renderer/js/sponsor-skip.js').SponsorSkip; // a top-level const in the app
 const { Onboarding } = require('../../src/renderer/js/onboarding.js');
 
 beforeEach(() => {

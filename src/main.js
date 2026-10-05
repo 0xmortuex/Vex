@@ -36,6 +36,26 @@ app.commandLine.appendSwitch('enable-print-preview');
 // suspended until a same-page gesture, which a host-side slider doesn't provide).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
+// === Profiles (src/main/profiles.js) =========================================
+// Which profile this launch is: `--profile=<id>`, or the default (the userData
+// folder Vex always used). Points userData at it HERE, before anything below
+// reads userData (Memory Saver's flags, the single-instance lock, storage, the
+// crash log, sessions) — so every one of them is that profile's own.
+let _profile;
+try {
+  _profile = require('./main/profiles').selectProfile({ app, argv: process.argv, fs: require('fs') });
+} catch (err) {
+  console.error('[Profiles]', err.message);
+  // A reminder's wake-up for a profile deleted since quietly does nothing;
+  // anything else (a shortcut to a deleted profile, a damaged profile list)
+  // says what is wrong instead of opening some other profile.
+  if (!(err.code === 'VEX_PROFILE_MISSING' && process.argv.some(a => /^--reminder=|^vex:\/\//.test(a)))) {
+    dialog.showErrorBox('Vex could not open this profile', err.message);
+  }
+  process.exit(1);
+}
+console.log('[Profiles] this is profile', _profile.id, '-', _profile.dir);
+
 // Disable Chromium's third-party storage partitioning. Since Chrome ~115 this
 // is on by default and it BREAKS redirect-based federated sign-in: Firebase's
 // signInWithRedirect (used by ElevenLabs' "Sign in with Google", many others)
@@ -497,12 +517,29 @@ const gotTheLock = app.requestSingleInstanceLock();
 console.log('[Vex URL] gotLock:', gotTheLock);
 if (!gotTheLock) {
   console.log('[Vex URL] another instance already holds the lock — quitting (this argv should reach the primary via second-instance)');
-  app.quit();
+  // Out now, not app.quit(): quit let the rest of this file run, and its boot
+  // guard wrote "starting" over the running copy's state — two such launches
+  // (two links from another app, opening an open profile twice) and the next
+  // start came up in safe mode. The argv was already handed over: the lock
+  // call returns only once the running copy has it.
+  process.exit(0);
+} else if (process.argv.includes('--vex-close-for-update')) {
+  // Another profile installing an update asked this profile to close, but it
+  // had already closed by the time this launch ran: there is nothing to do.
+  console.log('[Profiles] asked to close for an update, and was not running');
+  process.exit(0);
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     console.log('[Vex URL] second-instance fired.');
     console.log('[Vex URL]   commandLine:', JSON.stringify(commandLine));
     console.log('[Vex URL]   workingDirectory:', workingDirectory);
+    // Another profile is installing an update (src/main/profiles.js): close the
+    // way the window's X does, which saves everything, and quit. This profile's
+    // own pending install, if any, is dropped — only one installer runs.
+    if (commandLine.includes('--vex-close-for-update')) {
+      _closeForOtherProfileUpdate();
+      return;
+    }
     // A Snooze / Open button on a reminder's toast arrives as vex://…
     if (commandLine.some(a => handleVexAction(a))) return;
     // "Start in safe mode" from the taskbar while Vex is already running:
@@ -535,6 +572,9 @@ if (!gotTheLock) {
       pendingOpenUrl = url;
     } else {
       console.log('[Vex URL]   no URL found in second-instance argv — nothing to forward');
+      // Starting a profile that is already open (its shortcut, the profile
+      // menu, the Start menu) brings its window forward.
+      focusMainWindow();
     }
   });
 }
@@ -828,10 +868,14 @@ app.whenReady().then(() => {
   // Right-click Vex on the taskbar › "Start in safe mode": the way in when an
   // extension or setting stops Vex starting. Packaged only: in development
   // the executable is bare Electron and the entry would not start Vex.
+  // Writing the jump list takes ~130 ms of the main thread, so it waits until
+  // the first window is on screen instead of holding up the start.
   if (process.platform === 'win32' && app.isPackaged) {
-    try {
-      app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
-    } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+    app.once('browser-window-created', (_ev, win) => win.once('show', () => setTimeout(() => {
+      try {
+        app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
+      } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+    }, 1000)));
   }
 });
 app.on('browser-window-created', (_e, win) => {
@@ -1013,6 +1057,8 @@ ipcMain.handle('app:diagnostics', () => {
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
     safeMode: _boot.safeMode, bootFails: _boot.fails, extensionTimes: _diag.extensionTimes,
     crashHistory: _crashLog.recent(),
+    // The Windows build, for a problem report (js/report-problem.js).
+    os: process.getSystemVersion(), arch: process.arch,
   };
 });
 
@@ -1472,7 +1518,10 @@ ipcMain.on('vex-lock:state', (e, locked) => {
     _hiddenByLock = [];
   }
 });
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+// Bookmarks and history from Chrome, Edge, Brave and Firefox on this PC, and
+// passwords from a CSV the person exported themselves (main/browser-import.js).
+require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing });
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -1999,9 +2048,14 @@ ipcMain.handle('links:check', async (_e, urls) => {
 
 // A read-only inbox over IMAP (src/main/mail.js). Accounts — addresses and
 // app passwords — live in one file encrypted by Windows.
+// imapflow and mailparser bring ~190 modules (pino, html-to-text, iconv-lite…)
+// that most launches never use, so they load on the first connection instead
+// of at every start.
+let _mailLibs = null;
+const _mailLib = () => _mailLibs || (_mailLibs = { ImapFlow: require('imapflow').ImapFlow, simpleParser: require('mailparser').simpleParser });
 const _mail = require('./main/mail').createMail({
-  ImapFlow: require('imapflow').ImapFlow,
-  simpleParser: require('mailparser').simpleParser,
+  ImapFlow: function ImapFlow(options) { return new (_mailLib().ImapFlow)(options); },
+  simpleParser: (...a) => _mailLib().simpleParser(...a),
   // secretStore is declared further down this file; reach it when used.
   secrets: { read: (...a) => secretStore.read(...a), write: (...a) => secretStore.write(...a) },
   file: path.join(userDataPath, 'mail-accounts.enc'),
@@ -2300,6 +2354,13 @@ function _readScopes() {
   catch (err) { console.error('[Extensions] scope file unreadable, using defaults:', err.message); return {}; }
 }
 
+// Which folders came from the Chrome Web Store (extensions.js readSources).
+// Unreadable, the extensions still list; only "Update from Web Store" is gone.
+function _readSources() {
+  try { return extHelpers.readSources(extensionsDir); }
+  catch (err) { console.error('[Extensions] sources file unreadable:', err.message); return {}; }
+}
+
 // The sessions one extension belongs in (src/main/extensions.js partitionsFor):
 // the default session and the browsing partitions always; an app panel's
 // partition only when the extension names that site, or its scope is
@@ -2354,11 +2415,31 @@ function _releaseSessionExtensions(ses) {
   _coveredSessions.delete(ses);
 }
 
+// chrome.storage.sync for an extension's content scripts (extensions.js,
+// withContentShim): the shim file is (re)written into the folder and listed
+// first in its content-script entries, before the extension loads anywhere;
+// Chromium reads the content scripts when it loads the extension. Every other
+// place that loads an extension loads a folder that came through here.
+let _contentShimText = null;
+function _prepareContentShim(extPath) {
+  const manifestPath = path.join(extPath, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8').replace(/^\uFEFF/, ''));
+  const plan = extHelpers.withContentShim(manifest);
+  if (!plan.uses) return;
+  if (_contentShimText === null) _contentShimText = extHelpers.contentShimSource(fs.readFileSync(path.join(__dirname, 'preload-extension-sw.js'), 'utf-8'));
+  const shimPath = path.join(extPath, extHelpers.CONTENT_SHIM_FILE);
+  if (!fs.existsSync(shimPath) || fs.readFileSync(shimPath, 'utf-8') !== _contentShimText) fs.writeFileSync(shimPath, _contentShimText);
+  if (plan.manifest) fs.writeFileSync(manifestPath, JSON.stringify(plan.manifest, null, 2));
+}
+
 async function _loadExtensionEverywhere(extPath, manifest) {
   // A lazy session only while it has pages (it was covered when the first one appeared).
   const sessions = _sessionsFor(extPath, manifest).filter(ses => !_isLazySession(ses) || _coveredSessions.has(ses));
   let loaded = null;
   const errors = [];
+  // Not given it, the extension still loads, as before; the reason is said.
+  try { _prepareContentShim(extPath); }
+  catch (err) { console.error(`[Extensions] ${path.basename(extPath)}: its content scripts get no chrome.storage.sync — ${err.message}`); }
   for (const ses of sessions) {
     try {
       ensureExtensionSwPreload(ses);
@@ -2439,8 +2520,12 @@ function _removeSupersededCopies(keepPath, name) {
 function _installedCopyOf(newFolder) {
   const manifest = JSON.parse(fs.readFileSync(path.join(newFolder, 'manifest.json'), 'utf-8'));
   const name = extHelpers.localize(manifest.name, extHelpers.readMessages(newFolder, manifest.default_locale));
+  return _installedCopyNamed(name, newFolder);
+}
+
+function _installedCopyNamed(name, exceptFolder) {
   if (!name) return null;
-  const copies = _extEntriesOnDisk().filter(e => e.manifest && path.resolve(e.path) !== path.resolve(newFolder)
+  const copies = _extEntriesOnDisk().filter(e => e.manifest && (!exceptFolder || path.resolve(e.path) !== path.resolve(exceptFolder))
     && extHelpers.localize(e.manifest.name, e.messages) === name);
   if (!copies.length) return null;
   let loaded = [];
@@ -2496,7 +2581,7 @@ async function _replaceInPlace(previous, staged) {
     fs.rmSync(backup, { recursive: true, force: true });
     _tidyReplaced(backupDir, previous.folder);
     _extLoadErrors.delete(previous.folder);
-    return { ok: true, id: null, name, version: manifest.version, disabled: true };
+    return { ok: true, id: null, name, version: manifest.version, disabled: true, folder: previous.folder };
   }
   if (_boot.safeMode) {
     // Safe mode loads no extensions: an update went live anyway, perhaps the
@@ -2504,7 +2589,7 @@ async function _replaceInPlace(previous, staged) {
     // place and it loads on a normal start.
     fs.rmSync(backup, { recursive: true, force: true });
     _tidyReplaced(backupDir, previous.folder);
-    return { ok: true, id: null, name, version: manifest.version, afterRestart: true };
+    return { ok: true, id: null, name, version: manifest.version, afterRestart: true, folder: previous.folder };
   }
   const { extension, errors } = await _loadExtensionEverywhere(previous.path);
   if (!extension) {
@@ -2518,7 +2603,7 @@ async function _replaceInPlace(previous, staged) {
   _tidyReplaced(backupDir, previous.folder);
   _extLoadErrors.delete(previous.folder);
   _removeSupersededCopies(previous.path, extension.name);
-  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version, folder: previous.folder };
 }
 
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
@@ -2536,7 +2621,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate) {
     // Placed but not loaded in safe mode, like an update (_replaceInPlace).
     const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8'));
     const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
-    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true };
+    return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true, folder: path.basename(destFolder) };
   }
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
@@ -2546,7 +2631,7 @@ async function _activateInstalledFolder(destFolder, copyToUpdate) {
   }
   _extLoadErrors.delete(path.basename(destFolder));
   _removeSupersededCopies(destFolder, extension.name);
-  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version };
+  return { ok: true, id: extension.id, name: extension.name, version: extension.manifest.version, folder: path.basename(destFolder) };
 }
 
 // Extensions must also reach partitions created AFTER startup — a container
@@ -2616,6 +2701,7 @@ ipcMain.handle('extensions:list', () => {
     console.error('[Extensions] could not read the loaded extensions:', err.message);
   }
   const scopes = _readScopes();
+  const sources = _readSources();
   return _extEntriesOnDisk().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
@@ -2642,6 +2728,8 @@ ipcMain.handle('extensions:list', () => {
         ? `chrome-extension://${live.id}/${String(pages.options).replace(/^\/+/, '')}`
         : null,
       iconPath: icon ? path.join(e.path, icon) : null,
+      // Installed from the Chrome Web Store: its id there, for "Update from Web Store".
+      webstore: (sources[e.folder] && sources[e.folder].webstore) || null,
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
@@ -2794,7 +2882,13 @@ async function _downloadBuffer(url) {
 // every EXT_PARTITIONS session. Mirrors extensions:install-zip but works from a
 // buffer (used by the Vencord auto-installer). forceSlug pins the folder name so
 // a re-install can find + replace the old copy.
-async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
+// opts.skipPrefixes: archive paths left out (a Web Store package's _metadata/,
+// which Chromium refuses in an unpacked extension: names starting "_" are
+// reserved). opts.manifestKey: written into manifest.json as "key", so
+// Chromium gives the extension its Web Store id rather than one made from the
+// folder's path.
+async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts = {}) {
+  const skipPrefixes = Array.isArray(opts.skipPrefixes) ? opts.skipPrefixes : [];
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
   if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
@@ -2813,7 +2907,18 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
   }
   if (!manifestEntry) return { ok: false, error: 'No manifest.json in archive' };
   const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
-  const slug = forceSlug || String(manifest.name || 'extension').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  let slug = forceSlug;
+  if (!slug) {
+    // The archive's own _locales name the folder, as in extensions:install-zip.
+    const localeEntry = manifest.default_locale ? entries.find(e => e.entryName === `${rootPath}_locales/${manifest.default_locale}/messages.json`) : null;
+    const messages = Object.create(null);
+    if (localeEntry) {
+      for (const [key, value] of Object.entries(JSON.parse(localeEntry.getData().toString('utf-8').replace(/^\uFEFF/, '')))) {
+        if (value && typeof value.message === 'string') messages[key] = value.message;
+      }
+    }
+    slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, messages));
+  }
   const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
   fs.mkdirSync(destFolder, { recursive: true });
   for (const entry of entries) {
@@ -2822,14 +2927,26 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate) {
     if (rootPath && !name.startsWith(rootPath)) continue;
     const rel = rootPath ? name.slice(rootPath.length) : name;
     if (!rel) continue;
+    if (skipPrefixes.some(p => rel.startsWith(p))) continue;
     let outPath;
     try { outPath = safeJoin(destFolder, rel); } catch { continue; }
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, entry.getData());
   }
-  if (!fs.existsSync(path.join(destFolder, 'manifest.json'))) {
+  const placedManifest = path.join(destFolder, 'manifest.json');
+  if (!fs.existsSync(placedManifest)) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
+  }
+  if (opts.manifestKey) {
+    try {
+      const placed = JSON.parse(fs.readFileSync(placedManifest, 'utf-8').replace(/^\uFEFF/, ''));
+      placed.key = opts.manifestKey;
+      fs.writeFileSync(placedManifest, JSON.stringify(placed, null, 2));
+    } catch (err) {
+      fs.rmSync(destFolder, { recursive: true, force: true });
+      return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
+    }
   }
   return await _activateInstalledFolder(destFolder, copyToUpdate);
 }
@@ -2856,6 +2973,65 @@ ipcMain.handle('extensions:install-catalog', async (_e, id) => {
     return done.ok ? { ...done, release: release.tag_name || '', file: asset.name } : done;
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Install from the Chrome Web Store (main/webstore.js). The package comes from
+// Google's own update server, as in Chrome, Brave and Vivaldi, and is used only
+// when its CRX3 signatures, the developer's and the Web Store's, check out.
+// Two steps, so the person sees what it may do before anything is written:
+// webstore-preview downloads, verifies and describes it; install-webstore
+// installs that same verified package (downloaded again after ten minutes).
+// Both take one string, an extension id or a store link, and main finds the
+// id in it itself. Refused in private windows by the IPC policy (extensions:).
+let _webStoreLazy = null;
+function _webStoreInstaller() {
+  if (!_webStoreLazy) {
+    _webStoreLazy = require('./main/webstore').createWebStoreInstaller({
+      fetch: boundedNetFetch, chromeVersion: process.versions.chrome,
+      AdmZip: require('adm-zip'), validateZip: require('./main/archive-security').validateZip,
+    });
+  }
+  return _webStoreLazy;
+}
+
+// The installed copy a Web Store install updates: the folder recorded for that
+// id, else one carrying the same key, else one of the same name.
+function _webStoreCopyOf(id, name, keyB64) {
+  const sources = _readSources();
+  const entries = _extEntriesOnDisk().filter(e => e.manifest);
+  return entries.find(e => sources[e.folder] && sources[e.folder].webstore === id)
+    || entries.find(e => keyB64 && e.manifest.key === keyB64)
+    || _installedCopyNamed(name);
+}
+
+ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
+  try {
+    const p = await _webStoreInstaller().preview(input);
+    const have = _webStoreCopyOf(p.id, p.name, null);
+    return { ok: true, ...p, installed: have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null, safeMode: !!_boot.safeMode };
+  } catch (err) {
+    return { ok: false, error: err.message, code: err.code || null };
+  }
+});
+
+ipcMain.handle('extensions:install-webstore', async (_e, input) => {
+  try {
+    const pkg = await _webStoreInstaller().take(input);
+    const keyB64 = pkg.publicKey.toString('base64');
+    const previous = _webStoreCopyOf(pkg.id, pkg.info.name, keyB64);
+    // The extension gets its Web Store id (its key in the manifest), except
+    // when it updates a copy installed without one: that copy's id comes from
+    // its folder, and changing it would empty its storage.
+    const manifestKey = previous && !previous.manifest.key ? null : keyB64;
+    const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
+    if (!done.ok) return done;
+    const sources = _readSources();
+    sources[done.folder] = { webstore: pkg.id };
+    extHelpers.writeSources(extensionsDir, sources);
+    return { ...done, webstore: pkg.id, updated: !!previous, previousVersion: previous ? (previous.manifest.version || '') : null };
+  } catch (err) {
+    return { ok: false, error: err.message, code: err.code || null };
   }
 });
 
@@ -2979,6 +3155,8 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
     _extLoadErrors.delete(folderName);
     const disabled = _readDisabledFolders();
     if (disabled.delete(folderName)) extHelpers.writeDisabled(extensionsDir, disabled);
+    const sources = _readSources();
+    if (sources[folderName]) { delete sources[folderName]; extHelpers.writeSources(extensionsDir, sources); }
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -3032,15 +3210,37 @@ ipcMain.handle('extensions:set-enabled', async (_e, folderName, enabled) => {
 // to its content the way Chrome does — a fixed window clips every popup that
 // isn't exactly the size we guessed.
 let _extPopupWindow = null;
-let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null }
+let _extPopupOver = null; // { extId, session, popup: webContents id, tab: webContents id | null, grant: origin | null }
 // Asked by the open popup's own extension (the stand-ins wrap chrome.tabs.query
 // in its pages and its service worker); any other extension gets nothing.
-function _popupTabFor(senderUrl, ses) {
+//
+// Clicking an extension's button in Chrome grants an extension that declares
+// "activeTab" that tab: its url, title and favicon become readable. Electron
+// knows no such grant and leaves them out of tabs.get for an extension with
+// neither "tabs" nor a host permission for the page, so Material Icons for
+// GitHub read no address, failed on new URL('') and said "Not Supported" on
+// GitHub (found 2026-10-04). The answer carries them, while the tab is still
+// on the site the popup was opened over (Chrome takes the grant back when the
+// tab leaves it).
+async function _popupTabFor(senderUrl, ses) {
   const over = _extPopupOver;
   if (!over || !_extPopupWindow || _extPopupWindow.isDestroyed()) return null;
   if (!String(senderUrl || '').startsWith(`chrome-extension://${over.extId}/`)) return null;
   if (ses !== over.session) return null;
-  return { popup: over.popup, tab: over.tab };
+  const answer = { popup: over.popup, tab: over.tab };
+  const page = over.grant && over.tab != null ? webContents.fromId(over.tab) : null;
+  if (!page || page.isDestroyed() || _originOf(page.getURL()) !== over.grant) return answer;
+  answer.url = page.getURL();
+  answer.title = page.getTitle();
+  const host = secureSessions.owner(page);
+  if (host && host.win && !host.win.isDestroyed()) {
+    const icon = await host.win.webContents.executeJavaScript(`(() => { const t = TabManager.tabsByPageId(${JSON.stringify([over.tab])}).tabs[0]; return t && typeof t.favicon === 'string' ? t.favicon : null; })()`);
+    if (icon) answer.favIconUrl = icon;
+  }
+  return answer;
+}
+function _originOf(url) {
+  try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u.origin : null; } catch { return null; }
 }
 ipcMain.handle('extensions:popup-tab', (event) => _popupTabFor(event.senderFrame?.url, event.sender.session));
 
@@ -3275,7 +3475,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     // focus: Dark Reader's popup said "This page is protected by browser"
     // about itself (2026-09-28). Remember the tab it was opened over.
     const under = tabUnder && tabUnder.session === ses ? tabUnder.id : null;
-    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under };
+    const activeTab = Array.isArray(entry.manifest.permissions) && entry.manifest.permissions.includes('activeTab');
+    _extPopupOver = { extId: live.id, session: ses, popup: win.webContents.id, tab: under, grant: activeTab && under != null ? _originOf(tabUnder.getURL()) : null };
     win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
     win.on('closed', () => { if (_extPopupWindow === win) { _extPopupWindow = null; _extPopupOver = null; } });
     // A link in the popup (target=_blank, window.open) closed the popup and
@@ -5087,46 +5288,53 @@ ipcMain.handle('get-start-page-url', () => {
   return pathToFileURL(filePath).toString();
 });
 
-// === Google Suggest proxy (web search predictions) ===
-// Fetched in the MAIN process because Google Suggest returns NO CORS header,
-// so a webSecurity:true renderer/webview fetch is blocked. Both the address
-// bar (window.vex.webSuggest) and the start-page guest (__vexSuggestBridge.
-// suggest) funnel here. Fail-silent: any error/offline → [] (never throws).
+// === Search suggestions (web search predictions) ===
+// Fetched in the MAIN process because the engines' suggestion addresses send
+// NO CORS header, so a webSecurity:true renderer/webview fetch is blocked. Both
+// the address bar (window.vex.webSuggest) and the start-page guest
+// (__vexSuggestBridge.suggest) funnel here. Fail-silent: any error/offline → []
+// (never throws).
 //
-// _parseGoogleSuggest is a byte-identical inline copy of parseGoogleSuggest in
-// src/renderer/js/smart-searchbar.js — the two MUST stay in sync. The canonical
-// copy (pinned by unit tests) lives in smart-searchbar.js.
-function _parseGoogleSuggest(raw) {
-  try {
-    const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && Array.isArray(arr[1])) {
-      return arr[1].filter(s => typeof s === 'string');
-    }
-  } catch {}
-  return [];
+// What you type went to Google whatever engine you had chosen, also from a
+// private window. Now this decides, from the main window's own settings (the
+// renderer and the New Tab page cannot pick another address): suggestions
+// come only from the chosen engine (js/typed-address.js), not at all when
+// Settings › General › Search suggestions is off, and never from a private
+// window (src/main/ipc-policy.js answers those before this runs), a Tor tab
+// or a burner tab.
+const _typedAddress = require('./renderer/js/typed-address');
+function _suggestAllowedFrom(sender) {
+  if (!sender || sender.isDestroyed()) return false;
+  if (sender.getType() !== 'webview') return true;          // the address bar
+  // A burner's session is kept in memory only; Tor as for geolocation.
+  return sender.session.isPersistent() && !_locationRefused(sender);
 }
 // LRU + TTL cache so repeat/backspaced queries return instantly without a
 // network hit (the renderer caches too; this also helps the start-page bridge).
-const _suggestCache = new Map(); // q -> { list, ts }
+const _suggestCache = new Map(); // engine \n q -> { list, ts }
 const SUGGEST_TTL = 10 * 60 * 1000;
 const SUGGEST_MAX = 600;
-ipcMain.handle('web-suggest', async (_event, query) => {
-  const q = (query == null ? '' : String(query)).trim();
-  if (!q) return [];
+ipcMain.handle('web-suggest', async (event, query) => {
+  const text = (query == null ? '' : String(query)).trim();
+  if (!text || !_suggestAllowedFrom(event.sender)) return [];
+  if (!_typedAddress.suggestionsOn(_readPersistString(_typedAddress.SUGGEST_KEY, 'on'))) return [];
+  const engine = _typedAddress.engineOf(_readPersistString('vex.searchEngine', 'google'));
+  const url = _typedAddress.suggestUrl(text, engine);
+  if (!url) return [];
+  const q = engine + '\n' + text;
   const hit = _suggestCache.get(q);
   if (hit && (Date.now() - hit.ts) < SUGGEST_TTL) {
     _suggestCache.delete(q); _suggestCache.set(q, hit); // LRU bump
     return hit.list;
   }
   try {
-    const url = 'https://suggestqueries.google.com/complete/search?client=firefox&q=' + encodeURIComponent(q);
     // Bound the wait so a slow/hung request can't stall the dropdown.
     const ctrl = new AbortController();
     const to = setTimeout(() => { try { ctrl.abort(); } catch {} }, 2500);
     let list = [];
     try {
       const r = await boundedNetFetch(url, { signal: ctrl.signal });
-      if (r.ok) list = _parseGoogleSuggest(await r.text());
+      if (r.ok) list = _typedAddress.parseSuggestions(await r.text());
     } finally { clearTimeout(to); }
     _suggestCache.set(q, { list, ts: Date.now() });
     if (_suggestCache.size > SUGGEST_MAX) _suggestCache.delete(_suggestCache.keys().next().value);
@@ -6101,7 +6309,10 @@ ipcMain.handle('updates:install', async (event, version) => {
   // If saving fails the window stays open and says so, and nothing installs.
   const win = mainWindow;
   _pendingInstall = plan;
-  const quit = () => app.quit();
+  // The installer replaces Vex.exe under every profile, so the other profiles
+  // that are open close too — saved, the way their X does — once this one has
+  // closed; the default profile reopens them after the update.
+  const quit = () => { _closeOtherProfilesForUpdate(); app.quit(); };
   win.once('closed', quit);
   setTimeout(() => {
     if (win.isDestroyed()) return;
@@ -6134,6 +6345,134 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   try { return { ok: true, text: _updateBackups.read(name) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+
+// === Profiles: the switcher (js/profiles-ui.js) and running side by side ====
+// _profile was chosen at the top of this file (src/main/profiles.js). Each
+// profile is its own Vex process; opening one starts Vex with --profile=<id>,
+// and if that profile is already open the single-instance lock hands the
+// launch to it, which brings its window forward (second-instance above).
+const _profiles = require('./main/profiles');
+function _launchProfile(id, extra = []) {
+  const args = _profiles.launchArgs({ id, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv, extra });
+  const child = require('child_process').spawn(process.execPath, args, { detached: true, stdio: 'ignore' });
+  child.on('error', err => console.error('[Profiles] could not start profile', id + ':', err.message));
+  child.unref();
+  console.log('[Profiles] started profile', id, extra.join(' '));
+}
+function _closeOtherProfilesForUpdate() {
+  try {
+    const open = _profile.store.list().filter(p => p.id !== _profile.id && _profile.store.isRunning(p.id)).map(p => p.id);
+    for (const id of open) _launchProfile(id, ['--vex-close-for-update']);
+    // The installer starts the default profile again; it reopens the rest.
+    const reopen = [...open, _profile.id].filter(id => id !== _profiles.DEFAULT_ID);
+    if (reopen.length) _profile.store.noteReopen(reopen, app.getVersion());
+    console.log('[Profiles] closing for the update:', open.join(', ') || 'no other profile open', '| reopen after:', reopen.join(', ') || 'none');
+  } catch (err) { console.error('[Profiles] could not close the other profiles for the update:', err.message); }
+}
+function _closeForOtherProfileUpdate() {
+  console.log('[Profiles] another profile is installing an update — closing');
+  _pendingInstall = null;
+  if (!mainWindow || mainWindow.isDestroyed()) { app.quit(); return; }
+  const win = mainWindow;
+  win.once('closed', () => app.quit());
+  win.close();
+}
+function _profilesFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window manages profiles');
+}
+function _profileDetails(entry) {
+  return _profiles.appDetails({ id: entry.id, name: entry.name, execPath: process.execPath, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv });
+}
+// Each extra profile's windows group on their own on the taskbar, and a
+// pinned one starts that profile. The process keeps Vex's own id, which is
+// what Windows toasts are shown under.
+function _applyProfileDetails(win) {
+  if (process.platform !== 'win32' || _profile.id === _profiles.DEFAULT_ID || !win || win.isDestroyed()) return;
+  try { win.setAppDetails(_profileDetails(_profile.store.get(_profile.id))); }
+  catch (err) { console.error('[Profiles] could not set the taskbar identity:', err.message); }
+}
+app.on('browser-window-created', (_e, win) => _applyProfileDetails(win));
+// The default profile, started again by an update's installer, reopens the
+// profiles that update closed (_closeOtherProfilesForUpdate).
+if (_profile.id === _profiles.DEFAULT_ID) {
+  app.whenReady().then(() => {
+    let ids = [];
+    try { ids = _profile.store.takeReopen(); }
+    catch (err) { console.error('[Profiles] could not read which profiles to reopen:', err.message); }
+    for (const id of ids) _launchProfile(id);
+  });
+}
+function _profileView() {
+  const list = _profile.store.list();
+  return {
+    current: _profile.id,
+    profiles: list.map(p => ({
+      id: p.id, name: p.name, color: p.color, icon: p.icon, created: p.created, isDefault: p.isDefault,
+      current: p.id === _profile.id,
+      running: p.id === _profile.id || _profile.store.isRunning(p.id),
+    })),
+  };
+}
+ipcMain.handle('profiles:list', (event) => { _profilesFromMainWindow(event); return _profileView(); });
+ipcMain.handle('profiles:create', (event, look) => {
+  _profilesFromMainWindow(event);
+  const entry = _profile.store.create(look);
+  console.log('[Profiles] created', entry.id, entry.dir);
+  return _profileView();
+});
+ipcMain.handle('profiles:update', (event, id, patch) => {
+  _profilesFromMainWindow(event);
+  _profile.store.update(id, patch);
+  if (id === _profile.id) for (const w of BrowserWindow.getAllWindows()) _applyProfileDetails(w);
+  return _profileView();
+});
+ipcMain.handle('profiles:open', (event, id) => {
+  _profilesFromMainWindow(event);
+  _profile.store.get(id);
+  if (id === _profile.id) { focusMainWindow(); return { ok: true, focused: true }; }
+  _launchProfile(id);
+  return { ok: true };
+});
+// The desktop shortcuts a profile's "Create desktop shortcut" made: found by
+// the --profile argument they start, whatever the profile is called now.
+function _profileShortcutsOnDesktop(id) {
+  const desktop = app.getPath('desktop');
+  let names;
+  try { names = fs.readdirSync(desktop).filter(n => /^Vex \(.*\)\.lnk$/i.test(n)); }
+  catch (err) { console.error('[Profiles] could not read the desktop folder:', err.message); return []; }
+  return names.map(n => path.join(desktop, n)).filter(file => {
+    try { return String(shell.readShortcutLink(file).args || '').split(/\s+/).includes('--profile=' + id); }
+    catch { return false; }
+  });
+}
+ipcMain.handle('profiles:shortcut', (event, id) => {
+  _profilesFromMainWindow(event);
+  const entry = _profile.store.get(id);
+  const spec = _profiles.shortcutSpec({ id, name: entry.name, execPath: process.execPath, packaged: app.isPackaged, appPath: app.getAppPath(), argv: process.argv, desktopDir: app.getPath('desktop') });
+  if (!shell.writeShortcutLink(spec.file, 'create', spec.options)) throw new Error('Windows did not create the shortcut ' + spec.file);
+  console.log('[Profiles] desktop shortcut written:', spec.file);
+  return { ok: true, file: spec.file };
+});
+ipcMain.handle('profiles:delete', async (event, id) => {
+  _profilesFromMainWindow(event);
+  const shortcuts = _profileShortcutsOnDesktop(id);
+  _profile.store.remove(id, { currentId: _profile.id });
+  console.log('[Profiles] deleted', id);
+  for (const file of shortcuts) {
+    try { fs.rmSync(file, { force: true }); console.log('[Profiles] removed its desktop shortcut', file); }
+    catch (err) { console.error('[Profiles] could not remove the desktop shortcut', file + ':', err.message); }
+  }
+  // Its reminders' wake-ups would start Vex for a profile that is gone.
+  const scheduler = require('./main/os-schedule').createOsScheduler({
+    platform: process.env.VEX_NO_OS_SCHEDULE === '1' ? 'none' : process.platform,
+    execFile: require('child_process').execFile, log: (m) => console.log(m),
+  });
+  let tasks;
+  try { tasks = await scheduler.unregisterScope(id); }
+  catch (err) { console.error('[Profiles] could not remove the deleted profile\'s reminder tasks:', err.message); tasks = 'failed: ' + err.message; }
+  return { ..._profileView(), removedShortcuts: shortcuts.length, tasks };
+});
+
 ipcMain.handle('get-app-version', () => app.getVersion());
 // Open an http(s) URL in the system's default browser (used by the "What's New"
 // modal so GitHub renders properly instead of in an in-app window).
@@ -6320,7 +6659,9 @@ function focusMainWindow() {
 //   vex://snooze/<id>   push the reminder back nine minutes
 //   vex://open/<id>     open it in the interface
 function handleVexAction(arg) {
-  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?$/.exec(String(arg || ''));
+  // `?profile=<id>`: the profile the toast came from (main/notify.js), already
+  // used to pick this profile at launch.
+  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?(?:\?profile=[a-z0-9-]{1,40})?$/.exec(String(arg || ''));
   if (!m) return false;
   const [, action, id] = m;
   focusMainWindow();
@@ -6348,6 +6689,8 @@ const notifier = require('./main/notify').createNotifier({
       try { mainWindow.webContents.send('reminders:clicked', { id: tag }); } catch {}
     }
   },
+  // A toast's buttons reopen this profile, not the default one.
+  profile: _profile.id === 'default' ? null : _profile.id,
   log: (m) => console.log(m),
 });
 // Windows heads a toast with the Start Menu shortcut that targets the process.
@@ -6378,7 +6721,9 @@ function startReminders() {
     packaged: app.isPackaged,
     // A Vex running on a non-default profile must be woken into the same one;
     // the reminder is in that profile's store and nowhere else.
-    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)),
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
+    // Each Vex profile's tasks are named apart (main/os-schedule.js).
+    scope: _profile.id === 'default' ? undefined : _profile.id,
     log: (m) => console.log(m),
   });
   reminders = require('./main/reminders').createReminders({

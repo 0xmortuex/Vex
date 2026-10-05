@@ -5,14 +5,17 @@
 // subscribe". When a YouTube video opens, Vex asks for that video's segments
 // and the page jumps over one when playback reaches it, saying so for a
 // moment in the corner. Only the video's id is sent — the same thing the
-// SponsorBlock extension sends. Settings › Privacy turns it off.
+// SponsorBlock extension sends — but it is sent for every video you open, so
+// it is off until you turn it on (setup's Privacy choices, or Settings ›
+// Privacy & Security). A profile from before it was off by default had
+// 'on' written for it, so it kept working there (Onboarding.migratePrivacyDefaults).
 const SponsorSkip = {
   KEY: 'vex.sponsorSkip',
   API: 'https://sponsor.ajay.app/api/skipSegments',
   CATEGORIES: ['sponsor', 'selfpromo', 'interaction'],
   _cache: new Map(),
 
-  enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
+  enabled() { return localStorage.getItem(this.KEY) === 'on'; },
   setEnabled(on) { localStorage.setItem(this.KEY, on ? 'on' : 'off'); },
 
   // → [[start, end], ...] in seconds; [] when the video has none.

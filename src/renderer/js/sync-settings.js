@@ -83,7 +83,7 @@ const SyncSettings = (() => {
               <li>Tabs, sessions, and workspaces</li>
               <li>Shortcuts and tools</li>
               <li>Notes and scheduled tasks</li>
-              <li>History summaries and settings</li>
+              <li>History and settings</li>
               <li>Theme and preferences</li>
             </ul>
             <strong>What stays local:</strong>
@@ -95,7 +95,7 @@ const SyncSettings = (() => {
           </div>
 
           <div class="sync-security-note">
-            ${VexIcons.svg('lock', { size: 13 })} All data is encrypted on your device before upload. We never see your content.
+            ${VexIcons.svg('lock', { size: 13 })} Your data is encrypted with your recovery code before it leaves this device. The server sees only your email address (when you sign in), your device names, and when they synced — never what you sync.
           </div>
         </div>
       </div>

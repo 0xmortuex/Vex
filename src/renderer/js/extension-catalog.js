@@ -3,18 +3,21 @@
 //
 // Vex runs on Electron, whose extension support is partial: there is no
 // request blocking (neither declarativeNetRequest nor a blocking webRequest),
-// no context menus, no keyboard commands, no badges, no chrome.storage.sync
-// and no chrome.tabs.create, and extensions never load in Private or Tor tabs
-// (Electron refuses temporary sessions). Every entry here was chosen against
-// that list: `works` describes what actually happens, not what the extension
-// claims. See src/main/extensions.js for the installer.
+// no context menus, no keyboard commands and no badges, and extensions never
+// load in Private or Tor tabs (Electron refuses temporary sessions).
+// chrome.storage.sync, tabs.create/remove and chrome.permissions work through
+// Vex's stand-ins (src/preload-webview.js, src/preload-extension-sw.js). Every
+// entry here was chosen against that list: `works` describes what actually
+// happens, not what the extension claims. See src/main/extensions.js for the
+// installer.
 //
-// `source` points at the publisher's own release page. Vex does not download
-// from the Chrome Web Store: its packages are not offered for direct download
-// and scraping them would be neither reliable nor permitted. Installing is
-// therefore: open the source, download the .zip/.crx, then Settings →
-// Extensions → Install. `limited` is true when Electron can only partly run
-// it, so the manager can mark that line without parsing the prose.
+// `source` points at the publisher's own release page; Install fetches that
+// release (src/main/extension-sources.js). Any other extension can be
+// installed from the Chrome Web Store: Vex downloads its package from Google's
+// own update server, as Chrome, Brave and Vivaldi do, and installs it only when
+// its CRX3 signatures check out (src/main/webstore.js, js/web-store.js).
+// `limited` is true when Electron can only partly run it, so the manager can
+// mark that line without parsing the prose.
 const VexExtensionCatalog = {
   ENTRIES: [
     {
@@ -119,8 +122,10 @@ const VexExtensionCatalog = {
     'Right-click menu items (contextMenus)',
     'Keyboard shortcuts (commands)',
     'Toolbar badge text',
-    'Settings sync between machines (storage.sync)',
-    'Opening tabs from an extension (tabs.create)',
+    'Syncing settings between machines (storage.sync works, but stays on this machine)',
+    'Reading or changing cookies (cookies)',
+    'Navigation events (webNavigation)',
+    'User scripts (userScripts) and side panels (sidePanel)',
     'Any extension in Private, Off-the-Record or Tor tabs',
   ],
 

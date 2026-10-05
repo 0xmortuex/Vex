@@ -221,8 +221,7 @@ const VexClock = {
       }).catch(() => {});
     }
     this._restoreTimers();
-    this._pill();
-    setInterval(() => this._tickTimers(), 500);
+    this._pill();   // also starts the ticker when a restored timer is running
     return true;
   },
 
@@ -356,7 +355,17 @@ const VexClock = {
     if (this._sw.running) { const d = document.getElementById('clock-sw-display'); if (d) d.textContent = this.fmtStopwatch(this.swElapsed()); }
   },
 
+  // The half-second tick runs only while a timer does. With none there is
+  // nothing to count down or ring, and it used to fire all day regardless.
+  // Every change to the list ends in _pill(), so this is kept in step there.
+  _ticker: null,
+  _syncTicker() {
+    if (this._timers.length && !this._ticker) this._ticker = setInterval(() => this._tickTimers(), 500);
+    else if (!this._timers.length && this._ticker) { clearInterval(this._ticker); this._ticker = null; }
+  },
+
   _pill() {
+    this._syncTicker();
     const pill = document.getElementById('timer-pill');
     if (!pill) return;
     const next = this._timers.slice().sort((a, c) => a.endAt - c.endAt)[0];

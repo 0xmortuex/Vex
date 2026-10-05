@@ -212,6 +212,9 @@ body[data-gui-family="browser"] #gui-shortcuts-bar .gsc {
 }
 body[data-gui-family="browser"] #gui-shortcuts-bar .gsc:hover { background: var(--b-btn-hover); }
 body[data-gui-family="browser"] #gui-shortcuts-bar .gsc .ic { width: 16px; height: 16px; border-radius: 3px; }
+/* "Add shortcut" is a control like its neighbours, not a hint: Glass dims it
+   to 85%, which on a dark theme left its label under 4.5:1. */
+body[data-gui-family="browser"] #gui-shortcuts-bar .gsc-add { opacity: 1; }
 
 /* Page area: edge to edge under the toolbar, no rounded card */
 body[data-gui-family="browser"] #content-area { border-radius: 0; margin: 0; border: none; box-shadow: none; background: var(--b-page); }
@@ -535,6 +538,16 @@ body[data-gui-style="glossy"] #window-controls .win-btn:hover { background: var(
 body[data-gui-style="glossy"] #window-controls .win-btn-close { width: 46px; border-bottom-right-radius: 5px; background: var(--b-gloss), var(--b-close-bg); }
 body[data-gui-style="glossy"] #window-controls .win-btn-close:hover { background: var(--b-gloss), var(--b-close-hover); }
 body[data-gui-style="glossy"] #window-controls .win-btn svg { filter: drop-shadow(0 0 1px rgba(0,0,0,0.9)) drop-shadow(0 0 1px rgba(0,0,0,0.6)); }
+/* What each glossy surface really paints behind its text, for the contrast
+   check (scripts/check-ui.js reads --b-frame-solid on the nearest gradient):
+   inherited, the toolbar, the shortcuts row, the selected tab and the caption
+   buttons were all judged against the title band. Each is its own colour with
+   the white gloss it carries at mid-height. */
+body[data-gui-style="glossy"] #top-bar { --b-frame-solid: color-mix(in srgb, var(--b-toolbar) 88%, #ffffff); }
+body[data-gui-style="glossy"] #gui-shortcuts-bar { --b-frame-solid: color-mix(in srgb, var(--b-toolbar) 82%, #ffffff); }
+body[data-gui-style="glossy"] .top-tab.active { --b-frame-solid: color-mix(in srgb, var(--b-tab-active) 88%, #ffffff); }
+body[data-gui-style="glossy"] #window-controls .win-btn { --b-frame-solid: var(--b-caption-bg); }
+body[data-gui-style="glossy"] #window-controls .win-btn-close { --b-frame-solid: var(--b-close-bg); }
 body[data-gui-style="glossy"] .tab-context-item:hover {
   background: var(--b-gloss), color-mix(in srgb, var(--b-accent) 16%, var(--b-menu));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b-accent) 45%, transparent);
@@ -572,6 +585,10 @@ body[data-gui-style="neobrutal"] .top-tabs-list { align-self: stretch; padding: 
 body[data-gui-style="neobrutal"] .top-tab { border-bottom: var(--b-nb-w) solid var(--b-tab-border); transition: transform 0.12s ease-out, box-shadow 0.12s ease-out; }
 body[data-gui-style="neobrutal"] .top-tab.active { color: var(--b-nb-on-accent); border-bottom-color: var(--b-tab-active-border); }
 body[data-gui-style="neobrutal"] .top-tab.active .tab-close { color: var(--b-nb-on-accent); }
+/* The title and the sleeping moon too: tabs.css colours every .tab-title with
+   --text, which put the look's purple text (4:1) and a theme's text colour (as
+   low as 1.4:1) on the accent slab. */
+body[data-gui-style="neobrutal"] .top-tab.active :is(.tab-title, .sleep-indicator) { color: var(--b-nb-on-accent); }
 body[data-gui-style="neobrutal"] .top-tab:hover:not(.active) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--b-nb-ink); }
 body[data-gui-style="neobrutal"] .top-tab:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--b-nb-ink); }
 body[data-gui-style="neobrutal"] .top-tab.in-group::before { top: 3px; height: 4px; border-radius: 0; }
@@ -594,7 +611,7 @@ body[data-gui-style="neobrutal"] .tab-context-menu {
   border: var(--b-nb-w) solid var(--b-nb-ink); border-radius: 5px; box-shadow: 6px 6px 0 var(--b-nb-ink); animation: none;
 }
 body[data-gui-style="neobrutal"] .tab-context-item { font-weight: 700; }
-body[data-gui-style="neobrutal"] .tab-context-item:hover { background: var(--b-accent); color: var(--b-nb-on-accent); }
+body[data-gui-style="neobrutal"] .tab-context-item:hover { background: var(--b-nb-fill, var(--b-accent)); color: var(--b-nb-on-accent); }
 
 /* Terminal — a TUI, after system24: monospace everywhere, one dark
    background, every region a square box drawn with a 2px line and a small
@@ -666,7 +683,7 @@ body[data-gui-style="terminal"] #gui-shortcuts-bar { margin: 0 6px; border-botto
 body[data-gui-style="terminal"] #gui-shortcuts-bar .gsc .ic { border-radius: 0; }
 body[data-gui-style="terminal"] #main-layout { box-sizing: border-box; padding: 4px 6px 6px; gap: 6px; }
 body[data-gui-style="terminal"] #content-area { border: var(--b-t-line) solid var(--b-toolbar-border); }
-body[data-gui-style="terminal"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover { color: var(--b-accent); }
+body[data-gui-style="terminal"] :is(.nav-btn, #top-bar-right > button, #btn-look-sidebar):hover { color: var(--vex-accent-fg, var(--b-accent)); }
 body[data-gui-style="terminal"] .tab-context-menu { border: var(--b-t-line) solid var(--b-toolbar-border); box-shadow: none; animation: none; }
 body[data-gui-style="terminal"] .tab-context-item:hover { background: var(--b-btn-hover); color: var(--b-accent); }
 
@@ -686,6 +703,17 @@ html[data-theme="oxford"] body[data-gui-family="browser"]:not([data-gui-colors="
   --group-pill-fg: color-mix(in srgb, var(--group-color, #6366f1) 40%, var(--b-text));
   --group-pill-strip: color-mix(in srgb, var(--group-color, #6366f1) 60%, var(--b-toolbar));
 }
+
+/* The accent as a FOREGROUND: a glyph drawn in it on the chrome (the chosen
+   sidebar button, the sidebar toggle while its sidebar is open). A theme's
+   accent is made as a fill; drawn as a line on a dark toolbar a deep one
+   measured 2.1:1 (Wine) to 2.9:1 (Code Dark, AMOLED) - found 2026-10-03 in 12
+   themes. A third of the way toward the theme's text colour it keeps its hue
+   and moves away from whatever surface that text was made to read on, dark or
+   light. Fills (buttons, the selected tab, rings) keep the accent itself. A
+   look in its own colours draws its own accent, made for its own toolbar. */
+body { --vex-accent-fg: color-mix(in oklab, var(--vex-accent) 65%, var(--vex-text-primary)); }
+body[data-gui-family="browser"]:not([data-gui-colors="theme"]) { --vex-accent-fg: var(--b-accent); }
 
 body[data-gui-family="browser"][data-gui-colors="theme"] {
   --b-frame: var(--vex-bg-deep, var(--vex-bg-base)); --b-frame-solid: var(--vex-bg-deep, var(--vex-bg-base));
@@ -712,12 +740,13 @@ body[data-gui-style="safari"][data-gui-colors="theme"] {
   --b-accent-ring: color-mix(in srgb, var(--vex-accent) 35%, transparent);
 }
 /* XP: the title band is the theme accent with its lightness capped (oklch
-   L <= 0.55) so white still reads on it - a dark accent stays exactly itself, a
+   L <= 0.52) so white still reads on it - a dark accent stays exactly itself, a
    bright one is darkened but keeps its full colour, the way Luna was vivid; tabs and fields take the theme's surfaces with its
    strong border; the caption buttons are accent gradients. Close stays red -
    it means close in every theme. */
 body[data-gui-style="xp"][data-gui-colors="theme"] {
-  --b-xp-band: oklch(from var(--vex-accent) min(l, 0.55) c h);
+  /* 0.52, not 0.55: Matrix's green at 0.55 left white at 4.3:1. */
+  --b-xp-band: oklch(from var(--vex-accent) min(l, 0.52) c h);
   --b-frame: linear-gradient(var(--b-xp-band) 0%, color-mix(in srgb, var(--b-xp-band) 75%, #ffffff) 6%,
     color-mix(in srgb, var(--b-xp-band) 92%, #ffffff) 14%, var(--b-xp-band) 90%,
     color-mix(in srgb, var(--b-xp-band) 70%, #000000) 100%);
@@ -779,15 +808,65 @@ body[data-gui-style="glossy"][data-gui-colors="theme"] {
   --b-btn-hover: color-mix(in srgb, var(--vex-accent) 24%, var(--vex-bg-elevated));
   --b-btn-hover-border: color-mix(in srgb, var(--vex-accent) 60%, transparent);
   --b-url-border: var(--vex-border-strong);
-  --b-caption-bg: color-mix(in srgb, var(--vex-bg-elevated) 25%, transparent);
-  --b-caption-hover: var(--vex-accent); --b-caption-border: var(--vex-border-strong); --b-caption-fg: #ffffff;
+  /* The caption glass is the accent, capped dark as XP's band is, so its white
+     glyphs read: a smoky see-through glass put them on Oxford's grey band at
+     2.8:1. */
+  --b-caption-bg: oklch(from var(--vex-accent) min(l, 0.5) c h);
+  --b-caption-hover: oklch(from var(--vex-accent) min(l, 0.58) c h); --b-caption-border: var(--vex-border-strong); --b-caption-fg: #ffffff;
+}
+/* The band follows the theme's lightness, so the theme's text reads on it and
+   on the see-through tabs over it. On a dark theme it is dark (a mid-tone band
+   left Solarized's tab titles at 3:1, Sakura's at 4.4:1). Making it dark on
+   EVERY theme but Oxford put the light themes' dark text on a dark band -
+   Firefox Light 1.7:1, Android Beige 1.1:1 (found 2026-10-03). So the theme's
+   text colour decides: light text (oklch L over 0.5) gets a band at L 0.36,
+   dark text one at L 0.75. The band keeps the hue and colourfulness of the
+   accent mixed into the theme's deepest surface; only its lightness is set.
+   (Half that mix at L 0.5, chroma doubled, plus half a grey from the text's
+   switch - L 0.22 or 1 - is L 0.36 or 0.75 with the mix's own chroma.)
+   Oxford keeps its exact band. */
+html[data-theme]:not([data-theme="oxford"]) body[data-gui-style="glossy"][data-gui-colors="theme"] {
+  --b-glossy-band: color-mix(in oklab,
+    oklch(from color-mix(in srgb, var(--vex-accent) 45%, var(--vex-bg-deep, var(--vex-bg-base))) 0.5 calc(c * 2) h) 50%,
+    oklch(from var(--vex-text-primary) calc(1 - clamp(0, (l - 0.5) * 1000, 1) * 0.78) 0 0));
+  --b-frame: var(--b-glossy-band);
+  --b-frame-solid: var(--b-glossy-band);
+  /* What sits on the band in a dark theme is written at least at L 0.85 of
+     the theme's text colour: Virtual Red's red text on its own red band was
+     3.1:1. A theme whose text is already that light, and every light theme's
+     dark text, are left as they are. */
+  --b-strip-fg: oklch(from var(--vex-text-primary) calc(l + clamp(0, (l - 0.5) * 1000, 1) * max(0, 0.85 - l)) c h);
+  /* A softer sheen on a dark toolbar: at full strength the white washed a
+     dark surface toward grey, under its light text (Solarized 3:1). */
+  --b-sheen: linear-gradient(rgba(255,255,255,0.4), rgba(255,255,255,0) 60%);
+}
+html[data-theme]:not([data-theme="oxford"]) body[data-gui-style="glossy"][data-gui-colors="theme"] #top-bar { --b-frame-solid: color-mix(in srgb, var(--b-toolbar) 93%, #ffffff); }
+/* The selected tab wears the same softer sheen: at a title's height (half way
+   down, the sheen fading out at 60%) that is 7% white, not the 12% of the full
+   one the rule above the theme section models. */
+html[data-theme]:not([data-theme="oxford"]) body[data-gui-style="glossy"][data-gui-colors="theme"] .top-tab.active { --b-frame-solid: color-mix(in srgb, var(--b-tab-active) 93%, #ffffff); }
+html[data-theme]:not([data-theme="oxford"]) body[data-gui-style="glossy"][data-gui-colors="theme"] #gui-shortcuts-bar {
+  background: linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0)), var(--b-toolbar);
+  --b-frame-solid: color-mix(in srgb, var(--b-toolbar) 92%, #ffffff);
 }
 /* Neobrutal: the ink is the theme's text colour, the slabs its surfaces, and
    the selected tab its accent, with the base colour written on it. */
+/* The slab and what is written on it. The theme's base colour on its accent
+   was 3.1:1 (Wine) to 4.4:1 (Neptune), and Ruby's or Plum's mid-tone accents
+   reach 4.5:1 with no ink at all - black or white, both stop near 4.1:1 on a
+   fill of middle lightness (found 2026-10-03). So the fill leaves that middle
+   (oklch L 0.52-0.68) toward whichever side it is nearer, and the ink is a
+   near-white or near-black tinted with the accent's hue: light on a fill
+   darker than L 0.6, dark on a lighter one. Accents outside the middle keep
+   their exact colour. In the calc()s, clamp(0, (0.6 - l) * 1000, 1) is a
+   switch: 1 when the accent is darker than L 0.6, 0 when it is lighter. */
 body[data-gui-style="neobrutal"][data-gui-colors="theme"] {
-  --b-nb-ink: var(--vex-text-primary); --b-nb-on-accent: var(--vex-bg-base);
+  --b-nb-fill: oklch(from var(--vex-accent)
+    calc(l - clamp(0, (0.6 - l) * 1000, 1) * max(0, l - 0.52) + clamp(0, (l - 0.6) * 1000, 1) * max(0, 0.68 - l)) c h);
+  --b-nb-ink: var(--vex-text-primary);
+  --b-nb-on-accent: oklch(from var(--vex-accent) clamp(0.18, (0.6 - l) * 1000, 0.97) min(c, 0.03) h);
   --b-strip-fg: var(--vex-text-primary); --b-strip-hover: var(--vex-bg-base);
-  --b-tab: var(--vex-bg-elevated); --b-tab-hover: var(--vex-bg-base); --b-tab-active: var(--vex-accent);
+  --b-tab: var(--vex-bg-elevated); --b-tab-hover: var(--vex-bg-base); --b-tab-active: var(--b-nb-fill);
   --b-tab-text: var(--vex-text-primary); --b-tab-border: var(--b-nb-ink); --b-tab-active-border: var(--b-nb-ink);
   --b-toolbar-border: var(--b-nb-ink); --b-btn-hover: var(--vex-bg-base); --b-btn-hover-border: var(--b-nb-ink);
   --b-icon: var(--vex-text-primary);
@@ -921,7 +1000,7 @@ body[data-sb-launcher="rail"]:not([data-gui-family="browser"]) :is(#top-bar-righ
 body[data-gui-family="browser"][data-sb-launcher="rail"] #btn-look-sidebar { display: grid; place-items: center; padding: 0; }
 body[data-gui-family="browser"][data-sb-launcher="rail"].look-rail-hidden #icon-sidebar { display: none !important; }
 body[data-sb-side][data-sb-side="left"] #btn-look-sidebar .sb-edge { transform: translateX(-6px); }
-body[data-sb-side] #btn-look-sidebar.active { background: var(--b-btn-hover); color: var(--b-accent); }
+body[data-sb-side] #btn-look-sidebar.active { background: var(--b-btn-hover); color: var(--vex-accent-fg, var(--b-accent)); }
 
 /* Icon rail (Firefox, Netscape): a flat strip on the toolbar colour, small
    icons, no Vex card or accent bar. */
@@ -995,13 +1074,13 @@ body:is([data-gui-style="fluent"], [data-gui-style="fluent-dark"]) #look-sb-head
    flat accent block. */
 body[data-gui-style="neobrutal"] #icon-sidebar { border-right-width: var(--b-nb-w); }
 body[data-gui-style="neobrutal"] #icon-sidebar .sidebar-icon.active {
-  background: var(--b-accent); color: var(--b-nb-on-accent); border: 2px solid var(--b-nb-ink); box-shadow: 2px 2px 0 var(--b-nb-ink);
+  background: var(--b-nb-fill, var(--b-accent)); color: var(--b-nb-on-accent); border: 2px solid var(--b-nb-ink); box-shadow: 2px 2px 0 var(--b-nb-ink);
 }
 body[data-gui-style="neobrutal"][data-sidebar-panel] #panels-container { border-right-width: var(--b-nb-w); }
 body[data-gui-style="neobrutal"] #look-sb-head { border-bottom-width: var(--b-nb-w); font-weight: 800; }
 
 /* Terminal: the panel is one more box, its header the label on its line. */
 body[data-gui-style="terminal"] #icon-sidebar { border: var(--b-t-line) solid var(--b-toolbar-border); }
-body[data-gui-style="terminal"] #icon-sidebar .sidebar-icon.active { background: var(--b-btn-hover); color: var(--b-accent); }
+body[data-gui-style="terminal"] #icon-sidebar .sidebar-icon.active { background: var(--b-btn-hover); color: var(--vex-accent-fg, var(--b-accent)); }
 body[data-gui-style="terminal"][data-sidebar-panel] #panels-container { border: var(--b-t-line) solid var(--b-toolbar-border); }
 body[data-gui-style="terminal"] #look-sb-head { font: 400 12px var(--b-font); color: var(--b-text-dim); }

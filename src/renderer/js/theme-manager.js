@@ -35,7 +35,7 @@ const ThemeManager = {
     { id: 'rose',       label: 'Rosé',        preview: 'rose.png',       accent: '#ea9a97', mock: { bg: '#1f1d2e', side: '#232136', surf: '#2a273f', txt: '#e0def4', acc: '#ea9a97' } },
     { id: 'matrix',     label: 'Matrix',      preview: 'matrix.png',     accent: '#22c55e', mock: { bg: '#050807', side: '#081009', surf: '#0c130d', txt: '#b8f0c0', acc: '#22c55e' } },
     { id: 'mocha',      label: 'Mocha',       preview: 'mocha.png',      accent: '#d2956a', mock: { bg: '#1c1714', side: '#221c19', surf: '#2a2320', txt: '#ecdfd6', acc: '#d2956a' } },
-    { id: 'solarized',  label: 'Solarized',   preview: 'solarized.png',  accent: '#268bd2', mock: { bg: '#00252e', side: '#002b36', surf: '#073642', txt: '#93a1a1', acc: '#268bd2' } },
+    { id: 'solarized',  label: 'Solarized',   preview: 'solarized.png',  accent: '#3a9be0', mock: { bg: '#00252e', side: '#002b36', surf: '#073642', txt: '#b3bfbf', acc: '#3a9be0' } },
     { id: 'vaporwave',  label: 'Vaporwave',   preview: 'vaporwave.png',  accent: '#ff71ce', mock: { bg: '#1a0f2e', side: '#1f1233', surf: '#271640', txt: '#f0e6ff', acc: '#ff71ce' } },
     { id: 'aurora',     label: 'Aurora',      preview: 'aurora.png',     accent: '#34d399', mock: { bg: '#0a1612', side: '#0d1f18', surf: '#102a22', txt: '#c8f0e0', acc: '#34d399' } },
     { id: 'crimson',    label: 'Crimson',     preview: 'crimson.png',    accent: '#ef4444', mock: { bg: '#160a0c', side: '#1e0d10', surf: '#2a1015', txt: '#f0d0d4', acc: '#ef4444' } },

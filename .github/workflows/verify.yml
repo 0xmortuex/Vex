@@ -30,7 +30,9 @@ jobs:
           VEX_UI_SMOKE: '1'
       - run: node scripts/build-icons.js scratchpad/ci-icons
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm audit --audit-level=high
+      # The build tools: like `npm audit --audit-level=high`, but with the
+      # exceptions listed (and checked) in scripts/audit-dev.js.
+      - run: node scripts/audit-dev.js
         if: github.event_name == 'schedule'
       - run: npm run pack -- --config.directories.output=scratchpad/ci-package
         env:

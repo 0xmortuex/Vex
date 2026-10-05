@@ -437,6 +437,7 @@ const VexQuickReminder = {
   _siteHosts: null,
   _lastHost: '',
   _watching: false,
+  _checkSite() { /* set by _watchSites once it runs */ },
   _watchSites(b) {
     b = b || (window.vex && window.vex.reminders);
     if (!b || typeof b.visited !== 'function' || typeof b.list !== 'function') return;
@@ -445,10 +446,13 @@ const VexQuickReminder = {
     const refreshHosts = async () => {
       try { this._siteHosts = (await b.list()).filter(r => !r.firedAt && r.site).map(r => r.site); }
       catch { this._siteHosts = null; }
+      this._checkSite();
     };
-    refreshHosts();
-    setInterval(refreshHosts, 30000);
-    setInterval(() => {
+    // The page in front is announced when you switch tabs or a tab navigates
+    // (js/tabs.js, js/webview.js), so it is not polled. The list of site
+    // reminders lives in the main process, which has no change event for it:
+    // it is still re-read every 30 s, and checked against the page then.
+    this._checkSite = () => {
       if (!this._siteHosts || !this._siteHosts.length) return;
       let host = '';
       try {
@@ -461,7 +465,11 @@ const VexQuickReminder = {
       Promise.resolve(b.visited(host))
         .then(n => { if (n) refreshHosts(); })
         .catch(err => window.showToast?.('A site reminder could not fire: ' + ((err && err.message) || ''), 'error'));
-    }, 3000);
+    };
+    window.addEventListener('vex:tab-activated', () => this._checkSite());
+    window.addEventListener('vex:tab-url-changed', () => this._checkSite());
+    refreshHosts();
+    setInterval(refreshHosts, 30000);
   },
 
   // Called after a reminder is created so a site reminder can fire within
@@ -472,7 +480,7 @@ const VexQuickReminder = {
     if (!b || typeof b.list !== 'function') return;
     // Creating a site reminder is a fine moment to make sure the watcher runs.
     this._watchSites(b);
-    Promise.resolve(b.list()).then(l => { this._siteHosts = l.filter(r => !r.firedAt && r.site).map(r => r.site); }).catch(() => {});
+    Promise.resolve(b.list()).then(l => { this._siteHosts = l.filter(r => !r.firedAt && r.site).map(r => r.site); this._checkSite(); }).catch(() => {});
   },
 
   // The reminder itself, opened from its toast: the full text, when it was

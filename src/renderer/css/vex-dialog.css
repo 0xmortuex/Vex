@@ -43,6 +43,46 @@
   white-space: pre-wrap;
 }
 
+/* Markup a caller built (vexConfirm({ html })): the Web Store install dialog
+   (js/web-store.js). */
+.vex-dialog-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.vex-ws-source, .vex-ws-line {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  margin: 4px 0;
+}
+.vex-ws-source svg, .vex-ws-line svg { flex: none; margin-top: 2px; }
+.vex-ws-source { color: var(--text-muted, var(--text)); }
+.vex-ws-head {
+  margin: 12px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--text));
+}
+.vex-ws-heavy { color: var(--danger, #d3455b); }
+.vex-ws-caution svg { color: var(--warning, #d97706); }
+.vex-ws-dim { color: var(--text-muted, var(--text)); }
+.vex-ws-perms {
+  margin: 6px 0 0 21px;
+  font-size: 11.5px;
+  color: var(--text-muted, var(--text));
+  word-break: break-word;
+}
+.vex-ws-perms code {
+  font-size: 11px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
 .vex-dialog-label {
   display: block;
   font-size: 12px;
@@ -61,6 +101,23 @@
   color: var(--text);
   font-size: 14px;
   font-family: inherit;
+}
+
+/* The multi-line box (vexPrompt multiline): a report the user reads and edits
+   before it is shared. It scrolls; the dialog around it does not grow past the
+   window. */
+.vex-dialog.vex-dialog-wide { width: 720px; }
+.vex-dialog-textarea {
+  display: block;
+  min-height: 220px;
+  max-height: 50vh;
+  resize: vertical;
+  overflow: auto;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
 }
 
 .vex-dialog-input:focus-visible {

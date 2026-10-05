@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="css/settings-redesign.css">
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
+  <link rel="stylesheet" href="css/read-aloud.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
   <link rel="stylesheet" href="css/discover.css">
@@ -63,11 +64,12 @@
   <link rel="stylesheet" href="css/quick-reminder.css">
   <link rel="stylesheet" href="css/clock-panel.css">
   <link rel="stylesheet" href="css/tor-indicator.css">
+  <link rel="stylesheet" href="css/profiles.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
   <!-- Top Bar -->
-  <div id="top-bar">
+  <div id="top-bar" role="navigation" aria-label="Toolbar">
     <div id="top-bar-drag"></div>
 
     <div id="top-bar-left">
@@ -123,6 +125,10 @@
       <div id="url-bar">
         <svg id="url-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5V13.5M2.5 8H13.5M3.5 5H12.5M3.5 11H12.5" stroke="currentColor" stroke-width="1"/></svg>
         <input type="text" id="url-input" placeholder="Search or enter URL..." spellcheck="false" autocomplete="off">
+        <!-- Only on an extension's page on the Chrome Web Store (js/web-store.js):
+             installs it in Vex from Google's own server. Vex's button, nothing is
+             put into Google's page. -->
+        <button id="btn-webstore-add" type="button" title="Install this extension in Vex from the Chrome Web Store" hidden></button>
         <button id="btn-copy-url" class="nav-btn" title="Copy URL" style="width:24px;height:24px;flex-shrink:0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
@@ -179,6 +185,9 @@
       <button id="btn-command" class="nav-btn" title="Command Bar (Ctrl+K)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
+      <!-- Profiles (js/profiles-ui.js): which profile this window is, and the
+           menu that opens, adds and deletes them. Filled with a VexIcons icon. -->
+      <button id="btn-profile" class="nav-btn" type="button" title="Profiles" aria-label="Profiles"></button>
     </div>
 
     <!-- Its own item of the top bar, not the last button of #top-bar-right:
@@ -198,17 +207,17 @@
   </div>
 
   <!-- Horizontal tab bar (shown when body[data-tab-layout="horizontal"]) -->
-  <div class="top-tab-bar" id="top-tab-bar">
-    <div class="top-tabs-list" id="top-tabs-list"></div>
+  <div class="top-tab-bar" id="top-tab-bar" role="region" aria-label="Tab strip">
+    <div class="top-tabs-list" id="top-tabs-list" role="tablist" aria-label="Tabs"></div>
     <div class="tab-bar-trailing">
-      <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)">+</button>
+      <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)" aria-label="New tab" aria-keyshortcuts="Control+T">+</button>
     </div>
   </div>
 
   <!-- Main Layout -->
   <div id="main-layout">
     <!-- Icon Sidebar -->
-    <div id="icon-sidebar">
+    <div id="icon-sidebar" role="navigation" aria-label="Panels">
       <button class="sidebar-icon active" data-panel="start" title="Start Page">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 7.5L10 2.5L17 7.5V16C17 16.55 16.55 17 16 17H4C3.45 17 3 16.55 3 16V7.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.5 17V10.5H12.5V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -310,7 +319,8 @@
     </div>
 
     <!-- Content Area -->
-    <div id="content-area">
+    <div id="content-area" role="main">
+      <h1 class="vex-sr-only">Vex</h1>
       <!-- Sidebar Panels (hidden by default) -->
       <div id="panels-container">
         <div class="panel" id="panel-start" style="display: none;"></div>
@@ -353,6 +363,10 @@
                 <option value="startpage">Startpage</option>
                 <option value="ecosia">Ecosia</option>
               </select>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Search suggestions <span style="color:var(--text-muted);font-size:11px">· as you type in the address bar or the New Tab search box, the text goes to your search engine for suggestions — only that engine, and never from a private window, Tor tab or burner tab</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-search-suggest" aria-label="Search suggestions" checked><span class="toggle-slider"></span></label>
+              </div>
             </div>
 
             <div class="setting-group">
@@ -385,8 +399,8 @@
                 <div id="lock-pin-state" class="setting-hint" style="margin-top:4px"></div>
               </div>
               <div class="setting-toggle-row">
-                <span>Skip sponsor segments on YouTube (SponsorBlock — sends only the video's id)</span>
-                <label class="toggle"><input type="checkbox" id="setting-sponsor-skip" checked><span class="toggle-slider"></span></label>
+                <span>Skip sponsor segments on YouTube <span style="color:var(--text-muted);font-size:11px">· SponsorBlock: the id of each YouTube video you open is sent to sponsor.ajay.app</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-sponsor-skip" aria-label="Skip sponsor segments on YouTube"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Block ads and trackers</span>
@@ -566,6 +580,15 @@
                   <option value="1600">1.6 GB (relaxed)</option>
                   <option value="2400">2.4 GB (max)</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- Profiles (js/profiles-ui.js, src/main/profiles.js) -->
+            <div class="setting-group" id="settings-profiles">
+              <label class="setting-label">Profiles</label>
+              <div class="setting-hint">Each profile is a separate Vex with its own tabs, bookmarks, history, passwords, extensions, sync and settings, and runs in its own window. Open, add, rename and delete them from the profile button on the toolbar.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button id="setting-profiles-open" class="btn-secondary" type="button">Manage profiles</button>
               </div>
             </div>
 
@@ -750,6 +773,10 @@
               <div class="setting-toggle-row">
                 <span>Back up everything<br><span style="font-size:11.5px;color:var(--text-muted)">One file with your notes, sessions, keybindings, site rules, panels, theme, skin and typeface — and a way to put it all back. Saved logins are never in it.</span></span>
                 <button id="setting-open-backup" class="btn-secondary">Back up or restore…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Import from another browser<br><span style="font-size:11.5px;color:var(--text-muted)">Bookmarks with their folders and your history from Chrome, Edge, Brave or Firefox on this PC — and passwords from a file you export from that browser. Shows what it will add first, and can be undone.</span></span>
+                <button id="setting-open-browser-import" class="btn-secondary">Import…</button>
               </div>
               <div class="setting-toggle-row">
                 <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All 222 features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
@@ -959,6 +986,10 @@
                 <span>Always allow copy &amp; right-click (bypass site blocks)</span>
                 <label class="toggle"><input type="checkbox" id="setting-copyunlock"><span class="toggle-slider"></span></label>
               </div>
+              <div class="setting-toggle-row">
+                <span>Float a playing video when you switch tabs (Picture-in-Picture)</span>
+                <label class="toggle"><input type="checkbox" id="setting-auto-pip" aria-label="Float a playing video when you switch tabs"><span class="toggle-slider"></span></label>
+              </div>
               <p class="setting-info muted" style="margin-top:6px">Re-enables text selection, copying, and right-click on sites that disable them. Applies on next page load. You can also unlock a single page on demand from the command bar (Ctrl+K → “Unlock Copy &amp; Right-Click”). Doesn’t work on canvas-based editors like Google Docs and never affects DRM-protected media.</p>
             </div>
 
@@ -1042,6 +1073,14 @@
                 <button id="btn-check-updates" class="btn-primary">Check for Updates</button>
                 <span id="update-check-status" style="font-size:11px;color:var(--text-muted)"></span>
               </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <button type="button" id="btn-report-problem" class="btn-secondary">Report a problem…</button>
+                <span style="font-size:11px;color:var(--text-muted)">Opens a GitHub issue with your versions and Vex's recent problems filled in. You see and can edit all of it first.</span>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:12px">
+                <span>Check for updates when Vex starts <span style="color:var(--text-muted);font-size:11px">· asks GitHub for the latest release; off, Vex only checks when you press Check for Updates</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-update-on-start" aria-label="Check for updates when Vex starts" checked><span class="toggle-slider"></span></label>
+              </div>
               <div class="setting-row" style="margin-bottom:16px">
                 <div class="setting-label" style="display:block"><strong>Update channel</strong>
                   <span class="setting-hint">Latest tells you about every release. Stable waits until the newest has been out two days, so a busy day of releases is one prompt, not several.</span></div>
@@ -1058,6 +1097,12 @@
                 <a href="#" id="setting-github-link" style="color:var(--primary);text-decoration:none">GitHub</a>
                 &middot; <a href="#" id="setting-releases-link" style="color:var(--primary);text-decoration:none">Releases</a>
                 &middot; <a href="#" id="setting-issues-link" style="color:var(--primary);text-decoration:none">Report Issue</a>
+              </p>
+              <p class="setting-info muted" style="text-align:center;margin-top:6px;font-size:11px" id="setting-legal-links">
+                <a href="#" data-legal-doc="LICENSE" style="color:var(--primary);text-decoration:none">License</a>
+                &middot; <a href="#" data-legal-doc="PRIVACY.md" style="color:var(--primary);text-decoration:none">Privacy</a>
+                &middot; <a href="#" data-legal-doc="TERMS.md" style="color:var(--primary);text-decoration:none">Terms</a>
+                &middot; <a href="#" data-legal-doc="THIRD_PARTY_NOTICES.md" style="color:var(--primary);text-decoration:none">Third-party notices</a>
               </p>
             </div>
           </div>
@@ -1123,10 +1168,10 @@
 
   <!-- Command Bar Overlay -->
   <div id="command-overlay" style="display: none;">
-    <div id="command-bar">
+    <div id="command-bar" role="dialog" aria-modal="true" aria-label="Command bar">
       <div id="command-input-wrapper">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <input type="text" id="command-input" placeholder="Type a URL, search, or &gt; for commands..." spellcheck="false" autocomplete="off">
+        <input type="text" id="command-input" aria-label="Address, search, or &gt; for a command" placeholder="Type a URL, search, or &gt; for commands..." spellcheck="false" autocomplete="off">
         <kbd>ESC</kbd>
       </div>
       <div id="command-results"></div>
@@ -1168,7 +1213,7 @@
        around them. The six stacked control strips that used to sit between the
        header and the first message are now one row inside the composer, so the
        conversation gets the height instead. -->
-  <div id="ai-panel">
+  <div id="ai-panel" role="complementary" aria-label="AI assistant">
     <div class="ai-header">
       <div class="ai-title">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -1339,6 +1384,7 @@
   <script src="js/theme-picker.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/horizontal-tabs.js"></script>
+  <script src="js/a11y-keys.js"></script>
   <script src="js/webview.js"></script>
   <script src="js/discord-memory.js"></script>
   <script src="js/sidebar.js"></script>
@@ -1413,6 +1459,8 @@
   <script src="js/shortcuts-registry.js"></script>
   <script src="js/shortcut-editor.js"></script>
   <script src="js/extension-catalog.js"></script>
+  <script src="js/web-store-link.js"></script>
+  <script src="js/web-store.js"></script>
   <script src="js/extensions-settings.js"></script>
   <script src="js/permission-prompts.js"></script>
   <script src="js/hid-picker.js"></script>
@@ -1463,6 +1511,7 @@
   <script src="js/job-work-panel.js"></script>
   <script src="js/typed-address.js"></script>
   <script src="js/command.js"></script>
+  <script src="js/report-problem.js"></script>
   <script src="js/ask-ai-bar.js"></script>
   <script src="js/smart-searchbar.js"></script>
   <script src="js/search-shortcuts.js"></script>
@@ -1478,7 +1527,8 @@
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>
-  <script src="js/feature-details.js"></script>
+  <script src="js/browser-import.js"></script>
+  <!-- feature-details.js is lazy-loaded via VexLazy when the Library opens (FeatureLibrary._details) -->
   <script src="js/feature-library.js"></script>
   <script src="js/peek.js"></script>
   <script src="js/oauth-popup-backdrop.js"></script>
@@ -1530,7 +1580,6 @@
   <script src="js/accessibility.js"></script>
   <script src="js/annotations.js"></script>
   <script src="js/recall.js"></script>
-  <script src="vendor/jsQR.js"></script>
   <script src="js/authenticator.js"></script>
   <script src="js/autofill-log.js"></script>
   <script src="js/totp-autofill.js"></script>
@@ -1569,6 +1618,7 @@
   <script src="js/linked-scroll.js"></script>
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
+  <script src="js/profiles-ui.js"></script>
   <script src="js/app.js"></script>
   <script src="js/i18n-ui.js"></script>
 </body>

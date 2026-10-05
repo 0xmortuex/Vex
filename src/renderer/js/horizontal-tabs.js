@@ -180,13 +180,16 @@ const HorizontalTabs = (() => {
       ${TabManager.noteBadge(tab)}
       ${TabManager.errorBadge(tab)}
       ${sleep}
-      <button class="tab-close" title="Close tab" aria-label="Close">
+      <span class="tab-close" title="Close tab (Delete)" aria-hidden="true">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
           <line x1="1" y1="1" x2="9" y2="9"/>
           <line x1="9" y1="1" x2="1" y2="9"/>
         </svg>
-      </button>
+      </span>
     `;
+    // The cross is a span, not a button: the tab itself is the keyboard stop
+    // (js/a11y-keys.js — Delete closes it), and a button inside a tab is a
+    // control nested in a control to a screen reader.
 
     el.addEventListener('click', (e) => {
       // If click originated on or inside the close button (e.g. on the SVG),

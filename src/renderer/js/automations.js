@@ -28,7 +28,11 @@ const Automations = {
   start() {
     if (this._started) return;
     this._started = true;
-    setInterval(() => this._tickUrl(), 3000);
+    // The page in front changes when you switch tabs or a tab navigates; both
+    // are announced (js/tabs.js, js/webview.js), so nothing polls for it.
+    window.addEventListener('vex:tab-activated', () => this._tickUrl());
+    window.addEventListener('vex:tab-url-changed', () => this._tickUrl());
+    this._tickUrl();
     setInterval(() => this._tickTime(), 30000);
   },
   _activeUrl() { try { const t = TabManager.getActiveTab(); return (t && t.url) || ''; } catch { return ''; } },

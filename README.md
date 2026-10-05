@@ -283,8 +283,13 @@ It has not been assembled by Gradle yet, though every Android source is type‑c
 
 ---
 
-## License
+## License & privacy
 
-[MIT](LICENSE) © [0xmortuex](https://github.com/0xmortuex)
+- [License](LICENSE) — MIT © [0xmortuex](https://github.com/0xmortuex)
+- [Privacy](PRIVACY.md) — what Vex sends, where, and what stays on your PC. No analytics, no telemetry.
+- [Terms](TERMS.md) — the short terms of use.
+- [Third-party notices](THIRD_PARTY_NOTICES.md) — the open-source software Vex is built on, and its licences.
+
+These links are also in **Settings → About**.
 
 <div align="center"><sub>Vex — a browser built just for you.</sub></div>

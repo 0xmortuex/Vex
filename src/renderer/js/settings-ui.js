@@ -64,6 +64,7 @@ const SettingsUI = {
     { name: 'Sync',            icon: 'refresh',  color: '#06b6d4', match: ['sync'] },
     { name: 'AI',              icon: 'spark',    color: '#d4a574', match: ['ai backend', 'assistant'] },
     { name: 'Personalization', icon: 'user',     color: '#f0abfc', match: ['personalization'] },
+    { name: 'Profiles',        icon: 'users',    color: '#22d3ee', match: ['profiles'] },
     { name: 'Personas',        icon: 'users',    color: '#8b5cf6', match: ['persona'] },
     { name: 'AI Memory',       icon: 'memory',   color: '#c084fc', match: ['ai memory'] },
     { name: 'On-Device',       icon: 'monitor',  color: '#2dd4bf', match: ['on-device', 'webgpu'] },
@@ -142,6 +143,7 @@ const SettingsUI = {
     ['setting-open-routing', () => (typeof PrivateRouting !== 'undefined' ? PrivateRouting.open() : null)],
     ['setting-open-site-routes', () => (typeof SiteRoutes !== 'undefined' ? SiteRoutes.open() : null)],
     ['setting-open-backup', () => (typeof VexBackup !== 'undefined' ? VexBackup.open() : null)],
+    ['setting-open-browser-import', () => (typeof BrowserImport !== 'undefined' ? BrowserImport.open() : null)],
     ['setting-open-library', () => {
       try { if (typeof ReadLater !== 'undefined') ReadLater.showTab('features'); } catch { /* the panel opens either way */ }
       if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('library');

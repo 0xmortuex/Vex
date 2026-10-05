@@ -53,7 +53,7 @@ const AIMemory = {
     if (!container) return;
     const esc = (s) => window.escapeHtml(s);
     container.innerHTML = `
-      <p class="setting-info muted" style="margin-bottom:8px">Facts the AI keeps in mind in every chat (local <em>and</em> cloud). Stored only on this device. Great for your name, role, tone preferences, languages, stack…</p>
+      <p class="setting-info muted" style="margin-bottom:8px">Facts the AI keeps in mind in every chat (local <em>and</em> cloud). On this device, and on your other devices if Sync is on. Great for your name, role, tone preferences, languages, stack…</p>
       <div class="setting-toggle-row"><span>Use my memory in AI chats</span><label class="toggle"><input type="checkbox" id="mem-enabled" ${this.data.enabled ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;margin:10px 0">
         <input id="mem-input" type="text" placeholder="e.g. I prefer concise answers with code examples" spellcheck="false" style="flex:1;padding:8px 11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
