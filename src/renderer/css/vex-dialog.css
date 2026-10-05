@@ -169,7 +169,54 @@
   from { transform: scale(0.97); opacity: 0; }
 }
 
+/* A page's alert / confirm / prompt (js/page-dialogs.js): over that page's
+   tab or panel only, placed by the script next to its webview. */
+.vex-page-dialog-overlay {
+  position: absolute;
+  z-index: 6;
+  box-sizing: border-box;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  animation: vex-dialog-fade 0.14s ease-out;
+}
+.vex-page-dialog-overlay[hidden] { display: none; }
+.vex-page-dialog-overlay .vex-page-dialog {
+  margin-top: 8vh;
+  max-width: 100%;
+  max-height: calc(100% - 8vh);
+  box-sizing: border-box;
+}
+.vex-page-dialog-msg {
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow: auto;
+}
+.vex-page-dialog-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-muted, var(--text));
+  cursor: pointer;
+}
+/* On a tab, or a panel's icon, whose page is waiting for an answer. */
+.vex-page-dialog-mark {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+/* On a tab it is the accent colour; on a panel's icon the badge's own colours. */
+.vex-page-dialog-mark:not(.icon-badge) { color: var(--primary); }
+.tab-item > .vex-page-dialog-mark,
+.top-tab > .vex-page-dialog-mark { margin: 0 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .vex-dialog-overlay,
+  .vex-page-dialog-overlay,
   .vex-dialog { animation: none; }
 }

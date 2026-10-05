@@ -221,6 +221,11 @@ define('cloud:request', [shape({ feature: optional(string(80)) })]);
 define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean) })]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
+// A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):
+// the preload cuts the text to 10000 characters; anything longer is refused.
+define('page-dialog', [shape({ type: oneOf(['alert', 'confirm', 'prompt']), message: string(10000), value: optional(string(10000)) })]);
+// The window's answer to one (renderer/js/page-dialogs.js).
+define('page-dialog:answer', [shape({ id: string(64), ok: boolean, value: optional(string(10000)), stop: optional(boolean) })]);
 // Guest compatibility bridges use sender-derived identity; legacy arguments are ignored.
 define('geolocation:get geolocation:check-permission compatibility:get privacy:config-sync', [optional(string())]);
 // Profiles (src/main/profiles.js, js/profiles-ui.js): ids are 'default' or

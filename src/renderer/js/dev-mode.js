@@ -253,12 +253,11 @@ const VexDevMode = {
   async _runAction(a, after) {
     try {
       if (a.typed) {
-        const answer = window.vexPrompt
-          ? await window.vexPrompt(`${a.what}\n\nType ${a.typed} to confirm.`, '')
-          : window.prompt(`${a.what}\n\nType ${a.typed} to confirm.`);
+        // Never the native box: it disables the whole Vex window.
+        const answer = await window.vexPrompt(`${a.what}\n\nType ${a.typed} to confirm.`, '');
         if (String(answer || '').trim().toUpperCase() !== a.typed) { window.showToast?.('Cancelled'); return; }
       } else if (a.confirm) {
-        const ok = window.vexConfirm ? await window.vexConfirm(a.confirm) : window.confirm(a.confirm);
+        const ok = await window.vexConfirm(a.confirm);
         if (!ok) return;
       }
       const msg = await a.run();

@@ -297,6 +297,11 @@ contextBridge.exposeInMainWorld('vex', {
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
+  // A page's alert / confirm / prompt, asked over its own tab or panel
+  // (src/main/page-dialogs.js, js/page-dialogs.js).
+  onPageDialog:      (cb) => subscribe('page-dialog:show', cb),
+  onPageDialogClose: (cb) => subscribe('page-dialog:close', cb),
+  pageDialogAnswer:  (payload) => ipcRenderer.send('page-dialog:answer', payload),
   // The decisions one tab's page is held to (its container's own, or a
   // private window's), by the page's webContents id.
   permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),

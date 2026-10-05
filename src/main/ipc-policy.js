@@ -1,5 +1,5 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
-  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut']);
+  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon']);
 // siterules:set: a private window starts with an empty list, and saving it
@@ -99,6 +99,13 @@ function installIpcPolicy(ipcMain, security) {
     catch (err) {
       if (channel === 'privacy:config-sync') { event.returnValue = { farble: false }; return; }
       if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
+      // A page's alert / confirm / prompt waits on this answer (sendSync), so a
+      // refused one still answers: as cancelled, never left waiting for ever.
+      if (channel === 'page-dialog') {
+        console.warn('[IPC] refused "page-dialog": %s', (err && err.message) || err);
+        try { event.returnValue = null; } catch (replyErr) { console.error('[IPC] could not answer "page-dialog":', replyErr.message); }
+        return;
+      }
       // Everything else used to be swallowed without a word, which is how a
       // refused message from the Picture-in-Picture pop-out looked exactly
       // like a button that did nothing. Say which channel was refused and why

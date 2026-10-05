@@ -158,6 +158,11 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         prefs.contextIsolation = true;
         prefs.sandbox = true;
         prefs.webSecurity = true;
+        // A page's native alert/confirm box belongs to the whole Vex window
+        // and disabled all of it. The preload asks over the page's own tab
+        // instead (main/page-dialogs.js); this keeps any frame it does not
+        // reach from bringing the window-wide box back.
+        prefs.disableDialogs = true;
         prefs.partition = partition;
         // Explicit session wins over a conflicting renderer-provided partition.
         prefs.session = fromPartition(partition);

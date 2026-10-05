@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.36.3 (2026-10-05) — No more frozen Vex
+
+### Fixes
+- **A page's alert, confirm or prompt no longer freezes Vex.** These opened a Windows message box tied to the whole Vex window, which stopped every click until Vex was ended from Task Manager — and the box could be hidden behind a panel. Now the question appears over that tab or sidebar panel only, and the rest of Vex keeps working while that page waits for your answer, as in Chrome. A background tab or hidden panel gets a marker and asks when you open it. From a page's second dialog you can stop it showing more, and a page that closes or leaves stops waiting at once.
+- **When Vex stops responding, it says so.** If the Vex window stops answering, Vex now asks "Vex stopped responding — Reload window?" instead of leaving a dead window; your tabs and settings come back with the reload. The hang is kept in the crash log with the pages that were open, and the question goes away by itself if Vex recovers.
+- Off-the-record tabs now get the same page features as other tabs.
+
 ## v2.36.2 (2026-10-04) — Extensions that work on the page, not just in their popup
 
 ### Fixes

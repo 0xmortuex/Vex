@@ -2204,3 +2204,49 @@ if (typeof module !== 'undefined' && module.exports) {
     }, 0);
   }, false);
 })();
+
+// === A page's alert / confirm / prompt stays in its own tab ===
+// Electron's own box for these belongs to the whole Vex window and disabled
+// all of it: one alert from a page in a tab or a sidebar panel and nothing in
+// Vex answered a click until it was ended from Task Manager (2026-10-05).
+// Here they ask main with a synchronous message ('page-dialog'), which blocks
+// this page alone until the answer comes, as a page's dialog does in Chrome;
+// Vex shows the question over this tab or panel (main/page-dialogs.js,
+// renderer/js/page-dialogs.js). The page's text is cut to 10000 characters.
+function vexPageDialogs(ask) {
+  var text = function (v) { return String(v).slice(0, 10000); };
+  var put = function (name, fn) {
+    Object.defineProperty(window, name, { value: fn, writable: true, enumerable: true, configurable: true });
+  };
+  put('alert', function alert(message) {
+    ask('alert', arguments.length ? text(message) : '', '');
+  });
+  put('confirm', function confirm(message) {
+    return ask('confirm', message === undefined ? '' : text(message), '') === true;
+  });
+  put('prompt', function prompt(message, defaultValue) {
+    var answer = ask('prompt', message === undefined ? '' : text(message), defaultValue === undefined ? '' : text(defaultValue));
+    return typeof answer === 'string' ? answer : null;
+  });
+  return true;
+}
+(function () {
+  var askMain = function (type, message, value) {
+    try {
+      return require('electron').ipcRenderer.sendSync('page-dialog', { type: type, message: message, value: value });
+    } catch (err) {
+      console.error('[Vex] the page dialog could not be asked:', err && err.message);
+      return null;
+    }
+  };
+  // An extension's background page has no tab to ask over; it keeps its own.
+  if (location.protocol === 'chrome-extension:' && !__vexExtIsolated) return;
+  var isolated = typeof process !== 'undefined' && process.contextIsolated === true;
+  if (!isolated) { vexPageDialogs(askMain); return; }
+  if (!__vexCB || typeof __vexCB.executeInMainWorld !== 'function') {
+    console.error('[Vex] page dialogs: executeInMainWorld is missing; alert/confirm/prompt here answer at once');
+    return;
+  }
+  try { __vexCB.executeInMainWorld({ func: vexPageDialogs, args: [askMain] }); }
+  catch (err) { console.error('[Vex] page dialogs could not reach this page:', err && err.message); }
+})();

@@ -4096,6 +4096,31 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
+// A page's alert / confirm / prompt is asked over its own tab or panel, not in
+// a native box that disabled the whole Vex window (src/main/page-dialogs.js).
+const _pageDialogs = require('./main/page-dialogs').createPageDialogs({
+  owner: (contents) => secureSessions.owner(contents),
+  newId: () => require('crypto').randomUUID(),
+  log: (m) => console.error(m),
+  // A page in a window of its own: the box belongs to that window only.
+  // Electron has no prompt box, so prompt() there answers null, as before.
+  nativeAsk: async (contents, { type, message, origin }) => {
+    if (type === 'prompt') return { ok: false };
+    const win = BrowserWindow.fromWebContents(contents);
+    const opts = {
+      type: type === 'confirm' ? 'question' : 'none',
+      title: origin ? origin + ' says' : 'This page says',
+      message,
+      buttons: type === 'confirm' ? ['OK', 'Cancel'] : ['OK'],
+      defaultId: 0, cancelId: type === 'confirm' ? 1 : 0, noLink: true,
+    };
+    const r = win && !win.isDestroyed() ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return { ok: r.response === 0 };
+  },
+});
+ipcMain.on('page-dialog', (event, req) => _pageDialogs.request(event, req));
+ipcMain.on('page-dialog:answer', (event, res) => _pageDialogs.answer(event, res));
+
 // Ctrl+Alt+D from inside a page: dictation types into web pages, and the page
 // has the focus while you do — so this one key is passed up to Vex.
 // Ctrl+K from inside a page opens the command bar (src/main/command-bar-key.js).
@@ -4339,6 +4364,15 @@ function createWindow() {
   });
 
   secureSessions.registerHost(mainWindow);
+  // Stopped answering: written in the crash log with what was open, and a
+  // Reload window offered instead of a dead window (src/main/window-hang.js).
+  require('./main/window-hang').createWindowHangGuard({
+    win: mainWindow, dialog, crashLog: _crashLog,
+    openPages: () => webContents.getAllWebContents()
+      .filter(wc => !wc.isDestroyed() && wc.getType() === 'webview')
+      .map(wc => { const u = wc.getURL(); return /^file:/i.test(u) ? 'a Vex page' : u.replace(/[?#].*$/, '').slice(0, 60); }),
+    log: (m) => console.error(m),
+  });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // Show + focus the window once the first frame is ready. A transparent,
@@ -5003,6 +5037,13 @@ app.whenReady().then(async () => {
   // Before any route is restored: a site route's session made by the restore
   // is given its refusing proxy first (see _wireBrowsingSession).
   secureSessions.onSessionCreated(_wireBrowsingSession);
+  // An off-the-record tab's in-memory session (otr-<ts>) is made when the tab
+  // opens and never got the page preloads the private window, Tor and burner
+  // sessions get: its alert/confirm/prompt then had no tab-local stand-in, and
+  // with the webview's own boxes off they answered at once, unseen.
+  secureSessions.onSessionCreated((ses, partition) => {
+    if (typeof partition === 'string' && partition.startsWith('otr-')) attachGuestPreloads(ses);
+  });
   await applyStoredRoutings();
   createWindow();
   // Installers left in userData/updates by the last update (or a download cut
