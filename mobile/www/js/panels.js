@@ -19,6 +19,7 @@ const VexPanels = (() => {
   // Each draw takes a number and stops if the number has moved on.
   let drawn = 0;
   let localAIFollowed = false;
+  let historyFrom = 'phone';         // History shows this phone's visits or the computer's
 
   function openShell(name, title, { search, action } = {}) {
     drawn++;
@@ -131,6 +132,7 @@ const VexPanels = (() => {
     quickAccess: () => VexPanels.quickAccess(),
     assistant: () => VexPanels.assistantSettings(),
     localai: () => VexPanels.localAI(),
+    computerTabs: () => VexPanels.computerTabs(),
     aiLab: () => VexLab.home(),
     labChat: () => VexLab.open('chat'),
     labImage: () => VexLab.open('image'),
@@ -312,14 +314,46 @@ const VexPanels = (() => {
 
     // ── History ────────────────────────────────────────────────────────────
     async history(query = '') {
+      const computer = typeof VexSync !== 'undefined' && VexSync.remoteHistory('', 1).length > 0;
+      if (!computer) historyFrom = 'phone';
       const body = openShell('history', 'History', {
         search: { value: query, placeholder: 'Search history', onInput: value => this.history(value) },
-        action: {
+        action: historyFrom === 'computer' ? null : {
           label: 'Clear',
           run: async () => { await VexHistory.clear(); this.history(); VexUI.toast('History cleared'); }
         }
       });
       const mine = drawn;
+      // With Vex Sync on, the computer's history is here too, read-only: it is
+      // the computer's, and clearing it is done there.
+      if (computer) {
+        const chips = el('div', 'panel-chips');
+        for (const [id, label] of [['phone', 'On this phone'], ['computer', 'On your computer']]) {
+          chips.appendChild(el('button', {
+            class: 'chip' + (historyFrom === id ? ' on' : ''),
+            onclick: () => { historyFrom = id; this.history(query); }
+          }, label));
+        }
+        body.appendChild(chips);
+      }
+      if (historyFrom === 'computer') {
+        const rows = VexSync.remoteHistory(query, 400);
+        if (!rows.length) {
+          body.appendChild(empty(query ? 'Nothing from your computer matches “' + query + '”.' : 'Nothing from your computer yet.'));
+          return;
+        }
+        let lastDay = '';
+        for (const entry of rows) {
+          const day = dayName(entry.at);
+          if (day !== lastDay) { lastDay = day; body.appendChild(heading(day)); }
+          body.appendChild(listRow(entry, {
+            sub: item => VexSearch.prettyHost(item.url) + (item.at ? ' · ' + when(item.at) : ''),
+            onOpen: item => { close(); VexUI.openUrl(item.url); }
+          }));
+        }
+        body.appendChild(el('div', 'field-note', 'Your computer’s history, as of the last sync. Clear it on the computer.'));
+        return;
+      }
       const entries = await VexHistory.search(query, 400);
       if (mine !== drawn) return;
       if (!entries.length) {
@@ -375,6 +409,54 @@ const VexPanels = (() => {
           onOpen: item => { close(); VexUI.openUrl(item.url); },
           forget: () => this.recall(query)
         }));
+      }
+    },
+
+    // ── What is open on the computer ───────────────────────────────────────
+    computerTabs(query = '') {
+      const body = openShell('computerTabs', 'Your computer', {
+        search: { value: query, placeholder: 'Search its tabs', onInput: value => this.computerTabs(value) }
+      });
+      if (typeof VexSync === 'undefined' || !VexSync.state.enabled) {
+        body.appendChild(empty('Sign in to Vex Sync (Settings › Sync) with the same account as your computer, '
+          + 'and the tabs it has open show here, in their groups.'));
+        return;
+      }
+      const needle = String(query || '').trim().toLowerCase();
+      const groups = VexSync.remoteTabGroups()
+        .map(group => Object.assign({}, group, {
+          tabs: group.tabs.filter(tab => !needle || (tab.title + ' ' + tab.url).toLowerCase().includes(needle))
+        }))
+        .filter(group => group.tabs.length);
+      if (!groups.length) {
+        body.appendChild(empty(needle ? 'No tab on your computer matches “' + query + '”.'
+          : 'Nothing open on your computer, as of the last sync.'));
+        return;
+      }
+      const synced = VexSync.state.lastPullAt ? Date.parse(VexSync.state.lastPullAt) : 0;
+      if (synced) body.appendChild(el('div', 'field-note', 'As of ' + when(synced) + '. Tap one to open it here.'));
+      for (const group of groups) {
+        const head = heading((group.name || (groups.length > 1 ? 'Not in a group' : 'Open tabs')) + ' · ' + group.tabs.length);
+        if (group.color) {
+          const dot = el('span', 'group-dot');
+          dot.style.background = group.color;
+          head.prepend(dot);
+        }
+        head.classList.add('tappable');
+        head.onclick = () => VexSheets.choose(group.name || 'These tabs', [
+          { id: 'all', label: 'Open all ' + group.tabs.length + ' here', note: 'Each in a new tab, in the background' }
+        ], async () => {
+          VexSheets.close();
+          for (const tab of group.tabs.slice(0, 30)) await VexUI.openUrl(tab.url, { newTab: true, background: true });
+          VexUI.toast('Opened ' + Math.min(30, group.tabs.length) + ' tabs');
+        });
+        body.appendChild(head);
+        for (const tab of group.tabs) {
+          body.appendChild(listRow(tab, {
+            sub: item => (item.pinned ? 'Pinned · ' : '') + VexSearch.prettyHost(item.url),
+            onOpen: item => { close(); VexUI.openUrl(item.url, { newTab: true }); }
+          }));
+        }
       }
     },
 
@@ -1302,13 +1384,9 @@ const VexPanels = (() => {
 
       const remote = VexSync.remoteTabs();
       if (remote.length) {
-        body.appendChild(heading('Open on your computer'));
-        for (const tab of remote.slice(0, 20)) {
-          body.appendChild(listRow(tab, {
-            sub: item => VexSearch.prettyHost(item.url),
-            onOpen: item => { close(); VexUI.openUrl(item.url, { newTab: true }); }
-          }));
-        }
+        body.appendChild(valueRow('Open on your computer',
+          remote.length + ' tabs' + (VexSync.remoteTabGroups().some(group => group.id) ? ', in their groups' : ''), '',
+          () => this.computerTabs()));
       }
 
       body.appendChild(heading('Leaving'));

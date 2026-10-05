@@ -56,6 +56,8 @@ const VexSync = (() => {
     lastError: null,
     syncing: false,
     remoteTabs: [],
+    remoteGroups: [],
+    remoteHistory: [],
     conflicts: 0
   };
 
@@ -447,12 +449,51 @@ const VexSync = (() => {
 
   // ── Read-only views of what other devices sync ─────────────────────────────
 
+  // The desktop's tab groups: { id, name, color, collapsed } (tabs.js).
+  const GROUP_COLOURS = {
+    grey: '#9aa0a6', gray: '#9aa0a6', blue: '#4f86f7', red: '#e8574b', yellow: '#f2b632',
+    green: '#3fb46b', pink: '#e86ab0', purple: '#9a6ae8', cyan: '#2fb8c8', orange: '#f0883e'
+  };
+
   function readOnly(doc) {
-    // storage:tabs is a list, so it is kept item by item like any other.
+    // storage:tabs is a list, so it is kept item by item like any other. It is
+    // the open-tab set every desktop shares (spec §8.2): read, never written.
+    const groups = new Map();
+    for (const group of accountList(doc, 'storage:groups')) {
+      if (!group || group.id == null) continue;
+      const colour = String(group.color || '');
+      groups.set(String(group.id), {
+        id: String(group.id),
+        name: String(group.name || '').trim() || 'Group',
+        color: /^#[0-9a-f]{3,8}$/i.test(colour) ? colour : (GROUP_COLOURS[colour.toLowerCase()] || '#9aa0a6')
+      });
+    }
     const tabs = accountList(doc, 'storage:tabs');
     state.remoteTabs = Array.isArray(tabs)
       ? tabs.filter(tab => tab && typeof tab.url === 'string' && /^https?:/i.test(tab.url))
-        .map(tab => ({ url: tab.url, title: String(tab.title || '') })).slice(0, 200)
+        .map(tab => {
+          const group = tab.groupId != null ? groups.get(String(tab.groupId)) : null;
+          return {
+            url: tab.url, title: String(tab.title || ''),
+            icon: typeof tab.favicon === 'string' && /^https?:/i.test(tab.favicon) ? tab.favicon : '',
+            pinned: !!tab.pinned,
+            group: group ? group.id : '', groupName: group ? group.name : '', groupColor: group ? group.color : ''
+          };
+        }).slice(0, 300)
+      : [];
+    state.remoteGroups = [...groups.values()];
+
+    // The desktop's history (preference:vex.history, newest first, ≤ 5000):
+    // read here so a page from the computer can be found on the phone. The
+    // phone does not own it (spec §8.2 rule 2), so nothing is written back.
+    const history = accountList(doc, 'preference:vex.history');
+    state.remoteHistory = Array.isArray(history)
+      ? history.filter(entry => entry && typeof entry.url === 'string' && /^https?:/i.test(entry.url))
+        .map(entry => ({
+          url: entry.url, title: String(entry.title || ''),
+          icon: typeof entry.favicon === 'string' && /^https?:/i.test(entry.favicon) ? entry.favicon : '',
+          at: Date.parse(entry.visitedAt || '') || 0
+        })).slice(0, 5000)
       : [];
   }
 
@@ -492,6 +533,8 @@ const VexSync = (() => {
     state.enabled = false;
     state.revision = 0;
     state.remoteTabs = [];
+    state.remoteGroups = [];
+    state.remoteHistory = [];
     state.lastPullAt = null;
     state.lastPushAt = null;
     recordDocument = null;
@@ -778,7 +821,9 @@ const VexSync = (() => {
       // Nothing is pushed until a pull has read the account (the desktop's
       // initFromDisk does the same).
       pullBlocked = true;
-      await loadDocument();
+      // What the computer had open and visited, as of the last pull: there to
+      // look at straight away, and offline, before the first pull answers.
+      if (await loadDocument()) { try { readOnly(recordDocument); } catch { /* the next pull redraws it */ } }
       startTimers();
       return true;
     },
@@ -929,6 +974,26 @@ const VexSync = (() => {
     },
 
     remoteTabs() { return state.remoteTabs; },
+
+    /** The computer's open tabs in its groups, in its order: [{ name, color, tabs }]. */
+    remoteTabGroups() {
+      const byGroup = new Map();
+      for (const tab of state.remoteTabs) {
+        const key = tab.group || '';
+        if (!byGroup.has(key)) byGroup.set(key, { id: key, name: tab.groupName || '', color: tab.groupColor || '', tabs: [] });
+        byGroup.get(key).tabs.push(tab);
+      }
+      return [...byGroup.values()].sort((a, b) => (!a.id) - (!b.id));
+    },
+
+    /** The computer's history, newest first; `query` matches the title or address. */
+    remoteHistory(query = '', limit = 300) {
+      const needle = String(query || '').trim().toLowerCase();
+      const rows = needle
+        ? state.remoteHistory.filter(entry => (entry.title + ' ' + entry.url).toLowerCase().includes(needle))
+        : state.remoteHistory;
+      return rows.slice(0, limit);
+    },
 
     /** You deleted these here: the next push deletes them on every device. */
     async noteDeleted(source, ids) {

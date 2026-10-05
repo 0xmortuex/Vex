@@ -118,6 +118,14 @@ const VexSheets = (() => {
       note: () => 'Chat, images, audio, agents — on the phone',
       run: () => VexLab.home()
     },
+    'computer-tabs': {
+      icon: 'desktop', label: 'Tabs on your computer',
+      note: () => {
+        const count = typeof VexSync !== 'undefined' ? VexSync.remoteTabs().length : 0;
+        return count ? count + ' open' : 'With Vex Sync';
+      },
+      run: () => VexPanels.computerTabs()
+    },
     reader: { icon: 'book', label: 'Reader', needsPage: true, run: () => VexViews.openReader() },
     'read-aloud': {
       icon: 'speaker', label: 'Read aloud', needsPage: true,
@@ -288,7 +296,7 @@ const VexSheets = (() => {
     'save-page', 'save-video', 'saved-pages', 'notes', 'synced-notes', 'remind-me', 'reminders', 'sessions',
     'fill', 'fill-details', 'save-login', 'passwords',
     'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'unlock-copy', 'share', 'send-devices',
-    'reopen', 'read-voice', 'library', 'settings'
+    'reopen', 'computer-tabs', 'read-voice', 'library', 'settings'
   ];
 
   function menuOrder() {

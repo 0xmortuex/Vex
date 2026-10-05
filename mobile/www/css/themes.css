@@ -48,7 +48,7 @@
   --vex-accent-dim: #8b5cf638;
   --vex-text-primary: #e0e0f0;
   --vex-text-secondary: #9090c0;
-  --vex-text-muted: #6060a0;
+  --vex-text-muted: #7878b8;
   --vex-success: #4ade80;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -99,7 +99,7 @@
   --vex-accent-dim: #bd93f938;
   --vex-text-primary: #f8f8f2;
   --vex-text-secondary: #9ba2c9;
-  --vex-text-muted: #6272a4;
+  --vex-text-muted: #7d8bb4;
   --vex-success: #50fa7b;
   --vex-danger: #ff5555;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -115,8 +115,8 @@
   --vex-accent: #88c0d0;
   --vex-accent-dim: #88c0d038;
   --vex-text-primary: #eceff4;
-  --vex-text-secondary: #aab2c4;
-  --vex-text-muted: #7b88a1;
+  --vex-text-secondary: #cdd1dc;
+  --vex-text-muted: #a8b0c1;
   --vex-success: #a3be8c;
   --vex-danger: #bf616a;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -166,8 +166,8 @@
   --vex-accent: #ea9a97;
   --vex-accent-dim: #ea9a9738;
   --vex-text-primary: #e0def4;
-  --vex-text-secondary: #908caa;
-  --vex-text-muted: #6e6a86;
+  --vex-text-secondary: #a4a1b9;
+  --vex-text-muted: #8d89a2;
   --vex-success: #9ccfd8;
   --vex-danger: #eb6f92;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -184,7 +184,7 @@
   --vex-accent-dim: #22c55e38;
   --vex-text-primary: #b8f0c0;
   --vex-text-secondary: #6fae7a;
-  --vex-text-muted: #4f8458;
+  --vex-text-muted: #548c5d;
   --vex-success: #22c55e;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -201,7 +201,7 @@
   --vex-accent-dim: #d2956a38;
   --vex-text-primary: #ecdfd6;
   --vex-text-secondary: #b8a698;
-  --vex-text-muted: #8c7a6c;
+  --vex-text-muted: #958375;
   --vex-success: #a3b18a;
   --vex-danger: #d98c7a;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -214,11 +214,11 @@
   --vex-bg-deep: #002b36;
   --vex-border-subtle: #0a4150;
   --vex-border-strong: #14586a;
-  --vex-accent: #268bd2;
-  --vex-accent-dim: #268bd238;
-  --vex-text-primary: #93a1a1;
-  --vex-text-secondary: #839496;
-  --vex-text-muted: #586e75;
+  --vex-accent: #3a9be0;
+  --vex-accent-dim: #3a9be038;
+  --vex-text-primary: #b3bfbf;
+  --vex-text-secondary: #a0afb1;
+  --vex-text-muted: #839496;
   --vex-success: #859900;
   --vex-danger: #dc322f;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -269,7 +269,7 @@
   --vex-accent-dim: #ef444438;
   --vex-text-primary: #f0d0d4;
   --vex-text-secondary: #c89aa0;
-  --vex-text-muted: #9a6e74;
+  --vex-text-muted: #9d7378;
   --vex-success: #4ade80;
   --vex-danger: #ef4444;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -320,7 +320,7 @@
   --vex-accent-dim: #fde04738;
   --vex-text-primary: #e8e8f0;
   --vex-text-secondary: #a4a4c0;
-  --vex-text-muted: #74748c;
+  --vex-text-muted: #7b7b92;
   --vex-success: #4ade80;
   --vex-danger: #fb3d8a;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -337,7 +337,7 @@
   --vex-accent-dim: #d4d4d438;
   --vex-text-primary: #e5e5e5;
   --vex-text-secondary: #a3a3a3;
-  --vex-text-muted: #737373;
+  --vex-text-muted: #808080;
   --vex-success: #a3a3a3;
   --vex-danger: #d4d4d4;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -354,7 +354,7 @@
   --vex-accent-dim: #94a3b838;
   --vex-text-primary: #cbd5e1;
   --vex-text-secondary: #94a3b8;
-  --vex-text-muted: #64748b;
+  --vex-text-muted: #75859b;
   --vex-success: #34d399;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -388,7 +388,7 @@
   --vex-accent-dim: #a855f738;
   --vex-text-primary: #e2d4f5;
   --vex-text-secondary: #b09cce;
-  --vex-text-muted: #80709c;
+  --vex-text-muted: #897ba3;
   --vex-success: #34d399;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -405,7 +405,7 @@
   --vex-accent-dim: #f9731638;
   --vex-text-primary: #f0d8c8;
   --vex-text-secondary: #c8a288;
-  --vex-text-muted: #997460;
+  --vex-text-muted: #9d7863;
   --vex-success: #84cc16;
   --vex-danger: #ef4444;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -422,7 +422,7 @@
   --vex-accent-dim: #3b82f638;
   --vex-text-primary: #cdd9f0;
   --vex-text-secondary: #8ea0c4;
-  --vex-text-muted: #5e7099;
+  --vex-text-muted: #6f80a7;
   --vex-success: #34d399;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -473,7 +473,7 @@
   --vex-accent-dim: #94a3b838;
   --vex-text-primary: #d8dde5;
   --vex-text-secondary: #9aa3b0;
-  --vex-text-muted: #646c7a;
+  --vex-text-muted: #767f8e;
   --vex-success: #34d399;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -490,7 +490,7 @@
   --vex-accent-dim: #e11d4838;
   --vex-text-primary: #f0cdd6;
   --vex-text-secondary: #c894a4;
-  --vex-text-muted: #9a6678;
+  --vex-text-muted: #a17181;
   --vex-success: #34d399;
   --vex-danger: #fb7185;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -524,7 +524,7 @@
   --vex-accent-dim: #c0824a38;
   --vex-text-primary: #ecdcc8;
   --vex-text-secondary: #c0a888;
-  --vex-text-muted: #90785c;
+  --vex-text-muted: #967d60;
   --vex-success: #a3b18a;
   --vex-danger: #e07a5f;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -541,7 +541,7 @@
   --vex-accent-dim: #c026d338;
   --vex-text-primary: #f0d4f5;
   --vex-text-secondary: #c294ce;
-  --vex-text-muted: #946e9c;
+  --vex-text-muted: #97739f;
   --vex-success: #34d399;
   --vex-danger: #f87171;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -575,7 +575,7 @@
   --vex-accent-dim: #be123c38;
   --vex-text-primary: #f0cdd4;
   --vex-text-secondary: #c490a0;
-  --vex-text-muted: #986874;
+  --vex-text-muted: #9e717c;
   --vex-success: #a3b18a;
   --vex-danger: #fb7185;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -864,7 +864,7 @@
   --vex-accent-dim: #57544a26;
   --vex-text-primary: #3a3831;
   --vex-text-secondary: #4f4c43;
-  --vex-text-muted: #6e6a5c;
+  --vex-text-muted: #555247;
   --vex-success: #4f6b3a;
   --vex-danger: #b0442b;
   --vex-shadow: rgba(31, 28, 24, 0.20);
@@ -931,8 +931,8 @@
   --vex-accent: #ff0000;
   --vex-accent-dim: #ff000038;
   --vex-text-primary: #ff1a1a;
-  --vex-text-secondary: #f00000;
-  --vex-text-muted: #c80000;
+  --vex-text-secondary: #ff1515;
+  --vex-text-muted: #ee0000;
   --vex-success: #ff4d4d;
   --vex-danger: #ff0000;
   --vex-shadow: rgba(0, 0, 0, 0.55);
@@ -965,7 +965,7 @@
   --vex-accent: #bf8ef1;
   --vex-accent-dim: #bf8ef138;
   --vex-text-primary: #ccbfd9;
-  --vex-text-secondary: #b3a5c0;
+  --vex-text-secondary: #b9adc5;
   --vex-text-muted: #9a82b8;
   --vex-success: #49e9a6;
   --vex-danger: #e66533;
@@ -1085,7 +1085,7 @@
   --vex-accent-dim: #735f1c26;
   --vex-text-primary: #232221;
   --vex-text-secondary: #46443f;
-  --vex-text-muted: #5f5b54;
+  --vex-text-muted: #54514a;
   --vex-success: #1f6b42;
   --vex-danger: #b8322f;
   --vex-shadow: rgba(31, 28, 24, 0.20);

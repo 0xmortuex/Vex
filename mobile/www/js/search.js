@@ -257,6 +257,15 @@ const VexSearch = (() => {
         seen.add(entry.url);
         rows.push({ kind: 'history', title: entry.title || entry.url, url: entry.url, icon: entry.icon || '' });
       }
+      // Then what the computer visited (Vex Sync, read-only), after what this
+      // phone did: a page you read on the PC last night, found from the phone.
+      const computer = (typeof VexSync !== 'undefined' && VexSync.remoteHistory) ? VexSync.remoteHistory('', 800) : [];
+      for (const entry of computer) {
+        if (rows.length >= limit) break;
+        if (seen.has(entry.url) || !match(entry)) continue;
+        seen.add(entry.url);
+        rows.push({ kind: 'history', title: entry.title || entry.url, url: entry.url, icon: entry.icon || '', remote: true });
+      }
       return rows;
     },
 

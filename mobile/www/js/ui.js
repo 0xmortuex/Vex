@@ -651,7 +651,7 @@ const VexUI = (() => {
       const engine = VexSearch.engines()[VexSearch.engineId()];
       lines.appendChild(el('span', 'u', engine ? engine.name : 'Search'));
     } else {
-      lines.appendChild(el('span', 'u', row.snippet || row.url));
+      lines.appendChild(el('span', 'u', row.snippet || (row.remote ? 'On your computer · ' : '') + row.url));
     }
     item.appendChild(lines);
 

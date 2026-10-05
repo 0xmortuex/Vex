@@ -87,7 +87,7 @@ window.VEX_THEMES = [
     "id": "solarized",
     "label": "Solarized",
     "dark": true,
-    "accent": "#268bd2",
+    "accent": "#3a9be0",
     "bg": "#00252e"
   },
   {

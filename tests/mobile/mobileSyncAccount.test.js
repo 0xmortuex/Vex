@@ -56,7 +56,7 @@ describe('joining', () => {
     const mobile = await joinedPhone();
     expect(mobile.bookmarks.all().map(item => item.url)).toEqual(['https://desk.example/one', 'https://desk.example/two']);
     expect(mobile.notes()[0].title).toBe('Shopping');
-    expect(mobile.sync.remoteTabs()).toEqual([{ url: 'https://open.example/page', title: 'Open on the PC' }]);
+    expect(mobile.sync.remoteTabs()).toEqual([expect.objectContaining({ url: 'https://open.example/page', title: 'Open on the PC', group: '' })]);
     expect(mobile.sync.state.enabled).toBe(true);
   });
 
@@ -591,5 +591,47 @@ describe('v2.35.2 (§5.4, §6 rule 11)', () => {
     expect(Object.values(after).some(text => text.includes('https://phone.example/rule11'))).toBe(true);
     // And the v2.35.2 desktop, which does not read it either, still syncs.
     expect((await pc.engine.pushNow()).ok !== false).toBe(true);
+  });
+});
+
+describe('what the phone reads from the computer', () => {
+  it('shows the computer’s open tabs in its groups, and its history, without writing either back', async () => {
+    await desktopWithAccount();
+    pc.storage.set('groups', [
+      { id: 'g1', name: 'Work', color: 'blue', collapsed: false },
+      { id: 'g2', name: 'Trip', color: '#e8574b', collapsed: true }
+    ]);
+    pc.storage.set('tabs', [
+      { id: 't1', url: 'https://mail.example/', title: 'Mail', groupId: 'g1', pinned: true },
+      { id: 't2', url: 'https://docs.example/q3', title: 'Q3 plan', groupId: 'g1' },
+      { id: 't3', url: 'https://flights.example/', title: 'Flights', groupId: 'g2' },
+      { id: 't4', url: 'https://news.example/', title: 'News' },
+      { id: 't5', url: 'file:///C:/secret.txt', title: 'Not a web page' }
+    ]);
+    pc.local.set('vex.history', JSON.stringify([
+      { id: 'h_1767225600000_aaaaa', url: 'https://tides.example/spring', title: 'Spring tides', favicon: '', visitedAt: '2026-10-04T20:00:00.000Z', indexed: false },
+      { id: 'h_1767225500000_bbbbb', url: 'https://lamps.example/', title: 'Desk lamps', favicon: '', visitedAt: '2026-10-04T19:00:00.000Z', indexed: false }
+    ]));
+    await pc.engine.pushNow();
+    const before = recordTexts((await accountDocument(stand, recovery)).doc);
+
+    const mobile = await joinedPhone();
+    const groups = mobile.sync.remoteTabGroups();
+    expect(groups.map(group => [group.name, group.color, group.tabs.map(tab => tab.title)])).toEqual([
+      ['Work', '#4f86f7', ['Mail', 'Q3 plan']],
+      ['Trip', '#e8574b', ['Flights']],
+      ['', '', ['News']]
+    ]);
+    expect(groups[0].tabs[0].pinned).toBe(true);
+    expect(mobile.sync.remoteHistory('tides').map(entry => entry.title)).toEqual(['Spring tides']);
+    expect(mobile.sync.remoteHistory('', 10)).toHaveLength(2);
+
+    // Nothing of the computer's — tabs, groups, history — is written by the phone.
+    await mobile.bookmarks.add({ url: 'https://phone.example/read', title: 'Phone' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const after = recordTexts((await accountDocument(stand, recovery)).doc);
+    for (const [key, text] of Object.entries(before)) {
+      if (/^\["(storage:tabs|storage:groups|preference:vex\.history)"/.test(key)) expect(after[key], key).toBe(text);
+    }
   });
 });
