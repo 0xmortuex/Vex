@@ -20,7 +20,23 @@ const Recall = {
   PAGE_SIZE: 30,
   _seq: 0,
 
-  enabled() { try { return localStorage.getItem(this.ENABLED_KEY) !== 'false'; } catch { return true; } },
+  // Recall is opt-in since v2.37.1. A profile that finished setup before then
+  // and never chose keeps it on (written once as an explicit 'true'), so the
+  // new default only reaches new profiles.
+  OPT_IN_KEY: 'vex.recallOptIn',
+  _migrateOnce() {
+    if (localStorage.getItem(this.OPT_IN_KEY)) return;
+    localStorage.setItem(this.OPT_IN_KEY, '1');
+    if (localStorage.getItem(this.ENABLED_KEY) == null && localStorage.getItem('vex.onboardingDone') === 'true') {
+      localStorage.setItem(this.ENABLED_KEY, 'true');
+    }
+  },
+  enabled() {
+    try {
+      this._migrateOnce();
+      return localStorage.getItem(this.ENABLED_KEY) === 'true';
+    } catch { return false; }
+  },
   setEnabled(v) { try { localStorage.setItem(this.ENABLED_KEY, v ? 'true' : 'false'); } catch {} },
 
   // Hosts the user asked Recall to stay out of. Stored locally; subdomains of a

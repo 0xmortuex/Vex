@@ -56,11 +56,27 @@ describe('Annotations store', () => {
 describe('Recall', () => {
   const page = (text, title) => ({ title: title || 'Extracted', text });
 
-  it('defaults to enabled and round-trips the flag', () => {
+  it('is off on a new profile and round-trips the flag', () => {
+    expect(Recall.enabled()).toBe(false);
+    Recall.setEnabled(true);
     expect(Recall.enabled()).toBe(true);
     Recall.setEnabled(false);
     expect(Recall.enabled()).toBe(false);
     expect(localStorage.getItem('vex.recall.enabled')).toBe('false');
+  });
+
+  it('keeps Recall on for a profile set up before it became opt-in', () => {
+    localStorage.setItem('vex.onboardingDone', 'true');
+    expect(Recall.enabled()).toBe(true);
+    expect(localStorage.getItem('vex.recall.enabled')).toBe('true');
+  });
+
+  it('leaves an earlier explicit choice alone and migrates only once', () => {
+    localStorage.setItem('vex.onboardingDone', 'true');
+    localStorage.setItem('vex.recall.enabled', 'false');
+    expect(Recall.enabled()).toBe(false);
+    localStorage.removeItem('vex.recall.enabled');
+    expect(Recall.enabled()).toBe(false);
   });
 
   it('skips indexing when disabled or when there is no bridge', async () => {
