@@ -361,8 +361,7 @@ const VexStorage = {
   async loadSettings() {
     return (await this.load('settings')) || {
       searchEngine: 'google',
-      adBlocker: true,
-      tabsVisible: true
+      adBlocker: true
     };
   },
 

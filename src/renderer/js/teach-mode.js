@@ -125,7 +125,7 @@ const TeachMode = {
     if (typeof AgentLoop === 'undefined') throw new Error('The agent is not available to save it to');
     const macro = AgentLoop.saveMacroFromSteps(String(name || this._name || 'Taught task'), calls, steps[0] && steps[0].url);
     this.steps = [];
-    window.showToast?.('Saved "' + macro.name + '" — ' + calls.length + ' steps, repeat it from Ctrl+K › Repeat a Saved Task'
+    window.showToast?.('Saved "' + macro.name + '" — ' + calls.length + ' steps, repeat it from Ctrl+K › Repeat a task'
       + (this._secretSeen ? '. A password step will hand the page back to you.' : ''));
     return macro;
   },

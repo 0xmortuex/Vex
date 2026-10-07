@@ -6,13 +6,16 @@
   z-index: 30; font-size: 12px; color: var(--text-muted);
 }
 .translate-bar.visible { display: flex; }
+/* The page moves down under the bar instead of being covered by it —
+   Wikipedia's search box was half hidden (walkthrough L6, 2026-10-07). */
+:has(> .translate-bar.visible) > #webviews-container { margin-top: 32px; height: calc(100% - 32px); }
 .translate-bar select {
   padding: 3px 8px; background: var(--bg); border: 1px solid var(--border);
   border-radius: 4px; color: var(--text); font-size: 12px; outline: none;
   font-family: 'Outfit', sans-serif;
 }
 .translate-bar button {
-  padding: 3px 10px; border: none; background: var(--primary); color: white;
+  padding: 3px 10px; border: none; background: var(--primary); color: var(--on-primary, #fff);
   border-radius: 4px; cursor: pointer; font-size: 11px; font-family: 'Outfit', sans-serif;
 }
 .translate-bar .translate-close {

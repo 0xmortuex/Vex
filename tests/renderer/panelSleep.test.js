@@ -34,6 +34,7 @@ beforeEach(() => {
   globalThis.SleepConsent = {
     mode: () => 'auto', auto: () => true, never: () => false,
     ask: ({ run }) => { run(); return true; },
+    gate: ({ run }) => { run(); return true; }, modeFor: () => 'auto', renderSettingsState: () => {},
     offerAfterGame: () => false,
   };
   document.body.innerHTML = `

@@ -1,4 +1,4 @@
-# Vex Sync Protocol (v2.35.2)
+# Vex Sync Protocol (v2.35.2, wire protocol unchanged through v2.36.4; §8 source list as of the release after v2.36.4)
 
 This is the wire and data contract between Vex clients and a self-hosted Vex Sync worker. A third-party or mobile client can follow it and sync with desktop Vex without losing or corrupting another device's data.
 
@@ -551,12 +551,13 @@ A small per-account mailbox, separate from the record document.
 
 ### 8.1 Complete list (from `SYNC_KEYS`, `preferenceKeys()`, `STORE_KEYS` and `TILE_LISTS`)
 - **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`.
-- **Scalar preferences** (raw localStorage strings): `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.customCommands`, `vex.zooms`, `vex.forceDarkSites`, `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex-theme`. All are prefixed `preference:`.
+- **Scalar preferences** (raw localStorage strings): `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`. All are prefixed `preference:`.
+- **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied.
 - **Tile lists** (gated): `preference:vex.shortcuts`, `preference:vex.startTiles`.
 - **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:history`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`.
 - **Markers**: `sync:device:<id>`.
 
-`vex.tabs`, `vex.settings`, `vex.theme`, `vex.groups` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. They travel as `storage:*`, or for shortcuts as a tile list.
+`vex.tabs`, `vex.theme`, `vex.groups` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. They travel as `storage:*`, or for shortcuts as a tile list.
 
 ### 8.2 Sources a phone can sensibly read and write
 
@@ -572,7 +573,7 @@ A small per-account mailbox, separate from the record document.
 | `storage:tabs` | yes (e.g. a "tabs on my computers" view) | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. This is the open-tab set shared by desktops and **merged across all desktops**, not per device. |
 
 ### 8.3 Desktop-only sources (copy verbatim, never write)
-`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.customCommands`, `vex.zooms`, `vex.forceDarkSites`, `vex.autosleep*`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex-theme`, `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, and every other device's `sync:device:*`.
+`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, and every other device's `sync:device:*`.
 
 ### 8.4 Validation every merged source must pass (`data-contracts.js` `sources()`)
 The desktop runs these checks on the **sources it owns** in the merged result (§6 rule 1; tile lists only while the gate is open). A failure aborts the pull. Sources it does not own are not checked (from v2.35.2; up to v2.35.1 the desktop checked the whole merged result, and any failure aborted the pull).

@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# Throwaway builds (--config.directories.output=dist-<name>) and logs
+dist-*/
+*.log
 # Cloudflare Wrangler local state (workers/*/.wrangler)
 .wrangler/
 .claude/
@@ -21,7 +24,7 @@ Vex.bat
 Vex.vbs
 launch-vex.vbs
 create-shortcut.ps1
-# Vendored third-party runtimes (~50MB) copied out of node_modules by
+# Vendored third-party runtimes (~60MB) copied out of node_modules by
 # `npm run build:vendor`, which prestart/prepack/predist already run. Build
 # output, not source - the app boots without it and packaging regenerates it.
 src/renderer/vendor/runtime/

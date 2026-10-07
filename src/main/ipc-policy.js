@@ -1,12 +1,21 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon']);
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon',
+  // A page saved or captured by its id: only one of the asking window's own
+  // (security scan L1).
+  'page:save', 'page:capture-full',
+  // A picture for the AI, fetched through that page's own session (main.js).
+  'image:for-ai']);
 // siterules:set: a private window starts with an empty list, and saving it
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).
 // routing:forget/prune follow the main window's site rules, as routing:set does.
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:)/;
+// site:clear-data is allowed: main clears the private window's own session
+// (main.js, _siteSessionFor). Writes that would land in the main profile are
+// not: restoring saved settings, reminders, mail accounts, and a page opened as
+// an app or an overlay, which live in persist:main (security scan L2, L3).
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|app:restore-settings|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|mcp:auth-set)/;
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

@@ -27,11 +27,13 @@ function harness() {
   const sent = [];
   const ipc = new Map();
   const ipcMain = { handle: (channel, fn) => ipc.set(channel, fn) };
+  const mainSession = { downloadURL: vi.fn() };
   const service = createDownloadService({
     app: { getPath: () => 'C:/downloads' },
-    secureSessions: { owner: () => null, partitionOf: () => 'persist:main' },
+    secureSessions: { owner: () => null, partitionOf: () => 'persist:main', fromPartition: () => mainSession, sessions: new Set([mainSession]) },
     broadcast: (channel, data) => sent.push({ channel, data }),
     ipcMain,
+    webContents: { getAllWebContents: () => [] },
   });
   const session = { on: (name, fn) => { session._will = fn; } };
   service.wireDownloadsOnSession(session, 'test');

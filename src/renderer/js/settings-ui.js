@@ -162,10 +162,21 @@ const SettingsUI = {
     }
   },
 
+  // The theme and feature counts in Settings text, from the real lists (the
+  // written-down numbers said 37 and 222 when there were 65 and 228).
+  _fillCounts(root) {
+    const n = {
+      themes: (typeof ThemeManager !== 'undefined' && ThemeManager.THEMES) ? ThemeManager.THEMES.length : null,
+      features: (typeof VexFeatures !== 'undefined' && VexFeatures.ITEMS) ? VexFeatures.ITEMS.length : null,
+    };
+    root.querySelectorAll('[data-count]').forEach(el => { const v = n[el.dataset.count]; if (v != null) el.textContent = String(v); });
+  },
+
   enhance() {
     const root = document.querySelector('#panel-settings .settings-content');
     if (!root) return;
     this._wirePickers();
+    this._fillCounts(root);
     const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
     if (!groups.length) return;
 

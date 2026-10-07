@@ -16,19 +16,46 @@ const McpClient = (() => {
   let servers = [];
   const _sessions = Object.create(null); // serverId -> { sessionId, tools, info }
 
-  function load() { try { const a = JSON.parse(localStorage.getItem(KEY) || '[]'); servers = Array.isArray(a) ? a : []; } catch { servers = []; } return servers; }
+  // A server's token is kept encrypted in main (mcp:auth-set) and added to
+  // its requests there; this list only says whether it has one (hasAuth). It
+  // was kept here, in plain text in vex-persist.json and in every backup.
+  // A token saved the old way is handed to main once and dropped from here.
+  function load() {
+    try { const a = JSON.parse(localStorage.getItem(KEY) || '[]'); servers = Array.isArray(a) ? a : []; } catch { servers = []; }
+    for (const s of servers) {
+      if (!s || typeof s.auth !== 'string') continue;
+      const token = s.auth.trim();
+      if (!token) { delete s.auth; save(); continue; }
+      Promise.resolve(window.vex?.mcpAuthSet?.(s.id, token)).then((r) => {
+        if (!r || !r.ok) throw new Error('Vex did not keep the token');
+        delete s.auth; s.hasAuth = true; save();
+      }).catch(err => console.error('[MCP] could not move a server token into encrypted storage:', err && err.message));
+    }
+    return servers;
+  }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(servers)); } catch {} }
   function list() { return servers; }
   function session(id) { return _sessions[id]; }
 
-  function addServer(name, url, auth) {
+  async function addServer(name, url, auth) {
     url = (url || '').trim(); name = (name || '').trim();
     if (!/^https?:\/\//i.test(url)) { window.showToast?.('Enter a valid http(s) MCP URL'); return null; }
-    const s = { id: vexId('mcp'), name: name || url, url, auth: (auth || '').trim() };
+    const token = (auth || '').trim();
+    const s = { id: vexId('mcp'), name: name || url, url, hasAuth: !!token };
+    if (token) {
+      try {
+        const r = await window.vex.mcpAuthSet(s.id, token);
+        if (!r || !r.ok) throw new Error('Vex did not keep the token');
+      } catch (err) { window.showToast?.('Could not save the token: ' + ((err && err.message) || 'error'), 'error'); return null; }
+    }
     servers.push(s); save();
     return s;
   }
-  function removeServer(id) { servers = servers.filter(s => s.id !== id); delete _sessions[id]; save(); }
+  function removeServer(id) {
+    const gone = servers.find(s => s.id === id);
+    servers = servers.filter(s => s.id !== id); delete _sessions[id]; save();
+    if (gone && gone.hasAuth) Promise.resolve(window.vex?.mcpAuthSet?.(id, '')).catch(err => console.error('[MCP] could not delete the server token:', err && err.message));
+  }
 
   // Parse either a JSON body or an SSE stream ("event:"/"data:" lines) into the
   // first JSON-RPC object we can find.
@@ -48,12 +75,12 @@ const McpClient = (() => {
   async function _rpc(server, method, params, opts = {}) {
     if (!window.vex?.apiRequest) throw new Error('Bridge unavailable');
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
-    if (server.auth) headers['Authorization'] = /^bearer\s/i.test(server.auth) ? server.auth : ('Bearer ' + server.auth);
     const sess = _sessions[server.id];
     if (sess?.sessionId) headers['Mcp-Session-Id'] = sess.sessionId;
     const payload = { jsonrpc: '2.0', method, params: params || {} };
     if (!opts.notification) payload.id = ++_id;
-    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload) });
+    // Main adds the server's token (kept encrypted there) when it has one.
+    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload), ...(server.hasAuth ? { mcpServer: server.id } : {}) });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Request failed');
     if (res.status >= 400) throw new Error('Server returned ' + res.status + (res.body ? ': ' + res.body.slice(0, 200) : ''));
     // Capture a session id handed back on initialize.
@@ -164,8 +191,8 @@ const McpClient = (() => {
       });
     };
     renderList();
-    container.querySelector('#mcp-add').addEventListener('click', () => {
-      const s = addServer(container.querySelector('#mcp-name').value, container.querySelector('#mcp-url').value, container.querySelector('#mcp-auth').value);
+    container.querySelector('#mcp-add').addEventListener('click', async () => {
+      const s = await addServer(container.querySelector('#mcp-name').value, container.querySelector('#mcp-url').value, container.querySelector('#mcp-auth').value);
       if (s) { container.querySelector('#mcp-name').value = ''; container.querySelector('#mcp-url').value = ''; container.querySelector('#mcp-auth').value = ''; renderList(); window.showToast?.('MCP server added'); }
     });
   }

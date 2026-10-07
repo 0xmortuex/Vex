@@ -91,12 +91,12 @@ const VexMail = {
     // the call was refused with a raw "Error invoking remote method 'mail:add'"
     // (found 2026-09-29).
     body.innerHTML = `
-      <form data-setup style="display:grid;gap:10px;padding:16px;max-width:520px">
+      <form data-setup style="display:grid;gap:10px;padding:16px;max-width:520px;margin:0 auto;box-sizing:border-box">
         <div style="font-size:13px;color:var(--text)">Read your newest mail here. Reading in Vex never marks anything read or changes your mailbox; to reply, open the message in your webmail.</div>
         <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Email address<input data-email type="email" maxlength="320" autocomplete="off" spellcheck="false" style="${field}"></label>
-        <div data-help style="font-size:11.5px;color:var(--text-muted);min-height:15px"></div>
-        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"></label>
-        <div data-custom hidden style="display:grid;grid-template-columns:1fr 90px 110px;gap:8px">
+        <div data-help hidden style="font-size:11.5px;color:var(--text-muted);margin-top:-4px"></div>
+        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"><span style="font-size:11px;color:var(--text-muted)">Not the password you sign in with: most providers make you create an app password in your account's security settings.</span></label>
+        <div data-custom hidden style="display:none;grid-template-columns:1fr 90px 110px;gap:8px">
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">IMAP server<input data-host type="text" maxlength="255" placeholder="imap.example.com" spellcheck="false" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Port<input data-port type="number" value="993" min="1" max="65535" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Security<select data-security style="${field}"><option value="tls" selected>TLS</option><option value="starttls">STARTTLS</option></select></label>
@@ -112,7 +112,11 @@ const VexMail = {
     email.addEventListener('input', () => {
       const domain = (email.value.split('@')[1] || '').trim().toLowerCase();
       help.textContent = this.PROVIDER_HELP[domain] || (domain.includes('.') && !this.KNOWN.includes(domain) ? 'Enter your provider\'s IMAP server below, and an app password if it issues them.' : '');
+      help.hidden = !help.textContent;
       custom.hidden = !(domain.includes('.') && !this.KNOWN.includes(domain) && !this.PROVIDER_HELP[domain]);
+      // Its inline display beat the hidden attribute, so the server row
+      // showed for every address (walkthrough L5, 2026-10-07).
+      custom.style.display = custom.hidden ? 'none' : 'grid';
     });
     // The security followed the port (TLS only on 993), so a server with TLS on
     // another port could not be added (found 2026-09-29). The port still picks
@@ -138,6 +142,7 @@ const VexMail = {
         btn.disabled = false; status.textContent = '';
         window.showToast?.(err.message, 'error');
         help.textContent = err.message;
+        help.hidden = false;
       }
     });
     email.focus();

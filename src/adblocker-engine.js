@@ -81,15 +81,68 @@ let _cosmeticHandlersWired = false;
 // handlers aren't registered yet, every early page throws "No handler registered
 // for '@ghostery/adblocker/inject-cosmetic-filters'". So we wire the handlers up
 // front (call this at startup) and just no-op inside until the engine exists.
+// The library injects each scriptlet with its own executeJavaScript, and
+// assembleScript() puts the scriptlet's dependencies (uBO's `class JSONPath`,
+// for one) at the page's top level. YouTube gets several scriptlets that share
+// JSONPath, so every one after the first died with "Identifier 'JSONPath' has
+// already been declared" and never ran; the rejected executeJavaScript promise
+// was never caught, so main logged an UnhandledPromiseRejection for each
+// (walkthrough M1, 2026-10-07). A block makes class/let/const declarations
+// local to that one scriptlet; `var scriptletGlobals` and sloppy-mode function
+// declarations still reach the page scope exactly as before.
+function wrapScriptlet(code) {
+  return '{\n' + code + '\n}';
+}
+
+// A scriptlet that still fails is logged once per site and message, with the
+// page it was for — not once per page load, and never as an unhandled rejection.
+const _loggedScriptletFailures = new Set();
+function _logScriptletFailure(kind, url, err) {
+  let host = '';
+  try { host = new URL(url).hostname; } catch { host = String(url || '').slice(0, 60); }
+  const msg = (err && err.message) || String(err);
+  const key = kind + '|' + host + '|' + msg;
+  if (_loggedScriptletFailures.has(key)) return;
+  _loggedScriptletFailures.add(key);
+  console.error(`[Vex adblock-engine] ${kind} failed on ${host}:`, msg);
+}
+
+// The event handed to the library: same frame ids, but its insertCSS and
+// executeJavaScript go to the frame that asked, wrap each scriptlet in a
+// block, and catch what the library left uncaught.
+function _cosmeticEvent(event, url) {
+  const sender = event.sender;
+  const frame = event.senderFrame;
+  return {
+    frameId: event.frameId,
+    processId: event.processId,
+    sender: {
+      insertCSS(css, opts) {
+        const p = sender.insertCSS(css, opts);
+        if (p && typeof p.catch === 'function') p.catch(e => _logScriptletFailure('cosmetic CSS', url, e));
+        return p;
+      },
+      executeJavaScript(code, userGesture) {
+        const target = (frame && !frame.isDestroyed?.() && typeof frame.executeJavaScript === 'function') ? frame : sender;
+        const p = target.executeJavaScript(wrapScriptlet(code), userGesture);
+        if (p && typeof p.catch === 'function') p.catch(e => _logScriptletFailure('scriptlet', url, e));
+        return p;
+      },
+    },
+  };
+}
+
 function enableCosmeticFiltering(isEnabled) {
   if (_cosmeticHandlersWired) return true;
   try {
     const { ipcMain } = require('electron');
-    ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url, msg) => {
+    ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', async (event, url, msg) => {
+      if (!_engine || (isEnabled && !isEnabled())) return;
       try {
-        if (!_engine || (isEnabled && !isEnabled())) return;
-        return _engine.blocker.onInjectCosmeticFilters(event, url, msg);
-      } catch { /* ignore per-frame failures */ }
+        await _engine.blocker.onInjectCosmeticFilters(_cosmeticEvent(event, url), url, msg);
+      } catch (e) {
+        _logScriptletFailure('cosmetic filters', url, e);
+      }
     });
     ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
       try { return _engine ? _engine.blocker.onIsMutationObserverEnabled(event) : false; } catch { return false; }
@@ -102,4 +155,4 @@ function enableCosmeticFiltering(isEnabled) {
   }
 }
 
-module.exports = { initEngine, engineBlocks, isReady, enableCosmeticFiltering };
+module.exports = { initEngine, engineBlocks, isReady, enableCosmeticFiltering, wrapScriptlet, _cosmeticEvent };

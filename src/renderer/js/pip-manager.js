@@ -255,7 +255,14 @@ const PiPManager = {
   // permissions policy) or a video Chromium will not float.
   _openPopout(tab, media) {
     if (!tab || !window.vex?.openPipWindow) return Promise.resolve(false);
-    return Promise.resolve(window.vex.openPipWindow(tab.url, media || null)).then(result => {
+    // The tab's page, so main opens the pop-out in the tab's own session: a
+    // Tor or private tab's video is never fetched outside it.
+    const wv = WebviewManager.webviews.get(tab.id);
+    let pageId = 0;
+    try { pageId = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : 0; }
+    catch (err) { console.warn('[PiP] the tab has no page yet:', err && err.message); }
+    if (!(pageId > 0)) { window.showToast?.('Picture-in-Picture is not available for this page', 'error'); return Promise.resolve(false); }
+    return Promise.resolve(window.vex.openPipWindow(tab.url, media || null, pageId)).then(result => {
       // main rejects non-http(s) URLs (safePipUrl) and returns false on a
       // creation failure; say so instead of silently doing nothing.
       if (!result || result.ok === false) { window.showToast?.('Picture-in-Picture is not available for this page', 'error'); return false; }

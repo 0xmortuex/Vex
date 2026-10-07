@@ -18,20 +18,51 @@ beforeEach(() => {
 });
 
 describe('McpClient server storage', () => {
-  it('adds valid http(s) servers and persists them', () => {
-    const s = McpClient.addServer('Test', 'https://mcp.example.com/mcp', 'tok');
+  it('adds valid http(s) servers and persists them, the token in main only', async () => {
+    globalThis.window.vex = { mcpAuthSet: vi.fn(async () => ({ ok: true, has: true })) };
+    const s = await McpClient.addServer('Test', 'https://mcp.example.com/mcp', 'tok');
     expect(s).toBeTruthy();
     expect(McpClient.list()).toHaveLength(1);
-    expect(JSON.parse(localStorage.getItem('vex.mcpServers'))[0].url).toBe('https://mcp.example.com/mcp');
+    const saved = JSON.parse(localStorage.getItem('vex.mcpServers'))[0];
+    expect(saved.url).toBe('https://mcp.example.com/mcp');
+    // The token went to main (encrypted there) and never into localStorage.
+    expect(window.vex.mcpAuthSet).toHaveBeenCalledWith(s.id, 'tok');
+    expect(saved.hasAuth).toBe(true);
+    expect(localStorage.getItem('vex.mcpServers')).not.toContain('tok');
   });
 
-  it('rejects non-http URLs', () => {
-    expect(McpClient.addServer('Bad', 'ftp://nope')).toBeNull();
+  it('does not add a server whose token main could not keep', async () => {
+    globalThis.window.vex = { mcpAuthSet: vi.fn(async () => { throw new Error('This operation is unavailable in a private window'); }) };
+    expect(await McpClient.addServer('Test', 'https://mcp.example.com/mcp', 'tok')).toBeNull();
     expect(McpClient.list()).toHaveLength(0);
   });
 
-  it('removes servers by id', () => {
-    const s = McpClient.addServer('X', 'https://x.com/mcp');
+  it('moves a token saved the old way into main and drops it here', async () => {
+    globalThis.window.vex = { mcpAuthSet: vi.fn(async () => ({ ok: true, has: true })) };
+    localStorage.setItem('vex.mcpServers', JSON.stringify([{ id: 'mcp_old', name: 'Old', url: 'https://old.example/mcp', auth: 'secret-token' }]));
+    McpClient.load();
+    await new Promise(r => setTimeout(r, 0));
+    expect(window.vex.mcpAuthSet).toHaveBeenCalledWith('mcp_old', 'secret-token');
+    expect(localStorage.getItem('vex.mcpServers')).not.toContain('secret-token');
+    expect(McpClient.list()[0].hasAuth).toBe(true);
+  });
+
+  it('names the server in the request so main adds its token', async () => {
+    globalThis.window.vex = { mcpAuthSet: vi.fn(async () => ({ ok: true })), apiRequest: vi.fn(async () => ({ ok: true, status: 200, headers: {}, body: '{"jsonrpc":"2.0","id":1,"result":{}}' })) };
+    const s = await McpClient.addServer('Test', 'https://mcp.example.com/mcp', 'tok');
+    await McpClient.connect(s).catch(() => {});
+    const req = window.vex.apiRequest.mock.calls[0][0];
+    expect(req.mcpServer).toBe(s.id);
+    expect(JSON.stringify(req.headers)).not.toContain('tok');
+  });
+
+  it('rejects non-http URLs', async () => {
+    expect(await McpClient.addServer('Bad', 'ftp://nope')).toBeNull();
+    expect(McpClient.list()).toHaveLength(0);
+  });
+
+  it('removes servers by id', async () => {
+    const s = await McpClient.addServer('X', 'https://x.com/mcp');
     McpClient.removeServer(s.id);
     expect(McpClient.list()).toHaveLength(0);
   });
@@ -60,7 +91,7 @@ describe('McpClient agent integration', () => {
   // Drive a fake server through connect() so a session with tools exists, then
   // check the agent-facing tool defs + dispatch.
   async function connectFakeServer() {
-    const s = McpClient.addServer('Search', 'https://mcp.example.com/mcp', '');
+    const s = await McpClient.addServer('Search', 'https://mcp.example.com/mcp', '');
     let call = 0;
     globalThis.window.vex = {
       apiRequest: vi.fn(async ({ body }) => {

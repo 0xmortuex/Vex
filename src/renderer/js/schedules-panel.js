@@ -293,6 +293,15 @@ const SchedulesPanel = {
     }
     block.querySelector('#sched-reminders-add').addEventListener('click', () => { window.VexQuickReminder && VexQuickReminder.open(); });
     c.prepend(block);
+    // Reminders but no tasks: a big 'No scheduled tasks yet' right under a
+    // scheduled reminder read as a contradiction (walkthrough L12,
+    // 2026-10-07). Say what is actually missing.
+    const emptyTitle = c.querySelector('.vex-empty-title, .sched-empty');
+    if (emptyTitle) {
+      emptyTitle.textContent = 'No tasks yet';
+      const hint = c.querySelector('.vex-empty-hint');
+      if (hint) hint.textContent = 'Your reminders are above. A task runs something for you on a schedule — create one, or start from a template';
+    }
   },
 
   // ----------------------------------------------------------------- history

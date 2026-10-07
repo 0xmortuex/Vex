@@ -1681,15 +1681,21 @@ const AIPanel = {
 
   // Right-click any image → "Ask Vex about this image". The model can see now
   // (v2.31.86), so this is a question about the picture, not about its address.
+  // The picture is in the tab in front (the right-click came from it); it is
+  // fetched through that tab's own session, and a private, off-the-record or
+  // Tor tab's is sent only if the person says yes here.
   async askAboutImage(srcUrl, question) {
-    if (!this.isOpen()) this.open();
     let image;
-    try { image = await this._imageAsData(srcUrl); }
-    catch (err) {
+    try {
+      image = await this._imageAsData(srcUrl);
+      if (image === null) return false;   // the person said no
+    } catch (err) {
+      if (!this.isOpen()) this.open();
       this._addError('That image could not be read: ' + ((err && err.message) || ''));
       VexProblems?.note('AI', 'Could not read an image for the AI', err);
       return false;
     }
+    if (!this.isOpen()) this.open();
     const ask = question || 'What is in this image?';
     await this.sendMessage('chat', { message: ask, image });
     return true;
@@ -1698,21 +1704,25 @@ const AIPanel = {
   // Fetched through main, because the page's own image is on its origin and
   // the interface is a file:// document — and shrunk, because a model does not
   // need four megapixels to answer.
+  // Resolves to null when the person declines to send a private or Tor tab's
+  // picture. Fetched by main through the tab's own session (image:for-ai),
+  // which also sends the tab's own user agent and cookies.
   async _imageAsData(srcUrl) {
     if (/^data:image\//.test(srcUrl)) return this._shrinkImage(srcUrl);
-    if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Vex cannot fetch images in this build');
-    // A User-Agent is not optional: Wikimedia and others answer a request
-    // without one with 400 and an HTML error page — which then read as "that
-    // address is not an image" instead of what actually happened.
-    const r = await window.vex.apiRequest({ url: srcUrl, binary: true, headers: { 'User-Agent': navigator.userAgent, Accept: 'image/*,*/*;q=0.8' } });
+    if (!window.vex || typeof window.vex.imageForAi !== 'function') throw new Error('Vex cannot fetch images in this build');
+    const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+    const pageId = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : 0;
+    if (!(pageId > 0)) throw new Error('the tab it is in is not open');
+    let r = await window.vex.imageForAi(pageId, srcUrl, false);
+    if (r && r.needsConsent) {
+      const where = r.kind === 'tor' ? 'a Tor tab' : 'a private tab';
+      const yes = await window.vexConfirm({ title: 'Send a picture from ' + where + '?', message: `This picture is in ${where}. Asking Vex about it sends the picture to your AI model, which may be online.`, okLabel: 'Send it' });
+      if (!yes) return null;
+      r = await window.vex.imageForAi(pageId, srcUrl, true);
+    }
     if (!r || !r.ok) throw new Error((r && r.error) || 'the request failed');
-    // `ok` means the request completed, not that the server was happy.
-    if (r.status >= 400) throw new Error('the site answered ' + r.status + ' (' + (r.statusText || 'error') + ')');
-    const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || 'image/png').split(';')[0];
-    if (!/^image\//.test(type)) throw new Error('that address gave back ' + type + ', not an image');
-    const base64 = r.base64 || r.body;
-    if (!base64) throw new Error('nothing came back');
-    return this._shrinkImage('data:' + type + ';base64,' + base64);
+    if (!r.base64) throw new Error('nothing came back');
+    return this._shrinkImage('data:' + r.type + ';base64,' + r.base64);
   },
 
   _shrinkImage(dataUrl, max = 1024) {

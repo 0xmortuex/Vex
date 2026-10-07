@@ -83,7 +83,7 @@ const AISettings = (() => {
       { id: 'explain', label: 'Explain text', desc: 'Right-click \u2192 Explain' },
       { id: 'historyIndex', label: 'History indexing', desc: 'Background page summaries' },
       { id: 'historySearch', label: 'History search', desc: 'AI-powered history queries' },
-      { id: 'agent', label: 'Agent mode', desc: 'Browser automation (cloud only)' },
+      { id: 'agent', label: 'Agent mode', desc: 'Browser automation — prefers the cloud; uses the local model when no AI Worker is set or you prefer local' },
       { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' },
       // Was routable in the router but had no row here, so the only way to
       // change it was editing localStorage by hand.
@@ -96,7 +96,7 @@ const AISettings = (() => {
           <strong>${escapeHtml(f.label)}</strong>
           <span>${escapeHtml(f.desc)}</span>
         </div>
-        <select data-feature="${f.id}" ${f.id === 'agent' ? 'disabled' : ''}>
+        <select data-feature="${f.id}">
           <option value="auto" ${prefs[f.id] === 'auto' ? 'selected' : ''}>Auto</option>
           <option value="cloud" ${prefs[f.id] === 'cloud' ? 'selected' : ''}>Cloud</option>
           <option value="local" ${prefs[f.id] === 'local' ? 'selected' : ''}>Local</option>

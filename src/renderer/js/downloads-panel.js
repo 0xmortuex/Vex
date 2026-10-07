@@ -74,7 +74,9 @@ const DownloadsPanel = {
       paused: false,
       canResume: false,
       path: data.path || '',
-      startedAt: data.startedAt || new Date().toISOString()
+      startedAt: data.startedAt || new Date().toISOString(),
+      // From a private, off-the-record or Tor tab: listed, never saved (save()).
+      ephemeral: !!data.ephemeral
     };
     this.downloads.unshift(dl);
     this.activeDownloads.set(dl.id, dl);
@@ -159,7 +161,10 @@ const DownloadsPanel = {
       const rest = this.downloads.filter(d => d.state !== 'progressing').slice(0, Math.max(0, 100 - keep.length));
       this.downloads = this.downloads.filter(d => keep.includes(d) || rest.includes(d));
     }
-    try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.downloads)); }
+    // A download from a private, off-the-record or Tor tab stays in the list
+    // until Vex closes and is never written to disk: its address and path went
+    // into vex-persist.json for good (security scan S5-1).
+    try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.downloads.filter(d => !d.ephemeral))); }
     catch (err) { console.error('[Downloads] could not persist history:', err.message); }
   },
 
@@ -299,7 +304,8 @@ const DownloadsPanel = {
   async _retry(id) {
     const dl = this.downloads.find(d => d.id === id);
     if (!dl || !dl.url) { window.showToast?.('No source URL saved for that download', 'error'); return; }
-    const result = await window.vex.downloadsRetry?.(dl.url);
+    // The id lets main fetch it again through the session the first try used.
+    const result = await window.vex.downloadsRetry?.(dl.url, dl.id);
     if (!result || !result.ok) window.showToast?.((result && result.error) || 'Could not restart that download', 'error');
   },
 

@@ -131,7 +131,7 @@
   font-size: 11px; font-family: 'Outfit', sans-serif; border: 1px solid var(--border);
 }
 .btn-primary-sm {
-  background: var(--primary); color: white; border-color: var(--primary);
+  background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary);
 }
 .btn-primary-sm:hover { filter: brightness(1.1); }
 .btn-secondary-sm {

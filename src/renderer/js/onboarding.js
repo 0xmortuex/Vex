@@ -135,6 +135,11 @@ const Onboarding = {
     this._pendingLoc = null;
     this._session = {};
     this._wantTour = false;
+    // What an earlier run in this session chose is not what Settings holds
+    // now: start from the controls again (it re-applied the old values).
+    this._perf = null;
+    this._weatherCountry = null;
+    this._weatherHits = null;
     this._render();
   },
 
@@ -214,7 +219,7 @@ const Onboarding = {
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' , secs: 40},
-      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, menus, panels and setup, and of the start page and the daily verse. Some parts are still in English.' , secs: 15},
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, sidebar and setup, and of the start page and the daily verse. Most panels and Settings stay in English for now.' , secs: 15},
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' , secs: 20},
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Press Skip for none.' , quick: true, secs: 15},
       { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
@@ -222,7 +227,7 @@ const Onboarding = {
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
       { key: 'privacy',        title: 'Privacy choices',          sub: 'Three features that ask a service on the internet. Each is yours to choose, and each is a switch in Settings later.' , quick: true, secs: 20},
       { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' , quick: true, secs: 15},
-      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' , secs: 45},
+      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL and its access token for the most capable AI (both are kept in Settings › Cloud). Skip if you’ll use local AI instead.' , secs: 45},
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
@@ -519,6 +524,11 @@ const Onboarding = {
         shortcuts: SC.map(s => s.name),
         glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
         code: '',
+        // Re-opening the wizard pre-selects the saved profile; pressing Save
+        // & continue on that must change nothing (it re-applied the profile:
+        // hidden panels came back, shortcuts reset, Firefox became Glass).
+        // A first run has nothing saved, so its default is applied as before.
+        chosen: !saved,
       };
     }
     const sel = this._session.setup;
@@ -578,6 +588,7 @@ const Onboarding = {
     validateCode();
     body.querySelectorAll('[data-profile]').forEach(b => b.addEventListener('click', () => {
       sel.profile = b.dataset.profile;
+      sel.chosen = true;
       body.querySelectorAll('[data-profile]').forEach(x => x.style.borderColor = x.dataset.profile === sel.profile ? 'var(--primary)' : 'var(--border)');
       const z = body.querySelector('#ob-setup-custom');
       if (z) z.style.display = sel.profile === 'custom' ? 'flex' : 'none';
@@ -585,7 +596,7 @@ const Onboarding = {
       if (c) c.style.display = sel.profile === 'code' ? 'flex' : 'none';
       if (sel.profile === 'code') body.querySelector('#ob-setup-code-input')?.focus();
     }));
-    body.addEventListener('change', updateCount);
+    body.addEventListener('change', () => { sel.chosen = true; updateCount(); });
     body.querySelector('#ob-setup-code-input')?.addEventListener('input', validateCode);
     body.querySelector('#ob-setup-export')?.addEventListener('click', async (e) => {
       const code = this._encodeSetupCode();
@@ -635,7 +646,12 @@ const Onboarding = {
     // key, mirrored into start-page storage). null = stock set.
     this._setStart('vex.shortcuts', shortcuts == null ? null : JSON.stringify(shortcuts));
     try { window.VexGuiStyle?.render?.(); } catch {}
-    try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
+    // Once a look has been chosen (the Look step, or Settings › GUI Style),
+    // this step leaves it alone: Owner/Minimal know only Glass and Classic,
+    // and a Firefox look became one of those.
+    if (!this._flag('vex.guiStyleChosen')) {
+      try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
+    }
     try { localStorage.setItem('vex.setupProfile', sel.profile); } catch {}
   },
 
@@ -761,17 +777,20 @@ const Onboarding = {
           API key, so you fully own it and there's no middleman.
         </p>
         <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
-          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → AI.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
-          <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings › Cloud.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
+          <div style="margin-top:7px;color:var(--text)">To turn it on now, 4 steps:</div>
           <ol style="margin:5px 0 0;padding-left:18px">
             <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>, and grab a free <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--primary)">OpenRouter API key</a> (this is what talks to Claude).</li>
             <li>Open the <a href="https://github.com/0xmortuex/Vex/blob/main/SELF_HOSTING.md#1-ai-assistant-worker-vex-ai-worker" target="_blank" rel="noopener" style="color:var(--primary)">step-by-step deploy guide</a> — a few <code>wrangler</code> commands (~2 min) that take your API key and print a URL.</li>
-            <li>Paste that URL below (it looks like <code>https://vex-ai.<i>you</i>.workers.dev</code>) and continue.</li>
+            <li>Give the worker an access token: <code>wrangler secret put VEX_CLIENT_TOKENS</code>, with a long random string (24 characters or more). The worker refuses every request without one.</li>
+            <li>Paste the URL it printed (it looks like <code>https://vex-ai.<i>you</i>.workers.dev</code>) and the same token below, and continue.</li>
           </ol>
         </div>
         <label style="font-size:12.5px;color:var(--text)">Cloud AI Worker URL <span style="color:var(--text-muted)">— paste it from step 2, or leave blank</span></label>
         ${input('ob-ai-url', 'https://vex-ai.your-name.workers.dev', cur)}
-        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Cloud AI off — you can still use Local or On-device AI, and add this anytime in Settings → AI.</p>
+        <label style="font-size:12.5px;color:var(--text)" for="ob-ai-token">AI access token <span style="color:var(--text-muted)">— the one from step 3; leave it blank to keep one you saved before</span></label>
+        <input id="ob-ai-token" type="password" autocomplete="off" placeholder="paste the token" style="padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px">
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Cloud AI off — you can still use Local or On-device AI, and add the URL and token anytime in Settings › Cloud.</p>
       </div>`;
     } else if (key === 'ollama') {
       body.innerHTML = `
@@ -801,7 +820,7 @@ const Onboarding = {
           it. It runs on <i>your own</i> free Cloudflare account, so you fully own your data.
         </p>
         <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
-          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → Sync.</b>
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later: the URL goes in Settings › Cloud, then you sign in under Settings › Vex Sync.</b>
           <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
           <ol style="margin:5px 0 0;padding-left:18px">
             <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>.</li>
@@ -1034,23 +1053,23 @@ const Onboarding = {
     return [
       {
         id: 'balanced', name: 'Balanced', tag: 'recommended',
-        desc: 'Tabs sleep after 30 minutes, ads and trackers blocked, pages loaded over HTTPS only.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        desc: 'Vex asks before a tab idle for 30 minutes sleeps; ads and trackers blocked, pages loaded over HTTPS only.',
+        values: { sleep: 'ask', memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'memory', name: 'Save memory',
-        desc: 'Tabs sleep after 10 minutes and are discarded when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
-        values: { memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        desc: 'Tabs sleep by themselves after 10 minutes, without asking, and when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
+        values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'privacy', name: 'Maximum privacy',
-        desc: 'Everything above, plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
+        desc: 'Balanced (Vex asks before anything sleeps), plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
+        values: { sleep: 'ask', memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
       },
       {
         id: 'nothing', name: 'Leave it all off',
-        desc: 'No sleeping, no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
-        values: { memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, doh: 'off', httpsOnly: false },
+        desc: 'Nothing sleeps by itself — no tabs, no panels, no Discord — and no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
+        values: { sleep: 'never', memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, doh: 'off', httpsOnly: false },
       },
     ];
   },
@@ -1059,7 +1078,8 @@ const Onboarding = {
   PERF_FIELDS() {
     return [
       { key: 'autosleep', label: 'Sleep tabs I stop using', help: 'The single biggest thing you can do about memory.' },
-      { key: 'minutes', label: 'Sleep after', help: '', select: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours']] },
+      { key: 'sleep', label: 'Before Vex puts anything to sleep on its own', help: 'Covers idle tabs and panels, Discord, the memory guard and gaming mode. Under “never” the sleep settings here wait.', select: [['never', 'Never do it'], ['ask', 'Ask me first'], ['auto', 'Just do it']] },
+      { key: 'minutes', label: 'Sleep after', help: '', select: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour']] },
       { key: 'memorySaver', label: 'Memory Saver', help: 'Sleeps sooner, discards tabs when minimized, frees background caches.' },
       { key: 'adblock', label: 'Block ads and trackers', help: 'Full filter lists — blocks the request, and hides what it left behind.' },
       { key: 'httpsOnly', label: 'HTTPS-only', help: 'Refuse to load a page over an unencrypted connection.' },
@@ -1074,6 +1094,7 @@ const Onboarding = {
   _perfCurrent() {
     const v = { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: false, doh: 'off', httpsOnly: false };
     const box = (id) => document.getElementById(id);
+    v.sleep = typeof SleepConsent !== 'undefined' ? SleepConsent.mode() : 'never';
     if (box('setting-memory-saver')) v.memorySaver = box('setting-memory-saver').checked;
     if (box('setting-autosleep')) v.autosleep = box('setting-autosleep').checked;
     if (box('setting-autosleep-minutes')) v.minutes = parseInt(box('setting-autosleep-minutes').value, 10) || 30;
@@ -1098,13 +1119,26 @@ const Onboarding = {
     const el = document.getElementById(id);
     if (!el) return false;
     if (el.type === 'checkbox') { if (el.checked === value) return true; el.checked = value; }
-    else { if (String(el.value) === String(value)) return true; el.value = String(value); }
+    else {
+      if (String(el.value) === String(value)) return true;
+      el.value = String(value);
+      // A value the control does not offer leaves it blank, and its change
+      // handler then saved a default instead ("2 hours" became 30 minutes).
+      if (String(el.value) !== String(value)) { console.error('[setup] ' + id + ' has no option ' + value); return false; }
+    }
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return true;
   },
 
   async _perfApply(v) {
     const set = (id, value) => this._setControl(id, value);
+    // The one sleep choice (js/sleep-consent.js) — a preset that sleeps tabs
+    // and left this at "never" did nothing.
+    if (v.sleep && typeof SleepConsent !== 'undefined') {
+      SleepConsent.set(v.sleep);
+      const c = document.getElementById('setting-sleep-consent');
+      if (c) c.value = v.sleep;
+    }
     set('setting-memory-saver', !!v.memorySaver);
     set('setting-autosleep', !!v.autosleep);
     set('setting-autosleep-minutes', v.minutes);
@@ -1536,13 +1570,16 @@ const Onboarding = {
           return;
         }
         this._applySetupCode(d);
-      } else if (sel) {
+      } else if (sel && sel.chosen) {
         this._applySetupProfile(sel);
       }
     } else if (key === 'language') {
       // Mirrored into start-page storage; the greeting/labels/verse re-read it
       // on the reload that finish() triggers.
       this._setStart('vex.lang', this._pendingLang || 'en');
+      // The toolbar, sidebar and Settings follow at once (js/i18n-ui.js
+      // listens; nothing used to send it, so it waited for a restart).
+      window.dispatchEvent(new CustomEvent('vex-lang-changed'));
     } else if (key === 'wisdom') {
       this._setStart('vex.wisdomSource', this._pendingWisdom || 'quran');
       // The Qur'an cache is per-edition; drop it so a language/source change
@@ -1568,6 +1605,14 @@ const Onboarding = {
       this._applyPrivacy();
     } else if (key === 'aicloud') {
       const v = overlay.querySelector('#ob-ai-url')?.value.trim() || '';
+      const token = overlay.querySelector('#ob-ai-token')?.value.trim() || '';
+      if (v && token) {
+        // Saved encrypted by main (the same call as Settings › Cloud's field).
+        try {
+          if (!window.vex || typeof window.vex.saveCloudToken !== 'function') throw new Error('Vex cannot save the token here');
+          await window.vex.saveCloudToken(token);
+        } catch (err) { this._showError(overlay, 'The token was not saved: ' + ((err && err.message) || err)); return; }
+      }
       try { v ? localStorage.setItem('vex.aiWorkerUrl', v) : localStorage.removeItem('vex.aiWorkerUrl'); } catch {}
     } else if (key === 'sync') {
       const v = overlay.querySelector('#ob-sync-url')?.value.trim() || '';

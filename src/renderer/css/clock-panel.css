@@ -39,7 +39,7 @@
   display: block; text-align: center; padding: 5px 0; font-size: 11px; font-weight: 600; cursor: pointer;
   background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); border-radius: 7px;
 }
-.ck-day input:checked + span { background: var(--primary); color: #fff; border-color: var(--primary); }
+.ck-day input:checked + span { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
 .ck-list { display: flex; flex-direction: column; gap: 6px; }
 .ck-empty { font-size: 12px; color: var(--text-muted); padding: 10px 11px; border: 1px dashed var(--border); border-radius: 9px; }

@@ -102,7 +102,7 @@ const GameMode = {
   toggleStreamer() {
     const next = this.on() ? 'off' : 'on';
     this.setMode(next);
-    if (next === 'off') window.showToast?.('Streamer mode off — Settings turns "while you are being captured" back on');
+    if (next === 'off') window.showToast?.('Streamer mode off — Settings › Privacy Hardening › Streamer mode turns “While you share your screen” back on');
     return next;
   },
 
@@ -242,7 +242,10 @@ GameMode._save = async function (action, accel, button) {
 //                    wait (and catch up after), history indexing skips. A
 //                    question YOU ask is still answered.
 //
-// Each is its own switch in Settings › Gaming, all on by default. Nothing is
+// Each is its own switch in Settings › Privacy Hardening › Gaming and
+// streaming › "When a game is running", all on by default. Sleeping tabs
+// also needs "Before Vex puts anything to sleep on its own" (Settings ›
+// Performance) to allow it. Nothing is
 // announced mid-game — a notification over a game is the opposite of the
 // point — you are told what was done when you come back.
 GameMode.GAMING_KEYS = { freeGpu: 'vex.game.freeGpu', sleepTabs: 'vex.game.sleepTabs', wakeAfter: 'vex.game.wakeAfter', holdAi: 'vex.game.holdAi', stillVex: 'vex.game.stillVex' };
@@ -305,8 +308,8 @@ GameMode.onGameStart = async function (app) {
   // If that answer cannot be read, nothing sleeps. A guard that falls back to
   // sleeping is no guard at all: the one case it exists for — something has
   // gone wrong — is exactly when it would close the user's pages anyway.
-  const maySleep = (typeof SleepConsent !== 'undefined') && SleepConsent.auto();
-  if (!maySleep) report.leftAlone = true;
+  const maySleep = (typeof SleepConsent !== 'undefined') && SleepConsent.modeFor('gaming') === 'auto';
+  if (!maySleep && this.gamingSetting('sleepTabs')) report.leftAlone = true;
   if (maySleep && this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
     for (const tab of (TabManager.tabs || []).slice()) {
       if (tab.id === TabManager.activeTabId || tab.sleeping) continue;
@@ -391,8 +394,11 @@ GameMode.renderGamingSettings = function (host) {
     box.checked = this.gamingSetting(key);
     box.setAttribute('aria-label', label);
     box.addEventListener('change', () => this.setGamingSetting(key, box.checked));
+    // Sleeping waits for "Before Vex puts anything to sleep on its own".
+    if (key === 'sleepTabs' || key === 'wakeAfter') row.setAttribute('data-sleep-dependent', '');
     host.appendChild(row);
   }
+  if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState(host);
   // How long a model stays loaded after the AI answers — games or not.
   if (typeof Ollama !== 'undefined' && Ollama.setKeepAlive) {
     const row = document.createElement('div');

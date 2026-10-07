@@ -15,6 +15,15 @@ define('extensions:install-catalog', [string(60)]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).
 define('extensions:webstore-preview extensions:install-webstore', [string(2048)]);
+// Installing a picked .zip / .crx / folder after its permissions dialog: the
+// token main handed out with the preview (32 hex characters).
+define('extensions:install-picked', [value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value)]);
+// Automatic extension updates (src/main/extension-updates.js) and the
+// per-extension "Allow access to file URLs" switch.
+define('extensions:update-status extensions:update-check', []);
+define('extensions:set-auto-update', [boolean]);
+define('extensions:update-approve', [string(160)]);
+define('extensions:set-file-access', [string(160), boolean]);
 // The update cover (js/update-notifier.js): a version such as 2.35.0.
 const version = value => typeof value === 'string' && /^\d{1,5}\.\d{1,5}\.\d{1,5}[0-9A-Za-z.+-]{0,40}$/.test(value);
 define('updates:upcoming-notes updates:download updates:install', [version]);
@@ -35,7 +44,9 @@ define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
 define('rec:own-window', []);
 define('app:idle-seconds', []);
 define('overlay:close', []);
-define('overlay:open', [web, optional(value => typeof value === 'number' && value >= 0.2 && value <= 1)]);
+// The third argument is the partition of the tab the page comes from: main
+// refuses a private, off-the-record or Tor one (main.js, _refuseMainProfileCopy).
+define('overlay:open', [web, optional(value => typeof value === 'number' && value >= 0.2 && value <= 1), optional(string(160))]);
 define('rec:chunk', [string(80), value => value instanceof Uint8Array && value.byteLength <= 64 * 1024 * 1024]);
 define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
@@ -48,7 +59,9 @@ define('capture:done', [shape({ id: string(40), ok: boolean, said: optional(stri
 define('extensions:set-enabled', [string(160), boolean]);
 define('extensions:set-scope', [string(160), string(20)]);
 define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])]);
-define('downloads:retry', [web]);
+// The address, and the id the panel knows the download by: main retries it
+// through the session the first attempt used (src/main/downloads.js).
+define('downloads:retry', [web, optional(string(160))]);
 define('downloads:ask-where', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
@@ -80,7 +93,7 @@ define('open-pip-window', [web, optional(shape({
   width: optional(finite),
   height: optional(finite),
   title: optional(string(200)),
-}))]);
+})), integer]);   // the tab page's id: the pop-out uses its session
 define('adblocker-set-state discord:set-bypass roblox:set-bypass', [boolean]);
 define('gui-style:set', [oneOf(['classic','glass'])]);
 define('cloud:token-save', [string(4096)]);
@@ -147,7 +160,7 @@ define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000
 define('shortcuts:guest-keys', [value => Array.isArray(value) && value.length <= 300 && value.every(v => string(64)(v))]);
 // The shortcut editor is (not) recording a key: main's own keys stand aside.
 define('shortcuts:capturing', [boolean]);
-define('app:open-as-app', [web, optional(string(4096))]);
+define('app:open-as-app', [web, optional(string(4096)), optional(string(160))]);
 define('tor:verify routing:get', [optional(string(160))]);
 define('routing:set', [optional(string(160)), oneOf(['direct','tor','proxy']), optional(string(2048))]);
 // All of Vex at once, and the check that says whether it is really working.
@@ -218,7 +231,13 @@ define('hid:select-respond', [shape({ id: string(160), deviceId: optional(string
 define('screen-picker:choose', [shape({ id: string(160), sourceId: optional(string(1024)), audio: optional(boolean), width: optional(value => Number.isInteger(value) && value >= 0 && value <= 16384), height: optional(value => Number.isInteger(value) && value >= 0 && value <= 16384), fps: optional(value => Number.isInteger(value) && value >= 0 && value <= 240) })]);
 define('sync-save-meta', [shape({ enabled: optional(boolean), email: optional(string(1024)), sessionToken: string(4096), deviceId: string(160), revision: optional(value => Number.isSafeInteger(value) && value >= 0) })]);
 define('cloud:request', [shape({ feature: optional(string(80)) })]);
-define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean) })]);
+// "Ask Vex about this image": the tab page's id, the picture's address, and
+// whether the person agreed to send a private or Tor tab's picture (main.js).
+define('image:for-ai', [integer, web, optional(boolean)]);
+// mcpServer: the id of an MCP server whose token main adds to the request.
+define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)) })]);
+// An MCP server's token, kept encrypted in main; an empty one removes it.
+define('mcp:auth-set', [string(80), string(4096)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

@@ -51,7 +51,10 @@ describe('main wiring', () => {
     expect(fn).not.toMatch(/proxyRules: String\(custom\)/);
   });
   it('the private session obeys the third-party and cookie switches', () => {
-    const fn = main.slice(main.indexOf('function openPrivateWindow'), main.indexOf('const privWin = new BrowserWindow'));
+    // Wired by _wireEphemeralBrowsing, which off-the-record tabs get too.
+    const open = main.slice(main.indexOf('function openPrivateWindow'), main.indexOf('const privWin = new BrowserWindow'));
+    expect(open).toMatch(/_wireEphemeralBrowsing\(privSession, 'private'\)/);
+    const fn = main.slice(main.indexOf('function _wireEphemeralBrowsing'), main.indexOf('function openPrivateWindow'));
     expect(fn).toMatch(/SiteRules\.blocksThirdParty\(/);
     expect(fn).toMatch(/SiteRules\.blocksCookies\(/);
   });

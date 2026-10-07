@@ -131,9 +131,13 @@ const QueuePanel = {
     if (!list) return;
 
     if (!this.isConfigured()) {
+      // Plain words: this read "Add queueUrl and queueSecret to your local
+      // sidebar-config.json — see queue-bot/SETUP.md" (walkthrough M5,
+      // 2026-10-07). It is hidden from the rail by default anyway.
       this.renderMessage(list,
-        'Queue not configured. Add <code>queueUrl</code> and <code>queueSecret</code> ' +
-        'to your local <code>sidebar-config.json</code> — see queue-bot/SETUP.md.');
+        'The Queue is not set up on this computer. It shows links you send to your own ' +
+        'queue bot, and needs that bot connected before it has anything to show. ' +
+        'To take it off the sidebar, right-click its button and choose Hide button.');
       return;
     }
 

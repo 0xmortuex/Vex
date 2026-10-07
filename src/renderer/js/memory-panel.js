@@ -175,7 +175,7 @@ const MemoryPanel = {
       return {
         id: e.tab.id,
         title: e.tab.title,
-        url: e.tab.url,
+        url: MemoryPanel.shownUrl(e.tab.url),
         active: e.tab.id === TabManager.activeTabId,
         sleeping: d.sleeping,
         memMB: d.mb,
@@ -354,10 +354,10 @@ const MemoryPanel = {
       const named = pages.map(c => {
         if (ctx && ctx.panels && ctx.panels.has(c.id)) return { kind: 'panel', name: 'Panel: ' + ctx.panels.get(c.id) };
         if (ctx && ctx.tabs && ctx.tabs.has(c.id)) return { kind: 'tab', name: 'Tab: ' + ctx.tabs.get(c.id) };
-        return { kind: 'tab', name: c.title || c.url || 'page' };
+        return { kind: 'tab', name: c.title || MemoryPanel.shownUrl(c.url) || 'page' };
       });
       const what = named[0].name + (named.length > 1 ? ` + ${named.length - 1} more (same site, shared)` : '');
-      return { kind: named.some(n => n.kind === 'panel') ? 'panel' : 'tab', what, detail: pages.map(c => c.url).filter(Boolean).join(' · ') };
+      return { kind: named.some(n => n.kind === 'panel') ? 'panel' : 'tab', what, detail: pages.map(c => MemoryPanel.shownUrl(c.url)).filter(Boolean).join(' · ') };
     }
     // No page in it: most likely one of the running service workers (an MV3
     // extension's background lives in a renderer of its own, one per session),
@@ -658,6 +658,14 @@ const MemoryPanel = {
     if (!real) return { mb: null, sleeping: false, label: 'starting…' };
     const mb = Math.round(real.memKB / 1024);
     return { mb, sleeping: false, label: shareCount > 1 ? `${mb} MB · shared by ${shareCount} tabs` : `${mb} MB` };
+  },
+
+  // The New Tab page is a file inside Vex's install folder; its address
+  // (file:///C:/…/resources/app.asar/src/renderer/start.html?theme=…) means
+  // nothing to anyone, so it is shown as "New Tab" (walkthrough L2, 2026-10-07).
+  shownUrl(u) {
+    const s = String(u || '');
+    return /^vex:\/\/start\b/i.test(s) || /^file:\/\/.*\/renderer\/start\.html(?:[?#]|$)/i.test(s) ? 'New Tab' : s;
   },
 
   _esc(s) { return window.escapeHtml(s); }

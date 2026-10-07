@@ -204,6 +204,24 @@ body {
   font-size: 12px;
 }
 
+/* Page zoom when it is not 100% (js/zoom-indicator.js); click to reset. */
+#url-zoom {
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--vex-border-medium, var(--border));
+  background: transparent;
+  color: var(--vex-text-secondary, var(--text-muted));
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#url-zoom:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
+#url-zoom:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+
 #url-input::placeholder {
   color: var(--vex-text-muted);
 }
@@ -222,6 +240,58 @@ body {
   overflow-x: clip;
   -webkit-app-region: no-drag;
 }
+
+/* Toolbar overflow (js/toolbar-overflow.js). When the bar does not fit it goes
+   compact first, then moves buttons into the chevron's menu; a moved button
+   that is clicked from the menu stands in, invisible, where the chevron is, so
+   the menu it opens under itself lands there (walkthrough H1, 2026-10-07). */
+#top-bar.tb-compact #vex-logo > span { display: none; }
+#top-bar.tb-compact #vex-logo { padding: 0 4px; }
+#top-bar.tb-compact #workspace-btn { font-size: 0; gap: 4px; padding: 4px 7px; }
+body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { padding: 0 6px; }
+#top-bar .tb-overflowed:not(.tb-overflow-proxy) { display: none !important; }
+#top-bar .tb-overflow-proxy {
+  position: fixed !important;
+  left: var(--tb-proxy-left) !important;
+  top: var(--tb-proxy-top) !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#btn-toolbar-overflow { flex: 0 0 auto; }
+#btn-toolbar-overflow[aria-expanded="true"] { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary); }
+.tb-overflow-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+  background: var(--surface, var(--vex-bg-elevated, #1b1b24));
+  border: 1px solid var(--border, var(--vex-border-subtle));
+  box-shadow: 0 14px 44px var(--vex-shadow-color, rgba(0,0,0,0.40));
+}
+.tb-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, var(--vex-text-primary));
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.tb-overflow-item:hover,
+.tb-overflow-item:focus-visible { background: var(--vex-hover-fill, color-mix(in srgb, var(--primary, #6366f1) 16%, transparent)); outline: none; }
+.tb-overflow-ico { width: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.tb-overflow-ico svg { width: 16px; height: 16px; }
+.tb-overflow-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* A top-bar item of its own: never shrinks, and order keeps it last even
    after the layout editor re-appends the bar's regions. */
@@ -751,7 +821,7 @@ body.fullscreen #tabs-sidebar:hover { transform: translateX(0); }
   cursor: pointer; transition: all var(--transition); -webkit-app-region: no-drag;
 }
 #btn-toggle-tabs:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
-#btn-toggle-tabs.active { background: var(--primary); color: white; border-color: var(--primary); }
+#btn-toggle-tabs.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
 /* Hidden tabs sidebar */
 #tabs-sidebar { transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease, padding 0.2s ease, margin 0.2s ease; }
@@ -789,7 +859,7 @@ body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
   transition: all var(--transition); -webkit-app-region: no-drag;
 }
 #btn-toggle-ai:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
-#btn-toggle-ai.active { background: var(--primary); color: white; border-color: var(--primary); }
+#btn-toggle-ai.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 /* Still answering, with the panel shut. A closed panel used to look exactly
    like a stopped answer, so the button says otherwise. */
 #btn-toggle-ai { position: relative; }

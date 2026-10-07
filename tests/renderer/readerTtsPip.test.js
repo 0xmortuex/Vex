@@ -459,7 +459,7 @@ describe('Picture-in-Picture from Vex', () => {
   it('uses the pop-out where the frame may not float a video', async () => {
     frames.scan = [{ inPip: false, best: best({ enabled: false, media: { src: 'https://cdn.test/a.mp4' } }) }];
     expect(await PiPManager.toggle()).toBe('popout');
-    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://v.test/', { src: 'https://cdn.test/a.mp4' });
+    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://v.test/', { src: 'https://cdn.test/a.mp4' }, 7);
   });
 
   it('says so when there is no video', async () => {

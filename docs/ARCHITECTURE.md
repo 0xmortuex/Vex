@@ -95,12 +95,13 @@ A separate file `userData/sync-key.bin` holds the AES-GCM 256 key encrypted with
 
 ## 6. Build pipeline
 
-- `npm run dist` → `npm run build-icons` → `rimraf dist` → `electron-builder`.
+- `npm run dist` → `npm run build-icons` → `scripts/check-dist-free.js` (stops if a Vex is running from `dist\`) → `rimraf dist` → `electron-builder`. `prestart`/`prepack`/`predist` first run `npm run build:vendor`, which copies the browser builds of Transformers.js, onnxruntime-web, WebLLM and tesseract.js into `src/renderer/vendor/runtime/`. Those npm packages are devDependencies: the app loads only the vendored copies, so they are not packed into `app.asar` a second time.
+- Releases: `npm run publish` (see `RELEASING.md`) builds without publishing, starts the packaged app (`verify-packaged-boot.js`), creates the release (`ensure-release.js`), uploads `Vex-Setup.exe`, its block map and `latest.yml` (last), then `post-publish.js` checks the release and moves the website badge.
 - **Electron** is the **castLabs Widevine fork** (`electron@github:castlabs/electron-releases#v42.11.0+wvcus`). This adds Widevine CDM hooks for DRM-capable builds (Netflix, Spotify Premium video).
 - After packing, `scripts/vmp-sign.js` (configured as `build.afterSign`) applies **VMP signing** so Widevine accepts the bundle.
 - Icon pipeline: `scripts/build-icons.js` uses sharp to rasterize the SVG and writes PNG plus a multi-resolution Windows ICO; deprecated icon-builder tooling is no longer used.
-- NSIS installer (one-click off; per-user install) writes desktop + start-menu shortcuts. `differentialPackage: false` because the auto-updater currently uses full installs.
-- Auto-updates ship via `electron-updater` against the `0xmortuex/Vex` GitHub release feed.
+- NSIS installer (one-click off; per-user install) writes desktop + start-menu shortcuts. `differentialPackage: true`, so every release also publishes `Vex-Setup.exe.blockmap`.
+- Updates (since v2.35.0) use Vex's own updater, **not** `electron-updater`: `src/main/updates.js` reads `latest.yml` from the newest `0xmortuex/Vex` GitHub release, streams `Vex-Setup.exe` into `userData/updates` and keeps it only if its size and sha512 match `latest.yml`, then starts it silently (`--updated /S --force-run`) once Vex has closed. `src/main/differential.js` uses the block maps of the installed and the new installer to copy the blocks Vex already has and fetch only the rest with HTTP Range requests; the result must pass the same sha512 check, and any failure falls back to the full download. The full-screen update cover is `renderer/js/update-notifier.js`, and `src/main/update-backups.js` saves a profile backup (newest three kept) right before each install.
 
 ## 7. Glassmorphism — the 5 design phases
 
@@ -124,7 +125,14 @@ A one-line summary of each in-tree module. For deeper detail read the file's own
 
 ### Main process
 
-- `src/main.js` — Electron entry. Owns the main window, every webview session, all IPC handlers, the extension loader, the auto-updater wiring, and the global keyboard shortcuts that must work even when guest pages have focus.
+- `src/main.js` — Electron entry. Owns the main window, every webview session, all IPC handlers, the extension loader, the update wiring (`src/main/updates.js`), and the global keyboard shortcuts that must work even when guest pages have focus.
+- `src/main/updates.js`, `src/main/differential.js`, `src/main/update-backups.js` — the in-app updater, its block-map (differential) download and the pre-update profile backup (§6).
+- `src/main/profiles.js` — Profiles: each one is a whole userData folder of its own (the default stays at `%APPDATA%\Vex`; others live in `%APPDATA%\Vex Profiles\<id>`), run as its own process with `--profile=<id>`.
+- `src/main/browser-import.js` — Imports bookmarks and history from Chrome, Edge, Brave and Firefox (read from a temp copy of their files), and passwords only from a CSV the user exports.
+- `src/main/webstore.js` — Installs extensions from the Chrome Web Store: fetches the CRX3 package from Google's update server and installs it only if the developer and Web Store signatures verify. `src/main/extension-sources.js` (one-click installs from publishers' GitHub releases) sits next to it.
+- `src/main/page-dialogs.js` — A page's `alert`/`confirm`/`prompt` is shown over its own tab or panel (renderer `js/page-dialogs.js`) instead of a native box that froze the whole window.
+- `src/main/window-hang.js` — When the window stops responding: logs what was open to the crash log and offers a reload.
+- `src/main/ipc-schemas.js`, `src/main/ipc-policy.js` — Every IPC channel's argument schema and which senders may call it.
 - `src/main-helpers.js` — Pure helpers extracted from `main.js` for testability: external-protocol allowlist (`isExternalProtocol`), Windows argv URL/path normalisation (`normalizeLaunchArg`/`findLaunchUrl`), and the fullscreen-shortcut decider used to route F11/Esc.
 - `src/adblocker.js` — Pattern-based request blocker. `shouldBlock(url)` is consulted by every session's `webRequest.onBeforeRequest`. Currently has a known substring-match bug (see `docs/security-audit-2026-04.md` M-1).
 - `src/pip.js` — Picture-in-Picture window factory (used by `ipcMain.handle('open-pip-window')`).
@@ -168,4 +176,4 @@ A one-line summary of each in-tree module. For deeper detail read the file's own
 
 ### Tests
 
-Tests live in `tests/`. The current suite covers the top-5 high-value pure functions surfaced by the test-gap report: `isExternalProtocol`, `shouldBlock`, `normalizeLaunchArg`/`findLaunchUrl`, `handleFullscreenShortcut`, `parseAgentResponse`. Run with `npm test`. See `docs/test-gap-report.md` for the prioritised list of what to cover next.
+Tests live in `tests/` (`tests/main`, `tests/renderer`, `tests/workers`): about 450 Vitest files, run with `npm test` (CI uses Node 22). Every `src/main` module has its own test file. Beyond the unit tests, CI runs `npm run smoke` (the source app under Electron, also with `VEX_SECURITY_SMOKE`/`VEX_UI_SMOKE`), `npm run smoke:restart`, `npm run check:ui` (measures the real rendered chrome in every look), and the same smoke against a packaged build. `docs/test-gap-report.md` is the historical (June 2026) gap list.

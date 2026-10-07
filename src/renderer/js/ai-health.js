@@ -106,7 +106,7 @@ const AIHealth = {
     const local = typeof AIRouter !== 'undefined' && AIRouter.getOllamaStatus ? AIRouter.getOllamaStatus() : {};
     const wantsLocal = !state.worker || local.preferLocal;
 
-    lines.push(state.worker ? 'Cloud AI: configured' : 'Cloud AI: no Worker URL set (Settings › AI)');
+    lines.push(state.worker ? 'Cloud AI: configured' : 'Cloud AI: no Worker URL set (Settings › Cloud)');
     lines.push(state.online ? 'Internet: connected' : 'Internet: offline');
     lines.push(state.ollama ? 'Ollama: running' : 'Ollama: not running');
     if (state.ollama) {
@@ -122,13 +122,13 @@ const AIHealth = {
     let headline;
     if (/stopped|aborted|cancelled/i.test(message)) headline = 'You stopped it — that is not a failure.';
     else if (!state.online && state.worker) headline = 'You are offline, and this request needed the cloud model.';
-    else if (!state.worker && !state.ollama) headline = 'There is no AI backend: no Worker URL is set, and Ollama is not running. Settings › AI has both.';
+    else if (!state.worker && !state.ollama) headline = 'There is no AI backend: no Worker URL is set, and Ollama is not running. Settings › Cloud takes the Worker URL; Settings › AI Backend starts Ollama.';
     else if (wantsLocal && !state.ollama) headline = 'Ollama is not running, so the local model could not answer. Vex can start it for you — Settings › AI › "Start Ollama when it is needed".';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.length) headline = 'Ollama is running but has no models installed. Settings › AI › the model manager can pull one.';
     else if (state.ollama && Array.isArray(state.installed) && !state.installed.some(n => n === state.model || n === state.model + ':latest')) headline = `The chosen model "${state.model}" is not installed. Pick one that is, in Settings › AI.`;
     else if (/did not answer within|timeout/i.test(message)) headline = this.slowReasonFrom(state) || 'The model took longer than the two-minute limit. A smaller model, or a shorter task, will finish.';
     else if (/only produced reasoning|empty reply/i.test(message)) headline = 'The model spent its whole turn thinking and returned nothing. Try again, or pick another model.';
-    else if (/not configured/i.test(message)) headline = 'Cloud AI is selected but has no Worker URL. Settings › AI.';
+    else if (/not configured/i.test(message)) headline = 'Cloud AI is selected but has no Worker URL. Settings › Cloud.';
     else headline = this.slowReasonFrom(state) || (message ? 'The request failed: ' + message : 'Everything Vex can check looks fine.');
 
     return { headline, lines };

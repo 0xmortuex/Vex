@@ -43,7 +43,7 @@
 }
 .flib-chip span { opacity: .6; margin-left: 3px; }
 .flib-chip:hover { color: var(--text); border-color: var(--text-muted); }
-.flib-chip.on { color: #fff; background: var(--primary); border-color: var(--primary); }
+.flib-chip.on { color: var(--on-primary, #fff); background: var(--primary); border-color: var(--primary); }
 .flib-chip.on span { opacity: .8; }
 
 .flib-group { padding: 14px 2px 4px; }
@@ -103,7 +103,7 @@
   cursor: pointer;
 }
 .flib-btn:hover { border-color: var(--primary); color: var(--primary); }
-.flib-btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.flib-btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary, #fff); }
 .flib-btn.primary:hover { filter: brightness(1.08); color: #fff; }
 .flib-empty { padding: 24px 6px; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
 

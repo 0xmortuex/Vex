@@ -109,7 +109,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Split & PiP
   onToggleSplit: (callback) => subscribe('toggle-split', callback),
   onTogglePip: (callback) => subscribe('toggle-pip', callback),
-  openPipWindow: (url, media) => ipcRenderer.invoke('open-pip-window', url, media),
+  // pageId: the tab's page; the pop-out loads in that tab's own session.
+  openPipWindow: (url, media, pageId) => ipcRenderer.invoke('open-pip-window', url, media, pageId),
   closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
   isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
   // Fires when the pop-out goes away, with 'closed' or 'back-to-tab'. The
@@ -228,7 +229,8 @@ contextBridge.exposeInMainWorld('vex', {
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
   recOwnWindow: () => ipcRenderer.invoke('rec:own-window'),
   idleSeconds: () => ipcRenderer.invoke('app:idle-seconds'),
-  overlayOpen: (url, opacity) => ipcRenderer.invoke('overlay:open', url, opacity),
+  // partition: the tab the page is from; main refuses a private, off-the-record or Tor one.
+  overlayOpen: (url, opacity, partition) => ipcRenderer.invoke('overlay:open', url, opacity, partition),
   overlayClose: () => ipcRenderer.invoke('overlay:close'),
   onOverlayOpacity: (callback) => subscribe('overlay:opacity-changed', callback),
   onLockVex: (callback) => subscribe('lock-vex', callback),
@@ -272,6 +274,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Generic HTTP request (API client + page-change monitor), runs in main
   apiRequest: (opts) => ipcRenderer.invoke('api:request', opts),
+  // An MCP server's token, kept encrypted in main; '' removes it.
+  mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
@@ -323,9 +327,12 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
-  downloadsRetry:        (url) => ipcRenderer.invoke('downloads:retry', url),
+  downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
   copyImageFrom:         (url, partition) => ipcRenderer.invoke('image:copy', url, partition),
+  // A picture for the AI, fetched through its tab's own session; a private or
+  // Tor tab's only with confirmed (else { needsConsent, kind }).
+  imageForAi:            (pageId, url, confirmed) => ipcRenderer.invoke('image:for-ai', pageId, url, !!confirmed),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => subscribe('toggle-notes', callback),
@@ -445,7 +452,7 @@ contextBridge.exposeInMainWorld('vex', {
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
-  openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),
+  openAsApp: (url, title, partition) => ipcRenderer.invoke('app:open-as-app', url, title, partition),
   getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -488,9 +495,17 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Phase 18: Chrome extensions management
   extensionsList:           () => ipcRenderer.invoke('extensions:list'),
+  // Folder / .zip / .crx: pick it and see what it asks for; then install that one.
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
+  extensionsInstallPicked:  (token) => ipcRenderer.invoke('extensions:install-picked', token),
   extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
+  // Automatic updates, and "Allow access to file URLs" per extension.
+  extensionsUpdateStatus:   () => ipcRenderer.invoke('extensions:update-status'),
+  extensionsUpdateCheck:    () => ipcRenderer.invoke('extensions:update-check'),
+  extensionsSetAutoUpdate:  (on) => ipcRenderer.invoke('extensions:set-auto-update', on),
+  extensionsUpdateApprove:  (folderName) => ipcRenderer.invoke('extensions:update-approve', folderName),
+  extensionsSetFileAccess:  (folderName, allow) => ipcRenderer.invoke('extensions:set-file-access', folderName, allow),
   // A Chrome Web Store link or extension id: what it is and may do, then install it.
   extensionsWebStorePreview: (input) => ipcRenderer.invoke('extensions:webstore-preview', input),
   extensionsInstallWebStore: (input) => ipcRenderer.invoke('extensions:install-webstore', input),

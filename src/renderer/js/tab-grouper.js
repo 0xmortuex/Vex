@@ -54,6 +54,19 @@ function _parseGroupsReply(result, toReal) {
   return _mapGroupIds(parsed, toReal);
 }
 
+// A New Tab (the start page) or a blank tab has nothing to cluster on: two of
+// them came back as an "Empty Tabs" group, and with "Remember these patterns"
+// on, every future New Tab would have joined it (walkthrough H2, 2026-10-07).
+function _isBlankTab(t) {
+  const url = String((t && t.url) || '').trim();
+  if (!url || url === 'about:blank') return true;
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'vex:' && u.hostname === 'start') ||
+      (u.protocol === 'file:' && /\/renderer\/start\.html$/i.test(u.pathname));
+  } catch { return false; }
+}
+
 function _mapGroupIds(parsed, toReal) {
   if (!toReal) return parsed;
   const real = (ids) => (Array.isArray(ids) ? ids : []).map(id => toReal.get(String(id))).filter(Boolean);
@@ -205,12 +218,26 @@ const TabGrouper = (() => {
   }
 
   // ---------- Analyze & propose ----------
-  async function analyzeAndPropose(onlyUngrouped = true) {
-    const all = _allTabs();
-    const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
-    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs to propose groupings', 'warn'); return; }
+  // One analysis at a time. A newer run, a Cancel, Escape, or the loading
+  // modal disappearing all make an older run's answer stale: it is dropped
+  // instead of popping up later over whatever the user is doing (H2).
+  let _runSeq = 0;
+  let _activeLoading = null;
 
-    const loading = showLoadingModal('Analyzing your tabs...');
+  async function analyzeAndPropose(onlyUngrouped = true) {
+    const all = _allTabs().filter(t => !_isBlankTab(t));
+    const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
+    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs with a page open to propose groupings', 'warn'); return; }
+
+    const run = ++_runSeq;
+    if (_activeLoading) _activeLoading.close();
+    const ctl = new AbortController();
+    const loading = showLoadingModal('Analyzing your tabs...', () => {
+      ctl.abort();
+      _toast('Tab grouping cancelled', 'info', 2500);
+    });
+    _activeLoading = loading;
+    const stale = () => run !== _runSeq || ctl.signal.aborted || !loading.isOpen();
 
     try {
       // Compact payload: ~60-char title, bare hostname, ~100-char summary.
@@ -248,7 +275,12 @@ const TabGrouper = (() => {
 
       if (typeof AIRouter === 'undefined') throw new Error('AIRouter not loaded');
       const { tabs: shortTabs, toReal } = _shortIds(tabMeta);
-      const response = await AIRouter.callAI('groupTabs', { tabs: shortTabs });
+      const request = { tabs: shortTabs };
+      // Cancel aborts the request in flight. Not enumerable: the local
+      // prompt for this feature is JSON.stringify(request).
+      Object.defineProperty(request, 'signal', { value: ctl.signal, enumerable: false });
+      const response = await AIRouter.callAI('groupTabs', request);
+      if (stale()) return;
       const parsed = _parseGroupsReply(response.result, toReal);
 
       parsed.groups = (parsed.groups || []).filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
@@ -271,25 +303,57 @@ const TabGrouper = (() => {
 
       showPreviewModal(parsed, tabsToAnalyze);
     } catch (err) {
+      if (stale()) return;   // cancelled: already said so
       loading.close();
       _toast(`Grouping failed: ${err.message}`, 'error');
+    } finally {
+      if (_activeLoading === loading) _activeLoading = null;
     }
   }
 
   // ---------- Loading modal ----------
-  function showLoadingModal(message) {
+  // Cancel and Escape close it and call onCancel (which aborts the AI call).
+  function showLoadingModal(message, onCancel) {
     const overlay = document.createElement('div');
     overlay.className = 'sync-modal-overlay group-loading-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', message);
     overlay.innerHTML = `
       <div class="sync-modal-card loading-card">
         <div class="spinner"></div>
         <div class="loading-message">${_esc(message)}</div>
         <div class="loading-hint">This usually takes 3\u20138 seconds</div>
+        <button type="button" class="btn-secondary group-loading-cancel">Cancel</button>
       </div>
     `;
     document.body.appendChild(overlay);
+    let open = true;
+    const close = () => {
+      if (!open) return;
+      open = false;
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+    };
+    const cancel = () => {
+      if (!open) return;
+      close();
+      if (typeof onCancel === 'function') onCancel();
+    };
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancel();
+    }
+    document.addEventListener('keydown', onKey, true);
+    const btn = overlay.querySelector('.group-loading-cancel');
+    btn.addEventListener('click', cancel);
+    btn.focus();
     return {
-      close: () => overlay.remove(),
+      close,
+      cancel,
+      isOpen: () => open && overlay.isConnected,
       updateMessage: (m) => {
         const el = overlay.querySelector('.loading-message');
         if (el) el.textContent = m;
@@ -385,7 +449,7 @@ const TabGrouper = (() => {
         ` : ''}
         <div class="preview-options">
           <label>
-            <input type="checkbox" id="remember-patterns" checked>
+            <input type="checkbox" id="remember-patterns">
             Remember these patterns &mdash; auto-add matching future tabs to these groups
           </label>
         </div>
@@ -489,7 +553,20 @@ const TabGrouper = (() => {
       overlay.querySelectorAll('.group-preview').forEach(el => el.open = true);
     });
 
-    overlay.querySelector('#preview-cancel').addEventListener('click', () => overlay.remove());
+    // Escape closes it, same as Cancel.
+    const close = () => {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+    };
+    function onKey(e) {
+      if (e.key !== 'Escape' || !overlay.isConnected) return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+    document.addEventListener('keydown', onKey, true);
+
+    overlay.querySelector('#preview-cancel').addEventListener('click', close);
 
     overlay.querySelector('#preview-apply').addEventListener('click', async () => {
       const rememberPatterns = overlay.querySelector('#remember-patterns').checked;
@@ -499,12 +576,12 @@ const TabGrouper = (() => {
 
       if (!finalGroups.length) {
         _toast('All groups removed — nothing to apply', 'warn');
-        overlay.remove();
+        close();
         return;
       }
 
+      close();
       await applyGroups(finalGroups, rememberPatterns);
-      overlay.remove();
     });
   }
 
@@ -615,5 +692,5 @@ const TabGrouper = (() => {
 
 if (typeof window !== 'undefined') window.TabGrouper = TabGrouper;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply };
+  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply, _isBlankTab };
 }

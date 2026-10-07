@@ -78,7 +78,7 @@ describe('why it failed', () => {
 
   it('a Vex with no worker and no Ollama says so plainly', () => {
     const out = AIHealth.explainFrom(state({ worker: false, ollama: false, gpu: null }));
-    expect(out.lines).toEqual(['Cloud AI: no Worker URL set (Settings › AI)', 'Internet: connected', 'Ollama: not running']);
+    expect(out.lines).toEqual(['Cloud AI: no Worker URL set (Settings › Cloud)', 'Internet: connected', 'Ollama: not running']);
   });
 });
 

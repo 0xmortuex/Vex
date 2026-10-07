@@ -250,3 +250,38 @@ describe('AIRouter — starting Ollama when the local model is wanted', () => {
     expect(ensure).toHaveBeenCalledTimes(1);
   });
 });
+
+// "Prefer local (privacy-first)" sent translate, history search, multi-tab and
+// the agent to the AI Worker anyway: they are routed to the cloud by default,
+// and preferLocal was only read on the Auto path.
+describe('AIRouter.resolveBackend — Prefer local and Always cloud mean what they say', () => {
+  let savedWindow;
+  beforeEach(() => {
+    savedWindow = globalThis.window;
+    globalThis.window = { VexConfig: { aiWorkerUrl: () => 'https://vex-ai.example.workers.dev' } };
+  });
+  afterEach(() => { globalThis.window = savedWindow; });
+
+  it('with a Worker URL, the cloud-routed features stay local while Ollama runs', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    expect(await AIRouter.resolveBackend('translate')).toBe('cloud');   // not preferring local: as before
+    AIRouter.setPreferLocal(true);
+    for (const f of ['translate', 'historySearch', 'multiTab', 'agent']) expect(await AIRouter.resolveBackend(f)).toBe('local');
+  });
+
+  it('with no local model running they still use the cloud (the setting says so)', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(false);
+    AIRouter.setPreferLocal(true);
+    expect(await AIRouter.resolveBackend('translate')).toBe('cloud');
+  });
+
+  it('Always cloud wins over on-device AI', async () => {
+    const AIRouter = await loadRouter();
+    stubOllama(true);
+    globalThis.WebLLM = { preferred: () => true, isLoaded: () => true };
+    AIRouter.setForceCloud(true);
+    expect(await AIRouter.resolveBackend('chat')).toBe('cloud');
+  });
+});

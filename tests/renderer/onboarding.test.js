@@ -123,6 +123,36 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
     expect(keys[1]).toBe('setupstyle');
   });
 
+  // Re-opening the wizard and pressing Save & continue on the pre-selected
+  // card undid the setup: hidden panels came back, shortcuts were reset, and
+  // the Firefox look became Glass (found live, 2026-10-07).
+  it('re-opened, Save & continue on the saved profile changes nothing', async () => {
+    const calls = stubEnv();
+    localStorage.setItem('vex.setupProfile', 'minimal');
+    localStorage.setItem('vex.panelOverrides', JSON.stringify({ spotify: { hidden: true } }));
+    localStorage.setItem('vex.shortcuts', '[{"name":"Mine","url":"https://example.com"}]');
+    Onboarding._session = {};
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<div id="ob-body"></div>';
+    Onboarding._renderBody('setupstyle', overlay.querySelector('#ob-body'));
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    Onboarding.step = 1;
+    await Onboarding._commitAndNext('setupstyle', overlay);
+    render.mockRestore();
+    expect(calls.style).toEqual([]);
+    expect(JSON.parse(localStorage.getItem('vex.panelOverrides'))).toEqual({ spotify: { hidden: true } });
+    expect(localStorage.getItem('vex.shortcuts')).toBe('[{"name":"Mine","url":"https://example.com"}]');
+  });
+
+  it('a card picked again is applied, but never over a chosen look', () => {
+    const calls = stubEnv();
+    localStorage.setItem('vex.guiStyleChosen', '1');
+    Onboarding._applySetupProfile({ profile: 'owner' });
+    expect(calls.style).toEqual([]);                    // the Look step owns the look
+    expect(localStorage.getItem('vex.setupProfile')).toBe('owner');
+    localStorage.removeItem('vex.guiStyleChosen');
+  });
+
   it('_isStepDone reflects a saved profile', () => {
     expect(Onboarding._isStepDone('setupstyle')).toBe(false);
     localStorage.setItem('vex.setupProfile', 'minimal');

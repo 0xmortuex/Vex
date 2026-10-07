@@ -10,6 +10,22 @@ Both workers require the `VEX_STATE` Durable Object binding and SQLite migration
 in their checked-in Wrangler configuration. Provider usage and model requests
 may incur charges; this repository does not establish a deployment cost ceiling.
 
+**Names.** The folders are `vex-ai-worker` and `vex-sync-worker`; the Workers they
+deploy are named `vex-ai` and `vex-sync` (the `name` in each `wrangler.toml`) —
+those are the names the Cloudflare dashboard and `wrangler tail` use.
+
+**The KV ids in the checked-in `wrangler.toml` files are the author's own
+namespaces, not placeholders.** They are useless without the author's Cloudflare
+account (they are not secrets), but a deployment on your account cannot bind
+them: remove the `kv_namespaces` block for a fresh deployment, as below.
+
+**Order on a brand-new account: deploy first, then add the secrets.** Before the
+Worker exists, `wrangler secret put` stops to ask whether to create it, and a
+piped value (as in the `EMAIL_HASH_SECRET` line below) cannot answer that
+question. A deployed Worker without its secrets answers every request with
+HTTP 503, so nothing is exposed in between. Secrets take effect as soon as they
+are set — no second deploy is needed.
+
 ---
 
 ## 1. AI assistant worker (`vex-ai-worker`)
@@ -26,15 +42,18 @@ cd workers/vex-ai-worker
 # 1. Remove the unused legacy kv_namespaces block for a fresh deployment.
 # Keep the durable_objects and migrations sections.
 
-# 2. Add your OpenRouter key as a secret (never commit it)
+# 2. Deploy (it answers 503 until the secrets below exist)
+wrangler deploy
+
+# 3. Add your OpenRouter key as a secret (never commit it)
 wrangler secret put OPENROUTER_API_KEY
 
-# Add a JSON object mapping client names to random access tokens.
-# Example shape: {"desktop":"<random token of at least 24 characters>"}
+# 4. Make an access token for each client (a desktop, a laptop...):
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# then store them as a JSON object mapping a client name to its token, e.g.
+#   {"desktop":"<token 1>","laptop":"<token 2>"}
+# (each token at least 24 characters)
 wrangler secret put VEX_CLIENT_TOKENS
-
-# 3. Deploy
-wrangler deploy
 ```
 
 Wrangler prints a URL like `https://vex-ai.<your-subdomain>.workers.dev`. Put it
@@ -44,9 +63,18 @@ using OS encryption and attaches it to cloud requests in the main process.
 
 The worker requires a valid bearer token. Quotas use durable storage and fail
 closed when unavailable. `DAILY_REQUEST_LIMIT` defaults to 200 per client name
-and accepts an integer from 1 through 1000; per-IP limits also apply. Request
-counts limit usage but do not guarantee a monetary cap. Tokens with the same
-client name share its quota; never embed the OpenRouter key in the desktop app.
+and accepts an integer from 1 through 1000; set it as a plain variable in
+`wrangler.toml`:
+
+```toml
+[vars]
+DAILY_REQUEST_LIMIT = "100"
+```
+
+The daily quota and the per-minute rate limit are counted per client name (per
+token), not per IP address: every device using the same token shares them.
+Request counts limit usage but do not guarantee a monetary cap. Never embed the
+OpenRouter key in the desktop app.
 
 ---
 
@@ -69,28 +97,46 @@ cd workers/vex-sync-worker
 # For an upgrade, retain your existing VEX_SYNC_KV and VEX_AUTH_KV IDs.
 # In both cases keep the durable_objects and migrations sections.
 
-# 2. Configure production email delivery
-wrangler secret put RESEND_API_KEY
-# Set your provider-authorized sender, e.g. Vex Sync <sync@your-domain.example>
-wrangler secret put RESEND_FROM
+# 2. Deploy (on a new account, before the secrets — see the note at the top).
+# Until EMAIL_HASH_SECRET is set, every sync request returns 503.
+wrangler deploy
 
-# 3. The key accounts are stored under (an HMAC of the email address). Set it
-# BEFORE deploying: without it every sync request returns 503. Never change it
-# afterwards — a new value loses every account. Accounts made before this
-# secret existed move to it the next time they sign in.
+# 3. The key accounts are stored under (an HMAC of the email address).
+# Required. Never change it afterwards — a new value loses every account.
+# Accounts made before this secret existed move to it the next time they
+# sign in.
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" | wrangler secret put EMAIL_HASH_SECRET
 
-# 4. Deploy
-wrangler deploy
+# 4. Configure email delivery (see "Who can receive login codes" below)
+wrangler secret put RESEND_API_KEY
+# A sender on a domain you verified in Resend, e.g. Vex Sync <sync@your-domain.example>
+wrangler secret put RESEND_FROM
 ```
+
+### Who can receive login codes
+
+Without `RESEND_FROM`, the worker sends from Resend's shared test sender
+`onboarding@resend.dev`. **Resend delivers mail from that sender only to the
+email address that owns the Resend account.** Signing in with any other address
+fails ("Could not deliver verification email", HTTP 502). To send codes to
+anyone else:
+
+1. Add and verify your own domain in Resend (Domains → Add domain, then the DNS
+   records it lists).
+2. Set `RESEND_FROM` to an address on that domain, e.g.
+   `Vex Sync <sync@your-domain.example>`.
+
+Check delivery after setting it up: run `wrangler tail vex-sync` in one window
+and request a code from Vex in another. "Email delivery is not configured"
+(HTTP 503) means `RESEND_API_KEY` is not set; HTTP 502 means Resend refused
+the request — the tail and the Resend dashboard's log say why (most often an
+unverified sender domain).
 
 Put the printed URL in Vex under **Settings → Cloud Services (self-hosted) →
 Sync Worker URL**, then enable Sync in Settings.
 
-Auth uses a six-digit email code with a five-attempt cap and rate limiting.
-`RESEND_FROM` defaults to the provider's onboarding sender; configure an
-authorized sender for your deployment and test delivery to intended recipients.
-Only local development requests with `DEVELOPMENT_MODE=true` may return a
+Auth uses a six-digit email code with a five-attempt cap and rate limiting
+(per email address and per IP). Only local development requests with `DEVELOPMENT_MODE=true` may return a
 `devCode` without email. Do not rely on this path for a deployed service.
 
 On upgrade, durable storage imports legacy sync records and eligible sessions

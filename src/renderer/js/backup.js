@@ -31,6 +31,9 @@ const VexBackup = {
     // Lock Vex's PIN hash, and its lock state and wrong-PIN count: a 4-digit
     // PIN is quick to try against a hash in a backup file (found 2026-09-29).
     /^vex\.lock(Pin|ed|Fails|WaitUntil)$/i,
+    // MCP servers: their tokens were kept here, and a server's address can
+    // carry one too (security scan S5-3). The tokens now live encrypted in main.
+    /^vex\.mcpServers$/i,
   ],
 
   // True of this machine, not of this person.

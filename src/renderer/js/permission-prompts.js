@@ -18,7 +18,8 @@ const PermissionPrompts = (() => {
     film:    _svg('<rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>'),
     screen:  _svg('<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
     clipboard: _svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>'),
-    shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>')
+    shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+    external: _svg('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>')
   };
   // `ask` finishes the sentence "<site> wants to …"; `label` names the thing
   // in the "Allowed: site → …" toast. One phrase used to do both jobs, which
@@ -60,9 +61,27 @@ const PermissionPrompts = (() => {
     if (_queue.length) _show(_queue[0]);
   }
 
+  // A link that opens another program (main.js, handleExternalProtocol):
+  // "external:<scheme>", with the program's name and a line about it from main.
+  function _external(data) {
+    const app = data.app || String(data.permission || '').slice('external:'.length);
+    return { icon: ICONS.external, ask: 'open ' + app, label: 'opening ' + app, note: data.detail || '' };
+  }
+
   function _show(entry) {
     const { origin, permission } = entry.data;
-    const info = LABELS[permission] || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
+    const info = LABELS[permission]
+      || (/^external:/.test(permission || '') ? _external(entry.data) : null)
+      || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
+    // once: main keeps no "allow" for this one (an Office link that fetches a
+    // file from the internet), so the only choices are this time or Block.
+    const actions = entry.data.once
+      ? `<button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="false">Open this once</button>`
+      : `<button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>`;
 
     const prompt = document.createElement('div');
     prompt.className = 'permission-prompt';
@@ -73,10 +92,7 @@ const PermissionPrompts = (() => {
         <div class="perm-message">wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}</div>
       </div>
       <div class="perm-actions">
-        <button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
-        <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
-        <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
-        <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>
+        ${actions}
       </div>
     `;
     document.body.appendChild(prompt);
@@ -120,7 +136,8 @@ const PermissionPrompts = (() => {
     prompt.querySelectorAll('[data-decision]').forEach(btn => {
       btn.addEventListener('click', () => {
         // 'session' lasts until Vex closes and is never written down.
-        const remember = btn.dataset.remember === 'session' ? 'session' : btn.dataset.remember === 'day' ? 'day' : true;
+        const r = btn.dataset.remember;
+        const remember = r === 'session' ? 'session' : r === 'day' ? 'day' : r === 'false' ? false : true;
         respond(btn.dataset.decision, remember);
       });
     });

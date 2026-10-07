@@ -182,7 +182,7 @@ const Ollama = (() => {
   // start a game in that window and it fights the model for VRAM. Vex's
   // default is one minute: a question after a pause reloads the model (a few
   // seconds), a game started after a chat gets the card back quickly.
-  // Settings › Gaming changes it; 0 unloads after every reply.
+  // Settings › Privacy Hardening › Gaming and streaming changes it; 0 unloads after every reply.
   const KEEP_ALIVE_KEY = 'vex.ai.keepAlive';
   const KEEP_ALIVE_CHOICES = ['0', '1m', '5m', '15m'];
   function keepAlive() {

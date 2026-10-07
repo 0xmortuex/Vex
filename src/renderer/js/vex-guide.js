@@ -97,7 +97,9 @@ const VexGuide = {
   steps(entry, label = this._label(entry)) {
     const out = [];
     if (entry.panel) out.push('Open the ' + entry.panel + ' panel from the sidebar on the left.');
-    if (entry.setting) out.push('In Settings, turn on “' + (entry.setting.label || entry.name) + '”.');
+    // A switch is turned on; a section (setting.section) is opened.
+    if (entry.setting && entry.setting.id) out.push('In Settings, turn on “' + (entry.setting.label || entry.name) + '”.');
+    else if (entry.setting && entry.setting.section) out.push('Open Settings — “' + (entry.setting.label || entry.name) + '” is in its own section there.');
     if (entry.cmd) out.push('Press Ctrl+K and choose “' + (label || VexFeatures.nameOf(entry)) + '”.');
     const keys = VexFeatures.keysOf(entry);
     if (keys) out.push('The shortcut is ' + keys + '.');
@@ -152,7 +154,11 @@ const VexGuide = {
 
   // Point at the control itself, so the next time they know where it lives.
   show(entry) {
-    if (entry.setting && entry.setting.id && typeof SettingsUI !== 'undefined') return SettingsUI.openSection(entry.setting.id);
+    // Both forms: a control (setting.id) or a whole section (setting.section).
+    // Only the id was followed, so every section entry ended in "nothing to
+    // point at".
+    const target = entry.setting && (entry.setting.id || entry.setting.section);
+    if (target && typeof SettingsUI !== 'undefined') return SettingsUI.openSection(target);
     if (entry.sel && typeof VexTour !== 'undefined') {
       return VexTour.run([{ sel: entry.sel, title: VexFeatures.nameOf(entry), html: entry.what }], { markSeen: false });
     }

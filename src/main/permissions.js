@@ -27,6 +27,15 @@ function mediaParts(permission, details) {
 }
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// https://discord.com or one of its subdomains, and nothing that merely ends
+// in the same letters.
+function isDiscordOrigin(origin) {
+  try {
+    const u = new URL(String(origin || ''));
+    return u.protocol === 'https:' && /(^|\.)discord\.com$/i.test(u.hostname);
+  } catch { return false; }
+}
+
 // 'allow' only when every part is allowed; 'deny' when any part is denied.
 // An answer saved before this change sits under '::media'. Its prompt said
 // "camera and microphone", so it still counts for those two — never for a
@@ -227,6 +236,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
     try { origin = new URL((details && details.requestingUrl) || webContents.getURL()).origin; } catch {}
 
     console.log(`[Permissions] (${tag}) ${origin} requests: ${permission}`);
+    // opts.denyOverTor: a burner put through Tor is a Tor tab, and a Tor tab
+    // is given no site permission at all (main.js, tor:create).
+    if (opts.denyOverTor && ses.__vexTor) return callback(false);
 
     // Standard browser auto-allow list. mediaKeySystem (EME/Widevine DRM, used by
     // Spotify, Netflix, etc.) is auto-allowed like a normal browser — prompting
@@ -260,7 +272,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // voice & screen-share work. The generic prompt never surfaces in a panel
     // webview (same reason mediaKeySystem is auto-allowed above), which left
     // Discord unable to see any input/output device.
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return callback(true);
+    // Only for Discord itself: any frame or page in that session got the camera
+    // and microphone without a question (security scan M2).
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(origin)) return callback(true);
 
     const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture', 'clipboard-read']);
     if (!NEEDS_PROMPT.has(permission)) {
@@ -308,6 +322,7 @@ function wirePermissionsOnSession(ses, tag, opts) {
   // sides to the same form before comparing.
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
     requestingOrigin = originKey(requestingOrigin);
+    if (opts.denyOverTor && ses.__vexTor) return false;
     // WebHID: keep navigator.hid available, and mark this origin as having a
     // device request in flight — Chromium runs this 'hid' check at the start of
     // requestDevice(), which lets the device-permission handler permit the
@@ -318,13 +333,51 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
     if ((permission === 'display-capture' || permission === 'clipboard-read') && isVexUi(_wc)) return true;
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(requestingOrigin)) return true;
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
     if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
+}
+
+// A page asking to open a program on the computer through a link (ms-word:,
+// steam://, vscode://…). Vex handed every such link to Windows at once, from
+// any page or ad frame, with no click and no question — from Tor tabs too, and
+// an Office link makes Word fetch a document from the internet outside Vex
+// (security scan H1). It is asked like a site permission now: per site and per
+// kind of link, saved in the same store (Settings > Site permissions lists and
+// revokes it) under "external:<scheme>". noRemember: an answer that opens
+// something is never kept, so the site asks every time (an Office link that
+// fetches a document from the internet); a Block is kept as usual.
+const _externalPending = new Map();   // contents id|origin|scheme -> Promise
+function askExternalApp(contents, origin, scheme, { app = scheme, detail = '', noRemember = false } = {}) {
+  const permission = 'external:' + scheme;
+  const saved = savedDecision(decisionsFor(contents), origin, [permission], sessionDecisionsFor(contents));
+  if (saved === 'deny') return Promise.resolve(false);
+  if (saved === 'allow' && !noRemember) return Promise.resolve(true);
+  const host = secureSessions.owner(contents);
+  if (!host) return Promise.resolve(false);
+  // A page firing the same link again while it is being asked is the one question.
+  const key = `${contents.id}|${origin}|${scheme}`;
+  if (_externalPending.has(key)) return Promise.resolve(false);
+  const answer = new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const callback = (ok) => resolve(!!ok);
+    Object.assign(callback, { _host: host, _contents: contents, _origin: origin, _permission: permission, _parts: [permission], _noRememberAllow: noRemember });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, origin, permission, app, detail, once: noRemember });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      resolve(false);
+      try { if (!host.win.isDestroyed()) host.win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  }).finally(() => _externalPending.delete(key));
+  _externalPending.set(key, answer);
+  return answer;
 }
 
 ipcMain.handle('permission:respond', async (_e, payload) => {
@@ -338,7 +391,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   // closes; false = this once.
   // "Allow" used to mean for ever or not at all, and the box was ticked by
   // default — so agreeing to a microphone for one call agreed to it for good.
-  if (remember && cb._origin && cb._permission) {
+  if (remember && cb._origin && cb._permission && !(decision === 'allow' && cb._noRememberAllow)) {
     const parts = cb._parts || [cb._permission];
     if (remember === 'session') {
       for (const part of parts) sessionDecisionsFor(cb._contents).set(`${cb._origin}::${part}`, decision);
@@ -359,6 +412,6 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
+return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
 }
-module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi };
+module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

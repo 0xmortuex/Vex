@@ -90,12 +90,14 @@ describe('themes after the popular BetterDiscord themes', () => {
   });
 
   it('each defines every token an existing theme does, in the chrome and on the start page', async () => {
-    const chromeKeys = Object.keys(CHROME.get('lime')).sort();
-    const pageKeys = Object.keys(PAGE.get('lime')).sort();
+    // --on-primary is set only where white on the primary is below 4.5:1.
+    const required = (k) => k !== '--on-primary';
+    const chromeKeys = Object.keys(CHROME.get('lime')).filter(required).sort();
+    const pageKeys = Object.keys(PAGE.get('lime')).filter(required).sort();
     for (const t of await load()) {
-      const own = Object.keys(CHROME.get(t.id)).filter(k => k !== '--vex-hover-fill' && k !== '--vex-shadow-color').sort();
+      const own = Object.keys(CHROME.get(t.id)).filter(k => k !== '--vex-hover-fill' && k !== '--vex-shadow-color' && required(k)).sort();
       expect(own, t.id).toEqual(chromeKeys);
-      expect(Object.keys(PAGE.get(t.id)).sort(), t.id).toEqual(pageKeys);
+      expect(Object.keys(PAGE.get(t.id)).filter(required).sort(), t.id).toEqual(pageKeys);
       for (const k of ['--vex-bg-base', '--vex-accent', '--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-border-strong']) {
         expect(PAGE.get(t.id)[k], `${t.id} ${k}`).toBe(CHROME.get(t.id)[k]);
       }
@@ -134,5 +136,30 @@ describe('themes after the popular BetterDiscord themes', () => {
     const card = ThemePicker._makeCard(TM.getThemeMeta('clearvision'), 'oxford');
     expect(card.title).toBe('Inspired by ClearVision (BetterDiscord)');
     expect(ThemePicker._makeCard(TM.getThemeMeta('lime'), 'oxford').title).toBe('');
+  });
+});
+
+describe('text on the primary colour', () => {
+  // About 55 themes had white on a light --primary, down to 1.3:1 (Cyberpunk),
+  // on every primary button (2026-10-07). Each now names --on-primary where
+  // white does not reach 4.5:1: white, or the theme's own dark background.
+  it('reaches 4.5:1 in every theme, in the chrome and on the start page', () => {
+    const low = [];
+    for (const [id, p] of CHROME) {
+      if (!p['--primary']) continue;
+      const r = contrast(p['--on-primary'] || '#ffffff', p['--primary']);
+      if (r < 4.5) low.push(`chrome ${id} ${r.toFixed(2)}`);
+    }
+    for (const [id, p] of PAGE) {
+      if (!p['--vex-accent'] || !/^#[0-9a-f]{6}$/i.test(p['--vex-accent'])) continue;
+      const r = contrast(p['--on-primary'] || '#ffffff', p['--vex-accent']);
+      if (r < 4.5) low.push(`start page ${id} ${r.toFixed(2)}`);
+    }
+    expect(low).toEqual([]);
+  });
+
+  it('the start page\'s primary buttons and the in-app dialog use it', () => {
+    expect(START).not.toMatch(/background:\s*var\(--vex-accent\);\s*color:\s*#fff/);
+    expect(read('css/vex-dialog.css')).toMatch(/\.vex-dialog-btn\.primary \{[^}]*color: var\(--on-primary, #fff\)/);
   });
 });

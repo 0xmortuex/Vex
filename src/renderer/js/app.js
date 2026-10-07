@@ -597,20 +597,44 @@ function vexOwnTextFocused(doc) {
     'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
+    // Written by Settings controls but missing from this list until v2.36.5.
+    'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
+    'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
+    'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.agentShowCursor',
+    'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart',
+    'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',
+    'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
+    // The sleep model (js/sleep-consent.js) and Discord's memory rows.
+    'vex.sleepConsent', 'vex.sleepAlways', 'vex.panelAutoSleep', 'vex.panelSleepMinutes',
+    'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',
+    'vex.discordIdleSleepMin', 'vex.discordMemoryLimitMB', 'vex.discordRestHidden',
+    'vex.discordLite', 'vex.discordMode', 'vex.autoSleepPrefs',
   ];
+  const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
     if (!await vexConfirm({
       title: 'Reset settings',
-      message: 'Put every Vex setting back to its default? Your bookmarks, notes, passwords, history, sessions and saved pages are kept. This cannot be undone.',
+      message: 'Put every Vex setting back to its default, the theme included? Your bookmarks, notes, passwords, history, sessions and saved pages are kept, and so is the AI access token. This cannot be undone.',
       okLabel: 'Reset', danger: true,
     })) return;
     try {
       SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
       // The settings the panel actually reads live in settings.json, not
-      // localStorage — clearing the keys above alone reset nothing.
-      await VexStorage.saveSettings({ searchEngine: 'google', adBlocker: true, tabsVisible: true });
+      // localStorage — clearing the keys above alone reset nothing. The
+      // in-memory copy is replaced too: any later change saved it whole, which
+      // wrote every old value back over the reset.
+      Object.keys(settings).forEach(k => { delete settings[k]; });
+      Object.assign(settings, SETTINGS_DEFAULTS());
+      await VexStorage.saveSettings(settings);
+      // The theme's own copy (ThemeManager reads it, not the vex.theme mirror).
+      if (typeof ThemeManager !== 'undefined') ThemeManager.applyTheme(ThemeManager.DEFAULT_THEME);
+      // Fingerprint protection, DNS-over-HTTPS and HTTPS-only live in main.
+      if (window.vex && typeof window.vex.privacySetConfig === 'function') {
+        await window.vex.privacySetConfig({ farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false });
+      }
       await PersistentStorage._flush();
-      showToast('Settings reset. Restart Vex.');
+      window.vexRestartNeeded?.();
+      showToast('Settings reset — restart Vex to finish (the button is under Performance).');
     } catch (error) { showToast('Could not reset settings: ' + error.message, 'error'); }
   });
 
@@ -774,6 +798,23 @@ function vexOwnTextFocused(doc) {
     settings.autoSleepExcludePinned = settings.autoSleepExcludePinned ?? true;
     await VexStorage.saveSettings(settings);
   }
+  // Vex Sync carries auto-sleep as vex.autoSleepPrefs (js/sync-engine.js
+  // SYNC_KEYS): a copy that differs from settings.json came from another
+  // device, so it is adopted here; every change below writes it.
+  const writeAutoSleepMirror = () => {
+    try { localStorage.setItem('vex.autoSleepPrefs', JSON.stringify({ enabled: !!settings.autoSleepEnabled, minutes: settings.autoSleepMinutes || 30, excludePinned: settings.autoSleepExcludePinned !== false })); }
+    catch (err) { console.error('[settings] auto-sleep could not be mirrored for sync:', err.message); }
+  };
+  try {
+    const m = JSON.parse(localStorage.getItem('vex.autoSleepPrefs') || 'null');
+    if (m && typeof m === 'object' && (m.enabled !== !!settings.autoSleepEnabled || m.minutes !== settings.autoSleepMinutes || m.excludePinned !== (settings.autoSleepExcludePinned !== false))) {
+      settings.autoSleepEnabled = !!m.enabled;
+      if ([5, 10, 15, 30, 60].includes(m.minutes)) settings.autoSleepMinutes = m.minutes;
+      settings.autoSleepExcludePinned = m.excludePinned !== false;
+      await VexStorage.saveSettings(settings);
+    }
+  } catch (err) { console.error('[settings] the synced auto-sleep choice could not be read:', err.message); }
+  writeAutoSleepMirror();
   // Email-code autofill: read verification codes from a hidden background Gmail
   // (no tab needed). Stored in localStorage so it's the same flag the autofill
   // and the Logins & Codes hub read.
@@ -798,8 +839,15 @@ function vexOwnTextFocused(doc) {
   // the memory ceiling while Memory Saver was on silently switched Memory Saver
   // back off in everything but the toggle.
   const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
-  const effectiveSleepMinutes = () => (memorySaverOn() ? 10 : (settings.autoSleepMinutes || 30));
-  const effectiveMemCeiling = () => (memorySaverOn() ? Math.min(settings.memCeilingMB || 1200, 900) : (settings.memCeilingMB ?? 1200));
+  const effectiveSleepMinutes = () => (memorySaverOn() ? Math.min(settings.autoSleepMinutes || 30, 10) : (settings.autoSleepMinutes || 30));
+  // A guard set to Off stays off under Memory Saver (it used to run at 900 MB
+  // while the select said Off).
+  const effectiveMemCeiling = () => {
+    const mb = settings.memCeilingMB ?? 1200;
+    return memorySaverOn() && mb ? Math.min(mb, 900) : mb;
+  };
+  // Panels sleep after the same idle time as tabs (js/sidebar.js).
+  window.vexTabSleepMinutes = effectiveSleepMinutes;
 
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
@@ -814,9 +862,10 @@ function vexOwnTextFocused(doc) {
       settings.autoSleepMinutes = parseInt(autosleepMinutes?.value || '30');
       settings.autoSleepExcludePinned = autosleepExcludePinned?.checked !== false;
       VexStorage.saveSettings(settings);
+      writeAutoSleepMirror();
       if (settings.autoSleepEnabled) {
         TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned);
-        if (memorySaverOn() && settings.autoSleepMinutes !== 10) {
+        if (memorySaverOn() && effectiveSleepMinutes() !== settings.autoSleepMinutes) {
           showToast('Saved — Memory Saver keeps tabs sleeping after 10 minutes until you turn it off', 'info');
         }
       } else {
@@ -836,8 +885,33 @@ function vexOwnTextFocused(doc) {
   // === Memory guard (adaptive — sleeps idle tabs only under memory pressure) ===
   if (settings.memCeilingMB === undefined) { settings.memCeilingMB = 1200; await VexStorage.saveSettings(settings); }
   const memCeilingSel = document.getElementById('setting-mem-ceiling');
+  // A ceiling that is not one of the offered values (the "from this machine"
+  // command rounds to 100 MB) gets its own option, so the select never shows blank.
+  const showMemCeiling = (mb) => {
+    if (!memCeilingSel) return;
+    const v = String(mb);
+    if (![...memCeilingSel.options].some(o => o.value === v)) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = (mb >= 1000 ? (mb / 1000).toFixed(1).replace(/\.0$/, '') + ' GB' : mb + ' MB') + ' (from this machine)';
+      memCeilingSel.appendChild(o);
+    }
+    memCeilingSel.value = v;
+  };
+  // The one writer of the ceiling: the select and the Ctrl+K command
+  // (js/command.js) both come here, so app.js's settings copy is never stale
+  // and Memory Saver's 900 MB cap applies to both.
+  window.vexSetMemCeiling = async (mb) => {
+    const v = Math.round(Number(mb));
+    if (!Number.isFinite(v) || v < 0) throw new Error('The memory ceiling is a number of megabytes');
+    settings.memCeilingMB = v;
+    await VexStorage.saveSettings(settings);
+    showMemCeiling(v);
+    TabManager.startMemoryGuard(effectiveMemCeiling());
+    return effectiveMemCeiling();
+  };
   if (memCeilingSel) {
-    memCeilingSel.value = String(settings.memCeilingMB ?? 1200);
+    showMemCeiling(settings.memCeilingMB ?? 1200);
     const applyMemGuard = () => {
       settings.memCeilingMB = parseInt(memCeilingSel.value || '0', 10);
       VexStorage.saveSettings(settings);
@@ -861,7 +935,9 @@ function vexOwnTextFocused(doc) {
   // the auto-sleep settings above so both paths agree on the numbers.
   const applyMemorySaver = (on) => {
     TabManager.startIdleDiscard(on);
-    if (on || settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
+    // Memory Saver shortens auto-sleep; it does not switch on a toggle that
+    // shows off.
+    if (settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
     else TabManager.stopAutoSleep();
     TabManager.startMemoryGuard(effectiveMemCeiling());
   };
@@ -1316,7 +1392,10 @@ function vexOwnTextFocused(doc) {
       if (!indicator) return;
       const s = SyncEngine.getState();
       indicator.hidden = !s.enabled;
-      indicator.classList.toggle('active', s.enabled && !s.syncing);
+      // "Active" (the green dot) only when there is a sync server to talk to
+      // and the last round did not fail; signed in alone is not syncing.
+      const hasServer = !!VexConfig.syncWorkerUrl();
+      indicator.classList.toggle('active', s.enabled && !s.syncing && hasServer && !s.lastError);
       indicator.classList.toggle('syncing', !!s.syncing);
       if (s.enabled) {
         const push = s.lastPushAt ? new Date(s.lastPushAt).toLocaleString() : 'never';

@@ -171,13 +171,21 @@ const AIRouter = (() => {
 
   async function resolveBackend(feature) {
     let decision;
-    if (onDeviceReady(feature)) {
-      decision = 'ondevice';
-    } else if (forceCloud) {
+    // "Always cloud" is the user's choice and wins over on-device AI too (it
+    // used to lose to it without a word).
+    if (forceCloud) {
       decision = 'cloud';
+    } else if (onDeviceReady(feature)) {
+      decision = 'ondevice';
     } else {
       const pref = routingPrefs[feature] || 'auto';
-      if (pref === 'cloud') {
+      if (pref === 'cloud' && preferLocal && (isOllamaAvailable() || await ollamaUp())) {
+        // "Prefer local (privacy-first)": the features routed to the cloud by
+        // default (translate, history search, multi-tab, the agent) stay on
+        // the local model while one is running. They used to go to the AI
+        // Worker anyway, page text and all.
+        decision = 'local';
+      } else if (pref === 'cloud') {
         // The agent prefers the cloud model. With no AI Worker configured it
         // used to be simply unavailable — "Cloud AI is not configured" — even
         // with a capable local model running. Now the local model drives it.
@@ -235,7 +243,7 @@ const AIRouter = (() => {
     if (primary === 'skip') {
       _dbg(`[AIRouter] skipping ${feature} — no local backend`);
       if (BACKGROUND_FEATURES.includes(feature)) return null;
-      throw new Error(`Local AI is selected for "${feature}" but Ollama isn't running. Start Ollama, or switch this feature to Auto/Cloud in Settings → AI.`);
+      throw new Error(`Local AI is selected for "${feature}" but Ollama isn't running. Start Ollama, or switch this feature to Auto/Cloud in Settings › AI Backend › Advanced: Per-Feature Routing.`);
     }
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
     _dbg(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
@@ -260,7 +268,7 @@ const AIRouter = (() => {
       // conversation on their machine. Quietly re-sending the same prompt — and
       // any page text with it — to the cloud worker would break that promise.
       if (primary === 'ondevice') {
-        throw new Error(`On-device AI failed: ${err.message}. (Not falling back to the cloud because on-device AI is switched on — turn it off in Settings → AI to use the cloud.)`);
+        throw new Error(`On-device AI failed: ${err.message}. (Not falling back to the cloud because on-device AI is switched on — turn it off in Settings › On-Device AI to use the cloud.)`);
       }
 
       // Availability gates for fallback
@@ -543,9 +551,9 @@ const AIRouter = (() => {
       // "…or switch to local Ollama" told someone already on local, with
       // Ollama down, to do what they had done (found 2026-09-29). Say what is
       // missing: with Ollama up, callAI falls back to it after this.
-      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: no AI Worker URL is set (Settings → AI, see SELF_HOSTING.md).');
+      if (isOllamaAvailable()) throw new Error('Cloud AI is not configured: no AI Worker URL is set (Settings › Cloud, see SELF_HOSTING.md).');
       const where = (typeof Ollama !== 'undefined' && Ollama.getBaseUrl) ? Ollama.getBaseUrl() : 'http://127.0.0.1:11434';
-      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI Worker is configured. Start Ollama, or add an AI Worker URL in Settings → AI (see SELF_HOSTING.md).`);
+      throw new Error(`No AI to answer: Ollama at ${where} is not running, and no cloud AI Worker is configured. Start Ollama, or add an AI Worker URL and access token in Settings › Cloud (see SELF_HOSTING.md).`);
     }
     // The normal path (VexConfig.fetchAI → main's cloud:request) is already
     // bounded at 25s in main. The bare-fetch fallback had no bound at all, so a
@@ -570,7 +578,7 @@ const AIRouter = (() => {
       });
     } catch (err) {
       if (outerSignal && outerSignal.aborted) throw new Error('Stopped');
-      if (ctl.signal.aborted) throw new Error(`Cloud AI did not answer within ${Math.round(CLOUD_TIMEOUT_MS / 1000)}s. Check your AI Worker URL in Settings → AI.`);
+      if (ctl.signal.aborted) throw new Error(`Cloud AI did not answer within ${Math.round(CLOUD_TIMEOUT_MS / 1000)}s. Check your AI Worker URL in Settings › Cloud.`);
       throw new Error(_cleanIpcError(err));
     } finally {
       clearTimeout(timer);

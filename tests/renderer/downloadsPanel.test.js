@@ -86,7 +86,8 @@ describe('downloads panel', () => {
     expect([...document.querySelectorAll('.dl-btn')].map(b => b.dataset.action)).toEqual(['retry', 'remove']);
     document.querySelector('[data-action="retry"]').click();
     await Promise.resolve();
-    expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin');
+    // With its id, so main retries it through the session the first try used.
+    expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin', expect.any(String));
   });
 
   it('cancels the transfer when a running download is removed from the list', () => {

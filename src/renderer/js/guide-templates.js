@@ -58,7 +58,7 @@ const GuideTemplates = {
       steps: [
         'Right-click the tab → Mute, or Ctrl+M for the one you are on.',
         'Ctrl+K → "What This Site Is Allowed" turns off a site’s JavaScript entirely, which stops the player as well.',
-        'For a site you keep: Ctrl+K → "Site Volume" remembers a level per site, and "Even Out the Sound" tames the loud parts.',
+        'For a site you keep: right-click its tab → "Page volume…" remembers a level per site, and Ctrl+K → "Even Out the Sound" tames the loud parts.',
       ],
       feature: 'volume',
     },
@@ -67,8 +67,8 @@ const GuideTemplates = {
       ask: ['block ads', 'stop ads', 'too many ads', 'adblock', 'remove adverts', 'cookie banners', 'stop popups'],
       headline: 'Ads and trackers are blocked by Vex itself — no extension — and consent banners can go too.',
       steps: [
-        'Settings › Privacy shows what is being blocked and lets you switch it off for one site.',
-        'Cookie banners: Settings › Privacy → "Hide cookie banners".',
+        'The Privacy panel in the sidebar shows what is being blocked; Ctrl+K → "What This Site Is Allowed" switches things for one site.',
+        'Cookie banners: Settings › Browsing extras → "Auto-hide cookie consent banners".',
         'For one stubborn site: Ctrl+K → "What This Site Is Allowed" → turn off content from other sites.',
       ],
       feature: 'adblock',
@@ -79,7 +79,7 @@ const GuideTemplates = {
       headline: 'You do not have to look through them — ask for the tab by what was on it.',
       steps: [
         'Ctrl+K and start typing: open tabs are listed first, by title and address.',
-        'Closed it already? Ctrl+Shift+T reopens the last one; Ctrl+K → "Recently closed" lists more.',
+        'Closed it already? Ctrl+Shift+T reopens the last one, and again for the one before.',
         'Read it before and cannot name it? Ctrl+K → "Recall" searches the text of pages you have read.',
       ],
       feature: 'recall',
@@ -126,7 +126,7 @@ const GuideTemplates = {
       headline: 'Three levels, depending on who you are hiding from.',
       steps: [
         'Leaving no trace on this machine: Ctrl+K → "New Off-the-Record Tab", or a private window.',
-        'Not being followed between sites: that is on by default — Settings › Privacy shows what it stopped.',
+        'Not being followed between sites: that is on by default — the Privacy panel in the sidebar shows what it stopped.',
         'Hiding where you are: Ctrl+K → "New Tor Tab" routes that tab through Tor. Slower, and worth it only when you need it.',
       ],
       feature: 'otr',
@@ -158,8 +158,8 @@ const GuideTemplates = {
       ask: ['back up my stuff', 'move to another computer', 'export my data', 'sync', 'another device', 'transfer my settings'],
       headline: 'Everything Vex keeps is yours and portable — by sync, or as a file.',
       steps: [
-        'Between your own machines: Settings › Sync, end-to-end encrypted, on a server you point it at.',
-        'As a file: Settings › Data → Export writes bookmarks, notes, sessions and settings out.',
+        'Between your own machines: Vex Sync, end-to-end encrypted, on a server you deploy — its address goes in Settings › Cloud, and you sign in under Settings › Vex Sync.',
+        'As a file: Settings › Data → "Export All Data" writes bookmarks, notes, sessions and settings out.',
         'Nothing here goes anywhere you did not set up: no account, no telemetry.',
       ],
       feature: 'sync',
@@ -170,7 +170,7 @@ const GuideTemplates = {
       headline: 'Two separate things: the colours (themes) and the shape of the browser (looks).',
       steps: [
         'Colours: Ctrl+K → "Theme" — dozens, including light ones, and they apply to the start page too.',
-        'Shape: Settings › Boosts → Browser looks, which borrows the chrome of Chrome, Firefox, Safari, Edge, IE or Netscape.',
+        'Shape: Settings › GUI Style — Chrome, Firefox, Safari, IE·XP and Netscape·98, plus Fluent, Glossy, Neobrutal and Terminal.',
         'You can keep your theme colours on top of any look.',
       ],
       feature: 'guistyle',

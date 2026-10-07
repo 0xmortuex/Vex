@@ -177,7 +177,7 @@ describe('a closed tab\'s JavaScript-off back list goes at once', () => {
     const sessions = new Map();
     const session = { fromPartition: (p) => { if (!sessions.has(p)) sessions.set(p, { partition: p }); return sessions.get(p); } };
     const handlers = {};
-    const win = { on: vi.fn(), once: vi.fn(), webContents: { id: 1, on: (ev, fn) => { handlers[ev] = fn; }, send: vi.fn(), isDestroyed: () => false } };
+    const win = { on: vi.fn(), once: vi.fn(), webContents: { id: 1, on: (ev, fn) => { handlers[ev] = fn; }, send: vi.fn(), setWindowOpenHandler: vi.fn(), isDestroyed: () => false } };
     const all = [{ id: 1, isDestroyed: () => false, getType: () => 'window' }];
     const security = createSessionSecurity({ session, webContents: { getAllWebContents: () => all, fromId: () => null }, root: process.cwd() + '/src' });
     security.registerHost(win);

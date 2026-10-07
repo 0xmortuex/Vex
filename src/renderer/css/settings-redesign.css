@@ -58,7 +58,22 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  /* At most two rows of the 37 chips; the rest scroll inside this box with the
+     wheel. Wrapped in full they took 428 of a 623px panel at the Largest size,
+     with "Settings" at the very bottom (walkthrough M2, 2026-10-07). One row
+     in a short window or at Larger/Largest, where every row costs more. */
+  max-height: 72px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px 4px 2px 0;
 }
+@media (max-height: 760px) {
+  .set-nav { max-height: 34px; }
+}
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-nav { max-height: 34px; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-toolbar { padding-top: 10px; padding-bottom: 8px; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { margin-bottom: 6px; padding-top: 6px; padding-bottom: 6px; }
 /* The scroll area keeps its full-height scroll (from app.css); padding-top is set
    in JS to match the absolute toolbar so the first group clears it. */
 .set-nav-chip {
@@ -218,7 +233,7 @@
 :where(.settings-content) .btn-primary {
   padding: 8px 16px;
   background: var(--primary);
-  color: white;
+  color: var(--on-primary, #fff);
   border: none;
   border-radius: var(--radius);
   cursor: pointer;

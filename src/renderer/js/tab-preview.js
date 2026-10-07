@@ -137,7 +137,10 @@ const TabPreview = {
     }
 
     preview.querySelector('.preview-title').textContent = tab.title || 'Untitled';
-    preview.querySelector('.preview-url').textContent = tab.url || '';
+    // The New Tab page's address is a file inside Vex's install folder;
+    // it is shown as "New Tab" (walkthrough L2, 2026-10-07).
+    const startPage = /^vex:\/\/start\b/i.test(tab.url || '') || /^file:\/\/.*\/renderer\/start\.html(?:[?#]|$)/i.test(tab.url || '');
+    preview.querySelector('.preview-url').textContent = startPage ? 'New Tab' : (tab.url || '');
 
     // Position next to the tab. Vertical layout: pin to the right edge of
     // the tabs sidebar so the preview doesn't overlap the tab strip.

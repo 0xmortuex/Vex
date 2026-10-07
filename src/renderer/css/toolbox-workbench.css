@@ -53,7 +53,7 @@
 }
 .wb-run {
   width: 100%; padding: 10px; border: none; border-radius: 9px;
-  background: var(--primary); color: #fff; cursor: pointer;
+  background: var(--primary); color: var(--on-primary, #fff); cursor: pointer;
   font-family: inherit; font-size: 13px; font-weight: 600;
 }
 .wb-run:hover { background: var(--primary-hover, var(--primary)); }

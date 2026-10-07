@@ -141,7 +141,9 @@ function markRoutedSession(ses, route, allContents) {
   if (!['tor', 'proxy', 'direct'].includes(route)) throw new Error(`Unknown route "${route}"`);
   ses.__vexTor = route === 'tor';
   ses.__vexRouted = route !== 'direct';
-  const policy = ses.__vexRouted ? 'disable_non_proxied_udp' : 'default';
+  // A private window's or an off-the-record tab's session shows sites only the
+  // public address when it goes direct (main.js, _wireEphemeralBrowsing).
+  const policy = ses.__vexRouted ? 'disable_non_proxied_udp' : (ses.__vexEphemeral ? 'default_public_interface_only' : 'default');
   for (const contents of allContents) {
     if (contents.isDestroyed() || contents.session !== ses) continue;
     contents.setWebRTCIPHandlingPolicy(policy);

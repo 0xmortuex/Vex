@@ -1,5 +1,45 @@
 # Changelog
 
+## v2.37.0 (2026-10-07) — A full check-up: safer, smaller, and settings that mean what they say
+
+### Privacy and security
+- **A link that opens another program** (Word, Steam, VS Code…) now asks first, needs a click on the page, and never works from private, off-the-record or Tor tabs; Office links that fetch a file ask every time.
+- **Off-the-record and burner tabs** now ask before giving a site the camera, microphone or notifications, block ads and trackers, and look like Chrome.
+- **Picture-in-Picture loads in the tab's own session**, so Tor and private videos stay private.
+- **"All of Vex through Tor or a proxy" now covers everything**: every tab, container, app panel, private window and mail; the panel says what keeps its own route.
+- Links in Vex's own screens open as tabs, never as extra windows. Open as App and the overlay are refused from private, off-the-record and Tor tabs.
+- Saved logins are filled into sign-in popups only once you click into the field.
+- Retrying a download uses the tab it came from; downloads from private and Tor tabs are not saved to disk; Open only runs files Vex downloaded.
+- MCP server tokens are encrypted and left out of backups; the crash log no longer records private pages or full addresses.
+- SponsorBlock and "Ask Vex about this image" never reach out from private or Tor tabs without your say-so; HTTPS-Only no longer quietly falls back to http on a certificate error.
+- Sites no longer share one fingerprint value across tab types; the Discord panel's automatic camera and microphone apply to Discord only.
+
+### Extensions
+- **Extensions update themselves**: checked two minutes after start and every six hours, never offline or on a metered connection. A new version that asks for more permissions waits on its card for your approval. Settings › Extensions has "Update extensions automatically" and "Check now".
+- **"Install from .zip / .crx" checks a .crx like a Web Store install** (signatures, the store's signature on anything that says it is from the store; CRX2 refused), and every install shows what it can do and where it came from first.
+- **Extensions no longer get access to files on your computer** unless you allow it on their card. One whose job is opening local files keeps it, and its card says so.
+
+### Sleep and settings
+- **"Never do it" now means never.** The hidden 30-minute tab blanking is gone, Discord follows the same choice (its own separate setting is removed), Discord kept awake is never slept, and under "never" the sleep rows are greyed out with the reason.
+- "Always" on a sleep notice covers only that kind; "Do that next time" after a game works; Memory Saver no longer switches on auto-sleep or the memory guard behind switches that show off; panels sleep after the same time as tabs; a group's "Sleep tabs" leaves a tab playing sound alone; auto-sleep settings sync.
+- **Vex Sync says "Not syncing"**, with a button to Settings › Cloud, when no Sync Worker URL is set or the last sync failed; the toolbar sync icon only shows as active when sync really works.
+- "Prefer local" keeps translate, history search, multi-tab AI and the agent on your local model; "Always cloud" beats on-device AI.
+- Setup: re-opening it no longer undoes your look, panels and shortcuts; the Cloud AI step asks for the access token; performance presets set whether Vex may sleep things; a language change applies at once.
+- Reset to Defaults resets every setting, the theme included; help and guide links open the right section; counts are counted, not written down.
+
+### Easier to use
+- **A narrow or scaled window keeps a usable toolbar**: buttons that do not fit move into a "More tools" menu, and Close always stays on screen. The address bar shows the page zoom when it is not 100%.
+- Organize My Tabs can be cancelled, never pops up later, skips empty New Tabs, and no longer remembers patterns unless you tick the box.
+- Buttons in the theme's main colour are readable in every theme (about 55 had white text on a light colour), the New Tab page and the dark browser looks too.
+- YouTube's ad-block scripts all run again; web panels show they are loading; the Firefox-style sidebar shows when there are more icons below; Settings keeps its category chips to one or two rows at large sizes.
+- The privacy panel separates a site's own analytics from trackers that follow you; the translate bar moves the page down instead of covering it; the tab menu adds Reload and Bookmark and puts snooze times in a submenu.
+- "Tools" on a fresh profile explains what a tool is; the Queue panel says plainly that it is not set up; New Tab shows as "New Tab" in Memory and tab previews; tidier mail setup; no leftover "Downloading…" toast; no listener warning at start.
+
+### Smaller and tidier
+- **The installer is about 38 MB smaller** (167 → 130 MB): the AI and OCR engines are no longer packed in twice.
+- Building no longer deletes a Vex you are running from `dist\`; the website badge moves only after a release is published.
+- README, self-hosting guide (including who can receive sync login codes), architecture and release docs are up to date; the website no longer pans sideways on phones.
+
 ## v2.36.4 (2026-10-05) — A full-screen video that asks something no longer freezes Vex
 
 ### Fixes
@@ -96,6 +136,8 @@
 Includes everything in v2.34.4, which was not published: two of its tests raced the disk on the build server, where Tor's download starts a moment later. The app is the same.
 
 ## v2.34.4 (2026-10-01) — Tor's small print
+
+_Tagged but never published (the tag was later removed); everything below shipped in v2.34.5._
 
 Includes everything in v2.34.3.
 

@@ -595,18 +595,15 @@ const WebviewManager = {
     this._ensureHibernateSweep();
   },
 
-  // === Tab hibernation ===
-  // Background tabs idle longer than vex.tabHibernateMinutes (default 30; 0/blank
-  // disables) are navigated to about:blank to free their page heap/DOM, and
-  // reloaded from the remembered URL when next focused. The active tab, audible
-  // tabs, pinned tabs, and local/start pages are never suspended.
-  _hibernateMinutes() {
-    try { const v = parseInt(localStorage.getItem('vex.tabHibernateMinutes'), 10); return Number.isFinite(v) ? v : 30; }
-    catch { return 30; }
-  },
+  // === Tab hibernation (removed) ===
+  // There used to be a sweep here that blanked every background tab not shown
+  // for 30 minutes (vex.tabHibernateMinutes) to about:blank — with no setting,
+  // and without asking js/sleep-consent.js, so tabs went blank under "never
+  // do it". Idle tabs now have ONE timer, Settings › Performance › Auto-sleep
+  // (TabManager.startAutoSleep), which goes through SleepConsent.gate. What
+  // stays: waking a tab that was blanked (_wake), and the system-resume
+  // recovery below, which reloads what the OS blanked while the PC slept.
   _ensureHibernateSweep() {
-    if (this._hibTimer) return;
-    this._hibTimer = setInterval(() => this._hibernateSweep(), 60 * 1000);
     this._startResumeWatch();
   },
   // System sleep/resume recovery (pure renderer — no IPC). A suspended machine
@@ -641,28 +638,6 @@ const WebviewManager = {
       const url = wv.dataset.hibernatedUrl;
       delete wv.dataset.hibernated;
       if (url) { try { this._loadUnwatched(wv, url, 'waking a sleeping tab'); } catch { wv.src = url; } }
-    } catch {}
-  },
-  _hibernateSweep() {
-    try {
-      const mins = this._hibernateMinutes();
-      if (!mins || mins <= 0) return;
-      const cutoff = Date.now() - mins * 60 * 1000;
-      this.webviews.forEach((wv, id) => {
-        if (id === TabManager.activeTabId) return;
-        if (wv.dataset.hibernated === '1') return;
-        if ((wv._lastActive || 0) > cutoff) return;
-        const tab = TabManager.tabs.find(t => t.id === id);
-        // Respect "Prevent from sleeping" — the manual sleepTab() honors it, but
-        // this idle-hibernation sweep was ignoring it, so a kept-awake tab still
-        // got navigated to about:blank.
-        if (!tab || tab.audible || tab.pinned || (TabManager._isKeptAwake && TabManager._isKeptAwake(tab))) return;
-        let url; try { url = wv.getURL(); } catch { return; }
-        if (!url || /^about:/i.test(url) || url.startsWith('file:') || isStartPage(url)) return;
-        wv.dataset.hibernatedUrl = url;
-        wv.dataset.hibernated = '1';
-        try { this._loadUnwatched(wv, 'about:blank', 'putting a tab to sleep'); } catch { wv.src = 'about:blank'; }
-      });
     } catch {}
   },
 
@@ -1382,7 +1357,13 @@ const WebviewManager = {
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: 'Copy as Markdown link', action: () => { try { const u = webview.getURL(); const title = (webview.getTitle && webview.getTitle()) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
-      { label: 'Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (webview.getTitle && webview.getTitle()) || ''); } catch {} } },
+      // The partition goes too: main refuses a private, OTR or Tor tab rather
+      // than reopen it in the main profile, and the refusal is said aloud.
+      { label: 'Open as App', action: () => {
+        window.vex.openAsApp(webview.getURL(), (webview.getTitle && webview.getTitle()) || '', webview.getAttribute?.('partition') || '')
+          .then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open it as an app', 'error'); },
+            (err) => { console.error('[Webview] Open as App failed:', err); window.showToast?.('Could not open it as an app', 'error'); });
+      } },
       // A tab's own rows. In a panel (Gemini, Claude, Discord...) "Duplicate
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.

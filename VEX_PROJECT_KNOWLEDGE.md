@@ -4,7 +4,8 @@
 > Upload it to your Claude Project ("Vex Development") as knowledge so Claude can give you upgrade ideas,
 > design critiques, and implementation help with full context. Built by reading the actual source
 > (main process, renderer, workers), not just the README/CHANGELOG.
-> **Snapshot: v2.26.5 (June 2026).** When something here might drift, the file's own header comment in the
+> **Snapshot: v2.26.5 (June 2026) for the feature inventory; the update, build and release facts and
+> §1a were re-checked against v2.36.4 (October 2026).** When something here might drift, the file's own header comment in the
 > repo is authoritative.
 
 ---
@@ -47,8 +48,25 @@ bar that does everything.
 - **Repo:** github.com/0xmortuex/Vex · **Site:** 0xmortuex.github.io/vex-website
 - **App ID:** com.vex.browser · **Product:** Vex · **Installer:** `Vex-Setup.exe` (NSIS, per-user)
 - **Independent & unsigned** → SmartScreen may warn on first run (More info → Run anyway).
-- **Auto-updates** from GitHub Releases via electron-updater.
-- **Current version: 2.26.5** (June 2026). Development is extremely fast/iterative (1.0.0 → 2.26.x).
+- **Updates in the app** from GitHub Releases through Vex's own updater (since v2.35.0; not electron-updater).
+- **Current version: 2.36.4** (October 2026). Development is extremely fast/iterative (1.0.0 → 2.36.x).
+
+### 1a. Added since this snapshot (v2.27 – v2.36.4), in brief
+
+- **In-app updates** (v2.35.0): a full-screen update cover; `src/main/updates.js` downloads `Vex-Setup.exe`
+  itself, keeps it only if size + sha512 match `latest.yml`, and installs it silently. `src/main/differential.js`
+  downloads only the blocks that changed (block maps; `differentialPackage: true`). A profile backup is saved
+  before each install (`src/main/update-backups.js`, newest three kept).
+- **Profiles** (v2.36.0, `src/main/profiles.js`): each profile is its own userData folder and process; extra
+  ones live in `%APPDATA%Vex Profiles<id>`.
+- **Import from other browsers** (v2.36.0, `src/main/browser-import.js`): bookmarks + history from Chrome, Edge,
+  Brave and Firefox; passwords only from a CSV the user exports.
+- **Chrome Web Store installs** (v2.36.1–2.36.2, `src/main/webstore.js`): CRX3 from Google's update server,
+  installed only when the developer and Web Store signatures verify.
+- **Page dialogs** (v2.36.3–2.36.4, `src/main/page-dialogs.js`): a page's alert/confirm/prompt shows over its
+  own tab or panel instead of a native box that froze the whole window; `src/main/window-hang.js` offers a
+  reload when the window stops responding.
+- **Privacy defaults**, reader view and Report a problem — see CHANGELOG.md for the details.
 
 ---
 
@@ -60,8 +78,8 @@ bar that does everything.
 | Renderer | **Vanilla JavaScript**, no framework. Classic scripts + per-feature CSS files. `npm run build:vendor` (`scripts/bundle-browser-libs.js`) vendors third-party runtimes into `src/renderer/vendor/runtime/` so the host CSP can forbid remote script |
 | Page content | Electron `<webview>` guests; one shared `persist:main` session for tabs, isolated partitions per panel/container |
 | Ad/tracker block | `@ghostery/adblocker-electron` (EasyList + EasyPrivacy) ORed with a 52-entry legacy domain list |
-| Updates | `electron-updater` (GitHub feed) + a lightweight manual HTTPS version check |
-| Other deps | `adm-zip` (extension `.zip`/`.crx`), `tar` (Tor extraction), `qrcode` (QR feature), `tesseract.js` (OCR), `@mlc-ai/web-llm` (on-device AI) |
+| Updates | Vex's own updater (`src/main/updates.js` + `differential.js`, since v2.35.0): `latest.yml` from the newest GitHub release, sha512-checked download, block-map differential download, silent NSIS install |
+| Other deps | `adm-zip` (extension `.zip`/`.crx`), `tar` (Tor extraction), `qrcode` (QR feature), `imapflow` + `mailparser` (Mail). `tesseract.js` (OCR), `@mlc-ai/web-llm` (on-device AI) and `@huggingface/transformers` (dictation) are build-time devDependencies: only their vendored browser builds in `vendor/runtime/` ship |
 | Build | `electron-builder` 26 (NSIS x64); `sharp` via `scripts/build-icons.js` for icons; `vmp-sign.js` as **afterSign** — it must not run as afterPack, which executes before Authenticode rewrites `Vex.exe` and invalidates the signature (that ordering shipped broken DRM in v2.29.4) |
 | Tests | `vitest` + `jsdom` (pure-function unit tests in `tests/`) |
 | Cloud (optional) | Two **Cloudflare Workers** the user self-deploys: AI proxy (→ OpenRouter/Claude) + Sync (E2E) |
@@ -234,11 +252,13 @@ reads stay synchronous against the hydrated store → survives reinstalls and Ch
   timeout per attempt, 2 attempts; `mediaKeySystem` auto-allowed; status states "ready"/"failed: …"/
   "unavailable"/"dev mode — …". `widevine:retry` clears the CDM dirs + resets `Local State`
   updateclientdata (preserving the os_crypt key) and relaunches.
-- **VMP signing** at build (`scripts/vmp-sign.js` afterPack); build aborts if the signer falls back to
+- **VMP signing** at build (`scripts/vmp-sign.js` afterSign); build aborts if the signer falls back to
   a dev/cached signature; `VEX_SKIP_VMP_VERIFY=1` to build without DRM. Valid DRM needs a real castLabs
   EVS signature (`python -m castlabs_evs.account reauth`).
-- **Auto-updater:** electron-updater (autoDownload off, autoInstallOnAppQuit on). Startup uses a
-  lightweight HTTPS fetch of `latest.yml` + semver compare (avoids spawning `7za.exe`/MSVC prompts).
+- **Updater (since v2.35.0):** Vex's own (`src/main/updates.js`), not electron-updater: HTTPS fetch of
+  `latest.yml` + version compare, download to `userData/updates` checked against its size + sha512,
+  block-map differential download when the previous installer is kept (`differential.js`), then a silent
+  install (`--updated /S --force-run`) behind a full-screen cover.
 - **Fingerprint farbling** (preload, opt-in): Mulberry32 PRNG seeded per session; ±1 LSB on ~5% of
   canvas pixels, WebGL vendor/renderer masking, audio ±tiny noise, hardwareConcurrency/deviceMemory→8.
   Config read synchronously before page scripts run.
@@ -702,9 +722,11 @@ Chromium/Node/Widevine versions, links). Plus **Personalization** (name, GitHub,
 ## 25. BUILD, RELEASE & SELF-HOSTING
 
 - **Dev:** `npm install && npm start` (`electron .`). **Tests:** `npm test` (vitest).
-- **Build:** `npm run dist` → build-icons (sharp → electron-icon-builder → finalize) → `rimraf dist`
-  → electron-builder → NSIS `Vex-Setup.exe` (per-user, desktop+start-menu shortcuts) → afterPack VMP
-  signing (build aborts on dev/cached signature). Auto-update via electron-updater (full installs).
+- **Build:** `npm run dist` → build-icons (sharp → PNG + multi-size ICO) → `check-dist-free.js` → `rimraf dist`
+  → electron-builder → NSIS `Vex-Setup.exe` (per-user, desktop+start-menu shortcuts) → afterSign VMP
+  signing (build aborts on dev/cached signature). Updates via Vex's own differential updater (§1a).
+- **Release:** `node scripts/release.js <x.y.z> "<title>" --no-publish`, then the owner runs `npm run publish`
+  (see `RELEASING.md`); `post-publish.js` checks the release and moves the website badge.
 - **Self-host workers:** see §23 and `SELF_HOSTING.md` (wrangler KV namespaces + secrets). Free-tier
   friendly; nothing points at anyone else's backend.
 
@@ -742,7 +764,6 @@ vex-config, settings-ui.
 - Legacy `adblocker.js` `shouldBlock` had a substring-match issue (audit M-1); legacy list still ORed in.
 - `__vexGeoBridge` exposed to all origins in webviews (audit M-3).
 - Transparent/frameless window makes `isFullScreen()` unreliable (manual tracking).
-- Auto-updater uses **full installs** (no differential packages).
 - ThirdPartyStoragePartitioning disabled globally (trade-off for federated logins).
 - Test coverage is thin (pure functions only; UI/integration largely untested).
 - Search-engine sets differ between start page (6) and some settings paths (3–4) — worth unifying.

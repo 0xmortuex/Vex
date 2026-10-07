@@ -383,3 +383,15 @@ describe('"New to you" — what you have never used', () => {
     expect(document.querySelector('.vexd-cathead-blurb').textContent).toMatch(/last 60 commands/i);
   });
 });
+
+describe('Open on a feature that lives in Settings', () => {
+  it('goes through SettingsUI.openSection with the control id, or the section', () => {
+    const openSection = vi.fn();
+    globalThis.SettingsUI = { openSection };
+    const viaSetting = VexFeatures.ITEMS.filter(f => !VexFeatures.command(f) && !f.panel && f.setting && (f.setting.id || f.setting.section));
+    expect(viaSetting.length).toBeGreaterThan(0);
+    for (const f of viaSetting) VexDiscover.openFeature(f.id);
+    expect(openSection.mock.calls.map(c => c[0])).toEqual(viaSetting.map(f => f.setting.id || f.setting.section));
+    delete globalThis.SettingsUI;
+  });
+});

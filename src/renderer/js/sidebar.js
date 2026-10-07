@@ -690,7 +690,39 @@ const SidebarManager = {
     // drive them. Give every web panel (Spotify, Claude, Discord, pinned
     // sites, …) its own slim back/forward/reload bar.
     this._addPanelNav(panelEl, wv, panelName);
+    this._wirePanelLoading(panelEl, wv, panelName);
     return wv;
+  },
+
+  // A web panel showed nothing while its page loaded — Roblox Hub sat white
+  // for 20s with no sign anything was happening (walkthrough M7,
+  // 2026-10-07). A bar runs along the top while the page loads, and on the
+  // first load a spinner with the panel's name covers the still-blank page
+  // until the page's document is ready. Neither takes clicks.
+  _wirePanelLoading(panelEl, wv, panelName) {
+    let ind = panelEl.querySelector(':scope > .panel-loading');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.className = 'panel-loading';
+      ind.setAttribute('role', 'status');
+      ind.innerHTML = '<div class="panel-loading-bar"></div><div class="panel-loading-first"><div class="panel-loading-spinner"></div><div class="panel-loading-label"></div></div>';
+      panelEl.appendChild(ind);
+    }
+    ind.querySelector('.panel-loading-label').textContent = 'Loading ' + this.panelLabel(panelName) + '…';
+    const live = () => panelEl.querySelector('webview') === wv;
+    panelEl.classList.add('panel-is-loading', 'panel-first-load');
+    wv.addEventListener('did-start-loading', () => { if (live()) panelEl.classList.add('panel-is-loading'); });
+    wv.addEventListener('did-stop-loading', () => { if (live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load'); });
+    wv.addEventListener('dom-ready', () => { if (live()) panelEl.classList.remove('panel-first-load'); });
+    // A page can draw long before its document is ready; the cover lifts 8s
+    // after the page arrives at the latest, and the bar carries on.
+    wv.addEventListener('did-navigate', () => {
+      setTimeout(() => { if (live()) panelEl.classList.remove('panel-first-load'); }, 8000);
+    }, { once: true });
+    wv.addEventListener('did-fail-load', (e) => {
+      if (e.isMainFrame && e.errorCode !== -3 && live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load');
+    });
+    wv.addEventListener('render-process-gone', () => { if (live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load'); });
   },
 
   // ---- Two panels at once -------------------------------------------------
@@ -867,8 +899,11 @@ const SidebarManager = {
     return !!(c && c.url) && !this.customPanels.includes(name);
   },
 
-  // vex.panelAutoSleep ('0' = off), vex.panelSleepMinutes (default 30, capped
-  // at 10 under Memory Saver like tabs), vex.panelSleepExempt — the panels
+  // vex.panelAutoSleep ('0' = off); the idle time is the SAME as tabs'
+  // "Sleep after" (app.js publishes it as window.vexTabSleepMinutes, Memory
+  // Saver's 10 minutes included) — vex.panelSleepMinutes, which had no
+  // control anywhere, is read only when that is not there (tests, early
+  // boot), capped at 10 under Memory Saver; vex.panelSleepExempt — the panels
   // kept awake. Discord and WhatsApp by default: a sleeping panel cannot show
   // a new-message notification.
   KEEP_AWAKE_DEFAULT: ['discord', 'whatsapp'],
@@ -877,7 +912,8 @@ const SidebarManager = {
     // exempt for that hour and not a minute longer, and one set to 'only
     // during a call' is never exempt (panelBusy holds the call open).
     const exempt = Object.keys(this.panelConfigs).filter(n => this.keptAwakeNow(n));
-    let minutes = Number(localStorage.getItem('vex.panelSleepMinutes'));
+    let minutes = typeof window !== 'undefined' && typeof window.vexTabSleepMinutes === 'function'
+      ? Number(window.vexTabSleepMinutes()) : Number(localStorage.getItem('vex.panelSleepMinutes'));
     if (!Number.isFinite(minutes) || minutes <= 0) minutes = 30;
     if (localStorage.getItem('vex.memorySaver') === '1') minutes = Math.min(minutes, 10);
     return { enabled: localStorage.getItem('vex.panelAutoSleep') !== '0', minutes, exempt };
@@ -1016,7 +1052,7 @@ const SidebarManager = {
       const names = due.map(n => this.panelLabel(n));
       const said = names.length === 1 ? names[0] + ' has'
         : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
-      SleepConsent.ask({
+      SleepConsent.gate({
         id: 'panels',
         title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
         detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
@@ -1035,7 +1071,7 @@ const SidebarManager = {
       consent.value = SleepConsent.mode();
       consent.addEventListener('change', () => {
         try {
-          SleepConsent.set(consent.value);
+          SleepConsent.set(consent.value);   // redraws the greyed-out rows (vex:sleep-consent)
           window.showToast?.(consent.value === 'ask' ? 'Vex will ask before anything sleeps by itself'
             : consent.value === 'auto' ? 'Vex will sleep idle tabs and panels by itself'
               : 'Nothing will sleep unless you ask it to');
@@ -1055,6 +1091,7 @@ const SidebarManager = {
       keep.addEventListener('change', () => this.setKeepAwake('discord', keep.checked));
     }
     this.renderKeepAwakeList();
+    if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState();
     const rest = document.getElementById('setting-discord-rest');
     if (rest) {
       rest.checked = this.discordRestPrefs().enabled;

@@ -2,19 +2,16 @@
 // audited strictly on every push by `npm audit --omit=dev`; this step covers
 // the tools that build it.
 //
-// One advisory is accepted while it cannot be fixed, and only while it stays
-// out of what Vex ships. The exception ends by itself: if the package reaches
-// the shipped dependencies, or if npm offers a fix that is not a downgrade of
-// the tool, this fails and the entry must be removed.
+// An advisory may be accepted while it cannot be fixed, and only while it
+// stays out of what Vex ships. The exception ends by itself: if the package
+// reaches the shipped dependencies, or if npm offers a fix that is not a
+// downgrade of the tool, this fails and the entry must be removed.
+// Entry shape: { advisory: 'GHSA-…', package: '<name>', why: '<reason, date>' }.
+// (http-cache-semantics GHSA-ch52-4w7c-c8xp, accepted 2026-10-03, was fixed
+// upstream and removed 2026-10-07.)
 const { execSync } = require('child_process');
 
-const ACCEPTED = [
-  {
-    advisory: 'GHSA-ch52-4w7c-c8xp',
-    package: 'http-cache-semantics',
-    why: 'Pulled in by electron-builder (@electron/get, cacheable-request) to download Electron on the build machine; never shipped; no fixed version exists (accepted 2026-10-03).',
-  },
-];
+const ACCEPTED = [];
 const LEVELS = ['info', 'low', 'moderate', 'high', 'critical'];
 
 function audit(args) {

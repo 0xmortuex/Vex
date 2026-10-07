@@ -150,7 +150,7 @@
 .vex-dialog-btn.primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--on-primary, #fff);
   font-weight: 600;
 }
 

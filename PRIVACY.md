@@ -2,7 +2,7 @@
 
 # Vex privacy policy
 
-Effective date: 2026-10-04
+Effective date: 2026-10-07
 
 Vex is a web browser for Windows made by 0xmortuex (https://github.com/0xmortuex/Vex). This page explains, feature by feature, what data leaves your PC, who receives it and why, and what Vex keeps on your PC. It is written from what the Vex code actually does.
 
@@ -24,11 +24,11 @@ When you set up Sync or cloud AI, your data goes to the server whose address you
 
 Vex keeps your profile in `%APPDATA%\Vex`. Nothing in this folder is sent anywhere unless a feature below sends it.
 
-**Encrypted with Windows (DPAPI, through Electron safeStorage):** saved passwords (`vault.dat`), authenticator (2FA) secrets (`totp.dat`), mail account logins (`mail-accounts.enc`), the cloud AI access token (`ai-token.enc`), and the Sync key and Sync sign-in details. Vex refuses to save these if Windows encryption is not available. Anyone who can sign in to your Windows account can still open them, the same as in Chrome or Edge.
+**Encrypted with Windows (DPAPI, through Electron safeStorage):** saved passwords (`vault.dat`), authenticator (2FA) secrets (`totp.dat`), mail account logins (`mail-accounts.enc`), the cloud AI access token (`ai-token.enc`), the tokens of MCP servers you add (`mcp-auth.enc`), and the Sync key and Sync sign-in details. Vex refuses to save these if Windows encryption is not available. Anyone who can sign in to your Windows account can still open them, the same as in Chrome or Edge.
 
-**Stored as ordinary files (not encrypted):** browsing history (the newest 500 visits), the full-text page index called Recall (on by default; turn it off in its settings), bookmarks, notes, tabs and sessions, reading list, AI memory (facts the assistant remembers about you), AI chat history, settings, the local crash log (`crash-log.json`, last 100 errors), and Tor and ByeDPI log files.
+**Stored as ordinary files (not encrypted):** browsing history (the newest 500 visits), the full-text page index called Recall (on by default; turn it off in its settings), bookmarks, notes, tabs and sessions, reading list, AI memory (facts the assistant remembers about you), AI chat history, settings, the downloads list, the local crash log (`crash-log.json`, last 100 errors), and Tor and ByeDPI log files. The crash log names only the site a crashed or frozen page was on (never its full address), and says only "a private page" for a private window, an off-the-record, burner or Tor tab. Downloads from a private window or an off-the-record, burner or Tor tab are listed until Vex closes and never written to disk.
 
-**Backups.** Before installing an update, Vex saves a backup of your settings and data in `%APPDATA%\Vex\backups` and keeps the newest 3. Backups leave out passwords, tokens, keys, 2FA secrets and the lock PIN. AI chats are only included if you tick that box.
+**Backups.** Before installing an update, Vex saves a backup of your settings and data in `%APPDATA%\Vex\backups` and keeps the newest 3. Backups leave out passwords, tokens, keys, 2FA secrets, the lock PIN and your list of MCP servers. AI chats are only included if you tick that box.
 
 **Downloaded installers** for updates are kept in `%APPDATA%\Vex\updates`.
 
@@ -92,7 +92,7 @@ Cloud AI only works after you enter an AI server address and access token in Set
 - for the AI agent: the page address, title, text and a list of buttons and fields on it;
 - for screenshot-to-code: the screenshot.
 
-Private and Tor tabs are never read for AI.
+Private and Tor tabs are never read for AI. The one exception is a picture you right-click there and choose "Ask Vex about this image": Vex asks first, and only if you agree fetches it through that tab's own connection (its Tor or proxy route) and sends it to your AI model. A picture from any other tab is fetched through that tab's connection too, never directly by Vex.
 
 **Where it goes next.** The AI server forwards the request to **OpenRouter** (openrouter.ai), which passes it to the model (currently Anthropic's Claude Sonnet). Your IP address and identity are not forwarded; OpenRouter sees the server's address. OpenRouter's and the model provider's own privacy policies apply.
 
@@ -128,9 +128,9 @@ These run **only when you use them:**
 | Feature | Sent to | What is sent |
 |---|---|---|
 | New Tab weather | Open-Meteo (api.open-meteo.com); searching for a city goes to geocoding-api.open-meteo.com | Off until you set a city. Then the city's coordinates, at most once every 30 minutes (the forecast is kept in between); a city search sends what you type. "Use my approximate location" looks up your IP address once at ipapi.co (then ipwho.is or get.geojs.io if that fails) and saves the town it finds |
-| SponsorBlock (skip sponsor segments on YouTube) | sponsor.ajay.app | The ID of each YouTube video you open. Off until you turn it on in first-run setup or Settings › Privacy & Security (profiles from before it was off by default kept it as they had it) |
+| SponsorBlock (skip sponsor segments on YouTube) | sponsor.ajay.app | The ID of each YouTube video you open in an ordinary tab. Never for a video in a private window, a Tor, off-the-record, burner or container tab, or a site you route through Tor or a proxy; while all of Vex is routed, it goes through that route too. Off until you turn it on in first-run setup or Settings › Privacy & Security (profiles from before it was off by default kept it as they had it) |
 | Tor | archive.torproject.org (one-time download of Tor), then the Tor network; check.torproject.org to confirm the connection | Your Tor tab traffic goes through Tor |
-| Mail panel | Your mail provider's IMAP server (Gmail, Yahoo, iCloud, or a local bridge) | Your login (an app password), to read your mail. Vex only reads mail; it never sends or changes it |
+| Mail panel | Your mail provider's IMAP server (Gmail, Yahoo, iCloud, a local bridge, or the server you enter) | Your login (an app password), to read your mail. Vex only reads mail; it never sends or changes it. While all of Vex goes through Tor or a proxy, mail does too (a local bridge stays local) |
 | Extension catalogue | GitHub (api.github.com and github.com) | Which extension to download |
 | Install or update an extension from the Chrome Web Store | Google's extension update server (clients2.google.com), which hands the download to clients2.googleusercontent.com | The extension's id, Vex's Chromium version (for example 148.0) and, as with any request, your IP address. Only when you click Add to Vex, Install or Update from Web Store; never from a private window, a Tor tab or a burner tab. Vex sends no Google account, cookie or list of your other extensions, and does not check for updates by itself |
 | Vencord for the Discord panel | GitHub (Vendicated/Vencord releases) | A normal download |
@@ -155,6 +155,10 @@ These run **only when you use them:**
 | API tester, MCP servers, queue panel | Addresses you enter | What you send |
 
 Everything else you do on the web goes, as in any browser, to the websites you visit. Their own privacy policies apply.
+
+**Links that open another program.** A site can link to a program on your PC (Word, Steam, VS Code, Zoom, your email program…). Vex opens one only after you clicked or pressed a key on the page, and only once you have said yes for that site and that kind of link (Settings › Site permissions lists and revokes your answers). A link that makes Word or Excel fetch a document from the internet asks every time. Vex never opens another program from a private window or an off-the-record, burner or Tor tab: the program would reach the internet directly.
+
+**Private routing ("All of Vex" through Tor or a proxy).** Off by default. When you turn it on, every tab, container, private window, off-the-record and burner tab, sidebar app (Discord and Roblox included, whose network help waits until it is off), the link checker and mail go through Tor or the proxy you named, and a session opened later does too. These keep a route of their own: a Tor tab (already on Tor), a container or site you routed yourself, and the latency check, which measures your own connection directly.
 
 ## 6. What Vex does not do
 

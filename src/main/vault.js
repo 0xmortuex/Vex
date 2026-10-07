@@ -58,9 +58,18 @@ const _WEBAUTHN_DISABLE_JS = '(function(){try{' +
 // only a real login field is filled (email/username signal or a password field
 // present) — never a search/combobox — and only when the popup's host exactly
 // matches a saved credential (so a phishing popup can't harvest it).
-function _popupAutofillJs(username, password) {
+//
+// Nothing is filled until the person clicks or types in a login field of the
+// popup: the saved login was typed into every sign-in popup any page opened,
+// at once, where every script on that page could read it (security scan M3).
+// The code runs in an isolated world, so page scripts can neither see it nor
+// hand it a fake click, and the site is checked again at the moment of filling.
+const POPUP_FILL_WORLD = 1018;
+function _popupAutofillJs(username, password, host) {
   return `(function(){try{
-    var U=${JSON.stringify(username)},P=${JSON.stringify(password)};
+    var U=${JSON.stringify(username)},P=${JSON.stringify(password)},H=${JSON.stringify(host)};
+    var here=function(){return location.protocol==='https:'&&location.hostname.replace(/^www\\./,'')===H;};
+    if(!here()||window.__vexPopupFill)return;window.__vexPopupFill=1;
     var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
     var fire=function(el,val){try{el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}};
     var vis=function(el){try{var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}};
@@ -68,16 +77,20 @@ function _popupAutofillJs(username, password) {
     var searchy=function(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;return /search|find|filter|query/.test(meta(el));};
     var loginSig=function(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|login|phone|account|identifier/.test(meta(el));};
     var userField=function(pw){var scope=(pw&&pw.form)||document;var c=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');var sig=null,plain=null;for(var i=0;i<c.length;i++){var el=c[i];if(!vis(el)||searchy(el))continue;if(loginSig(el)){sig=el;break;}if(!plain)plain=el;}return sig||(pw?plain:null);};
-    var fill=function(){var pw=document.querySelector('input[type=password]');var u=userField(pw);if(u&&(pw||loginSig(u))&&!u.value)fire(u,U);if(pw&&!pw.value)fire(pw,P);};
-    fill();
-    // OAuth pages build their fields asynchronously (and step email→password on
-    // the same URL), so retry for a few seconds.
-    var n=0;var iv=setInterval(function(){fill();if(++n>10)clearInterval(iv);},400);
+    var fill=function(){if(!here())return;var pw=document.querySelector('input[type=password]');var u=userField(pw);if(u&&(pw||loginSig(u))&&!u.value)fire(u,U);if(pw&&!pw.value)fire(pw,P);};
+    // A real click or key press (isTrusted) in a password or login field.
+    var onUser=function(ev){try{if(!ev.isTrusted)return;var t=ev.target;if(!t||t.tagName!=='INPUT')return;if((t.type||'').toLowerCase()!=='password'&&!loginSig(t))return;fill();}catch(e){}};
+    document.addEventListener('pointerdown',onUser,true);
+    document.addEventListener('keydown',onUser,true);
   }catch(e){}})();`;
 }
-function _autofillPopup(wc) {
+// opts.partition: the popup's session. A private window's, an off-the-record,
+// burner or Tor tab's popup is never offered the main vault (scan M3).
+function _autofillPopup(wc, opts = {}) {
   try {
     if (!wc || wc.isDestroyed()) return;
+    const partition = typeof opts.partition === 'string' ? opts.partition : '';
+    if (!partition.startsWith('persist:') || partition === 'persist:route-tor' || (wc.session && wc.session.__vexTor)) return;
     const u = wc.getURL();
     let host = '';
     try { host = new URL(u).hostname.replace(/^www\./, ''); } catch { return; }
@@ -85,8 +98,9 @@ function _autofillPopup(wc) {
     const creds = vaultLoad().filter(e => e.host === host);
     if (creds.length !== 1) return;
     const c = creds[0];
-    wc.executeJavaScript(_popupAutofillJs(c.username, c.password)).catch(() => {});
-  } catch {}
+    wc.executeJavaScriptInIsolatedWorld(POPUP_FILL_WORLD, [{ code: _popupAutofillJs(c.username, c.password, host) }])
+      .catch(err => console.error('[popup-autofill] could not offer the saved login:', err && err.message));
+  } catch (err) { console.error('[popup-autofill] failed:', err && err.message); }
 }
 ipcMain.handle('vault:get', (_e, host) => {
   if (!host || typeof host !== 'string') return [];

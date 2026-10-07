@@ -250,10 +250,12 @@ async function initWidevine(attempts = 2) {
 // Config persisted to userData/privacy.json. Everything defaults OFF so normal
 // browsing is untouched until the user opts in (Settings → Privacy Hardening).
 let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false };
-// One stable seed per app run: farbling noise is consistent within a session
-// (so a single site sees a coherent fingerprint) but changes across sessions
-// (so it can't be used to link you over time). crypto so it's unguessable.
-const FARBLE_SEED = (() => { try { return require('crypto').randomBytes(4).readUInt32LE(0); } catch { return 0x9e3779b9; } })();
+// A key made at launch: each page's farbling seed is derived from it, its
+// session's partition and its site (main-helpers.js, farbleSeed), so noise is
+// steady for one site in one session, unrelated between sites and sessions,
+// and new at every launch. One seed for everything linked a Tor tab to a
+// normal one (security scan M1).
+const FARBLE_KEY = require('crypto').randomBytes(32);
 const DOH_PROVIDERS = {
   cloudflare: 'https://cloudflare-dns.com/dns-query',
   google: 'https://dns.google/dns-query',
@@ -297,6 +299,22 @@ function privacyLoad() {
 // is remembered for the session (_httpsOnlyFailed) so it stops being upgraded.
 const _httpsOnlyFailed = new Set();       // bare hosts known http-only this session
 const _httpsUpgradedByWc = new Map();     // wcId -> Set<bareHost> we upgraded (scoped fallback)
+// A host whose https had a certificate error: the tab shows a notice
+// (_httpsCertNotice), and its "load it unencrypted" link is let through
+// without an upgrade, once, for two minutes.
+const _httpsOnlyBypass = new Map();       // bare host -> until
+function _httpsCertNotice(host, httpUrl) {
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Certificate not valid</title><meta name="color-scheme" content="light dark">
+<style>:root{--bg:#f6f7f9;--text:#1b1f27;--muted:#5b6472;--accent:#b4232a}@media (prefers-color-scheme:dark){:root{--bg:#121419;--text:#e6e9ef;--muted:#9aa3b2;--accent:#ff6b6b}}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}
+main{max-width:560px;padding:32px 24px}h1{font-size:21px;margin:0 0 12px;color:var(--accent)}p{margin:0 0 14px}.muted{color:var(--muted);font-size:13.5px}a{color:var(--text)}</style></head>
+<body><main><h1>This site's certificate is not valid</h1>
+<p><b>${esc(host)}</b> offered a secure connection whose certificate does not check out. That is what happens when someone in the middle of your connection tries to read it.</p>
+<p>HTTPS-Only mode stopped here instead of loading the page over an unencrypted connection.</p>
+<p class="muted">If you trust this network and still want the page, you can <a href="${esc(httpUrl)}">load it unencrypted</a>. Anyone on the network can then read and change what you see and send.</p>
+</main></body></html>`;
+}
 function _httpsIsLocal(h) {
   return h === 'localhost' || h === '::1' || h === '[::1]'
     || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)
@@ -315,6 +333,9 @@ function _httpsUpgradeURL(details) {
   if (u.port && u.port !== '80') return null;                    // custom-port http servers rarely have https
   const bare = hn.replace(/^www\./, '');
   if (_httpsOnlyFailed.has(bare)) return null;                   // proven http-only — don't loop
+  // The person chose "load it unencrypted" on the certificate notice: once.
+  const bypass = _httpsOnlyBypass.get(bare);
+  if (bypass) { _httpsOnlyBypass.delete(bare); if (bypass >= Date.now()) return null; }
   u.protocol = 'https:';
   if (u.port === '80') u.port = '';
   const wc = details.webContentsId;
@@ -621,7 +642,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -664,7 +685,7 @@ function wireDisplayMediaOnSession(ses) {
           }
         } catch { /* best effort: a picker behind a window still beats no picker */ }
 
-        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester, audioRequested: !!request.audioRequested });
+        _pendingScreenPicks.set(id, { callback, sources, host: requestingHost, frame: requestingFrame, url: requestingUrl, restoreRequester, audioRequested: !!request.audioRequested, pageId: requestingContents.id });
         const payload = { id, sources: sources.map((s) => ({
           id: s.id, name: s.name, isScreen: /screen/i.test(s.id),
           thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : '',
@@ -684,7 +705,10 @@ function wireDisplayMediaOnSession(ses) {
 // The last screen-share quality choice, read ONCE by the guest's getDisplayMedia
 // shim (preload-webview.js) so it can applyConstraints on the captured track —
 // Electron's handler can't set the video resolution/FPS itself, only the source.
-let _lastShareQuality = null;
+// Kept per page, by the id of the page that asked: with one value for all of
+// Vex, any other tab asking first took the sharer's settings, and the sharer
+// got the defaults (security scan L6).
+const _shareQuality = new Map();
 ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height, fps, cursor } = {}) => {
   const p = _pendingScreenPicks.get(id);
   if (!p) return { ok: false, error: 'That share request has expired — start the share again' };
@@ -692,9 +716,9 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
   try { if (p.frame.detached || p.frame.url !== p.url) { p.callback(); return { ok: false, error: 'Requesting page changed' }; } } catch { try { p.callback(); } catch {} return { ok: false }; }
-  if (!sourceId) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
+  if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
-  if (!src) { _lastShareQuality = null; try { p.callback(); } catch {} return { ok: false, error: 'That screen or window is no longer there — try again' }; }
+  if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: false, error: 'That screen or window is no longer there — try again' }; }
   // The answer must match what the page ASKED for. Discord always asks for
   // audio, and a pick without it is refused outright — "AbortError: Invalid
   // capture constraints" — so with "Share audio" unticked (a choice Vex
@@ -702,13 +726,14 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   // So: audio is supplied whenever it was asked for, and when the user does
   // not want it the guest shim drops the audio track before the page sees the
   // stream (dropAudio). Measured on discord.com in the panel, both ways.
-  _lastShareQuality = { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', dropAudio: p.audioRequested && audio === false, at: Date.now() };
+  _shareQuality.set(p.pageId, { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', dropAudio: p.audioRequested && audio === false, at: Date.now() });
   try { p.callback(p.audioRequested ? { video: src, audio: 'loopback' } : { video: src }); }
-  catch (err) { _lastShareQuality = null; return { ok: false, error: 'The share could not start: ' + err.message }; }
+  catch (err) { _shareQuality.delete(p.pageId); return { ok: false, error: 'The share could not start: ' + err.message }; }
   return { ok: true };
 });
-ipcMain.handle('screen-share:get-quality', () => {
-  const q = _lastShareQuality; _lastShareQuality = null;          // one-shot
+ipcMain.handle('screen-share:get-quality', (event) => {
+  const q = _shareQuality.get(event.sender.id);   // one-shot, and only this page's own
+  _shareQuality.delete(event.sender.id);
   if (!q || Date.now() - q.at > 30000) return null;
   return { width: q.width, height: q.height, fps: q.fps, cursor: q.cursor, dropAudio: !!q.dropAudio };
 });
@@ -893,8 +918,26 @@ app.on('child-process-gone', (_e, d) => {
   if (!d || d.reason === 'clean-exit') return;
   _diagEvent('helper process gone', `${d.type}${d.name ? ' ' + d.name : ''} — ${d.reason} (exit ${d.exitCode})`);
 });
+// A guest page's executeJavaScript calls made while it loads share one
+// did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
+// injections passed Node's 10-listener limit on every boot (walkthrough L13).
+app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') require('./main/load-wait').shareLoadWait(wc); });
 app.on('web-contents-created', (_e, wc) => {
-  const where = () => { try { return wc.getURL().slice(0, 120) || wc.getType(); } catch { return wc.getType(); } };
+  // Only a Vex window may hold a <webview> (session-security.js, guardWebviews).
+  secureSessions.guardWebviews(wc);
+  // What crash-log.json, Health and a problem report say about the page: its
+  // origin only, and nothing at all for a private, off-the-record, burner or
+  // Tor page. 120 characters of the full address were kept for a week, query
+  // strings and private pages included (security scan S5-2).
+  const where = () => {
+    try {
+      const partition = secureSessions.partitionOf(wc);
+      if ((partition && !partition.startsWith('persist:')) || partition === 'persist:route-tor' || (wc.session && wc.session.__vexTor)) return 'a private page';
+      const u = new URL(wc.getURL());
+      if (u.protocol === 'file:') return 'a Vex page';
+      return u.origin && u.origin !== 'null' ? u.origin : wc.getType();
+    } catch { return wc.getType(); }
+  };
   wc.on('render-process-gone', (_ev, d) => { if (d && d.reason !== 'clean-exit') _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`); });
   wc.on('unresponsive', () => _diagEvent('page hung', where()));
   wc.on('responsive', () => _diagEvent('page recovered', where()));
@@ -936,8 +979,8 @@ ipcMain.handle('system:dev-ports', async () => {
 
 // Notice a full-screen game and tell the renderer, which frees the GPU, sleeps
 // background tabs and holds background AI (src/main/game-watch.js). The
-// renderer switches it on or off from the Gaming settings; nothing runs until
-// it asks.
+// renderer switches it on or off from Settings › Privacy Hardening › Gaming
+// and streaming; nothing runs until it asks.
 const _gameWatch = require('./main/game-watch').createGameWatch({
   spawn: require('child_process').spawn,
   ownNames: [path.basename(process.execPath, '.exe'), 'Vex', 'electron'],
@@ -995,9 +1038,12 @@ function openQuickCapture() {
     alwaysOnTop: true, skipTaskbar: true, fullscreenable: false, show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload-capture.js'),
-      contextIsolation: true, nodeIntegration: false, sandbox: false,
+      // Its preload uses only contextBridge and ipcRenderer, which a sandboxed
+      // preload has (security scan L9).
+      contextIsolation: true, nodeIntegration: false, sandbox: true,
     },
   });
+  _captureWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   // Above a fullscreen game, which an ordinary always-on-top window is not.
   try { _captureWin.setAlwaysOnTop(true, 'screen-saver'); } catch { /* best effort */ }
   _captureWin.loadFile(path.join(__dirname, 'renderer', 'capture.html'));
@@ -1083,7 +1129,7 @@ ipcMain.handle('extensions:set-scope', async (_e, folderName, scope) => {
       if (_isLazySession(ses) && !_coveredSessions.has(ses)) continue;
       try {
         const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(entry.path));
-        if (wanted.has(ses) && !live) { ensureExtensionSwPreload(ses); await ses.loadExtension(entry.path, { allowFileAccess: true }); }
+        if (wanted.has(ses) && !live) { ensureExtensionSwPreload(ses); await ses.loadExtension(entry.path, _extLoadOptions(entry.path)); }
         else if (!wanted.has(ses) && live) ses.removeExtension(live.id);
       } catch (err) {
         return { ok: false, error: `Saved, but could not apply it to ${_partitionNameOf(ses) || 'a session'}: ${err.message}` };
@@ -1113,10 +1159,23 @@ ipcMain.handle('extensions:release-idle', () => {
 // partition, so counter-based paywalls (NYT/WaPo-style "N free articles") reset
 // on reload. Subscriber-only (server-side) walls aren't affected — the renderer
 // offers an archive.today fallback for those.
+// The session one of these acts on, decided here and not taken on the
+// renderer's word: a private window's own session whatever it names, and in
+// any other window the tab's partition, never a private window's (persist:main
+// when none is named; the default session holds no tab). A private window's
+// interface could name persist:main and read or change the main profile's
+// cookies (security scan L2).
+function _siteSessionFor(event, partition) {
+  const host = secureSessions.owner(event.sender);
+  if (host && host.privatePartition) return secureSessions.fromPartition(host.privatePartition);
+  const p = partition || 'persist:main';
+  if (p.startsWith('private:')) throw new Error('That page belongs to a private window');
+  return secureSessions.fromPartition(p);
+}
 ipcMain.handle('site:clear-data', async (_e, opts) => {
   const { partition, url } = opts || {};
   try {
-    const ses = partition ? secureSessions.fromPartition(partition) : session.defaultSession;
+    const ses = _siteSessionFor(_e, partition);
     let origin = '';
     try { origin = new URL(url).origin; } catch {}
     if (origin) {
@@ -1153,12 +1212,12 @@ const _cookieUrl = (c) => {
   const dom = String((c && c.domain) || '').replace(/^\./, '');
   return dom ? `http${c.secure ? 's' : ''}://${dom}${(c && c.path) || '/'}` : '';
 };
-const _cookieSession = (partition) => (partition ? secureSessions.fromPartition(partition) : session.defaultSession);
+const _cookieSession = (event, partition) => _siteSessionFor(event, partition);
 
 ipcMain.handle('cookies:list', async (_e, opts) => {
   const { partition, url } = opts || {};
   try {
-    const cookies = await _cookieSession(partition).cookies.get({ url });
+    const cookies = await _cookieSession(_e, partition).cookies.get({ url });
     return {
       ok: true,
       cookies: cookies.map(c => ({
@@ -1180,7 +1239,7 @@ ipcMain.handle('cookies:list', async (_e, opts) => {
 ipcMain.handle('cookies:remove', async (_e, opts) => {
   const o = opts || {};
   try {
-    await _cookieSession(o.partition).cookies.remove(_cookieUrl(o) || o.url, o.name);
+    await _cookieSession(_e, o.partition).cookies.remove(_cookieUrl(o) || o.url, o.name);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -1203,7 +1262,7 @@ ipcMain.handle('cookies:set', async (_e, opts) => {
     // would make a second cookie of the same name rather than edit this one.
     if (typeof o.domain === 'string' && o.domain.startsWith('.')) spec.domain = o.domain;
     if (Number.isFinite(o.expires) && o.expires > 0) spec.expirationDate = o.expires / 1000;
-    await _cookieSession(o.partition).cookies.set(spec);
+    await _cookieSession(_e, o.partition).cookies.set(spec);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -1475,9 +1534,14 @@ ipcMain.handle('calendar:fetch', async (_e, url) => {
 ipcMain.handle('api:request', async (_e, opts = {}) => {
   const t0 = Date.now();
   try {
-    const { url, method = 'GET', headers = {}, body = null, binary = false } = opts || {};
+    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null } = opts || {};
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
-    const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? headers : {} };
+    const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? { ...headers } : {} };
+    // An MCP server's token, kept encrypted in main (mcp:auth-set).
+    if (mcpServer) {
+      const token = (await _mcpAuthAll())[mcpServer];
+      if (token) init.headers.Authorization = /^bearer\s/i.test(token) ? token : 'Bearer ' + token;
+    }
     if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
     const res = await boundedNetFetch(url, init);
     const buf = Buffer.from(await res.arrayBuffer());
@@ -2060,6 +2124,8 @@ const _mail = require('./main/mail').createMail({
   secrets: { read: (...a) => secretStore.read(...a), write: (...a) => secretStore.write(...a) },
   file: path.join(userDataPath, 'mail-accounts.enc'),
   randomId: () => require('crypto').randomBytes(8).toString('hex'),
+  // Through the route for all of Vex when one is on (_mailProxy).
+  proxy: () => _mailProxy(),
 });
 const _mailCall = (fn) => async (...args) => { try { return { ok: true, value: await fn(...args) }; } catch (err) { return { ok: false, error: (err && err.message) || 'Mail failed' }; } };
 ipcMain.handle('mail:accounts', _mailCall(() => _mail.accounts()));
@@ -2227,7 +2293,13 @@ function _pageUrlOf(webContentsId) {
   return url;
 }
 
-const { wireDownloadsOnSession } = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules });
+const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  // Read lazily, the first time a download finishes or is opened.
+  knownBefore: () => {
+    const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');
+    return Array.isArray(list) ? list.filter(d => d && d.state === 'completed').map(d => d.path) : [];
+  } });
+const { wireDownloadsOnSession } = _downloadService;
 
 // === Phase 18: Chrome extension loader ===
 const extensionsDir = path.join(userDataPath, 'extensions');
@@ -2361,6 +2433,39 @@ function _readSources() {
   catch (err) { console.error('[Extensions] sources file unreadable:', err.message); return {}; }
 }
 
+// Access to file:// pages, per extension (extensions.js readFileAccess): off
+// unless the person allowed it on the extension's card, as in Chrome (security
+// scan M6: every extension used to get it). Unreadable, no extension gets it
+// (the safe side) and the manager says why.
+let _fileAccessError = null;
+function _fileAccessState() {
+  try {
+    const s = extHelpers.readFileAccess(extensionsDir);
+    _fileAccessError = null;
+    return s || { allow: {}, kept: {} };
+  } catch (err) {
+    _fileAccessError = `File-access settings are unreadable (${err.message}) — no extension can open file:// pages until this is fixed.`;
+    console.error('[Extensions]', _fileAccessError);
+    return { allow: {}, kept: {} };
+  }
+}
+function _extLoadOptions(extPath) {
+  return { allowFileAccess: !!_fileAccessState().allow[path.basename(extPath)] };
+}
+// The first start with this setting: existing installs lose file access,
+// except one whose manifest names file:// pages (extensions.js migrateFileAccess).
+function _migrateFileAccess() {
+  try {
+    if (extHelpers.readFileAccess(extensionsDir) !== null) return;
+    const state = extHelpers.migrateFileAccess(_extEntriesOnDisk());
+    extHelpers.writeFileAccess(extensionsDir, state);
+    console.log(`[Extensions] file access is now per extension; kept for: ${Object.keys(state.kept).join(', ') || 'none'}`);
+  } catch (err) {
+    _fileAccessError = `Could not set up the file-access settings: ${err.message}`;
+    console.error('[Extensions]', _fileAccessError);
+  }
+}
+
 // The sessions one extension belongs in (src/main/extensions.js partitionsFor):
 // the default session and the browsing partitions always; an app panel's
 // partition only when the extension names that site, or its scope is
@@ -2443,7 +2548,7 @@ async function _loadExtensionEverywhere(extPath, manifest) {
   for (const ses of sessions) {
     try {
       ensureExtensionSwPreload(ses);
-      const ext = await ses.loadExtension(extPath, { allowFileAccess: true });
+      const ext = await ses.loadExtension(extPath, _extLoadOptions(extPath));
       if (!loaded) loaded = ext;
     } catch (err) {
       errors.push(err.message);
@@ -2655,7 +2760,7 @@ async function _coverNewSession(ses) {
     try {
       if (ses.getAllExtensions().some(x => path.resolve(x.path) === path.resolve(entry.path))) continue;
       ensureExtensionSwPreload(ses);
-      await ses.loadExtension(entry.path, { allowFileAccess: true });
+      await ses.loadExtension(entry.path, _extLoadOptions(entry.path));
       _extraExtSessions.add(ses);
     } catch (err) {
       console.error(`[Extensions] could not load ${entry.folder} into a new session:`, err.message);
@@ -2667,6 +2772,7 @@ async function loadAllExtensionsOnStartup() {
   // Collapse any duplicate Vencord builds to the newest BEFORE loading, so a
   // stale build left behind by a locked-file delete can't shadow the new one.
   _dedupeVencordFolders();
+  _migrateFileAccess();
   const disabled = _readDisabledFolders();
   for (const entry of _extEntries()) {
     if (entry.error && !entry.manifest) { _extLoadErrors.set(entry.folder, entry.error); continue; }
@@ -2702,6 +2808,10 @@ ipcMain.handle('extensions:list', () => {
   }
   const scopes = _readScopes();
   const sources = _readSources();
+  const fileAccess = _fileAccessState();
+  let updates = null, updatesError = null;
+  try { updates = _extUpdates.readState(extensionsDir); }
+  catch (err) { updatesError = `The extension update record is unreadable (${err.message}).`; console.error('[Extensions]', updatesError); }
   return _extEntriesOnDisk().map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
@@ -2730,14 +2840,103 @@ ipcMain.handle('extensions:list', () => {
       iconPath: icon ? path.join(e.path, icon) : null,
       // Installed from the Chrome Web Store: its id there, for "Update from Web Store".
       webstore: (sources[e.folder] && sources[e.folder].webstore) || null,
+      // Where it came from, so the card can say whether Vex can update it.
+      source: _sourceInfo(sources[e.folder]),
+      update: _updateInfo(updates, e.folder, manifest.version),
+      // "Allow access to file URLs", off unless switched on (security scan M6).
+      fileAccess: !!fileAccess.allow[e.folder],
+      fileAccessKept: !!fileAccess.kept[e.folder],
+      fileUrls: e.manifest ? extHelpers.fileUrlPatterns(manifest).length > 0 : false,
       // What this extension can read, and what it is allowed to do, in words
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
       error: e.error || _extLoadErrors.get(e.folder) || (_boot.safeMode ? 'Not loaded: Vex started in safe mode' : null),
-      stateError: _extStateError
+      stateError: _extStateError || _fileAccessError || updatesError
     };
   });
 });
+
+// "Install from folder" and "Install from .zip / .crx" are two steps, like a
+// Web Store install: extensions:install-folder / install-zip pick the file,
+// check it and describe it (nothing is written); the manager shows the same
+// permissions dialog (js/web-store.js dialogHtml); extensions:install-picked
+// then installs exactly what was checked. A picked item is kept in memory for
+// ten minutes under a random token.
+const _pickedExt = new Map();
+const PICKED_EXT_TTL_MS = 10 * 60 * 1000;
+function _stagePickedExt(item) {
+  const now = Date.now();
+  for (const [k, v] of _pickedExt) if (now - v.at > PICKED_EXT_TTL_MS) _pickedExt.delete(k);
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _pickedExt.set(token, { ...item, at: now });
+  return token;
+}
+function _installedSummary(have) {
+  return have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null;
+}
+
+// A picked folder: its manifest and what it asks for. The folder is copied at
+// install time, and refused then if its manifest changed in between.
+function _previewPickedFolder(sourceFolder) {
+  const manifestPath = path.join(sourceFolder, 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return { ok: false, error: 'No manifest.json in that folder' };
+  const manifestText = fs.readFileSync(manifestPath, 'utf-8');
+  const manifest = JSON.parse(manifestText.replace(/^\uFEFF/, ''));
+  const messages = extHelpers.readMessages(sourceFolder, manifest.default_locale);
+  const info = require('./main/webstore').describe(manifest, messages);
+  const token = _stagePickedExt({ kind: 'folder', folder: sourceFolder, manifestText, refuse: info.refuse });
+  return { ok: true, token, ...info, source: 'folder', file: path.basename(sourceFolder), installed: _installedSummary(_installedCopyNamed(info.name)), safeMode: !!_boot.safeMode };
+}
+
+// A picked .crx goes through the Web Store's checks (webstore.js
+// inspectLocalCrx): CRX3 only, every signature valid, the developer's key
+// matching the id it names, and the Web Store's own signature on anything that
+// presents itself as a store package. A .zip is not signed at all; the dialog
+// says so.
+function _previewPickedFile(sourcePath) {
+  const AdmZip = require('adm-zip');
+  const { validateZip } = require('./main/archive-security');
+  const ws = require('./main/webstore');
+  const buf = fs.readFileSync(sourcePath);
+  const file = path.basename(sourcePath);
+  if (buf.subarray(0, 4).toString('latin1') === 'Cr24') {
+    const crx = ws.inspectLocalCrx(buf, { AdmZip, validateZip });
+    const keyB64 = crx.publicKey.toString('base64');
+    const have = crx.fromWebStore ? _webStoreCopyOf(crx.id, crx.info.name, keyB64)
+      : (_extEntriesOnDisk().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(crx.info.name));
+    const token = _stagePickedExt({ kind: 'crx', id: crx.id, archive: crx.archive, publicKey: crx.publicKey, fromWebStore: crx.fromWebStore, name: crx.info.name, refuse: crx.info.refuse });
+    return { ok: true, token, id: crx.id, ...crx.info, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: _installedSummary(have), safeMode: !!_boot.safeMode };
+  }
+  const zip = new AdmZip(buf);
+  // Diagnose a Windows-separator archive BEFORE the validator rejects it, so
+  // the user gets an actionable message rather than "Unsafe archive path".
+  const separatorProblem = extHelpers.archiveProblem(zip.getEntries().map(e => e.entryName));
+  if (separatorProblem) return { ok: false, error: separatorProblem };
+  const entries = validateZip(zip);
+  // The manifest at the root, or in the shallowest folder that has one
+  // (GitHub release zips like "uBlock0.chromium/manifest.json").
+  let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
+  let rootPath = '';
+  if (!manifestEntry) {
+    manifestEntry = entries.filter(e => !e.isDirectory && e.entryName.endsWith('/manifest.json'))
+      .sort((a, b) => a.entryName.split('/').length - b.entryName.split('/').length)[0];
+    if (manifestEntry) rootPath = manifestEntry.entryName.replace(/manifest\.json$/, '');
+  }
+  if (!manifestEntry) return { ok: false, error: 'No manifest.json found anywhere in the archive' };
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf-8').replace(/^\uFEFF/, ''));
+  const messages = Object.create(null);
+  for (const locale of [manifest.default_locale, 'en'].filter(l => typeof l === 'string' && l)) {
+    const localeEntry = entries.find(e => e.entryName === `${rootPath}_locales/${locale}/messages.json`);
+    if (!localeEntry) continue;
+    for (const [key, value] of Object.entries(JSON.parse(localeEntry.getData().toString('utf-8').replace(/^\uFEFF/, '')))) {
+      if (value && typeof value.message === 'string') messages[key] = value.message;
+    }
+    break;
+  }
+  const info = ws.describe(manifest, messages);
+  const token = _stagePickedExt({ kind: 'zip', buffer: buf, refuse: info.refuse });
+  return { ok: true, token, ...info, source: 'zip', file, installed: _installedSummary(_installedCopyNamed(info.name)), safeMode: !!_boot.safeMode };
+}
 
 ipcMain.handle('extensions:install-folder', async () => {
   const result = await dialog.showOpenDialog({
@@ -2745,23 +2944,8 @@ ipcMain.handle('extensions:install-folder', async () => {
     properties: ['openDirectory']
   });
   if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
-
-  const sourceFolder = result.filePaths[0];
-  const manifestPath = path.join(sourceFolder, 'manifest.json');
-  if (!fs.existsSync(manifestPath)) return { ok: false, error: 'No manifest.json in that folder' };
-
-  try {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    // Slug from the LOCALIZED name so a localized extension doesn't install
-    // into a folder literally named after its "__MSG_extName__" placeholder.
-    const messages = extHelpers.readMessages(sourceFolder, manifest.default_locale);
-    const slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, messages));
-    const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
-    _copyDirRecursive(sourceFolder, destFolder);
-    return await _activateInstalledFolder(destFolder);
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  try { return _previewPickedFolder(result.filePaths[0]); }
+  catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('extensions:install-zip', async () => {
@@ -2771,102 +2955,51 @@ ipcMain.handle('extensions:install-zip', async () => {
     properties: ['openFile']
   });
   if (result.canceled || !result.filePaths.length) return { ok: false, cancelled: true };
+  try { return _previewPickedFile(result.filePaths[0]); }
+  catch (err) { return { ok: false, error: err.message, code: err.code || null }; }
+});
 
-  let AdmZip;
-  try { AdmZip = require('adm-zip'); }
-  catch { return { ok: false, error: 'adm-zip missing — run npm install' }; }
-
+// The second step: install what the person saw in the dialog.
+ipcMain.handle('extensions:install-picked', async (_e, token) => {
+  const item = _pickedExt.get(token);
+  _pickedExt.delete(token);
+  if (!item || Date.now() - item.at > PICKED_EXT_TTL_MS) return { ok: false, error: 'That choice has expired. Pick the file again.' };
+  if (item.refuse) return { ok: false, error: item.refuse };
   try {
-    const sourcePath = result.filePaths[0];
-    let zipBuffer = fs.readFileSync(sourcePath);
-    // Strip CRX header if present
-    if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
-      const version = zipBuffer.readUInt32LE(4);
-      if (version === 2) {
-        const pubKeyLen = zipBuffer.readUInt32LE(8);
-        const sigLen = zipBuffer.readUInt32LE(12);
-        zipBuffer = zipBuffer.slice(16 + pubKeyLen + sigLen);
-      } else if (version === 3) {
-        const headerLen = zipBuffer.readUInt32LE(8);
-        zipBuffer = zipBuffer.slice(12 + headerLen);
-      } else {
-        return { ok: false, error: 'Unknown CRX version: ' + version };
+    if (item.kind === 'crx') {
+      // A store package from a file is a store install: same id, same record,
+      // and it is kept up to date from the store from now on.
+      if (item.fromWebStore) return await _installWebStorePackage({ id: item.id, archive: item.archive, publicKey: item.publicKey, info: { name: item.name } });
+      const keyB64 = item.publicKey.toString('base64');
+      const previous = _extEntriesOnDisk().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(item.name);
+      // Its own key in the manifest gives it the id it was signed for, except
+      // when it updates a copy installed without one (that copy's storage
+      // belongs to the id its folder gave it).
+      const manifestKey = previous && !previous.manifest.key ? null : keyB64;
+      return await _installExtFromZipBuffer(item.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
+    }
+    if (item.kind === 'zip') return await _installExtFromZipBuffer(item.buffer, null, undefined, { skipPrefixes: ['_metadata/'] });
+    if (item.kind === 'folder') {
+      const manifestPath = path.join(item.folder, 'manifest.json');
+      if (!fs.existsSync(manifestPath) || fs.readFileSync(manifestPath, 'utf-8') !== item.manifestText) {
+        return { ok: false, error: 'The folder\'s manifest.json changed after you looked at it. Pick the folder again.' };
       }
-    }
-    const zip = new AdmZip(zipBuffer);
-    // Diagnose a Windows-separator archive BEFORE the validator rejects it, so
-    // the user gets an actionable message rather than "Unsafe archive path".
-    const separatorProblem = extHelpers.archiveProblem(zip.getEntries().map(e => e.entryName));
-    if (separatorProblem) return { ok: false, error: separatorProblem };
-    const entries = require('./main/archive-security').validateZip(zip);
-
-    // Find manifest.json — prefer the root, but fall back to the shallowest
-    // match if the archive has the extension inside a wrapper folder
-    // (e.g. GitHub release zips like "uBlock0.chromium/manifest.json").
-    let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
-    let rootPath = '';
-    if (!manifestEntry) {
-      const candidates = entries
-        .filter(e => !e.isDirectory && e.entryName.endsWith('/manifest.json'))
-        .sort((a, b) => a.entryName.split('/').length - b.entryName.split('/').length);
-      if (candidates.length) {
-        manifestEntry = candidates[0];
-        rootPath = manifestEntry.entryName.replace(/manifest\.json$/, ''); // keeps trailing slash
+      const manifest = JSON.parse(item.manifestText.replace(/^\uFEFF/, ''));
+      // Slug from the LOCALIZED name so a localized extension doesn't install
+      // into a folder literally named after its "__MSG_extName__" placeholder.
+      const messages = extHelpers.readMessages(item.folder, manifest.default_locale);
+      const slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, messages));
+      const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
+      _copyDirRecursive(item.folder, destFolder);
+      if (fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8') !== item.manifestText) {
+        fs.rmSync(destFolder, { recursive: true, force: true });
+        return { ok: false, error: 'The folder\'s manifest.json changed while it was being copied. Pick the folder again.' };
       }
+      return await _activateInstalledFolder(destFolder);
     }
-    if (!manifestEntry) return { ok: false, error: 'No manifest.json found anywhere in the archive' };
-
-    const manifest = JSON.parse(manifestEntry.getData().toString('utf-8'));
-    // The archive's own _locales resolve the name before it becomes a folder
-    // slug, so a localized extension never installs as "-msg-extname-".
-    const localeEntry = manifest.default_locale
-      ? entries.find(e => e.entryName === `${rootPath}_locales/${manifest.default_locale}/messages.json`)
-      : null;
-    let zipMessages = Object.create(null);
-    if (localeEntry) {
-      const parsed = JSON.parse(localeEntry.getData().toString('utf-8'));
-      for (const [key, value] of Object.entries(parsed)) {
-        if (value && typeof value.message === 'string') zipMessages[key] = value.message;
-      }
-    }
-    const slug = extHelpers.slugFromName(extHelpers.localize(manifest.name, zipMessages));
-    const destFolder = path.join(extensionsDir, `${slug}-${Date.now()}`);
-    if (!fs.existsSync(destFolder)) fs.mkdirSync(destFolder, { recursive: true });
-
-    // Extract only the files under rootPath (or everything if the manifest
-    // is already at the archive root) and strip the wrapper prefix.
-    // Each entry's resolved write path is validated against destFolder via
-    // safeJoin so a malicious zip with "../etc/passwd"-style entries can't
-    // escape the extension folder (zip-slip; security-audit H-1). Skip-and-
-    // log for individual bad entries so a single hostile file doesn't kill
-    // the whole extraction (the manifest existence check after the loop
-    // catches the case where every entry was skipped).
-    for (const entry of entries) {
-      if (entry.isDirectory) continue;
-      const name = entry.entryName;
-      if (rootPath && !name.startsWith(rootPath)) continue;
-      const rel = rootPath ? name.slice(rootPath.length) : name;
-      if (!rel) continue;
-      let outPath;
-      try {
-        outPath = safeJoin(destFolder, rel);
-      } catch (err) {
-        console.warn('[Extensions] Skipping malicious zip entry:', name, err.message);
-        continue;
-      }
-      const outDir = path.dirname(outPath);
-      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-      fs.writeFileSync(outPath, entry.getData());
-    }
-
-    if (!fs.existsSync(path.join(destFolder, 'manifest.json'))) {
-      fs.rmSync(destFolder, { recursive: true, force: true });
-      return { ok: false, error: 'Failed to place manifest.json at destination root' };
-    }
-
-    return await _activateInstalledFolder(destFolder);
+    return { ok: false, error: 'Unknown install kind: ' + item.kind };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, code: err.code || null };
   }
 });
 
@@ -2891,11 +3024,9 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
   const skipPrefixes = Array.isArray(opts.skipPrefixes) ? opts.skipPrefixes : [];
   let AdmZip;
   try { AdmZip = require('adm-zip'); } catch { return { ok: false, error: 'adm-zip missing' }; }
-  if (zipBuffer.slice(0, 4).toString() === 'Cr24') {
-    const v = zipBuffer.readUInt32LE(4);
-    if (v === 2) zipBuffer = zipBuffer.slice(16 + zipBuffer.readUInt32LE(8) + zipBuffer.readUInt32LE(12));
-    else if (v === 3) zipBuffer = zipBuffer.slice(12 + zipBuffer.readUInt32LE(8));
-  }
+  // A .crx reaches here only as the archive inside it, after its signatures
+  // were checked (webstore.js). Its header used to be cut off unread here.
+  if (zipBuffer.subarray(0, 4).toString('latin1') === 'Cr24') return { ok: false, error: 'A .crx package must be checked before it is installed; this one was not. Nothing was installed.' };
   const zip = new AdmZip(zipBuffer);
   const entries = require('./main/archive-security').validateZip(zip);
   let manifestEntry = entries.find(e => e.entryName === 'manifest.json');
@@ -2969,11 +3100,179 @@ ipcMain.handle('extensions:install-catalog', async (_e, id) => {
     const asset = _extSources.pickAsset(release, src.asset);
     if (!asset) return { ok: false, error: 'The latest release (' + (release.tag_name || '?') + ') has no Chrome build to install' };
     const buffer = await _downloadBuffer(asset.browser_download_url);
-    const done = await _installExtFromZipBuffer(buffer, id);
-    return done.ok ? { ...done, release: release.tag_name || '', file: asset.name } : done;
+    // The file must be the one GitHub published (security scan M6: nothing
+    // here is pinned, so this is what can be checked).
+    const digest = _extSources.checkAssetDigest(buffer, asset);
+    return await _installCatalogPackage(id, { buffer, tag: String(release.tag_name || ''), file: asset.name, digest });
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// Installs a catalogue release and records where it came from
+// (sources.json), so it is kept up to date from the same releases.
+async function _installCatalogPackage(id, { buffer, tag, file, digest }, previous) {
+  const done = await _installExtFromZipBuffer(buffer, id, previous || undefined);
+  if (!done.ok) return done;
+  const sources = _readSources();
+  sources[done.folder] = { catalog: id, tag, file, digest: digest && digest.checked ? 'sha256:' + digest.sha256 : null };
+  extHelpers.writeSources(extensionsDir, sources);
+  return { ...done, release: tag, file, digestChecked: !!(digest && digest.checked) };
+}
+
+// Installs a verified Web Store package (webstore.js) and records its id.
+// previousOverride: the copy it updates, when the caller already knows it.
+async function _installWebStorePackage(pkg, previousOverride) {
+  const keyB64 = pkg.publicKey.toString('base64');
+  const previous = previousOverride || _webStoreCopyOf(pkg.id, pkg.info.name, keyB64);
+  // The extension gets its Web Store id (its key in the manifest), except
+  // when it updates a copy installed without one: that copy's id comes from
+  // its folder, and changing it would empty its storage.
+  const manifestKey = previous && !previous.manifest.key ? null : keyB64;
+  const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
+  if (!done.ok) return done;
+  const sources = _readSources();
+  sources[done.folder] = { webstore: pkg.id };
+  extHelpers.writeSources(extensionsDir, sources);
+  return { ...done, webstore: pkg.id, updated: !!previous, previousVersion: previous ? (previous.manifest.version || '') : null };
+}
+
+// Where an installed extension came from, for its card.
+function _sourceInfo(src) {
+  if (src && src.webstore) return { kind: 'webstore', id: src.webstore };
+  if (src && src.catalog) {
+    const known = _extSources.SOURCES[src.catalog];
+    return { kind: 'catalog', id: src.catalog, repo: known ? known.repo : null, tag: src.tag || null, file: src.file || null, digestChecked: !!src.digest };
+  }
+  return null;
+}
+
+// The update state of one extension for its card: a version waiting for
+// approval (only while it is still newer than what is installed), the last
+// check's failure, and the last update installed.
+function _updateInfo(state, folder, installedVersion) {
+  if (!state) return null;
+  let pending = state.pending[folder] || null;
+  if (pending) {
+    try { if (_extUpdates.compareVersions(pending.version, installedVersion) <= 0) pending = null; }
+    catch { pending = null; }
+  }
+  const last = state.history.filter(h => h.folder === folder).pop() || null;
+  return { pending, error: state.errors[folder] || null, last };
+}
+
+// Automatic updates (main/extension-updates.js). Started after the
+// extensions have loaded; "Check now" and approvals come from the manager.
+const _extUpdates = require('./main/extension-updates');
+let _extUpdaterLazy = null;
+function _extUpdater() {
+  if (_extUpdaterLazy) return _extUpdaterLazy;
+  const AdmZip = require('adm-zip');
+  const { validateZip } = require('./main/archive-security');
+  _extUpdaterLazy = _extUpdates.createExtensionUpdater({
+    list: () => {
+      const sources = _readSources();
+      return _extEntriesOnDisk().filter(e => e.manifest && sources[e.folder]).map(e => ({
+        folder: e.folder, name: extHelpers.localize(e.manifest.name, e.messages) || e.folder,
+        version: String(e.manifest.version || ''), manifest: e.manifest, source: sources[e.folder],
+      }));
+    },
+    find: (item) => item.source.webstore
+      ? _extUpdates.findWebStoreUpdate({ id: item.source.webstore, installedVersion: item.version, fetch: boundedNetFetch, chromeVersion: process.versions.chrome, AdmZip, validateZip })
+      : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, AdmZip, validateZip }),
+    install: async (item, found) => {
+      const previous = _extEntriesOnDisk().find(e => e.folder === item.folder && e.manifest);
+      if (!previous) return { ok: false, error: 'It was uninstalled during the check' };
+      return found.archive
+        ? _installWebStorePackage({ id: found.id, archive: found.archive, publicKey: found.publicKey, info: { name: item.name } }, previous)
+        : _installCatalogPackage(item.source.catalog, found, previous);
+    },
+    readState: () => _extUpdates.readState(extensionsDir),
+    writeState: (s) => _extUpdates.writeState(extensionsDir, s),
+    isOnline: () => net.isOnline(),
+    isMetered: () => _extUpdates.isMeteredWindows(),
+    onUpdated: (r) => {
+      const line = `${r.name} ${r.from} → ${r.to}${r.how === 'approved' ? ' (approved by you)' : ''}`;
+      console.log('[Extensions] updated:', line);
+      _diagEvent('extension updated', line);
+    },
+  });
+  return _extUpdaterLazy;
+}
+
+ipcMain.handle('extensions:update-status', () => {
+  try {
+    const s = _extUpdates.readState(extensionsDir);
+    return { ok: true, auto: s.auto, lastCheck: s.lastCheck, lastOutcome: s.lastOutcome, checking: _extUpdater().checking };
+  } catch (err) {
+    return { ok: false, error: 'The extension update record is unreadable: ' + err.message };
+  }
+});
+
+ipcMain.handle('extensions:set-auto-update', (_e, on) => {
+  try {
+    const s = _extUpdates.readState(extensionsDir);
+    s.auto = !!on;
+    _extUpdates.writeState(extensionsDir, s);
+    return { ok: true, auto: s.auto };
+  } catch (err) {
+    return { ok: false, error: 'Could not save it: ' + err.message };
+  }
+});
+
+ipcMain.handle('extensions:update-check', async () => {
+  if (_boot.safeMode) return { ok: false, error: 'Vex started in safe mode: extensions are not checked for updates until it starts normally.' };
+  try {
+    const r = await _extUpdater().checkNow({ manual: true });
+    const s = _extUpdates.readState(extensionsDir);
+    return { ok: true, ...r, lastCheck: s.lastCheck, lastOutcome: s.lastOutcome };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('extensions:update-approve', async (_e, folder) => {
+  try { return await _extUpdater().approve(String(folder)); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// "Allow access to file URLs" on an extension's card. Applied now: the
+// extension is loaded again, with the new setting, wherever it is loaded.
+ipcMain.handle('extensions:set-file-access', async (_e, folderName, allow) => {
+  let extPath;
+  try { extPath = safeJoin(extensionsDir, safeName(folderName)); }
+  catch (err) {
+    console.warn('[Extensions] set-file-access rejected unsafe folderName:', folderName, err.message);
+    return { ok: false, error: 'Invalid folder name' };
+  }
+  if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
+  try {
+    const state = extHelpers.readFileAccess(extensionsDir) || extHelpers.migrateFileAccess(_extEntriesOnDisk());
+    if (allow) state.allow[folderName] = true; else delete state.allow[folderName];
+    delete state.kept[folderName];
+    extHelpers.writeFileAccess(extensionsDir, state);
+    _fileAccessError = null;
+  } catch (err) {
+    return { ok: false, error: 'Could not save it: ' + err.message };
+  }
+  const errors = [];
+  const sessions = new Set([session.defaultSession, ...EXT_PARTITIONS.map(p => secureSessions.fromPartition(p)), ..._extraExtSessions]);
+  for (const ses of sessions) {
+    try {
+      const live = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
+      if (!live) continue;
+      ses.removeExtension(live.id);
+      ensureExtensionSwPreload(ses);
+      await ses.loadExtension(extPath, _extLoadOptions(extPath));
+    } catch (err) {
+      errors.push(`${_partitionNameOf(ses) || 'a session'}: ${err.message}`);
+    }
+  }
+  if (errors.length) {
+    console.error(`[Extensions] ${folderName}: file access changed, but it did not load again — ${errors.join(' | ')}`);
+    return { ok: false, error: 'Saved, but it did not load again: ' + errors[0] };
+  }
+  return { ok: true, allow: !!allow };
 });
 
 // Install from the Chrome Web Store (main/webstore.js). The package comes from
@@ -3018,18 +3317,7 @@ ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
 ipcMain.handle('extensions:install-webstore', async (_e, input) => {
   try {
     const pkg = await _webStoreInstaller().take(input);
-    const keyB64 = pkg.publicKey.toString('base64');
-    const previous = _webStoreCopyOf(pkg.id, pkg.info.name, keyB64);
-    // The extension gets its Web Store id (its key in the manifest), except
-    // when it updates a copy installed without one: that copy's id comes from
-    // its folder, and changing it would empty its storage.
-    const manifestKey = previous && !previous.manifest.key ? null : keyB64;
-    const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
-    if (!done.ok) return done;
-    const sources = _readSources();
-    sources[done.folder] = { webstore: pkg.id };
-    extHelpers.writeSources(extensionsDir, sources);
-    return { ...done, webstore: pkg.id, updated: !!previous, previousVersion: previous ? (previous.manifest.version || '') : null };
+    return await _installWebStorePackage(pkg);
   } catch (err) {
     return { ok: false, error: err.message, code: err.code || null };
   }
@@ -3157,6 +3445,16 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
     if (disabled.delete(folderName)) extHelpers.writeDisabled(extensionsDir, disabled);
     const sources = _readSources();
     if (sources[folderName]) { delete sources[folderName]; extHelpers.writeSources(extensionsDir, sources); }
+    const access = extHelpers.readFileAccess(extensionsDir);
+    if (access && (access.allow[folderName] || access.kept[folderName])) {
+      delete access.allow[folderName]; delete access.kept[folderName];
+      extHelpers.writeFileAccess(extensionsDir, access);
+    }
+    const updates = _extUpdates.readState(extensionsDir);
+    if (updates.pending[folderName] || updates.errors[folderName]) {
+      delete updates.pending[folderName]; delete updates.errors[folderName];
+      _extUpdates.writeState(extensionsDir, updates);
+    }
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -3531,7 +3829,10 @@ app.on('web-contents-created', (_event, contents) => {
 
 // Load installed extensions once the app is ready
 app.whenReady().then(() => {
-  loadAllExtensionsOnStartup().catch(err => console.error('[Extensions] startup load failed:', err.message));
+  loadAllExtensionsOnStartup().catch(err => console.error('[Extensions] startup load failed:', err.message))
+    // Then the update checks (main/extension-updates.js): not in safe mode,
+    // which exists to start without extensions doing anything.
+    .then(() => { if (!_boot.safeMode) _extUpdater().start(); });
 });
 
 // === External protocol forwarding ===
@@ -3541,14 +3842,54 @@ app.whenReady().then(() => {
 // installed desktop app launches. Note: webRequest.onBeforeRequest is a
 // network-pipeline hook and never sees non-http schemes, so intercept at the
 // navigation layer (will-navigate + setWindowOpenHandler) instead.
-const { EXTERNAL_PROTOCOLS, isExternalProtocol } = _mainHelpers;
-
-function handleExternalProtocol(url) {
-  if (!isExternalProtocol(url)) return false;
-  console.log(`[Protocol] Forwarding to OS: ${url}`);
-  shell.openExternal(url).catch(err => {
-    console.error('[Protocol] openExternal failed:', err.message);
+//
+// Returns true when the URL is such a link: the navigation is then always
+// stopped, and whether the program opens is decided here. It used to open at
+// once, for any page or ad frame, with no click and no question, from Tor tabs
+// too (security scan H1). Now: never from a private, off-the-record, burner or
+// Tor page; only shortly after a click or key press on the page; and only once
+// the person has said yes for that site and kind of link (the site-permission
+// prompt; Settings > Site permissions lists and revokes the answer).
+const _lastGestureAt = new Map();   // page id -> when it last had a click or key press
+function _watchGestures(contents) {
+  const id = contents.id;
+  contents.on('input-event', (_e, input) => {
+    if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) _lastGestureAt.set(id, Date.now());
   });
+  contents.once('destroyed', () => _lastGestureAt.delete(id));
+}
+const _externalRefusalSaid = new Map();   // page id|scheme -> when the window was last told
+function handleExternalProtocol(url, contents) {
+  const scheme = _mainHelpers.externalScheme(url);
+  if (!scheme) return false;
+  const app = _mainHelpers.externalAppName(scheme);
+  const gesture = _mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id));
+  const host = secureSessions.owner(contents);
+  if (_mainHelpers.refusesExternalApps(secureSessions.partitionOf(contents), contents.session)) {
+    console.log(`[Protocol] not opening a ${scheme}: link from a private, off-the-record or Tor page`);
+    // Said once in a while, and only when the person did something: an ad
+    // trying it on its own is refused without a word.
+    const key = contents.id + '|' + scheme;
+    if (gesture && host && !host.win.isDestroyed() && Date.now() - (_externalRefusalSaid.get(key) || 0) > 10000) {
+      _externalRefusalSaid.set(key, Date.now());
+      host.win.webContents.send('vex:toast', `Vex does not open ${app} from a private, off-the-record or Tor tab`);
+    }
+    return true;
+  }
+  if (!gesture) { console.log(`[Protocol] not opening a ${scheme}: link nobody clicked`); return true; }
+  let origin;
+  try { origin = new URL(contents.getURL()).origin; } catch { origin = ''; }
+  if (!origin || origin === 'null') { console.log(`[Protocol] not opening a ${scheme}: link from a page with no site`); return true; }
+  const remote = _mainHelpers.opensRemoteDocument(url);
+  askExternalApp(contents, origin, scheme, {
+    app,
+    detail: remote ? 'It opens a file from the internet in that program, outside Vex.' : 'A program on your computer, outside Vex.',
+    noRemember: remote,
+  }).then((ok) => {
+    if (!ok || contents.isDestroyed()) return;
+    console.log(`[Protocol] opening a ${scheme}: link in ${app}`);
+    return shell.openExternal(url);
+  }).catch(err => console.error('[Protocol] could not open the link in another program:', err.message));
   return true;
 }
 
@@ -3568,6 +3909,11 @@ app.on('web-contents-created', (_event, contents) => {
   // (found 2026-09-29). A session routed through a proxy gets the same lock
   // (found 2026-09-30).
   try { if (contents.session && (contents.session.__vexTor || contents.session.__vexRouted)) contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch {}
+  // A private window and an off-the-record or burner tab: WebRTC shows sites
+  // only the public address, never the computer's own on the local network
+  // (security scan H2, L10). routing.markRoutedSession keeps this when such a
+  // session is set back to direct.
+  if (contents.session && contents.session.__vexEphemeral && !contents.session.__vexRouted) contents.setWebRTCIPHandlingPolicy('default_public_interface_only');
   // A page opening in a Tor session keeps Tor running; any page closing may
   // be the last use, which starts the idle countdown (found 2026-09-30). Every
   // page is watched: a burner or container can be routed through Tor after
@@ -3619,6 +3965,19 @@ app.on('web-contents-created', (_event, contents) => {
     const s = _httpsUpgradedByWc.get(contents.id);
     if (!s || !s.has(bare)) return;               // only OUR upgrades fall back
     s.delete(bare);
+    // A certificate error (net::ERR_CERT_*, -200 to -299) is what someone
+    // in the middle of the connection causes; falling back to http then hands
+    // them the page in the clear without a word (security scan L13). The tab
+    // says so instead, and loads it unencrypted only if the person asks.
+    if (errorCode <= -200 && errorCode >= -299) {
+      _httpsOnlyBypass.set(bare, Date.now() + 120000);
+      const plainUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
+      contents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(_httpsCertNotice(u.host, plainUrl))).catch(err => {
+        if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
+        console.warn('[HTTPS-Only] could not show the certificate notice:', err && err.message);
+      });
+      return;
+    }
     _httpsOnlyFailed.add(bare);
     const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
     // loadURL rejects when the load fails, and that went unhandled (found
@@ -3774,7 +4133,7 @@ app.on('web-contents-created', (_event, contents) => {
       // process exception, which Electron shows as a modal error dialog over the
       // user's sign-in popup.
       try { win.webContents.on('did-finish-load', () => {
-        try { _autofillPopup(win.webContents); } catch (err) { console.error('[popup-autofill] failed:', err && err.message); }
+        try { _autofillPopup(win.webContents, { partition: secureSessions.partitionOf(win.webContents) }); } catch (err) { console.error('[popup-autofill] failed:', err && err.message); }
       }); } catch {}
       // Sign-in popups (Google/Microsoft OAuth) also trigger the OS passkey /
       // "Windows Security" dialog. Popups don't get site-tweaks (no guest
@@ -3946,7 +4305,7 @@ app.on('web-contents-created', (_event, contents) => {
     // External-protocol window.open (e.g. Roblox Play button spawns a hidden
     // window to roblox-player://…) — forward to the OS instead of creating a
     // dead tab that would just error out.
-    if (handleExternalProtocol(url)) {
+    if (handleExternalProtocol(url, contents)) {
       return { action: 'deny' };
     }
     // Print-preview / client-side PDF generation popups. claude.ai's
@@ -4051,8 +4410,9 @@ app.on('web-contents-created', (_event, contents) => {
   // Same story for top-level navigations: some Roblox flows swap the current
   // webview's location to roblox-player://…, so catch those before Chromium
   // blocks them.
+  _watchGestures(contents);
   contents.on('will-navigate', (evt, url) => {
-    if (handleExternalProtocol(url)) {
+    if (handleExternalProtocol((evt && evt.url) || url, contents)) {
       evt.preventDefault();
     }
   });
@@ -4060,16 +4420,13 @@ app.on('web-contents-created', (_event, contents) => {
   // Subframe navigations — Roblox's "Play" button sets the src of a hidden
   // iframe to roblox-player://launch?…, which does NOT trigger will-navigate
   // (main-frame only). will-frame-navigate fires for every frame including
-  // iframes, so the Bloxstrap handoff actually reaches the OS.
-  if (typeof contents.on === 'function') {
-    try {
-      contents.on('will-frame-navigate', (evt, url) => {
-        if (handleExternalProtocol(url)) {
-          evt.preventDefault();
-        }
-      });
-    } catch { /* older Electron without will-frame-navigate */ }
-  }
+  // iframes, so the Bloxstrap handoff actually reaches the OS. Its one
+  // argument is the details (url, isMainFrame); the main frame's own is left
+  // to will-navigate above, so a link is asked about once.
+  contents.on('will-frame-navigate', (details) => {
+    if (!details || details.isMainFrame) return;
+    if (handleExternalProtocol(details.url, contents)) details.preventDefault();
+  });
 
   // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
   // when user closes a tab that has an unload handler).
@@ -4149,6 +4506,28 @@ const secretStore = new SecretStore(safeStorage);
 ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
   return secretStore.write(path.join(userDataPath, 'ai-token.enc'), token);
+});
+// MCP servers' tokens (js/mcp-client.js), by server id, encrypted like the
+// other secrets. They sat in plain text in vex-persist.json and went into
+// every backup, though PRIVACY.md says backups leave tokens out (security scan
+// S5-3). The interface never holds one again: api:request adds it to a
+// request that names its server (mcpServer).
+const MCP_AUTH_FILE = path.join(userDataPath, 'mcp-auth.enc');
+let _mcpAuthQueue = Promise.resolve();
+async function _mcpAuthAll() {
+  const all = await secretStore.read(MCP_AUTH_FILE, () => ({}));
+  return all && typeof all === 'object' ? all : {};
+}
+ipcMain.handle('mcp:auth-set', (_event, id, token) => {
+  const operation = _mcpAuthQueue.catch(() => {}).then(async () => {
+    const all = { ...(await _mcpAuthAll()) };
+    const t = String(token || '').trim();
+    if (t) all[id] = t; else delete all[id];
+    await secretStore.write(MCP_AUTH_FILE, all);
+    return { ok: true, has: !!t };
+  });
+  _mcpAuthQueue = operation;
+  return operation;
 });
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
@@ -4515,9 +4894,16 @@ function createWindow() {
       + "return 'SOCKS5 127.0.0.1:" + port + "';}";
     return { pacScript: 'data:application/x-ns-proxy-autoconfig;base64,' + Buffer.from(pac).toString('base64') };
   };
+  // While all of Vex goes through one route, the Discord and Roblox panels go
+  // through it too (_coverWithAllRoute): the bypass keeps its rules and puts
+  // them back when that route is turned off (_reapplyPanelBypass).
+  let _lastDiscordRules = null, _lastRobloxRules = null;
   const _setDiscordProxy = (rules) => {
-    try { secureSessions.fromPartition('persist:discord').setProxy(_discordProxyConfig(rules)); }
-    catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
+    _lastDiscordRules = rules;
+    if (!_allRoute()) {
+      try { secureSessions.fromPartition('persist:discord').setProxy(_discordProxyConfig(rules)); }
+      catch (e) { console.warn('[DPI-bypass] setProxy failed:', e && e.message); }
+    }
     // Mirror Discord-domain routing onto normal tabs when (and only when) the
     // panel is going through ByeDPI's SOCKS proxy.
     const m = rules && /socks5?:\/\/127\.0\.0\.1:(\d+)/.exec(String(rules));
@@ -4549,9 +4935,12 @@ function createWindow() {
   // instance — reuse a running one (never restart one Discord may be using); if
   // none is up, start the known-good preset and route persist:roblox through it.
   const _setRobloxProxy = (rules) => {
+    _lastRobloxRules = rules;
+    if (_allRoute()) return;
     try { secureSessions.fromPartition('persist:roblox').setProxy(rules ? { proxyRules: rules } : { mode: 'direct' }); }
     catch (e) { console.warn('[DPI-bypass] roblox setProxy failed:', e && e.message); }
   };
+  _reapplyPanelBypass = () => { _setDiscordProxy(_lastDiscordRules); _setRobloxProxy(_lastRobloxRules); };
   // Roblox and Discord share ONE ByeDPI process; ./main/byedpi-share.js keeps
   // whoever is not calling pointed at the port that actually exists.
   const _share = require('./main/byedpi-share').createByedpiShare({
@@ -4757,7 +5146,7 @@ function createWindow() {
     .then(ok => {
       console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
     })
-    .catch(() => {});
+    .catch(e => console.error('[Vex] adblock engine start failed:', e && e.message));
 
   // Privacy hardening: load saved config and apply DNS-over-HTTPS (no-op when off).
   privacyLoad();
@@ -5037,13 +5426,17 @@ app.whenReady().then(async () => {
   // Before any route is restored: a site route's session made by the restore
   // is given its refusing proxy first (see _wireBrowsingSession).
   secureSessions.onSessionCreated(_wireBrowsingSession);
-  // An off-the-record tab's in-memory session (otr-<ts>) is made when the tab
-  // opens and never got the page preloads the private window, Tor and burner
-  // sessions get: its alert/confirm/prompt then had no tab-local stand-in, and
-  // with the webview's own boxes off they answered at once, unseen.
+  // An off-the-record tab's or a burner's in-memory session (otr-<ts>,
+  // otr-burner-<ts>) is made when the tab opens, or when a burner's Tor route
+  // is set just before: it gets everything a private window's session gets
+  // (_wireEphemeralBrowsing), the page preloads included — without them its
+  // alert/confirm/prompt had no tab-local stand-in.
   secureSessions.onSessionCreated((ses, partition) => {
-    if (typeof partition === 'string' && partition.startsWith('otr-')) attachGuestPreloads(ses);
+    if (typeof partition === 'string' && partition.startsWith('otr-')) _wireEphemeralBrowsing(ses, 'otr');
   });
+  // While all of Vex goes through one route, a session made later goes
+  // through it too (a private window, a container, a panel, a burner).
+  secureSessions.onSessionCreated(_coverWithAllRoute);
   await applyStoredRoutings();
   createWindow();
   // Installers left in userData/updates by the last update (or a download cut
@@ -5431,7 +5824,12 @@ ipcMain.handle('browsing:clear-history', async () => {
   }
   return true;
 });
-ipcMain.handle('open-pip-window', async (event, url, media) => {
+// pageId: the id of the tab's page. The pop-out is made in that page's session
+// (pip.js, createPipWindow) and never in the default one; a page of another
+// window, or none, is refused.
+ipcMain.handle('open-pip-window', async (event, url, media, pageId) => {
+  if (!secureSessions.ownsTarget(event, pageId)) { console.error('[Vex] PiP refused: not a page of this window'); return false; }
+  const pipSession = webContents.fromId(pageId).session;
   // Security audit M-4: a renderer-XSS could pop a frameless always-on-top
   // window pointing at file:///, chrome://, javascript:, data: html, etc.
   // safePipUrl restricts to http(s) only and throws on anything else; we
@@ -5447,14 +5845,14 @@ ipcMain.handle('open-pip-window', async (event, url, media) => {
   try {
     if (media && typeof media === 'object' && typeof media.src === 'string' && /^https?:\/\//i.test(media.src)) {
       try {
-        createPipPlayer(media);
+        createPipPlayer(media, pipSession);
         return { ok: true, mode: 'video' };
       } catch (err) {
         // A player that won't start is not a reason to give up on PiP.
         console.warn('[Vex PiP] video-only player refused, using the page:', err.message);
       }
     }
-    createPipWindow(safe);
+    createPipWindow(safe, pipSession);
     return { ok: true, mode: 'page' };
   } catch (e) {
     console.error('PiP window error:', e);
@@ -5664,7 +6062,9 @@ ipcMain.handle('file:inspect', async (_e, filePath, from) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'could not be checked' }; }
 });
 
+// Only a file Vex downloaded: this runs whatever it opens (security scan L5).
 ipcMain.handle('downloads:open-file', async (_e, filePath) => {
+  if (!_downloadService.isDownloadedFile(filePath)) return { ok: false, error: 'Vex opens only files it downloaded itself. Use Show in folder to open this one.' };
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
@@ -6097,21 +6497,84 @@ ipcMain.handle('siteroutes:routed-hosts', async () => {
 // session and reports the address the internet saw — routed and direct, so
 // the answer is a comparison rather than a claim.
 const _ALL_ROUTE_KEY = require('./main/routing').ALL_ROUTE_KEY;
+// Set by the Discord/Roblox bypass: puts its panel proxies back once all of
+// Vex no longer goes through one route.
+let _reapplyPanelBypass = null;
+
+// "All of Vex" covered the default session and the four built-in browsing
+// sessions only. A private window, an off-the-record or burner tab, a
+// throwaway identity, a container named by hand and every sidebar app panel
+// went direct from the real address while the panel said "everything"
+// (security scan P1). It now covers every session but these, which keep a
+// route of their own: a Tor tab (already Tor), a site route, and a session
+// whose own route is saved (a container through Tor). Sessions made later get
+// it as they are made (_coverWithAllRoute), and mail goes through it too
+// (_mailProxy).
+function _allRoute() {
+  const r = readRouting()[_ALL_ROUTE_KEY];
+  return r && typeof r === 'object' && (r.mode === 'tor' || r.mode === 'proxy') ? r : null;
+}
+function _allRouteCovers(partition) {
+  if (typeof partition !== 'string' || !partition || BROWSING_SESSIONS.includes(partition)) return false;
+  if (partition.startsWith('tor-') || require('./main/routing').isSiteRoutePartition(partition)) return false;
+  const own = readRouting()[partition];
+  return !(own && typeof own === 'object' && (own.mode === 'tor' || own.mode === 'proxy'));
+}
+// Every session made so far that the route covers besides the built-in ones.
+function _allRouteExtraTargets() {
+  const out = [];
+  for (const ses of secureSessions.sessions) {
+    const partition = secureSessions.partitionOf({ session: ses });
+    if (_allRouteCovers(partition)) out.push(partition);
+  }
+  return out;
+}
+// A session made while all of Vex goes through one route: it loads nothing
+// until it is on that route. One whose own route is being set (a burner over
+// Tor) is left to that.
+function _coverWithAllRoute(ses, partition) {
+  let all;
+  try { all = _allRoute(); if (!all || !_allRouteCovers(partition)) return; }
+  catch (err) { console.error('[Routing] could not tell whether a new session goes through the route for all of Vex:', err); return; }
+  if (routingGeneration.has(partition)) return;
+  ses.setProxy(require('./main/routing').REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
+  require('./main/routing').markRoutedSession(ses, all.mode, webContents.getAllWebContents());
+  applyRouting(partition, all.mode, all.custom || undefined)
+    .catch(err => console.error(`[Routing] ${partition} could not be put on the route for all of Vex (it loads nothing until it is):`, err));
+}
+// Mail (IMAP, from main itself) goes through the route for all of Vex too:
+// Tor's SOCKS port, or the proxy. Tor not running yet: mail waits for it
+// rather than going direct.
+async function _mailProxy() {
+  const all = _allRoute();
+  if (!all) return null;
+  if (all.mode === 'proxy') return require('./main/routing').proxyAddress(all.custom);
+  const port = (_torLauncher.isRunning() && _ownTorPort) || await detectTorPort();
+  if (!port) throw new Error('All of Vex goes through Tor, and Tor is not connected yet. Mail waits until it is.');
+  return `socks5://127.0.0.1:${port}`;
+}
 
 ipcMain.handle('routing:set-all', (event, mode, custom) => {
   const operation = routingPending.catch(() => {}).then(async () => {
     // Checked once up front, so a bad address is refused in its own words
     // rather than once per session (found 2026-09-29).
     if (mode === 'proxy') custom = require('./main/routing').proxyAddress(custom);
-    const targets = [null, ...BROWSING_SESSIONS];
+    // Saved first, so a session made meanwhile is covered too.
+    const before = readRouting()[_ALL_ROUTE_KEY] || null;
+    if (mode === 'direct') await getRoutingStore().delete(_ALL_ROUTE_KEY);
+    else await getRoutingStore().set(_ALL_ROUTE_KEY, { mode, custom: custom || null, at: Date.now() });
+    const targets = [null, ...BROWSING_SESSIONS, ..._allRouteExtraTargets()];
     const failed = [];
     for (const partition of targets) {
       try { await applyRouting(partition, mode, custom, event && event.sender); }
       catch (err) { failed.push((partition || 'default') + ': ' + (err && err.message)); }
     }
-    if (failed.length === targets.length) throw new Error(failed[0] || 'Could not apply that route');
-    if (mode === 'direct') await getRoutingStore().delete(_ALL_ROUTE_KEY);
-    else await getRoutingStore().set(_ALL_ROUTE_KEY, { mode, custom: custom || null, at: Date.now() });
+    if (failed.length === targets.length) {
+      if (before) await getRoutingStore().set(_ALL_ROUTE_KEY, before); else await getRoutingStore().delete(_ALL_ROUTE_KEY);
+      throw new Error(failed[0] || 'Could not apply that route');
+    }
+    // The Discord and Roblox panels get their bypass back.
+    if (mode === 'direct' && _reapplyPanelBypass) _reapplyPanelBypass();
     _torIdleCheck();
     return { ok: true, mode, custom: custom || null, partial: failed.length ? failed : null };
   });
@@ -6233,17 +6696,24 @@ async function applyStoredRoutings() {
     applyRouting, report: err => console.warn('[Routing] could not restore a route:', err.message) });
 }
 
-// clean: the window for sharing a screen — private, and showing only `url`
-// (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
-function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
-  if (_vexLocked) throw new Error('Vex is locked — unlock it first');
-  const privatePartition = secureSessions.newPrivatePartition();
-  const privSession = secureSessions.fromPartition(privatePartition);
-  wireDownloadsOnSession(privSession, 'private');
-  wirePermissionsOnSession(privSession, 'private');
-  try { attachGuestPreloads(privSession); } catch {}
-  // Apply header stripping + ad blocker to private session
-  privSession.webRequest.onHeadersReceived((details, callback) => {
+// What a session that lasts until it is closed gets — a private window's, and
+// an off-the-record or burner tab's (otr-*, wired as it is made). The
+// off-the-record ones had none of it: no permission handler, so Electron gave
+// every site the camera, microphone and notifications without asking; no ad
+// blocker or site rules; Electron's own user agent naming the app; no
+// downloads panel (security scan H2). WebRTC there shows sites only the
+// public address (web-contents-created).
+function _wireEphemeralBrowsing(ses, tag) {
+  if (ses.__vexEphemeralWired) return;
+  ses.__vexEphemeralWired = true;
+  ses.__vexEphemeral = true;
+  wireDownloadsOnSession(ses, tag);
+  // A burner put through Tor asks nothing and is given nothing, as a Tor tab.
+  wirePermissionsOnSession(ses, tag, { denyOverTor: true });
+  wireDisplayMediaOnSession(ses);
+  attachGuestPreloads(ses);
+  // Header stripping + ad blocker, as in the main session.
+  ses.webRequest.onHeadersReceived((details, callback) => {
     const rh = { ...details.responseHeaders };
     // Per-site switches hold in a private window too: a site whose cookies
     // are off may not set any here either — they were ignored in private
@@ -6255,7 +6725,7 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
     _scriptsOffCsp(details, rh);
     callback({ responseHeaders: rh });
   });
-  privSession.webRequest.onBeforeRequest((details, callback) => {
+  ses.webRequest.onBeforeRequest((details, callback) => {
     // A site whose third-party content is switched off, as in
     // wireAdblockerOnSession (found 2026-09-29).
     if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
@@ -6266,8 +6736,17 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
   });
-  privSession.setUserAgent(CHROME_UA);
-  wireClientHintsOnSession(privSession);
+  ses.setUserAgent(CHROME_UA);
+  wireClientHintsOnSession(ses);
+}
+
+// clean: the window for sharing a screen — private, and showing only `url`
+// (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
+function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
+  if (_vexLocked) throw new Error('Vex is locked — unlock it first');
+  const privatePartition = secureSessions.newPrivatePartition();
+  const privSession = secureSessions.fromPartition(privatePartition);
+  _wireEphemeralBrowsing(privSession, 'private');
 
   const privWin = new BrowserWindow({
     width: 1200, height: 800, frame: false, titleBarStyle: 'hidden',
@@ -6288,11 +6767,13 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
 ipcMain.handle('app:idle-seconds', () => require('electron').powerMonitor.getSystemIdleTime());
 // A small always-on-top window over other apps (src/main/overlay.js).
 let _overlay = null;
-ipcMain.handle('overlay:open', (_e, url, opacity) => {
+ipcMain.handle('overlay:open', (_e, url, opacity, partition) => {
   const { createOverlayWindow } = require('./main/overlay');
+  _refuseMainProfileCopy(partition);
   if (_overlay && !_overlay.isDestroyed()) { _overlay.close(); _overlay = null; }
   _overlay = createOverlayWindow({ BrowserWindow, url, opacity: typeof opacity === 'number' ? opacity : 0.92,
     onOpacity: (o) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('overlay:opacity-changed', o); } catch {} } });
+  _openLinksAsTabs(_overlay.webContents);
   _overlay.on('closed', () => { _overlay = null; });
   return { ok: true };
 });
@@ -6867,6 +7348,31 @@ ipcMain.handle('image:copy', async (_e, url, partition) => {
   } catch (err) { return { ok: false, error: err.message }; }
 });
 
+// "Ask Vex about this image": the picture, fetched through the session of the
+// tab it is in (its Tor or proxy route, its cookies), never direct from main's
+// own. It went through api:request, direct from the real address, and then
+// to the AI — from a private or Tor tab too, though PRIVACY.md says those are
+// never read for AI (security scan P3). A private, off-the-record, burner or
+// Tor tab's picture is fetched only once the person has said yes (confirmed);
+// without it the answer is needsConsent. ipc-policy.js checks the page is the
+// asking window's own.
+ipcMain.handle('image:for-ai', async (_e, pageId, url, confirmed) => {
+  try {
+    const page = webContents.fromId(pageId);
+    if (!page || page.isDestroyed()) throw new Error('the tab is gone');
+    const partition = secureSessions.partitionOf(page);
+    const ses = page.session;
+    const kind = ses.__vexTor || partition === 'persist:route-tor' ? 'tor' : (!partition.startsWith('persist:') ? 'private' : null);
+    if (kind && confirmed !== true) return { ok: false, needsConsent: true, kind };
+    const fetchThroughTab = require('./main/network').createBoundedFetch(ses.fetch.bind(ses));
+    const res = await fetchThroughTab(url, { maxBytes: 16 * 1024 * 1024, timeoutMs: 30000, headers: { Accept: 'image/*,*/*;q=0.8' } });
+    if (!res.ok) throw new Error('the site answered ' + res.status);
+    const type = String(res.headers.get('content-type') || 'image/png').split(';')[0].trim();
+    if (!/^image\//i.test(type)) throw new Error('that address gave back ' + type + ', not an image');
+    return { ok: true, type, base64: Buffer.from(await res.arrayBuffer()).toString('base64') };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
 // A tab's icon for a tab in a session of its own, fetched through that
 // session and handed back as a data: URL (src/main/favicon-fetch.js). Vex's
 // window drawing the icon itself loaded it direct, so a Tor or proxy tab's
@@ -6923,15 +7429,37 @@ ipcMain.handle('fx:rates', async () => {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
 });
 
+// A page from a private window, an off-the-record or burner tab or a Tor tab
+// or route is never reopened in persist:main, the main profile (Open as App,
+// the overlay): it would be fetched direct and its cookies kept (security
+// scan L3). A private window is refused by the IPC policy; a tab names its
+// partition.
+function _refuseMainProfileCopy(partition) {
+  if (typeof partition !== 'string' || !partition) return;
+  if (!partition.startsWith('persist:') || partition === 'persist:route-tor' || secureSessions.fromPartition(partition).__vexTor) {
+    throw new Error('Not available for a private, off-the-record or Tor tab');
+  }
+}
+// A window that shows a web page and is not a Vex window (Open as App, the
+// overlay): its links and window.open calls open as tabs in the main window,
+// never as further windows of their own (security scan L4).
+function _openLinksAsTabs(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url || '') && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tab:create-from-external', { url });
+    return { action: 'deny' };
+  });
+}
 // Open a URL in its own chromeless window ("open as app" / site-specific
 // browser). Shares the main persistent session so you stay signed in.
-ipcMain.handle('app:open-as-app', (_e, url, title) => {
+ipcMain.handle('app:open-as-app', (_e, url, title, partition) => {
   try {
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
+    _refuseMainProfileCopy(partition);
     const win = new BrowserWindow({
       width: 1024, height: 720, autoHideMenuBar: true, title: title || 'Vex',
-      webPreferences: { partition: 'persist:main', contextIsolation: true, spellcheck: true },
+      webPreferences: { partition: 'persist:main', contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true },
     });
+    _openLinksAsTabs(win.webContents);
     win.setMenuBarVisibility(false);
     win.loadURL(url);
     return { ok: true };
@@ -6968,7 +7496,11 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
 // === Privacy hardening IPC ===
 // Synchronous config read for the webview preload (must know the farble flag +
 // seed BEFORE any page script runs, so an async invoke would be too late).
-ipcMain.on('privacy:config-sync', (e) => { e.returnValue = { farble: !!privacyCfg.farble, seed: FARBLE_SEED }; });
+// The seed is for the page's own session and the site in its address bar
+// (a frame's top page), worked out here from the sender, never told by it.
+ipcMain.on('privacy:config-sync', (e) => {
+  e.returnValue = { farble: !!privacyCfg.farble, seed: _mainHelpers.farbleSeed(FARBLE_KEY, secureSessions.partitionOf(e.sender), e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '') };
+});
 ipcMain.on('compatibility:get', e => {
   try { e.returnValue = { suppressPasskeys: _passkeySuppressed(new URL(e.senderFrame.url).hostname) }; }
   catch { e.returnValue = { suppressPasskeys: false }; }

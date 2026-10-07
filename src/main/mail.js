@@ -47,7 +47,10 @@ function webmailUrl(account, messageId) {
   return null;
 }
 
-function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
+// proxy: the proxy mail must use (socks5://… or http://…), or null to connect
+// directly; it throws when mail must wait (all of Vex through a Tor that is
+// not up yet). A local bridge on this computer is never proxied.
+function createMail({ ImapFlow, simpleParser, secrets, file, randomId, proxy = async () => null }) {
   async function load() {
     const a = await secrets.read(file, () => { throw new Error('The mail accounts file is not in Vex\'s format'); });
     return Array.isArray(a) ? a : [];
@@ -80,7 +83,9 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId }) {
   }
 
   async function withClient(account, fn) {
+    const via = LOOPBACK.test(account.host) ? null : await proxy();
     const client = new ImapFlow({
+      ...(via ? { proxy: via } : {}),
       host: account.host, port: account.port, secure: account.secure !== false,
       auth: { user: account.user || account.email, pass: account.pass },
       logger: false, connectionTimeout: TIMEOUT_MS, greetingTimeout: GREETING_TIMEOUT_MS, socketTimeout: TIMEOUT_MS * 3,

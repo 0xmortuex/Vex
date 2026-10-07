@@ -127,6 +127,15 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     const carries = new Map();
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.on('will-redirect', event => event.preventDefault());
+    // A target=_blank link or window.open in Vex's own interface (onboarding,
+    // the toolbox, the update notes) made a whole new window with this one's
+    // preload and <webview> rights, and a page reached in it could build a
+    // <webview> with Node in it (security scan H4). A web address opens as a
+    // tab of this window instead; nothing else opens at all.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url || '') && !win.isDestroyed()) win.webContents.send('tab:create-from-external', { url });
+      return { action: 'deny' };
+    });
     win.webContents.on('will-attach-webview', (event, prefs, params) => {
       try {
         const requested = params.partition || 'persist:main';
@@ -210,7 +219,19 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
   function forgetHistories(hostId, ids) {
     for (const id of ids) if (histories.get(id)?.hostId === hostId) histories.delete(id);
   }
-  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories,
+  // For every webContents Vex makes (app.on('web-contents-created')): only a
+  // Vex window may hold a <webview>, and registerHost's own handler then
+  // strips its preload and turns Node off. Any other page — a popup, an app
+  // window, an extension page — trying to attach one is refused, so no page
+  // can build a webview with Node or a preload of its choosing (scan H4).
+  function guardWebviews(contents) {
+    contents.on('will-attach-webview', (event, prefs) => {
+      if (hosts.has(contents.id)) return;
+      event.preventDefault();
+      console.error('[Vex] refused a <webview> in a window that is not a Vex window' + (prefs && (prefs.preload || prefs.nodeIntegration) ? ' (it asked for a preload or Node)' : ''));
+    });
+  }
+  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews,
     isAuxiliary(event, channel) {
       if (event.senderFrame !== event.sender.mainFrame) return false;
       // The Picture-in-Picture pop-out, asked of the module that owns it. It

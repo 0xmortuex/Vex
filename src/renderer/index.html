@@ -496,7 +496,16 @@
             <div class="setting-group">
               <label class="setting-label">Performance</label>
               <div class="setting-toggle-row">
-                <span>Memory Saver <span style="color:var(--text-muted);font-size:11px">· sleeps tabs sooner, discards them when minimized, and frees background caches. Restart to fully apply.</span></span>
+                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">The one switch for every tab or panel Vex would sleep, blank or refresh with nobody watching — idle tabs, idle panels, Discord’s idle sleep and refresh, gaming mode, the memory guard, and sleeping tabs while Vex sits behind another app. A tab or panel that sleeps behind your back has reloaded by the time you come back to it. Kept-awake tabs and panels are never slept. Vex still tells you when something has grown; buttons you press yourself always act at once.</span></span>
+                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
+                  <option value="never">never do it</option>
+                  <option value="ask">ask me first</option>
+                  <option value="auto">just do it</option>
+                </select>
+              </div>
+              <div id="sleep-consent-note" class="setting-info muted" style="font-size:11.5px;color:var(--text-muted);margin:4px 0 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"></div>
+              <div class="setting-toggle-row">
+                <span>Memory Saver <span style="color:var(--text-muted);font-size:11px">· frees background caches and holds fewer pages in memory (restart to fully apply). When the choice above lets Vex sleep things, it also shortens auto-sleep to 10 minutes, holds the memory guard at 900 MB and sleeps background tabs when Vex is minimized — it never turns on a switch below that is off.</span></span>
                 <label class="toggle">
                   <input type="checkbox" id="setting-memory-saver">
                   <span class="toggle-slider"></span>
@@ -506,6 +515,7 @@
                 <button id="btn-restart-vex" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px">Restart Vex to apply</button>
                 <span style="color:var(--text-muted);font-size:11px;margin-left:8px">Your tabs are saved and will come back.</span>
               </div>
+              <div data-sleep-dependent>
               <div class="setting-toggle-row">
                 <span>Auto-sleep inactive tabs</span>
                 <label class="toggle">
@@ -531,19 +541,12 @@
                 </label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">A tab or panel that sleeps behind your back has reloaded by the time you come back to it. This covers every unattended one — idle tabs, idle panels, Discord’s memory watch, gaming mode, the memory ceiling, and the one that fired whenever Vex sat behind another app. Vex still tells you when something has grown; buttons you press yourself always act at once.</span></span>
-                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
-                  <option value="never">never do it</option>
-                  <option value="ask">ask me first</option>
-                  <option value="auto">just do it</option>
-                </select>
-              </div>
-              <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Sleep hidden sidebar panels too <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same idle time; never one playing audio</span></span>
+                <span>Sleep hidden sidebar panels <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same “Sleep after” time as tabs (on its own switch, so it works with tab auto-sleep off); never one playing audio or kept awake</span></span>
                 <label class="toggle">
                   <input type="checkbox" id="setting-panel-autosleep" checked>
                   <span class="toggle-slider"></span>
                 </label>
+              </div>
               </div>
               <div style="margin-top:8px">
                 <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· an hour, a day, never, or only while it is in a call — a sleeping panel hands back all of its memory but cannot show a new-message notification. Discord and WhatsApp never sleep unless you change them.</span></div>
@@ -565,13 +568,13 @@
                 <div id="discord-memory-setting"></div>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· after two minutes out of sight it stops using the CPU; a call, or opening it, wakes it at once</span></span>
+                <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· not a sleep: after two minutes out of sight it stops using the CPU but stays loaded and keeps notifying; a call, or opening it, wakes it at once. Runs whatever the choice at the top says.</span></span>
                 <label class="toggle">
                   <input type="checkbox" id="setting-discord-rest" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
-              <div style="margin-top:12px">
+              <div style="margin-top:12px" data-sleep-dependent>
                 <div class="setting-row-label">Memory guard — sleep idle tabs when memory exceeds</div>
                 <select id="setting-mem-ceiling">
                   <option value="0">Off</option>
@@ -649,6 +652,9 @@
                   <label><input type="radio" name="ai-mode" value="cloud"> Always cloud (max quality)</label>
                 </div>
               </div>
+              <!-- Under the row, not in it: as a third child of the row it took
+                   the row's width and squeezed the label and the choices. -->
+              <div class="setting-hint" style="display:block;margin-top:6px;font-size:12px;color:var(--text-muted)">Prefer local keeps every feature on your Ollama model while it is running — translate, history search, multi-tab AI and the agent included. When no local model is running, features set to Cloud below still use the AI Worker. Always cloud also overrides on-device AI.</div>
 
               <div class="setting-row" id="local-model-row" style="margin-top:14px">
                 <div class="setting-label">
@@ -759,7 +765,7 @@
             <div class="setting-group">
               <label class="setting-label">Appearance</label>
               <div class="setting-toggle-row">
-                <span>Colour theme<br><span style="font-size:11.5px;color:var(--text-muted)">Thirty-seven of them, including Firefox Light and Dark. Ctrl+Shift+Y.</span></span>
+                <span>Colour theme<br><span style="font-size:11.5px;color:var(--text-muted)"><span data-count="themes">Dozens</span> of them, including Firefox Light and Dark. Ctrl+Shift+Y.</span></span>
                 <button id="setting-open-theme" class="btn-secondary">Choose a theme…</button>
               </div>
               <div class="setting-toggle-row">
@@ -779,7 +785,7 @@
                 <button id="setting-open-browser-import" class="btn-secondary">Import…</button>
               </div>
               <div class="setting-toggle-row">
-                <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All 222 features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
+                <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All <span data-count="features">the</span> features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
                 <button id="setting-open-library" class="btn-secondary">Open the Library…</button>
               </div>
             </div>
@@ -1620,6 +1626,8 @@
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
   <script src="js/profiles-ui.js"></script>
+  <script src="js/toolbar-overflow.js"></script>
+  <script src="js/zoom-indicator.js"></script>
   <script src="js/app.js"></script>
   <script src="js/i18n-ui.js"></script>
 </body>

@@ -22,7 +22,7 @@ A fast, private, deeply customizable desktop browser built on Electron + Chromiu
 
 Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/castlabs/electron-releases), so **Widevine DRM works** — Netflix, Spotify, Prime, Disney+ all play). It pairs a private, ad‑free, resource‑light browsing core with an unusually deep set of built‑in tools: an AI assistant that can act on your tabs, sidebar app panels, Tor and DPI‑bypass privacy, encrypted sync, and a customize‑everything UI. Nothing here is a paid add‑on — it's all in the browser.
 
-> **Windows 10/11 · 64‑bit.** Install the signed build from [Releases](https://github.com/0xmortuex/Vex/releases/latest) (DRM/Widevine only works in the signed build). Auto‑updates built in.
+> **Windows 10/11 · 64‑bit.** Install the signed build from [Releases](https://github.com/0xmortuex/Vex/releases/latest) (DRM/Widevine only works in the signed build). Vex updates itself in the app.
 
 ---
 
@@ -35,6 +35,15 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - 🧩 **Sidebar apps** — Discord, WhatsApp, Spotify, Netflix, Claude, GitHub, Roblox and any site you pin — each in its own isolated session, with unread badges.
 - 🔐 **Autofill that actually works** — encrypted password vault, built‑in 2FA authenticator with autofill, and email verification‑code autofill.
 - 💤 **Light on resources** — auto‑sleep/hibernate idle tabs (with a "never sleep" you can trust), a memory‑ceiling guard, and a Tab Health dashboard.
+
+### New in 2.35 – 2.36
+
+- **Profiles** — a separate Vex for each person or purpose: its own tabs, bookmarks, history, passwords, extensions, sync account and cookies. Profiles run side by side, each in its own window — manage them from the profile button on the toolbar or Settings › Profiles.
+- **Import from your old browser** — bookmarks and history from Chrome, Edge, Brave or Firefox, read on this PC. Passwords come over from a CSV you export from that browser's own password manager; Vex never opens another browser's encrypted stores.
+- **Install from the Chrome Web Store** — click *Add to Vex* on a Web Store page. Vex fetches the package from Google's own update server and installs it only if the developer's and the Web Store's signatures check out.
+- **Updates inside the app** — a full‑screen cover shows the download; Vex checks the installer's size and SHA‑512 against the release before running it, downloads only the parts that changed when it can, and saves a backup of your profile right before installing.
+- **A page's dialog stays in its tab** — an `alert`, `confirm` or `prompt` from a page or sidebar panel shows over that tab or panel only, instead of freezing the whole window; if the window ever stops responding, Vex offers to reload it.
+- **Privacy by default** — what you type goes only to the search engine you chose (never from private or Tor tabs), the New Tab weather no longer looks you up by IP, SponsorBlock starts off, setup has a Privacy choices step, and the startup update check can be turned off. [PRIVACY.md](PRIVACY.md) lists what Vex sends, and to whom.
 
 ---
 
@@ -164,7 +173,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Per‑site Settings** — remembered zoom, forced dark mode, and custom CSS/JS **Boosts** (Zap‑to‑hide any element) per website.
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
 - **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).
-- **Keyboard shortcuts you control** — rebind any of them, and give a key to anything that has none: every one of the 250+ `Ctrl+K` commands can have one (Shortcuts panel, or Settings). **Customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from folder/ZIP; Vencord for Discord).
+- **Keyboard shortcuts you control** — rebind any of them, and give a key to anything that has none: every one of the 250+ `Ctrl+K` commands can have one (Shortcuts panel, or Settings). **Customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from the Chrome Web Store, a folder or a ZIP; Vencord for Discord).
 
 ### ☁️ Sync
 - **Vex Sync** — end‑to‑end encrypted (AES‑GCM‑256) sync of tabs, bookmarks, history and settings across devices, via your own self‑hosted Cloudflare Worker. A hex recovery code is your key.
@@ -172,7 +181,8 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 ### 🚀 Onboarding & discovery
 - **Discover** (`Ctrl+K` → *Discover*) — **every feature in this list, inside the browser**, in 12 categories with a search box. Each one says what it is for, and has **Show me** (spotlights the real button on your screen) and **Open** (runs it). A feature you switched off is still listed, with *Turn on & show me*. Whole categories can be toured in turn.
 - **First‑run wizard** — a **setup profile** (*The Mortuex Setup* / *Minimal* / *Custom* / paste a shared code), theme, **look** (Classic · Glass · Chrome · Firefox · Safari · IE on XP · Netscape on 98, with tab placement), **speed, memory & privacy** (a preset, or all nine settings individually), job profile, language (EN/TR), daily wisdom, name, weather (country → city/district/postcode picker), GitHub, search engine, default‑browser, and each AI/Sync/password option. Every field is validated: an empty or malformed answer is refused with the reason, so nothing is silently skipped.
-- **Interactive tour**, **"What's New"** update log, **auto‑updater**.
+- **Interactive tour**, **"What's New"** update log, **in‑app updates** (checked SHA‑512, differential downloads, a profile backup before each install).
+- **Profiles** (toolbar profile button, Settings › Profiles) and **Import from Another Browser** (`Ctrl+K`; Chrome, Edge, Brave, Firefox).
 
 ---
 
@@ -242,7 +252,7 @@ Private windows use ephemeral sessions and exclude their tabs from saved session
 
 ## Building from source
 
-> Requires [Node.js](https://nodejs.org) + [pnpm](https://pnpm.io) (or npm). Windows.
+> Requires Windows and [Node.js](https://nodejs.org) 22 (what CI uses) with **npm** — the repo is locked with `package-lock.json` and Electron comes from a git URL, so use `npm`, not pnpm or yarn.
 
 ```bash
 git clone https://github.com/0xmortuex/Vex.git
@@ -250,8 +260,16 @@ cd Vex
 npm install
 npm start          # run the dev build
 npm test           # run the test suite (vitest)
-npm run dist:win   # build the signed Windows installer
 ```
+
+To build the Windows installer **without a castLabs account**, skip the Widevine (VMP) signing step — the build is otherwise identical, but DRM playback (Netflix, Spotify…) will not work in it:
+
+```powershell
+$env:VEX_SKIP_VMP_VERIFY = "1"; npm run dist:win     # PowerShell
+set VEX_SKIP_VMP_VERIFY=1 && npm run dist:win         # cmd
+```
+
+Without that variable, `npm run dist:win` VMP‑signs the app through castLabs EVS and **stops with an error** if it cannot get a production signature. Releases are made with `npm run publish`; see [RELEASING.md](RELEASING.md).
 
 **Note:** DRM/Widevine playback requires the VMP‑signed build; the plain dev build (`npm start`) has no DRM by design.
 

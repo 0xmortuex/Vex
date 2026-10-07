@@ -5,7 +5,7 @@
 // Measured on the user's machine: one renderer at 2.15 GB, the rest of Vex
 // together about 1 GB. A fresh Discord is a fraction of that.
 //
-// So: past a limit (Settings › Performance, 1.5 GB by default), Vex replaces
+// So: past a limit (Settings › Performance, 1 GB by default), Vex replaces
 // the Discord panel with a fresh one — only when that costs nothing:
 //   hidden      not the panel you are looking at, nor the one beside it
 //   no call     no microphone or camera, nothing audible, no Disconnect button
@@ -191,33 +191,33 @@ const DiscordMemory = {
   // made without them — and a browser that closes your chat to save memory it
   // was never asked to save has got the priority backwards.
   //
-  // So it asks, and **nothing happening is a no**. The notice waits, and if it
-  // is ignored it expires and Discord is left exactly as it was.
+  // So it follows the ONE choice in Settings › Performance, "Before Vex puts
+  // anything to sleep on its own" (js/sleep-consent.js) — Discord has no
+  // consent of its own any more. It had one (vex.discordMemoryConsent), and a
+  // saved "ask" or "auto" in it beat a "never" in the main choice; that key is
+  // removed once on start (SleepConsent.migrateOnce).
   //
-  //   ask     (the default) — a notice with Free the memory / Not now / Always
+  //   never   (the default) — never touched for memory at all
+  //   ask     — a notice with Free the memory / Not now / Always; nothing
+  //             happening is a no. "Always" answers for Discord only.
   //   auto    — what it used to do, for anyone who wants it back
-  //   never   — never touched for memory at all
   //
   // "Not now" is quiet for four hours rather than a minute: being asked the
   // same question every sixty seconds is not being asked, it is being nagged.
-  CONSENT_KEY: 'vex.discordMemoryConsent',
   ASK_QUIET_MS: 4 * 3600000,
 
+  // Unknown means no: a guard that falls back to acting is no guard.
   consent() {
-    const v = localStorage.getItem(this.CONSENT_KEY);
-    if (v === 'auto' || v === 'never' || v === 'ask') return v;
-    // No answer about Discord in particular: follow the one setting that
-    // governs every unattended sleeper (js/sleep-consent.js), so turning it
-    // off in one place turns it off everywhere.
-    try { if (typeof SleepConsent !== 'undefined') return SleepConsent.mode(); } catch { /* ask, then */ }
-    return 'ask';
+    try { if (typeof SleepConsent !== 'undefined') return SleepConsent.modeFor('discord'); }
+    catch (err) { window.VexProblems?.note('Discord memory', 'The sleep choice could not be read', err); }
+    return 'never';
   },
 
-  setConsent(mode) {
-    if (!['ask', 'auto', 'never'].includes(mode)) throw new Error('Vex can ask, do it automatically, or never do it');
-    try { localStorage.setItem(this.CONSENT_KEY, mode); }
-    catch (err) { window.VexProblems?.note('Discord memory', 'The choice could not be saved', err); }
-    return mode;
+  // Kept awake in Settings (the default for Discord): never put to sleep.
+  _keptAwake() {
+    const sb = this._sidebar();
+    try { return !!(sb && typeof sb.keptAwakeNow === 'function' && sb.keptAwakeNow('discord')); }
+    catch (err) { window.VexProblems?.note('Discord memory', 'Keep awake could not be read', err); return true; }
   },
 
   _quietUntil: 0,
@@ -230,7 +230,7 @@ const DiscordMemory = {
     if (consent === 'never') return { action: 'off' };
     const idle = this.idleMinutes();
     const sb = this._sidebar();
-    if (idle && sb && sb.panelWebviews && sb.panelWebviews.discord && this.hiddenFor(now) > idle * 60000) {
+    if (idle && !this._keptAwake() && sb && sb.panelWebviews && sb.panelWebviews.discord && this.hiddenFor(now) > idle * 60000) {
       const wait = await this.reasonToWait(now, { ignoreGap: true });
       if (!wait) {
         if (consent !== 'auto') return this._ask('sleep', { idle }, now);
@@ -299,14 +299,14 @@ const DiscordMemory = {
       this._quietUntil = Date.now() + this.ASK_QUIET_MS;
       window.showToast?.('Discord left alone — Vex will not ask again for four hours');
     });
-    act('Always', 'Do this from now on without asking', () => {
+    act('Always', 'Do this for Discord from now on without asking — everything else still asks', () => {
       done();
-      this.setConsent('auto');
+      try { SleepConsent.allowKind('discord'); }
+      catch (err) { window.showToast?.(err.message, 'error'); return; }
       try {
         if (what === 'sleep') this.sleepNow(info.idle); else this.refresh(info.mb);
       } catch (err) { window.showToast?.(err.message, 'error'); }
-      window.showToast?.('Vex will free Discord\u2019s memory by itself from now on — Settings › Performance changes it back');
-      this.renderSetting();
+      window.showToast?.('Vex will free Discord\u2019s memory without asking from now on — everything else still asks. Settings › Performance changes it back');
     });
     document.body.appendChild(bar);
     // An unanswered question is a no. It goes by itself, and Discord is left
@@ -368,28 +368,18 @@ const DiscordMemory = {
     host = host || document.getElementById('discord-memory-setting');
     if (!host) return;
     host.innerHTML = `
-      <div class="setting-toggle-row"><span>Before freeing Discord’s memory, Vex should</span><select data-consent aria-label="Before freeing Discord's memory"><option value="ask">ask me first</option><option value="auto">just do it</option><option value="never">never do it</option></select></div>
-      <p class="setting-info muted" style="margin:2px 0 10px">Sleeping Discord costs you every notification until you open it again, and refreshing it reloads what is on screen — so by default Vex asks, and a question you ignore is a no.</p>
       <div class="setting-toggle-row"><span>Open Discord as</span><select data-mode aria-label="Open Discord as"><option value="panel">a panel (always running)</option><option value="tab">a tab (only while open)</option></select></div>
       <p class="setting-info muted" style="margin:2px 0 10px">A tab uses no memory once closed — but then there are no Discord notifications, and closing it ends a call. Same login, Vencord and connection either way.</p>
+      <div data-sleep-dependent>
       <div class="setting-toggle-row"><span>Put Discord to sleep when it has been hidden, and not in a call, for</span><select data-idle aria-label="Put Discord to sleep after"></select></div>
-      <p class="setting-info muted" style="margin:2px 0 10px">Asleep it uses no memory and wakes when you open it — no Discord notifications while it sleeps.</p>
+      <p class="setting-info muted" style="margin:2px 0 10px">Asleep it uses no memory and wakes when you open it — no Discord notifications while it sleeps. Never while Discord is kept awake (above), and only as the choice “Before Vex puts anything to sleep on its own” allows.</p>
       <div class="setting-toggle-row"><span>Refresh Discord when it grows past</span><select data-limit aria-label="Refresh Discord when it grows past"></select></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">A refresh keeps it signed in and notifying, so it can happen even while Discord is kept awake — but only as that same choice allows.</p>
+      </div>
       <div class="setting-toggle-row"><span>Lighter Discord — avatars, emoji, stickers and server icons stay still (anything people post still loads)</span><label class="toggle"><input type="checkbox" data-lite><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px"><button type="button" class="btn-secondary" data-plugins>Turn off the heaviest Vencord plugins</button></div>
       <p class="setting-info muted" style="margin:2px 0 0">MessageLoggerEnhanced, MessageLogger, ShowHiddenChannels, PlatformIndicators and WhoReacted — the biggest memory users in the plugin review. Discord reloads after.</p>
       <p class="setting-info muted" style="margin:10px 0 0">In Discord itself (its settings, not Vex's): Accessibility › Reduced motion on, and play GIFs, animated emoji and stickers off; Chat › link previews and image previews off. Leaving large servers you do not read helps most of all — Discord keeps every server's channels and members in memory.</p>`;
-    const consent = host.querySelector('[data-consent]');
-    consent.value = this.consent();
-    consent.addEventListener('change', () => {
-      try {
-        this.setConsent(consent.value);
-        window.showToast?.(consent.value === 'ask'
-          ? 'Vex will ask before freeing Discord\u2019s memory'
-          : consent.value === 'auto' ? 'Vex will free Discord\u2019s memory by itself'
-            : 'Vex will never touch Discord for memory');
-      } catch (err) { window.showToast?.(err.message, 'error'); consent.value = this.consent(); }
-    });
     const mode = host.querySelector('[data-mode]');
     mode.value = this.mode();
     mode.addEventListener('change', () => {
@@ -430,6 +420,7 @@ const DiscordMemory = {
       const v = this.setLimitMB(sel.value);
       window.showToast?.(v ? 'Discord will be refreshed past ' + sel.options[sel.selectedIndex].textContent + ' — only while hidden and not in a call' : 'Discord will not be refreshed automatically');
     });
+    if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState(host);
   },
 };
 

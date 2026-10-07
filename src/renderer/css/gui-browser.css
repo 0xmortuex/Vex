@@ -76,16 +76,26 @@ body[data-gui-family="browser"]:not([data-gui-colors="theme"]) {
   --vex-hover-fill: var(--b-btn-hover); --vex-shadow-color: rgba(0, 0, 0, 0.18);
   --bg: var(--b-page); --surface: var(--b-menu); --text: var(--b-text); --text-muted: var(--b-text-dim);
   --border: var(--b-border); --primary: var(--b-accent); --primary-hover: var(--b-accent); --accent: var(--b-accent);
+  /* Text on the accent: white, or the look's own dark page where white on a
+     light accent fell below 4.5:1 (chrome-dark, firefox-dark, ...). */
+  --on-primary: var(--b-on-accent, #fff);
   --bg-2: var(--b-surface-deep); --sidebar: var(--b-surface-deep); --tab-active: var(--b-tab-active); --tab-hover: var(--b-btn-hover);
   /* Left to the theme on purpose: the status colours (success/danger/warning),
      which mean the same in every look. */
 }
 body[data-gui-family="browser"] { color: var(--b-text); }
-/* The look owns the type in both colour modes. The themes force their UI font
-   onto body and every control with !important (Oxford's serif, Outfit for the
-   rest), which put a serif in XP's address bar; this outranks them - (0,1,1)
-   by source order for body, (0,1,2) for controls - while their (0,2,0)
-   monospace restore for mono-labelled controls still wins. */
+/* The look's type outranks the THEMES' fonts in both colour modes. The themes
+   force their UI font onto body and every control with !important (Oxford's
+   serif, Outfit for the rest), which put a serif in XP's address bar; this
+   outranks them - (0,1,1) by source order for body, (0,1,2) for controls -
+   while their (0,2,0) monospace restore for mono-labelled controls still wins.
+   It does NOT outrank the font picked in Settings (css/fonts.css,
+   html[data-vex-font]), and is not meant to: Vex's own font - Times New Roman
+   unless changed, the owner's choice of 2026-09-21 - is worn everywhere,
+   address bar and menus included. The one exception is the tab strip, which
+   is Segoe UI in every font (css/horizontal-tabs.css, the owner's choice of
+   2026-09-27). So Segoe tabs over a Times address bar is intended, not a
+   leftover (checked against walkthrough L1, 2026-10-07). */
 body[data-gui-family="browser"],
 body[data-gui-family="browser"] :is(button, input, textarea, select) { font-family: var(--b-font) !important; }
 /* Headings too: Oxford lifts h1-h3 to its serif up to (0,2,1)
@@ -267,6 +277,7 @@ body[data-gui-style="chrome-dark"] {
   --b-icon: #e3e3e3; --b-icon-disabled: #6c6d70;
   --b-url-bg: #202124; --b-url-bg-focus: #202124; --b-url-border: transparent; --b-url-focus-border: transparent;
   --b-accent: #8ab4f8; --b-accent-ring: #8ab4f8;
+  --b-on-accent: #202124;
   --b-text: #e8eaed; --b-text-dim: #9aa0a6; --b-border: #3c4043; --b-menu: #292a2d; --b-page: #202124;
 }
 
@@ -306,6 +317,7 @@ body[data-gui-style="firefox-dark"] {
   --b-icon: #fbfbfe; --b-icon-disabled: #6f6e78;
   --b-url-bg: #1c1b22; --b-url-bg-focus: #42414d; --b-url-border: transparent; --b-url-focus-border: #00ddff;
   --b-accent: #00ddff; --b-accent-ring: #00ddff;
+  --b-on-accent: #1c1b22;
   --b-text: #fbfbfe; --b-text-dim: #bfbfc9; --b-border: #52525e; --b-menu: #2b2a33; --b-page: #1c1b22;
 }
 
@@ -467,6 +479,7 @@ body[data-gui-style="fluent-dark"] {
   --b-icon: #ffffff; --b-icon-disabled: #787878;
   --b-url-bg: #333333; --b-url-bg-focus: #1f1f1f; --b-url-border: #3b3b3b; --b-url-focus-border: #3b3b3b; --b-url-underline: #8b8b8b;
   --b-accent: #60cdff; --b-accent-ring: transparent;
+  --b-on-accent: #1f1f1f;
   --b-text: #ffffff; --b-text-dim: #c5c5c5; --b-border: #3b3b3b; --b-menu: #2c2c2c; --b-page: #1f1f1f;
 }
 /* The selected tab's accent pill, as in Windows 11's navigation and Fluent's
@@ -578,6 +591,7 @@ body[data-gui-style="neobrutal"] {
   --b-icon: #111112; --b-icon-disabled: #8d8d93;
   --b-url-bg: #ffffff; --b-url-bg-focus: #ffffff; --b-url-border: var(--b-nb-ink); --b-url-focus-border: var(--b-nb-ink);
   --b-accent: #9d64df; --b-accent-ring: transparent;
+  --b-on-accent: #000000;
   --b-text: #300066; --b-text-dim: #5a4a74; --b-border: var(--b-nb-ink); --b-menu: #ffffff; --b-page: #ddddde;
   --b-close-hover: #ff6b6b; --b-close-hover-fg: #111112;
 }
@@ -639,6 +653,7 @@ body[data-gui-style="terminal"] {
   --b-icon: #9a9a9a; --b-icon-disabled: #525252;
   --b-url-bg: #1a1a1a; --b-url-bg-focus: #1a1a1a; --b-url-border: #3a3a3a; --b-url-focus-border: #b58ad5;
   --b-accent: #b58ad5; --b-accent-ring: transparent;
+  --b-on-accent: #1a1a1a;
   --b-text: #cfcfcf; --b-text-dim: #8a8a8a; --b-border: #3a3a3a; --b-menu: #1a1a1a; --b-page: #1a1a1a;
   --b-close-hover: #e0707f; --b-close-hover-fg: #1a1a1a;
 }
@@ -1031,6 +1046,30 @@ body[data-sb-launcher="rail"] #icon-sidebar .sidebar-icon :is(.panel-badge, .ico
   font-size: 8.5px; line-height: 13px; border-radius: 7px;
 }
 body[data-sb-launcher="rail"] .sidebar-separator { width: 24px; background: var(--b-toolbar-border); }
+
+/* More rail below: at 125-150% the last icons (Settings, Clock, Work…) sat
+   under the window edge with no sign the rail scrolls, so Settings looked
+   missing (walkthrough M6, 2026-10-07). A fade with a chevron sits at the
+   bottom while there is more to scroll to. It is driven by the rail's own
+   scroll position, so a rail that fits never shows it, and it fades out as
+   the end comes into view. */
+body[data-sb-launcher="rail"]:not(.tabs-hidden) #icon-sidebar::after {
+  content: ''; position: sticky; bottom: -6px; flex: 0 0 auto; align-self: stretch;
+  /* Takes no room: its height and the rail's 2px gap cancel against the
+     negative margin, so a rail that fits gains no scroll range from it. */
+  height: 30px; margin-top: -32px; pointer-events: none;
+  background:
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--b-icon) calc(50% - 1px) calc(50% + 0.75px), transparent calc(50% + 0.75px)) calc(50% - 3px) calc(100% - 8px) / 6px 6px no-repeat,
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--b-icon) calc(50% - 1px) calc(50% + 0.75px), transparent calc(50% + 0.75px)) calc(50% + 3px) calc(100% - 8px) / 6px 6px no-repeat,
+    linear-gradient(to bottom, transparent, var(--b-toolbar) 65%);
+  opacity: 0;
+  animation: vex-rail-more linear both;
+  animation-timeline: scroll(nearest block);
+}
+@keyframes vex-rail-more { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+/* Vex's own rail fades its last 22px when it scrolls (sidebar.css .scrolls);
+   here that would fade the chevron away with it. */
+body[data-sb-launcher="rail"] #icon-sidebar.scrolls { mask-image: none; }
 
 /* Firefox: the selected tool sits in a soft accent-tinted square. */
 body:is([data-gui-style="firefox"], [data-gui-style="firefox-dark"]) { --b-rail-active: color-mix(in srgb, var(--b-accent) 16%, transparent); }

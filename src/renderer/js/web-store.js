@@ -51,10 +51,30 @@ const VexWebStore = (() => {
     return shown.map(esc).join(', ') + (more > 0 ? ` and ${more} more` : '');
   }
 
+  // Where the package came from, first in the dialog. p.source is set by main
+  // for a picked file or folder (main.js _previewPickedFile); a store link has none.
+  function sourceLine(p) {
+    const v = esc(p.version || '?');
+    const file = p.file ? ` (${esc(p.file)})` : '';
+    switch (p.source) {
+      case 'webstore-file':
+        return [false, `Version ${v}, a Chrome Web Store package from a file${file}. Its signatures, the developer's and the store's, check out.`];
+      case 'developer':
+        return [true, `Version ${v}: <strong>not from the Chrome Web Store</strong>. A package its developer signed themselves${file}, id ${esc(p.id || '?')}. The signature checks out, so it has not been changed since it was signed, but no store has looked at it.`];
+      case 'zip':
+        return [true, `Version ${v} from a .zip file${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+      case 'folder':
+        return [true, `Version ${v} from a folder on this computer${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+      default:
+        return [false, `Version ${v} from the Chrome Web Store. Its signatures, the developer's and the store's, check out.`];
+    }
+  }
+
   // The permissions dialog's body. Every piece of text is escaped here.
   function dialogHtml(p) {
     const lines = [];
-    lines.push(`<div class="vex-ws-source">${icon('shield', 14)}<span>Version ${esc(p.version || '?')} from the Chrome Web Store. Its signatures, the developer's and the store's, check out.</span></div>`);
+    const [unchecked, says] = sourceLine(p);
+    lines.push(`<div class="vex-ws-source${unchecked ? ' vex-ws-heavy' : ''}">${icon(unchecked ? 'warning' : 'shield', 14)}<span>${says}</span></div>`);
     if (p.installed) {
       lines.push(`<div class="vex-ws-line">${icon('refresh', 14)}<span>Installed now: version ${esc(p.installed.version || '?')}. It is updated in place, and keeps its settings.</span></div>`);
     }
@@ -100,8 +120,12 @@ const VexWebStore = (() => {
     if (busy) { toast('Vex is already installing an extension. One at a time.', 'info'); return { ok: false, error: 'busy' }; }
     busy = true;
     try {
-      toast('Downloading from the Chrome Web Store and checking its signature…', 'info');
+      const fetching = 'Downloading from the Chrome Web Store and checking its signature…';
+      toast(fetching, 'info');
       const p = await window.vex.extensionsWebStorePreview(String(input || ''));
+      // Done downloading: that note stayed up beside "Installed …" (walkthrough
+      // L8, 2026-10-07). showToast gives no handle, so it goes by its text.
+      document.querySelectorAll('#toast-container .toast-item').forEach(t => { if (t.textContent === fetching) t.remove(); });
       if (!p || !p.ok) {
         toast('Could not install: ' + ((p && p.error) || 'no answer from Vex'), 'error');
         return p || { ok: false, error: 'no answer' };

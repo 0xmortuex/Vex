@@ -8,7 +8,7 @@ const SyncEngine = (() => {
   // A successful pull is required to clear this guard.
   let pullBlocked = false;
   // Sync targets a Cloudflare Worker each user deploys themselves
-  // (see SELF_HOSTING.md). The URL is set in Settings → Sync (VexConfig).
+  // (see SELF_HOSTING.md). The URL is set in Settings › Cloud (VexConfig).
   // Sync stays OFF until a URL is configured: auth, push, pull, and device
   // calls all no-op when it's empty, so a fresh install never hits a dead
   // endpoint or spams the network on a timer.
@@ -18,7 +18,7 @@ const SyncEngine = (() => {
   }
   function requireSyncUrl() {
     const u = syncWorkerUrl();
-    if (!u) throw new Error('Sync is not configured. Add your Sync Worker URL in Settings → Sync (see SELF_HOSTING.md).');
+    if (!u) throw new Error('Sync is not configured. Add your Sync Worker URL in Settings › Cloud (see SELF_HOSTING.md).');
     return u;
   }
 
@@ -26,13 +26,17 @@ const SyncEngine = (() => {
   const SYNC_KEYS = [
     'vex.bookmarks',
     'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
-    'vex.notes', 'vex.history', 'vex.theme', 'vex.settings', 'vex.schedules',
-    'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.customCommands', 'vex.zooms',
+    'vex.notes', 'vex.history', 'vex.theme', 'vex.schedules',
+    'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.zooms',
     // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
     // was left out of this list, so the choice never reached another device.
-    'vex.forceDarkSites', 'vex.forceDarkHosts', 'vex.autosleep',
-    'vex.autosleepMinutes', 'vex.autosleepExcludePinned', 'vex.groups',
+    'vex.forceDarkSites', 'vex.forceDarkHosts', 'vex.groups',
+    // Auto-sleep lives in settings.json; app.js mirrors it here and adopts a
+    // copy that arrived from another device on the next start. (The old
+    // names — vex.autosleep, vex.autosleepMinutes, vex.autosleepExcludePinned
+    // — were never written by anything, so it never synced.)
+    'vex.autoSleepPrefs',
     // Phase 14: AI routing prefs (but NOT localAIModel — each device has
     // its own installed Ollama models)
     'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI',
@@ -54,7 +58,6 @@ const SyncEngine = (() => {
     // renderer mirrors the list here so it travels, and imports what arrives
     // (js/quick-reminder.js). Only the machine that set one wakes Windows for it.
     'vex.reminders',
-    'vex-theme'
   ];
 
   // Lists synced item by item, so two devices' entries merge instead of one
@@ -248,7 +251,7 @@ const SyncEngine = (() => {
   // sync that had just stopped (found 2026-09-29).
   async function signedOutByServer() {
     await signOut();
-    window.showToast?.('This device was signed out of Vex Sync — the server no longer recognises it (it was removed from another device, or the cloud data was wiped). Sign in again in Settings › Sync.', 'error');
+    window.showToast?.('This device was signed out of Vex Sync — the server no longer recognises it (it was removed from another device, or the cloud data was wiped). Sign in again in Settings › Vex Sync.', 'error');
   }
 
   async function signOut(removeFromServer = false) {
@@ -828,7 +831,7 @@ const SyncEngine = (() => {
   // ===== DROP — cross-device tab handoff ("Send to Phone") =====
   async function dropSend(url, title) {
     if (!state.enabled || !state.sessionToken) {
-      throw new Error('Sign in to Vex Sync first (Settings → Vex Sync)');
+      throw new Error('Sign in to Vex Sync first (Settings › Vex Sync)');
     }
     requireSyncUrl();
     if (!/^https?:$/.test(new URL(url).protocol)) throw new Error('Only web URLs can be sent');

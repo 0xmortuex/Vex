@@ -89,7 +89,7 @@
   padding: 8px 16px; border-radius: 8px; cursor: pointer;
   font-size: 13px; font-family: 'Outfit', sans-serif; border: none;
 }
-.btn-primary { background: var(--primary); color: white; }
+.btn-primary { background: var(--primary); color: var(--on-primary, #fff); }
 .btn-primary:hover { filter: brightness(1.1); }
 .btn-primary:disabled { opacity: 0.6; cursor: default; }
 .btn-secondary {
@@ -272,7 +272,7 @@
   padding: 8px 14px; border-radius: 8px; cursor: pointer;
   font-size: 12px; font-family: 'Outfit', sans-serif;
 }
-.extensions-actions .btn-primary { background: var(--primary); color: white; border: none; }
+.extensions-actions .btn-primary { background: var(--primary); color: var(--on-primary, #fff); border: none; }
 .extensions-actions .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
 .extensions-actions .btn-link { background: transparent; color: var(--primary); border: none; }
 .extensions-actions .btn-link:hover { text-decoration: underline; }

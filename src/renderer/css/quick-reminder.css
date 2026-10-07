@@ -73,7 +73,7 @@
   border: 1px solid var(--border); border-radius: 9px;
 }
 .qr-btn:hover { border-color: var(--primary); }
-.qr-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.qr-primary { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 .qr-primary:hover { background: var(--primary-hover, var(--primary)); }
 .qr-primary:disabled { opacity: 0.6; cursor: wait; }
 

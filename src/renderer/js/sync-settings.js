@@ -33,11 +33,47 @@ const SyncSettings = (() => {
     return d.toLocaleDateString();
   }
 
+  function syncUrlSet() {
+    try { return !!(window.VexConfig && window.VexConfig.syncWorkerUrl()); }
+    catch (err) { console.error('[Sync] the Sync Worker URL could not be read:', err.message); return false; }
+  }
+
   async function renderSyncPanel(container) {
     if (!container) return;
     const state = SyncEngine.getState();
-    if (!state.enabled) renderSignedOut(container);
+    // No Sync Worker URL: nothing can sync, whatever the saved state says. It
+    // used to draw "Signed in as …" here (state left from an older server)
+    // while every call failed with "Sync is not configured".
+    if (!syncUrlSet()) renderNotSetUp(container, state);
+    else if (!state.enabled) renderSignedOut(container);
     else await renderSignedIn(container);
+  }
+
+  function renderNotSetUp(container, state) {
+    container.innerHTML = `
+      <div class="sync-section">
+        <div class="sync-header">
+          <div class="sync-icon-big">${VexIcons.svg('cloud', { size: 40 })}</div>
+          <div>
+            <div class="sync-title">Not syncing</div>
+            <div class="sync-subtitle">Add your Sync Worker URL in Settings › Cloud, then sign in here. Vex Sync runs on a server you deploy yourself (SELF_HOSTING.md).</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn-primary" id="btn-sync-open-cloud">Open Settings › Cloud</button>
+          ${state && state.enabled ? '<button class="btn-secondary" id="btn-sync-forget-old">Forget the old sign-in</button>' : ''}
+        </div>
+        ${state && state.enabled ? '<p class="subsection-desc" style="margin-top:8px">This device still remembers a sign-in (<span data-sensitive>' + escapeHtml(state.email || '') + '</span>) from a server it no longer has the address of. Nothing syncs until the URL is back.</p>' : ''}
+      </div>`;
+    container.querySelector('#btn-sync-open-cloud').addEventListener('click', () => {
+      if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') { toast('Open Settings › Cloud Services (self-hosted)', 'info'); return; }
+      SettingsUI.openSection('setting-sync-worker-url');
+    });
+    container.querySelector('#btn-sync-forget-old')?.addEventListener('click', async () => {
+      try { await SyncEngine.signOut(false); toast('Forgot the old sign-in on this device', 'success'); }
+      catch (err) { toast('Could not forget it: ' + human(err && err.message), 'error'); }
+      await renderSyncPanel(container);
+    });
   }
 
   function renderSignedOut(container) {
@@ -223,11 +259,14 @@ const SyncSettings = (() => {
 
     container.innerHTML = `
       <div class="sync-section">
-        <div class="sync-header signed-in">
-          <div class="sync-icon-big">${VexIcons.svg('check', { size: 22 })}</div>
+        <div class="sync-header${state.lastError ? '' : ' signed-in'}">
+          <div class="sync-icon-big">${VexIcons.svg(state.lastError ? 'warning' : 'check', { size: 22 })}</div>
           <div>
-            <div class="sync-title">Signed in as <span data-sensitive>${escapeHtml(state.email)}</span></div>
-            <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>
+            ${state.lastError
+              ? `<div class="sync-title">Not syncing — the last sync failed</div>
+            <div class="sync-subtitle">${escapeHtml(human(state.lastError))} &middot; account <span data-sensitive>${escapeHtml(state.email)}</span></div>`
+              : `<div class="sync-title">Signed in as <span data-sensitive>${escapeHtml(state.email)}</span></div>
+            <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>`}
           </div>
           <button class="btn-primary" id="btn-sync-now">Sync Now</button>
         </div>

@@ -1399,7 +1399,10 @@ const TabManager = {
         let slept = 0;
         for (const t of tabsInGroup) {
           if (t.sleeping || t.id === this.activeTabId) continue;
-          try { await this.sleepTab(t.id); if (t.sleeping) slept++; }            // sleepTab spares audible and kept-awake tabs itself
+          // sleepTab spares kept-awake and split-view tabs; sound and a
+          // recording are spared here, as the toast below promises.
+          if ((t.audible && !t.muted) || this.isCapturing(t)) continue;
+          try { await this.sleepTab(t.id); if (t.sleeping) slept++; }
           catch (err) { window.VexProblems?.note('Tab groups', 'Could not sleep a tab', err); }
         }
         window.showToast?.(slept ? 'Slept ' + slept + ' tab' + (slept === 1 ? '' : 's') + ' in “' + group.name + '”' : 'Nothing in “' + group.name + '” could sleep — a tab playing sound or kept awake is left alone');
@@ -1623,25 +1626,32 @@ const TabManager = {
       g.id !== tab.groupId && (liveGroupIds.has(g.id) || this.tabs.some(t => t.groupId === g.id))
     );
 
+    const webPage = /^https?:/i.test(tab.url || '');
     const items = [
+      // Reload and Bookmark were missing, and the six snooze times sat inline,
+      // which made this menu 620px tall (walkthrough L10, 2026-10-07).
+      { label: 'Reload', action: () => this._reloadTabFromMenu(tab) },
+      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, { ...(window.VexTabPolicy?.serialize(tab) || tab), allowDuplicate: true }) },
       // Route through togglePinTab, which rebuilds the strip. Flipping
       // tab.pinned inline (the old code) persisted the new state but left the
       // UI untouched: the pinned-tabs row was never built and the horizontal
       // strip never got .pinned, so "Pin Tab" looked like it did nothing until
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
-      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, { ...(window.VexTabPolicy?.serialize(tab) || tab), allowDuplicate: true }) },
+      ...(webPage && typeof Bookmarks !== 'undefined'
+        ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
+        : []),
       { label: tab.note ? 'Edit the note on this tab…' : 'Add a note to this tab…', action: () => this.editTabNote(tab.id) },
       // A tab stays open because closing it loses it. Snoozing closes it now
       // and opens it again when you said (js/tab-snooze.js).
       ...(typeof TabSnooze !== 'undefined' && TabSnooze.canSnooze(tab)
-        ? Object.entries(TabSnooze.WHEN).map(([key, rule], i) => ({
-          label: (i === 0 ? 'Snooze — ' : '') + rule.label,
+        ? [{ label: 'Snooze until', sub: Object.entries(TabSnooze.WHEN).map(([key, rule]) => ({
+          label: rule.label,
           action: () => {
             try { const e = TabSnooze.snooze(tab.id, key); window.showToast?.('Back ' + rule.label.toLowerCase() + ' — ' + new Date(e.at).toLocaleString()); }
             catch (err) { window.showToast?.((err && err.message) || 'Could not snooze it', 'error'); }
           },
-        }))
+        })) }]
         : []),
       // Tabs are .top-tab / .tab-item / .pinned-tab — there is no .tab, so the
       // menu opened at the window's left edge (found 2026-09-29).
@@ -1708,11 +1718,61 @@ const TabManager = {
       { label: 'Close Tabs to the Right', action: () => this.closeTabsToTheRight(tab.id), danger: true }
     ];
 
+    // A row with `sub` opens its list beside the menu. In the page, not in the
+    // menu: the menu scrolls when it is tall and would clip it. It goes when
+    // the menu goes, or when another row is hovered.
+    let openSub = null, openRow = null;
+    const closeSub = () => {
+      if (openSub) openSub.remove();
+      if (openRow) { openRow.classList.remove('open'); openRow.setAttribute('aria-expanded', 'false'); }
+      openSub = openRow = null;
+    };
+    const showSub = (row, subItems) => {
+      if (openRow === row) return;
+      closeSub();
+      const sub = document.createElement('div');
+      sub.className = 'tab-context-menu ctx-submenu';
+      sub.setAttribute('role', 'menu');
+      for (const it of subItems) {
+        const el = document.createElement('div');
+        el.className = 'tab-context-item';
+        el.setAttribute('role', 'menuitem');
+        el.textContent = it.label;
+        el.addEventListener('click', () => { closeSub(); it.action(); this._dismissMenu(menu); });
+        sub.appendChild(el);
+      }
+      sub.style.position = 'fixed';
+      document.body.appendChild(sub);
+      const rowBox = row.getBoundingClientRect(), menuBox = menu.getBoundingClientRect();
+      let left = menuBox.right - 4, top = rowBox.top - 7;
+      sub.style.left = left + 'px'; sub.style.top = top + 'px';
+      const r = sub.getBoundingClientRect();
+      if (r.right > window.innerWidth - 4) left = Math.max(4, menuBox.left - r.width + 4);
+      if (r.bottom > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 8);
+      sub.style.left = left + 'px'; sub.style.top = top + 'px';
+      openSub = sub; openRow = row;
+      row.classList.add('open');
+      row.setAttribute('aria-expanded', 'true');
+    };
+    const gone = new MutationObserver(() => { if (!menu.isConnected) { closeSub(); gone.disconnect(); } });
+    gone.observe(document.body, { childList: true });
+    menu.addEventListener('scroll', closeSub, { passive: true });
+
     items.forEach(item => {
       if (item.sep) {
         const sep = document.createElement('div');
         sep.className = 'tab-context-sep';
         menu.appendChild(sep);
+      } else if (item.sub) {
+        const el = document.createElement('div');
+        el.className = 'tab-context-item has-sub';
+        el.setAttribute('aria-haspopup', 'menu');
+        el.setAttribute('aria-expanded', 'false');
+        el.textContent = item.label;
+        if (typeof VexIcons !== 'undefined') el.insertAdjacentHTML('beforeend', '<span class="ctx-sub-chevron">' + VexIcons.svg('chevron-right', { size: 14, className: 'ctx-icon' }) + '</span>');
+        el.addEventListener('mouseenter', () => showSub(el, item.sub));
+        el.addEventListener('click', () => showSub(el, item.sub));
+        menu.appendChild(el);
       } else {
         const el = document.createElement('div');
         el.className = `tab-context-item${item.danger ? ' danger' : ''}`;
@@ -1721,6 +1781,7 @@ const TabManager = {
         } else {
           el.textContent = item.label;
         }
+        el.addEventListener('mouseenter', closeSub);
         el.addEventListener('click', () => {
           item.action();
           this._dismissMenu(menu);
@@ -1732,6 +1793,17 @@ const TabManager = {
     document.body.appendChild(menu);
     this._clampMenuToViewport(menu, x, y);
     this._attachMenuDismissal(menu);
+  },
+
+  // Reload from the tab's menu: a sleeping tab is woken, the tab in front
+  // reloads the way the toolbar's button does, any other loaded tab reloads.
+  _reloadTabFromMenu(tab) {
+    if (tab.sleeping) { this.wakeTab(tab.id); return; }
+    if (typeof WebviewManager === 'undefined') throw new Error('Pages are not available right now');
+    if (tab.id === this.activeTabId) { WebviewManager.reload(); return; }
+    const wv = WebviewManager.webviews.get(tab.id);
+    if (!wv) { window.showToast?.('This tab is not loaded — open it first', 'warn'); return; }
+    wv.reload();
   },
 
   rebuildAllTabs() {
@@ -2306,9 +2378,10 @@ const TabManager = {
       const sleep = () => due.forEach(t => this.sleepTab(t.id));
       // A tab that sleeps behind your back has reloaded by the time you come
       // back to it, losing the place you were in — which is why this asks
-      // (js/sleep-consent.js).
+      // (js/sleep-consent.js). This is the ONE idle timer for tabs: the hidden
+      // 30-minute hibernation that blanked tabs without asking is gone.
       if (typeof SleepConsent === 'undefined') return;   // cannot ask, so do not act
-      SleepConsent.ask({
+      SleepConsent.gate({
         id: 'tabs',
         title: due.length === 1
           ? '“' + String(due[0].title || 'One tab').slice(0, 40) + '” has been idle for a while. Let it sleep?'
@@ -2369,13 +2442,20 @@ const TabManager = {
     // This fired three minutes after the window lost focus, which is what
     // "apps like discord and claude keep closing when I switch" was
     // (js/sleep-consent.js).
-    if (typeof SleepConsent === 'undefined' || !SleepConsent.auto()) return;
-    let slept = 0;
-    this.tabs.forEach(t => {
-      if (t.id === this.activeTabId || this._inSplitPane(t.id) || t.sleeping || t._lazy || t.pinned) return;
-      if (t.audible && !t.muted) return;
-      // sleepTab is a no-op for kept-awake tabs, so never-sleep is respected.
-      this.sleepTab(t.id); slept++;
+    // Nobody is there to ask, so only "just do it" lets it act.
+    if (typeof SleepConsent === 'undefined') return;
+    SleepConsent.gate({
+      id: 'discard',
+      title: 'Sleep background tabs while Vex is behind another app',
+      canAsk: false,
+      run: () => {
+        this.tabs.forEach(t => {
+          if (t.id === this.activeTabId || this._inSplitPane(t.id) || t.sleeping || t._lazy || t.pinned) return;
+          if (t.audible && !t.muted) return;
+          // sleepTab is a no-op for kept-awake tabs, so never-sleep is respected.
+          this.sleepTab(t.id);
+        });
+      },
     });
   },
   // The guard used to compare ALL of Vex with the ceiling and sleep idle tabs
@@ -2398,8 +2478,10 @@ const TabManager = {
   async _memorySweep() {
     if (!this._memCeiling || !(window.vex && typeof window.vex.tabMemory === 'function')) return;
     // Over the ceiling is a reason to say something, not a licence to close
-    // the user's pages (js/sleep-consent.js).
-    if (typeof SleepConsent === 'undefined' || !SleepConsent.auto()) return;
+    // the user's pages (js/sleep-consent.js): under "never" it measures and
+    // says so, under "ask" it asks, and only "just do it" sleeps by itself.
+    if (typeof SleepConsent === 'undefined') return;
+    const consent = SleepConsent.modeFor('guard');
     const now = Date.now();
     const idle = (t) => t.id !== this.activeTabId && !t.sleeping && !t._lazy && !(t.audible && !t.muted) && !this.isCapturing(t)
       && now - (t.lastViewedAt || 0) >= this.GUARD_GRACE_MS;
@@ -2422,6 +2504,10 @@ const TabManager = {
     const mem = await window.vex.tabMemory([...wcOf.values()]);
     const totalMB = ((mem && mem.totalKB) || 0) / 1024;
     if (totalMB <= this._memCeiling) return;
+    if (consent === 'never') {
+      this._guardNote(now, `Over the ${this._memCeiling} MB ceiling (${Math.round(totalMB)} MB) — nothing slept: Vex is set never to sleep anything by itself (Settings › Performance).`);
+      return;
+    }
 
     // What each candidate would give back. Tabs sharing one renderer process
     // free it only together, so that process is counted once.
@@ -2440,12 +2526,33 @@ const TabManager = {
     }
 
     const need = totalMB - this._memCeiling;
-    let slept = 0, pinnedSlept = 0, freed = 0;
+    const pick = [];
+    let planned = 0;
     for (const t of cands) {
-      if (slept >= 5 || freed >= need) break;   // small batches; re-evaluate next tick
+      if (pick.length >= 5 || planned >= need) break;   // small batches; re-evaluate next tick
       if (!gain.has(t)) continue;
+      pick.push(t); planned += gain.get(t);
+    }
+    if (!pick.length) return;
+    if (consent !== 'auto') {
+      // A question, answered later or never; an unanswered one is a no.
+      SleepConsent.gate({
+        id: 'guard',
+        title: `Vex is using ${Math.round(totalMB)} MB, over your ${this._memCeiling} MB ceiling. Sleep ${pick.length} idle tab${pick.length === 1 ? '' : 's'} to free about ${Math.round(planned)} MB?`,
+        detail: 'Asleep they use no memory and reload where they were when you come back to them.',
+        run: () => { this._guardSleep(pick, gain, Date.now()).catch(err => console.error('[tabs] memory guard:', err)); },
+      });
+      return;
+    }
+    await this._guardSleep(pick, gain, now);
+  },
+
+  async _guardSleep(pick, gain, now) {
+    let slept = 0, pinnedSlept = 0, freed = 0;
+    for (const t of pick) {
+      if (t.sleeping || t.id === this.activeTabId) continue;
       await this.sleepTab(t.id);
-      slept++; freed += gain.get(t);
+      slept++; freed += gain.get(t) || 0;
       if (t.pinned) pinnedSlept++;
     }
     if (!slept) return;

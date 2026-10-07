@@ -17,9 +17,9 @@
     "test:ui": "vitest --ui",
     "pack": "electron-builder --dir",
     "build-icons": "node scripts/build-icons.js",
-    "dist": "npm run build-icons && rimraf dist && electron-builder",
-    "dist:win": "npm run build-icons && rimraf dist && electron-builder --win",
-    "publish": "npm run build-icons && node scripts/write-release-notes.js && rimraf dist && electron-builder --publish never && node scripts/verify-packaged-boot.js && node scripts/ensure-release.js && node scripts/upload-release.js",
+    "dist": "npm run build-icons && node scripts/check-dist-free.js && rimraf dist && electron-builder",
+    "dist:win": "npm run build-icons && node scripts/check-dist-free.js && rimraf dist && electron-builder --win",
+    "publish": "npm run build-icons && node scripts/write-release-notes.js && node scripts/check-dist-free.js && rimraf dist && electron-builder --publish never && node scripts/verify-packaged-boot.js && node scripts/ensure-release.js && node scripts/upload-release.js",
     "check:source": "node scripts/verify-source.js",
     "check:ui": "node scripts/check-ui.js",
     "build:vendor": "node scripts/bundle-browser-libs.js",
@@ -34,8 +34,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@huggingface/transformers": "^4.3.0",
+    "@mlc-ai/web-llm": "^0.2.84",
     "@types/node": "^26.4.1",
-    "@vitest/ui": "^4.1.5",
+    "@vitest/ui": "^4.1.11",
     "electron": "github:castlabs/electron-releases#v42.11.0+wvcus",
     "electron-builder": "^26.15.3",
     "eslint": "^10.10.0",
@@ -43,20 +45,18 @@
     "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "rimraf": "^6.1.3",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
+    "tesseract.js": "^7.0.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.0",
-    "@huggingface/transformers": "^4.3.0",
-    "@mlc-ai/web-llm": "^0.2.84",
     "adm-zip": "^0.6.1",
     "imapflow": "^2.0.5",
     "mailparser": "^3.9.28",
     "qrcode": "^1.5.4",
-    "tar": "^7.5.22",
-    "tesseract.js": "^7.0.0"
+    "tar": "^7.5.22"
   },
   "build": {
     "appId": "com.vex.browser",

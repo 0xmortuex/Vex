@@ -352,7 +352,7 @@ describe('MCP servers', () => {
     require('../../src/renderer/js/vex-utils.js');
     const { McpClient } = require('../../src/renderer/js/mcp-client.js');
     McpClient.load();
-    McpClient.addServer('Mine', 'https://mcp.example.com/mcp', '');
+    await McpClient.addServer('Mine', 'https://mcp.example.com/mcp', '');
     const box = document.createElement('div');
     document.body.appendChild(box);
     McpClient.renderSettings(box);

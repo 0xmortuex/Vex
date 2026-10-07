@@ -177,6 +177,53 @@ function verifyCrx3(buf, { expectedId, publisherKeySha256 = WEBSTORE_PUBLISHER_K
   return { id: expectedId, publicKey: Buffer.from(developer.publicKey), archive: Buffer.from(crx.archive) };
 }
 
+// ---- a .crx picked from disk ---------------------------------------------------
+// Settings › Extensions › "Install from .zip / .crx". The file names its own
+// id (the signed crx_id), so there is no id to expect; otherwise the same
+// rules as above: every proof verifies and one is the developer's, whose key
+// hashes to that id. fromWebStore says whether the Web Store's own key signed
+// it too. A CRX2 file is refused by parseCrx3.
+function verifyLocalCrx(buf, { publisherKeySha256 = WEBSTORE_PUBLISHER_KEY_SHA256 } = {}) {
+  const crx = parseCrx3(buf);
+  const failed = (why) => new WebStoreError('bad-signature', `This package's signature does not check out (${why}). It may have been changed after it was made. Nothing was installed.`);
+  if (!crx.signedHeaderData || !crx.crxId || crx.crxId.length !== 16) throw failed('it names no extension id');
+  const id = idFromHex(crx.crxId.toString('hex'));
+  const proofs = [...crx.rsa, ...crx.ecdsa];
+  if (!proofs.length) throw failed('it is not signed');
+  const message = signedMessage(crx.signedHeaderData, crx.archive);
+  for (const proof of proofs) {
+    if (!verifyProof(proof, message)) throw failed('a signature does not match its contents');
+  }
+  const developer = proofs.find(p => idFromPublicKey(p.publicKey) === id);
+  if (!developer) throw failed('it is not signed by the extension\'s own key');
+  const fromWebStore = !!publisherKeySha256 && proofs.some(p => crypto.createHash('sha256').update(p.publicKey).digest('hex') === publisherKeySha256);
+  return { id, publicKey: Buffer.from(developer.publicKey), archive: Buffer.from(crx.archive), fromWebStore };
+}
+
+// Whether a package presents itself as a Chrome Web Store one: the store
+// writes its update address into the manifest and its hashes into
+// _metadata/verified_contents.json. Such a package must carry the store's
+// signature; a developer's own .crx has neither.
+function claimsWebStore(manifest, entryNames) {
+  const u = manifest && typeof manifest.update_url === 'string' ? manifest.update_url : '';
+  // No update_url, or not an address: no claim by it.
+  const url = URL.canParse(u) ? new URL(u) : null;
+  const fromGoogle = !!url && /(^|\.)google\.com$/i.test(url.hostname) && /\/service\/update2\/crx/.test(url.pathname);
+  return fromGoogle || (Array.isArray(entryNames) && entryNames.includes('_metadata/verified_contents.json'));
+}
+
+// The whole check of a picked .crx: signatures, the store claim, the manifest.
+// Returns what the permissions dialog shows plus what installing needs.
+function inspectLocalCrx(buf, { AdmZip, validateZip, publisherKeySha256 = WEBSTORE_PUBLISHER_KEY_SHA256 }) {
+  const verified = verifyLocalCrx(buf, { publisherKeySha256 });
+  const pkg = readPackage(verified.archive, { AdmZip, validateZip });
+  const names = new AdmZip(verified.archive).getEntries().map(e => e.entryName);
+  if (!verified.fromWebStore && claimsWebStore(pkg.manifest, names)) {
+    throw new WebStoreError('bad-signature', 'This package says it comes from the Chrome Web Store, but the Chrome Web Store did not sign it. It may have been changed after it was downloaded. Nothing was installed.');
+  }
+  return { ...verified, manifest: pkg.manifest, messages: pkg.messages, info: describe(pkg.manifest, pkg.messages) };
+}
+
 // ---- downloading -------------------------------------------------------------
 // fetch is Vex's bounded net.fetch (src/renderer/js/network.js): it follows
 // redirects and stops at maxBytes and timeoutMs.
@@ -336,5 +383,6 @@ function createWebStoreInstaller({ fetch, chromeVersion, AdmZip, validateZip, no
 module.exports = {
   WEBSTORE_PUBLISHER_KEY_SHA256, MAX_CRX_BYTES, PREVIEW_TTL_MS, WebStoreError,
   extensionIdFrom, updateUrl, idFromPublicKey, parseCrx3, verifyCrx3, signedMessage,
+  verifyLocalCrx, claimsWebStore, inspectLocalCrx,
   downloadCrx, readPackage, cautions, refusal, describe, createWebStoreInstaller,
 };

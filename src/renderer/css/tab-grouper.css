@@ -25,7 +25,7 @@
 .banner-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .banner-actions .btn-primary {
   padding: 6px 14px; font-size: 12px;
-  background: var(--primary); color: white; border: none;
+  background: var(--primary); color: var(--on-primary, #fff); border: none;
   border-radius: 6px; cursor: pointer; font-family: 'Outfit', sans-serif;
 }
 .banner-actions .btn-primary:hover { filter: brightness(1.1); }
@@ -168,7 +168,7 @@
 }
 .group-apply-toast.show { transform: translateX(-50%) translateY(0); }
 .undo-btn {
-  background: var(--primary); color: white; border: none;
+  background: var(--primary); color: var(--on-primary, #fff); border: none;
   padding: 5px 12px; border-radius: 6px;
   font-size: 12px; cursor: pointer;
   font-family: 'Outfit', sans-serif;
@@ -200,4 +200,7 @@
   font-size: 11px;
   color: var(--text-muted);
   font-family: 'Outfit', sans-serif;
+}
+.loading-card .group-loading-cancel {
+  margin-top: 18px;
 }

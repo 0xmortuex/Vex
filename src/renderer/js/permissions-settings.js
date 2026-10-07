@@ -130,7 +130,7 @@ const PermissionsSettings = (() => {
                   <div class="perm-row-origin">${_esc(origin)}</div>
                   <div class="perm-row-detail">
                     <span class="perm-badge ${_esc(decision)}">${badge}</span>
-                    ${_esc(NAMES[permission] || permission)}
+                    ${_esc(NAMES[permission] || (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
                   </div>
                 </div>
                 <button class="btn-secondary-sm" data-perm-key="${_esc(key)}">Revoke</button>

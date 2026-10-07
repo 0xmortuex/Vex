@@ -8,6 +8,7 @@ require('../../src/renderer/js/vex-utils.js');
 require('../../src/renderer/js/vex-icons.js');
 require('../../src/renderer/js/geo-search.js');
 const { Onboarding } = require('../../src/renderer/js/onboarding.js');
+const { SleepConsent } = require('../../src/renderer/js/sleep-consent.js');
 
 // The Settings controls the wizard drives, with the same change handlers
 // Settings would attach, recording what they were told.
@@ -49,10 +50,20 @@ describe('what the wizard covers', () => {
     expect(keys.indexOf('notifications')).toBe(keys.indexOf('done') - 1);
   });
 
-  it('the performance step lists the nine it promises', () => {
-    expect(Onboarding.PERF_FIELDS()).toHaveLength(9);
-    expect(Onboarding.PERF_FIELDS().map(f => f.key)).toEqual(expect.arrayContaining(['excludePinned', 'memCeiling']));
-    for (const p of Onboarding.PERF_PRESETS()) expect(Object.keys(p.values)).toEqual(expect.arrayContaining(['excludePinned', 'memCeiling']));
+  it('the performance step lists the ten it promises, the sleep choice first among them', () => {
+    expect(Onboarding.PERF_FIELDS()).toHaveLength(10);
+    expect(Onboarding.PERF_FIELDS().map(f => f.key)).toEqual(expect.arrayContaining(['sleep', 'excludePinned', 'memCeiling']));
+    for (const p of Onboarding.PERF_PRESETS()) expect(Object.keys(p.values)).toEqual(expect.arrayContaining(['sleep', 'excludePinned', 'memCeiling']));
+  });
+
+  // A preset that sleeps tabs used to leave the sleep choice at "never", so
+  // nothing it promised ever happened.
+  it('each preset says, and sets, whether Vex may sleep things by itself', () => {
+    const by = Object.fromEntries(Onboarding.PERF_PRESETS().map(p => [p.id, p.values.sleep]));
+    expect(by).toEqual({ balanced: 'ask', memory: 'auto', privacy: 'ask', nothing: 'never' });
+    // No "Sleep after" the Settings select cannot hold.
+    const minutes = Onboarding.PERF_FIELDS().find(f => f.key === 'minutes').select.map(x => x[0]);
+    expect(Math.max(...minutes)).toBe(60);
   });
 });
 
@@ -65,6 +76,37 @@ describe('remembering what was done', () => {
     expect(Onboarding._isStepDone('browsing')).toBe(false);
     localStorage.setItem('vex.browsingConfigured', 'true');
     expect(Onboarding._isStepDone('browsing')).toBe(true);
+  });
+});
+
+describe('the sleep choice and the language', () => {
+  it('a preset sets the one sleep choice the sleepers read', async () => {
+    globalThis.SleepConsent = SleepConsent;
+    settingsControls();
+    await Onboarding._perfApply({ sleep: 'auto', memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, httpsOnly: true, doh: 'off' });
+    expect(SleepConsent.mode()).toBe('auto');
+    await Onboarding._perfApply({ sleep: 'never', memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, httpsOnly: false, doh: 'off' });
+    expect(SleepConsent.mode()).toBe('never');
+    delete globalThis.SleepConsent;
+  });
+
+  it('a value the Settings control cannot hold is refused, not saved as a default', () => {
+    settingsControls();
+    expect(Onboarding._setControl('setting-mem-ceiling', 3300)).toBe(false);
+  });
+
+  it('choosing a language tells the toolbar at once', async () => {
+    const heard = vi.fn();
+    window.addEventListener('vex-lang-changed', heard);
+    Onboarding._pendingLang = 'tr';
+    const render = vi.spyOn(Onboarding, '_render').mockImplementation(() => {});
+    const overlay = document.createElement('div');
+    overlay.innerHTML = '<div id="ob-body"></div>';
+    await Onboarding._commitAndNext('language', overlay);
+    render.mockRestore();
+    window.removeEventListener('vex-lang-changed', heard);
+    expect(localStorage.getItem('vex.lang')).toBe('tr');
+    expect(heard).toHaveBeenCalledTimes(1);
   });
 });
 

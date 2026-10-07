@@ -2,7 +2,7 @@
 
 # Vex terms of use
 
-Effective date: 2026-10-02
+Effective date: 2026-10-07
 
 These terms cover the Vex browser for Windows, made by 0xmortuex and published at https://github.com/0xmortuex/Vex. By installing or using Vex you agree to them. If you do not agree, do not use Vex.
 
@@ -21,7 +21,7 @@ Keep your own copies of anything important. Vex makes backups of your profile be
 You are responsible for how you use Vex and for following the laws that apply to you. In particular:
 
 - **Tor.** Vex can download Tor and open private tabs through the Tor network. Tor is legal in most places but restricted in some. Check your local law before you use it.
-- **Network bypass for Discord (ByeDPI, zapret).** These tools change how your traffic looks so that network blocks do not catch it. Using them may break the rules of your network, school, employer or internet provider, or local law. You turn them on yourself, and the choice is yours.
+- **Network bypass for Discord (Light mode, ByeDPI, zapret).** These change how your traffic looks so that network blocks do not catch it. Using them may break the rules of your network, school, employer or internet provider, or local law. The Discord panel's "Light" mode (encrypted DNS lookups through Cloudflare and a split TLS greeting) is on by default and is applied every time Vex starts; you can set the bypass to Off. ByeDPI ("Strong") and zapret are used only if you turn them on yourself, and the choice is yours.
 - **Vencord.** Vex can download Vencord, a third-party Discord client mod, when you ask it to. Client mods may break Discord's terms of service, and Discord may act against your account. Use it at your own risk.
 - **Extensions.** Extensions you install come from other people. Vex does not review them. They run with the permissions you give them.
 - **Downloads and websites.** What you download and which sites you visit are up to you. Vex's safety checks (such as link warnings and the ad and tracker blocker) help, but they do not catch everything.

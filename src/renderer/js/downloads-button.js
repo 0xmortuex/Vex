@@ -127,7 +127,13 @@ const DownloadsButton = {
       const up = (ev) => {
         document.removeEventListener('mouseup', up, true);
         const at = document.elementFromPoint(ev.clientX, ev.clientY);
-        if (at && (at === under || under.contains(at) || at.contains(under))) under.click();
+        if (!(at && (at === under || under.contains(at) || at.contains(under)))) return;
+        // The click often lands on an icon's <svg>/<path>, which has no
+        // .click(): replay it on the button around it, or as a real click
+        // event on the element itself when nothing around it is a button.
+        const target = under.closest('button, a, [role="button"]') || under;
+        if (typeof target.click === 'function') target.click();
+        else target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
       };
       document.addEventListener('mouseup', up, true);
     });

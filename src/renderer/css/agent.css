@@ -10,7 +10,7 @@
   transition: all 0.15s; text-align: center;
 }
 .mode-btn:hover { border-color: var(--primary); color: var(--text); }
-.mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.mode-btn.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
 /* Agent step cards */
 .agent-step {

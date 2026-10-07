@@ -22,10 +22,83 @@ const EXTERNAL_PROTOCOLS = new Set([
 ]);
 
 function isExternalProtocol(url) {
-  if (!url) return false;
+  return externalScheme(url) !== null;
+}
+
+// The scheme of a link Vex may hand to another program, lower-cased; null for
+// anything not in the set above.
+function externalScheme(url) {
+  if (typeof url !== 'string' || !url) return null;
   const m = /^([a-z][a-z0-9+.-]*):/i.exec(url);
-  if (!m) return false;
-  return EXTERNAL_PROTOCOLS.has(m[1].toLowerCase());
+  if (!m) return null;
+  const scheme = m[1].toLowerCase();
+  return EXTERNAL_PROTOCOLS.has(scheme) ? scheme : null;
+}
+
+// What the question names: "<site> wants to open Microsoft Word".
+const EXTERNAL_APP_NAMES = {
+  roblox: 'Roblox', 'roblox-player': 'Roblox', 'roblox-studio': 'Roblox Studio',
+  mailto: 'your email program', tel: 'your phone app', sms: 'your messaging app',
+  msteams: 'Microsoft Teams', slack: 'Slack', zoommtg: 'Zoom', zoomus: 'Zoom', skype: 'Skype', discord: 'Discord',
+  vscode: 'Visual Studio Code', 'vscode-insiders': 'Visual Studio Code Insiders', obsidian: 'Obsidian',
+  spotify: 'Spotify', steam: 'Steam',
+  'ms-word': 'Microsoft Word', 'ms-excel': 'Microsoft Excel', 'ms-powerpoint': 'Microsoft PowerPoint',
+  itmss: 'iTunes', itms: 'iTunes', 'itms-apps': 'the App Store',
+  'web+mastodon': 'Mastodon',
+};
+function externalAppName(scheme) {
+  return EXTERNAL_APP_NAMES[scheme] || `the program for ${scheme}: links`;
+}
+
+// An Office link with a document address in it (ms-word:ofe|u|https://…):
+// Word itself fetches that document from the internet, outside Vex and its
+// proxy or Tor route, and may sign in to that server with the Windows account.
+// It is asked about every time, never opened on a remembered answer.
+function opensRemoteDocument(url) {
+  return typeof url === 'string' && /^ms-[a-z]+:/i.test(url) && /\|u\|/i.test(url);
+}
+
+// Pages that never open another program: a private window, an off-the-record
+// or burner tab, a throwaway identity, a Tor tab, and anything routed through
+// Tor. The program would reach the internet directly, and the page's visit
+// would leave a trace outside the private session.
+function refusesExternalApps(partition, ses) {
+  if (typeof partition !== 'string' || !partition.startsWith('persist:')) return true;
+  if (partition === 'persist:route-tor') return true;
+  return !!(ses && ses.__vexTor);
+}
+
+// A link to another program opens only shortly after the person clicked or
+// pressed a key on the page, as in Chrome: a page or an ad frame opening one by
+// itself, with nobody touching anything, is refused without a question.
+// Chrome's window for this is 5 s; a game's Play button that waits on its
+// server first (Roblox) needs a little longer.
+const USER_GESTURE_MS = 10000;
+function hasRecentGesture(lastAt, now = Date.now()) {
+  return Number.isFinite(lastAt) && now - lastAt >= 0 && now - lastAt <= USER_GESTURE_MS;
+}
+// The input that counts as the person acting on the page.
+const GESTURE_INPUT_TYPES = new Set(['mouseDown', 'mouseUp', 'keyDown', 'rawKeyDown', 'char', 'touchStart', 'touchEnd', 'gestureTap']);
+
+// === Fingerprint farbling seed (security scan M1) ===
+// One seed for every site and every session for the whole run made the farbled
+// canvas/audio hash the same on every site, in a Tor tab, a private window and
+// a normal tab alike: an identifier linking them, worse than none. The seed is
+// now an HMAC of the session's partition and the page's site under a key made
+// at launch, as Brave does: steady on one site in one session, unrelated
+// anywhere else, and new at every launch.
+function farbleSite(url) {
+  let host;
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return ''; }
+  if (!host || /^[\d.]+$/.test(host) || host.includes(':')) return host;   // an IP address is its own site
+  const labels = host.split('.');
+  // Two labels (example.com), or three under a two-part country suffix (example.co.uk).
+  const take = labels.length >= 3 && /^(?:co|com|net|org|gov|edu|ac|or|ne|go)\.[a-z]{2}$/.test(labels.slice(-2).join('.')) ? 3 : 2;
+  return labels.slice(-take).join('.');
+}
+function farbleSeed(key, partition, topUrl) {
+  const crypto = require('crypto');
+  return crypto.createHmac('sha256', key).update(String(partition || '') + '\n' + farbleSite(topUrl)).digest().readUInt32LE(0);
 }
 
 // === URL/path normalisation for argv from Windows shell ===
@@ -471,6 +544,15 @@ function parseChangelogList(md) {
 module.exports = {
   EXTERNAL_PROTOCOLS,
   isExternalProtocol,
+  farbleSite,
+  farbleSeed,
+  externalScheme,
+  externalAppName,
+  opensRemoteDocument,
+  refusesExternalApps,
+  hasRecentGesture,
+  USER_GESTURE_MS,
+  GESTURE_INPUT_TYPES,
   parseChangelogEntry,
   parseChangelogList,
   resolveAndReplaceMisspelling,
