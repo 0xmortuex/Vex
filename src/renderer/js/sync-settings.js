@@ -40,6 +40,22 @@ const SyncSettings = (() => {
 
   async function renderSyncPanel(container) {
     if (!container) return;
+    // A private window never syncs (sync-engine.js); its Settings used to
+    // offer the sign-in form, which signed the window in.
+    const off = SyncEngine.offInThisWindow ? SyncEngine.offInThisWindow() : '';
+    if (off) {
+      container.innerHTML = `
+        <div class="sync-section">
+          <div class="sync-header">
+            <div class="sync-icon-big">${VexIcons.svg('cloud', { size: 22 })}</div>
+            <div>
+              <div class="sync-title">${escapeHtml(off)}</div>
+              <div class="sync-subtitle">Nothing in this window is sent to your account or read from it. Sign in to Vex Sync or change it from a normal window.</div>
+            </div>
+          </div>
+        </div>`;
+      return;
+    }
     const state = SyncEngine.getState();
     // No Sync Worker URL: nothing can sync, whatever the saved state says. It
     // used to draw "Signed in as …" here (state left from an older server)

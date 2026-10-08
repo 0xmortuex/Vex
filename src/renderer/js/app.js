@@ -1390,6 +1390,9 @@ function vexOwnTextFocused(doc) {
         const pull = s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never';
         indicator.title = `Vex Sync — pushed ${push} · pulled ${pull}${s.lastError ? ' · error: ' + s.lastError : ''}`;
       }
+      // A private window never syncs (sync-engine.js).
+      const off = SyncEngine.offInThisWindow ? SyncEngine.offInThisWindow() : '';
+      if (off) indicator.title = off;
     };
     window.addEventListener('vex-sync-state', drawSyncIndicator);
     drawSyncIndicator();

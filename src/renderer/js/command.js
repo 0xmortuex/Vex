@@ -32,6 +32,9 @@ const CommandBar = {
     { id: 'dictation-settings', label: 'Dictation Settings', hint: 'Speech model, the language you speak, remove the downloaded model', icon: 'mic', action: () => Dictation.openSettings() },
     { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,
       get hint() { const c = CommandBar.lastCommand(); return c ? 'Again: ' + c.label : 'Runs the last command you used here once more'; },
+      // Not offered when the last command cannot run here (its when() says
+      // no — Send to My Devices on a private tab, for one).
+      when: () => { const c = CommandBar.lastCommand(); return !c || CommandBar._shown(c); },
       action: () => CommandBar.doAgain() },
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: 'plus', action: () => TabManager.createTab(START_URL, true) },
     { id: 'discover', label: 'Discover — everything Vex can do', hint: 'Every feature, by category, with "show me" on the real button', icon: 'compass', isPrimary: true, action: () => { if (typeof VexDiscover !== 'undefined') VexDiscover.open(); } },
@@ -978,6 +981,9 @@ const CommandBar = {
   doAgain() {
     const c = this.lastCommand();
     if (!c) { window.showToast?.('Nothing to do again yet — run something from Ctrl+K first'); return false; }
+    // Ctrl+Alt+A comes here without the list: the command's own when() still
+    // decides (it repeated Send to My Devices on a private tab).
+    if (!this._shown(c)) { window.showToast?.(c.label + ' cannot run here', 'warn'); return false; }
     this._execute(c);
     return true;
   },
