@@ -1583,6 +1583,9 @@ ipcMain.on('vex-lock:state', (e, locked) => {
   }
 });
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+// A copied password or one-time code, cleared after 30 s by the main process
+// even when Vex no longer has the focus (main/secret-clipboard.js).
+require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
 // Bookmarks and history from Chrome, Edge, Brave and Firefox on this PC, and
 // passwords from a CSV the person exported themselves (main/browser-import.js).
 require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing });

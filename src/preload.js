@@ -424,6 +424,9 @@ contextBridge.exposeInMainWorld('vex', {
   // file:// page and Chromium denies it the Notification API. Resolves once
   // Windows has shown the toast; rejects with the reason when it did not.
   notify: (title, body) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body) }),
+  // A password or one-time code onto the clipboard; the main process empties
+  // it after `seconds` if it is still there, focus or no focus.
+  copySecret: (text, seconds) => ipcRenderer.invoke('clipboard:write-secret', text, seconds),
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {
