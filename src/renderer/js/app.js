@@ -696,7 +696,11 @@ function vexOwnTextFocused(doc) {
       const v = e.target.value;
       const label = e.target.selectedOptions[0]?.textContent || v;
       Promise.resolve(VexGuiStyle.set(v)).then(
-        () => showToast('GUI Style: ' + label, 'info'),
+        () => {
+          const meta = ThemeManager.THEMES.find(t => t.id === ThemeManager.getCurrentTheme());
+          const own = typeof ThemeAuto !== 'undefined' && !!meta && VexGuiStyle.pickedByHand(v, ThemeAuto.isLightTheme(meta));
+          showToast('GUI Style: ' + label + (own ? ' in its own colours — Browser look colours switches back' : ''), 'info');
+        },
         (err) => {
           console.error('[Settings] GUI style switch failed:', err);
           guiSel.value = VexGuiStyle.get();

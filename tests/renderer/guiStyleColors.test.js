@@ -62,6 +62,26 @@ describe('VexGuiStyle colour mode', () => {
     expect(window.showToast).not.toHaveBeenCalled();
   });
 
+  // Firefox — dark picked under a light colour theme in theme colours looked
+  // exactly like Firefox (final review, 2026-10-09).
+  it('a light or dark look picked by hand against the theme\'s lightness shows its own colours', async () => {
+    localStorage.setItem('vex.guiColors', 'theme');
+    const G = await loadGuiStyle();
+    await G.set('firefox-dark');
+    expect(G.pickedByHand('firefox-dark', false)).toBe(false);   // a dark theme: it already looks dark
+    expect(G.getColors()).toBe('theme');
+    expect(G.pickedByHand('firefox-dark', true)).toBe(true);     // a light theme: the look's own dark colours
+    expect(G.getColors()).toBe('look');
+    G.setColors('theme');
+    await G.set('chrome');
+    expect(G.pickedByHand('chrome', false)).toBe(true);          // Chrome (light) under a dark theme
+    G.setColors('theme');
+    await G.set('xp');
+    expect(G.pickedByHand('xp', true)).toBe(false);              // a look with no light/dark version
+    expect(G.getColors()).toBe('theme');
+    expect(() => G.pickedByHand('xp')).toThrow(/lightness/);
+  });
+
   it('a theme pick under Classic leaves the colour mode alone', async () => {
     const G = await loadGuiStyle();
     await G.set('classic');

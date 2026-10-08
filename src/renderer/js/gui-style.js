@@ -427,6 +427,22 @@
     window.showToast?.('The browser look now uses your theme colours — Settings › GUI Style switches back', 'info', 4000);
   });
 
+  // The looks that come as a light and a dark version. Under 'theme' colours
+  // both versions wear the colour theme, so picking Firefox — dark with a
+  // light theme on changed nothing on screen (final review, 2026-10-09). The
+  // newest pick wins, as a theme pick does the other way round: a version
+  // picked by hand that is the other lightness from the theme shows its own
+  // colours. Returns true when it switched them.
+  const LOOK_LIGHTNESS = { chrome: 'light', firefox: 'light', fluent: 'light', 'chrome-dark': 'dark', 'firefox-dark': 'dark', 'fluent-dark': 'dark' };
+  function pickedByHand(style, themeIsLight) {
+    if (typeof themeIsLight !== 'boolean') throw new Error('pickedByHand needs the colour theme\'s lightness');
+    const lightness = LOOK_LIGHTNESS[style];
+    if (!lightness || currentColors() !== 'theme') return false;
+    if ((lightness === 'light') === themeIsLight) return false;
+    applyColors('look');
+    return true;
+  }
+
   function init() {
     document.body.dataset.guiColors = currentColors();
     apply(current());
@@ -447,6 +463,7 @@
     isBrowserLook,
     setColors: applyColors,
     getColors: currentColors,
+    pickedByHand,
     paintStartPage,
     render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
     // The stock shortcut set — the onboarding setup-style step builds its
