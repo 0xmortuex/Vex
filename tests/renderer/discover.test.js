@@ -123,7 +123,7 @@ describe('what is off is still shown', () => {
   });
 });
 
-describe('the Discover screen', () => {
+describe('the Discover screen', { timeout: 30000 }, () => {
   it('opens on a named category, with every category listed', () => {
     VexDiscover.open(VexFeatures.CATS[0].id);
     expect(document.getElementById('vex-discover')).toBeTruthy();
@@ -317,7 +317,14 @@ describe('the catalogue points at controls that exist in index.html', () => {
   });
 });
 
-describe('"New to you" — what you have never used', () => {
+// Opening "New to you" on an empty usage record renders the whole catalogue
+// (~230 cards with icons) into jsdom: ~130-240 ms on an idle machine, but past
+// vitest's 5 s default when the full suite shares the CPU with other runs
+// (seen 2026-10-08). The work is the point of these tests, so they get time
+// to do it rather than a smaller screen.
+const FULL_SCREEN = { timeout: 30000 };
+
+describe('"New to you" — what you have never used', FULL_SCREEN, () => {
   it('counts everything with no record of use', () => {
     localStorage.clear();
     expect(VexFeatures.unused()).toHaveLength(VexFeatures.ITEMS.length);

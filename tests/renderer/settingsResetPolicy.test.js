@@ -33,6 +33,8 @@ const USER_CONTENT_KEYS = [
   'vex.annotations', 'vex.pwNever', 'vex.aiMemory', 'vex.mcpServers',
   'vex.focusBlocklist', 'vex.shortcuts', 'vex.workspaceSnapshots', 'vex.downloads',
   'vex.autofillLog', 'vex.searchKeywords',
+  // The reading digest and its summaries are made content, not preferences.
+  'vex.readingDigest', 'vex.readingDigestCache',
 ];
 
 // Keys a control in the Settings panel writes; a reset that misses one leaves
@@ -47,6 +49,7 @@ const PREFERENCE_KEYS = [
   'vex.weatherLoc', 'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
   'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
+  'vex.readingDigest.newTab',
 ];
 
 describe('Reset to Defaults key policy', () => {
