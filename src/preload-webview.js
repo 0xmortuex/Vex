@@ -1391,6 +1391,230 @@ function _isVexStartPage(href) {
 })();
 
 
+// === Suggest a strong password — on a sign-up / new-password field ===
+//
+// When a field that is clearly asking for a NEW password gets the focus, this
+// asks the host ("vex-pwgen-ask"). The host decides whether this tab may use
+// the vault at all (never a private, off-the-record or Tor tab, never plain
+// HTTP, never a site set to "Never") and, if so, answers with a password made
+// by js/password-gen.js ("vex-pwgen-offer"). Only then does a small card appear
+// under the field. Using it takes a real click or key press on the card; it
+// fills the field and the confirm field after it, and tells the host
+// ("vex-pwgen-used"). Nothing is saved here: the host saves the login when the
+// form is submitted (the password capture above reports it).
+//
+// Conservative on purpose: autocomplete="new-password" always counts, a
+// current-password field never does, and anything else only on a form that
+// says it is a sign-up (its own attributes or its submit button), so a login
+// form never gets the card.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  const SIGNUP = /sign\s*-?\s*up|register|registration|create\s+(an\s+|your\s+|new\s+)?account|join\s+(now|free|us)|new\s+account|choose\s+(a\s+)?password|create\s+(a\s+)?password|new\s+password/i;
+  const OLD = /current|old|existing/i;
+  const CONFIRM = /confirm|repeat|retype|re-?enter|again|verify|verification|password2|passwd2|pass2/i;
+
+  function visible(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+    } catch { return false; }
+  }
+  function meta(el) {
+    try { return ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase(); } catch { return ""; }
+  }
+  function ac(el) { return String(el.getAttribute("autocomplete") || "").toLowerCase(); }
+  function passwordFields(scope) {
+    return Array.prototype.filter.call(scope.querySelectorAll("input[type=password]"), (p) => visible(p) && !p.disabled && !p.readOnly);
+  }
+  // Does the form (or, with no form, the page) say it creates an account?
+  function signupScope(scope) {
+    try {
+      let text = "";
+      if (scope !== document) text += " " + (scope.id || "") + " " + (scope.getAttribute("name") || "") + " " + (scope.getAttribute("action") || "") + " " + (scope.className || "");
+      const buttons = scope.querySelectorAll("button,input[type=submit],[role=button]");
+      for (let i = 0; i < buttons.length && i < 20; i++) {
+        const b = buttons[i];
+        text += " " + (b.textContent || "") + " " + (b.value || "") + " " + (b.getAttribute("aria-label") || "") + " " + (b.id || "");
+      }
+      return SIGNUP.test(text);
+    } catch { return false; }
+  }
+  // Is this the field a new password goes into (not its confirm twin)?
+  function isNewPasswordField(el) {
+    if (!el || el.tagName !== "INPUT" || String(el.type || "").toLowerCase() !== "password") return false;
+    if (el.disabled || el.readOnly || !visible(el)) return false;
+    const a = ac(el);
+    if (/current-password/.test(a)) return false;
+    if (/new-password/.test(a)) {
+      // A confirm field is filled together with the first one; offer on the first.
+      const scope = el.form || document;
+      const first = passwordFields(scope).find((p) => /new-password/.test(ac(p)));
+      return first === el || !first;
+    }
+    const m = meta(el);
+    if (OLD.test(m) || CONFIRM.test(m)) return false;
+    const scope = el.form || document;
+    const fields = passwordFields(scope);
+    if (!signupScope(scope)) return false;
+    // Two fields on a sign-up form: new + confirm. Offer on the first. Three or
+    // more (a change-password form without autocomplete hints) is left alone.
+    if (fields.length === 2) return fields[0] === el;
+    return fields.length === 1 && /new|create|choose|signup|sign-up|register/.test(m);
+  }
+  // The fields filled when the suggestion is used: this one and every later
+  // password field in the same form that is not the current password.
+  function targetsFor(el) {
+    const scope = el.form || document;
+    const fields = passwordFields(scope);
+    const at = fields.indexOf(el);
+    return fields.slice(Math.max(at, 0)).filter((p) => p === el || (!/current-password/.test(ac(p)) && !OLD.test(meta(p))));
+  }
+
+  const setter = (function () { try { return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; } catch { return null; } })();
+  function setValue(el, value) {
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const dismissed = new WeakSet();   // fields the person said no to (Escape)
+  let pending = null;                // { id, field } while the host decides
+  let card = null;                   // { host, field, id, reposition }
+  let seq = 0;
+
+  function closeCard() {
+    if (!card) return;
+    try { window.removeEventListener("scroll", card.reposition, true); window.removeEventListener("resize", card.reposition); } catch {}
+    try { card.host.remove(); } catch {}
+    card = null;
+  }
+
+  function showCard(field, offer) {
+    closeCard();
+    const t = (offer && offer.theme) || {};
+    const host = document.createElement("vex-password-suggestion");
+    host.setAttribute("style", "all:initial !important;position:fixed !important;z-index:2147483647 !important;display:block !important;");
+    const root = host.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent =
+      ":host{all:initial}" +
+      ".card{box-sizing:border-box;width:300px;max-width:calc(100vw - 16px);background:" + (t.surface || "#1e1e24") + ";color:" + (t.text || "#f2f2f5") + ";" +
+      "border:1px solid " + (t.border || "#3a3a44") + ";border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);font:13px/1.35 'Segoe UI',system-ui,sans-serif;overflow:hidden}" +
+      "button{all:unset;box-sizing:border-box;display:flex;gap:10px;align-items:flex-start;width:100%;padding:10px 12px;cursor:pointer}" +
+      "button:hover,button:focus-visible{background:" + (t.hover || "rgba(127,127,127,.14)") + "}" +
+      "button:focus-visible{outline:2px solid " + (t.primary || "#6c8cff") + ";outline-offset:-2px}" +
+      ".icon{flex:none;display:inline-flex;color:" + (t.primary || "#6c8cff") + ";margin-top:1px}" +
+      ".title{font-weight:600}" +
+      ".pw{font:12.5px/1.4 Consolas,'Cascadia Mono',monospace;word-break:break-all;margin-top:3px}" +
+      ".meta{font-size:11.5px;color:" + (t.muted || "#a0a0ab") + ";margin-top:3px}";
+    const box = document.createElement("div");
+    box.className = "card";
+    const button = document.createElement("button");
+    button.type = "button";
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    // The host's own VexIcons key, parsed as SVG (never as page HTML).
+    try {
+      const svg = new DOMParser().parseFromString(String(offer.icon || ""), "image/svg+xml").documentElement;
+      if (svg && svg.nodeName.toLowerCase() === "svg") icon.appendChild(document.importNode(svg, true));
+    } catch {}
+    const text = document.createElement("span");
+    const title = document.createElement("div"); title.className = "title"; title.textContent = "Use a strong password";
+    const pw = document.createElement("div"); pw.className = "pw"; pw.textContent = offer.password;
+    const m = document.createElement("div"); m.className = "meta"; m.textContent = (offer.label || "Strong") + " · saved when you submit";
+    text.append(title, pw, m);
+    button.append(icon, text);
+    button.setAttribute("aria-label", "Use a strong password suggested by Vex");
+    box.appendChild(button);
+    root.append(style, box);
+
+    function reposition() {
+      try {
+        const r = field.getBoundingClientRect();
+        if (!field.isConnected || r.width === 0) { closeCard(); return; }
+        const below = r.bottom + 4, height = box.offsetHeight || 80;
+        const top = (below + height > window.innerHeight && r.top - height - 4 > 0) ? r.top - height - 4 : below;
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - (box.offsetWidth || 300) - 8));
+        host.style.setProperty("top", top + "px", "important");
+        host.style.setProperty("left", left + "px", "important");
+      } catch { closeCard(); }
+    }
+    // The page keeps its focus while the card is clicked.
+    button.addEventListener("mousedown", (e) => { e.preventDefault(); });
+    button.addEventListener("click", (e) => {
+      // A click the page made up does nothing.
+      if (!e.isTrusted || !card || card.id !== offer.id) return;
+      const targets = targetsFor(field);
+      for (const p of targets) setValue(p, offer.password);
+      closeCard();
+      try { ipcRenderer.sendToHost("vex-pwgen-used", { id: offer.id, host: location.hostname.replace(/^www\./, ""), filled: targets.length }); } catch {}
+    });
+    (document.body || document.documentElement).appendChild(host);
+    card = { host, field, id: offer.id, button, reposition };
+    reposition();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+  }
+
+  ipcRenderer.on("vex-pwgen-offer", (_e, offer) => {
+    try {
+      if (!offer || !pending || offer.id !== pending.id || typeof offer.password !== "string" || !offer.password) return;
+      const field = pending.field;
+      pending = null;
+      // Still the focused, still-empty field it was asked for.
+      if (document.activeElement !== field || field.value || !isNewPasswordField(field)) return;
+      showCard(field, offer);
+    } catch {}
+  });
+
+  document.addEventListener("focusin", (e) => {
+    try {
+      const el = e.target;
+      if (card && el === card.host) return; // onto the card's own button
+      if (card && el !== card.field) closeCard();
+      if (location.protocol !== "https:") return; // the vault never saves over plain HTTP
+      if (!el || el.value || dismissed.has(el) || (card && card.field === el)) return;
+      if (!isNewPasswordField(el)) return;
+      const id = "pg" + (++seq) + "-" + Date.now();
+      pending = { id, field: el };
+      ipcRenderer.sendToHost("vex-pwgen-ask", {
+        id,
+        host: location.hostname.replace(/^www\./, ""),
+        maxLength: el.maxLength > 0 ? el.maxLength : 0,
+        minLength: el.minLength > 0 ? el.minLength : 0,
+      });
+    } catch {}
+  }, true);
+
+  document.addEventListener("focusout", (e) => {
+    try {
+      if (!card || (e.target !== card.field && e.target !== card.host)) return;
+      // Moving between the field and the card (Down arrow) keeps it open.
+      if (e.relatedTarget === card.host || e.relatedTarget === card.field) return;
+      setTimeout(() => { if (card && document.activeElement !== card.field && document.activeElement !== card.host) closeCard(); }, 0);
+    } catch {}
+  }, true);
+
+  document.addEventListener("keydown", (e) => {
+    try {
+      if (!card || !e.isTrusted) return;
+      if (e.key === "Escape") { dismissed.add(card.field); closeCard(); return; }
+      if (e.key === "ArrowDown" && e.target === card.field) { e.preventDefault(); card.button.focus(); }
+    } catch {}
+  }, true);
+
+  // Typing into the field means the person is choosing their own.
+  document.addEventListener("input", (e) => {
+    try { if (card && e.isTrusted && e.target === card.field) closeCard(); } catch {}
+  }, true);
+})();
+
+
 // === Snippets — a short abbreviation becomes the text you keep retyping ===
 //
 // The expansion happens HERE, in the page, because that is the only place the

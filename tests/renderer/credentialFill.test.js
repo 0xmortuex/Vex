@@ -63,9 +63,10 @@ it('rejects lookalike mail providers and private email readers', () => {
 });
 it('does not erase newer clipboard content when a copied password expires', async () => {
   let clipboard = '';
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
-    writeText: vi.fn(async value => { clipboard = value; }), readText: async () => clipboard,
-  } });
+  // The main process owns the clipboard for secrets (main/secret-clipboard.js).
+  const { createSecretClipboard } = require('../../src/main/secret-clipboard.js');
+  const service = createSecretClipboard({ clipboard: { writeText: value => { clipboard = value; }, readText: () => clipboard, clear: () => { clipboard = ''; } } });
+  window.vex = { ...(window.vex || {}), copySecret: async (text, seconds) => service.write(text, seconds) };
   await PasswordVault._copyPassword('secret');
   clipboard = 'Newly copied text';
   await vi.advanceTimersByTimeAsync(30000);

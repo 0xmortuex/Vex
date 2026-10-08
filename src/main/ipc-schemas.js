@@ -104,7 +104,9 @@ define('storage-save', [string(64), value => value !== undefined]);
 define('storage:history-add', [shape({ url: web, title: optional(string(4096)) })]);
 // Desktop notifications and reminders are sent by the main process (see
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
-define('notify:show', [shape({ title: string(200), body: optional(string(2000)) })]);
+// A password or one-time code to copy, and how long until it is cleared.
+define('clipboard:write-secret', [value => typeof value === 'string' && value.length > 0 && value.length <= 10000, optional(value => Number.isInteger(value) && value >= 5 && value <= 300)]);
+define('notify:show',[shape({ title: string(200), body: optional(string(2000)) })]);
 // A reminder is timed (`at`, optionally repeating) or site-triggered (`site`);
 // either may carry the page it is about and an urgent flag.
 const weekdayList = value => Array.isArray(value) && value.length > 0 && value.length <= 7 && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6);

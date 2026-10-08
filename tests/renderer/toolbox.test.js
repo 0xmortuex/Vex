@@ -105,10 +105,9 @@ describe('ToolboxLib jwt/case/pass/markdown', () => {
     expect(ToolboxLib.caseConvert('hello world', 'kebab')).toBe('hello-world');
     expect(ToolboxLib.caseConvert('hello world', 'constant')).toBe('HELLO_WORLD');
   });
-  it('generates a password of the right length from the pool', () => {
-    const pw = ToolboxLib.passGen(20, { upper: false, lower: true, digits: false, symbols: false });
-    expect(pw.length).toBe(20);
-    expect(/^[abcdefghijkmnpqrstuvwxyz]+$/.test(pw)).toBe(true);
+  // Passwords come from js/password-gen.js (tests/renderer/passwordGen.test.js).
+  it('has no password generator of its own any more', () => {
+    expect(ToolboxLib.passGen).toBeUndefined();
   });
   it('renders basic markdown safely', () => {
     const src = ['# Hi', '', '**b** and <script>'].join(String.fromCharCode(10));

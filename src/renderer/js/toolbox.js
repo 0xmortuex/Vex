@@ -192,20 +192,6 @@ const ToolboxLib = {
     }
   },
   // --- Password generator (crypto-random; excludes look-alike chars) ---
-  passGen(len, opts) {
-    opts = opts || {};
-    let pool = '';
-    if (opts.lower !== false) pool += 'abcdefghijkmnpqrstuvwxyz';
-    if (opts.upper !== false) pool += 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    if (opts.digits !== false) pool += '23456789';
-    if (opts.symbols) pool += '!@#$%^&*-_=+?';
-    if (!pool) pool = 'abcdefghijkmnpqrstuvwxyz';
-    len = Math.max(4, Math.min(128, len || 16));
-    const a = new Uint32Array(len);
-    try { crypto.getRandomValues(a); } catch { for (let i = 0; i < len; i++) a[i] = Math.floor(Math.random() * 4294967296); }
-    let out = ''; for (let i = 0; i < len; i++) out += pool[a[i] % pool.length];
-    return out;
-  },
   // --- Minimal, safe Markdown -> HTML (escapes first) ---
   mdToHtml(md) {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1991,7 +1977,7 @@ const Toolbox = {
       ],
       details: [
         { title: 'What entropy means', text: 'Each bit doubles the work an attacker must do. Under 50 bits is weak, 70 is comfortable, 100+ is beyond reach for anything foreseeable.' },
-        { title: 'How strong a word is', text: 'This list holds about 900 words, so each one adds roughly 9.8 bits. Seven words is about 69 bits — the default for that reason. Fewer than six is weaker than it looks, which is why the estimate below is shown for every result.' },
+        { title: 'How strong a word is', text: 'This list holds about 830 words, so each one adds roughly 9.7 bits. Seven words is about 68 bits — the default for that reason. Fewer than six is weaker than it looks, which is why the estimate below is shown for every result.' },
         { title: 'Guessing rates assumed', rows: [
           ['Online service', 'about 1,000 guesses per second — rate limits apply.'],
           ['Stolen database', '100 billion per second on rented hardware, if it was hashed badly.'],
@@ -1999,39 +1985,19 @@ const Toolbox = {
         { title: 'Words beat symbols', text: 'Seven random words from a large list beat a short mangled word: it is longer, far easier to type and remember, and the mangling patterns people use are already in every cracking dictionary.' },
       ],
       run({ input, opt }) {
-        const WORDS = ('able acid aged also area army away baby back ball band bank base bath bear beat been beer bell belt bend best bike bill bird blow blue boat body bomb bond bone book boom boot born boss both bowl bulk burn bush busy cafe cage cake call calm came camp card care case cash cast cave cell chat chef chip city clay clip club coal coat code coin cold come cook cool cope copy core corn cost crew crop crow cube cure curl cyan dark dash data date dawn days dead deal dean dear debt deck deep deer demo dent deny desk dial diet dime dirt dish disk dive dock does dole dome done door dose dove down drag draw drew drop drum dual duck dull duly dusk dust duty each earn ease east easy echo edge edit eggs else emit ends envy epic even ever evil exam exit eyes face fact fade fail fair fall fame farm fast fate fear feed feel feet fell felt file fill film find fine fire firm fish fist five flag flat flew flex flip flow flux foam fold folk font food foot fore fork form fort four free frog from fuel full fund gain game gate gave gear gene gift girl give glad glow goal goat goes gold golf gone good gown grab gray grew grid grim grip grow gulf hair half hall halt hand hang hard harm hash hate haul have hawk haze head heal heap hear heat heel held hell helm help herb herd here hero hide high hike hill hint hire hold hole holy home hood hoof hook hope horn hose host hour huge hunt hurt icon idea idle inch iron isle item jade jail jazz jean join joke jump june junk jury just keen keep kept kick kind king kiss kite knee knew knit knot know lace lack lady laid lake lamb lamp land lane last late lava lawn lazy lead leaf leak lean leap left lend lens less levy liar life lift like limb lime line link lion list live load loan lock loft logo lone long look loop lord lose loss lost loud love luck lump lung made mail main make male mall malt many maps mark mask mass mast mate math maze mead meal mean meat meet melt memo mend menu mere mesh mess mice mild mile milk mill mind mine mint miss mist mode mold mole monk mood moon more moss most moth move much mule mush must mute myth nail name nape navy near neat neck need neon nest news next nice nick nine node none noon norm nose note noun nova numb oath odds odor okay omit once only onto onus open oral orbit oval oven over pace pack page paid pain pair pale palm park part pass past path peak pear peel peer pens pest pick pier pile pill pine pink pipe pity plan play plea plot plug plum plus poem poet pole poll pond pony pool poor pope pork port pose post pour pray prep prey prim prop pull pulp pump pure push quit quiz race rack raft rage raid rail rain rake ramp rank rare rash rate rave read real reap rear reed reef reel rely rent rest rice rich ride ride ring riot rise risk rite road roam robe rock rode role roll roof room root rope rose ross rout ruby rude ruin rule rush rust sage said sail sake sale salt same sand sang sank save scan scar seal seam seat seed seek seem seen self sell semi send sent sett shed shim ship shoe shop shot show shut sick side sift sigh sign silk sill silo sing sink site size skin skip slab slam slap sled slid slim slip slot slow slug snap snow soap sock soda sofa soft soil sold sole solo some song soon sore sort soul soup sour span spin spit spot spur stab star stay stem step stew stir stop stow stub stun such suit sung sunk sure surf swam swan swap sway swim tack tail take tale talk tall tank tape task taxi team tear tech tell tend tent term test text than that thaw thee them then they thin this thus tide tidy tier tile till tilt time tiny tire toad toes toil told toll tomb tone took tool torn toss tour town trace tram trap tray tree trek trim trio trip trot true tube tuck tuna tune turf turn twin twig type ugly unit upon urge used user vain vale vane vary vase vast veil vein vent verb very vest veto vial vibe vice view vine visa void volt vote wade wage wait wake walk wall wand want ward ware warm warn wash wasp wave wavy weak wear weed week weep well went were west what when whim whip whom wide wife wild will wind wine wing wink wipe wire wise wish wolf wood wool word wore work worm worn wrap wren yard yarn yawn year yell yoga yolk your zero zest zinc zone zoom').split(' ');
+        // One generator for all of Vex (js/password-gen.js): crypto only, with
+        // rejection sampling, so no character or word is likelier than another.
+        const G = window.VexPasswordGen;
+        if (!G) throw new Error('The password generator did not load');
         const n = Math.max(1, Math.min(200, parseInt(input.trim(), 10) || 1));
-        const pick = (arr) => arr[crypto.getRandomValues(new Uint32Array(1))[0] % arr.length];
-
-        let make, bits;
-        if (opt.kind === 'passphrase') {
-          const w = Math.max(3, Math.min(20, parseInt(opt.words, 10) || 5));
-          make = () => Array.from({ length: w }, () => pick(WORDS)).join('-');
-          bits = w * Math.log2(WORDS.length);
-        } else {
-          let pool = 'abcdefghijklmnopqrstuvwxyz';
-          if (opt.upper) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-          if (opt.digits) pool += '0123456789';
-          if (opt.symbols) pool += '!@#$%^&*()-_=+[]{};:,.?';
-          if (opt.ambiguous) pool = pool.replace(/[0O1lI|]/g, '');
-          const L = Math.max(4, Math.min(256, parseInt(opt.len, 10) || 20));
-          make = () => Array.from({ length: L }, () => pick([...pool])).join('');
-          bits = L * Math.log2(pool.length);
-        }
-
-        const guesses = Math.pow(2, bits - 1);
-        const human = (secs) => {
-          if (secs < 60) return Math.round(secs) + ' seconds';
-          if (secs < 3600) return Math.round(secs / 60) + ' minutes';
-          if (secs < 86400) return Math.round(secs / 3600) + ' hours';
-          if (secs < 3.15e7) return Math.round(secs / 86400) + ' days';
-          const yrs = secs / 3.15e7;
-          if (yrs < 1e6) return Math.round(yrs).toLocaleString() + ' years';
-          return yrs.toExponential(1) + ' years';
-        };
+        const make = opt.kind === 'passphrase'
+          ? () => G.passphrase({ words: opt.words })
+          : () => G.generate({ length: opt.len, lower: true, upper: opt.upper, digits: opt.digits, symbols: opt.symbols, avoidAmbiguous: opt.ambiguous });
+        const results = Array.from({ length: n }, make);
+        const s = G.strength(results[0].bits);
         return {
-          output: Array.from({ length: n }, make).join('\n'),
-          note: `${Math.round(bits)} bits · offline crack ${human(guesses / 1e11)} · online ${human(guesses / 1e3)}`,
+          output: results.map(r => r.password).join('\n'),
+          note: `${Math.round(s.bits)} bits (${s.label.toLowerCase()}) · offline crack ${s.offline} · online ${s.online}`,
         };
       },
     });

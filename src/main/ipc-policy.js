@@ -16,6 +16,11 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
 const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|app:restore-settings|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|mcp:auth-set)/;
+// Channels only Vex's own window may use — never a page, an extension, the
+// Picture-in-Picture pop-out or any other auxiliary window, whatever
+// isAuxiliary comes to allow. clipboard:write-secret puts a password on the
+// system clipboard (main/secret-clipboard.js).
+const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -59,6 +64,8 @@ function installIpcPolicy(ipcMain, security) {
         throw new Error('Untrusted IPC sender');
       }
     }
+    // Past the general rule above, a UI-only channel still needs Vex's own window.
+    if (UI_ONLY_CHANNELS.has(channel) && !ui) throw new Error('Not available outside Vex’s own window');
     // A <webview> that has just attached reports its id as -1; the DevTools
     // opener then matches the page by URL and checks ownership itself, so the
     // id check only applies when there is an id to check.
@@ -123,4 +130,4 @@ function installIpcPolicy(ipcMain, security) {
     }
   });
 }
-module.exports = { installIpcPolicy, validatePayload };
+module.exports = { installIpcPolicy, validatePayload, UI_ONLY_CHANNELS };

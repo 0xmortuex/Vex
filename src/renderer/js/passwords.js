@@ -57,11 +57,24 @@ const PasswordVault = {
         if (this._host(d.host) === actualHost) this._rememberEmail(actualHost, d.email);
         return;
       }
+      if (e.channel === 'vex-pwgen-ask' || e.channel === 'vex-pwgen-used') {
+        this._onSuggestMessage(webview, e.channel, (e.args && e.args[0]) || {}, actualHost);
+        return;
+      }
       if (e.channel !== 'vex-cred-submit') return;
       const raw = (e.args && e.args[0]) || {};
       if (this._host(raw.host) !== actualHost) return;
       const data = { ...raw, host: actualHost };
       if (!data.host || !data.username || !data.password) return;
+      // The password Vex suggested and the person used: submitting the form is
+      // the go-ahead to keep it, so it is saved now (and said so) instead of
+      // asking a second time and losing it when the card times out.
+      const suggested = webview._vexPwSuggestion;
+      if (suggested && suggested.accepted && suggested.host === data.host && suggested.password === data.password) {
+        webview._vexPwSuggestion = null;
+        await this._saveSuggested(data);
+        return;
+      }
       if (this._never().includes(data.host)) return;
       try {
         const existing = await window.vex.vaultGet(data.host);
@@ -101,6 +114,50 @@ const PasswordVault = {
     card.querySelector('[data-not]').addEventListener('click', close);
     card.querySelector('[data-never]').addEventListener('click', () => { this._addNever(data.host); window.showToast?.('Never for ' + data.host); close(); });
     setTimeout(() => { if (document.body.contains(card)) close(); }, 20000);
+  },
+
+  // --- "Use a strong password" on a site's sign-up form ---
+  // preload-webview.js asks ('vex-pwgen-ask') when a new-password field gets
+  // the focus. attach() has already refused private, off-the-record and Tor
+  // tabs (VexTabPolicy) and anything not on https — the same rules as saving
+  // and filling — and the host is checked against the page here. The password
+  // is made by js/password-gen.js and kept on the webview until the form is
+  // submitted; 'vex-pwgen-used' marks that the person really used it.
+  _onSuggestMessage(webview, channel, d, actualHost) {
+    if (this._host(d.host) !== actualHost || typeof d.id !== 'string' || !d.id || d.id.length > 64) return;
+    if (channel === 'vex-pwgen-used') {
+      const s = webview._vexPwSuggestion;
+      if (!s || s.id !== d.id || s.host !== actualHost) return;
+      s.accepted = true;
+      window.showToast?.('Strong password filled — Vex saves it when you submit the form');
+      return;
+    }
+    if (this._never().includes(actualHost)) return; // saving is off here, so a suggestion would be lost
+    if (!window.VexPasswordGen) { console.error('[Vault] the password generator did not load'); return; }
+    const made = window.VexPasswordGen.forField({ maxLength: d.maxLength, minLength: d.minLength });
+    if (!made) return; // the field holds fewer than 8 characters
+    webview._vexPwSuggestion = { id: d.id, host: actualHost, password: made.password, accepted: false };
+    const icon = (typeof VexIcons !== 'undefined' ? VexIcons.svg('key', { size: 16 }) : '').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    try {
+      webview.send('vex-pwgen-offer', { id: d.id, password: made.password, label: window.VexPasswordGen.strength(made.bits).label, theme: this._suggestTheme(), icon });
+    } catch (err) { console.error('[Vault] could not offer a password to the page:', err.message); }
+  },
+
+  // The card draws in the page, so it gets Vex's current colours as values.
+  _suggestTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name) => String(cs.getPropertyValue(name) || '').trim().slice(0, 200);
+    return { surface: v('--surface'), text: v('--text'), muted: v('--text-muted'), border: v('--border'), primary: v('--primary'), hover: v('--vex-hover-fill') };
+  },
+
+  async _saveSuggested(data) {
+    let r;
+    try { r = await window.vex.vaultSave(data); }
+    catch (err) { r = { ok: false, error: err.message }; }
+    if (r && r.ok) { window.showToast?.(`Password saved for ${data.host}`); return; }
+    // Never lose it quietly: say so, and keep the usual offer up to try again.
+    window.showToast?.('Could not save the new password: ' + ((r && r.error) || 'unknown error'), 'error');
+    this._offerSave(data, false);
   },
 
   // Is a real login form on screen right now? Mirrors the field rules the
@@ -225,7 +282,11 @@ const PasswordVault = {
       if(!window.__vexLoginTypedWired){window.__vexLoginTypedWired=true;
         document.addEventListener('input',function(e){try{var el=e.target;if(!e.isTrusted||!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if(t==='password'||looksLikeUser(el))window.__vexLoginTyped=true;}catch(e){}},true);
       }
-      function fill(force){if(location.origin!==ORIGIN||window.__vexLoginTyped)return 0;var n=0;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(visible);var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value)&&fire(user,U))n++;if(pw&&(force||!pw.value)&&fire(pw,P))n++;return n;}
+      // A field asking for a NEW password (a sign-up or change-password form)
+      // never gets the saved one: it went into a sign-up form's first field
+      // and hid "Use a strong password" there (found 2026-10-08).
+      function isNewPw(el){return /new-password/i.test(el.getAttribute('autocomplete')||'');}
+      function fill(force){if(location.origin!==ORIGIN||window.__vexLoginTyped)return 0;var n=0;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(function(el){return visible(el)&&!isNewPw(el);});var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value)&&fire(user,U))n++;if(pw&&(force||!pw.value)&&fire(pw,P))n++;return n;}
       var filled=fill(false);
       if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
         document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
@@ -279,6 +340,102 @@ const PasswordVault = {
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
   },
 
+  // --- Settings → Passwords: the generator ---
+  // Kept for this session only (not a saved setting), so the next visit to the
+  // panel picks up where the last left off.
+  _genOpts: { mode: 'characters', length: 20, lower: true, upper: true, digits: true, symbols: true, avoidAmbiguous: false, words: 8, separator: '-', capitalize: false, number: false },
+
+  _generatorCard() {
+    const o = this._genOpts;
+    const card = document.createElement('div');
+    card.id = 'vex-pwgen';
+    card.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:12px;margin:0 0 12px;background:var(--bg)';
+    const btn = 'padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;display:inline-flex;align-items:center;gap:5px';
+    const check = (key, label) => `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer"><input type="checkbox" data-opt="${key}" ${o[key] ? 'checked' : ''} style="accent-color:var(--primary)">${label}</label>`;
+    const seg = (mode, label) => `<button type="button" data-mode="${mode}" aria-pressed="${o.mode === mode}" style="padding:4px 12px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;${o.mode === mode ? 'background:var(--primary);color:var(--on-primary)' : 'background:transparent;color:var(--text-muted)'}">${label}</button>`;
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="display:inline-flex;color:var(--primary)">${VexIcons.svg('key', { size: 15 })}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">Generate a password</span>
+        <span role="group" aria-label="Kind of password" style="display:inline-flex;gap:2px;padding:2px;border:1px solid var(--border);border-radius:8px">${seg('characters', 'Characters')}${seg('words', 'Words')}</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="pwgen-out" readonly spellcheck="false" aria-label="Generated password" style="flex:1;min-width:0;padding:7px 9px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;font:13px/1.3 Consolas,'Cascadia Mono',monospace">
+        <button type="button" id="pwgen-again" style="${btn}" title="Make another" aria-label="Make another password">${VexIcons.svg('refresh', { size: 13 })}</button>
+        <button type="button" id="pwgen-copy" style="${btn}">${VexIcons.svg('copy', { size: 13 })}Copy</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:8px 0 10px">
+        <span id="pwgen-bar" aria-hidden="true" style="display:inline-flex;gap:3px">${'<span style="width:22px;height:5px;border-radius:3px;background:var(--border)"></span>'.repeat(4)}</span>
+        <span id="pwgen-strength" style="font-size:11.5px;color:var(--text-muted)"></span>
+      </div>
+      <div data-for="characters" style="display:${o.mode === 'characters' ? 'block' : 'none'}">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:8px">Length
+          <input type="range" data-num="length" min="8" max="64" value="${o.length}" style="flex:1;accent-color:var(--primary)" aria-label="Password length">
+          <span data-show="length" style="min-width:22px;text-align:right">${o.length}</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 14px">${check('upper', 'A–Z')}${check('lower', 'a–z')}${check('digits', '0–9')}${check('symbols', 'Symbols')}${check('avoidAmbiguous', 'Avoid lookalikes (0/O, 1/l)')}</div>
+      </div>
+      <div data-for="words" style="display:${o.mode === 'words' ? 'block' : 'none'}">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:8px">Words
+          <input type="range" data-num="words" min="4" max="12" value="${o.words}" style="flex:1;accent-color:var(--primary)" aria-label="Number of words">
+          <span data-show="words" style="min-width:22px;text-align:right">${o.words}</span></label>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text)">Between words
+            <select data-sep style="padding:3px 6px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px">
+              ${[['-', 'Dash'], [' ', 'Space'], ['.', 'Dot'], ['_', 'Underscore']].map(([v, l]) => `<option value="${v}" ${o.separator === v ? 'selected' : ''}>${l}</option>`).join('')}
+            </select></label>
+          ${check('capitalize', 'Capitalise')}${check('number', 'Add a digit')}
+        </div>
+      </div>
+      <div id="pwgen-error" role="alert" style="display:none;font-size:12px;color:var(--danger);margin-top:8px"></div>`;
+
+    const out = card.querySelector('#pwgen-out');
+    const err = card.querySelector('#pwgen-error');
+    const paint = () => {
+      const G = window.VexPasswordGen;
+      err.style.display = 'none';
+      let made;
+      try {
+        if (!G) throw new Error('The password generator did not load');
+        made = o.mode === 'words'
+          ? G.passphrase({ words: o.words, separator: o.separator, capitalize: o.capitalize, number: o.number })
+          : G.generate({ length: o.length, lower: o.lower, upper: o.upper, digits: o.digits, symbols: o.symbols, avoidAmbiguous: o.avoidAmbiguous });
+      } catch (e) {
+        out.value = '';
+        err.textContent = e.message;
+        err.style.display = 'block';
+        card.querySelector('#pwgen-strength').textContent = '';
+        card.querySelectorAll('#pwgen-bar > span').forEach(s => { s.style.background = 'var(--border)'; });
+        return;
+      }
+      out.value = made.password;
+      const s = G.strength(made.bits);
+      const colour = ['var(--danger)', 'var(--warning, #e0a400)', 'var(--success)', 'var(--success)'][s.level];
+      card.querySelectorAll('#pwgen-bar > span').forEach((seg, i) => { seg.style.background = i <= s.level ? colour : 'var(--border)'; });
+      card.querySelector('#pwgen-strength').textContent = `${s.label} · ${Math.round(s.bits)} bits · a stolen database: ${s.offline}`;
+    };
+
+    card.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+      o.mode = b.dataset.mode;
+      const fresh = this._generatorCard();
+      card.replaceWith(fresh);
+      fresh.querySelector(`[data-mode="${o.mode}"]`)?.focus();
+    }));
+    card.querySelectorAll('[data-opt]').forEach(c => c.addEventListener('change', () => { o[c.dataset.opt] = c.checked; paint(); }));
+    card.querySelectorAll('[data-num]').forEach(r => r.addEventListener('input', () => {
+      o[r.dataset.num] = parseInt(r.value, 10);
+      card.querySelector(`[data-show="${r.dataset.num}"]`).textContent = r.value;
+      paint();
+    }));
+    card.querySelector('[data-sep]').addEventListener('change', (e) => { o.separator = e.target.value; paint(); });
+    card.querySelector('#pwgen-again').addEventListener('click', paint);
+    card.querySelector('#pwgen-copy').addEventListener('click', async () => {
+      try { await this._copyPassword(out.value); }
+      catch (e) { window.showToast?.('Could not copy: ' + e.message, 'error'); }
+    });
+    paint();
+    return card;
+  },
+
   // --- Settings → Passwords ---
   async renderPanel(container) {
     if (!container) return;
@@ -292,6 +449,7 @@ const PasswordVault = {
     }
     container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Saved logins are encrypted with your OS keychain (Windows DPAPI) and autofilled on matching sites. Vex offers to save when you log in.</p>`;
     if (!list.length) container.innerHTML += '<div style="font-size:12.5px;color:var(--text-muted)">No saved passwords yet — log in somewhere and Vex will offer to save.</div>';
+    container.insertBefore(this._generatorCard(), container.children[1] || null);
     list.sort((a, b) => (a.host || '').localeCompare(b.host || ''));
     list.forEach(entry => {
       const row = document.createElement('div');
