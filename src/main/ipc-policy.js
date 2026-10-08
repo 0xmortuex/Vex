@@ -22,8 +22,9 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
-// system clipboard (main/secret-clipboard.js).
-const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret']);
+// system clipboard (main/secret-clipboard.js). theme:read-wallpaper hands
+// back the owner's desktop picture (main/wallpaper.js).
+const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

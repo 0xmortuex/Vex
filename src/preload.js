@@ -465,6 +465,8 @@ contextBridge.exposeInMainWorld('vex', {
   // with no id the old single Custom Image.
   getCustomThemeImage: (id) => (id ? ipcRenderer.invoke('theme:get-custom-image', id) : ipcRenderer.invoke('theme:get-custom-image')),
   setCustomThemeImage: (dataUrl, id) => (id ? ipcRenderer.invoke('theme:set-custom-image', dataUrl, id) : ipcRenderer.invoke('theme:set-custom-image', dataUrl)),
+  // A theme from your Windows wallpaper (js/theme-from-image.js): read only.
+  readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
   // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),

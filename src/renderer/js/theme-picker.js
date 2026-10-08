@@ -107,6 +107,7 @@ const ThemePicker = {
     grid.className = 'vtp-grid';
     own.forEach(t => grid.appendChild(this._makeCard(t, lookColours ? null : current)));
     grid.appendChild(this._makeOwnCard());
+    grid.appendChild(this._makeFromPictureCard());
     container.append(h, grid);
     section('All themes', ThemeManager.THEMES.filter(t => !t.user));
   },
@@ -123,6 +124,22 @@ const ThemePicker = {
       const from = ThemeManager.getCurrentTheme();
       this.close();
       ThemeStudio.open({ from });
+    });
+    return card;
+  },
+
+  // "From a picture…": the editor, then a picture (or the wallpaper) to take
+  // the colours from (js/theme-from-image.js).
+  _makeFromPictureCard() {
+    const card = document.createElement('button');
+    card.className = 'vtp-card vtp-make-own';
+    card.dataset.theme = 'from-picture';
+    card.innerHTML = `
+      <div class="vtp-thumb vtp-make-own-thumb">${VexIcons.svg('image', { size: 30 })}<span>A picture or your wallpaper</span></div>
+      <div class="vtp-label"><span class="vtp-label-text">From a picture…</span></div>`;
+    card.addEventListener('click', () => {
+      this.close();
+      ThemeStudio.openFromPicture().catch(err => ThemeStudio._report(err));
     });
     return card;
   },

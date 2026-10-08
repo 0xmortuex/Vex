@@ -198,6 +198,8 @@ define('system-theme:get', []);
 const themeId = value => typeof value === 'string' && /^user-[a-z]{4,24}$/.test(value);
 define('theme:get-custom-image', [optional(themeId)]);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value)), optional(themeId)]);
+// A theme from your Windows wallpaper (src/main/wallpaper.js): read only.
+define('theme:read-wallpaper', []);
 define('site:clear-data cookies:list', [shape({ url: web, partition: optional(string(160)) })]);
 // Editing one cookie: the name and the three things that decide which cookie
 // of that name it is (domain, path, secure) come straight back from the list.
