@@ -19,6 +19,9 @@ const VexExtUi = {
 
   init() {
     if (!window.vex || typeof window.vex.extensionsUiState !== 'function') return;
+    // A private window runs no extensions, and main refuses it every
+    // extensions: channel - asking only logged that refusal.
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) return;
     window.vex.onExtensionsUiState((s) => this._set(s));
     window.vex.extensionsUiState().then((s) => this._set(s), (err) => console.error('[Extensions] could not read what extensions show:', err && err.message));
     // An extension's "_execute_action" shortcut: its popup, or its button's click.

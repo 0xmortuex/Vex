@@ -355,7 +355,9 @@ const DiscordMemory = {
       if (localStorage.getItem(this.KEY) === '1500') localStorage.setItem(this.KEY, '1000');
       localStorage.setItem(this.LOWERED_KEY, '1');
     }
-    if (window.vex && typeof window.vex.setDiscordLite === 'function') {
+    // Lighter Discord is one switch in main, set by the main window; a private
+    // window is refused discord: channels and only logged the refusal.
+    if (window.vex && typeof window.vex.setDiscordLite === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
       window.vex.setDiscordLite(this.lite()).catch(err => window.VexProblems?.note('Discord memory', 'Could not set Lighter Discord', err));
     }
     this._watchHide();

@@ -135,3 +135,20 @@ describe('the toolbar button: badge and menu', () => {
     expect(window.vex.extensionsMenuClick).toHaveBeenCalledWith({ partition: 'persist:main', id: OTHER, item: 3, tab: 7, ctx: { kind: 'action', pageUrl: 'https://example.com/page' } });
   });
 });
+
+// A private window runs no extensions; asking main only logged its refusal
+// (final review, 2026-10-09).
+describe('in a private window', () => {
+  it('never asks main what extensions show', async () => {
+    window.vex.extensionsUiState = vi.fn(() => Promise.resolve(state()));
+    window.vex.onExtensionsUiState = vi.fn();
+    window.vex.onExtensionsRunAction = vi.fn();
+    window.VexTabPolicy = { isPrivateWindow: true };
+    await load();
+    expect(window.vex.extensionsUiState).not.toHaveBeenCalled();
+    window.VexTabPolicy = { isPrivateWindow: false };
+    await load();
+    expect(window.vex.extensionsUiState).toHaveBeenCalledTimes(1);
+    delete window.VexTabPolicy;
+  });
+});

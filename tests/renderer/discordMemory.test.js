@@ -183,6 +183,19 @@ describe('the limit, lowered once', () => {
   });
 });
 
+describe('a private window', () => {
+  it('leaves Lighter Discord to the main window (main refuses it discord: channels)', () => {
+    window.vex.setDiscordLite = vi.fn(async () => true);
+    window.VexTabPolicy = { isPrivateWindow: true };
+    DiscordMemory.start();
+    expect(window.vex.setDiscordLite).not.toHaveBeenCalled();
+    delete window.VexTabPolicy;
+    DiscordMemory.start();
+    expect(window.vex.setDiscordLite).toHaveBeenCalledTimes(1);
+    clearInterval(DiscordMemory._timer);
+  });
+});
+
 describe('Discord as a tab', () => {
   beforeEach(() => {
     globalThis.TabManager = { tabs: [], switchTab: vi.fn(), createTab: vi.fn() };
