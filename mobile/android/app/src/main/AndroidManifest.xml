@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name="com.vex.browser.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|density"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Vex is a browser: it has to be offerable as the default one,
+                 which means handling VIEW for http/https with both BROWSABLE
+                 and DEFAULT, and declaring the APP_BROWSER category. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <category android:name="android.intent.category.APP_BROWSER" />
+                <data android:scheme="about" />
+                <data android:scheme="javascript" />
+            </intent-filter>
+
+            <!-- Text selected in another app, or an assistant's "search the web":
+                 "Search with Vex". No BROWSABLE here — that category means the
+                 filter can be reached from a web link, which this cannot: it is
+                 started by another app with an explicit action and a query
+                 extra, and declaring it without a data element is an error lint
+                 is right about. -->
+            <intent-filter>
+                <action android:name="android.intent.action.WEB_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!-- Long-pressing the icon: a new tab, a private one, the
+                 microphone and the camera. Each shortcut names this activity
+                 explicitly, so none of its actions needs a filter here. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!-- LiteRT-LM's GPU backend loads these at runtime; without the
+             declarations Android refuses the dlopen on API 30+ and the engine
+             quietly falls back to the CPU. Neither is required: a phone without
+             OpenCL still runs the model, slower. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+
+        <!-- The home-screen search bar. -->
+        <receiver
+            android:name="com.vex.browser.widget.SearchWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_search_info" />
+        </receiver>
+
+        <!-- Keeps Vex alive, with a progress notification, while it saves a
+             video stream or downloads an on-device model. -->
+        <service
+            android:name="com.vex.browser.work.LongWork"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Keeps a page being read aloud going with the screen off, with
+             Pause and Stop in the notification and on the lock screen. -->
+        <service
+            android:name="com.vex.browser.speech.ReadAloud"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Wakes for a reminder you set on a page. -->
+        <receiver
+            android:name="com.vex.browser.remind.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- Puts those alarms back after a reboot or an update: Android drops
+             them on a restart, and the phone may not open Vex before they are
+             due. Exported because the system sends these; it acts only on
+             them, and only re-arms what Vex itself stored. -->
+        <receiver
+            android:name="com.vex.browser.remind.ReminderBoot"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Downloads land in the public Downloads folder; only pre-Q needs the write bit. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Reminders: exact alarms are asked for and quietly done without when
+         the system says no; boot-completed puts them back after a restart. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Sites asking for camera/microphone (video calls) and location. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+
+    <!-- Needed on API 30+ so shouldOverrideUrlLoading can hand mailto:/tel:/
+         intent: links to whatever app owns them. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <!-- The camera beside the files, when a page's file input wants a photo or a video. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+    </queries>
+</manifest>

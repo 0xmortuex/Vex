@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vex</title>
+<!-- viewport-fit=cover so the chrome can sit inside the notch/gesture insets -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+
+<!-- One icon set, referenced with <use>. Drawn on a 24px grid, 1.85 stroke. -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-menu-lines" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4l2.5 5.2 5.5.8-4 3.9.9 5.6L12 17l-4.9 2.5.9-5.6-4-3.9 5.5-.8z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 14v5h14v-5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 6H6a2 2 0 00-2 2v9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-arrow-up-left" viewBox="0 0 24 24"><path d="M17 17L7 7M7 7v7M7 7h7"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 104-7.2M3.5 4v4h4"/><path d="M12 8v4.5l3 1.7"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10m0 0l-4-4m4 4l4-4M5 18h14"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 9.5-4.1-1.9-7-5.3-7-9.5V6z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 118 0v2.5"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 017.5-2"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.4 3.3 8.5S14.2 18.1 12 20.5c-2.2-2.4-3.3-5.4-3.3-8.5S9.8 5.9 12 3.5z"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3H11v17H6.5A2.5 2.5 0 014 17.5z"/><path d="M20 5.5A2.5 2.5 0 0017.5 3H13v17h4.5a2.5 2.5 0 002.5-2.5z"/></symbol>
+  <symbol id="i-find" viewBox="0 0 24 24"><path d="M4 6h10M4 11h7M4 16h5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="M19 18l2.5 2.5"/></symbol>
+  <symbol id="i-desktop" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="11" rx="2"/><path d="M9 20h6M12 16v4"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.7"/><path d="M4 17l5-4 4 3 3-2.5 4 3.5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5c4.7 0 8.5 3.4 8.5 7.6 0 2.6-2.1 4.2-4.6 4.2h-1.6c-1 0-1.8.8-1.8 1.8 0 .5.2.9.4 1.2.3.4.4.8.4 1.2 0 1-.8 1.8-1.8 1.8-4.7 0-8.5-3.8-8.5-8.9S7.3 3.5 12 3.5z"/><circle cx="8" cy="10" r="1.1"/><circle cx="12" cy="7.5" r="1.1"/><circle cx="16" cy="10" r="1.1"/></symbol>
+  <symbol id="i-private" viewBox="0 0 24 24"><path d="M3 13.5c2-3.5 5.2-5.5 9-5.5s7 2 9 5.5"/><circle cx="8" cy="16" r="2.6"/><circle cx="16" cy="16" r="2.6"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7" rx="2"/><path d="M7 14h10v6H7z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6.5 7l.8 13h9.4l.8-13"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 014 19V8a1.5 1.5 0 011.5-1.5H10"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.9" r="1"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 4.5l8.5 15h-17z"/><path d="M12 10v4"/><circle cx="12" cy="16.7" r="1"/></symbol>
+  <symbol id="i-tabs" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="13" height="13" rx="2.5"/><path d="M7.5 6.5v-1A1.5 1.5 0 019 4h9.5A1.5 1.5 0 0120 5.5V15a1.5 1.5 0 01-1.5 1.5h-1"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4.5 12L20 5l-6.2 14.5-2.4-6z"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3M9 21h6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3.5M15.5 12v2.5"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6M20 12a8 8 0 01-13.7 5.6"/><path d="M17 3v4h-4M7 21v-4h4"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5h3L12 5v14l-5-4.5H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a7.5 7.5 0 010 11"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1.5 1.5 0 011.5 1.5v9A1.5 1.5 0 0120 20H4a1.5 1.5 0 01-1.5-1.5v-9A1.5 1.5 0 014 8z"/><circle cx="12" cy="13.5" r="3.5"/></symbol>
+  <symbol id="i-translate" viewBox="0 0 24 24"><path d="M4 6h10M9 4v2c0 4-2.5 7-5 8M7 11c1.5 3 4 4.5 6 5"/><path d="M13 20l4-10 4 10M14.5 17h5"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-lock-closed" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 118 0v2.5"/><circle cx="12" cy="15" r="1.3"/></symbol>
+</svg>
+
+<div id="progress" class="progress" aria-hidden="true"><i></i></div>
+
+<!-- The tab bar. Hidden on a phone, where there is no room for it and the grid
+     switcher is the better answer; shown on a tablet, in split screen, or in
+     landscape on a big phone — which is where Samsung Internet shows its own. -->
+<nav id="tabstrip" class="tabstrip" aria-label="Tabs" hidden>
+  <div class="tabstrip-list" id="tabstrip-list"></div>
+  <button class="tabstrip-new" id="tabstrip-new" aria-label="New tab"><svg><use href="#i-plus"/></svg></button>
+</nav>
+
+<!-- The content rect: never painted. The native tab WebView is placed over it. -->
+<main id="content" class="content" aria-label="Page"></main>
+
+<!-- Video controls, shown while something is playing. -->
+<div id="mediabar" class="mediabar" hidden>
+  <button class="tb-btn" id="media-playpause" aria-label="Play or pause"><svg><use href="#i-video"/></svg></button>
+  <button class="tb-btn" id="media-back10" aria-label="Back ten seconds"><svg><use href="#i-back"/></svg></button>
+  <button class="tb-btn" id="media-fwd10" aria-label="Forward ten seconds"><svg><use href="#i-forward"/></svg></button>
+  <button class="mediabar-label" id="media-label" aria-label="Speed, brightness and sound">Video</button>
+  <button class="tb-btn" id="media-pop" aria-label="Pop out"><svg><use href="#i-external"/></svg></button>
+  <button class="tb-btn" id="media-close" aria-label="Hide controls"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- Reading the page aloud. In the column, like the other two bars. -->
+<div id="speakbar" class="speakbar" hidden>
+  <button class="tb-btn" id="speak-toggle" aria-label="Pause or carry on"><svg><use href="#i-pause"/></svg></button>
+  <button class="tb-btn" id="speak-prev" aria-label="Previous paragraph"><svg><use href="#i-back"/></svg></button>
+  <button class="tb-btn" id="speak-next" aria-label="Next paragraph"><svg><use href="#i-forward"/></svg></button>
+  <span class="speakbar-label" id="speak-label">Reading</span>
+  <button class="tb-btn speakbar-rate" id="speak-rate" aria-label="Reading speed">1×</button>
+  <button class="tb-btn" id="speak-close" aria-label="Stop reading"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- Find in page. -->
+<div id="findbar" class="findbar" hidden>
+  <input id="find-input" class="find-input" type="text" placeholder="Find in page" enterkeyhint="search"
+         autocapitalize="off" autocorrect="off" spellcheck="false">
+  <span class="find-count" id="find-count"></span>
+  <button class="tb-btn" id="find-prev" aria-label="Previous match"><svg><use href="#i-up"/></svg></button>
+  <button class="tb-btn" id="find-next" aria-label="Next match"><svg><use href="#i-down"/></svg></button>
+  <button class="tb-btn" id="find-close" aria-label="Close find"><svg><use href="#i-close"/></svg></button>
+</div>
+
+<!-- Start page: drawn by the chrome, shown when no page is loaded. -->
+<section id="start" class="start" hidden>
+  <header class="start-head">
+    <div class="start-mark">Vex</div>
+    <p class="start-sub" id="start-sub">A browser built just for you.</p>
+  </header>
+  <button class="start-search" id="start-search">
+    <svg><use href="#i-search"/></svg><span>Search or type a URL</span>
+  </button>
+  <div class="start-section">
+    <div class="quick-row">
+      <button class="quick-chip" id="start-private"><svg><use href="#i-private"/></svg>Private</button>
+      <button class="quick-chip" id="start-history"><svg><use href="#i-history"/></svg>History</button>
+      <button class="quick-chip" id="start-bookmarks"><svg><use href="#i-star"/></svg>Saved</button>
+      <button class="quick-chip" id="start-reading-btn"><svg><use href="#i-list"/></svg>Reading</button>
+      <button class="quick-chip" id="start-scan"><svg><use href="#i-qr"/></svg>Scan</button>
+      <button class="quick-chip" id="start-ai"><svg><use href="#i-sparkle"/></svg>Ask</button>
+    </div>
+  </div>
+  <div class="start-section" id="start-top-wrap" hidden>
+    <h2>Most visited</h2>
+    <div class="tiles" id="start-tiles"></div>
+  </div>
+  <div class="start-section" id="start-reading-wrap" hidden>
+    <h2>Saved to read</h2>
+    <div class="rail" id="start-reading"></div>
+  </div>
+  <div class="start-section" id="start-recent-wrap" hidden>
+    <h2>Pick up where you left off</h2>
+    <div class="rail" id="start-recent"></div>
+  </div>
+  <div class="start-section" id="start-marks-wrap" hidden>
+    <h2>Bookmarks</h2>
+    <div class="rail" id="start-marks"></div>
+  </div>
+  <div class="start-section" id="start-remote-wrap" hidden>
+    <h2>Open on your PC</h2>
+    <div class="rail" id="start-remote"></div>
+  </div>
+</section>
+
+<!-- Bottom chrome. -->
+<nav id="toolbar" class="toolbar" aria-label="Browser toolbar">
+  <!-- The buttons either side of the pill are yours to choose (Settings →
+       Appearance → Toolbar buttons); the pill itself is always there. -->
+  <div class="tb-slot" id="tb-left"></div>
+  <button class="urlpill" id="tb-url" aria-label="Address and search">
+    <span class="urlpill-icon" id="tb-icon" aria-hidden="true"><svg><use href="#i-search"/></svg></span>
+    <span class="urlpill-text muted" id="tb-url-text">Search or type a URL</span>
+    <span class="urlpill-reader" id="tb-reader" role="button" aria-label="Open in Reader" hidden><svg><use href="#i-book"/></svg></span>
+    <span class="urlpill-shield" id="tb-shield" hidden><svg><use href="#i-shield"/></svg><span id="tb-shield-count">0</span></span>
+  </button>
+  <div class="tb-slot" id="tb-right"></div>
+</nav>
+
+<!-- The buttons, on a bar of their own, in the two layouts that split them
+     from the address bar: Samsung Internet's (address at the top, buttons at
+     the bottom) and Safari's (address above the buttons, both at the bottom).
+     The two slots above move in here; ui.js applyToolbarPosition(). -->
+<nav id="navbar" class="navbar" aria-label="Browser buttons" hidden></nav>
+
+<!-- Omnibox. -->
+<div id="omnibox" class="omnibox" hidden>
+  <div class="omnibox-bar">
+    <button class="tb-btn" id="omni-cancel" aria-label="Cancel"><svg><use href="#i-close"/></svg></button>
+    <input id="omni-input" class="omnibox-input" type="text" inputmode="url" autocapitalize="off"
+           autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Search or type a URL">
+    <button class="tb-btn" id="omni-voice" aria-label="Search by voice"><svg><use href="#i-mic"/></svg></button>
+    <button class="tb-btn" id="omni-scan" aria-label="Scan a QR code"><svg><use href="#i-qr"/></svg></button>
+  </div>
+  <div class="omnibox-chips" id="omni-chips"></div>
+  <ul id="omni-results" class="omnibox-results" role="listbox"></ul>
+</div>
+
+<!-- Tab switcher. -->
+<div id="tabgrid" class="tabgrid" hidden>
+  <header class="tabgrid-head">
+    <button class="seg" id="tg-normal" aria-pressed="true">Tabs</button>
+    <button class="seg" id="tg-private" aria-pressed="false">Private</button>
+    <button class="tb-btn" id="tg-close-all" aria-label="Close all tabs"><svg><use href="#i-trash"/></svg></button>
+  </header>
+  <div class="tabgrid-search">
+    <input id="tg-search" type="text" placeholder="Search tabs" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="tabgrid-scroll"><div id="tabgrid-list" class="tabgrid-list"></div></div>
+  <footer class="tabgrid-foot">
+    <button class="pill-btn" id="tg-new">New tab</button>
+    <button class="pill-btn ghost" id="tg-done">Done</button>
+  </footer>
+</div>
+
+<!-- One sheet element, reused by the menu, the site sheet and the long-press menu. -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-scrim" id="sheet-scrim"></div>
+  <div class="sheet-body" role="dialog" aria-label="Menu">
+    <div class="sheet-grip"></div>
+    <h2 class="sheet-title" id="sheet-title" hidden></h2>
+    <p class="sheet-sub" id="sheet-sub" hidden></p>
+    <div class="sheet-quick" id="sheet-quick" hidden></div>
+    <div class="sheet-list" id="sheet-list"></div>
+  </div>
+</div>
+
+
+<!-- Reader. -->
+<div id="reader" class="reader" hidden>
+  <div class="reader-tools">
+    <button class="tb-btn" id="reader-close" aria-label="Close reader"><svg><use href="#i-close"/></svg></button>
+    <span class="grow" id="reader-meta"></span>
+    <button class="tb-btn" id="reader-type" aria-label="Typeface and width"><svg><use href="#i-text"/></svg></button>
+    <button class="tb-btn" id="reader-smaller" aria-label="Smaller text"><svg><use href="#i-down"/></svg></button>
+    <button class="tb-btn" id="reader-bigger" aria-label="Bigger text"><svg><use href="#i-up"/></svg></button>
+    <button class="tb-btn" id="reader-speak" aria-label="Read it aloud"><svg><use href="#i-speaker"/></svg></button>
+    <button class="tb-btn" id="reader-ai" aria-label="Ask the assistant"><svg><use href="#i-sparkle"/></svg></button>
+  </div>
+  <!-- How far through it you are: a hairline, because a reader is not a dashboard. -->
+  <div class="reader-progress"><i id="reader-progress"></i></div>
+  <article class="reader-body" id="reader-body"></article>
+</div>
+
+<!-- The PDF reader. Android's WebView cannot draw one, so Vex does. -->
+<div id="pdfview" class="pdfview" hidden>
+  <header class="pdf-head">
+    <button class="tb-btn" id="pdf-close" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    <div class="pdf-title">
+      <span id="pdf-name" class="pdf-name"></span>
+      <span id="pdf-count" class="pdf-count"></span>
+    </div>
+    <button class="tb-btn" id="pdf-find" aria-label="Find in this PDF"><svg><use href="#i-search"/></svg></button>
+    <button class="tb-btn" id="pdf-out" aria-label="Smaller"><svg><use href="#i-minus"/></svg></button>
+    <button class="tb-btn" id="pdf-in" aria-label="Bigger"><svg><use href="#i-plus"/></svg></button>
+    <button class="tb-btn" id="pdf-share" aria-label="Share"><svg><use href="#i-share"/></svg></button>
+    <button class="tb-btn" id="pdf-download" aria-label="Download"><svg><use href="#i-download"/></svg></button>
+  </header>
+  <div id="pdf-findbar" class="findbar pdf-findbar" hidden>
+    <input id="pdf-find-input" class="find-input" type="text" placeholder="Find in this PDF" enterkeyhint="search"
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <span class="find-count" id="pdf-find-count"></span>
+    <button class="tb-btn" id="pdf-find-prev" aria-label="Previous match"><svg><use href="#i-up"/></svg></button>
+    <button class="tb-btn" id="pdf-find-next" aria-label="Next match"><svg><use href="#i-down"/></svg></button>
+    <button class="tb-btn" id="pdf-find-close" aria-label="Close find"><svg><use href="#i-close"/></svg></button>
+  </div>
+  <div id="pdf-pages" class="pdf-pages"></div>
+</div>
+
+<!-- Full-screen panel: history, bookmarks, downloads, settings, assistant. -->
+<div id="panel" class="panel" hidden>
+  <header class="panel-head">
+    <button class="tb-btn" id="panel-back" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <h1 id="panel-title">Panel</h1>
+    <button class="tb-btn text" id="panel-action" hidden></button>
+  </header>
+  <div class="panel-search" id="panel-search" hidden>
+    <input id="panel-search-input" type="text" placeholder="Search" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<!-- QR scanner: the camera, full screen, with a frame to aim through. -->
+<div id="scan" class="scan" hidden>
+  <video id="scan-video" class="scan-video" muted playsinline></video>
+  <div class="scan-frame"></div>
+  <p class="scan-hint">Point the camera at a QR code</p>
+  <button class="pill-btn ghost scan-cancel" id="scan-cancel">Cancel</button>
+</div>
+
+<!-- Hand this page to the device next to you. -->
+<div id="qrshare" class="qrshare" hidden>
+  <div class="sheet-scrim" id="qrshare-scrim"></div>
+  <div class="qrshare-card">
+    <h2 id="qrshare-title">Scan to open</h2>
+    <div id="qrshare-canvas" class="qrshare-canvas"></div>
+    <p id="qrshare-url" class="qrshare-url"></p>
+    <button class="pill-btn ghost" id="qrshare-close">Done</button>
+  </div>
+</div>
+
+
+<!-- One dialog for the three questions the chrome asks: a name, a yes/no, or
+     a code to write down. Android has no window.prompt in a WebView worth
+     using, and a browser that borrows the page's dialogs is a phishing kit. -->
+<div id="dialog" class="dialog" hidden>
+  <div class="sheet-scrim" id="dialog-scrim"></div>
+  <div class="dialog-card" role="dialog" aria-modal="true">
+    <h2 id="dialog-title">Vex</h2>
+    <p id="dialog-message" class="dialog-message" hidden></p>
+    <input id="dialog-input" class="dialog-input" type="text" enterkeyhint="done" hidden
+           autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div id="dialog-code" class="recovery-code" hidden></div>
+    <div class="dialog-buttons">
+      <button class="pill-btn ghost" id="dialog-cancel">Cancel</button>
+      <button class="pill-btn" id="dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="vendor/jsqr.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="js/shared/sync-crypto.js"></script>
+<script src="js/shared/sync-records.js"></script>
+<script src="js/shared/data-contracts.js"></script>
+<script src="js/shared/search-shortcuts.js"></script>
+<script src="js/themes-data.js"></script>
+<script src="js/dom.js"></script>
+<script src="js/db.js"></script>
+<script src="js/bridge.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/search.js"></script>
+<script src="js/tabs.js"></script>
+<script src="js/history.js"></script>
+<script src="js/collections.js"></script>
+<script src="js/adblock.js"></script>
+<script src="js/shield.js"></script>
+<script src="js/site-rules.js"></script>
+<script src="js/permissions.js"></script>
+<script src="js/reader.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/report.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/clear.js"></script>
+<script src="js/translate.js"></script>
+<script src="js/downloads.js"></script>
+<script src="js/local-ai.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/agent.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/remind.js"></script>
+<script src="js/library.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/synced-notes.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/errors.js"></script>
+<script src="js/media.js"></script>
+<script src="js/speak.js"></script>
+<script src="js/gestures.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/views.js"></script>
+<script src="js/start.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/lab.js"></script>
+<script src="js/welcome.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
