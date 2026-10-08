@@ -601,7 +601,7 @@ function vexOwnTextFocused(doc) {
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
     'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.agentShowCursor',
-    'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart',
+    'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
     'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',
     'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
     // The sleep model (js/sleep-consent.js) and Discord's memory rows.
@@ -1022,6 +1022,9 @@ function vexOwnTextFocused(doc) {
   if (channelSel) { channelSel.value = UpdateNotifier.channel(); channelSel.addEventListener('change', () => UpdateNotifier.setChannel(channelSel.value)); }
   const updateOnStart = document.getElementById('setting-update-on-start');
   if (updateOnStart) { updateOnStart.checked = UpdateNotifier.checksOnStart(); updateOnStart.addEventListener('change', () => UpdateNotifier.setChecksOnStart(updateOnStart.checked)); }
+  // The "What's new" card after an update (js/update-log.js).
+  const whatsNewCard = document.getElementById('setting-whats-new-card');
+  if (whatsNewCard && window.VexWhatsNew) { whatsNewCard.checked = window.VexWhatsNew.cardEnabled(); whatsNewCard.addEventListener('change', () => window.VexWhatsNew.setCardEnabled(whatsNewCard.checked)); }
 
   // Downloads: subscribe to events at startup so downloads before panel-open
   // still register (toast + badge).

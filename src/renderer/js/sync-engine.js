@@ -58,6 +58,8 @@ const SyncEngine = (() => {
     // renderer mirrors the list here so it travels, and imports what arrives
     // (js/quick-reminder.js). Only the machine that set one wakes Windows for it.
     'vex.reminders',
+    // Settings › About › Show what is new after an update (js/update-log.js).
+    'vex.whatsNewCard',
   ];
 
   // Lists synced item by item, so two devices' entries merge instead of one

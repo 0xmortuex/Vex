@@ -43,6 +43,7 @@
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
+  <link rel="stylesheet" href="css/update-log.css">
   <link rel="stylesheet" href="css/location-settings.css">
   <link rel="stylesheet" href="css/tour.css">
   <link rel="stylesheet" href="css/tasks.css">
@@ -1086,6 +1087,10 @@
               <div class="setting-toggle-row" style="margin-bottom:12px">
                 <span>Check for updates when Vex starts <span style="color:var(--text-muted);font-size:11px">· asks GitHub for the latest release; off, Vex only checks when you press Check for Updates</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-update-on-start" aria-label="Check for updates when Vex starts" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:12px">
+                <span>Show what is new after an update <span style="color:var(--text-muted);font-size:11px">· a small card with the highlights, once per version; Ctrl+K "What's New" always has the full notes</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-whats-new-card" aria-label="Show what is new after an update" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-row" style="margin-bottom:16px">
                 <div class="setting-label" style="display:block"><strong>Update channel</strong>
