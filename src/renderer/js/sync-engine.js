@@ -22,6 +22,18 @@ const SyncEngine = (() => {
     return u;
   }
 
+  // A private window never syncs. Its storage is its own and thrown away, so
+  // anything it pulled would sit in a window meant to keep nothing, and
+  // anything it pushed would be built from that. Main refuses it the saved
+  // sign-in, but its Settings could still sign in afresh: that registered a
+  // device named after it, pulled the account's bookmarks into the window and
+  // pushed (found 2026-10-08). Nothing here reaches the network from one.
+  const PRIVATE_OFF = 'Sync is off in private windows';
+  function privateWindow() {
+    return !!(typeof window !== 'undefined' && window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow);
+  }
+  function refuseInPrivate() { if (privateWindow()) throw new Error(PRIVATE_OFF); }
+
   // Keys in localStorage that should be synced across devices.
   const SYNC_KEYS = [
     'vex.bookmarks',
@@ -128,6 +140,7 @@ const SyncEngine = (() => {
   // ===== AUTH =====
 
   async function requestCode(email) {
+    refuseInPrivate();
     requireSyncUrl();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/request-code`, {
       method: 'POST',
@@ -142,6 +155,7 @@ const SyncEngine = (() => {
   }
 
   async function verifyCode(email, code, deviceName) {
+    refuseInPrivate();
     requireSyncUrl();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/verify-code`, {
       method: 'POST',
@@ -191,6 +205,7 @@ const SyncEngine = (() => {
   }
 
   async function enrollWithRecoveryCode(email, code, recoveryCode, deviceName) {
+    refuseInPrivate();
     requireSyncUrl();
     const cleanHex = SyncCrypto.parseRecoveryCode(recoveryCode);
     const keyBytes = SyncCrypto.hexToKey(cleanHex);
@@ -556,6 +571,7 @@ const SyncEngine = (() => {
   // refuses the push until we merge, so pull and try once more instead of
   // failing with "Push returned 409" (found 2026-09-29). Auto-push uses this too.
   async function pushNow() {
+    if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
     const first = await pushOnce();
     if (!first.conflict) return first;
     const pulled = await pullNow();
@@ -613,6 +629,7 @@ const SyncEngine = (() => {
   }
 
   async function pullNow({ restore = false } = {}) {
+    if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
     if (!syncWorkerUrl()) {
       console.log('[Sync] not configured — skipping pull');
       return { ok: false, reason: 'sync-not-configured' };
@@ -690,6 +707,7 @@ const SyncEngine = (() => {
   // ===== AUTO-SYNC =====
 
   function startAutoSync() {
+    if (privateWindow()) return;
     stopAutoSync();
     if (!syncWorkerUrl()) {
       console.log('[Sync] not configured — no push/pull timers started');
@@ -713,6 +731,7 @@ const SyncEngine = (() => {
   // revoked session and an account with genuinely no devices all looked the
   // same, and the one case that needs the user's attention looked like success.
   async function listDevices() {
+    refuseInPrivate();
     if (!state.enabled) throw new Error('Sync is not signed in');
     requireSyncUrl();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices`, {
@@ -728,6 +747,7 @@ const SyncEngine = (() => {
   // Throws on failure, so "Device removed" is never shown for a request the
   // server refused.
   async function removeDevice(deviceId) {
+    refuseInPrivate();
     if (!state.enabled) throw new Error('Sync is not signed in');
     requireSyncUrl();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/devices/${deviceId}`, {
@@ -746,6 +766,7 @@ const SyncEngine = (() => {
   // still claimed to be signed in. So: reset the revision, drop the record
   // document, and sign out here where we can say so.
   async function wipeAllCloudData() {
+    if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
     if (!state.enabled) return { ok: false, reason: 'Sync is not signed in' };
     if (!syncWorkerUrl()) return { ok: false, reason: 'sync-not-configured' };
     let r;
@@ -782,6 +803,7 @@ const SyncEngine = (() => {
   }
 
   async function initFromDisk() {
+    if (privateWindow()) return false;
     let meta, keyHex;
     try {
       meta = await window.vex.syncLoadMeta();
@@ -832,8 +854,11 @@ const SyncEngine = (() => {
     return { ...state, encryptionKey: null };
   }
 
-  // ===== DROP — cross-device tab handoff ("Send to Phone") =====
+  // ===== DROP — cross-device tab handoff (SYNC_PROTOCOL.md §7) =====
+  // The UI is js/handoff.js: Send to your devices, and the cards on the New
+  // Tab page for tabs sent here.
   async function dropSend(url, title) {
+    refuseInPrivate();
     if (!state.enabled || !state.sessionToken) {
       throw new Error('Sign in to Vex Sync first (Settings › Vex Sync)');
     }
@@ -845,6 +870,7 @@ const SyncEngine = (() => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}` },
       body: JSON.stringify({ encryptedBlob })
     });
+    if (r.status === 401) { await signedOutByServer(); throw new Error('This device is no longer enrolled — sign in again'); }
     if (!r.ok) {
       const e = await r.json().catch(() => ({}));
       throw new Error(e.error || 'Send failed');
@@ -852,30 +878,40 @@ const SyncEngine = (() => {
     return await r.json();
   }
 
+  // Fetching consumes the items on the server (§7), so the caller must keep
+  // what this returns. Throws when the server could not be asked: it used to
+  // answer [] for a down server, a refused session and an empty mailbox
+  // alike, and a 401 here never signed the device out.
   async function dropFetch() {
+    if (privateWindow()) return [];
     if (!state.enabled || !state.sessionToken || !syncWorkerUrl()) return [];
-    try {
-      const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/drop`, {
-        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
-      });
-      if (!r.ok) return [];
-      const d = await r.json().catch(() => null);
-      const items = [];
-      for (const item of (d?.items || [])) {
-        if (!item.encryptedBlob) continue;
-        // One unreadable item used to throw out of the loop and lose every
-        // other handed-off tab with it (found 2026-09-29). The server already
-        // consumed them, so skip only the bad one and say so in the log.
-        try {
-          const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
-          if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
-        } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
-      }
-      return items;
-    } catch { return []; }
+    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/drop`, {
+      headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+    });
+    if (r.status === 401) { await signedOutByServer(); throw new Error('This device is no longer enrolled — sign in again'); }
+    // A session that has not pushed or pulled yet may not read the mailbox
+    // (§2.3); its first sync round opens it. Nothing has been consumed.
+    if (r.status === 403) return [];
+    if (!r.ok) throw new Error('Could not check for tabs sent from your other devices (server returned ' + r.status + ')');
+    const d = await r.json().catch(() => null);
+    if (!d || !Array.isArray(d.items)) throw new Error('Could not check for tabs sent from your other devices (unexpected response)');
+    const items = [];
+    for (const item of d.items) {
+      if (!item || !item.encryptedBlob) continue;
+      // One unreadable item used to throw out of the loop and lose every
+      // other handed-off tab with it (found 2026-09-29). The server already
+      // consumed them, so skip only the bad one and say so in the log.
+      try {
+        const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
+        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
+        else console.error('[Sync] Skipped a handed-off tab that is not a web address');
+      } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
+    }
+    return items;
   }
 
   async function getRecoveryCode() {
+    if (privateWindow()) return null;
     const keyHex = await window.vex.syncLoadKey();
     if (!keyHex) return null;
     return SyncCrypto.formatRecoveryCode(keyHex);
@@ -899,7 +935,9 @@ const SyncEngine = (() => {
     // Whether shortcut tiles synced on the last round, and which devices they
     // are waiting on (too old to understand them).
     tileSyncState: () => ({ open: tileGate.open, waitingOn: [...tileGate.waitingOn] }),
-    isEnabled: () => state.enabled,
+    isEnabled: () => state.enabled && !privateWindow(),
+    // Settings and the sync indicator say so in a private window.
+    offInThisWindow: () => (privateWindow() ? PRIVATE_OFF : ''),
     SYNC_KEYS
   };
 })();

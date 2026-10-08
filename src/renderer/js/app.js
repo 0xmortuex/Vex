@@ -1219,22 +1219,10 @@ function vexOwnTextFocused(doc) {
     });
   }
 
-  // Cross-device handoff: receive tabs sent from other Vex devices (mobile).
-  // Polls on focus + every 2 minutes when Vex Sync is signed in.
-  const checkDrops = async () => {
-    try {
-      if (typeof SyncEngine === 'undefined' || !SyncEngine.isEnabled?.()) return;
-      const items = await SyncEngine.dropFetch();
-      items.forEach(item => {
-        if (!item || !item.url) return;
-        try { TabManager.createTab(item.url, false); } catch {}
-        window.showToast?.(`Tab from ${item.fromDeviceName || 'another device'}: ${item.title || item.url}`);
-      });
-    } catch {}
-  };
-  window.addEventListener('focus', checkDrops);
-  VexJobs.every('Tabs sent from other devices', 2 * 60 * 1000, checkDrops, { when: 'background' });
-  setTimeout(checkDrops, 8000); // shortly after launch
+  // Send to your devices, and tabs sent here from them (js/handoff.js): the
+  // address bar button, and checking the Vex Sync mailbox on focus, every
+  // 2 minutes and shortly after launch.
+  if (typeof Handoff !== 'undefined') Handoff.init();
 
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {
@@ -1415,6 +1403,9 @@ function vexOwnTextFocused(doc) {
         const pull = s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never';
         indicator.title = `Vex Sync — pushed ${push} · pulled ${pull}${s.lastError ? ' · error: ' + s.lastError : ''}`;
       }
+      // A private window never syncs (sync-engine.js).
+      const off = SyncEngine.offInThisWindow ? SyncEngine.offInThisWindow() : '';
+      if (off) indicator.title = off;
     };
     window.addEventListener('vex-sync-state', drawSyncIndicator);
     drawSyncIndicator();

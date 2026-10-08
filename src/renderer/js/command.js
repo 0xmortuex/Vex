@@ -32,6 +32,9 @@ const CommandBar = {
     { id: 'dictation-settings', label: 'Dictation Settings', hint: 'Speech model, the language you speak, remove the downloaded model', icon: 'mic', action: () => Dictation.openSettings() },
     { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,
       get hint() { const c = CommandBar.lastCommand(); return c ? 'Again: ' + c.label : 'Runs the last command you used here once more'; },
+      // Not offered when the last command cannot run here (its when() says
+      // no — Send to My Devices on a private tab, for one).
+      when: () => { const c = CommandBar.lastCommand(); return !c || CommandBar._shown(c); },
       action: () => CommandBar.doAgain() },
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: 'plus', action: () => TabManager.createTab(START_URL, true) },
     { id: 'discover', label: 'Discover — everything Vex can do', hint: 'Every feature, by category, with "show me" on the real button', icon: 'compass', isPrimary: true, action: () => { if (typeof VexDiscover !== 'undefined') VexDiscover.open(); } },
@@ -253,13 +256,11 @@ const CommandBar = {
     { id: 'container-work', label: 'New Work Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-work' }) },
     { id: 'container-personal', label: 'New Personal Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-personal' }) },
     { id: 'container-shopping', label: 'New Shopping Container Tab', hint: 'Isolated cookies — tracked separately from your main session', icon: 'cart', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-shopping' }) },
-    { id: 'handoff', label: 'Send to My Devices', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: 'phone', action: async () => {
-      const t = TabManager.getActiveTab();
-      if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
-      try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
-      // A down server showed the browser's raw "Failed to fetch" (found 2026-09-29).
-      catch (err) { window.showToast?.(SyncSettings.human(err.message || 'Send failed'), 'error'); }
-    } },
+    // The same menu as the tab menu and the address bar's send button
+    // (js/handoff.js). Not offered for a private or Tor tab or a Vex page.
+    { id: 'handoff', label: 'Send to My Devices', hint: 'Send this tab to your phone or your other computers (Vex Sync)', icon: 'send',
+      when: () => typeof Handoff !== 'undefined' && typeof TabManager !== 'undefined' && Handoff.sendable(TabManager.getActiveTab()).ok,
+      action: () => Handoff.openMenu(TabManager.getActiveTab()) },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: 'message', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: 'sparkles', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
@@ -985,6 +986,9 @@ const CommandBar = {
   doAgain() {
     const c = this.lastCommand();
     if (!c) { window.showToast?.('Nothing to do again yet — run something from Ctrl+K first'); return false; }
+    // Ctrl+Alt+A comes here without the list: the command's own when() still
+    // decides (it repeated Send to My Devices on a private tab).
+    if (!this._shown(c)) { window.showToast?.(c.label + ' cannot run here', 'warn'); return false; }
     this._execute(c);
     return true;
   },

@@ -338,3 +338,38 @@
 .shortcut-add-row:last-child { border-bottom: none; }
 .shortcut-add-name { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shortcut-add-empty { padding: 10px 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* Send to your devices (js/handoff.js). Opaque like the tab menu: it opens
+   over the page, which backdrop-filter cannot frost. */
+.vex-handoff-pop {
+  position: fixed; z-index: 100050;
+  width: 300px; max-width: calc(100vw - 16px); box-sizing: border-box;
+  /* A short or zoomed window scrolls the menu rather than cutting it off. */
+  max-height: calc(100vh - 16px); overflow-y: auto;
+  background: var(--vex-bg-elevated, var(--surface)); color: var(--vex-text-primary, var(--text));
+  border: 1px solid var(--vex-border-medium, var(--border)); border-radius: var(--vex-radius-md, 10px);
+  box-shadow: 0 12px 36px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+  font-size: 13px; padding: 12px;
+}
+.vex-handoff-pop .hp-head { display: flex; align-items: center; gap: 8px; color: var(--vex-text-primary, var(--text)); }
+.vex-handoff-pop .hp-title { flex: 1; font-weight: 700; font-size: 13.5px; }
+.vex-handoff-pop .hp-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: transparent; color: var(--vex-text-secondary, var(--text-muted)); cursor: pointer; }
+.vex-handoff-pop .hp-close:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.15)); color: var(--vex-text-primary, var(--text)); }
+.vex-handoff-pop .hp-page { margin: 10px 0; padding: 8px 10px; border-radius: 8px; background: var(--vex-bg-deep, var(--bg)); border: 1px solid var(--vex-border-subtle, var(--border)); }
+.vex-handoff-pop .hp-page-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vex-handoff-pop .hp-page-host { font-size: 11.5px; color: var(--vex-text-muted, var(--text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vex-handoff-pop .hp-body { display: flex; flex-direction: column; gap: 8px; }
+.vex-handoff-pop .hp-text, .vex-handoff-pop .hp-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--vex-text-secondary, var(--text-muted)); }
+.vex-handoff-pop .hp-muted { font-size: 12px; line-height: 1.5; color: var(--vex-text-muted, var(--text-muted)); }
+.vex-handoff-pop .hp-devices { display: flex; flex-direction: column; gap: 2px; }
+.vex-handoff-pop .hp-device { display: flex; align-items: center; gap: 8px; padding: 5px 2px; color: var(--vex-text-primary, var(--text)); }
+.vex-handoff-pop .hp-device svg { flex: none; color: var(--vex-text-secondary, var(--text-muted)); }
+.vex-handoff-pop .hp-device-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vex-handoff-pop .hp-device-seen { flex: none; font-size: 11.5px; color: var(--vex-text-muted, var(--text-muted)); }
+.vex-handoff-pop .hp-error { font-size: 12px; line-height: 1.5; color: var(--danger, #e5484d); }
+.vex-handoff-pop .hp-primary { font: inherit; font-weight: 600; padding: 8px 12px; border-radius: 8px; border: 1px solid transparent; background: var(--primary, var(--accent)); color: var(--on-primary, #fff); cursor: pointer; }
+.vex-handoff-pop .hp-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.vex-handoff-pop .hp-primary:disabled { opacity: 0.6; cursor: default; }
+.vex-handoff-pop .hp-link { font: inherit; font-size: 12px; padding: 2px; border: none; background: transparent; color: var(--vex-text-secondary, var(--text-muted)); text-decoration: underline; cursor: pointer; align-self: center; }
+.vex-handoff-pop .hp-link:hover { color: var(--vex-text-primary, var(--text)); }
+.vex-handoff-pop :is(button):focus-visible { outline: 2px solid var(--primary, var(--accent)); outline-offset: 2px; }
