@@ -1,7 +1,10 @@
 // === Vex Site Settings (per-site profiles) ===
-// One place for everything Vex remembers per website — zoom, forced dark mode,
-// and custom CSS/JS boosts — for the site you're on, plus a list of every site
-// you've customized. "A browser built for you," per site. Ctrl+K → "Site Settings".
+// Everything Vex remembers per website — zoom, forced dark mode, never
+// sleeping, always translating, custom CSS/JS boosts and the site switches.
+// The site in front is changed in the site panel (js/site-panel.js — click the
+// icon at the left of the address field, or Ctrl+K → "Site Settings"); every
+// site that has anything set is listed in Settings › Site settings, drawn
+// here from the very same stores, so the two always agree.
 const SiteProfiles = {
   _zooms() { try { return JSON.parse(localStorage.getItem('vex.zooms') || '{}') || {}; } catch { return {}; } },
   _saveZooms(z) { try { localStorage.setItem('vex.zooms', JSON.stringify(z)); } catch { return false; } return true; },
@@ -10,158 +13,129 @@ const SiteProfiles = {
   _neverSleepHosts() { try { const a = JSON.parse(localStorage.getItem('vex.neverSleepHosts') || '[]'); return new Set(Array.isArray(a) ? a : []); } catch { return new Set(); } },
   _saveNeverSleep(set) { try { localStorage.setItem('vex.neverSleepHosts', JSON.stringify([...set])); } catch { return false; } return true; },
 
-  _activeHost() { try { const t = TabManager.getActiveTab(); return t && t.url ? new URL(t.url).hostname.replace(/^www\./, '') : ''; } catch { return ''; } },
-  _activeWebview() { try { return WebviewManager.getActiveWebview ? WebviewManager.getActiveWebview() : WebviewManager.webviews.get(TabManager.activeTabId); } catch { return null; } },
   _hostFromUrl(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } },
+  _bare(h) { return String(h || '').toLowerCase().replace(/^www\./, ''); },
 
-  async open() {
-    document.getElementById('vex-siteprofiles')?.remove();
-    const m = document.createElement('div');
-    m.id = 'vex-siteprofiles';
-    m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
-    m.innerHTML = `<div style="width:560px;max-width:95vw;max-height:84vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
-      <div style="display:flex;align-items:center;gap:8px;padding:18px 20px 10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text);flex:1">${VexIcons.svg('globe', { size: 15 })} Site Settings</span>
-        <button id="sp-close" style="${this._chip()}" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
-      </div>
-      <div id="sp-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
-    document.body.appendChild(m);
-    // Escape closes it the way the X does; it did nothing (found 2026-09-29).
-    // Capture phase, so nothing underneath takes the same key; an Escape meant
-    // for the Reset vexConfirm on top is left to that dialog. Focus moves in,
-    // or with the page focused the key never reached Vex at all.
-    const onKey = (e) => {
-      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
-      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
-      e.preventDefault(); e.stopPropagation(); close();
-    };
-    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
-    document.addEventListener('keydown', onKey, true);
-    m.addEventListener('click', (e) => { if (e.target === m) close(); });
-    m.querySelector('#sp-close').addEventListener('click', close);
-    m.querySelector('#sp-close').focus({ preventScroll: true });
-    this._paint(m);
+  // The site panel replaced the dialog this used to open.
+  open() {
+    if (typeof SitePanel === 'undefined') throw new Error('The site panel is not loaded');
+    return SitePanel.open();
   },
 
-  _chip() { return "padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"; },
-  _btn() { return "min-width:30px;height:28px;padding:0 8px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:13px;font-family:'Outfit',sans-serif"; },
-
-  _paint(m) {
-    const body = m.querySelector('#sp-body'); if (!body) return;
-    const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
-    const host = this._activeHost();
-    const zooms = this._zooms(), dark = this._darkHosts(), boosts = this._boosts();
-    const never = this._neverSleepHosts();
-    const z = Math.round((zooms[host] || 1) * 100);
-
-    let html = `<div style="font-size:11.5px;color:var(--text-muted);margin:2px 0 12px">Per-website preferences Vex remembers automatically — zoom, forced dark mode, and custom CSS/JS. They re-apply every time you visit that site.</div>`;
-    if (host) {
-      html += `<div style="font-weight:700;margin:6px 0 8px">This site · <span style="color:var(--primary,var(--accent))">${esc(host)}</span></div>
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
-          <span style="flex:1">Zoom</span>
-          <button id="sp-zoom-out" style="${this._btn()}">−</button>
-          <span id="sp-zoom-val" style="min-width:44px;text-align:center">${z}%</span>
-          <button id="sp-zoom-in" style="${this._btn()}">+</button>
-          <button id="sp-zoom-reset" style="${this._chip()}">Reset</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
-          <span style="flex:1">Force dark mode</span>
-          <button id="sp-dark" style="${this._chip()}">${dark.has(host) ? 'On' : 'Off'}</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
-          <span style="flex:1">Never let this site sleep<br><span style="font-size:10.5px;color:var(--text-muted)">Keep it loaded in the background — skips Memory Saver &amp; auto-sleep</span></span>
-          <button id="sp-nosleep" style="${this._chip()}">${never.has(host) ? 'On' : 'Off'}</button>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:16px">
-          <span style="flex:1">Custom CSS / JS ${boosts[host] ? '<span style="color:var(--primary,var(--accent))">· active</span>' : ''}</span>
-          <button id="sp-zap" style="${this._chip()}">${VexIcons.svg('wand', { size: 13 })} Zap element</button>
-          <button id="sp-boost" style="${this._chip()}">Edit</button>
-        </div>`;
-    } else {
-      html += `<div style="padding:12px;border:1px dashed var(--border);border-radius:9px;color:var(--text-muted);margin:2px 0 16px;font-size:12px">
-        You're on the new-tab page — there's no website to tune here. Open a site (e.g. a news page), reopen this, and you'll get zoom, dark-mode and tweak controls for it. Any sites you've already customized are listed below.
-      </div>`;
-    }
-
-    // All customized sites. never-sleep hosts belong here too: they were left
-    // out, so a site whose ONLY customization was "never sleep" never appeared
-    // and there was no way to undo it from this list.
-    const allHosts = new Set([...Object.keys(zooms), ...dark, ...Object.keys(boosts), ...never].filter(Boolean));
-    html += `<div style="font-weight:700;margin:6px 0 8px">Customized sites <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${allHosts.size}</span></div>`;
-    if (allHosts.size) {
-      html += '<div style="border:1px solid var(--border);border-radius:9px;overflow:hidden">' +
-        [...allHosts].sort().map(h => {
-          const badges = [];
-          if (zooms[h]) badges.push(Math.round(zooms[h] * 100) + '%');
-          if (dark.has(h)) badges.push(VexIcons.svg('moon', { size: 12 }));
-          if (boosts[h]) badges.push(VexIcons.svg('zap', { size: 12 }));
-          if (never.has(h)) badges.push(VexIcons.svg('sleep', { size: 12 }));
-          return `<div data-host="${esc(h)}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border)">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-act="go">${esc(h)}</span>
-            <span style="color:var(--text-muted);font-size:11px">${badges.join(' ')}</span>
-            <button data-act="reset" title="Reset this site" aria-label="Reset this site" style="${this._chip()}">${VexIcons.svg('undo', { size: 12 })}</button>
-          </div>`;
-        }).join('') + '</div>';
-    } else html += `<div style="color:var(--text-muted);font-size:12px">Nothing customized yet.</div>`;
-
-    body.innerHTML = html;
-    this._wire(m, host);
-  },
-
-  _wire(m, host) {
-    const body = m.querySelector('#sp-body');
-    const wv = this._activeWebview();
-    const setZoom = (delta, reset) => {
-      const zooms = this._zooms();
-      let f = reset ? 1 : Math.max(0.3, Math.min(3, (zooms[host] || 1) + delta));
-      if (reset) delete zooms[host]; else zooms[host] = f;
-      if (!this._saveZooms(zooms)) window.showToast?.('Zoom applied for now, but it could not be saved — it resets when you restart Vex', 'error');
-      try { if (wv) wv.setZoomFactor(f); } catch {}
-      const val = body.querySelector('#sp-zoom-val'); if (val) val.textContent = Math.round(f * 100) + '%';
-    };
-    body.querySelector('#sp-zoom-in')?.addEventListener('click', () => setZoom(0.1));
-    body.querySelector('#sp-zoom-out')?.addEventListener('click', () => setZoom(-0.1));
-    body.querySelector('#sp-zoom-reset')?.addEventListener('click', () => setZoom(0, true));
-    body.querySelector('#sp-dark')?.addEventListener('click', (e) => {
-      try { if (wv && WebviewManager.toggleForceDarkForSite) WebviewManager.toggleForceDarkForSite(wv); } catch {}
-      setTimeout(() => this._paint(m), 60);
-    });
-    body.querySelector('#sp-nosleep')?.addEventListener('click', () => {
-      const set = this._neverSleepHosts();
-      if (set.has(host)) { set.delete(host); }
-      else {
-        set.add(host);
-        // Take effect now: bring the tab (and any others on this host) fully alive.
-        try { (TabManager.tabs || []).forEach(t => { if (this._hostFromUrl(t.url) === host) { if (t.sleeping) TabManager.wakeTab(t.id); else if (t._lazy) TabManager._materializeTab(t); } }); } catch {}
+  // "Never let this site sleep" — the list every sleep path reads
+  // (TabManager._isKeptAwake). Turning it on wakes the site's tabs now.
+  setNeverSleep(host, on) {
+    const h = this._bare(host);
+    if (!h) throw new Error('That is not a web page');
+    const set = this._neverSleepHosts();
+    if (on) set.add(h); else set.delete(h);
+    if (!this._saveNeverSleep(set)) throw new Error('The choice could not be saved');
+    if (on && typeof TabManager !== 'undefined') {
+      for (const t of (TabManager.tabs || [])) {
+        if (this._hostFromUrl(t.url) !== h) continue;
+        if (t.sleeping) TabManager.wakeTab(t.id); else if (t._lazy) TabManager._materializeTab(t);
       }
-      const saved = this._saveNeverSleep(set);
-      try {
-        window.showToast?.(saved
-          ? (set.has(host) ? host + ' will stay awake' : host + ' can sleep again')
-          : 'Applied for now, but the choice could not be saved — it resets when you restart Vex', saved ? undefined : 'error');
-      } catch {}
-      this._paint(m);
-    });
-    body.querySelector('#sp-boost')?.addEventListener('click', () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } catch {} m.remove(); });
-    body.querySelector('#sp-zap')?.addEventListener('click', () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} m.remove(); });
+    }
+    return !!on;
+  },
 
-    body.querySelectorAll('[data-host]').forEach(row => {
+  // Every site with anything set, by host without "www." (a zoom is saved
+  // under the page's own host name, www. or not — both are one site here).
+  customizedSites() {
+    const sites = new Map();
+    const at = (host) => {
+      const h = this._bare(host);
+      if (!h) return null;
+      if (!sites.has(h)) sites.set(h, { host: h });
+      return sites.get(h);
+    };
+    for (const [h, z] of Object.entries(this._zooms())) { const s = at(h); if (s && Number(z) && Number(z) !== 1) s.zoom = Number(z); }
+    for (const h of this._darkHosts()) { const s = at(h); if (s) s.dark = true; }
+    for (const h of Object.keys(this._boosts())) { const s = at(h); if (s) s.boost = true; }
+    for (const h of this._neverSleepHosts()) { const s = at(h); if (s) s.neverSleep = true; }
+    if (typeof TranslateSide !== 'undefined') for (const h of TranslateSide.alwaysHosts()) { const s = at(h); if (s) s.translate = true; }
+    if (typeof SiteRulesUI !== 'undefined') {
+      for (const [h, rule] of Object.entries(SiteRulesUI.rules())) {
+        const s = at(h);
+        if (!s || !rule) continue;
+        if (rule.ads === 'off') s.adsAllowed = true;
+        const off = SiteRulesUI.WHAT.filter(w => rule[w.id] === 'off').map(w => w.name);
+        if (off.length) s.switchesOff = off;
+      }
+    }
+    if (typeof SiteRoutes !== 'undefined') {
+      for (const r of SiteRoutes.rules()) { const s = at(r.host); if (s) s.route = SiteRoutes.whereOf(r); }
+    }
+    return [...sites.values()].sort((a, b) => a.host.localeCompare(b.host));
+  },
+
+  // What a row says about a site, in words.
+  describeSite(s) {
+    const bits = [];
+    if (s.zoom) bits.push('zoom ' + Math.round(s.zoom * 100) + '%');
+    if (s.dark) bits.push('dark mode');
+    if (s.neverSleep) bits.push('never sleeps');
+    if (s.translate) bits.push('always translated');
+    if (s.adsAllowed) bits.push('ads and trackers not blocked');
+    if (s.switchesOff) bits.push(s.switchesOff.join(', ').toLowerCase() + ' off');
+    if (s.boost) bits.push('custom CSS/JS');
+    if (s.route) bits.push('opens ' + s.route);
+    return bits.join(' · ');
+  },
+
+  // Settings › Site settings. Redrawn each time Settings opens.
+  renderSettings(container) {
+    if (!container) return;
+    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
+    const sites = this.customizedSites();
+    container.innerHTML = `
+      <p class="setting-info muted" style="margin-bottom:10px">Everything set for one site at a time. Change the site in front from the icon at the left of the address field; its permissions are under Site Permissions, and where it opens under Private routing › Site rules.</p>
+      ${sites.length ? `<div class="site-settings-list">${sites.map(s => `
+        <div class="site-settings-row" data-host="${esc(s.host)}">
+          <div class="site-settings-info">
+            <div class="site-settings-host">${esc(s.host)}</div>
+            <div class="site-settings-what">${esc(this.describeSite(s))}</div>
+          </div>
+          <button type="button" class="btn-secondary-sm" data-act="go">Open</button>
+          <button type="button" class="btn-secondary-sm" data-act="reset" ${s.route && !s.zoom && !s.dark && !s.neverSleep && !s.translate && !s.adsAllowed && !s.switchesOff && !s.boost ? 'disabled title="Remove its rule under Private routing › Site rules"' : ''}>Reset</button>
+        </div>`).join('')}</div>`
+        : '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No site has anything set yet.</div>'}`;
+    container.querySelectorAll('[data-host]').forEach(row => {
       const h = row.dataset.host;
-      row.querySelector('[data-act="go"]')?.addEventListener('click', () => { try { TabManager.createTab('https://' + h, true); } catch {} m.remove(); });
-      row.querySelector('[data-act="reset"]')?.addEventListener('click', async () => {
-        // Reset throws away custom CSS/JS the user wrote, with no undo.
+      row.querySelector('[data-act="go"]').addEventListener('click', () => {
+        TabManager.createTab('https://' + h, true);
+      });
+      row.querySelector('[data-act="reset"]').addEventListener('click', async () => {
         if (!await window.vexConfirm({
-          title: 'Reset site',
-          message: `Forget everything Vex remembers for ${h} — zoom, dark mode, sleep and any custom CSS/JS? This cannot be undone.`,
+          title: 'Reset ' + h,
+          message: `Forget what Vex keeps for ${h} — zoom, dark mode, sleep, translation, ad blocking and the site switches, and any custom CSS/JS? Its permissions and where it opens stay. This cannot be undone.`,
           okLabel: 'Reset', danger: true,
         })) return;
-        this._resetSite(h);
-        this._paint(m);
+        try { await this.forgetSite(h); }
+        catch (err) { window.showToast?.('Could not reset ' + h + ': ' + err.message, 'error'); }
+        this.renderSettings(container);
       });
     });
   },
 
-  // Undo every per-site preference for `h`.
+  // _resetSite, and the site switches main keeps (an async round trip).
+  async forgetSite(h) {
+    const ok = this._resetSite(h);
+    if (typeof SiteRulesUI !== 'undefined') {
+      const rules = SiteRulesUI.rules();
+      const bare = this._bare(h);
+      let changed = false;
+      for (const key of [bare, 'www.' + bare]) if (Object.hasOwn(rules, key)) { delete rules[key]; changed = true; }
+      if (changed) {
+        if (SiteRulesUI._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
+        SiteRulesUI.save(rules);
+        await SiteRulesUI.push();
+      }
+    }
+    return ok;
+  },
+
+  // Undo every per-site preference for `h` kept in this window's storage.
   //
   // Boosts must go through VexBoosts, not straight to localStorage: VexBoosts
   // keeps the whole map in memory and rewrites it on its next save, so deleting
@@ -170,15 +144,20 @@ const SiteProfiles = {
   // lets us pull the injected CSS out of the pages that are open right now.
   _resetSite(h) {
     const failed = [];
-    try { const z = this._zooms(); delete z[h]; if (!this._saveZooms(z)) failed.push('zoom'); } catch { failed.push('zoom'); }
+    const bare = this._bare(h);
+    const names = [bare, 'www.' + bare];
+    try { const z = this._zooms(); names.forEach(n => delete z[n]); if (!this._saveZooms(z)) failed.push('zoom'); } catch { failed.push('zoom'); }
     try {
-      const a = [...this._darkHosts()].filter(x => x !== h);
+      const a = [...this._darkHosts()].filter(x => !names.includes(x));
       localStorage.setItem('vex.forceDarkHosts', JSON.stringify(a));
     } catch { failed.push('dark mode'); }
     try {
       const set = this._neverSleepHosts();
-      if (set.delete(h) && !this._saveNeverSleep(set)) failed.push('sleep');
+      if (names.map(n => set.delete(n)).some(Boolean) && !this._saveNeverSleep(set)) failed.push('sleep');
     } catch { failed.push('sleep'); }
+    try {
+      if (typeof TranslateSide !== 'undefined' && TranslateSide.alwaysHosts().includes(bare)) TranslateSide.setAlways('https://' + bare + '/', false);
+    } catch { failed.push('translation'); }
     try {
       if (typeof VexBoosts !== 'undefined' && VexBoosts.boosts) {
         if (Object.hasOwn(VexBoosts.boosts, h)) {
@@ -193,15 +172,15 @@ const SiteProfiles = {
     // Zoom is applied per webview; take it back on the tabs showing this host.
     try {
       (TabManager.tabs || []).forEach(t => {
-        if (this._hostFromUrl(t.url) !== h) return;
+        if (this._hostFromUrl(t.url) !== bare) return;
         const wv = WebviewManager.webviews?.get(t.id);
-        if (wv) wv.setZoomFactor(1);
+        if (wv) { wv.setZoomFactor(1); if (WebviewManager._removeForceDark) WebviewManager._removeForceDark(wv); }
       });
     } catch {}
     try {
       window.showToast?.(failed.length
-        ? `Reset ${h}, but these could not be saved and will come back: ${failed.join(', ')}`
-        : 'Reset ' + h, failed.length ? 'error' : undefined);
+        ? `Reset ${bare}, but these could not be saved and will come back: ${failed.join(', ')}`
+        : 'Reset ' + bare, failed.length ? 'error' : undefined);
     } catch {}
     return !failed.length;
   },

@@ -137,7 +137,9 @@ function enableCosmeticFiltering(isEnabled) {
   try {
     const { ipcMain } = require('electron');
     ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', async (event, url, msg) => {
-      if (!_engine || (isEnabled && !isEnabled())) return;
+      // isEnabled is told which page asks: a site whose blocking is switched
+      // off in its site panel gets no element hiding either.
+      if (!_engine || (isEnabled && !isEnabled(event, url))) return;
       try {
         await _engine.blocker.onInjectCosmeticFilters(_cosmeticEvent(event, url), url, msg);
       } catch (e) {

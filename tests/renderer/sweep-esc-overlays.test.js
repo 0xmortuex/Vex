@@ -79,10 +79,15 @@ describe('modal overlays close on Escape', () => {
     expect(cleared.mock.calls.length).toBe(1); // only the sleep itself; no tick re-armed
   });
 
+  // Site Settings is the site panel now (js/site-panel.js).
   it('site settings', async () => {
     require('../../src/renderer/js/site-profiles.js');
-    vi.spyOn(window.SiteProfiles, '_paint').mockImplementation(() => {});
-    await closesOnEscape(() => window.SiteProfiles.open(), '#vex-siteprofiles');
+    const { SitePanel } = require('../../src/renderer/js/site-panel.js');
+    globalThis.SitePanel = SitePanel;
+    globalThis.TabManager = { getActiveTab: () => ({ id: 't1', url: 'file:///C:/vex/src/renderer/start.html' }) };
+    globalThis.WebviewManager = { webviews: new Map() };
+    try { await closesOnEscape(() => window.SiteProfiles.open(), '#vex-site-panel'); }
+    finally { delete globalThis.SitePanel; delete globalThis.TabManager; delete globalThis.WebviewManager; }
   });
 
   it('logins hub, but not while Password Health is open on top of it', async () => {

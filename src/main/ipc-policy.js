@@ -2,6 +2,9 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon',
+  // The site panel's per-page permissions and certificate (main.js): a private
+  // window's page keeps its answers in memory, so these stay allowed there.
+  'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate',
   // A page saved or captured by its id: only one of the asking window's own
   // (security scan L1).
   'page:save', 'page:capture-full',

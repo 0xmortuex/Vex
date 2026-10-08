@@ -411,7 +411,48 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 });
 
 
+// The site panel (js/site-panel.js) sets one permission of the page in front:
+// 'allow' or 'deny' kept, 'ask' forgotten so the site asks again. Written to
+// the store that page is held to — its container's or route's, persist:main's,
+// or a private window's in-memory one (never to disk), which is exactly where
+// Settings › Site permissions lists it. A "just this visit" answer for the same
+// permission is dropped too, or it would go on overruling the choice.
+const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups']);
+function setPageDecision(contents, origin, permission, decision) {
+  origin = originKey(origin);
+  if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
+  if (!PAGE_PERMISSIONS.has(permission) && !/^external:[a-z][a-z0-9+.-]{0,40}$/.test(permission)) throw new Error('Unknown permission: ' + permission);
+  if (!['allow', 'deny', 'ask'].includes(decision)) throw new Error('A permission is allowed, blocked or asked');
+  const d = decisionsFor(contents);
+  const until = { ...(d.__until__ || {}) };
+  const keys = [`${origin}::${permission}`];
+  // The old combined answer covers the camera and the microphone both:
+  // splitting it, the other half keeps it.
+  const media = `${origin}::media`;
+  if ((permission === 'camera' || permission === 'microphone') && d[media]) {
+    const other = `${origin}::${permission === 'camera' ? 'microphone' : 'camera'}`;
+    if (!d[other]) { d[other] = d[media]; if (until[media]) until[other] = until[media]; }
+    keys.push(media);
+  }
+  for (const key of keys) { delete d[key]; delete until[key]; sessionDecisionsFor(contents).delete(key); }
+  if (decision !== 'ask') d[keys[0]] = decision;
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  return saveDecisionsFor(contents, d);
+}
+// Every decision the page's site has, in the page's store: the panel's Reset.
+function resetPageDecisions(contents, origin) {
+  origin = originKey(origin);
+  if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
+  const d = decisionsFor(contents);
+  const until = { ...(d.__until__ || {}) };
+  const prefix = origin + '::';
+  for (const key of Object.keys(d)) if (key.startsWith(prefix)) { delete d[key]; delete until[key]; }
+  for (const key of [...sessionDecisionsFor(contents).keys()]) if (key.startsWith(prefix)) sessionDecisionsFor(contents).delete(key);
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  return saveDecisionsFor(contents, d);
+}
+
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
+return { setPageDecision, resetPageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

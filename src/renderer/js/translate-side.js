@@ -105,18 +105,64 @@ const TranslateSide = {
   },
 
   async run(tl) {
-    const t = this._tab();
+    return this.runOn(this._tab().wv, tl);
+  },
+
+  // quiet: the automatic run for an always-translated site says nothing on
+  // screen — the translation appearing is what says it.
+  async runOn(wv, tl, { quiet = false } = {}) {
     const target = tl || this.lang();
-    const texts = await window.vexGuestEval(t.wv, this.readScript(), false, 8000);
-    if (!Array.isArray(texts) || !texts.length) throw new Error('There is no text on this page to translate');
-    window.showToast?.('Translating ' + texts.length + (texts.length === this.MAX_BLOCKS ? ' paragraphs (as far down as Vex goes in one run)' : ' paragraphs') + '…');
+    const texts = await window.vexGuestEval(wv, this.readScript(), false, 8000);
+    if (!Array.isArray(texts) || !texts.length) {
+      // A page of an always-translated site with nothing to translate is fine.
+      if (quiet) return 0;
+      throw new Error('There is no text on this page to translate');
+    }
+    if (!quiet) window.showToast?.('Translating ' + texts.length + (texts.length === this.MAX_BLOCKS ? ' paragraphs (as far down as Vex goes in one run)' : ' paragraphs') + '…');
     let shown = 0;
     await this.translateAll(texts, target, async (pairs) => {
-      shown += await window.vexGuestEval(t.wv, this.applyScript(pairs), false, 8000);
+      shown += await window.vexGuestEval(wv, this.applyScript(pairs), false, 8000);
     });
     if (!shown) throw new Error('The translator did not answer — check your connection and try again');
-    window.showToast?.('Both languages, side by side — run it again to take the translation off', 'success');
+    if (!quiet) window.showToast?.('Both languages, side by side — run it again to take the translation off', 'success');
     return shown;
+  },
+
+  // --- Sites translated every time (the site panel's "Always translate") ---
+  // By host, without "www.". Side by side, so the page itself is never
+  // swapped for Google's copy. Only a tab that keeps things does it on its
+  // own: a private, off-the-record, Tor or routed page is never sent to the
+  // translator — which goes out directly — without being asked.
+  ALWAYS_KEY: 'vex.translateAlwaysHosts',
+  _host(url) { try { return /^https?:/i.test(url) ? new URL(url).hostname.replace(/^www\./, '').toLowerCase() : ''; } catch { return ''; } },
+  alwaysHosts() {
+    let list;
+    try { list = JSON.parse(localStorage.getItem(this.ALWAYS_KEY) || '[]'); } catch { return []; }
+    return Array.isArray(list) ? list.filter(h => typeof h === 'string' && h) : [];
+  },
+  isAlways(url) { const h = this._host(url); return !!h && this.alwaysHosts().includes(h); },
+  setAlways(url, on) {
+    if (typeof window !== 'undefined' && window.VexTabPolicy?.isPrivateWindow) throw new Error('Change this in a normal window — a private window keeps nothing');
+    const h = this._host(url);
+    if (!h) throw new Error('That is not a web page');
+    const set = new Set(this.alwaysHosts());
+    if (on) set.add(h); else set.delete(h);
+    localStorage.setItem(this.ALWAYS_KEY, JSON.stringify([...set]));
+    return !!on;
+  },
+  mayTranslateOnItsOwn(partition) {
+    const p = partition || 'persist:main';
+    return !(typeof window !== 'undefined' && window.VexTabPolicy?.isPrivateWindow) && p.startsWith('persist:') && !p.startsWith('persist:route-');
+  },
+  // A tab finished loading a page: translate it if its site is always translated.
+  async autoTranslate(tabId, url) {
+    if (!this.isAlways(url) || typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') return 0;
+    const tab = TabManager.tabs.find(t => t.id === tabId);
+    if (!tab || !this.mayTranslateOnItsOwn(tab.partition)) return 0;
+    const wv = WebviewManager.webviews.get(tabId);
+    if (!wv) return 0;
+    if (await window.vexGuestEval(wv, '!!document.querySelector("[data-vex-tr-out]")', false, 6000)) return 0;
+    return this.runOn(wv, this.lang(), { quiet: true });
   },
 
   async clear() {
