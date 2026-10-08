@@ -1,4 +1,6 @@
-# Vex Sync Protocol (v2.35.2, wire protocol unchanged through v2.36.4; §8 source list as of the release after v2.36.4)
+# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4)
+
+> **Release after v2.37.0 — server-internal change only.** The worker keeps each account in its own Durable Object instead of one shared object (§1.2). Every endpoint, request, response, status code and token format in this document is unchanged; no client change is needed.
 
 This is the wire and data contract between Vex clients and a self-hosted Vex Sync worker. A third-party or mobile client can follow it and sync with desktop Vex without losing or corrupting another device's data.
 
@@ -12,7 +14,7 @@ Everything here comes from the code at Vex v2.35.2, and was checked by running i
 | Encryption | `src/renderer/js/sync-crypto.js` |
 | Validation the desktop applies to the sources it reads from a pull | `src/renderer/js/data-contracts.js` |
 | Worker URL setting | `src/renderer/js/vex-config.js` |
-| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `sync-protocol-compat.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js` |
+| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `sync-protocol-compat.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js`, `syncAccountIsolation.test.js` |
 
 The test vector (§3.6) came from running the real `sync-crypto.js` and `sync-records.js` under Node's WebCrypto, and Node's own `crypto` module was used to check it. The HTTP examples (§1, §2, §9) are real responses from the real worker code, run through a local Node stand-in for its Durable Object.
 
@@ -47,7 +49,7 @@ A sync round is **pull → merge → push**. A push carries `baseRevision`. The 
 - If the request body is not read within 10 s, the server returns **408** `{"error":"Body read timed out"}`.
 - A body that is not JSON gets **400** `{"error":"Invalid JSON"}`. A missing body gets **400** `{"error":"JSON body required"}`.
 - Unknown paths get **404** `{"error":"Not found"}`. An unexpected server exception gets **500** `{"error":"Sync request failed"}`.
-- All state lives in one Durable Object (`idFromName('vex-sync')`), and every request runs inside `blockConcurrencyWhile`. **Requests are serialised, so the revision check on push is atomic.**
+- Each account lives in its own Durable Object (`VEX_ACCOUNTS`, `idFromName(<account key>)`), and every request for it runs inside that object's `blockConcurrencyWhile`. **Requests for one account are serialised, so the revision check on push is atomic.** Requests for different accounts run in different objects. (Server-internal, from the release after v2.37.0: a shared object, `VEX_STATE`, keeps login codes, rate limits and which account each session token belongs to. Up to v2.37.0 everything was in that one object; the server copies each account out of it on the account's first request. Clients see no difference.)
 - The desktop client limits responses to 32 MiB and times out after 30 s (`network.js` `createBoundedFetch`).
 
 ### 1.3 Server-wide error states
@@ -56,7 +58,7 @@ A sync round is **pull → merge → push**. A push carries `baseRevision`. The 
 |---|---|---|
 | 503 | `Sync server is misconfigured: EMAIL_HASH_SECRET is not set` | `EMAIL_HASH_SECRET` is missing or shorter than 32 characters. **Every** non-OPTIONS request gets this. |
 | 503 | `Email delivery is not configured` | `/auth/*` only, when `RESEND_API_KEY` is unset and the worker is not in dev mode. Dev mode needs `DEVELOPMENT_MODE === 'true'` **and** a request host of `localhost`, `127.0.0.1` or `[::1]`. |
-| 503 | `Durable state is not configured` | The `VEX_STATE` binding is missing. |
+| 503 | `Durable state is not configured` | The `VEX_STATE` or `VEX_ACCOUNTS` binding is missing. |
 
 A client SHOULD show 503 as "the sync server is not set up" and MUST NOT treat it as signed-out.
 

@@ -11,7 +11,11 @@ at anyone else's. **Setup, secrets and email delivery:
 - **`vex-sync-worker/`** (deploys as `vex-sync`) — end-to-end-encrypted
   settings/tabs/history sync. The server only ever stores ciphertext; the
   encryption key never leaves the device. Email-code auth with a 5-attempt cap
-  and per-email and per-IP rate limiting.
+  and per-email and per-IP rate limiting. Each account lives in its own Durable
+  Object (`VEX_ACCOUNTS`); one global object (`VEX_STATE`) keeps only login
+  codes, rate limits and which account a session token belongs to. Upgrading
+  from v2.37.0 or earlier copies each account on its first request — see
+  SELF_HOSTING.md, "Upgrading from v2.37.0 or earlier".
 
 The KV namespace ids in both `wrangler.toml` files are the author's real
 namespaces, not placeholders: remove the `kv_namespaces` block for a fresh

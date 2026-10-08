@@ -9,28 +9,27 @@
 //      the next sign-in, and no secret means every request is refused;
 //   c. verify-code put the device in the list before the app had decided
 //      anything, so a refused sign-in left a ghost device.
+//
+// Since each account has its own Durable Object, these run through the whole
+// worker (entry, global object, account objects; tests/workers/syncHarness.js).
+// `records` is the global object's storage; live()/value() read the account
+// objects' storage (where the accounts now are) unless told otherwise.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { VexSyncState, hashEmail, legacyHashEmail } from '../../workers/vex-sync-worker/worker.js';
+import { hashEmail, legacyHashEmail } from '../../workers/vex-sync-worker/worker.js';
+import { syncSystem, SECRET, isLive } from '../workers/syncHarness.js';
 
-const SECRET = 'test-email-hash-secret-0123456789abcdef';
 const EMAIL = 'someone@example.com';
 
-function worker(env = { DEVELOPMENT_MODE: 'true', EMAIL_HASH_SECRET: SECRET }, records = new Map()) {
-  let queue = Promise.resolve();
-  const state = {
-    storage: { get: async k => records.get(k), put: async (k, v) => { records.set(k, v); }, delete: async k => records.delete(k), getAlarm: async () => 1, setAlarm: async () => {} },
-    blockConcurrencyWhile(fn) { const r = queue.then(fn); queue = r.catch(() => {}); return r; },
+function worker(env = {}, records = new Map()) {
+  const sys = syncSystem({ env, global: records });
+  const inAccount = (key, account) => {
+    if (account) return sys.accounts.get(account);
+    const hit = [...sys.accounts.values()].find(m => m.has(key));
+    return hit || records;
   };
-  const object = new VexSyncState(state, env);
-  const call = async (method, path, body, token) => {
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = 'Bearer ' + token;
-    const r = await object.fetch(new Request('http://localhost' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }));
-    return { status: r.status, body: await r.json().catch(() => null) };
-  };
-  const live = (key) => { const r = records.get(key); return !!r && !r.deleted && (!r.expires || r.expires > Date.now()); };
-  const value = (key) => live(key) ? JSON.parse(records.get(key).value) : null;
-  return { call, records, live, value };
+  const live = (key, account) => isLive(inAccount(key, account), key);
+  const value = (key, account) => live(key, account) ? JSON.parse(inAccount(key, account).get(key).value) : null;
+  return { call: sys.call, records, accounts: sys.accounts, live, value };
 }
 
 async function signIn(w, email = EMAIL, deviceName = 'Laptop') {
@@ -47,7 +46,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('the secret', () => {
   it('refuses every request, loudly, when EMAIL_HASH_SECRET is not set', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    for (const env of [{ DEVELOPMENT_MODE: 'true' }, { DEVELOPMENT_MODE: 'true', EMAIL_HASH_SECRET: 'short' }]) {
+    for (const env of [{ EMAIL_HASH_SECRET: undefined }, { EMAIL_HASH_SECRET: 'short' }]) {
       const w = worker(env);
       for (const [method, path] of [['POST', '/auth/request-code'], ['POST', '/auth/verify-code'], ['GET', '/sync/pull']]) {
         const r = await w.call(method, path, method === 'POST' ? { email: EMAIL } : undefined, 'tok');
@@ -55,6 +54,7 @@ describe('the secret', () => {
         expect(r.body.error).toMatch(/EMAIL_HASH_SECRET/);
       }
       expect(w.records.size).toBe(0);
+      expect(w.accounts.size).toBe(0);
     }
     expect(err).toHaveBeenCalledWith(expect.stringMatching(/EMAIL_HASH_SECRET/));
   });
@@ -70,7 +70,8 @@ describe('the secret', () => {
     const a = await signIn(w);
     expect(a.emailHash).toBe(h);
     const old = await legacyHashEmail(EMAIL);
-    expect([...w.records.keys()].some(k => k.includes(old))).toBe(false);
+    for (const records of [w.records, ...w.accounts.values()]) expect([...records.keys()].some(k => k.includes(old))).toBe(false);
+    expect(w.accounts.has(old)).toBe(false);
   });
 });
 
@@ -158,12 +159,13 @@ describe('sessions are deleted with their device', () => {
     const a = await signIn(w);
     await push(w, a.sessionToken);
     const h = a.emailHash;
-    // An old worker's session and device: in the device list, not in sessions:.
+    // An old worker's session and device: the session in the global object,
+    // the device in the (already moved) list, not in sessions:.
     const at = new Date().toISOString();
     w.records.set('auth:sess:oldtoken', { value: JSON.stringify({ emailHash: h, deviceId: 'abc123', deviceName: 'Old', createdAt: at }), expires: Date.now() + 1e9 });
     const devices = w.value(`sync:devices:${h}`);
     devices.push({ deviceId: 'abc123', deviceName: 'Old', createdAt: at, lastSeenAt: at });
-    w.records.set(`sync:devices:${h}`, { value: JSON.stringify(devices), expires: 0 });
+    w.accounts.get(h).set(`sync:devices:${h}`, { value: JSON.stringify(devices), expires: 0 });
     expect((await w.call('GET', '/sync/pull', undefined, 'oldtoken')).status).toBe(200);
     expect(w.value(`auth:sessions:${h}`).map(s => s.token)).toContain('oldtoken');
     await w.call('DELETE', '/sync/devices/abc123', undefined, a.sessionToken);
@@ -213,7 +215,8 @@ describe('an account made with the old unsalted key', () => {
     expect(w.value(`sync:blob:${h}`).encryptedBlob).toBe('OLDBLOB');
     expect(w.value(`sync:devices:${h}`).map(d => d.deviceId)).toEqual(['aa11']);
     expect(w.value(`sync:drop:${h}`)).toHaveLength(1);
-    for (const k of ['blob', 'devices', 'drop']) expect(w.live(`sync:${k}:${old}`)).toBe(false);
+    // The old key's object keeps its copy and forwards from now on.
+    expect(w.accounts.get(old).get('meta:forward')).toMatchObject({ to: h });
     // The new device joins with the recovery code: its pull sees the old data.
     const pulled = await w.call('GET', '/sync/pull', undefined, b.sessionToken);
     expect(pulled.body).toMatchObject({ encryptedBlob: 'OLDBLOB', revision: 3 });
@@ -221,12 +224,11 @@ describe('an account made with the old unsalted key', () => {
     const oldPull = await w.call('GET', '/sync/pull', undefined, 'oldsession');
     expect(oldPull.status).toBe(200);
     expect(oldPull.body.encryptedBlob).toBe('OLDBLOB');
-    expect(w.value('auth:sess:oldsession').emailHash).toBe(h);
-    expect(w.live('auth:moved:aa11')).toBe(false);
+    expect(w.value('auth:sess:oldsession', h).emailHash).toBe(h);
     expect((await w.call('GET', '/sync/devices', undefined, 'oldsession')).body.devices.map(d => d.deviceId).sort()).toEqual(['aa11', b.deviceId].sort());
     // Its handoff mailbox came along too.
     expect((await w.call('GET', '/sync/drop', undefined, 'oldsession')).body.items).toHaveLength(1);
-    // Nothing is left under the old key.
-    expect([...w.records.entries()].filter(([k, r]) => k.includes(old) && !r.deleted)).toEqual([]);
+    // The global object sends every session of the old key here.
+    expect(w.records.get(`auth:alias:${old}`).value).toBe(h);
   });
 });
