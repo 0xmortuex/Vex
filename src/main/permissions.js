@@ -75,7 +75,10 @@ function createPermissionService({ userDataPath, secureSessions, ipcMain, _markH
 // in the normal one too (found 2026-09-29).
 const sessionDecisions = new Map();
 function sessionDecisionsFor(contents) {
-  const partition = (contents && secureSessions.partitionOf(contents)) || 'persist:main';
+  return sessionDecisionsByPartition(contents && secureSessions.partitionOf(contents));
+}
+function sessionDecisionsByPartition(partition) {
+  partition = partition || 'persist:main';
   if (!sessionDecisions.has(partition)) sessionDecisions.set(partition, new Map());
   return sessionDecisions.get(partition);
 }
@@ -94,7 +97,10 @@ const containersFile = path.join(userDataPath, 'permissions-containers.json');
 let cachedContainers = null;
 const hasOwnStore = (partition) => /^persist:(?:container|route)-/.test(partition || '');
 function decisionsFor(contents) {
-  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  return decisionsIn(contents, (c) => secureSessions.partitionOf(c));
+}
+function decisionsIn(contents, partitionOf) {
+  const partition = contents ? partitionOf(contents) : 'persist:main';
   if (partition && !partition.startsWith('persist:')) {
     if (!ephemeralPermissions.has(contents.session)) ephemeralPermissions.set(contents.session, Object.create(null));
     return ephemeralPermissions.get(contents.session);
@@ -105,7 +111,10 @@ function decisionsFor(contents) {
 // Writes what decisionsFor(contents) handed out, back where it came from. A
 // private window's decisions were changed in place and are never written.
 function saveDecisionsFor(contents, data) {
-  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  return saveDecisionsIn(contents, (c) => secureSessions.partitionOf(c), data);
+}
+function saveDecisionsIn(contents, partitionOf, data) {
+  const partition = contents ? partitionOf(contents) : 'persist:main';
   if (partition && !partition.startsWith('persist:')) return writes;
   if (hasOwnStore(partition)) {
     const all = { ...loadContainerDecisions() };
@@ -464,19 +473,51 @@ function setPageDecision(contents, origin, permission, decision) {
   return saveDecisionsFor(contents, d);
 }
 // Every decision the page's site has, in the page's store: the panel's Reset.
-function resetPageDecisions(contents, origin) {
+// What it took out is handed back for its Undo (restorePageDecisions), with
+// the store it came from: the page itself may be gone by then. A private
+// window's store is its session's, in memory, and is put back there.
+async function resetPageDecisions(contents, origin) {
   origin = originKey(origin);
   if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
   const d = decisionsFor(contents);
   const until = { ...(d.__until__ || {}) };
   const prefix = origin + '::';
-  for (const key of Object.keys(d)) if (key.startsWith(prefix)) { delete d[key]; delete until[key]; }
-  for (const key of [...sessionDecisionsFor(contents).keys()]) if (key.startsWith(prefix)) sessionDecisionsFor(contents).delete(key);
+  const removed = { decisions: {}, until: {}, visit: {} };
+  for (const key of Object.keys(d)) {
+    if (!key.startsWith(prefix)) continue;
+    removed.decisions[key] = d[key];
+    if (until[key] != null) removed.until[key] = until[key];
+    delete d[key]; delete until[key];
+  }
+  const visit = sessionDecisionsFor(contents);
+  for (const key of [...visit.keys()]) if (key.startsWith(prefix)) { removed.visit[key] = visit.get(key); visit.delete(key); }
   if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
-  return saveDecisionsFor(contents, d);
+  await saveDecisionsFor(contents, d);
+  const store = { partition: contents ? secureSessions.partitionOf(contents) : 'persist:main', session: contents ? contents.session : null };
+  return { store, removed };
+}
+// The Reset's Undo: each answer back in the store it was taken from. One the
+// site was given since the reset wins over the one it replaced.
+async function restorePageDecisions(snapshot) {
+  if (!snapshot || !snapshot.store || !snapshot.removed) throw new Error('Nothing to put back');
+  const { store, removed } = snapshot;
+  // The store, found the way decisionsFor finds a page's.
+  const asContents = { session: store.session };
+  const partitionOf = () => store.partition;
+  const d = decisionsIn(asContents, partitionOf);
+  const until = { ...(d.__until__ || {}) };
+  for (const [key, value] of Object.entries(removed.decisions || {})) {
+    if (Object.hasOwn(d, key)) continue;
+    d[key] = value;
+    if (removed.until && removed.until[key] != null) until[key] = removed.until[key];
+  }
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  const visit = sessionDecisionsByPartition(store.partition);
+  for (const [key, value] of Object.entries(removed.visit || {})) if (!visit.has(key)) visit.set(key, value);
+  await saveDecisionsIn(asContents, partitionOf, d);
 }
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { setPageDecision, resetPageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
+return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

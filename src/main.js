@@ -646,7 +646,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -1738,10 +1738,25 @@ ipcMain.handle('permissions:set-for-page', async (_e, id, permission, decision) 
   await setPageDecision(page, page.getURL(), permission, decision);
   return _decisionsInForce(decisionsFor(page));
 });
-ipcMain.handle('permissions:reset-for-page', async (_e, id) => {
+// What the reset took out stays here, never in the interface, behind a
+// one-time token for its Undo (js/vex-undo.js), until it is used or ten
+// minutes pass. Only the window that reset it may put it back. A private
+// window's answers were only ever in memory, and so is what is kept here.
+const _resetPagePermissions = new Map();
+ipcMain.handle('permissions:reset-for-page', async (e, id) => {
   const page = _sitePanelPage(id);
-  await resetPageDecisions(page, page.getURL());
-  return _decisionsInForce(decisionsFor(page));
+  const snapshot = await resetPageDecisions(page, page.getURL());
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _resetPagePermissions.set(token, { snapshot, sender: e.sender.id });
+  setTimeout(() => _resetPagePermissions.delete(token), 10 * 60 * 1000).unref?.();
+  return { decisions: _decisionsInForce(decisionsFor(page)), undo: token };
+});
+ipcMain.handle('permissions:reset-for-page-undo', async (e, token) => {
+  const kept = _resetPagePermissions.get(token);
+  if (!kept || kept.sender !== e.sender.id) return { ok: false, error: 'There is nothing to put back any more' };
+  _resetPagePermissions.delete(token);
+  await restorePageDecisions(kept.snapshot);
+  return { ok: true };
 });
 // Clear all answers with a token for its Undo (js/vex-undo.js): what was
 // cleared stays here, never in the interface, until the next clear or an hour.

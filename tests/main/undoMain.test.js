@@ -79,3 +79,83 @@ describe('Clear all site permissions, and its Undo', () => {
     expect(undo).toMatch(/_clearedPermissions\.delete\(token\)/);
   });
 });
+
+describe('the site panel’s Reset of one site’s permissions, and its Undo', () => {
+  function service(dir) {
+    return createPermissionService({
+      userDataPath: dir,
+      secureSessions: { partitionOf: (c) => c.partition, owner: () => null },
+      ipcMain: { on: vi.fn(), handle: vi.fn() }, _markHidRequestActive: () => {},
+    });
+  }
+  const page = (partition, session = {}) => ({ partition, session });
+
+  it('puts back every answer of the site, its "for a day" end and its "this visit" answers, in the page’s store', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-item9b-reset-'));
+    const svc = service(dir);
+    const main = page('persist:main');
+    await svc.savePermissionDecisions({
+      'https://news.test::geolocation': 'deny',
+      'https://news.test::camera': 'allow',
+      'https://other.test::camera': 'allow',
+      __until__: { 'https://news.test::camera': 4102444800000 },
+    });
+    svc.sessionDecisionsFor(main).set('https://news.test::microphone', 'allow');
+    const before = JSON.stringify(svc.decisionsFor(main));
+    const snap = await svc.resetPageDecisions(main, 'https://news.test/a/b');
+    expect(svc.decisionsFor(main)).toEqual({ 'https://other.test::camera': 'allow' });
+    expect(svc.sessionDecisionsFor(main).has('https://news.test::microphone')).toBe(false);
+    await svc.restorePageDecisions(snap);
+    expect(svc.decisionsFor(main)).toEqual(JSON.parse(before));
+    expect(svc.sessionDecisionsFor(main).get('https://news.test::microphone')).toBe('allow');
+    await svc.flushPermissions();
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'permissions.json'), 'utf8'))).toEqual(JSON.parse(before));
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a container’s answers go back to the container, and an answer given since wins', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-item9b-reset-'));
+    const svc = service(dir);
+    const work = page('persist:container-work');
+    await svc.setPageDecision(work, 'https://news.test', 'geolocation', 'deny');
+    await svc.setPageDecision(work, 'https://news.test', 'notifications', 'allow');
+    const snap = await svc.resetPageDecisions(work, 'https://news.test');
+    expect(svc.decisionsFor(work)).toEqual({});
+    await svc.setPageDecision(work, 'https://news.test', 'notifications', 'deny');   // decided again since
+    await svc.restorePageDecisions(snap);
+    expect(svc.decisionsFor(work)).toEqual({ 'https://news.test::geolocation': 'deny', 'https://news.test::notifications': 'deny' });
+    expect(svc.decisionsFor(page('persist:main'))).toEqual({});
+    await svc.flushPermissions();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a private window’s answers are reset and put back in memory, and nothing is written to disk', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-item9b-reset-'));
+    const svc = service(dir);
+    const priv = page('private-1', {});
+    await svc.setPageDecision(priv, 'https://news.test', 'camera', 'allow');
+    const snap = await svc.resetPageDecisions(priv, 'https://news.test');
+    expect(svc.decisionsFor(priv)).toEqual({});
+    await svc.restorePageDecisions(snap);
+    expect(svc.decisionsFor(priv)).toEqual({ 'https://news.test::camera': 'allow' });
+    await svc.flushPermissions();
+    expect(fs.readdirSync(dir)).toEqual([]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('main hands the reset back behind a one-time token only the same window may use', () => {
+    const reset = between("ipcMain.handle('permissions:reset-for-page'", '\n});\n');
+    expect(reset).toMatch(/return \{ decisions: .*, undo: token \}/);
+    expect(reset).toMatch(/sender: e\.sender\.id/);
+    const undo = between("ipcMain.handle('permissions:reset-for-page-undo'", '\n});\n');
+    expect(undo).toMatch(/kept\.sender !== e\.sender\.id/);
+    expect(undo).toMatch(/_resetPagePermissions\.delete\(token\)/);
+    expect(() => validate('permissions:reset-for-page-undo', ['0123456789abcdef0123456789abcdef'])).not.toThrow();
+    expect(() => validate('permissions:reset-for-page-undo', [7])).toThrow();
+    // Not "permissions:clear…": a private window may put back its own answers.
+    const policySrc = fs.readFileSync(path.join(__dirname, '../../src/main/ipc-policy.js'), 'utf8');
+    const PRIVATE_DISABLED = new RegExp(policySrc.match(/const PRIVATE_DISABLED = \/(.*)\/;/)[1]);
+    expect(PRIVATE_DISABLED.test('permissions:reset-for-page-undo')).toBe(false);
+    expect(PRIVATE_DISABLED.test('permissions:reset-for-page')).toBe(false);
+  });
+});

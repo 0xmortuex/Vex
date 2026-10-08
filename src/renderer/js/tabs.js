@@ -2875,6 +2875,13 @@ const TabManager = {
     // Closing the last tab opens a New Tab; Undo takes it away again.
     const madeForEmpty = this.tabs.filter(t => !before.has(t.id)).map(t => t.id);
     const lost = snapshot.tabs.filter(s => !s.restorable).length;
+    // Nothing that can come back (every tab of a private window, an
+    // off-the-record or Tor tab): the toast says so, with no Undo that could
+    // only fail. The snapshot is dropped with it — it was never written.
+    if (lost === snapshot.tabs.length) {
+      window.showToast?.(`${message} — ${lost === 1 ? 'a private or Tor tab' : 'private and Tor tabs'} cannot come back`, 'info');
+      return closing.length;
+    }
     window.VexUndo.offer({
       message: message + (lost ? ` (${lost} private or Tor tab${lost === 1 ? '' : 's'} cannot come back)` : ''),
       undo: () => this._restoreClosedTabs(snapshot, madeForEmpty),

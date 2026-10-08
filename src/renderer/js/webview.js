@@ -688,7 +688,19 @@ const WebviewManager = {
       localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...hosts]));
     } catch {}
   },
+  // A tab's page: the site panel's own Reset (js/site-panel.js) — every
+  // setting of the site at once, with Undo. An app panel's page (no tab):
+  // its zoom and dark mode, as before.
   resetSite(webview) {
+    const tab = webview.dataset && webview.dataset.tabId != null
+      ? (TabManager.tabs || []).find(t => String(t.id) === String(webview.dataset.tabId)) : null;
+    if (tab && typeof SitePanel !== 'undefined') {
+      SitePanel.resetSite(tab).catch(err => {
+        console.error('[Webview] reset site:', err);
+        window.showToast?.('Could not reset this site: ' + SitePanel._said(err), 'error');
+      });
+      return;
+    }
     try {
       const host = this._hostOf(webview.getURL());
       if (!host) return;

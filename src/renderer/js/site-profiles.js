@@ -105,34 +105,143 @@ const SiteProfiles = {
       row.querySelector('[data-act="go"]').addEventListener('click', () => {
         TabManager.createTab('https://' + h, true);
       });
+      // Done at once — zoom, dark mode, sleep, translation, ad blocking, the
+      // site switches and custom CSS/JS; its permissions and where it opens
+      // stay. Undo on the toast puts every one of them back.
       row.querySelector('[data-act="reset"]').addEventListener('click', async () => {
-        if (!await window.vexConfirm({
-          title: 'Reset ' + h,
-          message: `Forget what Vex keeps for ${h} — zoom, dark mode, sleep, translation, ad blocking and the site switches, and any custom CSS/JS? Its permissions and where it opens stay. This cannot be undone.`,
-          okLabel: 'Reset', danger: true,
-        })) return;
-        try { await this.forgetSite(h); }
-        catch (err) { window.showToast?.('Could not reset ' + h + ': ' + err.message, 'error'); }
-        this.renderSettings(container);
+        const redraw = () => { if (container.isConnected) this.renderSettings(container); };
+        let res;
+        try { res = await this.forgetSite(h); }
+        catch (err) { window.showToast?.('Could not reset ' + h + ': ' + err.message, 'error'); redraw(); return; }
+        redraw();
+        window.VexUndo.offer({
+          message: this._resetWords(h, res.failed),
+          undo: async () => { await this.restoreSite(res.snapshot); redraw(); },
+        });
       });
     });
   },
 
+  _resetWords(h, failed) {
+    const bare = this._bare(h);
+    return failed && failed.length
+      ? `Reset ${bare}, but these could not be saved and will come back: ${failed.join(', ')}`
+      : 'Reset ' + bare;
+  },
+
   // _resetSite, and the site switches main keeps (an async round trip).
+  // -> { snapshot, failed }: snapshot is everything that was taken away, for
+  // restoreSite. Nothing is touched when the switches cannot be changed here.
   async forgetSite(h) {
-    const ok = this._resetSite(h);
+    const bare = this._bare(h);
+    const names = [bare, 'www.' + bare];
+    const rulesChange = typeof SiteRulesUI !== 'undefined' && names.some(n => Object.hasOwn(SiteRulesUI.rules(), n));
+    if (rulesChange && SiteRulesUI._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
+    const snapshot = this.snapshotSite(h);
+    const failed = this._resetSite(h, { toast: false });
+    if (rulesChange) {
+      const rules = SiteRulesUI.rules();
+      for (const key of names) delete rules[key];
+      SiteRulesUI.save(rules);
+      await SiteRulesUI.push();
+    }
+    return { snapshot, failed };
+  },
+
+  // Everything Reset takes from `h`, exactly as it is now: the saved zoom
+  // under each spelling of the host, dark mode, never-sleep, always-translate,
+  // its custom CSS/JS, its site switches, and the zoom and dark mode of each
+  // open tab of it.
+  snapshotSite(h) {
+    const bare = this._bare(h);
+    const names = [bare, 'www.' + bare];
+    const clone = (v) => JSON.parse(JSON.stringify(v));
+    const zooms = this._zooms();
+    const dark = this._darkHosts();
+    const never = this._neverSleepHosts();
+    const snap = {
+      host: h, bare, zoom: {}, dark: names.filter(n => dark.has(n)), neverSleep: names.filter(n => never.has(n)),
+      translate: typeof TranslateSide !== 'undefined' && TranslateSide.alwaysHosts().includes(bare),
+      boost: null, rules: {}, tabs: [],
+    };
+    for (const n of names) if (Object.hasOwn(zooms, n)) snap.zoom[n] = zooms[n];
+    const boosts = typeof VexBoosts !== 'undefined' && VexBoosts.boosts ? VexBoosts.boosts : this._boosts();
+    if (Object.hasOwn(boosts, h)) snap.boost = clone(boosts[h]);
     if (typeof SiteRulesUI !== 'undefined') {
       const rules = SiteRulesUI.rules();
-      const bare = this._bare(h);
-      let changed = false;
-      for (const key of [bare, 'www.' + bare]) if (Object.hasOwn(rules, key)) { delete rules[key]; changed = true; }
-      if (changed) {
-        if (SiteRulesUI._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
-        SiteRulesUI.save(rules);
-        await SiteRulesUI.push();
+      for (const n of names) if (Object.hasOwn(rules, n)) snap.rules[n] = clone(rules[n]);
+    }
+    if (typeof TabManager !== 'undefined' && typeof WebviewManager !== 'undefined') {
+      for (const t of (TabManager.tabs || [])) {
+        if (this._hostFromUrl(t.url) !== bare) continue;
+        const wv = WebviewManager.webviews?.get(t.id);
+        if (!wv) continue;
+        let zoom = null;
+        try { zoom = typeof wv.getZoomFactor === 'function' ? wv.getZoomFactor() : null; } catch { zoom = null; }
+        snap.tabs.push({ id: t.id, zoom, dark: !!wv._forceDarkKey });
       }
     }
-    return ok;
+    return snap;
+  },
+
+  // Reset's Undo: each piece back in its store, and on the tabs still open.
+  // Something set for the site since the reset wins over what it replaced.
+  async restoreSite(snap) {
+    if (!snap || !snap.bare) throw new Error('Nothing to put back');
+    const { host: h, bare } = snap;
+    const ruleNames = Object.keys(snap.rules);
+    if (ruleNames.length && typeof SiteRulesUI !== 'undefined' && SiteRulesUI._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
+    const failed = [];
+    const zooms = this._zooms();
+    let zoomChanged = false;
+    for (const [n, z] of Object.entries(snap.zoom)) if (!Object.hasOwn(zooms, n)) { zooms[n] = z; zoomChanged = true; }
+    if (zoomChanged && !this._saveZooms(zooms)) failed.push('zoom');
+    if (snap.dark.length) {
+      const dark = this._darkHosts();
+      snap.dark.forEach(n => dark.add(n));
+      try { localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...dark])); } catch { failed.push('dark mode'); }
+    }
+    if (snap.neverSleep.length) {
+      const never = this._neverSleepHosts();
+      snap.neverSleep.forEach(n => never.add(n));
+      if (!this._saveNeverSleep(never)) failed.push('sleep');
+    }
+    if (snap.translate && typeof TranslateSide !== 'undefined' && !TranslateSide.alwaysHosts().includes(bare)) {
+      TranslateSide.setAlways('https://' + bare + '/', true);
+    }
+    if (snap.boost) {
+      if (typeof VexBoosts !== 'undefined' && VexBoosts.boosts) {
+        if (!Object.hasOwn(VexBoosts.boosts, h)) {
+          // Its JS never left the open pages; only the zaps and CSS go back on
+          // them — running the JS again would not be undoing.
+          VexBoosts.boosts[h] = { ...snap.boost, js: '' };
+          VexBoosts.refreshHost(h);
+          VexBoosts.boosts[h] = snap.boost;
+          if (!VexBoosts.save()) failed.push('custom CSS/JS');
+        }
+      } else {
+        const b = this._boosts();
+        if (!Object.hasOwn(b, h)) { b[h] = snap.boost; localStorage.setItem('vex.boosts', JSON.stringify(b)); }
+      }
+    }
+    if (ruleNames.length && typeof SiteRulesUI !== 'undefined') {
+      const rules = SiteRulesUI.rules();
+      let changed = false;
+      for (const n of ruleNames) if (!Object.hasOwn(rules, n)) { rules[n] = snap.rules[n]; changed = true; }
+      if (changed) { SiteRulesUI.save(rules); await SiteRulesUI.push(); }
+    }
+    // The tabs still open: their zoom, and dark mode where the site has it.
+    if (typeof TabManager !== 'undefined' && typeof WebviewManager !== 'undefined') {
+      for (const t of snap.tabs) {
+        if (!(TabManager.tabs || []).some(x => x.id === t.id)) continue;
+        const wv = WebviewManager.webviews?.get(t.id);
+        if (!wv) continue;
+        if (t.zoom != null && typeof wv.setZoomFactor === 'function') wv.setZoomFactor(t.zoom);
+        if (t.dark && WebviewManager._applyForceDark) WebviewManager._applyForceDark(wv);
+      }
+    }
+    if (failed.length) throw new Error(`${failed.join(', ')} could not be saved`);
+    return true;
   },
 
   // Undo every per-site preference for `h` kept in this window's storage.
@@ -142,7 +251,9 @@ const SiteProfiles = {
   // the key underneath it looked like it worked and then silently resurrected
   // the boost the next time any boost was edited. Going through VexBoosts also
   // lets us pull the injected CSS out of the pages that are open right now.
-  _resetSite(h) {
+  // -> the names of what could not be saved ([] when all of it was). With
+  // toast (the default) it says so itself; true is returned when nothing failed.
+  _resetSite(h, { toast = true } = {}) {
     const failed = [];
     const bare = this._bare(h);
     const names = [bare, 'www.' + bare];
@@ -177,11 +288,8 @@ const SiteProfiles = {
         if (wv) { wv.setZoomFactor(1); if (WebviewManager._removeForceDark) WebviewManager._removeForceDark(wv); }
       });
     } catch {}
-    try {
-      window.showToast?.(failed.length
-        ? `Reset ${bare}, but these could not be saved and will come back: ${failed.join(', ')}`
-        : 'Reset ' + bare, failed.length ? 'error' : undefined);
-    } catch {}
+    if (!toast) return failed;
+    try { window.showToast?.(this._resetWords(h, failed), failed.length ? 'error' : undefined); } catch {}
     return !failed.length;
   },
 };

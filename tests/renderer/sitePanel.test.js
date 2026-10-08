@@ -27,7 +27,8 @@ function setup({ url = 'https://www.news.example/a', partition = 'persist:main',
   window.vex = {
     permissionsListForPage: vi.fn(async () => ({ 'https://www.news.example::geolocation': 'deny', 'https://www.news.example::media': 'allow' })),
     permissionsSetForPage: vi.fn(async () => ({})),
-    permissionsResetForPage: vi.fn(async () => ({})),
+    permissionsResetForPage: vi.fn(async () => ({ decisions: {}, undo: 'a'.repeat(32) })),
+    permissionsResetForPageUndo: vi.fn(async () => ({ ok: true })),
     privacyTrackerStats: vi.fn(async () => ({ bySite: { 'news.example': 4, 'm.news.example': 2, 'other.example': 9 } })),
     getAdBlockerState: vi.fn(async () => true),
     cookiesList: vi.fn(async () => ({ ok: true, cookies: [{ name: 'a' }, { name: 'b' }] })),
@@ -327,7 +328,7 @@ describe('words that throw data away stay readable in every theme and look', () 
       }
     }
   });
-  it('"Reset this site…" is the panel\'s text colour with a red icon', async () => {
+  it('"Reset this site" is the panel\'s text colour with a red icon', async () => {
     setup(); const P = load();
     P.open(); await flush();
     const b = document.querySelector('[data-act="reset-site"]');

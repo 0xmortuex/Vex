@@ -89,6 +89,8 @@ define('extensions:set-pinned', [string(160), boolean]);
 define('extensions:uninstall-later extensions:uninstall-undo', [string(160)]);
 // Clear all site permissions' Undo: the token clear-all answered with.
 define('permissions:clear-undo', [value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value)]);
+// The site panel's Reset, and its Undo: the token reset-for-page answered with.
+define('permissions:reset-for-page-undo', [value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value)]);
 define('extensions:action-click', [shape({ partition: string(160), id: extId, tab: pageId })]);
 define('extensions:set-command-key', [shape({ folder: string(160), command: string(200), reset: optional(boolean),
   key: optional(shape({ key: string(40), code: optional(string(40)), ctrl: boolean, alt: boolean, shift: boolean })) })]);
