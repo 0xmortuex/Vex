@@ -148,6 +148,8 @@ const SitePanel = {
     el.setAttribute('aria-labelledby', 'sp-title');
     el.setAttribute('aria-describedby', 'sp-sub');
     el.tabIndex = -1;
+    // Toasts keep clear of it (app.js placeToasts): one sat on "Site settings".
+    el.setAttribute('data-avoid-toasts', '');
     this._el = el;
     this._paint();
     document.body.appendChild(el);

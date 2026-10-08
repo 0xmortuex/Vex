@@ -178,6 +178,7 @@
     menu.className = 'tb-overflow-menu';
     menu.setAttribute('role', 'menu');
     menu.setAttribute('aria-label', 'More tools');
+    menu.setAttribute('data-avoid-toasts', '');   // toasts keep clear of it (app.js placeToasts)
     renderMenu();
     if (!menu) return;
     document.body.appendChild(menu);

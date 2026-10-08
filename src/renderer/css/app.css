@@ -803,6 +803,9 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   pointer-events: none; font-size: 13px; color: var(--vex-text-primary);
 }
 .toast-item.show { transform: translateX(0); }
+/* A panel with no room beside the toasts ends above them (app.js placeToasts);
+   stronger than the max-height its own placing writes inline. */
+[data-avoid-toasts].toast-capped { max-height: var(--toast-cap) !important; }
 .toast-item.success { border-left-color: var(--vex-success); }
 .toast-item.error { border-left-color: var(--vex-danger); }
 .toast-item.warn { border-left-color: var(--vex-warning); }

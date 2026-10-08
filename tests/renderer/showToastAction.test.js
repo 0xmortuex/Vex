@@ -11,7 +11,11 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/app.js'), 'utf8').replace(/\r\n/g, '\n');
 const start = src.indexOf('  function showToast(message, type, duration, opts) {');
 const end = src.indexOf('\n  window.showToast = showToast;', start);
-const showToast = new Function(src.slice(start, end) + '\nreturn showToast;')();
+// The placement watchers (MutationObservers) are stand-ins the tests call by
+// hand: real ones outlive the test window and fire into its teardown.
+const observers = [];
+class FakeObserver { constructor(cb) { this.cb = cb; observers.push(this); } observe(target) { this.target = target; } disconnect() {} }
+const [showToast, placeToastsForTest] = new Function('MutationObserver', src.slice(start, end) + '\nreturn [showToast, placeToasts];')(FakeObserver);
 
 beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); });
 
@@ -83,5 +87,39 @@ describe('a toast with a button', () => {
     showToast('plain', 'info');
     expect(showToast('plain', 'info')).toBe(null);
     expect(document.querySelectorAll('#toast-container .toast-item')).toHaveLength(3);
+  });
+});
+
+// A toast sat on the site panel's "Site settings" link in a narrow window
+// (final review, 2026-10-09): the stack keeps clear of [data-avoid-toasts].
+describe('toasts and an open panel', () => {
+  const rect = (el, r) => { el.getBoundingClientRect = () => ({ ...r, right: r.left + r.width, bottom: r.top + r.height }); el.getClientRects = () => [1]; };
+  const flush = () => Promise.resolve().then(() => {});
+  it('move beside the panel when there is room, and the panel ends above them when there is not', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    const panel = document.createElement('div');
+    panel.setAttribute('data-avoid-toasts', '');
+    document.body.appendChild(panel);
+    rect(panel, { left: 800, top: 80, width: 392, height: 700 });
+    showToast('first', 'info', 5000);
+    const c = document.getElementById('toast-container');
+    rect(c, { left: 820, top: 700, width: 360, height: 60 });
+    placeToastsForTest();
+    expect(c.style.right).toBe('408px');                   // 1200 - 800 + 8: left of the panel
+    expect(panel.classList.contains('toast-capped')).toBe(false);
+    // Narrow: the panel spans the window, so it gives the stack its bottom.
+    Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+    rect(panel, { left: 8, top: 80, width: 384, height: 700 });
+    rect(c, { left: 20, top: 700, width: 360, height: 60 });
+    placeToastsForTest();
+    expect(c.style.right).toBe('');
+    expect(panel.classList.contains('toast-capped')).toBe(true);
+    expect(panel.style.getPropertyValue('--toast-cap')).toBe('612px'); // 700 - 8 - 80 (never below 96: its head and foot)
+    // The toasts gone: the panel has its height back.
+    vi.advanceTimersByTime(6000);
+    await flush();
+    observers.filter(o => o.target === c).forEach(o => o.cb([]));   // the stack's watcher
+    expect(panel.classList.contains('toast-capped')).toBe(false);
   });
 });

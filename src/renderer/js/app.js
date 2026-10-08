@@ -1805,6 +1805,7 @@ function vexOwnTextFocused(doc) {
       container.setAttribute('role', 'status');
       container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
+      watchToastPlacement(container);
     }
     // Skip exact duplicates of a toast that is still visible. One with a
     // button is about one thing that happened, so two of them are two things.
@@ -1896,6 +1897,40 @@ function vexOwnTextFocused(doc) {
     startedAt = Date.now();
     timer = setTimeout(() => handle.expire(), duration);
     return handle;
+  }
+
+  // Toasts keep clear of an open panel or menu that asks for it
+  // ([data-avoid-toasts]: the site panel, More tools). In a narrow window a
+  // toast sat on the site panel's "Site settings" link (final review,
+  // 2026-10-09). The stack moves beside the panel when there is room;
+  // otherwise the panel ends above the stack (.toast-capped, app.css) and its
+  // body scrolls, so every row stays in reach. Worked out again whenever a
+  // toast or a panel comes or goes, and on resize.
+  function placeToasts() {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const panels = [...document.querySelectorAll('[data-avoid-toasts]')];
+    panels.forEach(p => p.classList.remove('toast-capped'));
+    container.style.right = '';
+    const live = [...container.children].some(t => !t.dataset.leaving);
+    if (!live) return;
+    const GAP = 8, EDGE = 20;
+    for (const p of panels) {
+      if (!p.getClientRects().length) continue;
+      const c = container.getBoundingClientRect(), r = p.getBoundingClientRect();
+      if (!(c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top)) continue;
+      if (r.left - GAP - EDGE >= c.width) { container.style.right = (window.innerWidth - r.left + GAP) + 'px'; continue; }
+      p.style.setProperty('--toast-cap', Math.max(96, c.top - GAP - r.top) + 'px');
+      p.classList.add('toast-capped');
+    }
+  }
+  function watchToastPlacement(container) {
+    new MutationObserver(placeToasts).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leaving'] });
+    new MutationObserver((records) => {
+      if (records.some(m => [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1 && n.hasAttribute('data-avoid-toasts')))) placeToasts();
+    }).observe(document.body, { childList: true });
+    // After the panels' own resize handlers have placed them.
+    window.addEventListener('resize', () => setTimeout(placeToasts, 0));
   }
 
   window.showToast = showToast;
