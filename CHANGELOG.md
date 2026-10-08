@@ -1,5 +1,41 @@
 # Changelog
 
+## v2.38.0 (2026-10-09) — Themes your way, a calmer Vex, and Undo instead of "Are you sure?"
+
+### Themes
+- **Light and dark**: Vex wears a light theme and a dark theme by itself, following Windows or a schedule. A theme you pick becomes your light or dark theme by its own colours, shows at once even at the "wrong" hour, and the toast says what happens at the next switch.
+- **Chrome Web Store themes become Vex themes**: Add to Vex on a theme's store page, its link or id, or its .crx. Signatures are checked like an extension, its colours become a theme that reads at 4.5:1 (saying what was adjusted), its picture goes on the New Tab page, and packages with code are refused.
+- **A theme from any picture or your Windows wallpaper**, with Calm, Vivid and Light/Dark versions and the picture as the New Tab background.
+- **Make your own theme**: edit any theme with a live preview of Vex and the New Tab, contrast warnings and a Fix contrast button, and share it as a small .vextheme file. Your themes sync, and deleting one happens at once with Undo.
+- **New themes for a need**: AMOLED (true black), High Contrast Light, Evening for night reading, and Windows 11 Mica Light and Mica Dark. Every word on the New Tab page reads in them.
+- Picking Firefox — dark (or any light/dark look version) by hand shows its own colours when your colour theme is the other lightness. Glass shows a theme's New Tab picture.
+
+### Easier to use
+- **Simple mode**: new profiles can start in a calm Vex with one All features switch that brings everything back. Existing profiles stay as they are.
+- **Undo instead of "Are you sure?"**: deleting, closing, clearing, resetting a site and Un-zap all happen at once with an Undo toast (button or Ctrl+Z) that puts things back exactly where they were. Closing tabs that can't be reopened no longer offers an Undo that fails.
+- **The padlock opens one panel for the site**: connection and certificate, permissions with Allow/Ask/Block, zoom, never sleep, always translate, ad blocking, its switches, where it opens and its cookies, all kept in the same places Settings shows.
+- **What's new**: after an update a small card names what is new, once per version, with See everything for any releases you missed.
+- Toasts keep clear of the site panel, More tools and download cards, so Site settings, Open and Show stay reachable.
+- A narrow or scaled window keeps a usable address field in every look; success text reads in every theme; AI settings labels are no longer squeezed.
+
+### Passwords, sync and devices
+- **Vex suggests a strong password on sign-up forms** (HTTPS only) and saves it when you submit; Settings › Passwords has a generator. A copied password or code is cleared from the clipboard after 30 seconds, even with Vex in the background.
+- **Send a tab to your phone or other computers** from the tab menu, the address bar or Ctrl+K; tabs sent to you wait as cards on the New Tab page with a notification.
+- **Each sync account has its own server storage**, and existing accounts move there on their first sync without signing anyone out (needs the updated Sync Worker). A private window never syncs and says so in Settings.
+
+### Reading and privacy
+- **A daily reading digest**: each Read Later article summarised by your local AI, in the Library and on the New Tab page.
+- **Recall is now opt-in** for new profiles; profiles set up before this version keep the choice they had.
+
+### Extensions
+- **Right-click menu items, keyboard shortcuts and toolbar badges from extensions now work**. Extensions can be pinned to the toolbar with their badge, icon, popup and menu, and menus stay on screen with submenus opening beside them.
+
+### Fixes
+- A site's Boost CSS and hidden elements apply even with its JavaScript switched off.
+- Blocked pop-ups are told apart from ones you asked for, the way Chrome does. The never-sleep and always-translate site lists sync.
+- Open as App windows and private windows no longer hit refused requests; Do That Again no longer repeats a command that can't run where you are.
+- Windows code signing is ready to switch on once a certificate is set up, and is checked before upload.
+
 ## v2.37.0 (2026-10-07) — A full check-up: safer, smaller, and settings that mean what they say
 
 ### Privacy and security
