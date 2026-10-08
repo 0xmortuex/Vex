@@ -312,7 +312,9 @@ contextBridge.exposeInMainWorld('vex', {
   // The site panel: one permission of that page set to 'allow', 'deny' or
   // 'ask'; every one of its site's reset; the certificate it was served with.
   permissionsSetForPage: (id, permission, decision) => ipcRenderer.invoke('permissions:set-for-page', id, permission, decision),
+  // -> { decisions, undo }: the token puts every reset answer back.
   permissionsResetForPage: (id) => ipcRenderer.invoke('permissions:reset-for-page', id),
+  permissionsResetForPageUndo: (token) => ipcRenderer.invoke('permissions:reset-for-page-undo', token),
   siteCertificate: (id) => ipcRenderer.invoke('site:certificate', id),
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),

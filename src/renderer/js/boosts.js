@@ -181,21 +181,20 @@ const VexBoosts = {
     // Focus moves in, so Escape reaches this even when it was opened from a
     // page, which kept the key (found 2026-09-29).
     m.querySelector('#bm-cancel').focus({ preventScroll: true });
-    m.querySelector('#bm-clear-zaps').addEventListener('click', async () => {
-      const n = (b.zaps || []).length;
-      if (!await window.vexConfirm({
-        title: 'Un-zap all',
-        message: `Bring back ${n} hidden element${n === 1 ? '' : 's'} on ${host}? This cannot be undone.`,
-        okLabel: 'Un-zap all', danger: true,
-      })) return;
+    // At once, with Undo on the toast: the zaps come back in their order, and
+    // hidden again on the open pages.
+    m.querySelector('#bm-clear-zaps').addEventListener('click', () => {
+      const zaps = [...(b.zaps || [])];
       b.zaps = [];
       if (!b.css && !b.js) delete this.boosts[host]; else this.boosts[host] = b;
       const saved = this.save();
       const tabs = this.refreshHost(host);
       m.remove();
-      window.showToast?.(saved
-        ? `Zaps cleared${tabs ? ` — ${tabs} open tab${tabs === 1 ? '' : 's'} updated` : ''}`
-        : 'Zaps cleared for now, but the change could not be saved — they return when you restart Vex', saved ? undefined : 'error');
+      if (!saved) { window.showToast?.('Zaps cleared for now, but the change could not be saved — they return when you restart Vex', 'error'); return; }
+      window.VexUndo.offer({
+        message: `Brought back ${zaps.length} hidden element${zaps.length === 1 ? '' : 's'} on ${host}${tabs ? ` — ${tabs} open tab${tabs === 1 ? '' : 's'} updated` : ''}`,
+        undo: () => this.restoreZaps(host, zaps),
+      });
     });
     m.querySelector('#bm-save').addEventListener('click', () => {
       const hadJs = !!b.js;
@@ -210,6 +209,22 @@ const VexBoosts = {
       if (!saved) { window.showToast?.('Applied for now, but the boost could not be saved — it resets when you restart Vex', 'error'); return; }
       window.showToast?.(emptied ? this._offMessage(hadJs, tabs) : 'Boost saved');
     });
+  },
+
+  // Un-zap all's Undo: the zaps back in their order (any zapped since stay,
+  // after them), hidden again on the open pages. The site's JS is not run a
+  // second time: it never left those pages.
+  restoreZaps(host, zaps) {
+    if (!host || !Array.isArray(zaps)) throw new Error('Nothing to put back');
+    const b = this.boosts[host] || { zaps: [], css: '', js: '' };
+    const since = (Array.isArray(b.zaps) ? b.zaps : []).filter(sel => !zaps.includes(sel));
+    b.zaps = [...zaps, ...since];
+    this.boosts[host] = b;
+    const js = b.js;
+    b.js = '';
+    try { this.refreshHost(host); } finally { b.js = js; }
+    if (!this.save()) throw new Error('The zaps could not be saved');
+    return b.zaps.length;
   },
 
   // --- Settings → Boosts list ---

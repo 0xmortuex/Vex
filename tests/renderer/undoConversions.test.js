@@ -102,6 +102,21 @@ describe('tab groups: Close tabs and Delete group', () => {
     await undoLast();
     expect(TM.tabs.map(t => t.id)).toEqual(['p', 'a', 'x', 'c']);
   });
+
+  it('when none of them can come back (a private window, off-the-record tabs), no Undo is offered and nothing is kept', async () => {
+    const TM = await loadTabs();
+    for (const id of ['a', 'b']) TM.tabs.find(t => t.id === id).partition = 'otr-1';
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    await TM._handleGroupAction('close-tabs', 'g1');
+    expect(TM.tabs.map(t => t.id)).toEqual(['p', 'x', 'c']);
+    expect(offers).toEqual([]);
+    expect(window.showToast).toHaveBeenLastCalledWith('Closed 2 tabs in “Work” — private and Tor tabs cannot come back', 'info');
+    expect(window.VexUndo.pending()).toEqual([]);
+    // Nothing of theirs reached storage: not "recently closed", not the saved tabs.
+    for (const [key, value] of setItem.mock.calls) expect(String(value), key).not.toContain('a.example');
+    expect(JSON.stringify(globalThis.VexStorage.saveTabs.mock.calls)).not.toContain('a.example');
+    setItem.mockRestore();
+  });
 });
 
 describe('bookmarks', () => {

@@ -52,8 +52,9 @@ const SitePanel = {
   CONTAINERS: ['work', 'personal', 'shopping'],
 
   // ---- what the page in front is --------------------------------------------
-  context() {
-    const tab = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
+  // The tab in front, or the one given (a page's own context menu).
+  context(forTab = null) {
+    const tab = forTab || (typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null);
     if (!tab) throw new Error('There is no tab open');
     const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(tab.id) : null;
     let url = '';
@@ -338,7 +339,7 @@ const SitePanel = {
       </div>
       <div class="sp-body">${body}</div>
       <div class="sp-foot">
-        ${c.web ? `<button type="button" class="sp-link sp-danger" data-act="reset-site">${this._ico('trash', 13)}<span>Reset this site…</span></button>` : '<span></span>'}
+        ${c.web ? `<button type="button" class="sp-link sp-danger" data-act="reset-site">${this._ico('trash', 13)}<span>Reset this site</span></button>` : '<span></span>'}
         <button type="button" class="sp-link" data-act="settings">${this._ico('settings', 13)}<span>Site settings</span></button>
       </div>`;
     const b = el.querySelector('.sp-body');
@@ -620,10 +621,12 @@ const SitePanel = {
         return;
       case 'perms-all': this._showAllPerms = true; this._paint(); return;
       case 'perms-reset': {
-        if (!await window.vexConfirm({ title: 'Reset permissions', message: `Forget every permission answer for ${c.host}${c.container ? ' in the ' + c.container + ' container' : ''}? It will ask again.`, okLabel: 'Reset' })) return;
-        this._decisions = (await window.vex.permissionsResetForPage(c.pageId)) || {};
-        window.showToast?.('Permissions reset for ' + c.host);
+        const token = await this._resetPerms(c);
         this._paint();
+        window.VexUndo.offer({
+          message: 'Permissions reset for ' + c.host + (c.container ? ' in the ' + c.container + ' container' : ''),
+          undo: async () => { await this._putPermsBack(token); this._refreshIfOn(c); },
+        });
         return;
       }
       case 'zoom-in': WebviewManager.zoomIn(); this._paint(); return;
@@ -693,7 +696,7 @@ const SitePanel = {
         this.close({ keepFocus: true });
         SettingsUI.openSection('setting-adblocker');
         return;
-      case 'reset-site': return this._resetSite();
+      case 'reset-site': return this._resetSite(c);
       default:
         if (act.startsWith('rule-')) {
           this._mustSave(c);
@@ -744,20 +747,66 @@ const SitePanel = {
     TabManager.closeTab(oldId);
   },
 
-  async _resetSite() {
-    const c = this._ctx;
-    const kept = c.canSave
-      ? 'its permissions, zoom, dark mode, sleep, translation, ad blocking, the site switches and any custom CSS/JS'
-      : 'its permissions and zoom in this tab';
-    if (!await window.vexConfirm({ title: 'Reset ' + c.host, message: `Forget ${kept}? Where it opens and its cookies stay (change those above). This cannot be undone.`, okLabel: 'Reset', danger: true })) return;
-    if (!c.tor && !c.torRoute) this._decisions = (await window.vex.permissionsResetForPage(c.pageId)) || {};
-    try { c.wv.setZoomFactor(1); } catch (err) { console.warn('[SitePanel] zoom of the page could not be reset:', err.message); }
+  // Every permission answer of the page's site, in the store the page is held
+  // to; -> the token that puts them back (main keeps what was taken).
+  async _resetPerms(c) {
+    const res = await window.vex.permissionsResetForPage(c.pageId);
+    if (!res || !res.undo) throw new Error('The permissions could not be reset');
+    if (this._ctx === c) this._decisions = res.decisions || {};
+    return res.undo;
+  },
+  async _putPermsBack(token) {
+    const res = await window.vex.permissionsResetForPageUndo(token);
+    if (!res || !res.ok) throw new Error((res && res.error) || 'The permissions could not be put back');
+  },
+  // The panel, if it is still showing the same tab, read again from the stores.
+  _refreshIfOn(c) {
+    if (this._el && this._ctx && this._ctx.tab.id === c.tab.id) this._load();
+  },
+
+  // A page's context menu: Reset this site's settings, for that page's tab.
+  resetSite(tab) {
+    return this._resetSite(this.context(tab));
+  },
+
+  // Done at once, with Undo on the toast (js/vex-undo.js): its permissions,
+  // the page's zoom, and where the site's settings may be kept, its saved
+  // zoom, dark mode, sleep, translation, ad blocking, site switches and custom
+  // CSS/JS. Where it opens and its cookies stay. Undo puts every one back.
+  // A tab that keeps nothing has only its in-memory permissions and its zoom
+  // to reset, and Undo writes nothing to disk for it either.
+  async _resetSite(c) {
+    if (!c || !c.web) throw new Error('Only a website has settings to reset');
+    const perms = !c.tor && !c.torRoute ? await this._resetPerms(c) : null;
+    let zoomWas = null;
+    try { zoomWas = c.wv.getZoomFactor(); c.wv.setZoomFactor(1); }
+    catch (err) { console.warn('[SitePanel] zoom of the page could not be reset:', err.message); }
+    let site = null, hadRules = false;
     if (c.canSave) {
-      const hadRules = !!SiteRulesUI.forUrl(c.url);
-      await SiteProfiles.forgetSite(c.host);
-      if (hadRules) this._after = 'rebuild';
-    } else window.showToast?.('Reset ' + c.host + ' for this tab');
+      hadRules = !!SiteRulesUI.forUrl(c.url);
+      site = await SiteProfiles.forgetSite(c.host);
+      if (hadRules) {
+        if (this._el && this._ctx === c) this._after = 'rebuild';
+        else TabManager.rebuildTab(c.tab.id);
+      }
+    }
     this._paint();
+    window.VexUndo.offer({
+      message: site ? SiteProfiles._resetWords(c.host, site.failed) : 'Reset ' + c.host + ' for this tab',
+      undo: async () => {
+        if (perms) await this._putPermsBack(perms);
+        if (site) await SiteProfiles.restoreSite(site.snapshot);
+        // Last: the site's snapshot was taken after this page's zoom went to 100%.
+        const open = (TabManager.tabs || []).some(t => t.id === c.tab.id);
+        if (open && zoomWas != null && c.wv.isConnected !== false) c.wv.setZoomFactor(zoomWas);
+        // The site switches are back: the tab built without them is built again.
+        if (open && hadRules) {
+          if (this._el && this._ctx && this._ctx.tab.id === c.tab.id) this._after = 'rebuild';
+          else TabManager.rebuildTab(c.tab.id);
+        }
+        this._refreshIfOn(c);
+      },
+    });
   },
 
   // ---- start ------------------------------------------------------------------
