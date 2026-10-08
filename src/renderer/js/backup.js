@@ -38,7 +38,7 @@ const VexBackup = {
 
   // True of this machine, not of this person.
   LOCAL: [
-    /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|notificationsChecked|defaultBrowserConfigured)$/,
+    /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|whatsNewPending|notificationsChecked|defaultBrowserConfigured)$/,
     /^vex\.(panelUsage|tabs|sleptAt|commandUsage|clipboard)/,
     // Only the bare key. As a prefix, `session` also caught `vex.sessions` —
     // the named sessions you saved — so the backup that promised "sessions"

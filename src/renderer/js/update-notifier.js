@@ -343,17 +343,14 @@ const UpdateNotifier = {
   async _install(info, backedUp) {
     this._setPhase('installing', 'Closing Vex to install the update. Your tabs are saved, and Vex opens again by itself when it is done.'
       + (backedUp ? ' Your data was backed up first: Settings › Backup lists it.' : ''));
-    // The notes were just read here: the What's New window would open them
-    // again on the new version (update-log.js compares vex.lastSeenVersion).
-    let seenBefore = null;
-    try { seenBefore = localStorage.getItem('vex.lastSeenVersion'); localStorage.setItem('vex.lastSeenVersion', info.latest); }
-    catch (err) { console.error('[Update] could not note the notes as read:', err); }
+    // vex.lastSeenVersion is left as it is: on the new version, the short
+    // "What's new" card (update-log.js) names the highlights once the
+    // features are there to try. It used to be set here, so an update from
+    // this cover never showed anything afterwards.
     let done;
     try { done = await window.vex.updates.install(info.latest); }
     catch (err) { done = { ok: false, error: err.message }; }
     if (!done?.ok) {
-      try { if (seenBefore == null) localStorage.removeItem('vex.lastSeenVersion'); else localStorage.setItem('vex.lastSeenVersion', seenBefore); }
-      catch (err) { console.error('[Update] could not restore the notes marker:', err); }
       if (this._info === info) this._fail(done?.error || 'The update could not be installed.');
     }
   },

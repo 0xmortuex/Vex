@@ -47,6 +47,7 @@ const PREFERENCE_KEYS = [
   'vex.weatherLoc', 'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
   'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
+  'vex.whatsNewCard',
 ];
 
 describe('Reset to Defaults key policy', () => {
