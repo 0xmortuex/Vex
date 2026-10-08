@@ -334,11 +334,12 @@ describe('Boosts: Un-zap all', () => {
     expect(document.getElementById('boost-edit-modal')).toBeNull();
     expect(offers.at(-1).message).toMatch(/^Brought back 2 hidden elements on news\.example/);
     front.executeJavaScript.mockClear();
+    front.insertCSS.mockClear();
     offers.at(-1).opts.action.run();
     await flush();
     expect(localStorage.getItem('vex.boosts')).toBe(before);
     const code = front.executeJavaScript.mock.calls.map(c => c[0]).join('\n');
-    expect(code).toContain('#promo{display:none');
+    expect(front.insertCSS.mock.calls.map(c => c[0]).join('\n')).toContain('#promo{display:none');
     expect(code).not.toContain('window.x=1');
   });
 

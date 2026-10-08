@@ -48,17 +48,24 @@ const VexBoosts = {
     }
   },
 
-  // Set (or clear) this webview's boost stylesheet. Empty css leaves an empty
-  // style tag rather than removing it — cheaper, and it keeps the tag's position
-  // in the cascade stable across re-applies.
+  // Set (or clear) this webview's boost stylesheet through insertCSS, which
+  // needs none of the page's JavaScript: a site whose JavaScript is switched
+  // off (its tab is built with javascript=no) got no Boost CSS at all while
+  // this was a <style> written by executeJavaScript (final review,
+  // 2026-10-09). Each write takes the previous sheet out first; the chain
+  // keeps two quick writes in order. A failure is logged, not hidden.
   _writeCss(webview, css) {
-    const js = `(function(){try{
-      var id='vex-boost-style';
-      var el=document.getElementById(id);
-      if(!el){if(!${JSON.stringify(!!css)})return;el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}
-      el.textContent=${JSON.stringify(css)};
-    }catch(e){}})();`;
-    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+    if (typeof webview.insertCSS !== 'function') throw new Error('This page cannot take a stylesheet');
+    const run = async () => {
+      const old = webview._vexBoostCssKey;
+      webview._vexBoostCssKey = null;
+      if (old) await webview.removeInsertedCSS(old);
+      if (css) webview._vexBoostCssKey = await webview.insertCSS(css);
+    };
+    webview._vexBoostCss = (webview._vexBoostCss || Promise.resolve())
+      .then(run)
+      .catch(err => console.error('[Boosts] could not apply this site\'s CSS:', err && err.message));
+    return webview._vexBoostCss;
   },
 
   // Re-apply this host's boost (or clear it) across every open tab showing that
