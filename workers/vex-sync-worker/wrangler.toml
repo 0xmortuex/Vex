@@ -18,10 +18,24 @@ kv_namespaces = [
   { binding = "VEX_AUTH_KV", id = "2ad5d370a6ad477ab1e95285f5fc671d" }
 ]
 
+# VEX_STATE: one global object for sign-in codes, rate limits and which
+# account each session token belongs to. It also keeps every account exactly
+# as workers up to v2.37.0 stored it; each account is copied out of it on its
+# first request after the upgrade (see SELF_HOSTING.md, "Upgrading").
 [[durable_objects.bindings]]
 name = "VEX_STATE"
 class_name = "VexSyncState"
 
+# VEX_ACCOUNTS: one object per account (idFromName of the account's HMAC key).
+[[durable_objects.bindings]]
+name = "VEX_ACCOUNTS"
+class_name = "VexSyncAccount"
+
+# Never edit or remove an applied migration; add a new tag below instead.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["VexSyncState"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["VexSyncAccount"]

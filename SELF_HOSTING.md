@@ -7,7 +7,8 @@ that **you deploy yourself**. Nothing in the app points at anyone else's backend
 so you never spend someone else's API credits or store your data on their server.
 
 Both workers require the `VEX_STATE` Durable Object binding and SQLite migration
-in their checked-in Wrangler configuration. Provider usage and model requests
+in their checked-in Wrangler configuration; the sync worker also requires
+`VEX_ACCOUNTS` (one object per account) and its `v2` migration. Provider usage and model requests
 may incur charges; this repository does not establish a deployment cost ceiling.
 
 **Names.** The folders are `vex-ai-worker` and `vex-sync-worker`; the Workers they
@@ -146,7 +147,87 @@ encrypted records with revisions, tombstones, and retained conflict variants.
 An outdated push receives HTTP 409; pull and merge before retrying. A failed
 decryption blocks uploads until a successful pull, preventing a wrong local key
 from overwriting cloud data. Back up local data and recovery codes before an
-upgrade; deployed multi-device migration has not yet been integration-tested.
+upgrade.
+
+### Where the worker keeps things
+
+- **`VEX_STATE`** — one object for what has to be shared: login codes and
+  their wrong-guess counters, the rate limits, and which account each session
+  token belongs to (a `/sync/` request carries only its token). It also keeps
+  every account exactly as workers up to v2.37.0 stored it.
+- **`VEX_ACCOUNTS`** — one object per account, named by the account's key (the
+  HMAC of the address). It holds that account's encrypted data and revision,
+  device list, handoff mailbox and sessions. A request for one account never
+  runs in another account's object, and an object refuses any session that is
+  not its own.
+
+The HTTP protocol is the same as before (`docs/SYNC_PROTOCOL.md`); clients
+need no update.
+
+### Upgrading from v2.37.0 or earlier
+
+Keep the new `wrangler.toml` as it is: the `VEX_ACCOUNTS` binding and the `v2`
+migration (`new_sqlite_classes = ["VexSyncAccount"]`) are required, and the
+`v1` migration must stay. Then:
+
+```bash
+cd workers/vex-sync-worker
+wrangler deploy
+wrangler tail vex-sync     # leave it open while your devices sync
+```
+
+**What happens.** Nothing is copied at deploy time. The first request for an
+account (any device's pull or push, or a sign-in) copies that account out of
+`VEX_STATE` into its own object: the encrypted data with its revision, the
+device list, the handoff mailbox and its sessions. Signed-in devices stay
+signed in, revisions continue where they were, and a stale push still gets 409.
+The copy runs inside the account's object with every other request for the
+account waiting, so two devices arriving at once copy it once; if it is cut
+off, the next request finishes it (a key already copied is never rewritten);
+the account counts as moved only after every copied key has been read back.
+**The old copy in `VEX_STATE` is not deleted** — except by "Delete all cloud
+data" (`DELETE /sync/all`), which removes both. An account made before
+`EMAIL_HASH_SECRET` existed keeps syncing under its old key and is taken over
+by its HMAC key at its next sign-in, with everything synced in between.
+
+**How to verify.** In `wrangler tail`, each account logs once:
+
+```
+[vex-sync] account moved to its own object: <n> records, revision <r>
+```
+
+(`<r>` is the revision it had; no account or address is logged.) Then in Vex,
+**Settings › Vex Sync › Sync Now** on each device: it should say Done, list
+the same devices, and no device should be signed out. Problems log as
+`[vex-sync] account request failed: …` or `[vex-sync] request failed: …`
+(the device sees HTTP 500 and retries on its next sync; nothing is lost).
+An account from before the HMAC key also logs
+`[vex-sync] account from before the HMAC key taken over: <n> records`.
+
+**How to roll back.** `wrangler rollback` may be refused because this deploy
+applied a Durable Object migration (not checked against Cloudflare). This
+always works: keep the new `wrangler.toml`, put back the v2.37.0 worker, add an
+empty `VexSyncAccount` class (a class that has a migration must stay exported),
+and deploy.
+
+```bash
+git show v2.37.0:workers/vex-sync-worker/worker.js > worker.js
+echo 'export class VexSyncAccount { fetch() { return new Response(null, { status: 503 }); } }' >> worker.js
+wrangler deploy
+```
+
+The v2.37.0 worker then serves the copy it left in `VEX_STATE`, as it was at
+the upgrade. Whatever changed since lives only in the account objects: devices
+that signed in since the upgrade must sign in again, devices removed since are
+listed again, and the newest pushes are not on the server until a device pushes
+again (each desktop keeps its own merged copy, gets 409, pulls, merges and
+pushes). Deploying the new worker again picks the account objects up where
+they were.
+
+**Cleaning up.** The old copies stay in `VEX_STATE` (and in the legacy
+`VEX_SYNC_KV`/`VEX_AUTH_KV` namespaces for a deployment older than
+2026-09-07) until a later release removes them. Leave them until every device
+has synced on the new worker; they are encrypted like everything else.
 
 ---
 
