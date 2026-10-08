@@ -648,18 +648,45 @@ const ThemeStudio = {
     const ed = this._ed;
     const rec = ed && this.record(ed.id);
     if (!rec) return;
-    if (!await this._confirmDelete(rec)) return;
     this._close(false);
-    await this.remove(rec.id);
+    await this.deleteWithUndo(rec.id);
   },
 
-  _confirmDelete(rec) {
-    const inUse = ThemeManager.getCurrentTheme() === rec.id;
-    return window.vexConfirm({
-      title: `Delete “${rec.name}”?`,
-      message: (inUse ? 'You are wearing it now; Vex goes back to the theme it started from. ' : '')
-        + 'Export it first if you might want it back. It is deleted on your other devices too when Sync is on.',
-      okLabel: 'Delete', danger: true,
+  // Deleted at once, with Undo on the toast (js/vex-undo.js), as every other
+  // delete has been since "Undo instead of Are you sure?"; this one still
+  // asked first (final review, 2026-10-09). Undo puts it back exactly: its
+  // place in the list, its picture, the Light and dark slot it held, and on
+  // screen if it was worn.
+  async deleteWithUndo(id) {
+    const rec = this.record(id);
+    if (!rec) throw new Error('No such theme');
+    const index = this.records().findIndex(r => r.id === id);
+    const worn = ThemeManager.getCurrentTheme() === id;
+    const auto = typeof ThemeAuto !== 'undefined' ? ThemeAuto.state() : null;
+    const legacy = localStorage.getItem(this.LEGACY_ID_KEY) === id;
+    const image = window.vex && typeof window.vex.getCustomThemeImage === 'function' ? await window.vex.getCustomThemeImage(id) : null;
+    await this.remove(id, { quiet: true });
+    window.VexUndo.offer({
+      message: `Deleted “${rec.name}”`,
+      undo: async () => {
+        if (this.record(id)) return;
+        if (image) {
+          const r = await window.vex.setCustomThemeImage(image, id);
+          if (!r || !r.ok) throw new Error('Could not put its picture back: ' + ((r && r.error) || 'no answer'));
+        }
+        const list = this.records();
+        list.splice(Math.min(index, list.length), 0, rec);
+        CustomThemes.saveList(list);
+        if (legacy) localStorage.setItem(this.LEGACY_ID_KEY, id);
+        if (auto && (auto.light === id || auto.dark === id)) {
+          const st = ThemeAuto.state();
+          ThemeAuto.save({ ...st, light: auto.light === id ? id : st.light, dark: auto.dark === id ? id : st.dark });
+        }
+        this._changed();
+        // Back on screen as it was, not as a new pick (that would move a Light
+        // and dark slot or a browser look's colours).
+        if (worn) ThemeManager.applyTheme(id, { auto: true });
+      },
     });
   },
 
@@ -673,7 +700,7 @@ const ThemeStudio = {
     return light ? 'oxford' : 'firefox-dark';
   },
 
-  async remove(id) {
+  async remove(id, { quiet = false } = {}) {
     const rec = this.record(id);
     if (!rec) throw new Error('No such theme');
     CustomThemes.saveList(this.records().filter(r => r.id !== id));
@@ -694,7 +721,7 @@ const ThemeStudio = {
       const r = await window.vex.setCustomThemeImage(null, id);
       if (!r || !r.ok) window.showToast?.('The theme is gone, but its picture could not be deleted: ' + ((r && r.error) || 'no answer'), 'error');
     }
-    window.showToast?.(`Deleted “${rec.name}”`, 'info', 2000);
+    if (!quiet) window.showToast?.(`Deleted “${rec.name}”`, 'info', 2000);
   },
 
   // --- the file ----------------------------------------------------------------
@@ -851,7 +878,7 @@ const ThemeStudio = {
           use: () => { ThemeManager.applyTheme(r.id); this.renderSettings(); },
           edit: () => this.open({ from: r.id }),
           export: () => this.exportTheme(r.id),
-          delete: async () => { if (await this._confirmDelete(r)) await this.remove(r.id); },
+          delete: () => this.deleteWithUndo(r.id),
         }[b.dataset.act];
         Promise.resolve().then(run).catch(err => window.showToast?.(err.message, 'error'));
       });

@@ -255,24 +255,33 @@ describe('the editor', () => {
 });
 
 describe('deleting', () => {
-  it('asks first; the theme in use falls back to the one it came from, and its Light and dark slot and picture go too', async () => {
-    const { TM, TA, TS } = await load({ list: [{ id: 'user-harbour', name: 'Harbour', colors: DARK, base: 'nord' }], theme: 'user-harbour' });
+  // It asked "Are you sure?" after every other delete had moved to Undo
+  // (final review, 2026-10-09).
+  it('goes at once; the theme in use falls back to the one it came from, its Light and dark slot and picture go too, and Undo puts all of it back', async () => {
+    const { TM, TA, TS } = await load({ list: [{ id: 'user-first', name: 'First', colors: DARK }, { id: 'user-harbour', name: 'Harbour', colors: DARK, base: 'nord' }, { id: 'user-last', name: 'Last', colors: DARK }], theme: 'user-harbour' });
+    await import('../../src/renderer/js/vex-undo.js');
     images.set('user-harbour', 'data:image/jpeg;base64,AAAA');
     localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'user-harbour', from: '00:00', to: '00:01' }));
-    confirmAnswer = false;
-    document.querySelector('[data-theme="user-harbour"] [data-act="delete"]').click();
-    await flush(); await flush();
-    expect(TS.record('user-harbour')).not.toBeNull();
-    confirmAnswer = true;
-    document.querySelector('[data-theme="user-harbour"] [data-act="delete"]').click();
-    await flush(); await flush(); await flush();
-    expect(window.vexConfirm).toHaveBeenCalledTimes(2);
+    let offer = null;
+    window.showToast = vi.fn((msg, type, ms, opts) => { if (opts && opts.action) offer = { msg, run: opts.action.run }; return { el: document.createElement('div'), dismiss() {} }; });
+    document.querySelector('[data-act="delete"][aria-label="Delete Harbour"]').click();
+    for (let i = 0; i < 10; i++) await flush();
+    expect(window.showToast.mock.calls.filter(c => c[1] === 'error').map(c => c[0])).toEqual([]);
+    expect(window.vexConfirm).not.toHaveBeenCalled();
     expect(TS.record('user-harbour')).toBeNull();
     expect(TM.getCurrentTheme()).toBe('nord');
     expect(TM.availableThemes).not.toContain('user-harbour');
     expect(styleText()).not.toContain('user-harbour');
     expect(TA.state().dark).toBe('nord');
     expect(images.has('user-harbour')).toBe(false);
+    expect(offer.msg).toBe('Deleted “Harbour”');
+    offer.run();
+    await flush(); await flush(); await flush();
+    expect(TS.records().map(r => r.id)).toEqual(['user-first', 'user-harbour', 'user-last']);
+    expect(TM.getCurrentTheme()).toBe('user-harbour');
+    expect(TM.availableThemes).toContain('user-harbour');
+    expect(TA.state().dark).toBe('user-harbour');
+    expect(images.get('user-harbour')).toBe('data:image/jpeg;base64,AAAA');
   });
 
   it('a light theme with no base falls back to Oxford, a dark one to Firefox Dark', async () => {
