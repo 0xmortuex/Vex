@@ -66,6 +66,7 @@
   <link rel="stylesheet" href="css/clock-panel.css">
   <link rel="stylesheet" href="css/tor-indicator.css">
   <link rel="stylesheet" href="css/profiles.css">
+  <link rel="stylesheet" href="css/simple-mode.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -145,6 +146,9 @@
         <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
         <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
       </div>
+      <!-- Simple mode's one switch back to everything (js/simple-mode.js);
+           shown only while Simple mode is on. -->
+      <button id="btn-all-features" type="button" title="All features — show every panel, button and setting Vex has" aria-label="All features" hidden></button>
       <button id="btn-tor" class="nav-btn" title="New Tor tab — maximum-security private browsing over Tor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
       </button>
@@ -367,6 +371,10 @@
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Search suggestions <span style="color:var(--text-muted);font-size:11px">· as you type in the address bar or the New Tab search box, the text goes to your search engine for suggestions — only that engine, and never from a private window, Tor tab or burner tab</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-search-suggest" aria-label="Search suggestions" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Simple mode <span style="color:var(--text-muted);font-size:11px">· a calm Vex: the everyday buttons, panels and settings only. Nothing is removed — Ctrl+K and the settings search still reach everything, and All features in the toolbar brings the rest back</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-simple-mode" aria-label="Simple mode"><span class="toggle-slider"></span></label>
               </div>
             </div>
 
@@ -1606,6 +1614,7 @@
   <script src="js/mcp-client.js"></script>
   <script src="js/screenshot-to-code.js"></script>
   <script src="js/onboarding.js"></script>
+<script src="js/simple-mode.js"></script>
   <script src="js/doc-extract.js"></script>
   <script src="js/extensions-menu.js"></script>
   <script src="js/layout-editor.js"></script>

@@ -358,8 +358,8 @@ contextBridge.exposeInMainWorld('vex', {
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   onFullscreenChanged: (callback) => subscribe('fullscreen-changed', callback),
-  openPrivateWindow: (look) => ipcRenderer.invoke('open-private-window', look),
-  openCleanWindow: (url, look) => ipcRenderer.invoke('open-clean-window', url, look),
+  openPrivateWindow: (look, uiMode) => ipcRenderer.invoke('open-private-window', look, uiMode),
+  openCleanWindow: (url, look, uiMode) => ipcRenderer.invoke('open-clean-window', url, look, uiMode),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).
   createIdentity: () => ipcRenderer.invoke('identity:create'),
   // Tor session: isolated, proxied through a local Tor SOCKS5 (max security).

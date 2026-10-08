@@ -29,6 +29,9 @@ function vexOwnTextFocused(doc) {
   // New privacy defaults reach new profiles only; an existing one keeps what
   // it had, and is told once what changed (js/onboarding.js).
   Onboarding.migratePrivacyDefaults();
+  // Simple mode is for new profiles: one that existed before it stays Full
+  // (js/simple-mode.js). Before the sidebar reads the mode.
+  VexSimpleMode.migrate();
 
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
@@ -71,6 +74,7 @@ function vexOwnTextFocused(doc) {
 
   // Init modules
   SidebarManager.init();
+  VexSimpleMode.init();
   VexTools.init();
   CommandBar.init();
   StartPageManager.init();
@@ -611,6 +615,8 @@ function vexOwnTextFocused(doc) {
     'vex.discordLite', 'vex.discordMode', 'vex.autoSleepPrefs',
     // Library › Digest: show today's digest on the New Tab page.
     'vex.readingDigest.newTab',
+    // Settings › General › Simple mode (js/simple-mode.js); a reset is Full.
+    'vex.uiMode',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
@@ -621,6 +627,8 @@ function vexOwnTextFocused(doc) {
     })) return;
     try {
       SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
+      // Back to Full at once, so the restart button the toast names is in view.
+      VexSimpleMode.apply();
       // The settings the panel actually reads live in settings.json, not
       // localStorage — clearing the keys above alone reset nothing. The
       // in-memory copy is replaced too: any later change saved it whole, which
@@ -1355,7 +1363,7 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
-    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get()));
+    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));

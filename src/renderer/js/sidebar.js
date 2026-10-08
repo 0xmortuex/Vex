@@ -1709,10 +1709,13 @@ const SidebarManager = {
       const o = ov[panel] || {};
       if (o.url && this.panelConfigs[panel]) this.panelConfigs[panel].url = o.url;
     });
+    // Simple mode (js/simple-mode.js) keeps some buttons out of sight as well,
+    // without touching the overrides, so turning it off restores them as set.
+    const simpleHides = (panel) => typeof VexSimpleMode !== 'undefined' && VexSimpleMode.hidesPanel(panel);
     document.querySelectorAll('.sidebar-icon[data-panel]').forEach(btn => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
-      btn.style.display = o.hidden ? 'none' : '';
+      btn.style.display = (o.hidden || simpleHides(panel)) ? 'none' : '';
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
@@ -1834,6 +1837,13 @@ const SidebarManager = {
     hint.style.cssText = 'margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--text-muted)';
     hint.textContent = 'Two at once: Shift+click a button (or right-click it → Open beside) to open that panel beside the one already open. In the Chrome, Safari and IE looks use the + in the panel header. Drag the divider to resize; double-click it to swap sides.';
     host.appendChild(hint);
+    if (typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple()) {
+      const simpleHint = document.createElement('p');
+      simpleHint.className = 'sidebar-manager-hint sidebar-manager-simple';
+      simpleHint.style.cssText = 'margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--text-muted)';
+      simpleHint.textContent = 'Simple mode is on, so only Start, Bookmarks, History, Downloads, Notes, Privacy, Settings and your pinned sites are on the sidebar. What you set here is kept, and shows as soon as Simple mode is off (Settings › General, or All features in the toolbar).';
+      host.appendChild(simpleHint);
+    }
     btns.forEach((btn) => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};

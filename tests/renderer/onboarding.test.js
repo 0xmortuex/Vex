@@ -12,6 +12,7 @@ require('../../src/renderer/js/geo-search.js');  // installs window.VexGeo — t
 require('../../src/renderer/js/typed-address.js'); // installs window.VexTypedAddress — the privacy step names the engine
 globalThis.SponsorSkip = require('../../src/renderer/js/sponsor-skip.js').SponsorSkip; // a top-level const in the app
 const { Onboarding } = require('../../src/renderer/js/onboarding.js');
+globalThis.VexSimpleMode = require('../../src/renderer/js/simple-mode.js').VexSimpleMode; // a top-level const in the app
 
 beforeEach(() => {
   localStorage.clear();
@@ -99,9 +100,9 @@ describe('Onboarding step bodies render without throwing', () => {
   });
 });
 
-describe('Setup style step (Full Vex / Minimal / Custom)', () => {
+describe('Setup style step (Full Vex / Simple / Custom)', () => {
   const stubEnv = () => {
-    const calls = { style: [], rendered: 0, overridesApplied: 0 };
+    const calls = { style: [], rendered: 0, overridesApplied: 0, managerRendered: 0 };
     globalThis.window.VexGuiStyle = {
       set: (s) => calls.style.push(s),
       get: () => 'classic',
@@ -112,7 +113,10 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
         { name: 'Reddit', url: 'https://www.reddit.com' },
       ],
     };
-    globalThis.SidebarManager = { applyPanelOverrides: () => { calls.overridesApplied++; } };
+    globalThis.SidebarManager = {
+      applyPanelOverrides: () => { calls.overridesApplied++; },
+      renderSidebarManager: () => { calls.managerRendered++; },
+    };
     return calls;
   };
   const overrides = () => JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}');
@@ -159,13 +163,13 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
     expect(Onboarding._isStepDone('setupstyle')).toBe(true);
   });
 
-  it('renders four profile cards (Mortuex/Minimal/Custom/Code) with thumbnails; zones follow selection', () => {
+  it('renders four profile cards (Mortuex/Simple/Custom/Code) with thumbnails; zones follow selection', () => {
     stubEnv();
     Onboarding._session = {};
     const body = document.createElement('div');
     Onboarding._renderBody('setupstyle', body);
     const cards = body.querySelectorAll('[data-profile]');
-    expect([...cards].map(c => c.dataset.profile)).toEqual(['owner', 'minimal', 'custom', 'code']);
+    expect([...cards].map(c => c.dataset.profile)).toEqual(['owner', 'simple', 'custom', 'code']);
     expect(cards[0].textContent).toContain('The Mortuex Setup');
     // Every card carries a preview thumbnail.
     for (const c of cards) expect(c.querySelector('svg')).toBeTruthy();
@@ -182,15 +186,54 @@ describe('Setup style step (Full Vex / Minimal / Custom)', () => {
     expect(codeZone.style.display).toBe('flex');
   });
 
-  it('Minimal hides every app panel, empties the shortcut bar, uses Classic', () => {
+  // Simple replaced Minimal, which rewrote the panel overrides and emptied the
+  // shortcut bar — a choice you could not take back with one switch.
+  it('Simple turns Simple mode on and rewrites nothing of the user\'s own', () => {
     const calls = stubEnv();
-    Onboarding._applySetupProfile({ profile: 'minimal' });
+    localStorage.setItem('vex.panelOverrides', JSON.stringify({ discord: { name: 'DC' }, bookmarks: { hidden: true } }));
+    localStorage.setItem('vex.shortcuts', '[{"name":"Mine","url":"https://example.com"}]');
+    Onboarding._applySetupProfile({ profile: 'simple' });
     const ov = overrides();
-    for (const p of Onboarding._APP_PANELS()) expect(ov[p.id]?.hidden).toBe(true);
-    expect(localStorage.getItem('vex.shortcuts')).toBe('[]');
+    for (const p of Onboarding._APP_PANELS()) expect(ov[p.id]?.hidden).toBeUndefined();
+    expect(ov.discord.name).toBe('DC');
+    expect(ov.bookmarks.hidden).toBe(false);          // in Simple's set, shown
+    expect(localStorage.getItem('vex.shortcuts')).toBe('[{"name":"Mine","url":"https://example.com"}]');
     expect(calls.style).toContain('classic');
     expect(calls.overridesApplied).toBeGreaterThan(0);
-    expect(localStorage.getItem('vex.setupProfile')).toBe('minimal');
+    expect(localStorage.getItem('vex.setupProfile')).toBe('simple');
+    expect(localStorage.getItem('vex.uiMode')).toBe('simple');
+    expect(document.body.dataset.uiMode).toBe('simple');
+  });
+
+  it('every other card is the full Vex', () => {
+    stubEnv();
+    for (const profile of ['owner', 'custom']) {
+      localStorage.setItem('vex.uiMode', 'simple');
+      Onboarding._applySetupProfile({ profile, panels: [], shortcuts: [] });
+      expect(localStorage.getItem('vex.uiMode')).toBe('full');
+    }
+  });
+
+  it('a new profile has Simple pre-selected; one already Full has the full setup', () => {
+    stubEnv();
+    Onboarding._session = {};
+    let body = document.createElement('div');
+    Onboarding._renderBody('setupstyle', body);
+    expect(Onboarding._session.setup.profile).toBe('simple');
+    localStorage.setItem('vex.uiMode', 'full');
+    Onboarding._session = {};
+    body = document.createElement('div');
+    Onboarding._renderBody('setupstyle', body);
+    expect(Onboarding._session.setup.profile).toBe('owner');
+  });
+
+  it('a profile that chose the old Minimal re-opens on Simple', () => {
+    stubEnv();
+    localStorage.setItem('vex.setupProfile', 'minimal');
+    Onboarding._session = {};
+    Onboarding._renderBody('setupstyle', document.createElement('div'));
+    expect(Onboarding._session.setup.profile).toBe('simple');
+    expect(Onboarding._session.setup.chosen).toBe(false);   // Save & continue changes nothing
   });
 
   it('Full Vex (owner) un-hides panels, restores stock shortcuts, uses Glass', () => {
@@ -301,7 +344,7 @@ describe('Shareable setup codes', () => {
       set: vi.fn(), get: () => glass, render: vi.fn(),
       defaults: () => [{ name: 'Google', url: 'https://www.google.com' }],
     };
-    globalThis.SidebarManager = { applyPanelOverrides: vi.fn() };
+    globalThis.SidebarManager = { applyPanelOverrides: vi.fn(), renderSidebarManager: vi.fn() };
     globalThis.ThemeManager = { THEMES: [{ id: 'oxford', label: 'Oxford' }], applyTheme: vi.fn() };
   };
 

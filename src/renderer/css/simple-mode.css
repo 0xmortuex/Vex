@@ -1,0 +1,115 @@
+/* === Simple mode (js/simple-mode.js) ===================================== */
+/* Only hides. body[data-ui-mode="simple"] is set by VexSimpleMode.apply(); the
+   panel rail is filtered in SidebarManager.applyPanelOverrides. */
+
+/* --- Toolbar: the power buttons step aside (VexSimpleMode.TOOLBAR) -------- */
+/* Each id is written twice on purpose: the looks force their toolbar buttons
+   on with `body[data-gui-style=…] #top-bar-right > button { display: … !important }`
+   (Glass), which outranks one id; two ids outrank it in every look. */
+body[data-ui-mode="simple"] #btn-onboarding#btn-onboarding,
+body[data-ui-mode="simple"] #btn-restart-app#btn-restart-app,
+body[data-ui-mode="simple"] #btn-copy-url#btn-copy-url,
+body[data-ui-mode="simple"] #btn-ai-summarize#btn-ai-summarize,
+body[data-ui-mode="simple"] #btn-tor#btn-tor,
+body[data-ui-mode="simple"] #btn-notes-top#btn-notes-top,
+body[data-ui-mode="simple"] #btn-extensions#btn-extensions,
+body[data-ui-mode="simple"] #btn-toggle-ai#btn-toggle-ai,
+body[data-ui-mode="simple"] #btn-split#btn-split,
+body[data-ui-mode="simple"] #btn-dev-dash#btn-dev-dash,
+body[data-ui-mode="simple"] #btn-profile#btn-profile,
+body[data-ui-mode="simple"] #workspace-switcher#workspace-switcher,
+body[data-ui-mode="simple"] #sync-indicator#sync-indicator,
+body[data-ui-mode="simple"] #top-bar #top-bar-right .vex-job-btn {
+  display: none !important;
+}
+
+/* --- The panel rail: the Toolbox / tools strip at its foot ---------------- */
+body[data-ui-mode="simple"] #tools-bar,
+body[data-ui-mode="simple"] #icon-sidebar .sidebar-separator {
+  display: none !important;
+}
+
+/* --- The one switch back to everything ------------------------------------ */
+#btn-all-features {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 28px;
+  margin: 0 4px;
+  padding: 0 11px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#btn-all-features:hover { background: var(--vex-hover-fill, var(--surface-hover, var(--surface))); border-color: var(--primary); }
+#btn-all-features:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+#btn-all-features svg { color: var(--primary); flex-shrink: 0; }
+/* The browser looks draw toolbar buttons as fixed 28px squares; this one has
+   words, so it keeps its own width, in that look's own colours. */
+body[data-gui-family="browser"] #top-bar-right > #btn-all-features {
+  width: auto;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--b-toolbar-border, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--b-text, var(--text));
+}
+body[data-gui-family="browser"] #top-bar-right > #btn-all-features:hover { background: var(--b-btn-hover, var(--surface)); }
+/* A very narrow window keeps the icon; the title and aria-label still say it. */
+@media (max-width: 720px) {
+  #btn-all-features { padding: 0 7px; }
+  #btn-all-features .all-features-label { display: none; }
+}
+
+/* --- Settings: advanced sections tucked away ------------------------------ */
+.set-advanced-toggle { display: none; }
+body[data-ui-mode="simple"] .settings-content > .set-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 18px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+body[data-ui-mode="simple"] .settings-content > .set-advanced-toggle:hover { border-color: var(--primary); background: var(--vex-hover-fill, transparent); }
+body[data-ui-mode="simple"] .settings-content > .set-advanced-toggle svg { color: var(--primary); }
+/* While searching, the toggle is noise: every match is shown anyway. */
+body[data-ui-mode="simple"] #panel-settings.set-searching .settings-content > .set-advanced-toggle { display: none; }
+
+body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced):not(.set-searching) .settings-content > .setting-group[data-tier="advanced"]:not(.set-revealed) {
+  display: none !important;
+}
+body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced) .set-nav-chip[data-tier="advanced"] {
+  display: none !important;
+}
+/* A search result from the tucked-away part says so. */
+body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced) .settings-content > .setting-group[data-tier="advanced"] > .setting-label::after {
+  content: "Advanced";
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}

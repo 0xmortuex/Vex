@@ -105,6 +105,37 @@ const SettingsUI = {
       'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
   },
 
+  // The sections Simple mode (js/simple-mode.js) keeps in view, by the start
+  // of their heading. Every other section is "advanced": tucked behind Show
+  // advanced settings, and still found by the search.
+  BASIC_SECTIONS: [
+    'general', 'default browser', 'sidebar buttons', 'privacy & security',
+    'autofill', 'sessions', 'passwords', 'appearance', 'gui style', 'tab layout',
+    'reading & accessibility', 'personalization', 'data', 'about',
+  ],
+  tierOf(labelText) {
+    const t = String(labelText || '').trim().toLowerCase();
+    return this.BASIC_SECTIONS.some(name => t.startsWith(name)) ? 'basic' : 'advanced';
+  },
+
+  // A section the user reached on purpose — by searching for it, or through a
+  // deep link — stays in view when the search is cleared.
+  reveal(el) {
+    const group = el && el.closest ? el.closest('.setting-group') : null;
+    if (group && group.dataset.tier === 'advanced') group.classList.add('set-revealed');
+    return group;
+  },
+
+  _setAdvancedShown(panel, on) {
+    panel.classList.toggle('set-show-advanced', on);
+    const btn = panel.querySelector('.set-advanced-toggle');
+    if (btn) {
+      btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      const n = panel.querySelectorAll('.settings-content > .setting-group[data-tier="advanced"]').length;
+      btn.querySelector('.set-advanced-label').textContent = on ? 'Hide advanced settings' : 'Show advanced settings (' + n + ' more sections)';
+    }
+  },
+
   _matchCat(text) {
     for (const c of this.CATS) {
       if (c.match.some(m => text.includes(m))) return c;
@@ -125,6 +156,19 @@ const SettingsUI = {
     });
     const nav = (root.parentElement || root).querySelector('.set-nav');
     if (nav) nav.style.display = q ? 'none' : '';
+    // While searching, Simple mode hides nothing: the advanced sections that
+    // match are in the results (css/simple-mode.css marks them Advanced).
+    (root.parentElement || root).classList.toggle('set-searching', !!q);
+    // Results start at the top: the list kept wherever it had been scrolled
+    // to, so the first matches were often above the view.
+    if (q) root.scrollTop = 0;
+    // The section picked from the results was out of sight before the search;
+    // take the user back to it rather than to the top of the list.
+    if (!q && this._lastRevealed) {
+      const picked = this._lastRevealed;
+      this._lastRevealed = null;
+      if (picked.isConnected) picked.scrollIntoView({ block: 'start' });
+    }
     this._syncPad(root);
     let empty = root.querySelector('.set-empty');
     if (q && !any) {
@@ -211,6 +255,16 @@ const SettingsUI = {
       // section tops sat under the toolbar. Measure again whenever it
       // changes size, including the moment it is first shown (found 2026-09-29).
       if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => SettingsUI._syncPad(root)).observe(toolbar);
+      // Clicking or tabbing into a search result keeps that section in view
+      // after the search box is cleared (Simple mode would hide it again).
+      const keep = (e) => {
+        if (!panel.classList.contains('set-searching')) return;
+        const group = SettingsUI.reveal(e.target);
+        const hidden = document.body.dataset.uiMode === 'simple' && !panel.classList.contains('set-show-advanced');
+        if (hidden && group && group.classList.contains('set-revealed')) SettingsUI._lastRevealed = group;
+      };
+      root.addEventListener('focusin', keep);
+      root.addEventListener('pointerdown', keep);
     } else {
       nav = toolbar.querySelector('.set-nav');
       search = toolbar.querySelector('.set-search');
@@ -222,6 +276,8 @@ const SettingsUI = {
       const labelEl = g.querySelector('.setting-label');
       const text = (labelEl ? labelEl.textContent : '').toLowerCase();
       const cat = this._matchCat(text);
+      const tier = this.tierOf(text);
+      g.dataset.tier = tier;
       g.style.setProperty('--cat-color', cat.color);
       if (!g.id) g.id = 'setcat-' + i;
 
@@ -238,10 +294,32 @@ const SettingsUI = {
         navChip.className = 'set-nav-chip';
         navChip.style.setProperty('--chip-color', cat.color);
         navChip.innerHTML = this._svg(cat.icon, 13) + '<span>' + cat.name + '</span>';
+        navChip.dataset.tier = tier;
         navChip.addEventListener('click', () => g.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         nav.appendChild(navChip);
       }
     });
+
+    // Simple mode's "Show advanced settings", after the last section. Shown
+    // only in Simple mode (css/simple-mode.css); built once, kept last.
+    let adv = root.querySelector(':scope > .set-advanced-toggle');
+    if (!adv) {
+      adv = document.createElement('button');
+      adv.type = 'button';
+      adv.className = 'set-advanced-toggle';
+      adv.innerHTML = this._svg('layers', 15) + '<span class="set-advanced-label"></span>';
+      adv.addEventListener('click', () => {
+        const on = !panel.classList.contains('set-show-advanced');
+        SettingsUI._setAdvancedShown(panel, on);
+        if (on) {
+          const first = root.querySelector(':scope > .setting-group[data-tier="advanced"]');
+          if (first) first.scrollIntoView({ block: 'start' });
+        }
+      });
+    }
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup.nextSibling !== adv) lastGroup.after(adv);
+    this._setAdvancedShown(panel, panel.classList.contains('set-show-advanced'));
 
     // Push the scroll content below the absolute toolbar (and let anchored jumps
     // clear it too). Measured after the chips are in, so wrapping is accounted for.
@@ -273,6 +351,8 @@ const SettingsUI = {
     const attempt = () => {
       const el = document.getElementById(anchorId);
       if (el) {
+        // A link into an advanced section opens it even in Simple mode.
+        SettingsUI.reveal(el);
         // Instantly, and again while the layout settles: a smooth scroll was
         // cut short as the panels above rendered and pushed the section down,
         // stopping well before it (found 2026-09-29). Any touch of the scroll

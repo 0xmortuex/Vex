@@ -90,6 +90,38 @@
     // yellow hue left the letter at 2.8:1.
     return `hsl(${h % 360}, 55%, 34%)`;
   }
+  // The letter's colour, from the chip's own: white where white reads, black
+  // where it does not. White on the darkened green host colours was
+  // 4.4:1 (check:ui), and a custom colour can be anything. Accepts the
+  // #rgb / #rrggbb a colour picker gives, and the hsl() of hostColor.
+  function chipRgb(color) {
+    const c = String(color || '').trim();
+    let m = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (m) {
+      const hex = m[1].length === 3 ? m[1].replace(/./g, ch => ch + ch) : m[1];
+      return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+    }
+    m = c.match(/^hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)$/i);
+    if (m) {
+      const h = Number(m[1]) / 360, s = Number(m[2]) / 100, l = Number(m[3]) / 100;
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      const hue = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+      return [hue(h + 1 / 3), hue(h), hue(h - 1 / 3)].map(v => Math.round(v * 255));
+    }
+    m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+    return null;
+  }
+  function chipInk(color) {
+    const rgb = chipRgb(color);
+    if (!rgb) return '#fff';
+    const lum = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const L = 0.2126 * lum(rgb[0]) + 0.7152 * lum(rgb[1]) + 0.0722 * lum(rgb[2]);
+    // White while it passes 4.5:1, else whichever of white and black reads
+    // better — one of the two always reaches at least 4.58:1.
+    const onWhite = 1.05 / (L + 0.05), onBlack = (L + 0.05) / 0.05;
+    return onWhite >= 4.5 || onWhite >= onBlack ? '#fff' : '#000';
+  }
   function labelFor(s) {
     if (s.name) return s.name;
     try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; }
@@ -128,7 +160,7 @@
       el.title = (s.name ? s.name + ' — ' : '') + s.url + '  (right-click to edit)';
       const ic = document.createElement('span');
       ic.className = 'ic';
-      const letter = () => { ic.innerHTML = ''; ic.classList.remove('has-img'); ic.textContent = labelFor(s).slice(0, 1).toUpperCase(); ic.style.background = s.color || hostColor(s.url); };
+      const letter = () => { ic.innerHTML = ''; ic.classList.remove('has-img'); ic.textContent = labelFor(s).slice(0, 1).toUpperCase(); const bg = s.color || hostColor(s.url); ic.style.background = bg; ic.style.color = chipInk(bg); };
       if (s.color) { letter(); }                       // custom color overrides the logo
       else {
         const fav = faviconUrl(s.url);
@@ -411,5 +443,9 @@
     // The stock shortcut set — the onboarding setup-style step builds its
     // pick-and-choose list from this so the two never drift apart.
     defaults: () => DEFAULT_SHORTCUTS.map(s => ({ ...s })),
+    // A letter chip's text colour for its background (tests, and anything
+    // else that draws a chip).
+    chipInk,
+    hostColor,
   };
 })();

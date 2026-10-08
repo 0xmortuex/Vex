@@ -28,7 +28,8 @@
     'btn-extensions', 'btn-toggle-ai', 'btn-bookmark', 'btn-command', 'btn-toggle-tabs-left',
   ];
   // Status pills, not buttons: they hide themselves and are never moved.
-  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow', 'url-zoom']);
+  // Simple mode's All features is the way back to everything: it never hides.
+  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom']);
 
   let bar = null, more = null, menu = null;
   let moved = [];          // elements currently in the menu, in ORDER order
@@ -231,7 +232,7 @@
     new MutationObserver((records) => {
       if (records.some(r => r.target !== more && !(menu && menu.contains(r.target)))) schedule();
     }).observe(bar, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
-    new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ['data-gui-style', 'data-ui-size', 'data-tab-layout', 'class'] });
+    new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ['data-gui-style', 'data-ui-size', 'data-tab-layout', 'data-ui-mode', 'class'] });
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
     schedule();
   }

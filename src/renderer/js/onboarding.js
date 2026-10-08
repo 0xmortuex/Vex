@@ -25,6 +25,10 @@ const Onboarding = {
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
   finish() {
     try { localStorage.setItem(this.KEY, 'true'); } catch {}
+    // A new profile that left setup before the starting-point step gets what
+    // that step pre-selects. One that chose, or that existed before Simple
+    // mode (marked Full by VexSimpleMode.migrate), keeps its mode.
+    if (!window.VexTabPolicy?.isPrivateWindow && VexSimpleMode.stored() == null) this._startSimple();
     // The wizard is now the single first-run welcome and owns the tour entry
     // point (its final step's "Take a tour" button). Mark the tour as seen so
     // app.js never auto-offers it separately; launch it only if asked.
@@ -212,7 +216,7 @@ const Onboarding = {
   STEPS() {
     return [
       { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
-      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' , quick: true, secs: 40},
+      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
@@ -390,7 +394,7 @@ const Onboarding = {
     const chips = (n) => Array.from({ length: n }, (_, i) =>
       `<rect x="${17 + i * 14}" y="6" width="11" height="4.5" rx="2.25" fill="${i === 0 ? P : M}" opacity="${i === 0 ? 0.9 : 0.45}"/>`).join('');
     if (kind === 'owner') return frame(`${chips(4)}${rail(6)}<rect x="17" y="14" width="53" height="32" rx="3" fill="${P}" opacity="0.14"/><rect x="21" y="19" width="30" height="3" rx="1.5" fill="${M}" opacity="0.6"/><rect x="21" y="26" width="42" height="3" rx="1.5" fill="${M}" opacity="0.35"/>`);
-    if (kind === 'minimal') return frame(`${rail(3)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.08"/><rect x="30" y="24" width="27" height="3.5" rx="1.75" fill="${M}" opacity="0.5"/>`);
+    if (kind === 'simple') return frame(`${rail(3)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.08"/><rect x="30" y="24" width="27" height="3.5" rx="1.75" fill="${M}" opacity="0.5"/>`);
     if (kind === 'custom') return frame(`${rail(4)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.06"/>
       <rect x="22" y="14" width="8" height="8" rx="2" stroke="${P}" stroke-width="1.5" fill="none"/><path d="M24 18l2 2 3-3.5" stroke="${P}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
       <rect x="34" y="14" width="8" height="8" rx="2" stroke="${M}" stroke-width="1.5" fill="none" opacity="0.5"/>
@@ -509,17 +513,23 @@ const Onboarding = {
       if (d.font.mono) { try { VexFonts.setMono(d.font.mono); } catch (err) { console.warn('[setup] code font:', err.message); } }
     }
     try { localStorage.setItem('vex.setupProfile', 'imported'); } catch {}
+    // A shared setup is somebody's whole Vex, so all of it shows.
+    VexSimpleMode.set('full');
   },
 
   _renderSetupStyle(body) {
     const APP = this._APP_PANELS();
     const SC = this._shortcutDefaults();
     // Session state survives Back/Skip; first open pre-selects the saved
-    // profile (relaunch) or Full Vex (fresh install — matches what they see).
+    // profile (relaunch), Simple on a new profile (a calm browser first; one
+    // switch shows the rest), or the full setup on one that was already Full.
     if (!this._session.setup) {
       let saved = null; try { saved = localStorage.getItem('vex.setupProfile'); } catch {}
+      // 'minimal' was the old name of the Simple card.
+      const fromSaved = { imported: 'code', minimal: 'simple' }[saved] || saved;
+      const fresh = VexSimpleMode.stored() === 'full' ? 'owner' : VexSimpleMode.DEFAULT_FOR_NEW;
       this._session.setup = {
-        profile: (saved === 'imported' ? 'code' : saved) || 'owner',
+        profile: fromSaved || fresh,
         panels: APP.map(p => p.id),
         shortcuts: SC.map(s => s.name),
         glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
@@ -547,7 +557,7 @@ const Onboarding = {
     body.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:9px">
         ${card('owner', 'The Mortuex Setup', 'Vex fully loaded — every app panel (WhatsApp, Discord, Spotify, Netflix…), the full shortcut bar, the Glass look. Exactly how Vex’s creator runs it.')}
-        ${card('minimal', 'Minimal', 'Just a fast, clean browser: tabs, downloads, history, bookmarks, settings. No app panels, an empty shortcut bar. Add features whenever you want them.')}
+        ${card('simple', 'Simple', 'A calm browser: tabs, the address bar, bookmarks, history, downloads, notes and settings. The power tools are tucked away, not removed — one All features button in the toolbar shows everything, any time.')}
         ${card('custom', 'Custom', 'Pick exactly which app panels and shortcuts you keep — check what you want, uncheck the rest.')}
         ${card('code', 'Use a shared setup', 'Got a setup code from a friend or a creator? Paste it and Vex arranges itself to match — panels, shortcuts, theme, look.')}
         <div id="ob-setup-custom" style="display:${sel.profile === 'custom' ? 'flex' : 'none'};flex-direction:column;gap:10px;padding:12px;border:1px dashed var(--border);border-radius:12px">
@@ -619,12 +629,28 @@ const Onboarding = {
     if (c) sel.code = c.value;
   },
 
+  // A new profile going Simple — from the card, or by leaving setup before
+  // the card. Bookmarks is in Simple's set but off in a new profile's sidebar
+  // (SidebarManager.DEFAULT_HIDDEN_PANELS), so it is shown.
+  _startSimple() {
+    const ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {};
+    ov.bookmarks = Object.assign({}, ov.bookmarks, { hidden: false });
+    localStorage.setItem('vex.panelOverrides', JSON.stringify(ov));
+    VexSimpleMode.set('simple');
+  },
+
   _applySetupProfile(sel) {
+    // Simple is a view, not a rewrite (js/simple-mode.js): the panels and the
+    // shortcuts stay as they are, so All features gives the whole Vex back.
+    if (sel.profile === 'simple') {
+      if (!this._flag('vex.guiStyleChosen')) window.VexGuiStyle.set('classic');
+      localStorage.setItem('vex.setupProfile', 'simple');
+      this._startSimple();
+      return;
+    }
     const APP = this._APP_PANELS().map(p => p.id);
     let hidden, shortcuts, glass;
-    if (sel.profile === 'minimal') {
-      hidden = APP; shortcuts = []; glass = false;
-    } else if (sel.profile === 'custom') {
+    if (sel.profile === 'custom') {
       hidden = APP.filter(p => !sel.panels.includes(p));
       shortcuts = this._shortcutDefaults().filter(s => sel.shortcuts.includes(s.name));
       glass = !!sel.glass;
@@ -653,6 +679,7 @@ const Onboarding = {
       try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
     }
     try { localStorage.setItem('vex.setupProfile', sel.profile); } catch {}
+    VexSimpleMode.set('full');
   },
 
   _renderBody(key, body) {

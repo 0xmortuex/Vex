@@ -756,6 +756,22 @@ function styleLabel(style, colors) {
   return colors ? style + ' (' + colors + ' colours)' : style;
 }
 
+// Every shortcut chip has fallen back to its letter (favicons are blocked in
+// main()). A favicon still showing means the block leaked, and the run would
+// again depend on the network — that is a harness failure, not a pass.
+async function settleShortcutChips(cdp) {
+  const left = await evaluate(cdp, `new Promise((resolve) => {
+    const t0 = performance.now();
+    const tick = () => {
+      const imgs = document.querySelectorAll('#gui-shortcuts-bar .gsc .ic img');
+      if (!imgs.length || performance.now() - t0 > 5000) resolve(imgs.length);
+      else setTimeout(tick, 50);
+    };
+    tick();
+  })`);
+  if (left) throw new Error(left + ' shortcut favicon(s) loaded despite the block — the letter-chip contrast would depend on the network');
+}
+
 async function main() {
   const started = Date.now();
   const port = await freePort();
@@ -838,6 +854,14 @@ async function main() {
     const target = await waitForTarget(port, 60000);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
+    // The shortcuts bar shows a site's favicon, or a coloured letter chip when
+    // the favicon does not load. Which one a look got depended on the network
+    // at that moment, so a letter-chip finding moved from look to look between
+    // runs. No favicon is fetched here: every look judges the same letter chips
+    // (the case that can fail contrast), every run.
+    await cdp.send('Network.enable');
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+    await cdp.send('Network.setBlockedURLs', { urls: ['*/favicon.ico'] });
     await waitForRenderer(cdp, 60000);
 
     await waitForStableLayout(cdp, 30000);
@@ -876,6 +900,7 @@ async function main() {
     for (const style of runStyles) {
       await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
       await sleep(250);
+      await settleShortcutChips(cdp);
       const isLook = await evaluate(cdp, 'window.VexGuiStyle.isBrowserLook()');
       // A browser look can wear its own palette or the colour theme's; both
       // ship, so both are checked. classic/glass have only the one.
