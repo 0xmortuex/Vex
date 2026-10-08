@@ -535,13 +535,14 @@
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
+    /* True black: the cards are black too, outlined (theme-extra.css). */
     [data-theme="amoled"] {
-      --vex-bg-base: #000000; --vex-glass-strong: #0e0e10; --vex-glass-medium: #000000;
-      --vex-glass-light: #0e0e10; --vex-glass-input: #000000;
-      --vex-border-subtle: #1e1f22; --vex-border-medium: #1e1f22; --vex-border-strong: #2e2f34;
+      --vex-bg-base: #000000; --vex-glass-strong: #000000; --vex-glass-medium: #000000;
+      --vex-glass-light: #000000; --vex-glass-input: #000000;
+      --vex-border-subtle: #2a2a30; --vex-border-medium: #3f3f47; --vex-border-strong: #62626c;
       --vex-border-accent: #5865f2; --vex-border-accent-strong: #5865f2;
       --vex-accent: #5865f2; --vex-accent-dim: #5865f238; --vex-accent-glow: #5865f22e;
-      --vex-text-primary: #f2f3f5; --vex-text-secondary: #b5bac1; --vex-text-muted: #80848e;
+      --vex-text-primary: #f2f3f5; --vex-text-secondary: #b5bac1; --vex-text-muted: #949ba4;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -783,6 +784,65 @@
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
+    /* High Contrast Light, Evening, Mica Light and Mica Dark (theme-extra.css). */
+    [data-theme="contrast-light"] {
+      --vex-bg-base: #ffffff; --vex-glass-strong: #ffffff; --vex-glass-medium: #f0f0f0;
+      --vex-glass-light: #ffffff; --vex-glass-input: #ffffff;
+      --vex-border-subtle: #767676; --vex-border-medium: #595959; --vex-border-strong: #000000;
+      --vex-border-accent: #0037a6; --vex-border-accent-strong: #0037a6;
+      --vex-accent: #0037a6; --vex-accent-dim: #0037a61f; --vex-accent-glow: #0037a633;
+      --vex-text-primary: #000000; --vex-text-secondary: #1f1f1f; --vex-text-muted: #383838;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="contrast-light"] :focus-visible { outline: 3px solid #0037a6; outline-offset: 2px; }
+    /* No accent glow behind the page: AMOLED stays true black (an OLED pixel
+       off), High Contrast Light stays plain white under its black text. */
+    html:is([data-theme="amoled"], [data-theme="contrast-light"]) body { background-image: none; }
+    /* Every text on the New Tab measured against what it is drawn on (item #5
+       review, 2026-10-08): in these five the wordmark, a pale gradient at 85%
+       opacity, read 2.0:1 (Mica Light) to 4.1:1 (Evening) - 3.2:1 in High
+       Contrast Light - so here it is the solid accent. The search engine's
+       white letter on its brand colour (Google's blue 3.6:1) sits on that colour
+       deepened, still recognisably the engine's. */
+    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .vex-wordmark {
+      background: none; -webkit-text-fill-color: var(--vex-accent); color: var(--vex-accent); opacity: 1;
+    }
+    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .engine-glyph {
+      background: color-mix(in srgb, var(--engine-color, #4285F4) 60%, #000000);
+    }
+    [data-theme="evening"] {
+      --vex-bg-base: #18120c; --vex-glass-strong: #221a12; --vex-glass-medium: #120d08;
+      --vex-glass-light: #221a12; --vex-glass-input: #18120c;
+      --vex-border-subtle: #33281b; --vex-border-medium: #43352a; --vex-border-strong: #6a5640;
+      --vex-border-accent: #d48a3a; --vex-border-accent-strong: #d48a3a;
+      --vex-accent: #d48a3a; --vex-accent-dim: #d48a3a38; --vex-accent-glow: #d48a3a2e;
+      --on-primary: #18120c;
+      --vex-text-primary: #dfc9a3; --vex-text-secondary: #c8ae86; --vex-text-muted: #ad946c;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="mica-light"] {
+      --vex-bg-base: #f3f3f3; --vex-glass-strong: #fbfbfb; --vex-glass-medium: #eaeef4;
+      --vex-glass-light: #fbfbfb; --vex-glass-input: #ffffff;
+      --vex-border-subtle: #e5e5e5; --vex-border-medium: #d1d1d1; --vex-border-strong: #8a8a8a;
+      --vex-border-accent: #005fb8; --vex-border-accent-strong: #005fb8;
+      --vex-accent: #005fb8; --vex-accent-dim: #005fb826; --vex-accent-glow: #005fb81f;
+      --vex-text-primary: #1a1a1a; --vex-text-secondary: #5a5a5a; --vex-text-muted: #636363;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="mica-dark"] {
+      --vex-bg-base: #202020; --vex-glass-strong: #2b2b2b; --vex-glass-medium: #1b1d22;
+      --vex-glass-light: #2b2b2b; --vex-glass-input: #2d2d2d;
+      --vex-border-subtle: #333333; --vex-border-medium: #3d3d3d; --vex-border-strong: #8b8b8b;
+      --vex-border-accent: #60cdff; --vex-border-accent-strong: #60cdff;
+      --vex-accent: #60cdff; --vex-accent-dim: #60cdff38; --vex-accent-glow: #60cdff2e;
+      --on-primary: #000000;
+      --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #adadad;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
     [data-theme="custom"] {
       --vex-bg-base: #0e0e12; --vex-glass-strong: #1a1a22; --vex-glass-medium: #141419;
       --vex-glass-light: #1a1a22; --vex-glass-input: #0e0e12;
@@ -963,7 +1023,8 @@
       width: 20px; height: 20px; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
       font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px;
-      color: #fff; background: #4285F4;
+      /* The engine's own colour, set by the script as --engine-color. */
+      color: #fff; background: var(--engine-color, #4285F4);
     }
     .engine-menu {
       position: absolute; z-index: 60; margin-top: 6px;
@@ -1452,6 +1513,17 @@
         radial-gradient(1100px 640px at 98% 110%, color-mix(in srgb, var(--g-accent2) 32%, transparent), transparent 55%),
         color-mix(in srgb, var(--g-accent) 12%, #07080f) !important;
       background-attachment: fixed;
+      /* Text drawn in the accent (the wordmark, the quote's source, links) lands
+         on that dark glass: a dark accent - Oxford's navy, Firefox Light's or
+         High Contrast Light's blue, Paper Red - all but vanished (High Contrast
+         Light's 1.6:1, found 2026-10-08). The accent keeps its hue and is lifted
+         to a lightness that reads on the glass, as the chrome's wordmark is
+         (gui-glass.css); a light accent is left as it is. Text on an accent fill
+         is then the glass's own dark. Set on body: --g-accent above still holds
+         the theme's own accent, so the glows keep it. */
+      --vex-accent: oklch(from var(--g-accent) max(l, 0.72) c h);
+      --vex-border-accent: var(--vex-accent); --vex-border-accent-strong: var(--vex-accent);
+      --on-primary: #07080f;
     }
 
     /* === GUI Style: the browser looks — shape and type ======================
@@ -2100,7 +2172,7 @@
     // start.html?theme=<active> and we read that query param. Live theme
     // switches reload this page with a fresh ?theme= (see ThemeManager
     // .applyTheme). Falls back to oxford only when the param is missing/unknown.
-    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight', 'custom'];
+    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight', 'custom'];
     function paintCustomWallpaper(img) {
       // Dark scrim over the image so overlaid text stays readable.
       document.body.style.backgroundImage = 'linear-gradient(rgba(8,8,12,0.62), rgba(8,8,12,0.78)), url(' + img + ')';
@@ -2508,7 +2580,7 @@
       const engineMenu = document.getElementById('engine-menu');
       function applyEngineUI() {
         const e = ENGINES[engineId];
-        if (engineGlyph) { engineGlyph.textContent = e.glyph; engineGlyph.style.background = e.color; }
+        if (engineGlyph) { engineGlyph.textContent = e.glyph; engineGlyph.style.setProperty('--engine-color', e.color); }
         if (input) input.placeholder = 'Search with ' + e.name + '…';
         if (engineBtn) engineBtn.title = 'Search engine: ' + e.name;
       }
@@ -2517,7 +2589,7 @@
         engineMenu.innerHTML = Object.keys(ENGINES).map(id => {
           const e = ENGINES[id];
           return '<div class="engine-opt' + (id === engineId ? ' active' : '') + '" data-engine="' + id + '">' +
-            '<span class="engine-glyph" style="background:' + e.color + '">' + e.glyph + '</span>' +
+            '<span class="engine-glyph" style="--engine-color:' + e.color + '">' + e.glyph + '</span>' +
             '<span>' + e.name + '</span>' +
             '<svg class="eo-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>';
         }).join('');

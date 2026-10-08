@@ -592,20 +592,28 @@
   --tab-active: #0b2a15; --tab-hover: #061a0c;
   --danger: #f0374c; --success: #39ff14; --warning: #ffff33;
 }
+/* AMOLED is the true-black OLED theme (item #5, 2026-10-08): every surface is
+   #000000 - the frame, the page, the panels, menus and dialogs - so an OLED
+   panel switches those pixels off. Only small things light up: the selected
+   tab, a hover. Layers are told apart by their borders instead of by a lighter
+   grey (shadows do not show on black), so the borders are brighter than in the
+   other dark themes. Muted text lifted from 3.9:1 to 6.7:1 on the selected tab;
+   the hover colour of a primary button is a darker blurple, since white on the
+   old light one read 2.5:1. */
 [data-theme="amoled"] {
-  --vex-bg-base: #000000; --vex-bg-elevated: #0e0e10; --vex-bg-deep: #000000;
-  --vex-glass-strong: #000000; --vex-glass-medium: #000000; --vex-glass-light: #0e0e10;
-  --vex-glass-tab-active: #1a1a1e; --vex-glass-tab-inactive: #000000; --vex-glass-input: #000000;
-  --vex-border-subtle: #1e1f22; --vex-border-medium: #1e1f22; --vex-border-strong: #2e2f34;
+  --vex-bg-base: #000000; --vex-bg-elevated: #000000; --vex-bg-deep: #000000;
+  --vex-glass-strong: #000000; --vex-glass-medium: #000000; --vex-glass-light: #000000;
+  --vex-glass-tab-active: #121214; --vex-glass-tab-inactive: #000000; --vex-glass-input: #000000;
+  --vex-border-subtle: #2a2a30; --vex-border-medium: #3f3f47; --vex-border-strong: #62626c;
   --vex-border-accent: #5865f2; --vex-border-accent-strong: #5865f2;
   --vex-accent: #5865f2; --vex-accent-dim: #5865f238; --vex-accent-glow: #5865f22e;
-  --vex-text-primary: #f2f3f5; --vex-text-secondary: #b5bac1; --vex-text-muted: #80848e;
-  --vex-text-accent: #949cf7; --vex-success: #23a55a; --vex-danger: #f23f43; --vex-danger-hover: #f57376; --vex-warning: #f0b232;
-  --bg: #000000; --bg-2: #000000; --sidebar: #000000; --surface: #0e0e10;
-  --border: #1e1f22; --text: #f2f3f5; --text-muted: #80848e;
-  --primary: #5865f2; --primary-hover: #949cf7; --accent: #949cf7;
-  --tab-active: #1a1a1e; --tab-hover: #0e0e10;
-  --danger: #f23f43; --success: #23a55a; --warning: #f0b232;
+  --vex-text-primary: #f2f3f5; --vex-text-secondary: #b5bac1; --vex-text-muted: #949ba4;
+  --vex-text-accent: #949cf7; --vex-success: #2dc770; --vex-danger: #f23f43; --vex-danger-hover: #f57376; --vex-warning: #f0b232;
+  --bg: #000000; --bg-2: #000000; --sidebar: #000000; --surface: #000000;
+  --border: #3f3f47; --text: #f2f3f5; --text-muted: #949ba4;
+  --primary: #5865f2; --primary-hover: #4752c4; --accent: #949cf7;
+  --tab-active: #121214; --tab-hover: #0b0b0d;
+  --danger: #f23f43; --success: #2dc770; --warning: #f0b232;
 }
 [data-theme="recordgreen"] {
   --vex-bg-base: #121212; --vex-bg-elevated: #1a1a1a; --vex-bg-deep: #000000;
@@ -957,4 +965,100 @@
   --tab-active: #e6e4e1; --tab-hover: #dfddda;
   --danger: #b8322f; --success: #185a37; --warning: #7a5a00;
   --vex-hover-fill: rgba(35, 34, 33, 0.07); --vex-shadow-color: rgba(35, 34, 33, 0.14);
+}
+
+/* === Themes for a need, not a mood (item #5, 2026-10-08) ====================
+   High Contrast Light, Evening, and Windows 11's Mica in light and dark. (The
+   true-black OLED theme is AMOLED above.) Every text colour here reads at
+   4.5:1 or better on every surface its theme has; High Contrast Light's body
+   text reaches 7:1 and more. The light ones set their own hover and shadow
+   tokens, as Firefox Light does. */
+
+/* HIGH CONTRAST LIGHT - black on white. Body text is pure black (21:1), even
+   the muted text is 8.9:1 on the darkest surface, links and the accent are a
+   deep blue at 7.6:1 or more, and every border is a real line (the faintest
+   4.5:1 on white). A thicker focus ring, below, so the keyboard's place is
+   never in doubt. */
+[data-theme="contrast-light"] {
+  --vex-bg-base: #ffffff; --vex-bg-elevated: #ffffff; --vex-bg-deep: #f0f0f0;
+  --vex-glass-strong: #f0f0f0; --vex-glass-medium: #f0f0f0; --vex-glass-light: #ffffff;
+  --vex-glass-tab-active: #ffffff; --vex-glass-tab-inactive: #f0f0f0; --vex-glass-input: #ffffff;
+  --vex-border-subtle: #767676; --vex-border-medium: #595959; --vex-border-strong: #000000;
+  --vex-border-accent: #0037a6; --vex-border-accent-strong: #0037a6;
+  --vex-accent: #0037a6; --vex-accent-dim: #0037a61f; --vex-accent-glow: #0037a633;
+  --vex-text-primary: #000000; --vex-text-secondary: #1f1f1f; --vex-text-muted: #383838;
+  --vex-text-accent: #0037a6; --vex-success: #085c1a; --vex-danger: #a80000; --vex-danger-hover: #7a0000; --vex-warning: #6b3d00;
+  --bg: #ffffff; --bg-2: #f0f0f0; --sidebar: #f0f0f0; --surface: #ffffff;
+  --border: #595959; --text: #000000; --text-muted: #383838;
+  --primary: #0037a6; --primary-hover: #00267a; --accent: #0037a6;
+  --tab-active: #ffffff; --tab-hover: #e0e0e0;
+  --danger: #a80000; --success: #085c1a; --warning: #6b3d00;
+  --vex-hover-fill: rgba(0, 0, 0, 0.10); --vex-shadow-color: rgba(0, 0, 0, 0.30);
+}
+/* The ring is 3px of the deep blue (10:1 on white) a little away from the
+   control. a11y.css is loaded last; this wins on specificity, not order. The
+   page itself (webview) still draws no ring around it. */
+html[data-theme="contrast-light"] :focus-visible:not(webview) {
+  outline: 3px solid #0037a6 !important;
+  outline-offset: 2px;
+}
+
+/* EVENING - for reading at night: warm, dim and low in blue light. Every
+   colour is an amber, a brown or an olive with little blue in it, the page is
+   a dark warm brown rather than black (less glare from the jump to a white
+   page), and the text is parchment, not white. */
+[data-theme="evening"] {
+  --vex-bg-base: #18120c; --vex-bg-elevated: #221a12; --vex-bg-deep: #120d08;
+  --vex-glass-strong: #120d08; --vex-glass-medium: #120d08; --vex-glass-light: #221a12;
+  --vex-glass-tab-active: #2c2218; --vex-glass-tab-inactive: #120d08; --vex-glass-input: #18120c;
+  --vex-border-subtle: #33281b; --vex-border-medium: #43352a; --vex-border-strong: #6a5640;
+  --vex-border-accent: #d48a3a; --vex-border-accent-strong: #d48a3a;
+  --vex-accent: #d48a3a; --vex-accent-dim: #d48a3a38; --vex-accent-glow: #d48a3a2e;
+  --vex-text-primary: #dfc9a3; --vex-text-secondary: #c8ae86; --vex-text-muted: #ad946c;
+  --vex-text-accent: #e6a55a; --vex-success: #a8b65c; --vex-danger: #e88a6a; --vex-danger-hover: #f0a68c; --vex-warning: #e0b04a;
+  --bg: #18120c; --bg-2: #120d08; --sidebar: #18120c; --surface: #221a12;
+  --border: #43352a; --text: #dfc9a3; --text-muted: #ad946c;
+  --primary: #d48a3a; --primary-hover: #e6a55a; --accent: #e6a55a;
+  --on-primary: #18120c;
+  --tab-active: #2c2218; --tab-hover: #221a12;
+  --danger: #e88a6a; --success: #a8b65c; --warning: #e0b04a;
+}
+
+/* MICA LIGHT and MICA DARK - Windows 11's own palette: the Mica frame (here
+   faintly tinted blue, as the default Windows wallpaper tints it), the solid
+   layer the content sits on, its hairline strokes, its default accent blue
+   and its text colours (the tertiary grey darkened to reach 4.5:1). A pair:
+   with Light and dark on, each is the other's partner. The Fluent look is the
+   matching window shape. */
+[data-theme="mica-light"] {
+  --vex-bg-base: #f3f3f3; --vex-bg-elevated: #fbfbfb; --vex-bg-deep: #eaeef4;
+  --vex-glass-strong: #eaeef4; --vex-glass-medium: #eaeef4; --vex-glass-light: #fbfbfb;
+  --vex-glass-tab-active: #ffffff; --vex-glass-tab-inactive: #eaeef4; --vex-glass-input: #ffffff;
+  --vex-border-subtle: #e5e5e5; --vex-border-medium: #d1d1d1; --vex-border-strong: #8a8a8a;
+  --vex-border-accent: #005fb8; --vex-border-accent-strong: #005fb8;
+  --vex-accent: #005fb8; --vex-accent-dim: #005fb826; --vex-accent-glow: #005fb81f;
+  --vex-text-primary: #1a1a1a; --vex-text-secondary: #5a5a5a; --vex-text-muted: #636363;
+  --vex-text-accent: #005fb8; --vex-success: #0e700e; --vex-danger: #c42b1c; --vex-danger-hover: #a52416; --vex-warning: #8a5300;
+  --bg: #f3f3f3; --bg-2: #eaeef4; --sidebar: #eaeef4; --surface: #fbfbfb;
+  --border: #d1d1d1; --text: #1a1a1a; --text-muted: #5a5a5a;
+  --primary: #005fb8; --primary-hover: #0a5299; --accent: #005fb8;
+  --tab-active: #ffffff; --tab-hover: #e9e9e9;
+  --danger: #c42b1c; --success: #0e700e; --warning: #8a5300;
+  --vex-hover-fill: rgba(0, 0, 0, 0.05); --vex-shadow-color: rgba(0, 0, 0, 0.14);
+}
+[data-theme="mica-dark"] {
+  --vex-bg-base: #202020; --vex-bg-elevated: #2b2b2b; --vex-bg-deep: #1b1d22;
+  --vex-glass-strong: #1b1d22; --vex-glass-medium: #1b1d22; --vex-glass-light: #2b2b2b;
+  --vex-glass-tab-active: #2d2d2d; --vex-glass-tab-inactive: #1b1d22; --vex-glass-input: #2d2d2d;
+  --vex-border-subtle: #333333; --vex-border-medium: #3d3d3d; --vex-border-strong: #8b8b8b;
+  --vex-border-accent: #60cdff; --vex-border-accent-strong: #60cdff;
+  --vex-accent: #60cdff; --vex-accent-dim: #60cdff38; --vex-accent-glow: #60cdff2e;
+  --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #adadad;
+  --vex-text-accent: #60cdff; --vex-success: #6ccb5f; --vex-danger: #ff99a4; --vex-danger-hover: #ffb8c0; --vex-warning: #fce100;
+  --bg: #202020; --bg-2: #1b1d22; --sidebar: #202020; --surface: #2b2b2b;
+  --border: #3d3d3d; --text: #ffffff; --text-muted: #adadad;
+  --primary: #60cdff; --primary-hover: #99ebff; --accent: #60cdff;
+  --on-primary: #000000;
+  --tab-active: #2d2d2d; --tab-hover: #2b2b2b;
+  --danger: #ff99a4; --success: #6ccb5f; --warning: #fce100;
 }

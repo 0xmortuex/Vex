@@ -234,6 +234,51 @@ describe('switching', () => {
     expect(window.VexGuiStyle.set).not.toHaveBeenCalled();
   });
 
+  // AMOLED as the dark theme left the Firefox look in Firefox Dark grey: an
+  // automatic switch is not a pick, so the look kept its own colours (item #5
+  // review, 2026-10-08).
+  it('a switch to a theme that is not the look\'s own colours moves the look to the theme\'s colours, and back', async () => {
+    const emit = stubSystem(false);
+    let style = 'firefox', colours = 'look';
+    window.VexGuiStyle = {
+      get: () => style, set: vi.fn(async s => { style = s; }),
+      isBrowserLook: () => true, getColors: () => colours, setColors: vi.fn(m => { colours = m; }),
+    };
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'system', light: 'firefox-light', dark: 'amoled' }));
+    const { TM, TA } = await load();
+    await TM.init();
+    await new Promise(r => setTimeout(r, 0));
+    expect(TM.getCurrentTheme()).toBe('firefox-light');
+    expect(colours).toBe('look');            // Firefox Light is the Firefox look's own colours
+    emit(true);
+    expect(TM.getCurrentTheme()).toBe('amoled');
+    expect(style).toBe('firefox-dark');      // the look's dark version, as before
+    expect(colours).toBe('theme');           // ...wearing AMOLED's black
+    expect(TA.state().coloursByAuto).toBe(true);
+    emit(false);
+    expect(TM.getCurrentTheme()).toBe('firefox-light');
+    expect(style).toBe('firefox');
+    expect(colours).toBe('look');            // given back: this feature took them
+    expect(TA.state().coloursByAuto).toBe(false);
+  });
+
+  it('theme colours the user chose are not given back to the look', async () => {
+    const emit = stubSystem(true);
+    let style = 'firefox-dark', colours = 'theme';
+    window.VexGuiStyle = {
+      get: () => style, set: vi.fn(async s => { style = s; }),
+      isBrowserLook: () => true, getColors: () => colours, setColors: vi.fn(m => { colours = m; }),
+    };
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'system', light: 'firefox-light', dark: 'amoled' }));
+    const { TM } = await load();
+    await TM.init();
+    await new Promise(r => setTimeout(r, 0));
+    emit(false);
+    expect(TM.getCurrentTheme()).toBe('firefox-light');
+    expect(window.VexGuiStyle.setColors).not.toHaveBeenCalled();
+    expect(colours).toBe('theme');
+  });
+
   it('a look picked by hand stays until the next switch', async () => {
     stubSystem(true);
     let style = 'firefox';
