@@ -1524,6 +1524,15 @@
       --vex-border-accent: var(--vex-accent); --vex-border-accent-strong: var(--vex-accent);
       --on-primary: #07080f;
     }
+    /* Glass over a theme of your own that has a New Tab picture: the picture,
+       under Glass's own dark at the strength paintThemeImage measured
+       (--vex-glass-scrim), instead of Glass's backdrop hiding it. */
+    html[data-gui-style="glass"][data-theme-image] body {
+      background:
+        linear-gradient(rgb(from color-mix(in srgb, var(--g-accent) 12%, #07080f) r g b / var(--vex-glass-scrim, 0.9)), rgb(from color-mix(in srgb, var(--g-accent) 12%, #07080f) r g b / var(--vex-glass-scrim, 0.9))) fixed,
+        var(--vex-theme-image) center / cover no-repeat fixed,
+        color-mix(in srgb, var(--g-accent) 12%, #07080f) !important;
+    }
 
     /* === GUI Style: the browser looks — shape and type ======================
        gui-style.js stamps html[data-look="chrome" | "chrome-dark" | "firefox" |
@@ -2182,7 +2191,16 @@
     let shownThemeImage = null;
     function paintThemeImage(img, colors) {
       shownThemeImage = img || null;
-      if (!img) { document.body.style.backgroundImage = ''; return; }
+      const html = document.documentElement;
+      if (!img) {
+        document.body.style.backgroundImage = '';
+        html.removeAttribute('data-theme-image');
+        html.style.removeProperty('--vex-theme-image');
+        html.style.removeProperty('--vex-glass-scrim');
+        return;
+      }
+      // Only a checked picture (PNG, JPEG or WebP data) is ever written into CSS.
+      CustomThemes.checkImage(img);
       // A scrim of the theme's own background over the image, so the text
       // stays readable on light and dark themes alike.
       const [r, g, b] = CustomThemes.rgb(colors.background);
@@ -2190,6 +2208,44 @@
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundAttachment = 'fixed';
+      // The Glass look paints its own dark backdrop over everything; with a
+      // theme picture it lays its frosted dark over the picture instead
+      // (the html[data-theme-image] rule below), as dark as Glass's own muted
+      // text needs to read over the picture's lightest part.
+      html.style.setProperty('--vex-theme-image', 'url("' + img + '")');
+      html.setAttribute('data-theme-image', '');
+      glassScrimFor(img, colors).then((a) => {
+        if (shownThemeImage === img) html.style.setProperty('--vex-glass-scrim', a.toFixed(2));
+      }).catch((err) => console.error('[Start] Glass over the theme picture:', err.message));
+    }
+    // How much of Glass's dark (its #07080f with 12% of the accent, as the
+    // html[data-gui-style="glass"] rule makes it) to lay over the picture so
+    // its muted text (#9499c4) reads at 4.5:1 over the picture's lightest pixel.
+    const GLASS_MUTED = '#9499c4';
+    function glassScrimFor(img, colors) {
+      return new Promise((resolve, reject) => {
+        const im = new Image();
+        im.onload = () => {
+          const w = 96, h = Math.max(1, Math.round(96 * im.naturalHeight / im.naturalWidth));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const x = cv.getContext('2d', { willReadFrequently: true });
+          x.drawImage(im, 0, 0, w, h);
+          const d = x.getImageData(0, 0, w, h).data;
+          let lightest = '#000000', maxY = -1;
+          for (let i = 0; i < d.length; i += 4) {
+            const hex = CustomThemes.hex(d[i], d[i + 1], d[i + 2]);
+            const y = CustomThemes.luminance(hex);
+            if (y > maxY) { maxY = y; lightest = hex; }
+          }
+          const base = CustomThemes.mix('#07080f', colors.primary, 0.12);
+          let a = 0.5;
+          while (a < 0.98 && CustomThemes.contrast(GLASS_MUTED, CustomThemes.mix(lightest, base, a)) < 4.7) a += 0.01;
+          resolve(Math.min(0.98, a));
+        };
+        im.onerror = () => reject(new Error('the picture could not be read'));
+        im.src = img;
+      });
     }
     // img: undefined = the saved one, null = none, a data: URL = this one (the
     // editor's preview), false = the one shown now (the editor changed only

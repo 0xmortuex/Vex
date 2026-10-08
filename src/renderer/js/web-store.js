@@ -130,6 +130,14 @@ const VexWebStore = (() => {
         toast('Could not install: ' + ((p && p.error) || 'no answer from Vex'), 'error');
         return p || { ok: false, error: 'no answer' };
       }
+      // A Chrome theme becomes one of the user's themes (js/chrome-theme.js),
+      // never an extension. Only one that is an extension too, and that the
+      // person chose to install as one, goes on to the extension dialog.
+      if (p.isTheme && typeof ChromeTheme !== 'undefined') {
+        const t = await ChromeTheme.offer(p);
+        if (t === 'added') return { ok: true, theme: true };
+        if (t !== 'extension') return { ok: false, cancelled: t === 'cancelled', error: t };
+      }
       if (p.refuse) {
         await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse });
         return { ok: false, error: p.refuse };

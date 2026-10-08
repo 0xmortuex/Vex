@@ -12,6 +12,8 @@
 //   vexPrompt('New name', 'default value')            -> Promise<string|null>
 //   vexPrompt({ title, message, label, value, placeholder, okLabel })
 //   vexPrompt({ ..., multiline: true, wide: true })     -> a scrollable text box
+//   vexConfirm / vexPrompt({ ..., extra: { label, run } }) -> a third button:
+//                                     closes as a cancel, then runs
 //   vexAlert('Done!') / vexAlert({ title, message })  -> Promise<void>
 //
 // Escape cancels, Enter confirms, Tab is trapped inside the dialog, and
@@ -124,6 +126,7 @@
       cancelLabel: o.cancelLabel,
       input: { value: o.value, label: o.label, placeholder: o.placeholder, multiline: !!o.multiline },
       wide: !!o.wide,
+      extra: o.extra,
     });
   };
 })();

@@ -3062,7 +3062,10 @@ function _previewPickedFile(sourcePath) {
     const have = crx.fromWebStore ? _webStoreCopyOf(crx.id, crx.info.name, keyB64)
       : (_installedEntries().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(crx.info.name));
     const token = _stagePickedExt({ kind: 'crx', id: crx.id, archive: crx.archive, publicKey: crx.publicKey, fromWebStore: crx.fromWebStore, name: crx.info.name, refuse: crx.info.refuse });
-    return { ok: true, token, id: crx.id, ...crx.info, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: _installedSummary(have), safeMode: !!_boot.safeMode };
+    // A Chrome theme: its colours and pictures for the window, which makes it
+    // one of the user's themes (main/chrome-theme.js, js/chrome-theme.js).
+    const theme = crx.info.isTheme ? require('./main/chrome-theme').themePreview(crx.archive, { AdmZip, validateZip }) : {};
+    return { ok: true, token, id: crx.id, ...crx.info, ...theme, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: _installedSummary(have), safeMode: !!_boot.safeMode };
   }
   const zip = new AdmZip(buf);
   // Diagnose a Windows-separator archive BEFORE the validator rejects it, so
@@ -3465,8 +3468,11 @@ function _webStoreCopyOf(id, name, keyB64) {
 ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
   try {
     const p = await _webStoreInstaller().preview(input);
+    // A Chrome theme is not installed as an extension: the window makes it
+    // one of the user's themes from the colours and pictures read here.
+    const theme = p.isTheme ? await _webStoreInstaller().theme(p.id) : {};
     const have = _webStoreCopyOf(p.id, p.name, null);
-    return { ok: true, ...p, installed: have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null, safeMode: !!_boot.safeMode };
+    return { ok: true, ...p, ...theme, installed: have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null, safeMode: !!_boot.safeMode };
   } catch (err) {
     return { ok: false, error: err.message, code: err.code || null };
   }
