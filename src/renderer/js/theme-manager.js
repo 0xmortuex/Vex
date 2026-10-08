@@ -62,6 +62,14 @@ const ThemeManager = {
     // Light is the first light theme here.
     { id: 'firefox-light', label: 'Firefox Light', preview: 'firefox-light.png', accent: '#0061e0', mock: { bg: '#f9f9fb', side: '#f0f0f4', surf: '#ffffff', txt: '#15141a', acc: '#0061e0' } },
     { id: 'firefox-dark',  label: 'Firefox Dark',  preview: 'firefox-dark.png',  accent: '#00ddff', mock: { bg: '#1c1b22', side: '#18171e', surf: '#2b2a33', txt: '#fbfbfe', acc: '#00ddff' } },
+    // Themes for a need rather than a mood (item #5): black on white for low
+    // vision, a warm dim one for reading at night, and Windows 11's Mica as a
+    // light/dark pair (theme-auto.js pairs them). The true-black OLED theme is
+    // AMOLED, below.
+    { id: 'contrast-light', label: 'High Contrast Light', accent: '#0037a6', mock: { bg: '#ffffff', side: '#f0f0f0', surf: '#ffffff', txt: '#000000', acc: '#0037a6' } },
+    { id: 'evening',        label: 'Evening',             accent: '#d48a3a', mock: { bg: '#18120c', side: '#120d08', surf: '#221a12', txt: '#dfc9a3', acc: '#d48a3a' } },
+    { id: 'mica-light',     label: 'Mica Light',          accent: '#005fb8', mock: { bg: '#f3f3f3', side: '#eaeef4', surf: '#fbfbfb', txt: '#1a1a1a', acc: '#005fb8' } },
+    { id: 'mica-dark',      label: 'Mica Dark',           accent: '#60cdff', mock: { bg: '#202020', side: '#1b1d22', surf: '#2b2b2b', txt: '#ffffff', acc: '#60cdff' } },
     // After the popular BetterDiscord themes: each one's own colour scheme,
     // named without product brands. inspiredBy is the picker card's tooltip.
     { id: 'clearvision',  label: 'ClearVision',    accent: '#2780e6', inspiredBy: 'ClearVision (BetterDiscord)', mock: { bg: '#15181e', side: '#101217', surf: '#1d2129', txt: '#d8d8db', acc: '#2780e6' } },
@@ -69,7 +77,7 @@ const ThemeManager = {
     { id: 'duskplus',     label: 'Dusk Plus',      accent: '#d147a3', inspiredBy: 'Discord+ (BetterDiscord)', mock: { bg: '#1c1219', side: '#160e13', surf: '#281b23', txt: '#e7ebef', acc: '#d147a3' } },
     { id: 'darkplus',     label: 'Dark Plus',      accent: '#bb86fc', inspiredBy: 'Dark+ (BetterDiscord)', mock: { bg: '#212121', side: '#1a1a1a', surf: '#302f2f', txt: '#e6e6e6', acc: '#bb86fc' } },
     { id: 'terminal',     label: 'Terminal Green', accent: '#4aef98', inspiredBy: 'Fallout 4 Terminal (BetterDiscord)', mock: { bg: '#000900', side: '#000500', surf: '#061a0c', txt: '#4aef98', acc: '#4aef98' } },
-    { id: 'amoled',       label: 'AMOLED',         accent: '#5865f2', inspiredBy: 'AMOLED-Cord (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#0e0e10', txt: '#f2f3f5', acc: '#5865f2' } },
+    { id: 'amoled',       label: 'AMOLED',         accent: '#5865f2', inspiredBy: 'AMOLED-Cord (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#000000', txt: '#f2f3f5', acc: '#5865f2' } },
     { id: 'recordgreen',  label: 'Record Green',   accent: '#1db954', inspiredBy: 'Spotify Discord (BetterDiscord)', mock: { bg: '#121212', side: '#000000', surf: '#1a1a1a', txt: '#d9d9d9', acc: '#1db954' } },
     { id: 'darkneon',     label: 'Dark Neon',      accent: '#04d9ff', inspiredBy: 'Dark Neon (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#07111a', txt: '#c5c8c6', acc: '#04d9ff' } },
     { id: 'deepmidnight', label: 'Deep Midnight',  accent: '#46aec5', inspiredBy: 'midnight by refact0r (BetterDiscord)', mock: { bg: '#16181d', side: '#111317', surf: '#1c1f26', txt: '#edf0f8', acc: '#46aec5' } },

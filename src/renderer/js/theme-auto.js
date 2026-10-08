@@ -110,7 +110,7 @@ const ThemeAuto = {
   // Dark) or Vex's default for that side.
   defaultSlots(currentId, themes) {
     const meta = themes.find(t => t.id === currentId);
-    const partner = { 'firefox-light': 'firefox-dark', 'firefox-dark': 'firefox-light' };
+    const partner = { 'firefox-light': 'firefox-dark', 'firefox-dark': 'firefox-light', 'mica-light': 'mica-dark', 'mica-dark': 'mica-light' };
     if (this.isLightTheme(meta)) return { light: currentId, dark: partner[currentId] || 'firefox-dark' };
     if (meta) return { light: partner[currentId] || 'oxford', dark: currentId };
     return { light: 'oxford', dark: 'firefox-dark' };
