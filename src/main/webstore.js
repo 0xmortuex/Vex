@@ -295,8 +295,7 @@ function cautions(manifest) {
   if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback', 'webRequestBlocking')) {
     out.push('It cannot block or redirect requests here (declarativeNetRequest, blocking webRequest): Electron gives extensions no request blocking. Vex\'s own blocker does that.');
   }
-  if (has('contextMenus', 'menus')) out.push('Its right-click menu items will not appear (contextMenus).');
-  if (m.commands && typeof m.commands === 'object' && Object.keys(m.commands).length) out.push('Its keyboard shortcuts are not bound (commands).');
+  if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
   if (has('userScripts')) out.push('Its user scripts will not run: Electron has no chrome.userScripts.');
   if (has('cookies')) out.push('It cannot read or change cookies here (cookies).');
   if (has('webNavigation')) out.push('It is not told when pages navigate (webNavigation).');

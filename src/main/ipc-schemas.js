@@ -71,6 +71,21 @@ define('extensions:active-tabs', []);
 define('extensions:open-tab', [shape({ url: string(8192), active: optional(boolean) })]);
 // An extension's tabs.remove: the tabs' page ids (main.js, _closeTabsForExtension).
 define('extensions:close-tab', [shape({ ids: value => Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every(Number.isSafeInteger) })]);
+// An extension's menus, badge and shortcuts (main.js _extApi checks the rest).
+define('extensions:api', [shape({ op: string(40), args: optional(object) })]);
+// The interface: what the extensions show, a click on an item or a button,
+// and the extensions' shortcuts.
+const extId = value => typeof value === 'string' && /^[a-p]{32}$/.test(value);
+const menuItemId = value => (typeof value === 'string' && value.length <= 512) || Number.isSafeInteger(value);
+const pageId = optional(integer);
+define('extensions:ui-state extensions:commands', []);
+define('extensions:menu-click', [shape({ partition: string(160), id: extId, item: menuItemId, tab: pageId, ctx: shape({
+  kind: oneOf(['page', 'action']), pageUrl: optional(string(8192)), frameUrl: optional(string(8192)), selectionText: optional(string(10000)),
+  linkUrl: optional(string(8192)), srcUrl: optional(string(8192)), mediaType: optional(oneOf(['', 'image', 'video', 'audio'])), editable: optional(boolean),
+}) })]);
+define('extensions:action-click', [shape({ partition: string(160), id: extId, tab: pageId })]);
+define('extensions:set-command-key', [shape({ folder: string(160), command: string(200), reset: optional(boolean),
+  key: optional(shape({ key: string(40), code: optional(string(40)), ctrl: boolean, alt: boolean, shift: boolean })) })]);
 // The interface's answer to an extension's tabs.create: the tab it made.
 define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
 define('vex-lock:state', [boolean]);

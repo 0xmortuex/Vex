@@ -1116,6 +1116,9 @@ const WebviewManager = {
     };
     const showSub = (row, subItems) => {
       clearTimeout(timer);
+      // The menu closed while the hover timer ran: a submenu made now was
+      // left behind at the window's top-left corner (found 2026-10-08).
+      if (!menu.isConnected) return;
       if (openRow === row) return;
       closeSub();
       const sub = document.createElement('div');
@@ -1175,7 +1178,19 @@ const WebviewManager = {
       const el = document.createElement('div');
       el.className = 'tab-context-item';
       el.setAttribute('role', 'menuitem');
-      if (item.sub) el.innerHTML = icon(item.icon);
+      // An extension's own item carries its icon (img); a checkbox or radio
+      // item a check mark when on, and room for one when off.
+      const checkRoom = '<span class="ctx-icon" style="display:inline-block;width:14px;height:14px"></span>';
+      if (item.kind === 'checkbox' || item.kind === 'radio') {
+        el.setAttribute('role', item.kind === 'radio' ? 'menuitemradio' : 'menuitemcheckbox');
+        el.setAttribute('aria-checked', String(!!item.checked));
+        el.innerHTML = item.checked ? icon('check') : checkRoom;
+      } else if (item.pad) el.innerHTML = checkRoom; // lined up with checkable rows beside it
+      if (item.img) {
+        const img = document.createElement('img');
+        img.src = item.img; img.width = 14; img.height = 14; img.alt = ''; img.className = 'ctx-icon ctx-ext-icon';
+        el.appendChild(img);
+      } else if (item.icon && !item.kind) el.insertAdjacentHTML('beforeend', icon(item.icon));
       el.appendChild(document.createTextNode(item.label));
       if (item.disabled) {
         el.style.opacity = '0.4';
@@ -1637,6 +1652,12 @@ const WebviewManager = {
     // lookup fails. Also log the awaited result so future silent failures
     // surface in the host renderer's DevTools console.
     groups.reverse().forEach(add => add());
+    // Extensions' own items (chrome.contextMenus, js/ext-ui.js), after Vex's,
+    // as in Chrome. None in a private or Tor tab: no extension runs there.
+    if (typeof VexExtUi !== 'undefined') {
+      const extRows = VexExtUi.pageMenuRows(webview, e.params, imageSrc);
+      if (extRows.length) items.push({ sep: true }, ...extRows);
+    }
     items.push({ sep: true });
     items.push({ label: 'Page', icon: 'file', sub: pageItems });
     items.push({ label: 'This site', icon: 'globe', sub: siteItems });

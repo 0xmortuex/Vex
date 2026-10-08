@@ -37,6 +37,8 @@ const ExtensionsMenu = {
     if (!btn) return;
     this._injectStyles();
     btn.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(btn); });
+    // A badge that changes while the menu is open changes on it too.
+    if (typeof VexExtUi !== 'undefined') VexExtUi.onChange(() => this._refreshBadges());
   },
 
   toggle(btn) {
@@ -109,8 +111,85 @@ const ExtensionsMenu = {
 
   _rowSubtitle(ext) {
     if (ext.hasPopup) return 'Open popup';
+    if (ext.hasAction) return 'Run it on this page';
     if (ext.hasOptions) return 'Open options page';
     return 'No popup or options page';
+  },
+
+  // The extension's badge (chrome.action.setBadgeText) on its icon, for the
+  // tab in front, and its button title as the row's tooltip (js/ext-ui.js).
+  _drawBadge(row, ext) {
+    const ico = row.querySelector('.ext-menu-ico');
+    if (!ico || typeof VexExtUi === 'undefined' || !ext.id) return;
+    const b = VexExtUi.badgeFor(ext.id);
+    let el = ico.querySelector('.ext-menu-badge');
+    const text = b && b.text ? String(b.text).slice(0, 4) : '';
+    if (!text) { if (el) el.remove(); }
+    else {
+      if (!el) { el = document.createElement('span'); el.className = 'ext-menu-badge'; ico.appendChild(el); }
+      el.textContent = text;
+      el.style.background = VexExtUi.rgba(b.bg);
+      el.style.color = VexExtUi.rgba(b.color);
+    }
+    const title = b && b.title ? b.title : '';
+    if (title) row.title = title; else row.removeAttribute('title');
+  },
+  _refreshBadges() {
+    if (!this._menu) return;
+    this._menu.querySelectorAll('.ext-menu-item[data-ext-folder]').forEach(row => {
+      const ext = row._vexExt;
+      if (ext) this._drawBadge(row, ext);
+    });
+  },
+
+  // Right-click on an extension's row: its own items for its button
+  // (contexts "action"), then Vex's for it — as Chrome's toolbar button menu.
+  _openActionMenu(ev, ext, btn) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (typeof WebviewManager === 'undefined' || typeof WebviewManager._renderMenu !== 'function') return;
+    const items = typeof VexExtUi !== 'undefined' ? VexExtUi.actionMenuRows(ext.id) : [];
+    if (items.length) items.push({ sep: true });
+    if (ext.hasPopup) items.push({ label: 'Open its popup', icon: 'window', action: () => { this.close(); this._runExtension(ext, btn); } });
+    if (ext.optionsUrl) items.push({ label: 'Options', icon: 'settings', action: () => { this.close(); if (typeof TabManager !== 'undefined') TabManager.createTab(ext.optionsUrl, true); } });
+    items.push({ label: 'Keyboard shortcuts and settings', icon: 'keyboard', action: () => { this.close(); SettingsUI.openSection('extensions-panel-content'); } });
+    document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu ext-action-menu';
+    menu.style.left = ev.clientX + 'px';
+    menu.style.top = ev.clientY + 'px';
+    WebviewManager._renderMenu(menu, items);
+    document.body.appendChild(menu);
+    if (typeof TabManager !== 'undefined') {
+      TabManager._clampMenuToViewport?.(menu, ev.clientX, ev.clientY);
+      TabManager._attachMenuDismissal?.(menu);
+    }
+  },
+
+  // An extension's "_execute_action" shortcut (main.js): its popup under the
+  // extensions button, or — with no popup — its button's click.
+  async runAction(req) {
+    let list = [];
+    try { list = await window.vex.extensionsList(); }
+    catch (err) { window.showToast?.('Could not run the extension: ' + err.message, 'error'); return; }
+    const ext = list.find(e => e.folder === req.folder && e.loaded);
+    if (!ext) { window.showToast?.('That extension is not running', 'error'); return; }
+    if (ext.hasPopup) {
+      const btn = document.getElementById('btn-extensions');
+      const visible = btn && btn.getClientRects().length > 0;
+      this.close();
+      await this._runExtension(ext, visible ? btn : null);
+      return;
+    }
+    await this._actionClick(ext, req.partition, req.tab);
+  },
+
+  async _actionClick(ext, partition, tab) {
+    try {
+      await window.vex.extensionsActionClick({ partition, id: ext.id, tab: Number.isInteger(tab) && tab > 0 ? tab : null });
+    } catch (err) {
+      window.showToast?.(ext.name + ' did not get the click: ' + String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''), 'error');
+    }
   },
 
   // Only extensions that are switched on AND actually loaded can do anything,
@@ -140,7 +219,11 @@ const ExtensionsMenu = {
       }
       row.querySelector('.ext-menu-label').textContent = ext.name;
       row.querySelector('.ext-menu-sub').textContent = this._rowSubtitle(ext);
+      row.dataset.extFolder = ext.folder;
+      row._vexExt = ext;
+      this._drawBadge(row, ext);
       row.addEventListener('click', () => { this.close(); this._runExtension(ext, btn); });
+      row.addEventListener('contextmenu', (ev) => this._openActionMenu(ev, ext, btn));
       frag.appendChild(row);
     });
     const sep = document.createElement('div');
@@ -151,14 +234,16 @@ const ExtensionsMenu = {
 
   async _runExtension(ext, btn) {
     try {
+      // The tab you are on, so the popup's "this site" is that page and not
+      // the popup itself (main.js, extensions:popup-tab). A tab that has not
+      // attached yet has no id to give.
+      const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+      let tab = null;
+      if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
       if (ext.hasPopup) {
-        const rect = btn.getBoundingClientRect();
-        // The tab you are on, so the popup's "this site" is that page and not
-        // the popup itself (main.js, extensions:popup-tab). A tab that has not
-        // attached yet has no id to give.
-        const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
-        let tab = null;
-        if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
+        // Under the extensions button; with no button on show (a shortcut,
+        // a look that hides it), under the top of the window.
+        const rect = btn ? btn.getBoundingClientRect() : { left: window.innerWidth / 2, bottom: 48 };
         const res = await window.vex.extensionsOpenPopup({
           folder: ext.folder,
           x: Math.max(0, Math.round(window.screenX + rect.left)),
@@ -166,6 +251,12 @@ const ExtensionsMenu = {
           tab: Number.isInteger(tab) && tab > 0 ? tab : null
         });
         if (!res || !res.ok) window.showToast?.('Could not open popup: ' + ((res && res.error) || 'unknown'));
+        return;
+      }
+      // A button with no popup is the extension's to answer (action.onClicked).
+      if (ext.hasAction && ext.id) {
+        const partition = wv && typeof VexExtUi !== 'undefined' ? VexExtUi.partitionOf(wv) : 'persist:main';
+        await this._actionClick(ext, partition, tab);
         return;
       }
       if (ext.optionsUrl) {
@@ -202,7 +293,11 @@ const ExtensionsMenu = {
       .ext-menu-item{display:flex;align-items:center;gap:11px;width:100%;padding:8px 10px;border:none;border-radius:8px;
         background:transparent;color:var(--text,#e9e9ee);cursor:pointer;text-align:left;font-family:inherit;}
       .ext-menu-item:hover{background:color-mix(in srgb, var(--primary,#6366f1) 16%, transparent);}
-      .ext-menu-ico{width:22px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
+      .ext-menu-ico{width:22px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;position:relative;}
+      .tab-context-menu.ext-action-menu{z-index:100001;}
+      .ext-menu-badge{position:absolute;right:-7px;bottom:-6px;min-width:14px;height:13px;padding:0 3px;box-sizing:border-box;border-radius:7px;
+        font-size:9px;font-weight:700;line-height:13px;text-align:center;white-space:nowrap;pointer-events:none;
+        box-shadow:0 0 0 1.5px var(--surface,#1b1b24);}
       .ext-menu-text{display:flex;flex-direction:column;line-height:1.25;min-width:0;}
       .ext-menu-label{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .ext-menu-sub{font-size:11px;color:var(--text-muted,#9a9aa5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

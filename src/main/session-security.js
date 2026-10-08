@@ -244,8 +244,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       // only web pages and that extension's own pages. Or closing a tab
       // (tabs.remove); main.js closes only a Vex tab in its own session.
       // Or which tab is in front (tabs.query/get); main.js answers only with
-      // pages in the extension's own session.
-      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab' || channel === 'extensions:active-tabs') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
+      // pages in the extension's own session. Or its menu items, badge and
+      // shortcuts (extensions:api); main.js keeps them per extension.
+      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab' || channel === 'extensions:active-tabs' || channel === 'extensions:api') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },
