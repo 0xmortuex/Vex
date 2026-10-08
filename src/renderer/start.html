@@ -1836,12 +1836,75 @@
     <div id="start-suggestions" class="hidden"></div>
   </div>
 
+  <!-- Tabs sent to this computer from your other devices (Vex Sync handoff).
+       Hidden when there are none; filled by the script below Quick Access. -->
+  <div class="handoff-section" id="handoff-section" hidden>
+    <h3>Sent to this computer</h3>
+    <div class="handoff-list" id="handoff-list"></div>
+  </div>
+
   <div class="shortcuts-section">
     <h3 id="qa-label">Quick Access</h3>
     <div class="shortcuts-grid" id="shortcuts-grid">
       <!-- Populated by JS -->
     </div>
   </div>
+
+  <!-- The cards for tabs sent to this computer (#handoff-section, above
+       Quick Access) are drawn here. The browser hands the list in
+       (window.__vexHandoff, js/handoff.js); Open and Dismiss go back over the
+       VEX_CMD channel. -->
+  <style>
+    .handoff-section { width: 100%; max-width: 720px; margin-bottom: 32px; }
+    .handoff-section h3 { font-size: 13px; font-weight: 600; color: var(--vex-text-muted); margin-bottom: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .handoff-list { display: flex; flex-direction: column; gap: 8px; }
+    .handoff-card { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-left: 3px solid var(--vex-accent, var(--vex-border-accent)); border-radius: var(--vex-radius-md); color: var(--vex-text-secondary); }
+    .handoff-card .handoff-icon { flex: none; display: inline-flex; color: var(--vex-accent, var(--vex-text-primary)); }
+    .handoff-card .handoff-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .handoff-card .handoff-line { font-size: 13.5px; color: var(--vex-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .handoff-card .handoff-from { font-weight: 600; }
+    .handoff-card .handoff-host { font-size: 12px; color: var(--vex-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .handoff-card button { flex: none; font: inherit; font-size: 12.5px; cursor: pointer; border-radius: var(--vex-radius-sm, 6px); padding: 6px 12px; }
+    .handoff-card .handoff-open { background: var(--vex-accent, #6366f1); color: var(--on-primary, #fff); border: 1px solid transparent; font-weight: 600; }
+    .handoff-card .handoff-open:hover { filter: brightness(1.08); }
+    .handoff-card .handoff-dismiss { background: transparent; color: var(--vex-text-secondary); border: 1px solid var(--vex-border-subtle); display: inline-flex; align-items: center; gap: 4px; }
+    .handoff-card .handoff-dismiss:hover { color: var(--vex-text-primary); border-color: var(--vex-border-accent); }
+    .handoff-card button:focus-visible { outline: 2px solid var(--vex-accent, #6366f1); outline-offset: 2px; }
+  </style>
+  <script>
+    (function () {
+      function send(o) { console.log('VEX_CMD:' + JSON.stringify(o)); }
+      function icon(name, size) { return (window.VexIcons && VexIcons.svg) ? VexIcons.svg(name, { size: size || 16 }) : ''; }
+      function render() {
+        var sec = document.getElementById('handoff-section'), list = document.getElementById('handoff-list');
+        if (!sec || !list) return;
+        var items = Array.isArray(window.__vexHandoff) ? window.__vexHandoff : [];
+        list.innerHTML = '';
+        items.slice().reverse().forEach(function (it) {
+          var card = document.createElement('div'); card.className = 'handoff-card'; card.dataset.id = it.id;
+          var ic = document.createElement('span'); ic.className = 'handoff-icon'; ic.innerHTML = icon(it.phone ? 'phone' : 'monitor', 18);
+          var main = document.createElement('div'); main.className = 'handoff-main';
+          var line = document.createElement('div'); line.className = 'handoff-line';
+          var from = document.createElement('span'); from.className = 'handoff-from'; from.textContent = 'From ' + it.from + ': ';
+          var title = document.createElement('span'); title.textContent = it.title || it.url;
+          line.appendChild(from); line.appendChild(title); line.title = (it.title || '') + '\n' + it.url;
+          var host = document.createElement('div'); host.className = 'handoff-host';
+          try { host.textContent = new URL(it.url).host; } catch (e) { host.textContent = it.url; }
+          main.appendChild(line); main.appendChild(host);
+          var open = document.createElement('button'); open.type = 'button'; open.className = 'handoff-open'; open.textContent = 'Open';
+          open.addEventListener('click', function () { send({ type: 'handoff-open', id: it.id }); });
+          var dis = document.createElement('button'); dis.type = 'button'; dis.className = 'handoff-dismiss'; dis.title = 'Dismiss'; dis.setAttribute('aria-label', 'Dismiss ' + (it.title || it.url));
+          dis.innerHTML = icon('x', 13) + '<span>Dismiss</span>';
+          dis.addEventListener('click', function () { card.remove(); if (!list.children.length) sec.hidden = true; send({ type: 'handoff-dismiss', id: it.id }); });
+          card.appendChild(ic); card.appendChild(main); card.appendChild(open); card.appendChild(dis);
+          list.appendChild(card);
+        });
+        sec.hidden = items.length === 0;
+      }
+      render();
+      window.addEventListener('vex-handoff', render);
+    })();
+  </script>
 
   <!-- Today: reminders due, tasks about to run, pages that changed, pages saved.
        Read from the 'vex.today' snapshot the browser writes (js/today.js);

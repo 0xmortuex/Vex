@@ -828,7 +828,9 @@ const SyncEngine = (() => {
     return { ...state, encryptionKey: null };
   }
 
-  // ===== DROP — cross-device tab handoff ("Send to Phone") =====
+  // ===== DROP — cross-device tab handoff (SYNC_PROTOCOL.md §7) =====
+  // The UI is js/handoff.js: Send to your devices, and the cards on the New
+  // Tab page for tabs sent here.
   async function dropSend(url, title) {
     if (!state.enabled || !state.sessionToken) {
       throw new Error('Sign in to Vex Sync first (Settings › Vex Sync)');
@@ -841,6 +843,7 @@ const SyncEngine = (() => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}` },
       body: JSON.stringify({ encryptedBlob })
     });
+    if (r.status === 401) { await signedOutByServer(); throw new Error('This device is no longer enrolled — sign in again'); }
     if (!r.ok) {
       const e = await r.json().catch(() => ({}));
       throw new Error(e.error || 'Send failed');
@@ -848,27 +851,35 @@ const SyncEngine = (() => {
     return await r.json();
   }
 
+  // Fetching consumes the items on the server (§7), so the caller must keep
+  // what this returns. Throws when the server could not be asked: it used to
+  // answer [] for a down server, a refused session and an empty mailbox
+  // alike, and a 401 here never signed the device out.
   async function dropFetch() {
     if (!state.enabled || !state.sessionToken || !syncWorkerUrl()) return [];
-    try {
-      const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/drop`, {
-        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
-      });
-      if (!r.ok) return [];
-      const d = await r.json().catch(() => null);
-      const items = [];
-      for (const item of (d?.items || [])) {
-        if (!item.encryptedBlob) continue;
-        // One unreadable item used to throw out of the loop and lose every
-        // other handed-off tab with it (found 2026-09-29). The server already
-        // consumed them, so skip only the bad one and say so in the log.
-        try {
-          const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
-          if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
-        } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
-      }
-      return items;
-    } catch { return []; }
+    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/drop`, {
+      headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+    });
+    if (r.status === 401) { await signedOutByServer(); throw new Error('This device is no longer enrolled — sign in again'); }
+    // A session that has not pushed or pulled yet may not read the mailbox
+    // (§2.3); its first sync round opens it. Nothing has been consumed.
+    if (r.status === 403) return [];
+    if (!r.ok) throw new Error('Could not check for tabs sent from your other devices (server returned ' + r.status + ')');
+    const d = await r.json().catch(() => null);
+    if (!d || !Array.isArray(d.items)) throw new Error('Could not check for tabs sent from your other devices (unexpected response)');
+    const items = [];
+    for (const item of d.items) {
+      if (!item || !item.encryptedBlob) continue;
+      // One unreadable item used to throw out of the loop and lose every
+      // other handed-off tab with it (found 2026-09-29). The server already
+      // consumed them, so skip only the bad one and say so in the log.
+      try {
+        const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
+        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
+        else console.error('[Sync] Skipped a handed-off tab that is not a web address');
+      } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
+    }
+    return items;
   }
 
   async function getRecoveryCode() {

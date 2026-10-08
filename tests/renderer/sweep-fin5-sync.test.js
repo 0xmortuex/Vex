@@ -346,7 +346,8 @@ describe('S7: sync failures are said in words', () => {
     require('../../src/renderer/js/sync-settings.js');
     expect(window.SyncSettings.human('Failed to fetch')).toMatch(/Could not reach the sync server/);
     delete global.SyncEngine;
-    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/command.js'), 'utf8');
-    expect(src).toMatch(/SyncSettings\.human\(err\.message \|\| 'Send failed'\)/);
+    // Ctrl+K › Send to My Devices opens js/handoff.js's menu, which words it.
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/handoff.js'), 'utf8');
+    expect(src).toMatch(/SyncSettings\.human\(m\)/);
   });
 });

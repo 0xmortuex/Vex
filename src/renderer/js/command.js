@@ -253,13 +253,11 @@ const CommandBar = {
     { id: 'container-work', label: 'New Work Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-work' }) },
     { id: 'container-personal', label: 'New Personal Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-personal' }) },
     { id: 'container-shopping', label: 'New Shopping Container Tab', hint: 'Isolated cookies — tracked separately from your main session', icon: 'cart', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-shopping' }) },
-    { id: 'handoff', label: 'Send to My Devices', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: 'phone', action: async () => {
-      const t = TabManager.getActiveTab();
-      if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
-      try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
-      // A down server showed the browser's raw "Failed to fetch" (found 2026-09-29).
-      catch (err) { window.showToast?.(SyncSettings.human(err.message || 'Send failed'), 'error'); }
-    } },
+    // The same menu as the tab menu and the address bar's send button
+    // (js/handoff.js). Not offered for a private or Tor tab or a Vex page.
+    { id: 'handoff', label: 'Send to My Devices', hint: 'Send this tab to your phone or your other computers (Vex Sync)', icon: 'send',
+      when: () => typeof Handoff !== 'undefined' && typeof TabManager !== 'undefined' && Handoff.sendable(TabManager.getActiveTab()).ok,
+      action: () => Handoff.openMenu(TabManager.getActiveTab()) },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: 'message', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: 'sparkles', isPrimary: true, action: () => SidebarManager.openPanel('claude') },

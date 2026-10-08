@@ -779,6 +779,8 @@ const TabManager = {
 
   updateUrlBar(tab) {
     const urlInput = document.getElementById('url-input');
+    // The send button is for web pages in normal tabs only (js/handoff.js).
+    if (typeof Handoff !== 'undefined' && tab && tab.id === this.activeTabId) Handoff.syncButton(tab);
     // Don't stomp the user's in-progress edit. Async webview load events
     // (did-navigate/did-stop-loading/etc.) re-run this while the user has just
     // focused + pasted/typed into the bar, which would wipe their text (the
@@ -1640,6 +1642,10 @@ const TabManager = {
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
       ...(webPage && typeof Bookmarks !== 'undefined'
         ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
+        : []),
+      // Not for a private or Tor tab or a Vex page (js/handoff.js).
+      ...(typeof Handoff !== 'undefined' && Handoff.sendable(tab).ok
+        ? [{ label: 'Send to your devices…', action: () => Handoff.openMenu(tab, { x, y }) }]
         : []),
       { label: tab.note ? 'Edit the note on this tab…' : 'Add a note to this tab…', action: () => this.editTabNote(tab.id) },
       // A tab stays open because closing it loses it. Snoozing closes it now

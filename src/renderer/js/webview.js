@@ -275,6 +275,8 @@ const WebviewManager = {
           // runs in its own session and cannot read this renderer's storage,
           // so the snapshot is handed to it here, the same way the theme is.
           try { if (window.VexToday) VexToday.push(webview); } catch (err) { console.error('[Today] push failed:', err); }
+          // Tabs sent here from your other devices (js/handoff.js), the same way.
+          try { if (window.Handoff) Handoff.push(webview); } catch (err) { console.error('[Handoff] push failed:', err); }
           // A browser look in its own colours hands the page its palette.
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
           // And the font Vex is wearing (js/fonts.js), for the same reason.
@@ -556,6 +558,9 @@ const WebviewManager = {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           } else if (cmd.type === 'start-tiles') {
             this.saveStartTiles(cmd, webview);
+          } else if (cmd.type === 'handoff-open' || cmd.type === 'handoff-dismiss') {
+            // A card for a tab sent from another device (js/handoff.js).
+            if (typeof Handoff !== 'undefined') Handoff.onStartCommand(cmd, webview);
           }
         } catch (err) {
           console.error('VEX_CMD parse error:', err);

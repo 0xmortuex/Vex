@@ -135,6 +135,9 @@
         <button id="btn-ai-summarize" class="nav-btn" title="Summarize with AI" style="width:24px;height:24px;flex-shrink:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </button>
+        <!-- Send this tab to your devices (js/handoff.js fills the icon). Shown
+             only on a web page in a normal tab. -->
+        <button id="btn-send-device" type="button" class="nav-btn" title="Send this tab to your devices" aria-label="Send this tab to your devices" style="width:24px;height:24px;flex-shrink:0" hidden></button>
       </div>
     </div>
 
@@ -1502,6 +1505,7 @@
   <script src="js/update-notifier.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/send-to-phone.js"></script>
+  <script src="js/handoff.js"></script>
   <script src="js/auto-reload.js"></script>
   <!-- The shared shell every workbench tool is built on; must load first. -->
   <script src="js/toolbox-workbench.js"></script>
