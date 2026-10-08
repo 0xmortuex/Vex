@@ -1433,7 +1433,7 @@ function vexOwnTextFocused(doc) {
       const ok = /ready|loaded/.test(s);
       const failed = /failed|timed out/i.test(s);
       wvEl.textContent = s;
-      wvEl.style.color = ok ? '#22c55e' : 'var(--danger)';
+      wvEl.style.color = ok ? 'var(--success)' : 'var(--danger)';
       // Offer the button ONLY when the CDM actually failed/timed out — never on a
       // healthy CDM. Resetting a working CDM is destructive (it clears/reprovisions
       // Widevine and can fail to re-download), and the "provider blocked the device
@@ -1539,7 +1539,7 @@ function vexOwnTextFocused(doc) {
     const el = document.getElementById('default-browser-status');
     if (el) {
       el.textContent = isDefault ? 'Vex is your default browser' : 'Vex is not the default browser';
-      el.style.color = isDefault ? '#22c55e' : 'var(--text-muted)';
+      el.style.color = isDefault ? 'var(--success)' : 'var(--text-muted)';
     }
   });
 

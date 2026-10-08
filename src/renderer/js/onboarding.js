@@ -275,7 +275,7 @@ const Onboarding = {
           <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
-            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' already set</span>' : ''}
+            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:var(--success);background:color-mix(in srgb, var(--success) 12%, transparent);border:1px solid color-mix(in srgb, var(--success) 40%, transparent);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' already set</span>' : ''}
           </div>
           <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>

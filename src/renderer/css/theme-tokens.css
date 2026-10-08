@@ -464,7 +464,7 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-text-secondary: #cdd1dc;
   --vex-text-muted: #a8b0c1;
   --vex-text-accent: #81a1c1;
-  --vex-success: #a3be8c;
+  --vex-success: #b4cf9c;
   --vex-danger: #bf616a;
   --vex-danger-hover: #d3858d;
   --vex-warning: #ebcb8b;
@@ -473,7 +473,7 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --primary: #88c0d0; --primary-hover: #8fbcbb; --accent: #81a1c1;
   --on-primary: #2e3440;
   --tab-active: #4c566a; --tab-hover: #434c5e;
-  --danger: #bf616a; --success: #a3be8c; --warning: #ebcb8b;
+  --danger: #bf616a; --success: #b4cf9c; --warning: #ebcb8b;
 }
 
 /* ── CATPPUCCIN — soft mauve mocha ────────────────────────────────────────── */

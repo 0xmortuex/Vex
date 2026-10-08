@@ -45,3 +45,54 @@ describe('text on a primary fill', () => {
     expect(tokens).toContain('[style*="background:var(--primary);color:#fff"]');
   });
 });
+
+// "Vex is your default browser" was #22c55e on white, 2.2:1 (check-up
+// leftover, 2026-10-08). Success text now comes from the theme's --success,
+// and every theme's --success reads at 4.5:1 on its own backgrounds.
+describe('success-green text', () => {
+  const extra = fs.readFileSync(path.join(dir, 'theme-extra.css'), 'utf8');
+  const themes = {};
+  for (const src of [tokens, extra]) {
+    for (const m of src.matchAll(/(:root|\[data-theme="([\w-]+)"\])\s*\{([^}]*)\}/g)) {
+      const vars = themes[m[2] || 'root'] || (themes[m[2] || 'root'] = {});
+      for (const v of m[3].matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{6})\b/g)) vars[v[1]] = v[2];
+    }
+  }
+
+  it('every theme\'s --success reads at 4.5:1 on its --bg and --surface', () => {
+    const low = [];
+    for (const [name, vars] of Object.entries(themes)) {
+      const get = (k) => vars[k] || themes.root[k];
+      const success = get('--success');
+      if (!success) continue;
+      for (const bg of ['--bg', '--surface']) {
+        if (get(bg) && ratio(success, get(bg)) < 4.5) low.push(`${name}: ${success} on ${bg} ${get(bg)} = ${ratio(success, get(bg)).toFixed(2)}`);
+      }
+    }
+    expect(Object.keys(themes).length).toBeGreaterThan(40);
+    expect(low).toEqual([]);
+  });
+
+  it('no renderer file paints a fixed success green as text', () => {
+    const root = path.resolve(__dirname, '../../src/renderer');
+    const files = [];
+    const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!['vendor', 'lib', 'node_modules'].includes(e.name)) walk(p); } else if (/\.(js|css|html)$/.test(e.name) && !/^theme-(tokens|extra)\.css$/.test(e.name)) files.push(p); } };
+    walk(root);
+    const res = [
+      /(^|[^-\w])color:\s*#(?:22c55e|34d399|4ade80)\b/i,             // CSS and inline styles
+      /\.style\.color\s*=\s*[^;]*'#(?:22c55e|34d399|4ade80)'/i,       // el.style.color = ...
+      /color:\$\{[^}]*'#(?:22c55e|34d399|4ade80)'/i,                  // color:${ok ? '#..' : ..}
+    ];
+    // The patterns themselves must catch what they are for.
+    expect(res[0].test('.x { color: #22c55e; }')).toBe(true);
+    expect(res[1].test("el.style.color = ok ? '#22c55e' : 'red';")).toBe(true);
+    expect(res[2].test("color:${on ? '#34d399' : 'x'}")).toBe(true);
+    const offenders = [];
+    for (const f of files) {
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (res.some(re => re.test(line))) offenders.push(path.relative(root, f) + ':' + (i + 1));
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});

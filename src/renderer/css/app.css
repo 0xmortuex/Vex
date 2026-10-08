@@ -242,12 +242,16 @@ body {
 }
 
 /* Toolbar overflow (js/toolbar-overflow.js). When the bar does not fit it goes
-   compact first, then moves buttons into the chevron's menu; a moved button
+   compact first, then moves buttons into the chevron's menu (the address bar's
+   own buttons too), then goes tight (no logo, smaller gaps); a moved button
    that is clicked from the menu stands in, invisible, where the chevron is, so
    the menu it opens under itself lands there (walkthrough H1, 2026-10-07). */
 #top-bar.tb-compact #vex-logo > span { display: none; }
 #top-bar.tb-compact #vex-logo { padding: 0 4px; }
 #top-bar.tb-compact #workspace-btn { font-size: 0; gap: 4px; padding: 4px 7px; }
+#top-bar.tb-tight #vex-logo { display: none; }
+#top-bar.tb-tight #top-bar-left { gap: 4px; }
+#top-bar.tb-tight #url-bar { gap: 6px; padding-left: 8px; padding-right: 8px; }
 body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { padding: 0 6px; }
 #top-bar .tb-overflowed:not(.tb-overflow-proxy) { display: none !important; }
 #top-bar .tb-overflow-proxy {

@@ -85,13 +85,13 @@
   --vex-border-accent: #3a9be0; --vex-border-accent-strong: #3a9be0;
   --vex-accent: #3a9be0; --vex-accent-dim: #3a9be038; --vex-accent-glow: #3a9be02e;
   --vex-text-primary: #b3bfbf; --vex-text-secondary: #a0afb1; --vex-text-muted: #839496;
-  --vex-text-accent: #2aa198; --vex-success: #859900; --vex-danger: #dc322f; --vex-danger-hover: #e85650; --vex-warning: #b58900;
+  --vex-text-accent: #2aa198; --vex-success: #9ab300; --vex-danger: #dc322f; --vex-danger-hover: #e85650; --vex-warning: #b58900;
   --bg: #00252e; --bg-2: #002b36; --sidebar: #00252e; --surface: #073642;
   --border: #0a4150; --text: #b3bfbf; --text-muted: #839496;
   --primary: #3a9be0; --primary-hover: #2aa198; --accent: #2aa198;
   --on-primary: #00252e;
   --tab-active: #0a4150; --tab-hover: #073642;
-  --danger: #dc322f; --success: #859900; --warning: #b58900;
+  --danger: #dc322f; --success: #9ab300; --warning: #b58900;
 }
 
 /* ── VAPORWAVE — synth purple + cyan + pink ───────────────────────────────── */
@@ -742,12 +742,12 @@
   --vex-border-accent: #57544a; --vex-border-accent-strong: #57544a;
   --vex-accent: #57544a; --vex-accent-dim: #57544a26; --vex-accent-glow: #57544a1f;
   --vex-text-primary: #3a3831; --vex-text-secondary: #4f4c43; --vex-text-muted: #555247;
-  --vex-text-accent: #a8452f; --vex-success: #4f6b3a; --vex-danger: #b0442b; --vex-danger-hover: #cd664d; --vex-warning: #8a6a1c;
+  --vex-text-accent: #a8452f; --vex-success: #3f5a2c; --vex-danger: #b0442b; --vex-danger-hover: #cd664d; --vex-warning: #8a6a1c;
   --bg: #dad4bb; --bg-2: #cdc7ad; --sidebar: #cdc7ad; --surface: #e4dfca;
   --border: #b8b39c; --text: #3a3831; --text-muted: #555247;
   --primary: #57544a; --primary-hover: #a8452f; --accent: #a8452f;
   --tab-active: #ebe7d6; --tab-hover: #e4dfca;
-  --danger: #b0442b; --success: #4f6b3a; --warning: #8a6a1c;
+  --danger: #b0442b; --success: #3f5a2c; --warning: #8a6a1c;
   --vex-hover-fill: rgba(58, 56, 49, 0.07); --vex-shadow-color: rgba(58, 56, 49, 0.14);
 }
 [data-theme="kaleidoscope"] {
@@ -950,11 +950,11 @@
   --vex-border-accent: #735f1c; --vex-border-accent-strong: #735f1c;
   --vex-accent: #735f1c; --vex-accent-dim: #735f1c26; --vex-accent-glow: #735f1c1f;
   --vex-text-primary: #232221; --vex-text-secondary: #46443f; --vex-text-muted: #54514a;
-  --vex-text-accent: #5c4c14; --vex-success: #1f6b42; --vex-danger: #b8322f; --vex-danger-hover: #d04a47; --vex-warning: #7a5a00;
+  --vex-text-accent: #5c4c14; --vex-success: #185a37; --vex-danger: #b8322f; --vex-danger-hover: #d04a47; --vex-warning: #7a5a00;
   --bg: #d0cec9; --bg-2: #c9c6c0; --sidebar: #c9c6c0; --surface: #dfddda;
   --border: #b8b5ae; --text: #232221; --text-muted: #54514a;
   --primary: #735f1c; --primary-hover: #5c4c14; --accent: #5c4c14;
   --tab-active: #e6e4e1; --tab-hover: #dfddda;
-  --danger: #b8322f; --success: #1f6b42; --warning: #7a5a00;
+  --danger: #b8322f; --success: #185a37; --warning: #7a5a00;
   --vex-hover-fill: rgba(35, 34, 33, 0.07); --vex-shadow-color: rgba(35, 34, 33, 0.14);
 }

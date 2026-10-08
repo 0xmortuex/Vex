@@ -224,6 +224,20 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
   // strips its preload and turns Node off. Any other page — a popup, an app
   // window, an extension page — trying to attach one is refused, so no page
   // can build a webview with Node or a preload of its choosing (scan H4).
+  // A window that shows one web page and is not a Vex window (Open as App,
+  // the overlay). Its page runs the session's preloads as a tab's page does,
+  // and they asked for the ad blocker's cosmetic filters, the fingerprint
+  // and passkey settings and the page's alert/confirm answer, all of which
+  // were refused as "Untrusted IPC sender" (2026-10-08). It may use exactly
+  // those; page-dialogs.js answers it with the window's own box.
+  const webWindows = new Set();
+  const WEB_WINDOW_CHANNELS = new Set(['@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled',
+    'privacy:config-sync', 'compatibility:get', 'page-dialog']);
+  function registerWebWindow(contents) {
+    const id = contents.id;
+    webWindows.add(id);
+    contents.once('destroyed', () => webWindows.delete(id));
+  }
   function guardWebviews(contents) {
     contents.on('will-attach-webview', (event, prefs) => {
       if (hosts.has(contents.id)) return;
@@ -231,8 +245,10 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       console.error('[Vex] refused a <webview> in a window that is not a Vex window' + (prefs && (prefs.preload || prefs.nodeIntegration) ? ' (it asked for a preload or Node)' : ''));
     });
   }
-  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews,
+  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews, registerWebWindow,
     isAuxiliary(event, channel) {
+      // Any frame of an Open as App / overlay window: the ad blocker runs in its iframes too.
+      if (WEB_WINDOW_CHANNELS.has(channel) && webWindows.has(event.sender.id)) return true;
       if (event.senderFrame !== event.sender.mainFrame) return false;
       // The Picture-in-Picture pop-out, asked of the module that owns it. It
       // used to be recognised by its preload path — which this Electron does

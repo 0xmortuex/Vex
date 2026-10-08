@@ -5,23 +5,30 @@
 // Now, whenever the toolbar does not fit:
 //   1. it goes compact (the logo's "Vex" text and the workspace name hide),
 //   2. then the least-used buttons move, one at a time, into a menu behind a
-//      chevron button, until the address field has room again.
-// Window controls are never moved. Works the same in every look; a look whose
-// toolbar fits (the browser looks keep their controls in the tab row) never
-// shows the chevron.
+//      chevron button, until the address field has room again. That includes
+//      the buttons inside the address bar (Copy URL, Summarize, the bookmark
+//      star) and the sidebar toggle on the left: at 1000px / 150% the Classic
+//      address field was still 60px wide with every right-hand button moved,
+//      and Glass's was 155px at 1280px (2026-10-08),
+//   3. and when nothing is left to move, the logo goes too.
+// Window controls, Back/Forward/Reload and the page-zoom pill are never moved.
+// Works the same in every look; a look whose toolbar fits never shows the
+// chevron.
 (function () {
   'use strict';
 
-  // The address field keeps at least this much room (CSS px of #url-input).
-  const MIN_URL_INPUT = 160;
+  // The address field keeps at least this much room (CSS px of #url-input)
+  // whenever the window allows it: enough to read a whole domain and a path.
+  const MIN_URL_INPUT = 280;
   // First to go first. Window controls and Back/Forward/Reload never go.
   const ORDER = [
     'btn-restart-app', 'btn-onboarding', 'btn-tor', 'btn-notes-top', 'btn-dev-dash',
+    'btn-copy-url', 'btn-ai-summarize',
     'btn-split', 'btn-downloads-top', 'btn-profile', 'btn-look-sidebar',
-    'btn-extensions', 'btn-toggle-ai', 'btn-command',
+    'btn-extensions', 'btn-toggle-ai', 'btn-bookmark', 'btn-command', 'btn-toggle-tabs-left',
   ];
   // Status pills, not buttons: they hide themselves and are never moved.
-  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow']);
+  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow', 'url-zoom']);
 
   let bar = null, more = null, menu = null;
   let moved = [];          // elements currently in the menu, in ORDER order
@@ -36,13 +43,16 @@
     const out = [];
     for (const id of ORDER) {
       const el = document.getElementById(id);
-      if (el && bar.contains(el) && !el.closest('#url-bar') && visible(el)) out.push(el);
+      if (el && bar.contains(el) && visible(el)) out.push(el);
     }
-    const right = document.getElementById('top-bar-right');
-    if (right) {
-      const extra = [...right.children].filter(el => el.tagName === 'BUTTON' && !NEVER.has(el.id) && !ORDER.includes(el.id) && visible(el));
-      out.splice(Math.min(2, out.length), 0, ...extra);
-    }
+    // Buttons another module added to the right-hand cluster or the address
+    // bar that are not in ORDER (the Toolbox button, the Web Store install).
+    const extra = (id) => {
+      const box = document.getElementById(id);
+      return box ? [...box.children].filter(el => el.tagName === 'BUTTON' && !NEVER.has(el.id) && !ORDER.includes(el.id) && visible(el)) : [];
+    };
+    out.splice(Math.min(2, out.length), 0, ...extra('top-bar-right'));
+    out.push(...extra('url-bar'));
     return out;
   }
 
@@ -75,7 +85,7 @@
     clearProxy();
     for (const el of moved) el.classList.remove('tb-overflowed');
     moved = [];
-    bar.classList.remove('tb-compact');
+    bar.classList.remove('tb-compact', 'tb-tight');
     more.hidden = true;
     if (fits()) { closeMenu(); return; }
     bar.classList.add('tb-compact');
@@ -87,6 +97,7 @@
       if (fits()) break;
     }
     if (!moved.length) more.hidden = true;
+    if (!fits()) bar.classList.add('tb-tight');
     if (menu) renderMenu();
   }
 
@@ -131,6 +142,13 @@
     el.style.setProperty('--tb-proxy-left', r.left + 'px');
     el.style.setProperty('--tb-proxy-top', r.top + 'px');
     el.classList.add('tb-overflow-proxy');
+    // A blurred ancestor (#top-bar, #url-bar) is the containing block of a
+    // fixed element, so correct by where it really landed.
+    const at = el.getBoundingClientRect();
+    if (at.width) {
+      el.style.setProperty('--tb-proxy-left', (2 * r.left - at.left) + 'px');
+      el.style.setProperty('--tb-proxy-top', (2 * r.top - at.top) + 'px');
+    }
     proxied = el;
     el.click();
   }
@@ -200,7 +218,13 @@
     more.addEventListener('click', (e) => { e.stopPropagation(); openMenu(); });
     right.appendChild(more);
 
-    new ResizeObserver(schedule).observe(bar);
+    const ro = new ResizeObserver(schedule);
+    ro.observe(bar);
+    // The address field itself: a button that grows a label, a style that
+    // changes a width or a late font squeezes it without resizing the bar
+    // (Classic at 1280px kept a 229px field, 2026-10-08).
+    const input = document.getElementById('url-input');
+    if (input) ro.observe(input);
     window.addEventListener('resize', schedule);
     // A button shown or hidden, added by another module, or moved by the
     // layout editor; a look or UI size switched.

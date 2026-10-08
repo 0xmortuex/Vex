@@ -2073,6 +2073,10 @@ if (typeof module !== 'undefined' && module.exports) {
   var ipc;
   try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
   if (!ipc || typeof ipc.send !== 'function') return;
+  // An Open as App or overlay window (main.js) is not a tab of any Vex
+  // window: there is no tab for Ctrl+D or Ctrl+H to act on, and every key sent
+  // from it was refused as an untrusted sender (2026-10-08).
+  if (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.indexOf('--vex-web-window') !== -1) return;
   var PAGE_FIRST_PLAIN = 'bhmdpu';
   var PAGE_FIRST_SHIFTED = 'oszamlh';
   // Chromium's own editing commands never call preventDefault, so a page

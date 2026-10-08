@@ -132,8 +132,11 @@ body[data-gui-style="glass"] #btn-toggle-ai svg,
 body[data-gui-style="glass"] #btn-command svg { stroke: #eef0ff !important; }
 
 /* Tool buttons sized to MATCH the shortcut chips (32px tall) so the chrome reads
-   consistently — not bigger, not smaller. */
-body[data-gui-style="glass"] #top-bar-right > button {
+   consistently — not bigger, not smaller. A hidden one stays hidden: this
+   rule's display beat app.css's [hidden] rule, so Glass showed the routing,
+   site-rules, developer and timer buttons and an empty "More tools" chevron.
+   (:where keeps the old specificity, so a moved button still hides.) */
+body[data-gui-style="glass"] #top-bar-right > button:where(:not([hidden])) {
   height: 32px !important; min-width: 32px !important;
   display: inline-flex !important; align-items: center; justify-content: center;
 }

@@ -3,7 +3,9 @@
 // the address field shrank to 60px, the right-hand buttons slid under the
 // window controls, and at 1000px / 150% Close was off the window. Buttons that
 // do not fit now move into a chevron menu, least-used first, until the address
-// field has its room; window controls never move.
+// field has its room; window controls never move. Since 2026-10-08 the
+// address bar's own buttons move too, the field keeps 280px where the window
+// allows, and with nothing left to move the logo goes (tb-tight).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createRequire } from 'module';
@@ -19,7 +21,7 @@ let BAR_W = 1000;
 const LEFT = 300, BTN = 40;
 function layout() {
   const bar = document.getElementById('top-bar');
-  const shown = [...bar.querySelectorAll('button')].filter(b => !b.hidden && !b.classList.contains('tb-overflowed') && !b.closest('#url-bar') && !b.closest('#window-controls'));
+  const shown = [...bar.querySelectorAll('button')].filter(b => !b.hidden && !b.classList.contains('tb-overflowed') && !b.closest('#window-controls'));
   const compact = bar.classList.contains('tb-compact') ? 60 : 0;
   return Math.max(60, BAR_W - LEFT + compact - BTN * shown.length - 120);
 }
@@ -29,7 +31,7 @@ beforeEach(() => {
   document.body.innerHTML = `
     <div id="top-bar">
       <div id="top-bar-left"><button id="btn-back"></button><button id="btn-onboarding" title="Setup wizard"><svg></svg></button><button id="btn-restart-app" title="Restart Vex"></button></div>
-      <div id="url-bar-wrapper"><div id="url-bar"><input id="url-input"><button id="btn-copy-url"></button></div></div>
+      <div id="url-bar-wrapper"><div id="url-bar"><input id="url-input"><button id="url-zoom" hidden>120%</button><button id="btn-copy-url" title="Copy URL"></button><button id="btn-ai-summarize" title="Summarize with AI"></button></div></div>
       <div id="top-bar-right">
         <button id="btn-tor" title="Tor"></button><button id="btn-notes-top" title="Notes"></button>
         <button id="btn-downloads-top" title="Downloads"></button><button id="btn-extensions" title="Extensions"></button>
@@ -76,8 +78,30 @@ describe('toolbar overflow', () => {
     expect(moved(api).slice(0, 3)).toEqual(['btn-restart-app', 'btn-onboarding', 'btn-tor']);
     expect(layout()).toBeGreaterThanOrEqual(api.MIN_URL_INPUT);
     expect(document.getElementById('btn-toolbar-overflow').hidden).toBe(false);
-    // never the window controls, Back, a hidden button, or a button in the address bar
-    for (const id of ['btn-close', 'btn-back', 'btn-dev-dash', 'btn-copy-url']) expect(moved(api)).not.toContain(id);
+    // never the window controls, Back, or a hidden button
+    for (const id of ['btn-close', 'btn-back', 'btn-dev-dash']) expect(moved(api)).not.toContain(id);
+    expect(api.MIN_URL_INPUT).toBe(280);
+  });
+
+  it('the address bar’s own buttons move too; the zoom pill never does', () => {
+    document.getElementById('url-zoom').hidden = false;
+    BAR_W = 900;
+    const api = load();
+    api.relayout();
+    expect(moved(api)).toContain('btn-copy-url');
+    expect(moved(api)).not.toContain('url-zoom');
+    expect(document.getElementById('top-bar').classList.contains('tb-tight')).toBe(false);
+  });
+
+  it('with nothing left to move the bar goes tight; wider again undoes it', () => {
+    BAR_W = 400;
+    const api = load();
+    api.relayout();
+    expect(moved(api)).toEqual(expect.arrayContaining(['btn-copy-url', 'btn-ai-summarize', 'btn-command', 'btn-profile']));
+    expect(document.getElementById('top-bar').classList.contains('tb-tight')).toBe(true);
+    BAR_W = 1600;
+    api.relayout();
+    expect(document.getElementById('top-bar').classList.contains('tb-tight')).toBe(false);
   });
 
   it('getting wider again brings the buttons back', () => {

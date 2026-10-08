@@ -91,7 +91,7 @@
   border-radius: 8px; font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
 }
-.group-preview-confidence.high { background: rgba(34,197,94,0.15); color: #22c55e; }
+.group-preview-confidence.high { background: rgba(34,197,94,0.15); color: var(--success); }
 .group-preview-confidence.med  { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .group-preview-confidence.low  { background: rgba(239,68,68,0.15); color: #ef4444; }
 

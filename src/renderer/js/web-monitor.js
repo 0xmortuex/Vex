@@ -91,7 +91,7 @@ const PageMonitor = {
       return `<div data-id="${w.id}" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border)">
         <span style="width:8px;height:8px;border-radius:50%;background:${w.changed ? '#22c55e' : 'var(--text-muted)'};flex:none"></span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${w.changed ? ' <span style="color:#22c55e;font-size:11px">● changed</span>' : ''}</div>
+          <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${w.changed ? ' <span style="color:var(--success);font-size:11px">● changed</span>' : ''}</div>
           <div style="font-size:11px;color:var(--text-muted)">${esc(host)} · every ${w.intervalMin}m · checked ${esc(when)}</div>
         </div>
         <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>

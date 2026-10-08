@@ -48,7 +48,7 @@ const ExtensionsSettings = (() => {
         background:var(--surface,rgba(255,255,255,0.04));}
       .ext-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:10px;
         font-weight:600;vertical-align:middle;}
-      .ext-badge.ok{background:color-mix(in srgb, #22c55e 20%, transparent);color:#22c55e;}
+      .ext-badge.ok{background:color-mix(in srgb, var(--success) 20%, transparent);color:var(--success);}
       .ext-badge.off{background:color-mix(in srgb, #9a9aa5 22%, transparent);color:var(--text-muted,#9a9aa5);}
       .ext-badge.bad{background:color-mix(in srgb, #ef4444 20%, transparent);color:#ef4444;}
       .ext-error{color:#ef4444;font-size:11px;margin-top:4px;line-height:1.35;word-break:break-word;}

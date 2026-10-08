@@ -6773,6 +6773,7 @@ ipcMain.handle('overlay:open', (_e, url, opacity, partition) => {
   if (_overlay && !_overlay.isDestroyed()) { _overlay.close(); _overlay = null; }
   _overlay = createOverlayWindow({ BrowserWindow, url, opacity: typeof opacity === 'number' ? opacity : 0.92,
     onOpacity: (o) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('overlay:opacity-changed', o); } catch {} } });
+  secureSessions.registerWebWindow(_overlay.webContents);
   _openLinksAsTabs(_overlay.webContents);
   _overlay.on('closed', () => { _overlay = null; });
   return { ok: true };
@@ -7457,8 +7458,10 @@ ipcMain.handle('app:open-as-app', (_e, url, title, partition) => {
     _refuseMainProfileCopy(partition);
     const win = new BrowserWindow({
       width: 1024, height: 720, autoHideMenuBar: true, title: title || 'Vex',
-      webPreferences: { partition: 'persist:main', contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true },
+      // --vex-web-window: the guest preload sends no Vex shortcuts from here.
+      webPreferences: { partition: 'persist:main', contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, additionalArguments: ['--vex-web-window'] },
     });
+    secureSessions.registerWebWindow(win.webContents);
     _openLinksAsTabs(win.webContents);
     win.setMenuBarVisibility(false);
     win.loadURL(url);

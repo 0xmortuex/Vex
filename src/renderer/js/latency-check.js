@@ -9,7 +9,7 @@ const LatencyCheck = {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const ms = Number.isFinite(r.ms) ? Math.round(r.ms) : null;
     const width = ms == null ? 0 : Math.min(100, Math.round((ms / 400) * 100));
-    const colour = ms == null ? 'var(--text-muted)' : ms < 80 ? '#22c55e' : ms < 200 ? '#eab308' : '#ef4444';
+    const colour = ms == null ? 'var(--text-muted)' : ms < 80 ? 'var(--success)' : ms < 200 ? '#eab308' : '#ef4444';
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 8px">
         <div style="flex:1;min-width:0">
