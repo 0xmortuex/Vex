@@ -136,6 +136,34 @@ describe('the site panel\'s IPC is held to its shapes', () => {
   });
 });
 
+describe('pop-ups are judged by the page\'s own user activation, as in Chrome', () => {
+  const read = (f) => fs.readFileSync(path.join(__dirname, '../..', f), 'utf8');
+  it('the page\'s window.open says whether it had activation before it asks', () => {
+    const src = read('src/preload-webview.js');
+    const fn = src.slice(src.indexOf('function vexPopupActivation'), src.indexOf('\n}\n', src.indexOf('function vexPopupActivation')) + 2);
+    // Run it against a toy window: the wrapper reports, then opens with the real one.
+    const calls = [];
+    const win = { open: (u) => { calls.push(['open', u]); return 'w'; } };
+    const nav = { userActivation: { isActive: true } };
+    new Function('window', 'navigator', fn + '\nreturn vexPopupActivation(arguments[2]);')(win, nav, (a) => calls.push(['report', a]));
+    expect(win.open('https://x.example/')).toBe('w');
+    expect(calls).toEqual([['report', true], ['open', 'https://x.example/']]);
+    expect(String(win.open)).toBe('function open() { [native code] }');
+    nav.userActivation.isActive = false;
+    win.open('y');
+    expect(calls[2]).toEqual(['report', false]);
+  });
+  it('main takes the report from a tab\'s page, synchronously, and refuses only without activation', () => {
+    expect(() => validate('popup:activation', [true])).not.toThrow();
+    expect(() => validate('popup:activation', ['yes'])).toThrow();
+    expect(read('src/main/ipc-policy.js')).toMatch(/GUEST_CHANNELS = new Set\([\s\S]*'popup:activation'/);
+    const main = read('src/main.js');
+    expect(main).toMatch(/const POPUP_ACTIVATION_MS = 5000;/);
+    const gate = main.slice(main.indexOf('function _popupRefused'), main.indexOf('function _popupRefused') + 200);
+    expect(gate).toMatch(/if \(_popupActivated\(contents\)\) return false;/);
+  });
+});
+
 describe('ad and tracker blocking switched off for one site', () => {
   const rules = { 'news.example': { ads: 'off' } };
   it('lets that site\'s pages, and its subdomains\', load what the blocker would refuse', () => {

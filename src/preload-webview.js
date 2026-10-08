@@ -2655,3 +2655,37 @@ function vexPageDialogs(ask) {
   try { __vexCB.executeInMainWorld({ func: vexPageDialogs, args: [askMain] }); }
   catch (err) { console.error('[Vex] page dialogs could not reach this page:', err && err.message); }
 })();
+
+// === Pop-ups: was it the person? ===
+// A site whose pop-ups are blocked (site panel › Pop-ups) may still open a
+// window you asked for. Chrome tells the two apart by the frame's transient
+// user activation, which main cannot see when the window is asked for
+// (setWindowOpenHandler says nothing about it). So the page's own window.open
+// says it first, synchronously, so main has it before the window request
+// arrives (main.js, 'popup:activation' and _popupRefused).
+function vexPopupActivation(report) {
+  var nativeOpen = window.open;
+  if (typeof nativeOpen !== 'function') return false;
+  var wrapped = function open() {
+    report(!!(navigator.userActivation && navigator.userActivation.isActive));
+    return nativeOpen.apply(this, arguments);
+  };
+  Object.defineProperty(wrapped, 'toString', { value: function toString() { return 'function open() { [native code] }'; }, configurable: true, writable: true });
+  Object.defineProperty(window, 'open', { value: wrapped, writable: true, enumerable: true, configurable: true });
+  return true;
+}
+(function () {
+  if (location.protocol === 'chrome-extension:') return;
+  var report = function (active) {
+    try { require('electron').ipcRenderer.sendSync('popup:activation', active === true); }
+    catch (err) { console.error('[Vex] pop-up check could not reach Vex:', err && err.message); }
+  };
+  var isolated = typeof process !== 'undefined' && process.contextIsolated === true;
+  if (!isolated) { vexPopupActivation(report); return; }
+  if (!__vexCB || typeof __vexCB.executeInMainWorld !== 'function') {
+    console.error('[Vex] pop-up check: executeInMainWorld is missing; pop-ups here are judged by the last click');
+    return;
+  }
+  try { __vexCB.executeInMainWorld({ func: vexPopupActivation, args: [report] }); }
+  catch (err) { console.error('[Vex] pop-up check could not reach this page:', err && err.message); }
+})();

@@ -40,7 +40,9 @@
   animation: sp-in 0.12s ease-out;
 }
 /* Focus is put on the panel itself when it is opened with the mouse. */
-.sp-panel:focus { outline: none; }
+/* a11y.css rings every :focus-visible; the panel itself is not a control (its
+   controls keep their rings), so a ring round the whole panel is only noise. */
+.sp-panel:focus, .sp-panel:focus-visible { outline: none !important; }
 @keyframes sp-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 .sp-head {
@@ -118,7 +120,9 @@
 label.sp-row-text { cursor: pointer; }
 .sp-row-label { display: inline-flex; align-items: center; gap: 7px; color: var(--text); }
 .sp-row-label svg { flex: none; color: var(--text-muted); }
-.sp-row-note, .sp-note { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+/* Small text: a theme's muted colour alone fell under 4.5:1 on its own
+   surface in some themes, so it is drawn a little toward the main text. */
+.sp-row-note, .sp-note { font-size: 11px; color: color-mix(in srgb, var(--text-muted) 65%, var(--text)); line-height: 1.4; }
 .sp-note { margin: 4px 0; }
 
 .sp-select, .sp-input {
@@ -169,14 +173,23 @@ label.sp-row-text { cursor: pointer; }
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--primary, var(--vex-accent));
+  /* The accent, drawn toward the text: a theme's accent on its own surface
+     was under 4.5:1 in some themes (Graphite, Nord, Solarized…). */
+  color: color-mix(in srgb, var(--primary, var(--vex-accent)) 55%, var(--text));
   font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
 .sp-link:hover { text-decoration: underline; }
-.sp-danger { color: var(--danger, #d14343); }
-.sp-btn.sp-danger { border-color: color-mix(in srgb, var(--danger, #d14343) 45%, transparent); }
+/* Something that throws data away. Its WORDS stay in the panel's own text
+   colour: the status colours are the theme's (gui-browser.css leaves them out
+   of the look bridge on purpose), so a dark theme's light red on a light
+   look's white panel fell well under 4.5:1. The red is carried by the icon
+   and the border instead, which only need to be seen. */
+.sp-danger { color: var(--text); }
+.sp-danger svg { color: var(--danger, #d14343); }
+.sp-btn.sp-danger { border-color: color-mix(in srgb, var(--danger, #d14343) 55%, var(--border, transparent)); }
+dd.sp-danger { font-weight: 600; }
 .sp-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 
 /* A switch drawn from a checkbox, so it stays a real, labelled control. */

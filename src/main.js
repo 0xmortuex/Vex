@@ -4465,8 +4465,29 @@ function _watchGestures(contents) {
 // whose pop-ups are blocked in its site panel. Said in the window, once in a
 // while, so a site that "does nothing" is explained.
 const _popupRefusalSaid = new Map();      // page id -> when the window was last told
+// What the page's own window.open said just before asking (preload-webview.js,
+// vexPopupActivation): whether its frame had transient user activation — the
+// test Chrome's pop-up blocker uses. Sent synchronously, so it is here before
+// the window request it belongs to.
+const _popupActivation = new Map();       // page id -> { active, at }
+ipcMain.on('popup:activation', (e, active) => {
+  const id = e.sender.id;
+  if (!_popupActivation.has(id)) e.sender.once('destroyed', () => _popupActivation.delete(id));
+  _popupActivation.set(id, { active: active === true, at: Date.now() });
+  e.returnValue = true;
+});
+const POPUP_ACTIVATION_MS = 5000;         // Chromium's transient activation lifespan
+function _popupActivated(contents) {
+  const said = _popupActivation.get(contents.id);
+  _popupActivation.delete(contents.id);
+  if (said && Date.now() - said.at < 2000) return said.active;
+  // A frame the check could not reach (another site's frame in the page):
+  // a click or key in the last five seconds, as long as activation lasts.
+  const last = _lastGestureAt.get(contents.id);
+  return Number.isFinite(last) && Date.now() - last <= POPUP_ACTIVATION_MS;
+}
 function _popupRefused(contents, openerUrl) {
-  if (_mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id))) return false;
+  if (_popupActivated(contents)) return false;
   let origin;
   try { origin = new URL(openerUrl).origin; } catch { return false; }
   if (!/^https?:/.test(origin)) return false;

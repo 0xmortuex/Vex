@@ -312,3 +312,58 @@ describe('zoom in a tab that keeps nothing', () => {
     expect(JSON.parse(localStorage.getItem('vex.zooms'))).toEqual({ 'news.example': 1.5 });
   });
 });
+
+describe('words that throw data away stay readable in every theme and look', () => {
+  // The status colours are the theme's, not the look's (gui-browser.css leaves
+  // them out of its bridge), so a dark theme's light red sat on a light look's
+  // white panel at under 3:1. No text in the panel takes its colour from them.
+  const css = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/css/site-panel.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  it('no rule colours text with --danger, --success or --warning; only icons wear them', () => {
+    for (const rule of css.split('}')) {
+      const [sel, body = ''] = rule.split('{');
+      if (/(^|[^-])color:\s*var\(--(danger|success|warning)/.test(body)) {
+        expect(sel.trim(), sel).toMatch(/(svg|#url-icon|\.sp-head-ico\[data-state)/);
+      }
+    }
+  });
+  it('"Reset this site…" is the panel\'s text colour with a red icon', async () => {
+    setup(); const P = load();
+    P.open(); await flush();
+    const b = document.querySelector('[data-act="reset-site"]');
+    expect(b.classList.contains('sp-danger')).toBe(true);
+    expect(b.querySelector('svg')).not.toBeNull();
+    expect(css).toMatch(/\.sp-danger\s*\{\s*color:\s*var\(--text\)/);
+  });
+});
+
+describe('the per-site lists travel and are kept together', () => {
+  it('all three are synced, item by item, like zoom and dark mode', () => {
+    vi.resetModules();
+    const p = require.resolve('../../src/renderer/js/sync-engine.js');
+    delete require.cache[p];
+    require(p);
+    const S = window.SyncEngine;
+    for (const k of ['vex.zooms', 'vex.forceDarkHosts', 'vex.neverSleepHosts', 'vex.translateAlwaysHosts']) expect(S.SYNC_KEYS, k).toContain(k);
+    const src = require('fs').readFileSync(p, 'utf8');
+    const lists = src.slice(src.indexOf('const LIST_PREFERENCES'), src.indexOf('];', src.indexOf('const LIST_PREFERENCES')));
+    for (const k of ['vex.forceDarkHosts', 'vex.neverSleepHosts', 'vex.translateAlwaysHosts']) expect(lists, k).toContain(`'${k}'`);
+  });
+  it('a backup carries them; Reset to Defaults leaves them alone', () => {
+    setup();
+    localStorage.setItem('vex.neverSleepHosts', '["a.example"]');
+    localStorage.setItem('vex.forceDarkHosts', '["b.example"]');
+    localStorage.setItem('vex.translateAlwaysHosts', '["c.example"]');
+    const p = require.resolve('../../src/renderer/js/backup.js');
+    delete require.cache[p];
+    const mod = require(p);
+    const B = (mod && mod.VexBackup) || window.VexBackup;
+    const items = B.collect().items;
+    expect(items['vex.neverSleepHosts']).toBe('["a.example"]');
+    expect(items['vex.forceDarkHosts']).toBe('["b.example"]');
+    expect(items['vex.translateAlwaysHosts']).toBe('["c.example"]');
+    const app = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
+    const prefs = app.slice(app.indexOf('SETTINGS_PREF_KEYS = ['), app.indexOf('];', app.indexOf('SETTINGS_PREF_KEYS = [')));
+    for (const k of ['vex.neverSleepHosts', 'vex.forceDarkHosts', 'vex.translateAlwaysHosts', 'vex.zooms']) expect(prefs, k).not.toContain(k);
+  });
+});

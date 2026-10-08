@@ -42,8 +42,11 @@ const SyncEngine = (() => {
     // Light and dark: the two themes and when each is worn (js/theme-auto.js).
     'vex.themeAuto',
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.zooms',
-    // Sites translated every time they load (site panel, js/translate-side.js).
-    'vex.translateAlwaysHosts',
+    // The site panel's per-site lists (js/site-panel.js) travel together, as
+    // zoom and force-dark already did: sites that never sleep, and sites
+    // translated every time they load. They are choices about a site, not
+    // about this machine; Reset to Defaults leaves all of them alone.
+    'vex.neverSleepHosts', 'vex.translateAlwaysHosts',
     // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
     // was left out of this list, so the choice never reached another device.
@@ -87,7 +90,9 @@ const SyncEngine = (() => {
   // which is its own id: sync-records.js flatten). A device on an older Vex
   // still sends these whole; its copy then wins whole, as notes did.
   const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes',
-    'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts'];
+    'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts',
+    // The site panel's other per-site lists, merged the same way.
+    'vex.neverSleepHosts', 'vex.translateAlwaysHosts'];
 
   // Shortcut tiles (vex.shortcuts) never synced: preferenceKeys() dropped the
   // key because the unused storage key 'shortcuts' has the same name (found

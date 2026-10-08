@@ -29,7 +29,9 @@
   ];
   // Status pills, not buttons: they hide themselves and are never moved.
   // Simple mode's All features is the way back to everything: it never hides.
-  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom']);
+  // The site icon (js/site-panel.js) is the address field's own: it says
+  // whether the connection is secure, so it stays beside the address.
+  const NEVER = new Set(['tor-running', 'timer-pill', 'btn-routing', 'btn-site-rules', 'window-controls', 'btn-toolbar-overflow', 'btn-all-features', 'url-zoom', 'url-site-btn']);
 
   let bar = null, more = null, menu = null;
   let moved = [];          // elements currently in the menu, in ORDER order
