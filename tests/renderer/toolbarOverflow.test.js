@@ -83,6 +83,16 @@ describe('toolbar overflow', () => {
     expect(api.MIN_URL_INPUT).toBe(280);
   });
 
+  it('the site icon (padlock) never moves, however narrow the window', () => {
+    document.getElementById('url-bar').insertAdjacentHTML('afterbegin', '<button id="url-site-btn" aria-label="Site information"></button>');
+    BAR_W = 500;
+    const api = load();
+    api.relayout();
+    expect(moved(api).length).toBeGreaterThan(3);
+    expect(moved(api)).not.toContain('url-site-btn');
+    expect(document.getElementById('url-site-btn').classList.contains('tb-overflowed')).toBe(false);
+  });
+
   it('the address bar’s own buttons move too; the zoom pill never does', () => {
     document.getElementById('url-zoom').hidden = false;
     BAR_W = 900;

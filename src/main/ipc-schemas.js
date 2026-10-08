@@ -268,6 +268,8 @@ define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):
 // the preload cuts the text to 10000 characters; anything longer is refused.
+// Whether a page's window.open had user activation (preload-webview.js).
+define('popup:activation', [boolean]);
 define('page-dialog', [shape({ type: oneOf(['alert', 'confirm', 'prompt']), message: string(10000), value: optional(string(10000)) })]);
 // The window's answer to one (renderer/js/page-dialogs.js).
 define('page-dialog:answer', [shape({ id: string(64), ok: boolean, value: optional(string(10000)), stop: optional(boolean) })]);

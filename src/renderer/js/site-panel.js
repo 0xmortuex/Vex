@@ -338,7 +338,7 @@ const SitePanel = {
       </div>
       <div class="sp-body">${body}</div>
       <div class="sp-foot">
-        ${c.web ? '<button type="button" class="sp-link sp-danger" data-act="reset-site">Reset this site…</button>' : '<span></span>'}
+        ${c.web ? `<button type="button" class="sp-link sp-danger" data-act="reset-site">${this._ico('trash', 13)}<span>Reset this site…</span></button>` : '<span></span>'}
         <button type="button" class="sp-link" data-act="settings">${this._ico('settings', 13)}<span>Site settings</span></button>
       </div>`;
     const b = el.querySelector('.sp-body');

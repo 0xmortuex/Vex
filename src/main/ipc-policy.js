@@ -1,5 +1,5 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
-  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog']);
+  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog', 'popup:activation']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -120,6 +120,8 @@ function installIpcPolicy(ipcMain, security) {
       if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
       // A page's alert / confirm / prompt waits on this answer (sendSync), so a
       // refused one still answers: as cancelled, never left waiting for ever.
+      // window.open waits on this one (sendSync): refused, it is told no.
+      if (channel === 'popup:activation') { try { event.returnValue = false; } catch (replyErr) { console.error('[IPC] could not answer "popup:activation":', replyErr.message); } return; }
       if (channel === 'page-dialog') {
         console.warn('[IPC] refused "page-dialog": %s', (err && err.message) || err);
         try { event.returnValue = null; } catch (replyErr) { console.error('[IPC] could not answer "page-dialog":', replyErr.message); }
