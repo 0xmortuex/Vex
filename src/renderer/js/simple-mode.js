@@ -64,7 +64,15 @@ const VexSimpleMode = {
   // One-time marker for profiles that existed before Simple mode: they stay
   // Full. Runs before anything reads the mode. Returns what it wrote, or null.
   migrate() {
-    if (window.VexTabPolicy?.isPrivateWindow) return null;   // its own throwaway storage
+    // A private window has its own throwaway storage: it takes the mode of
+    // the window that opened it (passed as ?uiMode=, like ?look=), and Full
+    // when none was passed.
+    if (window.VexTabPolicy?.isPrivateWindow) {
+      const passed = new URLSearchParams(location.search).get('uiMode');
+      if (passed !== 'simple' && passed !== 'full') return null;
+      localStorage.setItem(this.KEY, passed);
+      return passed;
+    }
     if (this.stored() != null) return null;
     if (typeof Onboarding === 'undefined') throw new Error('[SimpleMode] Onboarding is not loaded — cannot tell a new profile from an old one');
     if (!(Onboarding.done() || Onboarding._usedBefore())) return null;  // new: the wizard decides

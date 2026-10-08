@@ -6742,7 +6742,7 @@ function _wireEphemeralBrowsing(ses, tag) {
 
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
-function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
+function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '' } = {}) {
   if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
   const privSession = secureSessions.fromPartition(privatePartition);
@@ -6758,7 +6758,7 @@ function openPrivateWindow({ clean = false, url = '', look = '' } = {}) {
     }
   });
   secureSessions.registerHost(privWin, privatePartition);
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(clean ? { clean: 'true', url } : {}) } });
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : {}) } });
   return true;
 }
 // `look` is the opener's GUI style: a private window keeps its own storage,
@@ -6778,8 +6778,9 @@ ipcMain.handle('overlay:open', (_e, url, opacity, partition) => {
   return { ok: true };
 });
 ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed()) _overlay.close(); _overlay = null; return { ok: true }; });
-ipcMain.handle('open-private-window', (_e, look) => openPrivateWindow({ look: look || '' }));
-ipcMain.handle('open-clean-window', (_e, url, look) => openPrivateWindow({ clean: true, url, look: look || '' }));
+// `uiMode` likewise carries the opener's Simple/Full mode (js/simple-mode.js).
+ipcMain.handle('open-private-window', (_e, look, uiMode) => openPrivateWindow({ look: look || '', uiMode: uiMode || '' }));
+ipcMain.handle('open-clean-window', (_e, url, look, uiMode) => openPrivateWindow({ clean: true, url, look: look || '', uiMode: uiMode || '' }));
 
 // === Updates (src/main/updates.js; the cover is js/update-notifier.js) ======
 // The check is a plain HTTPS GET of latest.yml and a version compare. We

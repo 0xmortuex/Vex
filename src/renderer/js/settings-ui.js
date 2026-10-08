@@ -159,6 +159,9 @@ const SettingsUI = {
     // While searching, Simple mode hides nothing: the advanced sections that
     // match are in the results (css/simple-mode.css marks them Advanced).
     (root.parentElement || root).classList.toggle('set-searching', !!q);
+    // Results start at the top: the list kept wherever it had been scrolled
+    // to, so the first matches were often above the view.
+    if (q) root.scrollTop = 0;
     // The section picked from the results was out of sight before the search;
     // take the user back to it rather than to the top of the list.
     if (!q && this._lastRevealed) {

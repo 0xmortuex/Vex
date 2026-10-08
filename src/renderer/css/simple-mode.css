@@ -49,9 +49,6 @@ body[data-ui-mode="simple"] #icon-sidebar .sidebar-separator {
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
-/* Two ids: Glass forces every #top-bar-right > button on with !important,
-   which outranked [hidden] and showed this button to Full profiles. */
-#top-bar #btn-all-features[hidden] { display: none !important; }
 #btn-all-features:hover { background: var(--vex-hover-fill, var(--surface-hover, var(--surface))); border-color: var(--primary); }
 #btn-all-features:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 #btn-all-features svg { color: var(--primary); flex-shrink: 0; }

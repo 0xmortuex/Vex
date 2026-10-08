@@ -159,8 +159,15 @@ describe('toolbar', () => {
     expect(VexSimpleMode.TOOLBAR).not.toContain('btn-back');
     expect(VexSimpleMode.TOOLBAR).not.toContain('btn-downloads-top');
   });
-  it('All features stays hidden in Full even in Glass, which forces toolbar buttons on', () => {
-    expect(css).toMatch(/#top-bar #btn-all-features\[hidden\] \{ display: none !important; \}/);
+  it('a hidden toolbar button stays hidden in every look (Glass forced them all on)', () => {
+    const dir = resolve(ROOT, 'src/renderer/css');
+    for (const f of require('node:fs').readdirSync(dir).filter(n => n.endsWith('.css'))) {
+      const text = readFileSync(resolve(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      // A rule that forces a display on every toolbar button must spare [hidden].
+      for (const m of text.matchAll(/([^{}]*#top-bar-right\s*>\s*button[^{}]*)\{([^}]*)\}/g)) {
+        if (/display:\s*(?!none)[a-z-]+\s*!important/.test(m[2])) expect(m[1], f).toMatch(/:not\(\[hidden\]\)/);
+      }
+    }
   });
   it('the overflow menu never swallows All features, and re-fits when the mode changes', () => {
     const js = readFileSync(resolve(ROOT, 'src/renderer/js/toolbar-overflow.js'), 'utf8');
@@ -214,8 +221,10 @@ describe('Settings: advanced sections', () => {
   it('searching finds advanced sections, and one you click into stays when the search is cleared', () => {
     const panel = buildSettings();
     const root = panel.querySelector('.settings-content');
+    root.scrollTop = 500;
     SettingsUI._filter(root, 'memory saver');
     expect(panel.classList.contains('set-searching')).toBe(true);
+    expect(root.scrollTop).toBe(0);                    // results start at the top
     const perf = [...root.querySelectorAll('.setting-group')].find(g => g.textContent.includes('Performance'));
     expect(perf.style.display).toBe('');
     document.body.dataset.uiMode = 'simple';

@@ -75,7 +75,7 @@ const CommandBar = {
     { id: 'cleanwindow', label: 'Share this page in a clean window', hint: 'A private window with only this page: no bookmarks, sidebar or other tabs, streamer mode on', icon: 'eye', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want to share first', 'error'); return; }
-      await window.vex.openCleanWindow(t.url, VexGuiStyle.get());
+      await window.vex.openCleanWindow(t.url, VexGuiStyle.get(), VexSimpleMode.mode());
     } },
     { id: 'readlater-next', label: 'Next from Read Later', hint: 'The oldest link you saved, in this tab — read them one at a time', icon: 'book', action: () => ReadLater.next() },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } ReadLater.add(t.url, t.title); } },
@@ -318,7 +318,7 @@ const CommandBar = {
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get()) },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },
