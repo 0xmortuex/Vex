@@ -153,6 +153,57 @@ describe('themes for a need', () => {
     }
   });
 
+  // The New Tab page's own text, measured live on 2026-10-08 against what it
+  // is drawn on: the wordmark (a pale gradient at 85% opacity) read 2.0:1 to
+  // 4.1:1, the search engine's letter 3.6:1, and Mica Dark's muted labels 4.2:1
+  // where the accent glow is strongest. Each text colour the page uses is held
+  // here against every surface it sits on, the glow composited in.
+  describe('New Tab page text', () => {
+    const MIN = (id) => (id === 'contrast-light' ? 7 : 4.5);
+    const mix = (fg, bg, a) => '#' + rgb(fg).map((c, i) => Math.round(c * a + rgb(bg)[i] * (1 - a)).toString(16).padStart(2, '0')).join('');
+    const pageSurfaces = (p) => {
+      const base = ['--vex-bg-base', '--vex-glass-strong', '--vex-glass-medium', '--vex-glass-light', '--vex-glass-input'].map(k => p[k]);
+      // The two radial glows peak at the accent-glow colour over the page.
+      const glow = /^#[0-9a-f]{8}$/.exec(p['--vex-accent-glow'] || '');
+      const g = glow ? [mix(glow[0].slice(0, 7), p['--vex-bg-base'], parseInt(glow[0].slice(7), 16) / 255)] : [];
+      return [...base, ...g];
+    };
+    const GLOWLESS = ['amoled', 'contrast-light'];
+
+    it('body, secondary and muted text and the accent (links, wordmark, verse reference) read on every surface', () => {
+      const low = [];
+      for (const id of [...NEW, 'amoled']) {
+        const p = PAGE.get(id);
+        const surfaces = GLOWLESS.includes(id) ? pageSurfaces(p).slice(0, 5) : pageSurfaces(p);
+        for (const t of ['--vex-text-primary', '--vex-text-secondary', '--vex-text-muted', '--vex-accent'])
+          for (const s of surfaces) { const r = contrast(p[t], s); if (r < MIN(id)) low.push(`${id} ${t} on ${s} = ${r.toFixed(2)}`); }
+      }
+      expect(low).toEqual([]);
+    });
+
+    it('the wordmark is the solid accent at full strength, not the pale gradient', () => {
+      const rule = /html:is\(([^)]*)\) \.vex-wordmark \{([^}]*)\}/.exec(START);
+      expect(rule).toBeTruthy();
+      for (const id of [...NEW, 'amoled']) expect(rule[1], id).toContain(`[data-theme="${id}"]`);
+      expect(rule[2]).toMatch(/background: none;/);
+      expect(rule[2]).toMatch(/-webkit-text-fill-color: var\(--vex-accent\);/);
+      expect(rule[2]).toMatch(/opacity: 1;/);
+    });
+
+    it('the search engine\'s white letter reads on its deepened brand colour (7:1 and more)', () => {
+      const look = /const ENGINE_LOOK = \{([\s\S]*?)\};/.exec(START)[1];
+      const colours = [...look.matchAll(/color: '(#[0-9a-fA-F]{6})'/g)].map(m => m[1].toLowerCase());
+      expect(colours.length).toBeGreaterThanOrEqual(6);
+      const rule = /\) \.engine-glyph \{\s*background: color-mix\(in srgb, var\(--engine-color, #4285F4\) (\d+)%, #000000\);/.exec(START);
+      expect(rule).toBeTruthy();
+      const keep = Number(rule[1]) / 100;
+      for (const c of colours) expect(contrast('#ffffff', mix(c, '#000000', keep)), c).toBeGreaterThanOrEqual(7);
+      // The colour comes from --engine-color, so the rule above can reach it.
+      expect(START).toContain("engineGlyph.style.setProperty('--engine-color', e.color)");
+      expect(START).not.toMatch(/engineGlyph\.style\.background =/);
+    });
+  });
+
   it('the New Tab drops its accent glow under AMOLED and High Contrast Light', () => {
     expect(START).toMatch(/html:is\(\[data-theme="amoled"\], \[data-theme="contrast-light"\]\) body \{ background-image: none; \}/);
   });

@@ -223,10 +223,13 @@ const ThemeAuto = {
     const changed = dark !== this._lastDark;
     this._lastDark = dark;
     const want = dark ? st.dark : st.light;
+    let applied = false;
     if (this._valid(want) && typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme !== want) {
       ThemeManager.applyTheme(want, { auto: true });
+      applied = true;
     }
     if (changed || force) this._applyLook(dark);
+    if ((changed || force || applied) && this._valid(want)) this._applyColours(want);
     this.renderSettings();
     return dark;
   },
@@ -243,10 +246,40 @@ const ThemeAuto = {
     Promise.resolve(G.set(want)).catch(err => console.error('[ThemeAuto] look switch failed:', err));
   },
 
+  // The themes that ARE a browser look's own colours: under that look, its own
+  // colours show them as they are.
+  LOOK_PALETTES: { 'firefox-light': ['firefox', 'firefox-dark'], 'firefox-dark': ['firefox', 'firefox-dark'] },
+
+  // A browser look showing its own colours ignored a theme switched in by this
+  // feature: with AMOLED as the dark theme the Firefox look stayed Firefox Dark
+  // grey (a hand pick moves the look to the theme's colours - gui-style.js -
+  // but an automatic switch is not a pick). So a switch to a theme that is not
+  // the look's own palette moves the look to the theme's colours, and a later
+  // switch to one that is (Firefox Light/Dark under the Firefox look) gives the
+  // look its own colours back - only if it was this feature that took them.
+  _applyColours(themeId) {
+    const G = window.VexGuiStyle;
+    if (!G || typeof G.isBrowserLook !== 'function' || !G.isBrowserLook()) return;
+    const st = this.state();
+    const own = (this.LOOK_PALETTES[themeId] || []).includes(G.get());
+    if (own) {
+      if (!st.coloursByAuto) return;
+      if (G.getColors() === 'theme') G.setColors('look');
+      this.save({ ...st, coloursByAuto: false });
+      return;
+    }
+    if (G.getColors() !== 'look') return;
+    G.setColors('theme');
+    this.save({ ...st, coloursByAuto: true });
+  },
+
   // A theme picked by hand while this is on fills the slot for now.
   _onThemeChanged(e) {
     const d = e && e.detail;
     if (!d || !d.userChoice || d.auto) return;
+    // A hand pick decides the look's colours itself (gui-style.js); a later
+    // automatic switch must not undo that as if this feature had made it.
+    if (this.state().coloursByAuto) this.save({ ...this.state(), coloursByAuto: false });
     const st = this.state();
     if (st.mode === 'off') return;
     const dark = this._lastDark != null ? this._lastDark : this.resolveDark(st, this._ctx());

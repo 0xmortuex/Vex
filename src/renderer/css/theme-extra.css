@@ -1053,10 +1053,10 @@ html[data-theme="contrast-light"] :focus-visible:not(webview) {
   --vex-border-subtle: #333333; --vex-border-medium: #3d3d3d; --vex-border-strong: #8b8b8b;
   --vex-border-accent: #60cdff; --vex-border-accent-strong: #60cdff;
   --vex-accent: #60cdff; --vex-accent-dim: #60cdff38; --vex-accent-glow: #60cdff2e;
-  --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #a0a0a0;
+  --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #adadad;
   --vex-text-accent: #60cdff; --vex-success: #6ccb5f; --vex-danger: #ff99a4; --vex-danger-hover: #ffb8c0; --vex-warning: #fce100;
   --bg: #202020; --bg-2: #1b1d22; --sidebar: #202020; --surface: #2b2b2b;
-  --border: #3d3d3d; --text: #ffffff; --text-muted: #a0a0a0;
+  --border: #3d3d3d; --text: #ffffff; --text-muted: #adadad;
   --primary: #60cdff; --primary-hover: #99ebff; --accent: #60cdff;
   --on-primary: #000000;
   --tab-active: #2d2d2d; --tab-hover: #2b2b2b;

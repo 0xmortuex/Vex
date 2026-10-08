@@ -799,6 +799,18 @@
     /* No accent glow behind the page: AMOLED stays true black (an OLED pixel
        off), High Contrast Light stays plain white under its black text. */
     html:is([data-theme="amoled"], [data-theme="contrast-light"]) body { background-image: none; }
+    /* Every text on the New Tab measured against what it is drawn on (item #5
+       review, 2026-10-08): in these five the wordmark, a pale gradient at 85%
+       opacity, read 2.0:1 (Mica Light) to 4.1:1 (Evening) - 3.2:1 in High
+       Contrast Light - so here it is the solid accent. The search engine's
+       white letter on its brand colour (Google's blue 3.6:1) sits on that colour
+       deepened, still recognisably the engine's. */
+    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .vex-wordmark {
+      background: none; -webkit-text-fill-color: var(--vex-accent); color: var(--vex-accent); opacity: 1;
+    }
+    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .engine-glyph {
+      background: color-mix(in srgb, var(--engine-color, #4285F4) 60%, #000000);
+    }
     [data-theme="evening"] {
       --vex-bg-base: #18120c; --vex-glass-strong: #221a12; --vex-glass-medium: #120d08;
       --vex-glass-light: #221a12; --vex-glass-input: #18120c;
@@ -827,7 +839,7 @@
       --vex-border-accent: #60cdff; --vex-border-accent-strong: #60cdff;
       --vex-accent: #60cdff; --vex-accent-dim: #60cdff38; --vex-accent-glow: #60cdff2e;
       --on-primary: #000000;
-      --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #a0a0a0;
+      --vex-text-primary: #ffffff; --vex-text-secondary: #c5c5c5; --vex-text-muted: #adadad;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -1011,7 +1023,8 @@
       width: 20px; height: 20px; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
       font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px;
-      color: #fff; background: #4285F4;
+      /* The engine's own colour, set by the script as --engine-color. */
+      color: #fff; background: var(--engine-color, #4285F4);
     }
     .engine-menu {
       position: absolute; z-index: 60; margin-top: 6px;
@@ -2504,7 +2517,7 @@
       const engineMenu = document.getElementById('engine-menu');
       function applyEngineUI() {
         const e = ENGINES[engineId];
-        if (engineGlyph) { engineGlyph.textContent = e.glyph; engineGlyph.style.background = e.color; }
+        if (engineGlyph) { engineGlyph.textContent = e.glyph; engineGlyph.style.setProperty('--engine-color', e.color); }
         if (input) input.placeholder = 'Search with ' + e.name + '…';
         if (engineBtn) engineBtn.title = 'Search engine: ' + e.name;
       }
@@ -2513,7 +2526,7 @@
         engineMenu.innerHTML = Object.keys(ENGINES).map(id => {
           const e = ENGINES[id];
           return '<div class="engine-opt' + (id === engineId ? ' active' : '') + '" data-engine="' + id + '">' +
-            '<span class="engine-glyph" style="background:' + e.color + '">' + e.glyph + '</span>' +
+            '<span class="engine-glyph" style="--engine-color:' + e.color + '">' + e.glyph + '</span>' +
             '<span>' + e.name + '</span>' +
             '<svg class="eo-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>';
         }).join('');
