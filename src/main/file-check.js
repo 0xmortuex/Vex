@@ -63,17 +63,19 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
       // the site picks the file name, and PowerShell runs $(…) inside double
       // quotes, so a name like "a$(calc).exe" would have run code (found 2026-09-29).
       const script = `$ErrorActionPreference='Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:VEX_FILECHECK_PATH; ` +
-        `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject)`;
+        `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject + "\`n" + [string]($null -ne $s.TimeStamperCertificate))`;
       execFile(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
         { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024, env: checkEnv(filePath) },
         (err, stdout) => {
           if (err) { resolve({ status: 'unknown', signer: '', why: 'the signature could not be read' }); return; }
-          const [statusLine, subject = ''] = String(stdout || '').split('\n');
+          const [statusLine, subject = '', stamped = ''] = String(stdout || '').split('\n');
           const status = String(statusLine || '').trim();
           // "CN=Example Ltd, O=Example Ltd, …" — the common name is the bit a
           // person recognises.
           const cn = (subject.match(/CN=([^,]+)/) || [])[1] || subject.trim();
-          resolve({ status: status || 'unknown', signer: cn.replace(/^"|"$/g, ''), why: '' });
+          // Timestamped: the signature stays valid after the certificate
+          // expires (the release build requires it; scripts/code-signing.js).
+          resolve({ status: status || 'unknown', signer: cn.replace(/^"|"$/g, ''), timestamped: stamped.trim() === 'True', why: '' });
         });
     });
   }

@@ -51,11 +51,16 @@ describe('inspecting one', () => {
     const p = tempFile('setup.exe', 'pretend installer');
     const out = await check().inspect(p, 'https://downloads.example.com/setup.exe');
     expect(out.verdict).toBe('signed');
-    expect(out.signature).toEqual({ status: 'Valid', signer: 'Example Ltd', why: '' });
+    expect(out.signature).toEqual({ status: 'Valid', signer: 'Example Ltd', timestamped: false, why: '' });
     expect(out.sha256).toBe(realCrypto.createHash('sha256').update('pretend installer').digest('hex'));
     expect(out.lines[1]).toBe('Downloaded from downloads.example.com');
     expect(out.lines[2]).toBe('Signed by Example Ltd');
     expect(out.lines[3]).toContain(out.sha256);
+  });
+
+  it('reads whether the signature is timestamped (the release build requires it)', async () => {
+    const fc = check({ execFile: (c, a, o, cb) => cb(null, 'Valid\nCN=Example Ltd, O=Example Ltd\nTrue') });
+    expect(await fc.signature(tempFile('setup.exe'))).toEqual({ status: 'Valid', signer: 'Example Ltd', timestamped: true, why: '' });
   });
 
   it('an unsigned program says exactly that — it is the common case, not an accusation', async () => {

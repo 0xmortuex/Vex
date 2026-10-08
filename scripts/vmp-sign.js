@@ -1,4 +1,8 @@
 const { execSync } = require('child_process');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const codeSigning = require('./code-signing');
 
 // Sign the packaged app for Widevine (castLabs Verified Media Path), and FAIL the
 // build if the signer fell back to a development/cached signature.
@@ -14,8 +18,32 @@ const { execSync } = require('child_process');
 //
 // Escape hatch: set VEX_SKIP_VMP_VERIFY=1 for an intentional no-DRM build — it
 // uses the fast cached path and warns instead of aborting. (DRM will NOT work.)
+//
+// Code signing (scripts/code-signing.js): electron-builder has already
+// Authenticode-signed every .exe in the app folder when this runs. The VMP
+// signature is a SHA-512 of the whole Vex.exe, so it has to come after that.
+// When signing is configured, Vex.exe must already carry the signature here
+// (else the build stops, before castLabs is asked), and Vex.exe must be byte
+// for byte the same after VMP signing as before it.
+const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+async function requireAuthenticode(exe, setup, when) {
+  const offline = process.env.ELECTRON_BUILDER_OFFLINE === 'true';
+  const result = await codeSigning.checkSigned([{ name: path.basename(exe), file: exe }], setup, codeSigning.signatureReader(), { offline });
+  for (const line of result.lines) console.log('[Sign]' + line.replace(/^ +/, ' '));
+  if (!result.ok) {
+    throw new Error(`[Sign] ${path.basename(exe)} is not signed as configured ${when}: ${result.problems.join('; ')}`);
+  }
+}
+
 exports.default = async function (context) {
   const appOutDir = context.appOutDir;
+  const exe = path.join(appOutDir, `${context.packager.appInfo.productFilename}.exe`);
+  const setup = codeSigning.setupFromEnv(process.env);
+  if (setup.mode !== 'none') {
+    await requireAuthenticode(exe, setup, 'before VMP signing');
+    console.log(`[Sign] ${path.basename(exe)} is Authenticode-signed; VMP signing comes after it (castLabs: the VMP signature covers the whole .exe)`);
+  }
   const skip = process.env.VEX_SKIP_VMP_VERIFY === '1';
   if (skip) {
     console.warn('[VMP] Explicit no-DRM test build: signing skipped. Not a release artifact.');
@@ -24,6 +52,7 @@ exports.default = async function (context) {
   const force = !skip; // real builds force a fresh sign; no-DRM builds use cache
   console.log('[VMP] signing:', appOutDir, force ? '(forcing fresh EVS signature)' : '(no-DRM / cached path)');
 
+  const exeBefore = sha256(exe);
   let signOut = '';
   try {
     // Merge stderr→stdout so we capture the signer's markers regardless of stream.
@@ -69,6 +98,10 @@ exports.default = async function (context) {
       console.error('');
       throw new Error('VMP post-sign verify-pkg failed — packaged signature invalid, aborting.');
     }
+    if (sha256(exe) !== exeBefore) {
+      throw new Error(`[VMP] ${path.basename(exe)} changed during VMP signing — neither its Authenticode nor its VMP signature can be trusted, aborting.`);
+    }
+    if (setup.mode !== 'none') await requireAuthenticode(exe, setup, 'after VMP signing');
     console.log('[VMP] fresh EVS signature acquired AND verify-pkg confirmed valid — Widevine/DRM enabled');
     return;
   }
