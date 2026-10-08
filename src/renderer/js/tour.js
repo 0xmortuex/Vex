@@ -36,6 +36,7 @@ const VexTour = {
     { sel: '#nav-buttons', title: 'Back, forward & reload', html: 'Move through history. <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> and <kbd>Ctrl</kbd>+<kbd>R</kbd> work too (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> hard-reloads).' },
     { sel: '#tabs-list', title: 'Vertical tabs', html: 'Your tabs live down the side. Drag to reorder, right-click to rename, group, or close — and idle tabs can sleep to save memory.' },
     { sel: '#btn-new-tab', title: 'New tab', html: 'Open a fresh tab (<kbd>Ctrl</kbd>+<kbd>T</kbd>). Reopen a closed one with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>.' },
+    { sel: '#btn-all-features', title: 'All features', html: 'Vex is in Simple mode: only the everyday controls are on screen. This button shows every panel, button and setting — Settings › General switches Simple mode back on.' },
     { sel: '#workspace-switcher', title: 'Workspaces', html: 'Switch between separate contexts — Work, School, Dev, Personal — each keeping its own set of tabs.' },
     { sel: '#tools-bar', title: 'Sidebar panels', html: 'Quick-access panels: WhatsApp, Claude, Spotify, Notes, Downloads and more. Add your own from the + at the end.' },
     { sel: '#btn-command', title: 'Command bar', html: 'Press <kbd>Ctrl</kbd>+<kbd>K</kbd> to do anything — search, open panels, run actions. (Type “tour” there to replay this.)' },

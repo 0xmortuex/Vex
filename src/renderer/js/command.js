@@ -330,6 +330,11 @@ const CommandBar = {
       if (!VexDevMode.toggle()) { window.showToast?.('Could not save that preference', 'error'); return; }
       window.showToast?.(VexDevMode.isOn() ? 'Developer mode on' : 'Developer mode off');
     } },
+    { id: 'simple-mode', label: 'Simple mode', hint: 'Show only the everyday buttons, panels and settings — or all of them again', icon: 'grid', action: () => {
+      if (typeof VexSimpleMode === 'undefined') { window.showToast?.('Simple mode is not available in this build', 'error'); return; }
+      const mode = VexSimpleMode.toggle();
+      window.showToast?.(mode === 'simple' ? 'Simple mode on — All features in the toolbar shows everything' : 'All features are on');
+    } },
     { id: 'dev-dashboard', label: 'Developer dashboard', hint: 'Diagnostics and the quick actions for working on Vex', icon: 'terminal', action: () => {
       if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
       if (!VexDevMode.isOn()) VexDevMode.set(true);

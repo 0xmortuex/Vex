@@ -228,7 +228,8 @@ const FeatureDetails = {
   // Counted, not written down: the number drifted every time a theme was added.
   get themes() { return 'Vex has ' + ThemeManager.THEMES.length + ' themes, and the whole interface follows, including the new tab page. Firefox Light and Firefox Dark are there if you want the colours to match the Firefox look.'; },
   guistyle: 'Wear a different browser: Chrome, Firefox, Safari, Internet Explorer on XP, or Netscape on 98. It changes the shape of the browser, not the colours — pick a theme for those.',
-  editlayout: 'Drag any toolbar button or sidebar icon somewhere else, or hide it, with presets for Default, Essentials and Minimal. Everything hidden is still reachable from Ctrl+K.',
+  'simple-mode': 'New profiles start here unless setup says otherwise; a profile from before it stays as it was. It is a view laid over your own setup, not a change to it: the sidebar buttons you hid or moved, your toolbar layout and your shortcuts are kept, and come back exactly as they were when you press All features. The settings search finds every setting either way.',
+  editlayout:'Drag any toolbar button or sidebar icon somewhere else, or hide it, with presets for Default, Essentials and Minimal. Everything hidden is still reachable from Ctrl+K.',
   siteprofiles: 'Per-site zoom, forced dark mode and your own tweaks, remembered for that site alone.',
   boost: 'Your own CSS or JavaScript on a site, permanently. The honest version of a userscript manager, with nothing to install.',
   zap: 'Click the thing you never want to see on that site again and it is gone for good. For the cookie strip the blocker missed and the banner that comes back every visit.',

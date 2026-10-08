@@ -167,6 +167,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **API Client** (built‑in REST + JSON‑tree viewer), **Format JSON**, **Responsive Preview**, **DevTools** (`F12`), spellcheck.
 
 ### 🎨 Customization
+- **Simple mode** — a calm Vex for newcomers: tabs, address bar, Back/Forward/Reload, bookmarks, history, downloads, notes, privacy and Settings, with advanced settings folded away. Nothing is removed — **All features** in the toolbar (or Settings › General) shows everything again, and the settings search always finds every setting. New profiles choose it in setup; existing profiles stay as they were.
 - **Layout Editor** — drag to reorder or hide **every** toolbar button and sidebar icon in place; move whole toolbar sections; one‑click **Default / Essentials / Minimal** presets.
 - **GUI Style** — Classic (your themes) or **Glass** (frosted UI, tabs on top, speed‑dial shortcuts bar).
 - **Themes** — multi‑theme picker (`Ctrl+Shift+Y`).

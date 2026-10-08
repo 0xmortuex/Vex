@@ -484,6 +484,9 @@ const VexFeatures = {
       what: 'Rebind any keyboard shortcut to whatever you actually press — and give a key to anything that has none, from the whole command list.' },
     { id: 'extensions', phrases: 'extensions add-ons plugins chrome store', cat: 'look', name: 'Chrome extensions', setting: { section: 'extensions-panel-content' },
       what: 'Install extensions from a folder, a .zip or a .crx. The manager says honestly which parts of an extension Vex can run.' },
+    { id: 'simple-mode', cat: 'look', cmd: 'simple-mode', setting: { id: 'setting-simple-mode' },
+      phrases: 'simple mode too many buttons cluttered calm basic beginner fewer options hide advanced all features',
+      what: 'A calm Vex: only the everyday buttons, panels and settings are on screen. Nothing is removed — All features in the toolbar shows the rest, any time.' },
     { id: 'tools-bar', cat: 'look', cmd: 'tools', sel: '#tools-bar',
       what: 'Pin any web app to the sidebar as a one-click button of your own.' },
 
@@ -596,7 +599,7 @@ const VexFeatures = {
       { name: 'And your own', ids: ['panel-authenticator', 'pinsite2'] },
     ],
     look: [
-      { name: 'The whole browser', ids: ['themes', 'skin', 'font', 'uisize', 'guistyle', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
+      { name: 'The whole browser', ids: ['themes', 'skin', 'font', 'uisize', 'guistyle', 'simple-mode', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
       { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'zap', 'airestyle'] },
       { name: 'The rest', ids: ['search-engine', 'extensions', 'setupgallery'] },
     ],

@@ -29,6 +29,9 @@ function vexOwnTextFocused(doc) {
   // New privacy defaults reach new profiles only; an existing one keeps what
   // it had, and is told once what changed (js/onboarding.js).
   Onboarding.migratePrivacyDefaults();
+  // Simple mode is for new profiles: one that existed before it stays Full
+  // (js/simple-mode.js). Before the sidebar reads the mode.
+  VexSimpleMode.migrate();
 
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
@@ -71,6 +74,7 @@ function vexOwnTextFocused(doc) {
 
   // Init modules
   SidebarManager.init();
+  VexSimpleMode.init();
   VexTools.init();
   CommandBar.init();
   StartPageManager.init();
@@ -609,6 +613,8 @@ function vexOwnTextFocused(doc) {
     'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',
     'vex.discordIdleSleepMin', 'vex.discordMemoryLimitMB', 'vex.discordRestHidden',
     'vex.discordLite', 'vex.discordMode', 'vex.autoSleepPrefs',
+    // Settings › General › Simple mode (js/simple-mode.js); a reset is Full.
+    'vex.uiMode',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
@@ -619,6 +625,8 @@ function vexOwnTextFocused(doc) {
     })) return;
     try {
       SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
+      // Back to Full at once, so the restart button the toast names is in view.
+      VexSimpleMode.apply();
       // The settings the panel actually reads live in settings.json, not
       // localStorage — clearing the keys above alone reset nothing. The
       // in-memory copy is replaced too: any later change saved it whole, which
