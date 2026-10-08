@@ -378,7 +378,7 @@
       --vex-text-primary: ${text}; --vex-text-secondary: ${dim}; --vex-text-muted: ${dim};
       --vex-blur-medium: none; --vex-blur-light: none;
     }
-    /* The Custom Image theme's darkened photo (an inline style) would sit under
+    /* A theme of your own's background photo (an inline style) would sit under
        the look's dark text on light looks - the look's page is plain. */
     html[data-look-palette] body { background-image: none !important; }`;
   }

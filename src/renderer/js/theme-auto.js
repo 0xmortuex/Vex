@@ -216,6 +216,9 @@ const ThemeAuto = {
   // version; otherwise that only happens when it turns light or dark, so a
   // look picked by hand stays until the next switch.
   evaluate({ force = false } = {}) {
+    // While the theme editor is open its preview is on screen; a switch now
+    // would throw it away. It runs again when the editor closes.
+    if (typeof ThemeStudio !== 'undefined' && ThemeStudio.isEditing()) return null;
     const st = this.state();
     if (st.mode === 'off') { this._lastDark = null; this.renderSettings(); return null; }
     const dark = this.resolveDark(st, this._ctx());
@@ -364,19 +367,7 @@ const ThemeAuto = {
     mode.dataset.wired = '1';
     const light = this._el('setting-theme-light'), dark = this._el('setting-theme-dark');
     const from = this._el('setting-theme-dark-from'), to = this._el('setting-theme-dark-to');
-    const fill = (sel) => {
-      const themes = this._themes().filter(t => !t.upload);
-      const group = (label, list) => {
-        const g = document.createElement('optgroup');
-        g.label = label;
-        for (const t of list) { const o = document.createElement('option'); o.value = t.id; o.textContent = t.label; g.appendChild(o); }
-        sel.appendChild(g);
-      };
-      sel.innerHTML = '';
-      group('Light themes', themes.filter(t => this.isLightTheme(t)));
-      group('Dark themes', themes.filter(t => !this.isLightTheme(t)));
-    };
-    fill(light); fill(dark);
+    this.refreshThemeLists();
     mode.addEventListener('change', () => {
       if (mode.value === 'sun' && !this.coords()) { mode.value = this.state().mode; return; }
       this.set({ mode: mode.value });
@@ -393,6 +384,27 @@ const ThemeAuto = {
     };
     from.addEventListener('change', times);
     to.addEventListener('change', times);
+    this.renderSettings();
+  },
+
+  // The two theme lists, sorted light and dark. Filled again when your own
+  // themes change (js/theme-studio.js), so a new one can take a slot.
+  refreshThemeLists() {
+    const fill = (sel) => {
+      if (!sel) return;
+      const group = (label, list) => {
+        const g = document.createElement('optgroup');
+        g.label = label;
+        for (const t of list) { const o = document.createElement('option'); o.value = t.id; o.textContent = t.label; g.appendChild(o); }
+        sel.appendChild(g);
+      };
+      sel.innerHTML = '';
+      const themes = this._themes();
+      group('Light themes', themes.filter(t => this.isLightTheme(t)));
+      group('Dark themes', themes.filter(t => !this.isLightTheme(t)));
+    };
+    fill(this._el('setting-theme-light'));
+    fill(this._el('setting-theme-dark'));
     this.renderSettings();
   },
 

@@ -461,8 +461,10 @@ contextBridge.exposeInMainWorld('vex', {
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
   openAsApp: (url, title, partition) => ipcRenderer.invoke('app:open-as-app', url, title, partition),
-  getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
-  setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
+  // A New Tab background image: your own theme's by id (js/theme-studio.js), or
+  // with no id the old single Custom Image.
+  getCustomThemeImage: (id) => (id ? ipcRenderer.invoke('theme:get-custom-image', id) : ipcRenderer.invoke('theme:get-custom-image')),
+  setCustomThemeImage: (dataUrl, id) => (id ? ipcRenderer.invoke('theme:set-custom-image', dataUrl, id) : ipcRenderer.invoke('theme:set-custom-image', dataUrl)),
   // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),

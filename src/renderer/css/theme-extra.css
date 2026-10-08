@@ -112,23 +112,8 @@
   --danger: #ff5680; --success: #05ffa1; --warning: #ffd319;
 }
 
-/* ── CUSTOM — graphite dark base; the user's image becomes the start-page wallpaper ─ */
-[data-theme="custom"] {
-  --vex-bg-base: #0e0e12; --vex-bg-elevated: #1a1a22; --vex-bg-deep: #141419;
-  --vex-glass-strong: #141419; --vex-glass-medium: #141419; --vex-glass-light: #1a1a22;
-  --vex-glass-tab-active: #262630; --vex-glass-tab-inactive: #141419; --vex-glass-input: #0e0e12;
-  --vex-border-subtle: #2a2a35; --vex-border-medium: #2a2a35; --vex-border-strong: #3a3a48;
-  --vex-border-accent: #8b8bff; --vex-border-accent-strong: #8b8bff;
-  --vex-accent: #8b8bff; --vex-accent-dim: #8b8bff38; --vex-accent-glow: #8b8bff2e;
-  --vex-text-primary: #e6e6f0; --vex-text-secondary: #a0a0b4; --vex-text-muted: #7f7f92;
-  --vex-text-accent: #b0b0ff; --vex-success: #34d399; --vex-danger: #f87171; --vex-danger-hover: #fca5a5; --vex-warning: #fbbf24;
-  --bg: #0e0e12; --bg-2: #141419; --sidebar: #0e0e12; --surface: #1a1a22;
-  --border: #2a2a35; --text: #e6e6f0; --text-muted: #7f7f92;
-  --primary: #8b8bff; --primary-hover: #b0b0ff; --accent: #b0b0ff;
-  --on-primary: #0e0e12;
-  --tab-active: #2a2a35; --tab-hover: #1a1a22;
-  --danger: #f87171; --success: #34d399; --warning: #fbbf24;
-}
+/* The old CUSTOM (Custom Image) theme is a theme of your own now: its colours
+   and image moved into one the first time this Vex starts (js/theme-studio.js). */
 
 /* ── AURORA — emerald + teal northern lights ──────────────────────────────── */
 [data-theme="aurora"] {

@@ -1,0 +1,142 @@
+/* === Your own themes: the editor and Settings › Appearance (js/theme-studio.js) ===
+   The editor is a panel at the side, not a modal: the window and the New Tab
+   behind it are the preview. It wears the theme it edits, so it changes too. */
+
+.vts-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 100001;
+  width: min(380px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  background: var(--vex-bg-elevated, var(--surface));
+  color: var(--vex-text-primary, var(--text));
+  border: 1px solid var(--vex-border-strong, var(--border));
+  border-radius: var(--vex-radius-lg, 12px);
+  box-shadow: 0 24px 64px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
+  font-size: 13px;
+  overflow: hidden;
+}
+.vts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--vex-border-subtle, var(--border));
+}
+.vts-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.vts-x {
+  background: transparent;
+  border: none;
+  color: var(--vex-text-muted, var(--text-muted));
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--vex-radius-sm, 6px);
+}
+.vts-x:hover { color: var(--vex-text-primary, var(--text)); background: var(--vex-hover-fill, rgba(255, 255, 255, 0.06)); }
+.vts-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.vts-mini {
+  position: relative;
+  height: 128px;
+  flex: none;
+  border-radius: var(--vex-radius-md, 8px);
+  overflow: hidden;
+  border: 1px solid var(--vex-border-medium, var(--border));
+}
+.vts-note { margin: 0; font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); line-height: 1.45; }
+.vts-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); }
+.vts-name, .vts-hex {
+  background: var(--vex-glass-input, var(--bg));
+  color: var(--vex-text-primary, var(--text));
+  border: 1px solid var(--vex-border-medium, var(--border));
+  border-radius: var(--vex-radius-sm, 6px);
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+}
+.vts-colors { display: flex; flex-direction: column; gap: 6px; }
+.vts-color-row { display: grid; grid-template-columns: 1fr 40px 92px; align-items: center; gap: 8px; }
+.vts-color-row label { font-size: 12.5px; }
+.vts-swatch {
+  width: 40px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--vex-border-medium, var(--border));
+  border-radius: var(--vex-radius-sm, 6px);
+  background: transparent;
+  cursor: pointer;
+}
+.vts-hex { font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 6px 7px; }
+.vts-hex[aria-invalid="true"] { border-color: var(--vex-danger, var(--danger)); }
+.vts-image { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.vts-image-label { font-size: 12.5px; flex: 1 1 100%; }
+.vts-image-state { font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); flex: 1; }
+.vts-image-btns { display: flex; gap: 6px; }
+.vts-image-btns .btn-secondary, .vts-fix, .vts-foot .btn-secondary { display: inline-flex; align-items: center; gap: 6px; }
+.vts-contrast {
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: var(--vex-radius-md, 8px);
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.vts-contrast-head { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; }
+.vts-contrast-head.ok { color: var(--vex-success, var(--success)); }
+.vts-contrast-head.bad { color: var(--vex-warning, var(--warning)); }
+.vts-contrast ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); line-height: 1.5; }
+.vts-fix { align-self: flex-start; }
+.vts-newtab { align-self: flex-start; }
+.vts-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--vex-border-subtle, var(--border));
+}
+.vts-spacer { flex: 1; }
+.vts-primary {
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+  border: 1px solid transparent;
+  border-radius: var(--vex-radius-sm, 6px);
+  padding: 7px 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vts-primary:hover { background: var(--primary-hover, var(--primary)); }
+.vts-danger { color: var(--vex-danger, var(--danger)) !important; }
+
+/* Settings › Appearance: your themes */
+#custom-themes-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.vts-empty { font-size: 12px; color: var(--text-muted); }
+.vts-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+}
+.vts-row.current { border-color: var(--primary); }
+.vts-chips { display: flex; flex: none; border-radius: 5px; overflow: hidden; border: 1px solid var(--border); }
+.vts-chips span { width: 14px; height: 22px; }
+.vts-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.vts-row-btns { display: flex; gap: 5px; flex: none; }
+.vts-row-btns .btn-secondary { display: inline-flex; align-items: center; padding: 5px 9px; }
+#panel-settings.vts-drop { outline: 2px dashed var(--primary); outline-offset: -6px; }

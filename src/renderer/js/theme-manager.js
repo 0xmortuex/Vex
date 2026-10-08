@@ -100,7 +100,8 @@ const ThemeManager = {
     { id: 'azurite',      label: 'Azurite',        accent: '#24cc89', inspiredBy: 'Azurite (BetterDiscord)', mock: { bg: '#040429', side: '#020220', surf: '#121236', txt: '#e2e6ff', acc: '#24cc89' } },
     { id: 'neptune',      label: 'Neptune',        accent: '#228bd1', inspiredBy: 'Neptune (BetterDiscord)', mock: { bg: '#1a2035', side: '#141a2c', surf: '#222a43', txt: '#e2e8f5', acc: '#228bd1' } },
     { id: 'ezlight',      label: 'EzLight',        accent: '#735f1c', inspiredBy: 'EzLight (BetterDiscord)', mock: { bg: '#d0cec9', side: '#c9c6c0', surf: '#dfddda', txt: '#232221', acc: '#735f1c' } },
-    { id: 'custom',     label: 'Custom Image', preview: 'custom.png',    accent: '#8b8bff', mock: { bg: '#0e0e12', side: '#141419', surf: '#1a1a22', txt: '#e6e6f0', acc: '#8b8bff' }, upload: true },
+    // Your own themes (js/theme-studio.js) are added after these, with
+    // `user: true`. The old Custom Image theme became one of them.
   ],
 
   currentTheme: 'oxford',
@@ -112,10 +113,23 @@ const ThemeManager = {
   // Old persisted values that should fall back to Oxford instead of erroring.
   _migrate(name) {
     if (name === 'blackops') return 'oxford';
+    // The Custom Image theme is now a theme of your own (js/theme-studio.js);
+    // a 'custom' that arrives later (sync from an older Vex) means that one.
+    if (name === 'custom') {
+      let id = null;
+      try { id = localStorage.getItem('vex.customImageThemeId'); } catch {}
+      return id || this.DEFAULT_THEME;
+    }
     return name;
   },
 
   async init() {
+    // The old Custom Image theme becomes a theme of your own, once, before the
+    // saved theme is read (it may be 'custom').
+    if (typeof ThemeStudio !== 'undefined') {
+      try { await ThemeStudio.migrateLegacy(); }
+      catch (e) { console.error('[ThemeManager] moving the Custom Image theme failed:', e); }
+    }
     let saved = null;
     try {
       if (typeof VexStorage !== 'undefined' && VexStorage.load) {
@@ -225,41 +239,45 @@ const ThemeManager = {
   // recolour it (applyStartTheme is start.html's own, and paints the Custom
   // Image wallpaper too) and rewrite its ?theme= so a refresh keeps it. Does
   // nothing when the page already wears it. `theme` is a checked theme id.
-  startPageThemeJs(theme) {
-    const t = JSON.stringify(String(theme).replace(/[^a-z-]/g, ''));
+  //
+  // A theme of your own (js/theme-studio.js) also carries its colours, as ?tc=
+  // (the page derives every token from them with js/theme-custom.js, the same
+  // way this window does). `preview` is the editor's: { colors, image } while
+  // you edit, image undefined = the saved one, null = none.
+  startPageThemeJs(theme, preview) {
+    const id = String(theme).replace(/[^a-z-]/g, '');
+    // A New Tab that loads while you edit that theme shows the edit.
+    if (!preview && typeof ThemeStudio !== 'undefined') preview = ThemeStudio.previewOf(id) || undefined;
+    let tc = '';
+    if (typeof CustomThemes !== 'undefined' && CustomThemes.ID_RE.test(id)) {
+      const colors = (preview && preview.colors) || (typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(id) : null);
+      if (colors) tc = CustomThemes.toQuery(colors);
+    }
+    const img = preview && preview.image !== undefined ? preview.image : undefined;
+    const force = !!preview;
+    const args = 't' + (tc || img !== undefined ? ', tc' : '') + (img !== undefined ? ', ' + JSON.stringify(img) : '');
     return `(() => {
-      const t = ${t};
-      if (document.documentElement.getAttribute('data-theme') === t && new URL(location.href).searchParams.get('theme') === t) return;
-      if (typeof applyStartTheme === 'function') applyStartTheme(t);
+      const t = ${JSON.stringify(id)}, tc = ${JSON.stringify(tc)};
+      const q = new URL(location.href).searchParams;
+      if (!${force} && document.documentElement.getAttribute('data-theme') === t && q.get('theme') === t && (q.get('tc') || '') === tc) return;
+      if (typeof applyStartTheme === 'function') applyStartTheme(${args});
       else document.documentElement.setAttribute('data-theme', t);
       const u = new URL(location.href);
       u.searchParams.set('theme', t);
+      if (tc) u.searchParams.set('tc', tc); else u.searchParams.delete('tc');
       history.replaceState(history.state, '', u.toString());
     })()`;
   },
 
-  // Store a user-uploaded image (data URL) for the Custom Image theme and push
-  // it into the start-page webview(s) BEFORE applyTheme reloads them, so the
-  // start page can read it from its own (separate-session) localStorage. Awaits
-  // the guest writes to avoid a reload race.
-  async setCustomImage(dataUrl) {
-    // Source of truth: persist in the main process so EVERY start page can fetch
-    // it (via __vexThemeBridge), including ones opened later or when no start
-    // page was open at pick-time. The localStorage writes below stay as a
-    // no-flash fast path for start pages already on persist:main.
-    try { await window.vex?.setCustomThemeImage?.(dataUrl || null); } catch {}
-    try { dataUrl ? localStorage.setItem('vex.customThemeImage', dataUrl) : localStorage.removeItem('vex.customThemeImage'); } catch {}
+  // Recolour every open New Tab page with `theme` (and the editor's preview).
+  paintStartPages(theme, preview) {
     if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
-    const js = dataUrl
-      ? `try{localStorage.setItem('vex.customThemeImage',${JSON.stringify(dataUrl)})}catch(e){}`
-      : `try{localStorage.removeItem('vex.customThemeImage')}catch(e){}`;
-    const jobs = [];
     for (const wv of WebviewManager.webviews.values()) {
-      let url = ''; try { url = typeof wv.getURL === 'function' ? wv.getURL() : ''; } catch {}
-      const isStart = url.startsWith('vex://start') || (/^file:/i.test(url) && /\/renderer\/start\.html(?:[?#]|$)/i.test(url));
-      if (isStart) { try { jobs.push(wv.executeJavaScript(js).catch(() => {})); } catch {} }
+      let url = '';
+      try { url = typeof wv.getURL === 'function' ? wv.getURL() : ''; } catch { continue; }
+      if (!(/^file:/i.test(url) && /\/renderer\/start\.html(?:[?#]|$)/i.test(url))) continue;
+      wv.executeJavaScript(this.startPageThemeJs(theme, preview)).catch(err => console.error('[ThemeManager] New Tab recolour failed:', err && err.message));
     }
-    try { await Promise.all(jobs); } catch {}
   },
 
   // --- Favorite themes (starred in the picker) ---

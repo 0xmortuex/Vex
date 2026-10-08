@@ -843,16 +843,15 @@
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
-    [data-theme="custom"] {
-      --vex-bg-base: #0e0e12; --vex-glass-strong: #1a1a22; --vex-glass-medium: #141419;
-      --vex-glass-light: #1a1a22; --vex-glass-input: #0e0e12;
-      --vex-border-subtle: #2a2a35; --vex-border-medium: #2a2a35; --vex-border-strong: #3a3a48;
-      --vex-border-accent: #8b8bff; --vex-border-accent-strong: #8b8bff;
-      --vex-accent: #8b8bff; --vex-accent-dim: #8b8bff38; --vex-accent-glow: #8b8bff2e;
-      --on-primary: #0e0e12;
-      --vex-text-primary: #e6e6f0; --vex-text-secondary: #a0a0b4; --vex-text-muted: #7f7f92;
-      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
-      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    /* A theme of your own (its token block is written by applyStartTheme from
+       js/theme-custom.js): the wordmark is the solid accent, which the theme
+       editor holds to 4.5:1, not a pale gradient it cannot check; the search
+       engine's white letter sits on its colour deepened, as above. */
+    html[data-user-theme] .vex-wordmark {
+      background: none; -webkit-text-fill-color: var(--vex-accent); color: var(--vex-accent); opacity: 1;
+    }
+    html[data-user-theme] .engine-glyph {
+      background: color-mix(in srgb, var(--engine-color, #4285F4) 60%, #000000);
     }
 
     /* Oxford editorial typography on the start page — Fraunces display serif. */
@@ -1872,6 +1871,7 @@
   </style>
   <link rel="stylesheet" href="css/fonts.css">
   <script src="js/vex-icons.js"></script>
+  <script src="js/theme-custom.js"></script>
   <script src="js/geo-search.js"></script>
   <script src="js/typed-address.js"></script>
 </head>
@@ -2172,44 +2172,64 @@
     // start.html?theme=<active> and we read that query param. Live theme
     // switches reload this page with a fresh ?theme= (see ThemeManager
     // .applyTheme). Falls back to oxford only when the param is missing/unknown.
-    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight', 'custom'];
-    function paintCustomWallpaper(img) {
-      // Dark scrim over the image so overlaid text stays readable.
-      document.body.style.backgroundImage = 'linear-gradient(rgba(8,8,12,0.62), rgba(8,8,12,0.78)), url(' + img + ')';
+    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight'];
+    // A theme of your own (js/theme-studio.js in the window) comes as its id
+    // (user-...) and its nine colours in ?tc=; js/theme-custom.js derives every
+    // token from them, the same way the window does, and writes the CSS from
+    // checked colours only. Its background image comes from the main process
+    // (__vexThemeBridge), with the last one kept here so a new tab paints it
+    // without a flash.
+    let shownThemeImage = null;
+    function paintThemeImage(img, colors) {
+      shownThemeImage = img || null;
+      if (!img) { document.body.style.backgroundImage = ''; return; }
+      // A scrim of the theme's own background over the image, so the text
+      // stays readable on light and dark themes alike.
+      const [r, g, b] = CustomThemes.rgb(colors.background);
+      document.body.style.backgroundImage = 'linear-gradient(rgba(' + r + ',' + g + ',' + b + ',0.62), rgba(' + r + ',' + g + ',' + b + ',0.78)), url("' + img + '")';
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundAttachment = 'fixed';
     }
-    function applyStartTheme(name) {
-      const t = VEX_THEMES.includes(name) ? name : 'oxford';
-      document.documentElement.setAttribute('data-theme', t);
-      if (t !== 'custom') { try { document.body.style.backgroundImage = ''; } catch {} return; }
-      // Custom Image theme: paint the user's uploaded image as the wallpaper.
-      // localStorage gives an instant no-flash paint when this guest already has
-      // it; the main-process bridge is authoritative and covers the case where
-      // this start page's localStorage was never seeded (theme picked while no
-      // start page was open). Reconcile to whatever main holds.
+    // img: undefined = the saved one, null = none, a data: URL = this one (the
+    // editor's preview), false = the one shown now (the editor changed only
+    // colours, so the picture is not sent again; its scrim follows them).
+    function applyStartTheme(name, tc, img) {
+      const html = document.documentElement;
+      const own = typeof CustomThemes !== 'undefined' && CustomThemes.ID_RE.test(name || '') ? CustomThemes.fromQuery(tc) : null;
+      const t = own ? name : (VEX_THEMES.includes(name) ? name : 'oxford');
+      let style = document.getElementById('vex-user-theme');
+      if (own) {
+        if (!style) { style = document.createElement('style'); style.id = 'vex-user-theme'; document.head.appendChild(style); }
+        style.textContent = CustomThemes.pageCss(t, own);
+        html.setAttribute('data-user-theme', '');
+      } else {
+        if (style) style.remove();
+        html.removeAttribute('data-user-theme');
+      }
+      html.setAttribute('data-theme', t);
+      if (!own) { paintThemeImage(null); return; }
+      if (img === false) { paintThemeImage(shownThemeImage, own); return; }
+      if (typeof img === 'string' || img === null) { paintThemeImage(img, own); return; }
       let cached = null;
-      try { cached = localStorage.getItem('vex.customThemeImage'); } catch {}
-      if (cached) { try { paintCustomWallpaper(cached); } catch {} }
-      try {
-        const b = window.__vexThemeBridge;
-        if (b && typeof b.getCustomImage === 'function') {
-          b.getCustomImage().then((img) => {
-            if (document.documentElement.getAttribute('data-theme') !== 'custom') return;
-            if (img && img !== cached) {
-              try { localStorage.setItem('vex.customThemeImage', img); } catch {}
-              try { paintCustomWallpaper(img); } catch {}
-            } else if (!img && !cached) {
-              try { document.body.style.backgroundImage = ''; } catch {}
-            }
-          }).catch(() => {});
-        }
-      } catch {}
+      try { cached = JSON.parse(localStorage.getItem('vex.userThemeImage') || 'null'); } catch {}
+      const mine = cached && cached.id === t && typeof cached.img === 'string' ? cached.img : null;
+      paintThemeImage(mine, own);
+      const bridge = window.__vexThemeBridge;
+      if (!bridge || typeof bridge.getCustomImage !== 'function') return;
+      bridge.getCustomImage(t).then((saved) => {
+        if (html.getAttribute('data-theme') !== t) return;
+        if (saved !== mine) paintThemeImage(saved, own);
+        try {
+          if (saved) localStorage.setItem('vex.userThemeImage', JSON.stringify({ id: t, img: saved }));
+          else if (mine) localStorage.removeItem('vex.userThemeImage');
+        } catch (err) { console.error('[Start] keeping the theme image:', err.message); }
+      });
     }
     try {
-      applyStartTheme(new URLSearchParams(location.search).get('theme'));
-    } catch { applyStartTheme(null); }
+      const q = new URLSearchParams(location.search);
+      applyStartTheme(q.get('theme'), q.get('tc'));
+    } catch (err) { console.error('[Start] theme:', err); applyStartTheme(null); }
 
     // Clock
     function updateClock() {
