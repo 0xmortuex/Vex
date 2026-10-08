@@ -136,19 +136,32 @@
   transition: opacity 0.15s ease;
 }
 .vtp-card.active .vtp-check { opacity: 1; }
-.vtp-thumb-upload {
-  position: absolute;
-  bottom: 7px;
-  right: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: #fff;
-  background: rgba(0,0,0,0.45);
-  padding: 3px 7px;
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
+/* "Make your own" (js/theme-studio.js) and the edit button on every card. */
+.vtp-make-own-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--vex-text-secondary, var(--text-muted));
+  font-size: 12px;
+  text-align: center;
+  padding: 0 12px;
+  border-bottom: 1px dashed var(--vex-border-medium, var(--border));
 }
+.vtp-make-own:hover .vtp-make-own-thumb { color: var(--vex-accent, var(--primary)); }
+.vtp-edit {
+  position: absolute;
+  top: 7px; left: 8px; z-index: 3;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: rgba(0,0,0,0.42);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  cursor: pointer; opacity: 0; transition: opacity .12s ease, transform .1s ease;
+}
+.vtp-card:hover .vtp-edit, .vtp-edit:focus-visible { opacity: 1; }
+.vtp-edit:hover { transform: scale(1.12); }
 
 /* === Favorites: section titles + star toggle on each card === */
 .vtp-section-title {

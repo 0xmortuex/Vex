@@ -62,7 +62,13 @@ function startUrlWithTheme(base) {
   // Drop any existing query/hash so restored tabs don't stack stale ?theme=.
   const clean = String(url).split('#')[0].split('?')[0];
   if (/^vex:\/\/start/i.test(clean)) return clean; // vex:// handler bakes theme itself
-  return `${clean}?theme=${encodeURIComponent(theme)}`;
+  // A theme of your own carries its colours too (js/theme-studio.js).
+  let tc = '';
+  try {
+    const colors = typeof ThemeStudio !== 'undefined' ? ThemeStudio.colorsOf(theme) : null;
+    if (colors) tc = '&tc=' + CustomThemes.toQuery(colors);
+  } catch (err) { console.error('[Tabs] own theme colours for the New Tab:', err && err.message); }
+  return `${clean}?theme=${encodeURIComponent(theme)}${tc}`;
 }
 
 // Tab-strip and menu icons. Inline SVG on currentColor so every badge follows

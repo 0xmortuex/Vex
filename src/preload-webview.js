@@ -1440,10 +1440,12 @@ function _isVexStartPage(href) {
   if (!ipcRenderer) return;
 
   const bridge = {
-    // Promise<string|null> — the stored Custom Image data: URL, or null.
-    getCustomImage: async () => {
-      try { return await ipcRenderer.invoke('theme:get-custom-image'); }
-      catch { return null; }
+    // Promise<string|null> — your own theme's background image (a data: URL)
+    // by its id (user-...), or null when it has none.
+    getCustomImage: async (id) => {
+      if (typeof id !== 'string' || !/^user-[a-z]{4,24}$/.test(id)) return null;
+      try { return await ipcRenderer.invoke('theme:get-custom-image', id); }
+      catch (err) { console.error('[Vex Theme] background image:', err && err.message); return null; }
     }
   };
 

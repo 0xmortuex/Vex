@@ -10,7 +10,7 @@ const oneOf = values => value => values.includes(value);
 const shape = fields => value => object(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
 const schemas = new Map();
 function define(names, checks) { for (const name of names.split(' ')) schemas.set(name, checks); }
-define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates theme:get-custom-image set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
+define('app:started window-minimize window-maximize window-close storage:flushed storage:flush-failed storage:flush browsing:clear-data browsing:clear-history get-start-page-path get-start-page-url get-user-data-path persist-get-all adblocker-get-state app:metrics close-pip-window is-pip-open oauth-popup:dismiss screen-share:get-quality recall:clear recall:stats privacy:get-config privacy:tracker-stats privacy:tracker-reset vault:list vault:health totp:list totp:codes permissions:renderer-ready permissions:list permissions:clear-all hid:renderer-ready downloads:open-folder toggle-fullscreen is-fullscreen identity:create tor:create check-for-updates widevine:status widevine:retry get-app-version updates:list app:restart app:focus fx:rates set-as-default-browser is-default-browser sidebar-config:get app:processes app:diagnostics ollama:ensure app:safe-mode system:gpu system:dev-ports hotkeys:get extensions:release-idle extensions:list extensions:install-folder extensions:install-zip extensions:open-folder discord:install-vencord sync-load-key sync-load-meta routing:get-all sync-clear-state pip:close pip:toggle-pin pip:back-to-tab', []);
 define('extensions:install-catalog', [string(60)]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).
@@ -193,7 +193,11 @@ define('discord:set-bypass-mode', [oneOf(['off','light','strong']), optional(sha
 define('discord:install-vencord-local', [optional(string())]);
 // Light and dark (src/main/system-theme.js): is Windows in dark mode.
 define('system-theme:get', []);
-define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value))]);
+// A New Tab background image: your own theme's (by its id, js/theme-studio.js),
+// or without an id the old single Custom Image.
+const themeId = value => typeof value === 'string' && /^user-[a-z]{4,24}$/.test(value);
+define('theme:get-custom-image', [optional(themeId)]);
+define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value)), optional(themeId)]);
 define('site:clear-data cookies:list', [shape({ url: web, partition: optional(string(160)) })]);
 // Editing one cookie: the name and the three things that decide which cookie
 // of that name it is (domain, path, secure) come straight back from the list.

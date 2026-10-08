@@ -41,6 +41,11 @@ const SyncEngine = (() => {
     'vex.notes', 'vex.history', 'vex.theme', 'vex.schedules',
     // Light and dark: the two themes and when each is worn (js/theme-auto.js).
     'vex.themeAuto',
+    // Your own colour themes (js/theme-studio.js): name and colours only, a
+    // few hundred bytes each. Their background images stay on each device
+    // (up to 1.5 MB each, held by the main process): a .vextheme file carries
+    // a theme with its image to another device.
+    'vex.customThemes',
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.zooms',
     // The site panel's per-site lists (js/site-panel.js) travel together, as
     // zoom and force-dark already did: sites that never sleep, and sites
@@ -92,7 +97,9 @@ const SyncEngine = (() => {
   const LIST_PREFERENCES = ['vex.bookmarks', 'vex.sessions', 'vex.history', 'vex.notes',
     'vex.tools', 'vex.schedules', 'vex.personas', 'vex.reminders', 'vex.forceDarkHosts',
     // The site panel's other per-site lists, merged the same way.
-    'vex.neverSleepHosts', 'vex.translateAlwaysHosts'];
+    'vex.neverSleepHosts', 'vex.translateAlwaysHosts',
+    // Colour themes the user made (js/theme-custom.js), merged theme by theme.
+    'vex.customThemes'];
 
   // Shortcut tiles (vex.shortcuts) never synced: preferenceKeys() dropped the
   // key because the unused storage key 'shortcuts' has the same name (found

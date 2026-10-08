@@ -7731,15 +7731,27 @@ app.whenReady().then(() => {
     windows: () => BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && secureSessions.owner(w.webContents)?.win === w),
   });
 });
-ipcMain.handle('theme:get-custom-image', () => _loadCustomThemeImage());
-ipcMain.handle('theme:set-custom-image', (_e, dataUrl) => {
+// Your own themes (js/theme-studio.js) each keep their New Tab background
+// image here, one file per theme id (theme-images/<id>.txt). Without an id
+// these read and clear the old single Custom Image file, which the renderer
+// moves into a theme of its own once (ThemeStudio.migrateLegacy). The id and
+// the data: URL are checked by the IPC schema before they get here.
+function _themeImagePath(id) { return path.join(app.getPath('userData'), 'theme-images', id + '.txt'); }
+ipcMain.handle('theme:get-custom-image', (_e, id) => {
+  if (!id) return _loadCustomThemeImage();
+  try { return fs.readFileSync(_themeImagePath(id), 'utf8') || null; }
+  catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+});
+ipcMain.handle('theme:set-custom-image', (_e, dataUrl, id) => {
   try {
+    const file = id ? _themeImagePath(id) : _customThemeImagePath();
     if (typeof dataUrl === 'string' && /^data:image\//.test(dataUrl)) {
-      fs.writeFileSync(_customThemeImagePath(), dataUrl);
-      _customThemeImage = dataUrl;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, dataUrl);
+      if (!id) _customThemeImage = dataUrl;
     } else {
-      try { fs.unlinkSync(_customThemeImagePath()); } catch {}
-      _customThemeImage = null;
+      try { fs.unlinkSync(file); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      if (!id) _customThemeImage = null;
     }
     return { ok: true };
   } catch (e) {

@@ -46,7 +46,8 @@ describe('ThemeManager', () => {
       'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material',
       'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred',
       'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight',
-      'custom'
+      // The old Custom Image theme ('custom') is a theme of your own since
+      // item #4 (js/theme-studio.js); those come after these.
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });
