@@ -309,6 +309,11 @@ contextBridge.exposeInMainWorld('vex', {
   // The decisions one tab's page is held to (its container's own, or a
   // private window's), by the page's webContents id.
   permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),
+  // The site panel: one permission of that page set to 'allow', 'deny' or
+  // 'ask'; every one of its site's reset; the certificate it was served with.
+  permissionsSetForPage: (id, permission, decision) => ipcRenderer.invoke('permissions:set-for-page', id, permission, decision),
+  permissionsResetForPage: (id) => ipcRenderer.invoke('permissions:reset-for-page', id),
+  siteCertificate: (id) => ipcRenderer.invoke('site:certificate', id),
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
   // A tab's icon fetched through the tab's own session, as a data: URL.

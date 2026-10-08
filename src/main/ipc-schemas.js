@@ -198,6 +198,10 @@ define('siterules:get', []);
 define('siterules:set', [object]);
 // The saved decisions one tab's page is held to, by the page's id (main.js).
 define('permissions:list-for-page', [integer]);
+// The site panel (js/site-panel.js): one permission of a tab's page set to
+// allow, block or ask; all of its site's reset; the certificate it was served with.
+define('permissions:set-for-page', [integer, value => typeof value === 'string' && /^(?:camera|microphone|geolocation|notifications|clipboard-read|display-capture|midi|midiSysex|popups|external:[a-z][a-z0-9+.-]{0,40})$/.test(value), oneOf(['allow', 'deny', 'ask'])]);
+define('permissions:reset-for-page site:certificate', [integer]);
 // The pages of a tab just closed, whose saved back lists go (session-security.js).
 define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);
 // A tab's icon fetched through the tab's own session, by its page's id

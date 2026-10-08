@@ -28,6 +28,8 @@ const SyncEngine = (() => {
     'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
     'vex.notes', 'vex.history', 'vex.theme', 'vex.schedules',
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.zooms',
+    // Sites translated every time they load (site panel, js/translate-side.js).
+    'vex.translateAlwaysHosts',
     // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
     // was left out of this list, so the choice never reached another device.

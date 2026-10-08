@@ -263,6 +263,7 @@ const DOH_PROVIDERS = {
 };
 const _trackerTally = Object.create(null);
 const _trackerSites = Object.create(null); // tracker host -> Set of first-party site hosts
+const _trackerBySite = Object.create(null); // first-party site host -> requests blocked on its pages
 let _trackerTotal = 0;
 // Record one blocked request: bump the per-tracker count and remember which
 // first-party site it was loaded on (so we can show cross-site trackers — the
@@ -280,6 +281,7 @@ function _recordTracker(reqUrl, wcId) {
       const purl = wc && typeof wc.getURL === 'function' ? wc.getURL() : '';
       if (purl && /^https?:/i.test(purl)) {
         const site = new URL(purl).hostname.replace(/^www\./, '');
+        if (site) _trackerBySite[site] = (_trackerBySite[site] || 0) + 1;
         if (site && site !== h) (_trackerSites[h] || (_trackerSites[h] = new Set())).add(site);
       }
     }
@@ -642,7 +644,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { setPageDecision, resetPageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -1717,6 +1719,26 @@ ipcMain.handle('permissions:list-for-page', (_e, id) => {
 });
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
 ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
+// The site panel (js/site-panel.js): one permission of the page in front, or
+// all of its site's, set in that page's own store (main/permissions.js). The
+// page is one this window owns (ipc-policy.js, TARGET_CHANNELS). A Tor tab is
+// given no permission at all, so there is nothing to set there.
+function _sitePanelPage(id) {
+  const page = webContents.fromId(id);
+  if (!page || page.isDestroyed()) throw new Error('That page is gone');
+  if (page.session && page.session.__vexTor) throw new Error('A Tor tab gives sites no permissions');
+  return page;
+}
+ipcMain.handle('permissions:set-for-page', async (_e, id, permission, decision) => {
+  const page = _sitePanelPage(id);
+  await setPageDecision(page, page.getURL(), permission, decision);
+  return _decisionsInForce(decisionsFor(page));
+});
+ipcMain.handle('permissions:reset-for-page', async (_e, id) => {
+  const page = _sitePanelPage(id);
+  await resetPageDecisions(page, page.getURL());
+  return _decisionsInForce(decisionsFor(page));
+});
 
 // === WebHID — navigator.hid.requestDevice() device chooser =================
 // Electron does NOT pick a HID device on its own: without a 'select-hid-device'
@@ -1894,7 +1916,8 @@ function wireAdblockerOnSession(ses, tag) {
       return;
     }
     if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
-        && !repairAllows(details.url, _pageUrlOf(details.webContentsId))) {
+        && !repairAllows(details.url, _pageUrlOf(details.webContentsId))
+        && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses)) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
@@ -2234,6 +2257,67 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+// The site panel's "Block ads and trackers on this site" switch (the 'ads'
+// rule, js/site-panel.js): the blocker leaves that site's pages alone, network
+// and element hiding both. Never in a Tor tab, which blocks whatever a switch
+// made in a normal window says.
+function _adsAllowedOn(pageUrl, ses) {
+  if (ses && ses.__vexTor) return false;
+  return Object.keys(_siteRules).length > 0 && SiteRules.allowsAds(_siteRules, pageUrl);
+}
+// The certificates each session's connections were secured with, by host, as
+// Chromium checked them: a certificate check passes through here, is noted,
+// and Chromium's own verdict stands (-3). The site panel shows the one its
+// page's session saw — never by connecting again, which would go round a Tor
+// or proxy route. (The DevTools protocol only has a certificate for a page
+// loaded while it was already listening.)
+const _seenCerts = new WeakMap();   // session -> Map(host -> what its check saw)
+function _watchCertificates(ses) {
+  if (!ses || ses.__vexCertWatch) return;
+  ses.__vexCertWatch = true;
+  ses.setCertificateVerifyProc((request, callback) => {
+    try {
+      let byHost = _seenCerts.get(ses);
+      if (!byHost) _seenCerts.set(ses, byHost = new Map());
+      byHost.delete(request.hostname);
+      byHost.set(request.hostname, { certificate: request.certificate, verificationResult: request.verificationResult, at: Date.now() });
+      if (byHost.size > 400) byHost.delete(byHost.keys().next().value);
+    } catch (err) { console.warn('[Certificates] could not note the certificate of', request && request.hostname, err.message); }
+    callback(-3);
+  });
+}
+app.on('session-created', _watchCertificates);
+ipcMain.handle('site:certificate', async (_e, id) => {
+  const page = webContents.fromId(id);
+  if (!page || page.isDestroyed()) throw new Error('That page is gone');
+  let u;
+  try { u = new URL(page.getURL()); } catch { throw new Error('That page has no address'); }
+  if (u.protocol !== 'https:') return { ok: true, secure: false };
+  const seen = _seenCerts.get(page.session);
+  const hit = seen && seen.get(u.hostname);
+  if (!hit || !hit.certificate) throw new Error('Vex has not seen this site’s certificate since it started — reload the page to read it');
+  const cert = hit.certificate;
+  let organization = '', issuerOrg = '', altNames = [], fingerprint256 = String(cert.fingerprint || '');
+  try {
+    const x = new (require('crypto').X509Certificate)(cert.data);
+    const field = (dn, key) => { const m = new RegExp('(?:^|\\n)' + key + '=([^\\n]*)').exec(dn || ''); return m ? m[1] : ''; };
+    organization = field(x.subject, 'O');
+    issuerOrg = field(x.issuer, 'O');
+    altNames = String(x.subjectAltName || '').split(/,\s*/).filter(Boolean).slice(0, 12);
+    fingerprint256 = x.fingerprint256;
+  } catch (err) { console.warn('[Certificates] could not read the details of', u.hostname, err.message); }
+  return {
+    ok: true, secure: hit.verificationResult === 'net::OK',
+    subject: cert.subjectName, organization,
+    issuer: issuerOrg || cert.issuerName, issuerName: cert.issuerName,
+    validFrom: cert.validStart * 1000, validTo: cert.validExpiry * 1000,
+    fingerprint256,
+    altNames,
+    networkError: hit.verificationResult === 'net::OK' ? '' : hit.verificationResult,
+    selfSigned: !!cert.subjectName && cert.subjectName === cert.issuerName,
+  };
+});
+
 
 // JavaScript switched off for a site is enforced on the page's own response
 // (a Content-Security-Policy of script-src 'none', below). A page answered by
@@ -3858,6 +3942,24 @@ function _watchGestures(contents) {
   });
   contents.once('destroyed', () => _lastGestureAt.delete(id));
 }
+// A pop-up (a window the page opened with no click or key from you) on a site
+// whose pop-ups are blocked in its site panel. Said in the window, once in a
+// while, so a site that "does nothing" is explained.
+const _popupRefusalSaid = new Map();      // page id -> when the window was last told
+function _popupRefused(contents, openerUrl) {
+  if (_mainHelpers.hasRecentGesture(_lastGestureAt.get(contents.id))) return false;
+  let origin;
+  try { origin = new URL(openerUrl).origin; } catch { return false; }
+  if (!/^https?:/.test(origin)) return false;
+  if (savedDecision(decisionsFor(contents), origin, ['popups'], sessionDecisionsFor(contents)) !== 'deny') return false;
+  console.log(`[new-window] pop-up from ${origin} refused: pop-ups are blocked for this site`);
+  const host = secureSessions.owner(contents);
+  if (host && !host.win.isDestroyed() && Date.now() - (_popupRefusalSaid.get(contents.id) || 0) > 10000) {
+    _popupRefusalSaid.set(contents.id, Date.now());
+    host.win.webContents.send('vex:toast', `Blocked a pop-up from ${new URL(origin).hostname} — allow pop-ups from the site icon in the address bar`);
+  }
+  return true;
+}
 const _externalRefusalSaid = new Map();   // page id|scheme -> when the window was last told
 function handleExternalProtocol(url, contents) {
   const scheme = _mainHelpers.externalScheme(url);
@@ -4370,6 +4472,10 @@ app.on('web-contents-created', (_event, contents) => {
     // popouts are already handled real-and-plain by the print/blank branch above.)
     let openerUrl = '';
     try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
+    // Pop-ups blocked for this site (site panel › Pop-ups): a window the page
+    // opens by itself, without a click or key from you, is refused. A link you
+    // click still opens. The answer lives with the site's other permissions.
+    if (_popupRefused(contents, openerUrl)) return { action: 'deny' };
     if (disposition === 'new-window' && _mainHelpers.isDiscordHostUrl(openerUrl)) {
       console.log(`[new-window] Discord pop-out -> real resizable window -> ${url || '(blank)'}`);
       pendingDiscordPopout = true;
@@ -5140,7 +5246,8 @@ function createWindow() {
   // the guest preload starts calling them immediately, so waiting for the async
   // engine build below would make early pages throw "No handler registered". The
   // handlers no-op until the engine is ready (and follow the ad-blocker toggle).
-  enableCosmeticFiltering(() => adBlockerEnabled);
+  enableCosmeticFiltering((event) => adBlockerEnabled
+    && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)));
 
   initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin'))
     .then(ok => {
@@ -6116,7 +6223,8 @@ ipcMain.handle('identity:create', () => {
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
-      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
+      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
+        && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
       if (blocked) _recordTracker(details.url, details.webContentsId);
       callback({ cancel: blocked });
     });
@@ -6732,7 +6840,8 @@ function _wireEphemeralBrowsing(ses, tag) {
       callback({ cancel: true });
       return;
     }
-    const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
+    const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
+      && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
     if (blocked) _recordTracker(details.url, details.webContentsId);
     callback({ cancel: blocked });
   });
@@ -7524,11 +7633,13 @@ ipcMain.handle('privacy:tracker-stats', () => {
     .map(t => ({ host: t.host, siteCount: t.sites.length, sites: t.sites.slice(0, 30) }))
     .sort((a, b) => b.siteCount - a.siteCount)
     .slice(0, 40);
-  return { total: _trackerTotal, byHost, crossSite };
+  // What was blocked on each of your sites' pages (the site panel's count).
+  return { total: _trackerTotal, byHost, crossSite, bySite: { ..._trackerBySite } };
 });
 ipcMain.handle('privacy:tracker-reset', () => {
   for (const k in _trackerTally) delete _trackerTally[k];
   for (const k in _trackerSites) delete _trackerSites[k];
+  for (const k in _trackerBySite) delete _trackerBySite[k];
   _trackerTotal = 0;
   return { ok: true };
 });

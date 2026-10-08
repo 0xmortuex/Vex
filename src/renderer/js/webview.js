@@ -1006,6 +1006,9 @@ const WebviewManager = {
   },
 
   _saveZoom(wv, zoom) {
+    // A private, off-the-record or Tor page's zoom is for that tab alone: it
+    // was written into the profile's list of sites, naming the site visited.
+    if (!this.keepsSiteData(wv)) return;
     try {
       const url = wv.getURL();
       if (!url || url.startsWith('about:') || url.startsWith('file:')) return;
@@ -1014,6 +1017,15 @@ const WebviewManager = {
       if (zoom === 1) { delete zooms[host]; } else { zooms[host] = zoom; }
       localStorage.setItem('vex.zooms', JSON.stringify(zooms));
     } catch {}
+  },
+
+  // Whether what is done on this webview's page may be remembered for its
+  // site: not in a private window, nor an off-the-record or Tor tab (a session
+  // that is not persist:*).
+  keepsSiteData(wv) {
+    if (window.VexTabPolicy?.isPrivateWindow) return false;
+    const partition = (wv && typeof wv.getAttribute === 'function' && wv.getAttribute('partition')) || 'persist:main';
+    return partition.startsWith('persist:');
   },
 
   findInPage(text) {

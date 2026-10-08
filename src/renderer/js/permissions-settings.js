@@ -122,7 +122,7 @@ const PermissionsSettings = (() => {
             const permission = idx >= 0 ? key.slice(idx + 2) : '';
             // 'media' is an answer saved before requests were told apart: it covers
             // the camera and the microphone, never a screen share.
-            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)' };
+            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)', popups: 'pop-ups' };
             const badge = decision === 'allow' ? VexIcons.svg('check', { size: 11 }) + ' Allowed' : VexIcons.svg('x', { size: 11 }) + ' Blocked';
             return `
               <div class="permission-row">
