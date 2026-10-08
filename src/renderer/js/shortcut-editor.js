@@ -127,12 +127,20 @@ const ShortcutEditor = (() => {
       const spare = (typeof ShortcutsRegistry.assignable === 'function') ? ShortcutsRegistry.assignable() : [];
       q.addEventListener('input', () => _drawAdder(container, spare, q.value));
     }
-    document.getElementById('btn-reset-all-shortcuts')?.addEventListener('click', async () => {
-      if (!await vexConfirm({ title: 'Reset shortcuts', message: 'Reset ALL shortcuts to defaults? Custom bindings will be lost.', okLabel: 'Reset all', danger: true })) return;
+    // Done at once; Undo on the toast puts every custom binding back.
+    document.getElementById('btn-reset-all-shortcuts')?.addEventListener('click', () => {
+      const before = ShortcutsRegistry.customBindings();
       const saved = ShortcutsRegistry.resetAll();
       renderPanel(container);
-      if (saved === false) _toast('Reset for this session — the change could not be saved and your custom bindings return when you restart Vex', 'error');
-      else _toast('Shortcuts reset', 'success');
+      if (saved === false) { _toast('Reset for this session — the change could not be saved and your custom bindings return when you restart Vex', 'error'); return; }
+      if (!Object.keys(before).length) { _toast('Shortcuts are already the defaults', 'info'); return; }
+      window.VexUndo.offer({
+        message: 'Shortcuts reset to the defaults',
+        undo: () => {
+          if (ShortcutsRegistry.restoreBindings(before) === false) throw new Error('Your bindings could not be saved');
+          if (container.isConnected) renderPanel(container);
+        },
+      });
     });
   }
 

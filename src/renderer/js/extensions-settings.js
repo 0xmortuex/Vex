@@ -607,12 +607,26 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-folder]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const folder = btn.dataset.folder;
+        // Switched off and gone from the list at once; its folder (and so its
+        // data) is removed only when the Undo toast goes, so Undo brings it
+        // back as it was, toolbar pin included (main.js, uninstall-later).
+        const r = await window.vex.extensionsUninstallLater(folder);
+        if (!r || !r.ok) { _toast('Uninstall failed: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        render(container);
         // The extension's name, not its install folder ("devforum-plus-1790659315165")
         // (found 2026-09-29).
-        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
-        const r = await window.vex.extensionsUninstall(folder);
-        if (r.ok) { _toast('Uninstalled — restart Vex to fully remove', 'success'); render(container); }
-        else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');
+        window.VexUndo.offer({
+          message: `Uninstalled “${btn.dataset.name || folder}”`,
+          undo: async () => {
+            const back = await window.vex.extensionsUninstallUndo(folder);
+            if (!back || !back.ok) throw new Error((back && back.error) || 'no answer');
+            window.dispatchEvent(new CustomEvent('vex-extensions-changed'));
+          },
+          commit: async () => {
+            const done = await window.vex.extensionsUninstall(folder);
+            if (!done || (!done.ok && done.error !== 'Not found')) throw new Error('Could not remove its files: ' + ((done && done.error) || 'no answer'));
+          },
+        });
       });
     });
   }

@@ -104,20 +104,27 @@ const VexSkills = {
         <button data-del aria-label="Delete skill ${esc(sk.name)}" title="Delete this skill" style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center">${VexIcons.svg('trash', { size: 13 })}</button>`;
       row.querySelector('[data-run]').addEventListener('click', () => { SidebarManager.hideActivePanel?.(); this.run(sk.id); });
       row.querySelector('[data-edit]').addEventListener('click', () => this._editModal(sk, container));
-      // Deleting a skill throws away a prompt the user wrote and there is no
-      // undo, so it asks first — and then says whether the change actually stuck.
-      row.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!await window.vexConfirm({
-          title: 'Delete skill',
-          message: `Delete "${sk.name}"? This cannot be undone.`,
-          okLabel: 'Delete', danger: true,
-        })) return;
-        const previous = this.skills;
-        this.skills = this.skills.filter(s => s.id !== sk.id);
-        const saved = this.save();
-        if (!saved) { this.skills = previous; this.save(); }
+      // A skill is a prompt the user wrote: it goes at once with Undo on the
+      // toast (js/vex-undo.js), and a save that fails says so.
+      row.querySelector('[data-del]').addEventListener('click', () => {
+        const previous = this.skills.slice();
+        const removed = window.VexUndo.takeOut(this.skills, s => s.id === sk.id);
+        if (!removed) return;
+        if (!this.save()) {
+          this.skills = previous; this.save();
+          this.renderPanel(container);
+          window.showToast?.('Could not save the change — the skill was kept', 'error');
+          return;
+        }
         this.renderPanel(container);
-        window.showToast?.(saved ? `Deleted "${sk.name}"` : 'Could not save the change — the skill was kept', saved ? undefined : 'error');
+        window.VexUndo.offer({
+          message: `Deleted the skill “${sk.name}”`,
+          undo: () => {
+            window.VexUndo.putBack(this.skills, removed);
+            if (!this.save()) throw new Error('It could not be saved');
+            if (container.isConnected) this.renderPanel(container);
+          },
+        });
       });
       list.appendChild(row);
     });

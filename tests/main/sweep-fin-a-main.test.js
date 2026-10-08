@@ -30,7 +30,10 @@ describe('Vencord reinstall updates in place', () => {
     expect(between('async function _installExtFromZipBuffer', '\n}\n')).toMatch(/_activateInstalledFolder\(destFolder, copyToUpdate\)/);
     expect(between('async function _activateInstalledFolder', '\n}\n')).toMatch(/previous = copyToUpdate \|\| _installedCopyOf\(destFolder\)/);
     const find = between('function _installedVencord', '\n}\n');
-    expect(find).toMatch(/_extEntriesOnDisk\(\)/);
+    // Every folder on disk (safe mode or not), less one being uninstalled
+    // with its Undo still on screen.
+    expect(find).toMatch(/_installedEntries\(\)/);
+    expect(between('function _installedEntries', '\n}\n')).toMatch(/_extEntriesOnDisk\(\)\.filter\(e => !removing\[e\.folder\]\)/);
     expect(find).toMatch(/\^vencord-/);
   });
 });

@@ -188,11 +188,20 @@ const PermissionsSettings = (() => {
         render(container);
       });
     });
+    // Cleared at once; Undo on the toast puts every decision back (main keeps
+    // them, main.js permissions:clear-undo).
     document.getElementById('btn-clear-all-permissions')?.addEventListener('click', async () => {
-      if (!await vexConfirm({ title: 'Clear permissions', message: 'Clear all site permissions? Every site will need to ask again.', okLabel: 'Clear all', danger: true })) return;
-      await window.vex.permissionsClearAll();
-      _toast('All permissions cleared', 'success');
+      const r = await window.vex.permissionsClearAll();
+      if (!r || !r.ok) { _toast('Could not clear them: ' + ((r && r.error) || 'no answer'), 'error'); return; }
       render(container);
+      window.VexUndo.offer({
+        message: 'Cleared every site permission — sites will ask again',
+        undo: async () => {
+          const back = await window.vex.permissionsClearUndo(r.undo);
+          if (!back || !back.ok) throw new Error((back && back.error) || 'no answer');
+          if (container.isConnected) render(container);
+        },
+      });
     });
   }
 

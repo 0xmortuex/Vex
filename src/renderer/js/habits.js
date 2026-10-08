@@ -48,11 +48,26 @@ const Habits = {
     return h;
   },
 
+  // Returns what went and where, for restore (the Undo on the toast).
   remove(id) {
     const habits = this.list();
     const i = habits.findIndex(h => h.id === id);
     if (i < 0) throw new Error('That habit is gone');
-    habits.splice(i, 1);
+    const [habit] = habits.splice(i, 1);
+    this._save(habits);
+    return { item: habit, index: i, prevId: i > 0 ? habits[i - 1].id : null };
+  },
+
+  // Back with every ticked day, in its place.
+  restore(removed) {
+    if (!removed || !removed.item) throw new Error('Nothing to put back');
+    const habits = this.list();
+    if (habits.some(h => h.id === removed.item.id)) return;
+    if (habits.length >= this.MAX) throw new Error('That is ' + this.MAX + ' habits already');
+    if (habits.some(h => h.name.toLowerCase() === removed.item.name.toLowerCase())) throw new Error('“' + removed.item.name + '” is already a habit');
+    let at = removed.prevId ? habits.findIndex(h => h.id === removed.prevId) + 1 : 0;
+    if (at <= 0 && removed.prevId) at = Math.min(removed.index, habits.length);
+    habits.splice(at, 0, removed.item);
     this._save(habits);
   },
 
@@ -169,13 +184,16 @@ const Habits = {
           try { this.toggle(id, box.dataset.day); } catch (err) { window.showToast?.(err.message, 'error'); }
           draw();
         }));
-        row.querySelector('[data-remove]').addEventListener('click', async () => {
+        // Gone at once with its ticked days; Undo on the toast brings both back.
+        row.querySelector('[data-remove]').addEventListener('click', () => {
           const h = this.list().find(x => x.id === id);
           if (!h) { draw(); return; }
-          const ok = await window.vexConfirm({ title: 'Remove “' + h.name + '”?', message: 'Its ' + h.done.length + ' ticked ' + (h.done.length === 1 ? 'day goes' : 'days go') + ' with it.', okLabel: 'Remove', danger: true });
-          if (!ok) return;
-          this.remove(id);
+          const removed = this.remove(id);
           draw();
+          window.VexUndo.offer({
+            message: 'Removed the habit “' + h.name + '”',
+            undo: () => { this.restore(removed); if (body.isConnected) draw(); },
+          });
         });
       });
     };

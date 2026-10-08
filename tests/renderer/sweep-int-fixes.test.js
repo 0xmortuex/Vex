@@ -66,13 +66,39 @@ describe('Settings › Extensions', () => {
     expect(c.querySelector('details[data-ext-catalog]').open).toBe(true);
   });
 
-  it('the uninstall question names the extension, not its folder', async () => {
+  // No question any more: it is switched off at once, the toast names the
+  // extension (not its folder), Undo turns it back on, and only the toast
+  // going removes its files (js/vex-undo.js; main.js uninstall-later).
+  it('uninstall names the extension, and its files go only when the Undo toast does', async () => {
+    require('../../src/renderer/js/vex-undo.js');
+    const offers = [];
+    window.showToast = vi.fn((message, _t, _d, opts) => { if (opts) offers.push({ message, opts }); return { dismiss() {} }; });
     const c = mount([EXT]);
+    Object.assign(window.vex, {
+      extensionsUninstallLater: vi.fn(async () => ({ ok: true })),
+      extensionsUninstallUndo: vi.fn(async () => ({ ok: true })),
+      extensionsUninstall: vi.fn(async () => ({ ok: true })),
+    });
     await ExtensionsSettings.render(c);
     c.querySelector('button[data-folder]').click();
     await tick();
-    expect(vexConfirm.mock.calls[0][0].message).toContain('"DevForum+"');
-    expect(vexConfirm.mock.calls[0][0].message).not.toContain('1790659315165');
+    expect(vexConfirm).not.toHaveBeenCalled();
+    expect(window.vex.extensionsUninstallLater).toHaveBeenCalledWith(EXT.folder);
+    expect(window.vex.extensionsUninstall).not.toHaveBeenCalled();
+    expect(offers[0].message).toBe('Uninstalled “DevForum+”');
+    expect(offers[0].message).not.toContain('1790659315165');
+
+    offers[0].opts.action.run();
+    await tick();
+    expect(window.vex.extensionsUninstallUndo).toHaveBeenCalledWith(EXT.folder);
+    expect(window.vex.extensionsUninstall).not.toHaveBeenCalled();
+
+    // Again, and this time the toast runs out.
+    c.querySelector('button[data-folder]').click();
+    await tick();
+    offers[1].opts.onExpire();
+    await tick();
+    expect(window.vex.extensionsUninstall).toHaveBeenCalledWith(EXT.folder);
   });
 });
 

@@ -644,7 +644,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -1721,7 +1721,24 @@ ipcMain.handle('permissions:list-for-page', (_e, id) => {
   return _decisionsInForce(decisionsFor(page));
 });
 ipcMain.handle('permissions:revoke',   async (_e, key) => { const d = loadPermissionDecisions(); delete d[key]; await savePermissionDecisions(d); return { ok: true }; });
-ipcMain.handle('permissions:clear-all', async () => { await savePermissionDecisions({}); return { ok: true }; });
+// Clear all answers with a token for its Undo (js/vex-undo.js): what was
+// cleared stays here, never in the interface, until the next clear or an hour.
+const _clearedPermissions = new Map();
+ipcMain.handle('permissions:clear-all', async () => {
+  const before = await clearAllDecisions();
+  _clearedPermissions.clear();
+  const token = require('crypto').randomBytes(16).toString('hex');
+  _clearedPermissions.set(token, before);
+  setTimeout(() => _clearedPermissions.delete(token), 60 * 60 * 1000).unref?.();
+  return { ok: true, undo: token };
+});
+ipcMain.handle('permissions:clear-undo', async (_e, token) => {
+  const before = _clearedPermissions.get(token);
+  if (!before) return { ok: false, error: 'There is nothing to put back any more' };
+  _clearedPermissions.delete(token);
+  await restoreDecisions(before);
+  return { ok: true };
+});
 
 // === WebHID — navigator.hid.requestDevice() device chooser =================
 // Electron does NOT pick a HID device on its own: without a 'select-hid-device'
@@ -2361,7 +2378,15 @@ function _extEntries() {
   // Safe mode exists for exactly this: an extension that breaks the browser
   // cannot be removed from inside a browser that will not start.
   if (_boot.safeMode) return [];
-  return _extEntriesOnDisk();
+  return _installedEntries();
+}
+
+// Every extension folder but one being uninstalled (its Undo still on
+// screen): that one loads nowhere, and installing the same extension again
+// meanwhile makes a fresh copy rather than updating the one about to go.
+function _installedEntries() {
+  const removing = _readRemovingFolders();
+  return _extEntriesOnDisk().filter(e => !removing[e.folder]);
 }
 
 // Every extension folder, safe mode or not. The manager lists these so that,
@@ -2663,7 +2688,7 @@ function _installedCopyOf(newFolder) {
 
 function _installedCopyNamed(name, exceptFolder) {
   if (!name) return null;
-  const copies = _extEntriesOnDisk().filter(e => e.manifest && (!exceptFolder || path.resolve(e.path) !== path.resolve(exceptFolder))
+  const copies = _installedEntries().filter(e => e.manifest && (!exceptFolder || path.resolve(e.path) !== path.resolve(exceptFolder))
     && extHelpers.localize(e.manifest.name, e.messages) === name);
   if (!copies.length) return null;
   let loaded = [];
@@ -2804,6 +2829,8 @@ async function _coverNewSession(ses) {
 }
 
 async function loadAllExtensionsOnStartup() {
+  // An uninstall whose Undo was still on screen when Vex last stopped.
+  _finishPendingRemovals('start');
   // Collapse any duplicate Vencord builds to the newest BEFORE loading, so a
   // stale build left behind by a locked-file delete can't shadow the new one.
   _dedupeVencordFolders();
@@ -2850,7 +2877,10 @@ ipcMain.handle('extensions:list', () => {
   let updates = null, updatesError = null;
   try { updates = _extUpdates.readState(extensionsDir); }
   catch (err) { updatesError = `The extension update record is unreadable (${err.message}).`; console.error('[Extensions]', updatesError); }
-  return _extEntriesOnDisk().map(e => {
+  // One being uninstalled is gone as far as the manager is concerned (its
+  // Undo is on the toast).
+  const removing = _readRemovingFolders();
+  return _extEntriesOnDisk().filter(e => !removing[e.folder]).map(e => {
     const live = loadedByPath.get(path.resolve(e.path)) || null;
     const manifest = e.manifest || {};
     const icon = e.manifest ? extHelpers.pickIcon(manifest) : null;
@@ -2946,7 +2976,7 @@ function _previewPickedFile(sourcePath) {
     const crx = ws.inspectLocalCrx(buf, { AdmZip, validateZip });
     const keyB64 = crx.publicKey.toString('base64');
     const have = crx.fromWebStore ? _webStoreCopyOf(crx.id, crx.info.name, keyB64)
-      : (_extEntriesOnDisk().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(crx.info.name));
+      : (_installedEntries().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(crx.info.name));
     const token = _stagePickedExt({ kind: 'crx', id: crx.id, archive: crx.archive, publicKey: crx.publicKey, fromWebStore: crx.fromWebStore, name: crx.info.name, refuse: crx.info.refuse });
     return { ok: true, token, id: crx.id, ...crx.info, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: _installedSummary(have), safeMode: !!_boot.safeMode };
   }
@@ -3014,7 +3044,7 @@ ipcMain.handle('extensions:install-picked', async (_e, token) => {
       // and it is kept up to date from the store from now on.
       if (item.fromWebStore) return await _installWebStorePackage({ id: item.id, archive: item.archive, publicKey: item.publicKey, info: { name: item.name } });
       const keyB64 = item.publicKey.toString('base64');
-      const previous = _extEntriesOnDisk().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(item.name);
+      const previous = _installedEntries().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(item.name);
       // Its own key in the manifest gives it the id it was signed for, except
       // when it updates a copy installed without one (that copy's storage
       // belongs to the id its folder gave it).
@@ -3215,7 +3245,8 @@ function _extUpdater() {
   _extUpdaterLazy = _extUpdates.createExtensionUpdater({
     list: () => {
       const sources = _readSources();
-      return _extEntriesOnDisk().filter(e => e.manifest && sources[e.folder]).map(e => ({
+      const removing = _readRemovingFolders();   // being uninstalled: not updated
+      return _extEntriesOnDisk().filter(e => e.manifest && sources[e.folder] && !removing[e.folder]).map(e => ({
         folder: e.folder, name: extHelpers.localize(e.manifest.name, e.messages) || e.folder,
         version: String(e.manifest.version || ''), manifest: e.manifest, source: sources[e.folder],
       }));
@@ -3225,7 +3256,7 @@ function _extUpdater() {
       : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, AdmZip, validateZip }),
     install: async (item, found) => {
       const previous = _extEntriesOnDisk().find(e => e.folder === item.folder && e.manifest);
-      if (!previous) return { ok: false, error: 'It was uninstalled during the check' };
+      if (!previous || _readRemovingFolders()[item.folder]) return { ok: false, error: 'It was uninstalled during the check' };
       return found.archive
         ? _installWebStorePackage({ id: found.id, archive: found.archive, publicKey: found.publicKey, info: { name: item.name } }, previous)
         : _installCatalogPackage(item.source.catalog, found, previous);
@@ -3341,7 +3372,7 @@ function _webStoreInstaller() {
 // id, else one carrying the same key, else one of the same name.
 function _webStoreCopyOf(id, name, keyB64) {
   const sources = _readSources();
-  const entries = _extEntriesOnDisk().filter(e => e.manifest);
+  const entries = _installedEntries().filter(e => e.manifest);
   return entries.find(e => sources[e.folder] && sources[e.folder].webstore === id)
     || entries.find(e => keyB64 && e.manifest.key === keyB64)
     || _installedCopyNamed(name);
@@ -3372,7 +3403,7 @@ ipcMain.handle('extensions:install-webstore', async (_e, input) => {
 // the folder rather than the name, since the official and local builds need
 // not share one. The copy loaded in the Discord panel wins, else the newest.
 function _installedVencord() {
-  const copies = _extEntriesOnDisk().filter(e => e.manifest && /^vencord-/.test(e.folder));
+  const copies = _installedEntries().filter(e => e.manifest && /^vencord-/.test(e.folder));
   if (!copies.length) return null;
   let loaded = [];
   try { loaded = secureSessions.fromPartition('persist:discord').getAllExtensions().map(x => path.resolve(x.path)); }
@@ -3469,7 +3500,74 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
   }
 });
 
-ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
+// === Uninstall with Undo ======================================================
+// The manager's Uninstall switches the extension off at once and lists it as
+// being removed (extensions.js, REMOVING_FILE); the interface's Undo toast
+// (js/vex-undo.js) either turns it back on (extensions:uninstall-undo) or, when
+// it goes, removes it for good (extensions:uninstall). One still listed when
+// Vex quits, or at the next start after a crash, is removed then — before any
+// extension loads — so a quit never leaves one half removed.
+function _readRemovingFolders() {
+  try { return extHelpers.readRemoving(extensionsDir); }
+  catch (err) {
+    console.error('[Extensions]', err.message);
+    return {};
+  }
+}
+function _finishPendingRemovals(reason) {
+  const removing = _readRemovingFolders();
+  for (const folder of Object.keys(removing)) {
+    const r = _removeExtensionFolder(folder);
+    if (r.ok) console.log(`[Extensions] removed ${folder} (${reason}: its Undo was not used)`);
+    else console.error(`[Extensions] could not finish removing ${folder} (${reason}):`, r.error);
+  }
+}
+ipcMain.handle('extensions:uninstall-later', async (_e, folderName) => {
+  let extPath;
+  try { extPath = safeJoin(extensionsDir, safeName(folderName)); }
+  catch { return { ok: false, error: 'Invalid folder name' }; }
+  if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
+  try {
+    const removing = extHelpers.readRemoving(extensionsDir);
+    removing[folderName] = { at: Date.now() };
+    extHelpers.writeRemoving(extensionsDir, removing);
+    _unloadFromAllSessions(extPath);
+    _extUiChanged();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+ipcMain.handle('extensions:uninstall-undo', async (_e, folderName) => {
+  let extPath;
+  try { extPath = safeJoin(extensionsDir, safeName(folderName)); }
+  catch { return { ok: false, error: 'Invalid folder name' }; }
+  try {
+    const removing = extHelpers.readRemoving(extensionsDir);
+    if (!removing[folderName]) return { ok: false, error: 'It is not being removed' };
+    if (!fs.existsSync(extPath)) return { ok: false, error: 'It has already been removed' };
+    delete removing[folderName];
+    extHelpers.writeRemoving(extensionsDir, removing);
+    // On again only if it was on: one switched off before stays off.
+    if (!_boot.safeMode && !_readDisabledFolders().has(folderName)) {
+      const { extension, errors } = await _loadExtensionEverywhere(extPath);
+      if (!extension) {
+        const error = errors[0] || 'the extension did not load';
+        _extLoadErrors.set(folderName, error);
+        return { ok: false, error: 'It is back, but did not load: ' + error };
+      }
+      _extLoadErrors.delete(folderName);
+    }
+    _extUiChanged();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+app.on('will-quit', () => _finishPendingRemovals('quit'));
+
+ipcMain.handle('extensions:uninstall', async (_e, folderName) => _removeExtensionFolder(folderName));
+function _removeExtensionFolder(folderName) {
   let extPath;
   try {
     extPath = safeJoin(extensionsDir, safeName(folderName));
@@ -3477,10 +3575,15 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
     console.warn('[Extensions] uninstall rejected unsafe folderName:', folderName, err.message);
     return { ok: false, error: 'Invalid folder name' };
   }
+  const removing = _readRemovingFolders();
+  if (removing[folderName]) { delete removing[folderName]; extHelpers.writeRemoving(extensionsDir, removing); }
   if (!fs.existsSync(extPath)) return { ok: false, error: 'Not found' };
   try {
     _unloadFromAllSessions(extPath);
     fs.rmSync(extPath, { recursive: true, force: true });
+    // Its toolbar pin goes with it.
+    const pins = _readExtPins();
+    if (!_extPinsError && pins.includes(folderName)) fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins.filter(f => f !== folderName), null, 1));
     // Drop any leftover state so re-installing the same extension later doesn't
     // come back disabled, or inherit the old copy's failure message.
     _extLoadErrors.delete(folderName);
@@ -3502,7 +3605,7 @@ ipcMain.handle('extensions:uninstall', async (_e, folderName) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
-});
+}
 
 ipcMain.handle('extensions:open-folder', () => { shell.openPath(extensionsDir); return { ok: true }; });
 

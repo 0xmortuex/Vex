@@ -224,6 +224,30 @@ function savePermissionDecisions(data) {
   return Promise.all([saveContainerDecisions(containers), saveMainDecisions(main)]);
 }
 
+// Settings' Clear all, and its Undo (js/vex-undo.js): every store cleared,
+// and what was in them kept here so Undo can put it back exactly. A decision
+// made since the clear wins over the one it replaced.
+async function clearAllDecisions() {
+  const before = JSON.parse(JSON.stringify({ main: loadMainDecisions(), containers: loadContainerDecisions() }));
+  await savePermissionDecisions({});
+  return before;
+}
+async function restoreDecisions(before) {
+  if (!before || typeof before !== 'object') throw new Error('Nothing to put back');
+  const mergeStore = (was, now) => {
+    const out = { ...(was || {}), ...(now || {}) };
+    const until = { ...((was && was.__until__) || {}), ...((now && now.__until__) || {}) };
+    if (Object.keys(until).length) out.__until__ = until; else delete out.__until__;
+    return out;
+  };
+  const containersNow = loadContainerDecisions();
+  const containers = {};
+  for (const partition of new Set([...Object.keys(before.containers || {}), ...Object.keys(containersNow)])) {
+    containers[partition] = mergeStore((before.containers || {})[partition], containersNow[partition]);
+  }
+  await Promise.all([saveContainerDecisions(containers), saveMainDecisions(mergeStore(before.main, loadMainDecisions()))]);
+}
+
 function wirePermissionsOnSession(ses, tag, opts) {
   if (!ses || ses.__vexPermsWired) return;
   ses.__vexPermsWired = true;
@@ -412,6 +436,6 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
+return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

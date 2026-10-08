@@ -260,9 +260,33 @@ const Scheduler = {
     return this.updateTask(id, patch);
   },
 
+  // Returns what was taken out and where, for restoreTask (the panel's Undo).
   deleteTask(id) {
     this.cancelTask(id);
-    this._save(this.getAllTasks().filter(t => t.id !== id));
+    const tasks = this.getAllTasks();
+    const index = tasks.findIndex(t => t.id === id);
+    const removed = index < 0 ? null : {
+      item: tasks[index], index,
+      prevId: index > 0 ? tasks[index - 1].id : null,
+      nextId: index + 1 < tasks.length ? tasks[index + 1].id : null,
+    };
+    this._save(tasks.filter(t => t.id !== id));
+    this._emit();
+    return removed;
+  },
+
+  // Put a deleted task back as it was, in its place in the list. It runs on
+  // its schedule again from the next check.
+  restoreTask(removed) {
+    if (!removed || !removed.item) throw new Error('Nothing to put back');
+    const tasks = this.getAllTasks();
+    if (tasks.some(t => t.id === removed.item.id)) return;
+    let at = -1;
+    if (removed.prevId) { const p = tasks.findIndex(t => t.id === removed.prevId); if (p >= 0) at = p + 1; }
+    if (at < 0 && removed.nextId) at = tasks.findIndex(t => t.id === removed.nextId);
+    if (at < 0) at = Math.min(removed.index, tasks.length);
+    tasks.splice(at, 0, removed.item);
+    this._save(tasks);
     this._emit();
   },
 
@@ -965,8 +989,20 @@ const Scheduler = {
     this._emit();
   },
 
+  // Returns the runs it cleared, for restoreHistory (the panel's Undo).
   clearHistory() {
+    const cleared = this.getHistory();
     localStorage.setItem(this.HISTORY_KEY, '[]');
+    this._emit();
+    return cleared;
+  },
+
+  // The cleared runs back, under any recorded since (newest first, as kept).
+  restoreHistory(runs) {
+    const now = this.getHistory();
+    const ids = new Set(now.map(r => r.id));
+    const merged = now.concat((runs || []).filter(r => !ids.has(r.id))).slice(0, this.MAX_HISTORY);
+    localStorage.setItem(this.HISTORY_KEY, JSON.stringify(merged));
     this._emit();
   },
 

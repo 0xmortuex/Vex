@@ -711,19 +711,28 @@ const NotesPanel = {
     const note = this.getActive();
     if (!note) return;
     const title = this.normalize(note).title || 'Untitled';
-    const ok = (typeof window !== 'undefined' && window.vexConfirm)
-      ? await window.vexConfirm({ title: 'Delete note', message: `Delete "${title}"? This cannot be undone.`, okLabel: 'Delete', danger: true })
-      : true;
-    if (!ok) return;
+    // What is typed and not saved yet is part of the note Undo brings back.
+    this._captureEditor();
     clearTimeout(this.saveTimer);
     this.saveTimer = null;
-    this.notes = this.notes.filter(n => n && n.id !== note.id);
+    const removed = window.VexUndo.takeOut(this.notes, n => n && n.id === note.id);
     this.activeNoteId = null;
     try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.notes)); } catch {}
     this._showEmpty();
     this.renderList();
     this._measure();
-    try { window.showToast?.('Note deleted'); } catch {}
+    window.VexUndo.offer({
+      message: `Deleted “${title}”`,
+      undo: () => {
+        this.flush();
+        window.VexUndo.putBack(this.notes, removed);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.notes));
+        if (this._el('notes-list')) {
+          if (this.section !== 'notes' && typeof this.setSection === 'function') this.setSection('notes');
+          this.selectNote(note.id);
+        }
+      },
+    });
   },
 
   duplicateActive() {
@@ -1085,10 +1094,9 @@ const NotesPanel = {
   async deleteSticky() {
     if (!this.activeStickyKey || !window.StickyNotes) return;
     const key = this.activeStickyKey;
-    const ok = (typeof window !== 'undefined' && window.vexConfirm)
-      ? await window.vexConfirm({ title: 'Delete page note', message: `Delete the note on ${key}?`, okLabel: 'Delete', danger: true })
-      : true;
-    if (!ok) return;
+    // Typed and not saved yet: saved first, so Undo brings back what was there.
+    this._flushSticky();
+    const record = StickyNotes.record(key);
     clearTimeout(this._stickyTimer);
     this._stickyTimer = null;
     this.activeStickyKey = null;
@@ -1096,7 +1104,17 @@ const NotesPanel = {
     this._showEmpty();
     this.renderStickyList();
     this._measure();
-    try { window.showToast?.('Page note deleted'); } catch {}
+    if (!record) return;   // it was empty, so it was never a note
+    window.VexUndo.offer({
+      message: `Deleted the page note on ${key}`,
+      undo: () => {
+        StickyNotes.restore(key, record);
+        if (this._el('notes-list')) {
+          if (this.section !== 'sticky') this.setSection('sticky');
+          this.selectSticky(key);
+        }
+      },
+    });
   },
 
   // A sticky that outgrew the card becomes a real note, source link included.

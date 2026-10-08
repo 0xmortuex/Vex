@@ -121,6 +121,31 @@ function writeDisabled(extensionsDir, folders) {
   fs.writeFileSync(disabledPath(extensionsDir), JSON.stringify([...folders], null, 2));
 }
 
+// ---- Uninstalled, with Undo still on screen ----------------------------------
+// Uninstalling switches an extension off at once and removes its folder only
+// when the interface's Undo toast goes (js/vex-undo.js), so Undo brings it back
+// with its data and its toolbar pin. The folders waiting are listed here; one
+// still listed at the next start (Vex quit or crashed with the toast up) is
+// removed then, before anything loads. { folder: { at: ms } }
+const REMOVING_FILE = '.removing.json';
+function readRemoving(extensionsDir) {
+  const file = path.join(extensionsDir, REMOVING_FILE);
+  if (!fs.existsSync(file)) return {};
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('The list of extensions being removed is corrupt: expected an object');
+  const out = {};
+  for (const [folder, entry] of Object.entries(parsed)) {
+    if (typeof folder === 'string' && folder && entry && typeof entry === 'object') out[folder] = { at: Number(entry.at) || 0 };
+  }
+  return out;
+}
+function writeRemoving(extensionsDir, removing) {
+  fs.mkdirSync(extensionsDir, { recursive: true });
+  const file = path.join(extensionsDir, REMOVING_FILE);
+  if (!Object.keys(removing).length) { fs.rmSync(file, { force: true }); return; }
+  fs.writeFileSync(file, JSON.stringify(removing, null, 1));
+}
+
 // ---- Where an extension is loaded ------------------------------------------
 // The browsing sessions get every extension. The app panels' partitions
 // (Discord, Spotify…) get only the ones whose content scripts name that site:
@@ -346,5 +371,6 @@ module.exports = {
   DISABLED_FILE, SCOPE_FILE, BROWSING_PARTITIONS, APP_PARTITIONS,
   readMessages, localize, slugFromName, pickIcon, pickPages, clampPopupSize,
   archiveProblem, disabledPath, readDisabled, writeDisabled,
+  REMOVING_FILE, readRemoving, writeRemoving,
   contentHosts, partitionsFor, readScopes, writeScopes
 };

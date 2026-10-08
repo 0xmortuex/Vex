@@ -134,11 +134,20 @@ const CheckHistory = {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const { head, body, close } = window.PageExport._sheet('Recent page checks', 'vex-checks-overlay');
     head.insertAdjacentHTML('beforeend', `<button data-clear type="button" style="font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer">Forget all</button>`);
-    head.querySelector('[data-clear]').addEventListener('click', async () => {
-      const ok = await window.vexConfirm({ title: 'Forget every check?', message: 'The numbers from past link, speed, accessibility and crawl checks are deleted. The next run of each has nothing to compare with.', okLabel: 'Forget all', danger: true });
-      if (!ok) return;
+    // Forgotten at once; Undo on the toast brings the runs back under any
+    // made since (newest first, as kept).
+    head.querySelector('[data-clear]').addEventListener('click', () => {
+      const before = this.list();
       localStorage.removeItem(this.KEY);
       draw();
+      if (!before.length) return;
+      window.VexUndo.offer({
+        message: 'Forgot ' + before.length + ' page check' + (before.length === 1 ? '' : 's'),
+        undo: () => {
+          localStorage.setItem(this.KEY, JSON.stringify(this.list().concat(before).slice(0, this.MAX)));
+          if (body.isConnected) draw();
+        },
+      });
     });
     const draw = () => {
       // Newest run of each check on each page.

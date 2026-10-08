@@ -109,6 +109,16 @@ const StickyNotes = {
     return true;
   },
 
+  // The stored record as it is, for Undo to put back unchanged (its date
+  // included, which is its place in the list).
+  record(key) { const r = this._load()[key]; return r ? { ...r } : null; },
+  restore(key, record) {
+    if (!key || !record) throw new Error('Nothing to put back');
+    const store = this._load();
+    store[key] = { ...record };
+    this._save(store);
+  },
+
   // The address to revisit. Prefer the URL we recorded; fall back to the
   // pre-2.31 behaviour of assuming https for bare host+path keys.
   pageUrlFor(entry) {
@@ -268,9 +278,17 @@ const StickyNotes = {
         this.openPage(key);
       });
       row.querySelector('[data-act="del"]').addEventListener('click', () => {
+        const record = this.record(key);
         this.remove(key);
         row.remove();
-        try { window.showToast?.('Note deleted'); } catch {}
+        if (!record) return;
+        window.VexUndo.offer({
+          message: 'Deleted the sticky note on ' + (record.title || key),
+          undo: () => {
+            this.restore(key, record);
+            if (document.getElementById('vex-sticky-list')) this._listModal();
+          },
+        });
       });
     });
   },

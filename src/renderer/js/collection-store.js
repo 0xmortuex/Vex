@@ -94,8 +94,11 @@ const CollectionStore = {
   },
   // Persist `mine` without discarding another window's concurrent writes.
   // Returns the merged list, which the caller adopts as its new state.
-  save(key, baseline, mine, limit) {
+  // `place(merged)` may reorder the result before it is written: records put
+  // back by Undo (js/vex-undo.js) go where they were, not to the top.
+  save(key, baseline, mine, limit, place) {
     let merged = this.merge(baseline || [], mine || [], this.read(key));
+    if (place) place(merged);
     if (limit && merged.length > limit) merged = merged.slice(0, limit);
     try { localStorage.setItem(key, JSON.stringify(merged)); } catch {}
     return merged;

@@ -24,6 +24,27 @@ const ReadLater = {
   },
   unread() { return this.items.filter(i => !i.read).length; },
 
+  // Gone at once, with Undo on the toast: back in their places (js/vex-undo.js).
+  // `redraw` paints the panel again after either.
+  removeWithUndo(match, label, redraw) {
+    const idOf = (x) => (x && x.id != null ? String(x.id) : null);
+    const removed = VexUndo.takeOutAll(this.items, match, idOf);
+    if (!removed.length) return 0;
+    this.save();
+    if (redraw) redraw();
+    VexUndo.offer({
+      message: label(removed.length, removed[0].item),
+      undo: () => {
+        VexUndo.putBackAll(this.items, removed, idOf);
+        this.items = window.CollectionStore.save(this.KEY, this._baseline, this.items, 0, merged => VexUndo.reposition(merged, removed, idOf));
+        this._baseline = this.items.slice();
+        this._badge();
+        if (redraw) redraw();
+      },
+    });
+    return removed.length;
+  },
+
   OLD_DAYS: 30,
   WORDS_PER_MINUTE: 220,
 
@@ -192,21 +213,19 @@ const ReadLater = {
       clear.className = 'btn-secondary';
       clear.style.cssText = 'margin-top:6px';
       clear.textContent = 'Clear the old ones';
-      clear.addEventListener('click', async () => {
-        if (!(await vexConfirm({ title: 'Clear ' + stale.length + ' old link' + (stale.length === 1 ? '' : 's') + '?', message: 'Saved over a month ago and still unread. The pages themselves are untouched.', okLabel: 'Clear them', danger: true }))) return;
+      clear.addEventListener('click', () => {
         const ids = new Set(stale.map(i => i.id));
-        this.items = this.items.filter(i => !ids.has(i.id));
-        this.save();
-        this.renderPanel(container);
+        this.removeWithUndo(i => ids.has(i.id), (n) => 'Cleared ' + n + ' old link' + (n === 1 ? '' : 's') + ' from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
       });
       nudge.appendChild(clear);
       body.appendChild(nudge);
     }
     if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
-    unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+    const removeOne = (x) => this.removeWithUndo(i => i.id === x.id, (_n, it) => 'Removed “' + (it.title || it.url) + '” from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
+    unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: removeOne }));
     if (read.length) {
       section('Done');
-      read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+      read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: removeOne }));
     }
 
     // Snoozed tabs could not be seen or woken early: nothing listed them

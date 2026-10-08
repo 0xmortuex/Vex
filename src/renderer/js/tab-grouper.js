@@ -626,26 +626,14 @@ const TabGrouper = (() => {
     if (created > 0) showUndoToast(created);
   }
 
+  // The shared Undo toast (js/vex-undo.js); Ctrl+K › Undo Last Grouping does
+  // the same later.
   function showUndoToast(groupCount) {
-    const existing = document.querySelector('.group-apply-toast');
-    if (existing) existing.remove();
-    const el = document.createElement('div');
-    el.className = 'group-apply-toast';
-    el.innerHTML = `
-      <span>${VexIcons.svg('check', { size: 13 })} Created ${groupCount} group${groupCount === 1 ? '' : 's'}</span>
-      <button class="undo-btn" id="undo-grouping">Undo</button>
-    `;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    el.querySelector('#undo-grouping').addEventListener('click', () => {
-      undoLastGrouping();
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 300);
+    const snapshot = lastGroupedSnapshot;
+    window.VexUndo.offer({
+      message: `Created ${groupCount} group${groupCount === 1 ? '' : 's'}`,
+      undo: () => { if (lastGroupedSnapshot === snapshot) undoLastGrouping(); else throw new Error('The tabs were grouped again since'); },
     });
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 300);
-    }, 10000);
   }
 
   function undoLastGrouping() {
@@ -678,6 +666,17 @@ const TabGrouper = (() => {
   function removePattern(groupId) { delete groupPatterns[groupId]; _save('vex.groupPatterns', groupPatterns); }
   function getRejectedPatterns() { return _load('vex.rejectedGroupPatterns', []) || []; }
   function clearRejectedPatterns() { _save('vex.rejectedGroupPatterns', []); }
+  // Undo of the two clears (Settings): what was cleared comes back; anything
+  // learned since stays.
+  function restorePatterns(saved) {
+    groupPatterns = { ...(saved || {}), ...groupPatterns };
+    _save('vex.groupPatterns', groupPatterns);
+  }
+  function restoreRejectedPatterns(saved) {
+    const now = getRejectedPatterns();
+    const seen = new Set(now.map(p => JSON.stringify(p)));
+    _save('vex.rejectedGroupPatterns', (saved || []).filter(p => !seen.has(JSON.stringify(p))).concat(now));
+  }
 
   return {
     init,
@@ -685,7 +684,7 @@ const TabGrouper = (() => {
     maybeAutoAssignToGroup,
     undoLastGrouping,
     getPatterns, clearPatterns, removePattern,
-    getRejectedPatterns, clearRejectedPatterns,
+    getRejectedPatterns, clearRejectedPatterns, restorePatterns, restoreRejectedPatterns,
     THRESHOLD_UNGROUPED
   };
 })();
