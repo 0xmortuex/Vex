@@ -7862,6 +7862,12 @@ ipcMain.handle('theme:set-custom-image', (_e, dataUrl, id) => {
     return { ok: false, error: e && e.message };
   }
 });
+// "Use my Windows wallpaper" in the theme editor: reads the desktop picture,
+// never changes any Windows setting (src/main/wallpaper.js).
+require('./main/wallpaper').registerWallpaper({
+  ipcMain, platform: process.platform, env: process.env,
+  execFile: require('child_process').execFile, fs, nativeImage,
+});
 ipcMain.handle('widevine:status', () => ({ status: _widevineStatus, packaged: app.isPackaged }));
 // Retry DRM setup: CLEAR the cached Widevine component, then relaunch so the
 // castLabs component install runs from scratch. A plain relaunch isn't enough

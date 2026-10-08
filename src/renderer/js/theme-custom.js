@@ -84,6 +84,53 @@ const CustomThemes = (function (root) {
       const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
       return this.hex(f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255);
     },
+    // OKLab (Björn Ottosson), a space where equal steps look equal: used to
+    // group a picture's colours and to build a palette from them
+    // (js/theme-from-image.js). [L 0..1, a, b] from 0..255 sRGB and back.
+    rgbToOklab(r, g, b) {
+      const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const R = lin(r), G = lin(g), B = lin(b);
+      const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+      const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+      const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+      return [
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+      ];
+    },
+    // Linear sRGB (may fall outside 0..1 when the colour is out of gamut).
+    _oklabToLinear(L, a, b) {
+      const l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
+      const m = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
+      const s = Math.pow(L - 0.0894841775 * a - 1.2914855480 * b, 3);
+      return [
+        4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+      ];
+    },
+    // OKLCH (hue in degrees) -> '#rrggbb'. A colour sRGB cannot show keeps its
+    // lightness and hue and loses chroma until it can.
+    fromOklch(L, C, h) {
+      L = Math.max(0, Math.min(1, L));
+      const rad = h * Math.PI / 180;
+      const inGamut = (c) => this._oklabToLinear(L, c * Math.cos(rad), c * Math.sin(rad)).every(v => v >= -1e-4 && v <= 1 + 1e-4);
+      let c = Math.max(0, C);
+      if (!inGamut(c)) {
+        let lo = 0, hi = c;
+        for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (inGamut(mid)) lo = mid; else hi = mid; }
+        c = lo;
+      }
+      const enc = v => { v = Math.max(0, Math.min(1, v)); return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055); };
+      const [r, g, b] = this._oklabToLinear(L, c * Math.cos(rad), c * Math.sin(rad));
+      return this.hex(enc(r), enc(g), enc(b));
+    },
+    // '#rrggbb' -> [L, C, h°].
+    toOklch(hex) {
+      const [L, a, b] = this.rgbToOklab(...this.rgb(hex));
+      return [L, Math.hypot(a, b), (Math.atan2(b, a) * 180 / Math.PI + 360) % 360];
+    },
     // The rule Light and dark (theme-auto.js) sorts every theme by.
     isLight(colors) { return this.luminance(colors.background) > 0.4; },
 

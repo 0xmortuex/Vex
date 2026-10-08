@@ -2,7 +2,8 @@
 //
 // Start from any theme ("Customise this theme" on a picker card, or "Make your
 // own"), change its colours with a colour picker or a hex value, give it a
-// name and, if you like, a picture behind the New Tab page. Vex's window and
+// name and, if you like, a picture behind the New Tab page. Or start from a
+// picture or your Windows wallpaper: js/theme-from-image.js picks the colours. Vex's window and
 // every open New Tab wear the theme as you change it; Cancel puts back exactly
 // what was there. The colour maths, the stored form and the file format are in
 // js/theme-custom.js (shared with the New Tab page); the file is described for
@@ -28,6 +29,7 @@ const ThemeStudio = {
 
   _ed: null,          // the editor's state while it is open
   _paintTimer: 0,
+  _fpToken: 0,        // the latest picture being read (a newer one wins)
 
   // --- registering the themes with the window ------------------------------
 
@@ -157,13 +159,14 @@ const ThemeStudio = {
   // --- the editor ------------------------------------------------------------
 
   // { from: theme id }. A theme of your own is edited; any other is copied
-  // into a new one.
-  async open({ from } = {}) {
+  // into a new one. { copy: true } always makes a new one (a theme from a
+  // picture never overwrites the theme you happen to wear).
+  async open({ from, copy = false } = {}) {
     if (this._ed) { this._panel?.querySelector('.vts-name')?.focus(); return; }
     if (typeof ThemeManager === 'undefined') throw new Error('Themes are not loaded');
     const cur = ThemeManager.getCurrentTheme();
     const src = from || cur;
-    const own = this.record(src);
+    const own = copy ? null : this.record(src);
     const meta = ThemeManager.getThemeMeta(src);
     const G = window.VexGuiStyle;
     const ed = {
@@ -173,6 +176,8 @@ const ThemeStudio = {
       base: own ? own.base || null : (meta.user ? meta.base : meta.id),
       colors: CustomThemes.complete(this.colorsFromTheme(src)),
       original: own ? { ...own.colors } : null,
+      // A theme of your own keeps its name when you take colours from a picture.
+      nameTouched: !!own,
       savedImage: null,
       image: undefined,     // undefined = unchanged, null = removed, string = new
       prevTheme: cur,
@@ -190,6 +195,14 @@ const ThemeStudio = {
     this._build();
     ThemeManager.applyTheme(ed.id, { persist: false });
     this._update();
+  },
+
+  // "From a picture…" (Settings, the theme picker) or a picture dropped on
+  // Settings: the editor, from the theme you wear, then the picture.
+  async openFromPicture(file) {
+    await this.open({ from: ThemeManager.getCurrentTheme(), copy: true });
+    if (file) await this.usePicture(file, { name: ThemeFromImage.nameFor(file.name) });
+    else this._pickPicture();
   },
 
   _previewImage() {
@@ -218,6 +231,16 @@ const ThemeStudio = {
         <div class="vts-mini" aria-hidden="true"></div>
         <p class="vts-note">Vex and every open New Tab wear it as you change it. Cancel puts back exactly what was there.</p>
         <label class="vts-field">Name<input type="text" class="vts-name" maxlength="${CustomThemes.NAME_MAX}" spellcheck="false" autocomplete="off"></label>
+        <div class="vts-from-picture">
+          <span class="vts-image-label">Start from a picture</span>
+          <span class="vts-image-btns">
+            <button type="button" class="btn-secondary" data-act="from-picture">${VexIcons.svg('image', { size: 14 })} Choose a picture…</button>
+            <button type="button" class="btn-secondary" data-act="from-wallpaper">${VexIcons.svg('monitor', { size: 14 })} Use my Windows wallpaper</button>
+          </span>
+          <span class="vts-fp-hint">Or drop a PNG, JPEG or WebP picture on this panel. Vex picks the colours and makes it the New Tab picture; it stays on this computer.</span>
+          <div class="vts-fp-status" role="status" aria-live="polite"></div>
+          <div class="vts-fp-options" role="radiogroup" aria-label="Palettes from the picture" hidden></div>
+        </div>
         <div class="vts-colors">${rows}</div>
         <div class="vts-image">
           <span class="vts-image-label">New Tab background picture</span>
@@ -239,7 +262,7 @@ const ThemeStudio = {
       </footer>`;
     const name = panel.querySelector('.vts-name');
     name.value = ed.name;
-    name.addEventListener('input', () => { ed.name = name.value; this._update({ colours: false }); });
+    name.addEventListener('input', () => { ed.name = name.value; ed.nameTouched = true; this._update({ colours: false }); });
     for (const input of panel.querySelectorAll('.vts-swatch, .vts-hex')) {
       input.addEventListener('input', () => {
         const v = CustomThemes.normHex(input.value);
@@ -264,9 +287,31 @@ const ThemeStudio = {
         image: () => this._chooseImage(),
         'no-image': () => { ed.image = null; this._update(); },
         newtab: () => { if (typeof TabManager !== 'undefined') TabManager.createTab(); },
+        'from-picture': () => this._pickPicture(),
+        'from-wallpaper': () => this.useWallpaper(),
+        palette: () => this.applyPalette(b.dataset.palette),
       }[act];
       if (!run) return;
-      Promise.resolve().then(run).catch(err => window.showToast?.(err.message || String(err), 'error'));
+      Promise.resolve().then(run).catch(err => this._report(err));
+    });
+    // A picture dropped on the editor: a theme from it.
+    const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+    panel.addEventListener('dragover', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      panel.classList.add('vts-drop');
+    });
+    panel.addEventListener('dragleave', (e) => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('vts-drop'); });
+    panel.addEventListener('drop', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      panel.classList.remove('vts-drop');
+      const file = Array.from(e.dataTransfer.files || [])[0];
+      if (!file) return;
+      this.usePicture(file, { name: ThemeFromImage.nameFor(file.name) }).catch(err => this._report(err));
     });
     this._keyHandler = (e) => {
       if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
@@ -408,11 +453,144 @@ const ThemeStudio = {
     });
   },
 
+  // --- a theme from a picture (js/theme-from-image.js) -----------------------
+
+  _pickPicture() {
+    if (!this._ed) throw new Error('The theme editor is not open');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp';
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      input.remove();
+      if (!file) return;
+      this.usePicture(file, { name: ThemeFromImage.nameFor(file.name) }).catch(err => this._report(err));
+    });
+    document.body.appendChild(input);
+    input.click();
+  },
+
+  async useWallpaper() {
+    const ed = this._ed;
+    if (!ed) throw new Error('The theme editor is not open');
+    const token = ++this._fpToken;
+    this._fpBusy(true, 'Reading your wallpaper…');
+    let w;
+    try {
+      w = await ThemeFromImage.wallpaper();
+    } catch (err) {
+      if (token === this._fpToken) this._fpFailed(err);
+      throw err;
+    }
+    if (token !== this._fpToken || this._ed !== ed) return;
+    await this.usePicture(w.blob, { name: 'My wallpaper', note: w.note, allowBmp: true });
+  },
+
+  // A picture -> its palettes in the editor, the first one worn and the
+  // picture as the New Tab picture. A later picture wins over a slower one.
+  async usePicture(file, { name, note = '', allowBmp = false } = {}) {
+    const ed = this._ed;
+    if (!ed) throw new Error('The theme editor is not open');
+    const token = ++this._fpToken;
+    this._fpBusy(true, 'Reading the picture…');
+    try {
+      const blob = await ThemeFromImage.checkFile(file, { allowBmp });
+      const summary = await ThemeFromImage.sample(blob);
+      const options = ThemeFromImage.palettes(summary);
+      const raw = await this._fitImage(blob);
+      if (token !== this._fpToken || this._ed !== ed) return;
+      ed.fromPicture = { summary, options, raw, chosen: null, baked: null, bakedFor: null };
+      if (name && !ed.nameTouched) {
+        ed.name = name;
+        this._panel.querySelector('.vts-name').value = name;
+      }
+      await this.applyPalette(options[0].id, token);
+      if (token !== this._fpToken) return;
+      this._fpBusy(false, note);
+    } catch (err) {
+      if (token === this._fpToken) this._fpFailed(err);
+      throw err;
+    }
+  },
+
+  async applyPalette(id, token = this._fpToken) {
+    const ed = this._ed;
+    const fp = ed && ed.fromPicture;
+    if (!fp) throw new Error('Choose a picture first');
+    const opt = fp.options.find(o => o.id === id);
+    if (!opt) throw new Error('No such palette: ' + id);
+    const baked = await ThemeFromImage.bake(fp.raw, opt.colors, fp.summary);
+    if (token !== this._fpToken || this._ed !== ed) return;
+    ed.colors = { ...opt.colors };
+    fp.chosen = id;
+    fp.baked = baked;
+    fp.bakedFor = this._bakeKey(opt.colors);
+    ed.image = baked;
+    this._renderPalettes();
+    this._update();
+  },
+
+  _bakeKey(colors) {
+    const c = CustomThemes.complete(colors);
+    return [c.background, c.text, c.muted].join();
+  },
+
+  _renderPalettes() {
+    const fp = this._ed && this._ed.fromPicture;
+    const box = this._panel && this._panel.querySelector('.vts-fp-options');
+    if (!box) return;
+    box.innerHTML = '';
+    box.hidden = !fp;
+    if (!fp) return;
+    for (const o of fp.options) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vts-fp-opt';
+      b.dataset.act = 'palette';
+      b.dataset.palette = o.id;
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', String(fp.chosen === o.id));
+      b.title = `${o.label}: a ${o.light ? 'light' : 'dark'} theme from the picture`;
+      const chips = document.createElement('span');
+      chips.className = 'vts-chips';
+      for (const k of ['background', 'surface', 'text', 'primary']) {
+        const c = document.createElement('span');
+        c.style.background = o.colors[k];
+        chips.appendChild(c);
+      }
+      const label = document.createElement('span');
+      label.textContent = o.label;
+      b.append(chips, label);
+      box.appendChild(b);
+    }
+  },
+
+  // A failure shown in the editor's own status line, not again as a toast.
+  _fpFailed(err) {
+    this._fpBusy(false, err.message, 'bad');
+    err.shownInEditor = true;
+  },
+
+  _report(err) {
+    if (err && err.shownInEditor) return;
+    window.showToast?.((err && err.message) || String(err), 'error');
+  },
+
+  _fpBusy(busy, text, kind) {
+    if (!this._panel) return;
+    for (const b of this._panel.querySelectorAll('[data-act="from-picture"], [data-act="from-wallpaper"]')) b.disabled = busy;
+    const st = this._panel.querySelector('.vts-fp-status');
+    st.textContent = text || '';
+    st.classList.toggle('bad', kind === 'bad');
+  },
+
   // Close the editor; `restore` puts the theme and the look's colours back.
   _close(restore) {
     const ed = this._ed;
     if (!ed) return;
     clearTimeout(this._paintTimer);
+    this._fpToken++;
     document.removeEventListener('keydown', this._keyHandler, true);
     this._panel?.remove();
     this._panel = null;
@@ -440,6 +618,13 @@ const ThemeStudio = {
       if (ed.mode === 'edit' && name === this.record(ed.id)?.name) finalName = (name.slice(0, CustomThemes.NAME_MAX - 5) + ' copy');
     }
     const rec = CustomThemes.validateRecord({ id, name: finalName, colors, ...(ed.base ? { base: ed.base } : {}), updated: Date.now() });
+    // A picture toned for the palette it came with is toned again for the
+    // colours saved, so the New Tab's text still reads over it.
+    const fp = ed.fromPicture;
+    if (fp && ed.image === fp.baked && fp.bakedFor !== this._bakeKey(colors)) {
+      ed.image = fp.baked = await ThemeFromImage.bake(fp.raw, colors, fp.summary);
+      fp.bakedFor = this._bakeKey(colors);
+    }
     // The picture first: a theme saved without the picture it was shown with
     // would be a surprise.
     const img = this._previewImage();
@@ -581,6 +766,7 @@ const ThemeStudio = {
     make.dataset.wired = '1';
     make.addEventListener('click', () => this.open({ from: ThemeManager.getCurrentTheme() }).catch(err => window.showToast?.(err.message, 'error')));
     document.getElementById('setting-theme-import')?.addEventListener('click', () => this.pickFile());
+    document.getElementById('setting-theme-from-picture')?.addEventListener('click', () => this.openFromPicture().catch(err => this._report(err)));
     // A .vextheme dropped anywhere on Settings is imported.
     const panel = document.getElementById('panel-settings');
     if (panel) {
@@ -597,8 +783,15 @@ const ThemeStudio = {
         e.preventDefault();
         e.stopPropagation();
         panel.classList.remove('vts-drop');
-        const file = Array.from(e.dataTransfer.files || []).find(f => /\.(vextheme|json)$/i.test(f.name));
-        if (!file) { window.showToast?.('Drop a .vextheme file here to add the theme', 'error'); return; }
+        const files = Array.from(e.dataTransfer.files || []);
+        const file = files.find(f => /\.(vextheme|json)$/i.test(f.name));
+        // A picture dropped on Settings: a theme from it, in the editor.
+        const picture = !file && files.find(f => /\.(png|jpe?g|webp)$/i.test(f.name));
+        if (picture) {
+          this.openFromPicture(picture).catch(err => this._report(err));
+          return;
+        }
+        if (!file) { window.showToast?.('Drop a .vextheme file or a picture here to add a theme', 'error'); return; }
         this.importFile(file).catch(err => window.showToast?.('Not imported: ' + err.message, 'error'));
       });
     }
