@@ -171,6 +171,8 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Layout Editor** — drag to reorder or hide **every** toolbar button and sidebar icon in place; move whole toolbar sections; one‑click **Default / Essentials / Minimal** presets.
 - **GUI Style** — Classic (your themes) or **Glass** (frosted UI, tabs on top, speed‑dial shortcuts bar).
 - **Themes** — multi‑theme picker (`Ctrl+Shift+Y`).
+- **Your own themes** — Settings › Appearance › Your themes: start from any theme and change its colours with a live preview, contrast warnings and **Fix contrast**; make one **from a picture** or your Windows wallpaper; share it as a `.vextheme` file (it syncs too). **Light and dark** wears a light theme by day and a dark one at night.
+- **Chrome Web Store themes** — **Add to Vex** on a theme's store page (or its link, id or `.crx`): signatures checked like an extension, then made one of your themes, colours fixed to read at 4.5:1 and its picture on the New Tab page. Never loaded as an extension; a theme package with code is refused.
 - **Per‑site Settings** — remembered zoom, forced dark mode, and custom CSS/JS **Boosts** (Zap‑to‑hide any element) per website.
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
 - **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).

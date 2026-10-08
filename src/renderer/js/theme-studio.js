@@ -724,22 +724,35 @@ const ThemeStudio = {
     if (!file) throw new Error('No file');
     if (file.size > CustomThemes.FILE_MAX) throw new Error('That file is too big to be a theme');
     const parsed = CustomThemes.parseFile(await file.text());
-    if (parsed.image) await this._decode(parsed.image, 'The picture in that theme is broken');
+    const rec = await this.addTheme(parsed);
+    window.showToast?.(`Imported “${rec.name}” and switched to it`, 'info', 2500);
+    return rec;
+  },
+
+  // A finished theme from outside the editor (a .vextheme file, a Chrome
+  // theme from js/chrome-theme.js): a new id, a name no other theme of yours
+  // has (" 2", " 3"…), its picture kept first, then worn.
+  async addTheme({ name, colors, image = null }) {
+    if (image) {
+      CustomThemes.checkImage(image);
+      await this._decode(image, 'The picture in that theme is broken');
+    }
     const list = this.records();
     const id = CustomThemes.newId(list.map(r => r.id));
     const names = new Set(list.map(r => r.name));
-    let name = parsed.name;
-    for (let n = 2; names.has(name); n++) name = `${parsed.name.slice(0, CustomThemes.NAME_MAX - 4)} ${n}`;
-    const rec = CustomThemes.validateRecord({ id, name, colors: parsed.colors, updated: Date.now() });
-    if (parsed.image) {
-      const r = await window.vex.setCustomThemeImage(parsed.image, id);
+    const first = CustomThemes.cleanName(name);
+    let finalName = first;
+    for (let n = 2; names.has(finalName); n++) finalName = `${first.slice(0, CustomThemes.NAME_MAX - 4)} ${n}`;
+    const rec = CustomThemes.validateRecord({ id, name: finalName, colors: CustomThemes.complete(colors), updated: Date.now() });
+    if (image) {
+      if (!window.vex || typeof window.vex.setCustomThemeImage !== 'function') throw new Error('The picture cannot be kept here');
+      const r = await window.vex.setCustomThemeImage(image, id);
       if (!r || !r.ok) throw new Error('Could not keep its picture: ' + ((r && r.error) || 'no answer'));
     }
     list.push(rec);
     CustomThemes.saveList(list);
     this._changed();
     ThemeManager.applyTheme(id);
-    window.showToast?.(`Imported “${rec.name}” and switched to it`, 'info', 2500);
     return rec;
   },
 

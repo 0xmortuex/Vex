@@ -478,6 +478,8 @@ const ExtensionsSettings = (() => {
       const p = await pick();
       if (!p || p.cancelled) return;
       if (!p.ok) { _toast('Could not install: ' + (p.error || 'unknown'), 'error'); return; }
+      // A Chrome theme's .crx becomes one of your themes (js/chrome-theme.js).
+      if (p.isTheme && typeof ChromeTheme !== 'undefined' && await ChromeTheme.offer(p) !== 'extension') return;
       if (p.refuse) { await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse }); return; }
       if (typeof VexWebStore === 'undefined') { _toast('The install dialog is not available in this window', 'error'); return; }
       const yes = await vexConfirm({
@@ -490,7 +492,7 @@ const ExtensionsSettings = (() => {
       if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); }
       else _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
     };
-    document.getElementById('btn-install-zip')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallZip()));
+    document.getElementById('btn-install-zip')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallZip()).catch(err => _toast('Could not install: ' + ((err && err.message) || err), 'error')));
     document.getElementById('btn-install-folder')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallFolder()));
     container.querySelector('#ext-auto-update')?.addEventListener('change', async (ev) => {
       const box = ev.currentTarget;

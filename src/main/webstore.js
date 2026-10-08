@@ -306,9 +306,15 @@ function cautions(manifest) {
 }
 
 // Why Vex will not install it at all, or null.
+// A Chrome theme is never loaded as an extension: Vex adds it to the user's
+// themes instead (main/chrome-theme.js). One whose manifest also declares
+// extension parts (a background script, content scripts…) is an extension
+// as well, and may be installed as one; its theme is then not used.
 function refusal(manifest) {
   const m = manifest || {};
-  if (m.theme) return 'This is a Chrome theme, not an extension. Vex has its own looks and themes (Settings › Appearance).';
+  if (m.theme && !require('./chrome-theme').codeIn(m, []).keys.length) {
+    return 'This is a Chrome theme, not an extension. Vex adds it to your themes instead: use Add to Vex on its Web Store page, or Settings › Appearance › Chrome theme.';
+  }
   if (m.app) return 'This is a Chrome app, not an extension. Chrome apps do not run in Vex.';
   if (m.manifest_version !== 2 && m.manifest_version !== 3) return `This package's manifest version (${m.manifest_version}) is not one Vex can load.`;
   return null;
@@ -331,6 +337,7 @@ function describe(manifest, messages, { audit } = {}) {
     version: typeof m.version === 'string' ? m.version : '',
     description: localize(m.description, messages) || '',
     manifestVersion: m.manifest_version,
+    isTheme: !!(m.theme && typeof m.theme === 'object'),
     permissions,
     optionalPermissions: strings(m.optional_permissions),
     hostPermissions,
@@ -375,6 +382,14 @@ function createWebStoreInstaller({ fetch, chromeVersion, AdmZip, validateZip, no
       cache.delete(e.id);
       if (e.info.refuse) throw new WebStoreError('incompatible', e.info.refuse);
       return e;
+    },
+    // A theme's colours and pictures, read from the same verified package
+    // (main/chrome-theme.js themePreview). Nothing is installed here: the
+    // window makes it one of the user's themes.
+    async theme(input) {
+      const e = await load(input);
+      if (!e.info.isTheme) throw new WebStoreError('not-theme', 'This package is not a Chrome theme.');
+      return require('./chrome-theme').themePreview(e.archive, { AdmZip, validateZip });
     },
   };
 }

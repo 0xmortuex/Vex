@@ -213,15 +213,16 @@ const ThemeFromImage = (function (root) {
     },
 
     // How much of the theme's background to lay over the picture, under the
-    // New Tab's own scrim, so its text and muted text read over the picture's
-    // most contrary pixel. 0 = the picture as it is.
+    // New Tab's own scrim, so its text, muted text and the text it draws in
+    // the accent (the wordmark, links) read over the picture's most contrary
+    // pixel. 0 = the picture as it is.
     pictureTint(colors, summary) {
       const C = ct();
       const c = C.complete(colors);
       const worst = C.isLight(c) ? summary.darkest : summary.lightest;
       const reads = (alpha) => {
         const under = C.mix(worst, c.background, alpha);
-        return C.contrast(c.text, under) >= this.NEWTAB_MIN && C.contrast(c.muted, under) >= this.NEWTAB_MIN;
+        return [c.text, c.muted, c.primary].every(ink => C.contrast(ink, under) >= this.NEWTAB_MIN);
       };
       if (reads(this.NEWTAB_SCRIM)) return 0;
       let a = this.NEWTAB_SCRIM;

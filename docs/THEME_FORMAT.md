@@ -111,7 +111,7 @@ measured against every surface listed and the worst one counts:
 |---|---|---|
 | Text | text | background, surface, deep, active tab, New Tab glow* |
 | Muted text | muted | background, surface, deep, New Tab glow* |
-| Accent as text (links) | primary | background, surface, deep |
+| Accent as text (links) | primary | background, surface, deep, New Tab glow* |
 | Text on the accent | on-primary | primary, accent hover |
 | Success / Warning / Danger | each | background, surface, deep |
 

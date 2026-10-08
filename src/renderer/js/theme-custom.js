@@ -229,7 +229,8 @@ const CustomThemes = (function (root) {
       const list = [
         { key: 'text', label: 'Text', fg: c.text, on: [s.bg, s.surf, s.deep, s.tabActive, s.glow] },
         { key: 'muted', label: 'Muted text', fg: c.muted, on: [s.bg, s.surf, s.deep, s.glow] },
-        { key: 'primary', label: 'Accent as text (links)', fg: c.primary, on: [s.bg, s.surf, s.deep] },
+        // The New Tab draws its wordmark and links in the accent over its glow.
+        { key: 'primary', label: 'Accent as text (links)', fg: c.primary, on: [s.bg, s.surf, s.deep, s.glow] },
         { key: 'onPrimary', label: 'Text on the accent', fg: s.onPrimary, on: [c.primary, s.hover] },
         { key: 'success', label: 'Success', fg: c.success, on: [s.bg, s.surf, s.deep] },
         { key: 'warning', label: 'Warning', fg: c.warning, on: [s.bg, s.surf, s.deep] },
