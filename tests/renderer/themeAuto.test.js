@@ -206,12 +206,62 @@ describe('switching', () => {
     await new Promise(r => setTimeout(r, 0));
     TM.applyTheme('nord');   // a pick: userChoice
     expect(TA.state()).toMatchObject({ light: 'oxford', dark: 'nord' });
-    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Nord is now your dark theme'), 'info', 4500);
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringContaining('Nord is now your dark theme — Oxford Editorial comes back when Windows turns light'), 'info', 6000);
     // and the next evaluation keeps it rather than putting Dracula back
     TA.evaluate();
     expect(TM.getCurrentTheme()).toBe('nord');
     expect(TA.slotOf('nord')).toBe('dark');
-    expect(TA.pickerNote()).toContain('becomes your dark theme');
+    expect(TA.pickerNote()).toContain('A light theme you pick becomes your light theme and a dark one your dark theme');
+  });
+
+  // Picking Catppuccin Latte at night made it the DARK theme (final review,
+  // 2026-10-09): a pick fills the slot of its own lightness and shows now.
+  it('a light theme picked in the dark hours becomes the light theme, shows now, and the dark theme comes back at the next dark', async () => {
+    stubSystem(false);
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'dracula', from: '19:00', to: '07:00' }));
+    const { TM, TA } = await load();
+    TA._clock = () => new Date(2026, 9, 8, 23, 0);
+    await TM.init();
+    await new Promise(r => setTimeout(r, 0));
+    expect(TM.getCurrentTheme()).toBe('dracula');
+    TM.applyTheme('firefox-light');   // a light theme, picked at 23:00
+    expect(TA.state()).toMatchObject({ light: 'firefox-light', dark: 'dracula', held: { theme: 'firefox-light', dark: true } });
+    expect(window.showToast).toHaveBeenLastCalledWith(
+      'Firefox Light is now your light theme, shown now and kept when it turns light at 07:00. Dracula comes back when it turns dark.', 'info', 6000);
+    TA.evaluate();                    // a tick in the same night keeps it
+    expect(TM.getCurrentTheme()).toBe('firefox-light');
+    expect(TA.statusText(TA.state(), null)).toContain('showing Firefox Light (picked by hand)');
+    // a restart in the same night starts in it too
+    expect(await TA.bootTheme()).toBe('firefox-light');
+    TA._clock = () => new Date(2026, 9, 9, 7, 0);   // morning: it is the light theme anyway
+    TA.evaluate();
+    expect(TM.getCurrentTheme()).toBe('firefox-light');
+    expect(TA.state().held).toBeUndefined();
+    TA._clock = () => new Date(2026, 9, 9, 19, 0);  // evening: the dark theme comes back
+    TA.evaluate();
+    expect(TM.getCurrentTheme()).toBe('dracula');
+  });
+
+  it('a dark theme picked in the light hours becomes the dark theme and shows now; a matching pick says when the other comes back', async () => {
+    stubSystem(false);
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'dracula', from: '19:00', to: '07:00' }));
+    const { TM, TA } = await load();
+    TA._clock = () => new Date(2026, 9, 8, 12, 0);
+    await TM.init();
+    await new Promise(r => setTimeout(r, 0));
+    TM.applyTheme('nord');
+    expect(TA.state()).toMatchObject({ light: 'oxford', dark: 'nord', held: { theme: 'nord', dark: false } });
+    TA.evaluate();
+    expect(TM.getCurrentTheme()).toBe('nord');
+    TM.applyTheme('paperred');        // a light theme in the light hours: no hold
+    expect(TA.state()).toMatchObject({ light: 'paperred', dark: 'nord' });
+    expect(TA.state().held).toBeUndefined();
+    expect(window.showToast).toHaveBeenLastCalledWith(expect.stringContaining('is now your light theme — Nord comes back when it turns dark at 19:00'), 'info', 6000);
+    // Settings choosing a slot lets go of a hold
+    TM.applyTheme('nord');
+    TA.set({ light: 'oxford' });
+    expect(TA.state().held).toBeUndefined();
+    expect(TM.getCurrentTheme()).toBe('oxford');
   });
 
   it('switches a browser look to its light or dark version with the theme', async () => {

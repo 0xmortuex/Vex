@@ -12,9 +12,11 @@
 //               not offered. Nothing is looked up on the network.
 //   'off'       one theme, as before.
 //
-// A theme picked by hand while this is on becomes the slot for the mode Vex is
-// in right now (picked at night = the dark theme), so what you pick is what you
-// see. The browser looks that come in a light and a dark version (Firefox,
+// A theme picked by hand while this is on fills the slot that matches its own
+// lightness (a light theme is the light theme, whatever the hour) and is shown
+// at once. A light theme picked in the dark hours is held on screen until the
+// next switch, which then wears it anyway as the light theme (state.held:
+// { theme, dark } - dropped at that switch). The browser looks that come in a light and a dark version (Firefox,
 // Chrome, Fluent) switch with it, so their chrome changes too.
 //
 // Stored as one JSON value under 'vex.themeAuto' (synced, and cleared by Reset).
@@ -201,8 +203,15 @@ const ThemeAuto = {
     if (st.mode === 'system') await this._readSystem();
     const dark = this.resolveDark(st, this._ctx());
     if (dark == null) return null;
-    const id = dark ? st.dark : st.light;
+    const id = this._heldFor(st, dark) || (dark ? st.dark : st.light);
     return this._valid(id) ? id : null;
+  },
+
+  // The theme picked by hand against the hour, while that hour lasts.
+  _heldFor(st, dark) {
+    const h = st.held;
+    if (!h || typeof h !== 'object' || h.dark !== dark || !this._valid(h.theme)) return null;
+    return h.theme;
   },
 
   async _readSystem() {
@@ -225,7 +234,9 @@ const ThemeAuto = {
     if (dark == null) { this.renderSettings(); return null; }
     const changed = dark !== this._lastDark;
     this._lastDark = dark;
-    const want = dark ? st.dark : st.light;
+    // A hand pick held against the hour ends at the switch.
+    if (st.held && !this._heldFor(st, dark)) { const rest = { ...st }; delete rest.held; this.save(rest); }
+    const want = this._heldFor(st, dark) || (dark ? st.dark : st.light);
     let applied = false;
     if (this._valid(want) && typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme !== want) {
       ThemeManager.applyTheme(want, { auto: true });
@@ -276,7 +287,9 @@ const ThemeAuto = {
     this.save({ ...st, coloursByAuto: true });
   },
 
-  // A theme picked by hand while this is on fills the slot for now.
+  // A theme picked by hand while this is on fills the slot that matches its
+  // own lightness and stays on screen now. Picking Catppuccin Latte at night
+  // used to make it the DARK theme (final review, 2026-10-09).
   _onThemeChanged(e) {
     const d = e && e.detail;
     if (!d || !d.userChoice || d.auto) return;
@@ -285,12 +298,35 @@ const ThemeAuto = {
     if (this.state().coloursByAuto) this.save({ ...this.state(), coloursByAuto: false });
     const st = this.state();
     if (st.mode === 'off') return;
+    const meta = this._themes().find(t => t.id === d.theme);
+    if (!meta) return;
+    const light = this.isLightTheme(meta);
+    const slot = light ? 'light' : 'dark';
+    const next = { ...st, [slot]: d.theme };
     const dark = this._lastDark != null ? this._lastDark : this.resolveDark(st, this._ctx());
-    if (dark == null) return;
-    const slot = dark ? 'dark' : 'light';
-    const other = dark ? st.light : st.dark;
-    if (st[slot] !== d.theme) { this.save({ ...st, [slot]: d.theme }); this.renderSettings(); }
-    window.showToast?.(`${this._label(d.theme)} is now your ${slot} theme — ${this._label(other)} comes back when it turns ${dark ? 'light' : 'dark'}`, 'info', 4500);
+    // Against the hour (a light theme at night): held until the next switch.
+    const against = dark != null && dark === light;
+    if (against) next.held = { theme: d.theme, dark };
+    else delete next.held;
+    this.save(next);
+    this.renderSettings();
+    window.showToast?.(this.pickToast(d.theme, slot, against, dark, next), 'info', 6000);
+  },
+
+  // What a hand pick did and what happens at the next switch.
+  pickToast(id, slot, against, dark, st) {
+    const name = this._label(id);
+    const other = slot === 'light' ? 'dark' : 'light';
+    const otherName = this._label(st[other]);
+    const when = (toDark, withTime) => {
+      const word = toDark ? 'dark' : 'light';
+      if (st.mode === 'system') return `when Windows turns ${word}`;
+      const next = withTime ? this.nextChange(st, this._clock(), this.coords()) : null;
+      return next ? `when it turns ${word} at ${this.formatHM(next.getHours() * 60 + next.getMinutes())}` : `when it turns ${word}`;
+    };
+    if (dark == null) return `${name} is now your ${slot} theme — ${otherName} stays your ${other} theme`;
+    if (against) return `${name} is now your ${slot} theme, shown now and kept ${when(!dark, true)}. ${otherName} comes back ${when(dark, false)}.`;
+    return `${name} is now your ${slot} theme — ${otherName} comes back ${when(!dark, true)}`;
   },
 
   // For the theme picker: which slot a theme holds, and what a pick does.
@@ -305,8 +341,8 @@ const ThemeAuto = {
     const st = this.state();
     if (st.mode === 'off') return '';
     const dark = this._lastDark != null ? this._lastDark : this.resolveDark(st, this._ctx());
-    if (dark == null) return 'Light and dark is on. Settings › Appearance sets your light and dark themes.';
-    return `Light and dark is on and it is ${dark ? 'dark' : 'light'} now, so the theme you pick becomes your ${dark ? 'dark' : 'light'} theme. Your ${dark ? 'light' : 'dark'} theme stays ${this._label(dark ? st.light : st.dark)}.`;
+    if (dark == null) return 'Light and dark is on. A light theme you pick becomes your light theme, a dark one your dark theme.';
+    return `Light and dark is on and it is ${dark ? 'dark' : 'light'} now. A light theme you pick becomes your light theme and a dark one your dark theme, and either shows now. Light: ${this._label(st.light)}. Dark: ${this._label(st.dark)}.`;
   },
 
   async start() {
@@ -344,6 +380,8 @@ const ThemeAuto = {
   set(patch) {
     const before = this.state();
     const next = { ...before, ...patch };
+    // Settings decides the slots now: a theme held from a hand pick lets go.
+    delete next.held;
     if (next.mode !== 'off') {
       const cur = typeof ThemeManager !== 'undefined' ? ThemeManager.currentTheme : 'oxford';
       const slots = this.defaultSlots(cur, this._themes());
@@ -445,8 +483,11 @@ const ThemeAuto = {
     const dark = this.resolveDark(st, ctx);
     if (st.mode === 'sun' && !coords) return 'No location set, so the sun times are unknown and the theme stays as it is. Set one under Location.';
     if (dark == null) return 'Waiting to hear whether Windows is in light or dark mode.';
-    const now = `Now ${dark ? 'dark' : 'light'}: ${this._label(dark ? st.dark : st.light)}.`;
-    const pickNote = ` A theme you pick by hand becomes your ${dark ? 'dark' : 'light'} theme.`;
+    const held = this._heldFor(st, dark);
+    const now = held
+      ? `Now ${dark ? 'dark' : 'light'}, showing ${this._label(held)} (picked by hand).`
+      : `Now ${dark ? 'dark' : 'light'}: ${this._label(dark ? st.dark : st.light)}.`;
+    const pickNote = ' A theme you pick by hand becomes your light or dark theme, whichever it is.';
     if (st.mode === 'system') return `${now} Windows is in ${dark ? 'dark' : 'light'} mode.` + pickNote;
     const next = this.nextChange(st, ctx.now, coords);
     const at = next ? ` until ${this.formatHM(next.getHours() * 60 + next.getMinutes())}` : '';
