@@ -457,6 +457,8 @@ let _guestWantedKeys = new Set();
 ipcMain.on('shortcuts:guest-keys', (event, combos) => {
   if (!secureSessions.isUiFrame(event)) return;
   _guestWantedKeys = new Set((Array.isArray(combos) ? combos : []).filter(c => typeof c === 'string').slice(0, 300));
+  // A key Vex took or gave up changes which extension shortcuts are live.
+  _extKeysChanged();
 });
 
 // The shortcut editor records a key in the main window's page, but the keys
@@ -2573,14 +2575,37 @@ async function _loadExtensionEverywhere(extPath, manifest) {
 // showed "On" with no background at all (found 2026-09-29). A few seconds
 // after loading, persist:main is asked to start the worker; a refusal is
 // recorded, so the manager says why the extension does nothing.
-const BACKGROUND_CHECK_MS = 4000;
+//
+// It waits for the worker's own start: a fresh profile on a busy machine took
+// 6 to 11 seconds to register one, and the check that asked at 4 seconds was
+// refused ("Failed to start service worker") and said "did not start" about a
+// worker that ran a few seconds later (found 2026-10-08). Only a worker that
+// has not run after BACKGROUND_WAIT_MS is asked to start, and a refusal then
+// is the real failure.
+const BACKGROUND_WAIT_MS = 30000;
+const _extWorkersRan = new Set(); // `${partition}\n${scope}` of workers that reached "running"
+function _noteWorkerRunning(ses, versionId) {
+  const info = ses.serviceWorkers.getAllRunning()[versionId];
+  if (info && String(info.scope || '').startsWith('chrome-extension://')) _extWorkersRan.add(_partitionKey(ses) + '\n' + info.scope);
+}
+function _workerHasRun(ses, scope) {
+  if (_extWorkersRan.has(_partitionKey(ses) + '\n' + scope)) return true;
+  return Object.values(ses.serviceWorkers.getAllRunning()).some(info => info.scope === scope);
+}
 function _checkBackgroundStarts(folder, extPath) {
-  setTimeout(() => {
-    const ses = secureSessions.fromPartition('persist:main');
+  const ses = secureSessions.fromPartition('persist:main');
+  const started = Date.now();
+  const tick = () => {
     const ext = ses.getAllExtensions().find(x => path.resolve(x.path) === path.resolve(extPath));
     const worker = ext && ext.manifest && ext.manifest.background && ext.manifest.background.service_worker;
-    if (!worker) return;
-    ses.serviceWorkers.startWorkerForScope(`chrome-extension://${ext.id}/`).then(() => {
+    if (!worker) return; // unloaded meanwhile, or no worker to check
+    const scope = `chrome-extension://${ext.id}/`;
+    if (_workerHasRun(ses, scope)) {
+      if (/^Its background did not start/.test(_extLoadErrors.get(folder) || '')) _extLoadErrors.delete(folder);
+      return;
+    }
+    if (Date.now() - started < BACKGROUND_WAIT_MS) { setTimeout(tick, 500); return; }
+    ses.serviceWorkers.startWorkerForScope(scope).then(() => {
       if (/^Its background did not start/.test(_extLoadErrors.get(folder) || '')) _extLoadErrors.delete(folder);
     }, err => {
       // Unloaded (switched off, uninstalled, updated) meanwhile: nothing to say.
@@ -2589,7 +2614,8 @@ function _checkBackgroundStarts(folder, extPath) {
       _extLoadErrors.set(folder, why);
       console.error(`[Extensions] ${folder}: ${why}`);
     });
-  }, BACKGROUND_CHECK_MS);
+  };
+  setTimeout(tick, 500);
 }
 
 // Unload one installed folder from every session that could be holding it.
@@ -2598,7 +2624,11 @@ function _unloadFromAllSessions(extPath) {
   for (const ses of sessions) {
     try {
       for (const ext of ses.getAllExtensions()) {
-        if (path.resolve(ext.path) === path.resolve(extPath)) ses.removeExtension(ext.id);
+        if (path.resolve(ext.path) !== path.resolve(extPath)) continue;
+        ses.removeExtension(ext.id);
+        // Switched off, uninstalled or updated: its menu items and badge go
+        // (an update makes them again when it starts, as in Chrome).
+        _extUi.forgetExtension(ext.id);
       }
     } catch (err) {
       console.error('[Extensions] unload failed:', err.message);
@@ -2731,6 +2761,8 @@ async function _activateInstalledFolder(destFolder, copyToUpdate) {
     const name = extHelpers.localize(manifest.name, extHelpers.readMessages(destFolder, manifest.default_locale));
     return { ok: true, id: null, name: name || path.basename(destFolder), version: manifest.version, afterRestart: true, folder: path.basename(destFolder) };
   }
+  // Told "install" when it starts (chrome.runtime.onInstalled, _extTellInstalled).
+  _freshInstalls.add(path.basename(destFolder));
   const { extension, errors } = await _loadExtensionEverywhere(destFolder);
   if (!extension) {
     try { fs.rmSync(destFolder, { recursive: true, force: true }); }
@@ -2776,6 +2808,8 @@ async function loadAllExtensionsOnStartup() {
   // stale build left behind by a locked-file delete can't shadow the new one.
   _dedupeVencordFolders();
   _migrateFileAccess();
+  // Before any extension starts, so one that adds to its saved items finds them.
+  _restoreExtensionMenus();
   const disabled = _readDisabledFolders();
   for (const entry of _extEntries()) {
     if (entry.error && !entry.manifest) { _extLoadErrors.set(entry.folder, entry.error); continue; }
@@ -2812,6 +2846,7 @@ ipcMain.handle('extensions:list', () => {
   const scopes = _readScopes();
   const sources = _readSources();
   const fileAccess = _fileAccessState();
+  const pins = _readExtPins();
   let updates = null, updatesError = null;
   try { updates = _extUpdates.readState(extensionsDir); }
   catch (err) { updatesError = `The extension update record is unreadable (${err.message}).`; console.error('[Extensions]', updatesError); }
@@ -2836,6 +2871,11 @@ ipcMain.handle('extensions:list', () => {
       enabled: !disabled.has(e.folder),
       loaded: !!live,
       hasPopup: !!pages.popup,
+      // A toolbar button with no popup: a click on it is the extension's own
+      // (chrome.action.onClicked).
+      hasAction: !!(manifest.action || manifest.browser_action),
+      // Pinned to the toolbar (main.js, extensions:set-pinned).
+      pinned: pins.includes(e.folder),
       hasOptions: !!pages.options,
       optionsUrl: (live && pages.options)
         ? `chrome-extension://${live.id}/${String(pages.options).replace(/^\/+/, '')}`
@@ -2854,7 +2894,7 @@ ipcMain.handle('extensions:list', () => {
       // (src/main/extension-audit.js).
       audit: require('./main/extension-audit').auditOne(e),
       error: e.error || _extLoadErrors.get(e.folder) || (_boot.safeMode ? 'Not loaded: Vex started in safe mode' : null),
-      stateError: _extStateError || _fileAccessError || updatesError
+      stateError: _extStateError || _fileAccessError || updatesError || _extPinsError
     };
   });
 });
@@ -3675,12 +3715,482 @@ function _wireExtensionWorkerIpc(ses) {
     worker.ipc.handle('extensions:open-tab', (_event, request) => _openTabForExtension(worker.scriptURL, ses, request));
     worker.ipc.handle('extensions:close-tab', (_event, request) => _closeTabsForExtension(worker.scriptURL, ses, request));
     worker.ipc.handle('extensions:active-tabs', () => _activeTabsFor(worker.scriptURL, ses));
+    worker.ipc.handle('extensions:api', (_event, request) => _extApi(worker.scriptURL, ses, request));
   };
   ses.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
     if (runningStatus === 'starting' || runningStatus === 'running') wire(versionId);
+    if (runningStatus === 'running') _noteWorkerRunning(ses, versionId);
   });
   for (const versionId of Object.keys(ses.serviceWorkers.getAllRunning())) wire(Number(versionId));
+  _watchExtensionLoads(ses);
 }
+
+// === Extension menus, badges and shortcuts ===============================
+// chrome.contextMenus, chrome.action's badge and title, and chrome.commands
+// (src/main/extension-ui.js, src/main/extension-commands.js). Electron has
+// none of them; the stand-ins in the extension's pages and service worker
+// bring every call here (extensions:api), the interface draws the items and
+// the badge (js/ext-ui.js), and the clicks and keys come back here to be
+// told to the extension (extensions:event). Per session: a container's copy
+// of an extension is a separate one. Private, Off-the-Record and Tor tabs
+// load no extensions, so nothing of this reaches them.
+const _extCmds = require('./main/extension-commands');
+const _extMenuModel = require('./renderer/js/ext-menu-model');
+const EXT_MENUS_FILE = path.join(userDataPath, 'extension-menus.json');
+const _extUi = require('./main/extension-ui').createExtensionUi({ onChange: () => _extUiChanged() });
+let _extUiPushTimer = null, _extMenusSaveTimer = null;
+let _extMetaCache = null;     // extension id → { folder, name, iconPath, hasPopup }
+let _extCommandsCache = null; // extension-commands resolve() result
+let _extCommandsError = null;
+
+// The partition a session is known by ('' for the default session), as a tab's
+// <webview partition> names it.
+function _partitionKey(ses) { return secureSessions.partitionOf({ session: ses }); }
+// The session a partition names, among those already made (none is made here).
+function _sessionForKey(key) {
+  if (key === '') return session.defaultSession;
+  for (const ses of secureSessions.sessions) if (_partitionKey(ses) === key) return ses;
+  return null;
+}
+
+// A session's extensions (session.extensions; the calls on the session itself
+// are deprecated).
+function _exts(ses) { return ses.extensions || ses; }
+
+const _watchedExtSessions = new WeakSet();
+function _watchExtensionLoads(ses) {
+  if (_watchedExtSessions.has(ses)) return;
+  _watchedExtSessions.add(ses);
+  const changed = () => { _extMetaCache = null; _extCommandsCache = null; _extUiChanged(); };
+  _exts(ses).on('extension-loaded', changed);
+  _exts(ses).on('extension-unloaded', changed);
+  _exts(ses).on('extension-ready', (_event, ext) => _extTellInstalled(ses, ext));
+}
+
+// chrome.runtime.onInstalled. Electron never fires it, and most extensions
+// make their right-click menu items there and nowhere else (Chrome keeps the
+// items afterwards): with nothing firing it they had none (found 2026-10-08).
+// Vex fires it once per version in each session the extension runs in (a
+// container's copy is a separate one): "install" for one just installed,
+// "update" with the version it replaced, and "chrome_update" — the reason
+// Chrome gives when the browser itself was updated — for one that was already
+// there, so no extension takes a Vex update or a new container for a fresh
+// install (no "thanks for installing" tab).
+const EXT_INSTALLS_FILE = path.join(userDataPath, 'extension-installs.json');
+const _freshInstalls = new Set(); // folders installed while Vex runs
+function _readExtInstalls() {
+  if (!fs.existsSync(EXT_INSTALLS_FILE)) return {};
+  const parsed = JSON.parse(fs.readFileSync(EXT_INSTALLS_FILE, 'utf-8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('extension-installs.json is corrupt');
+  return parsed;
+}
+async function _extTellInstalled(ses, ext) {
+  if (!ext || !ext.path) return;
+  const folder = path.basename(ext.path);
+  const partition = _partitionKey(ses);
+  const version = String((ext.manifest && ext.manifest.version) || '');
+  let installs;
+  try { installs = _readExtInstalls(); }
+  catch (err) { console.error(`[Extensions] ${folder}: not told it is installed — ${err.message}`); return; }
+  const before = installs[folder] && installs[folder][partition];
+  if (before === version) return;
+  let details;
+  if (before) details = { reason: 'update', previousVersion: before };
+  else if (_freshInstalls.has(folder) && partition === 'persist:main') details = { reason: 'install' };
+  else details = { reason: 'chrome_update' };
+  // The service worker is not registered yet when the extension is ready, and
+  // asking Electron to start it then failed it for good ("Failed to start
+  // service worker", found 2026-10-08): wait until it runs by itself, as it
+  // does once registered (seconds after loading on a fresh profile).
+  if (ext.manifest && ext.manifest.background && ext.manifest.background.service_worker) {
+    const scope = `chrome-extension://${ext.id}/`;
+    for (let i = 0; i < 150; i++) {
+      if (Object.values(ses.serviceWorkers.getAllRunning()).some(info => info.scope === scope)) break;
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+  let lastErr = null;
+  for (const wait of [300, 1000, 2000, 4000]) {
+    await new Promise(r => setTimeout(r, wait));
+    if (!_exts(ses).getExtension(ext.id)) return; // unloaded meanwhile
+    try { await _extDispatch(ses, ext.id, 'runtime.onInstalled', [details]); lastErr = null; break; }
+    catch (err) { lastErr = err; }
+  }
+  if (lastErr) { console.error(`[Extensions] ${folder}: could not tell it it is installed — ${lastErr.message}`); return; }
+  try {
+    const now = _readExtInstalls();
+    now[folder] = { ...(now[folder] || {}), [partition]: version };
+    fs.writeFileSync(EXT_INSTALLS_FILE, JSON.stringify(now, null, 1));
+  } catch (err) { console.error(`[Extensions] ${folder}: could not record that it was told it is installed — ${err.message}`); }
+}
+
+function _extMeta() {
+  if (_extMetaCache) return _extMetaCache;
+  const meta = new Map();
+  const entries = new Map(_extEntriesOnDisk().map(e => [path.resolve(e.path), e]));
+  const sessions = [session.defaultSession, ...secureSessions.sessions];
+  for (const ses of sessions) {
+    for (const ext of _exts(ses).getAllExtensions()) {
+      if (meta.has(ext.id)) continue;
+      const e = entries.get(path.resolve(ext.path));
+      if (!e || !e.manifest) continue;
+      const icon = extHelpers.pickIcon(e.manifest);
+      meta.set(ext.id, { folder: e.folder, name: extHelpers.localize(e.manifest.name, e.messages) || e.folder,
+        iconPath: icon ? path.join(e.path, icon) : null, hasPopup: !!extHelpers.pickPages(e.manifest).popup });
+    }
+  }
+  _extMetaCache = meta;
+  return meta;
+}
+
+// Extensions pinned to the toolbar, by folder, in the order pinned
+// (<extensions>/pinned.json). Unreadable, none show and the manager says why.
+const EXT_PINS_FILE = 'pinned.json';
+let _extPinsError = null;
+function _readExtPins() {
+  const file = path.join(extensionsDir, EXT_PINS_FILE);
+  try {
+    if (!fs.existsSync(file)) { _extPinsError = null; return []; }
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (!Array.isArray(parsed)) throw new Error('expected a list of folders');
+    _extPinsError = null;
+    return parsed.filter(f => typeof f === 'string');
+  } catch (err) {
+    _extPinsError = `The pinned extensions could not be read (${err.message}).`;
+    console.error('[Extensions]', _extPinsError);
+    return [];
+  }
+}
+ipcMain.handle('extensions:set-pinned', (_event, folder, pinned) => {
+  if (!_extEntriesOnDisk().some(e => e.folder === folder)) return { ok: false, error: 'That extension is not installed' };
+  const pins = _readExtPins().filter(f => f !== folder);
+  if (_extPinsError) return { ok: false, error: _extPinsError };
+  if (pinned) pins.push(folder);
+  try {
+    fs.mkdirSync(extensionsDir, { recursive: true });
+    fs.writeFileSync(path.join(extensionsDir, EXT_PINS_FILE), JSON.stringify(pins, null, 1));
+  } catch (err) { return { ok: false, error: `Could not save it: ${err.message}` }; }
+  _extUiChanged();
+  return { ok: true, pinned: !!pinned };
+});
+
+// What the interface draws: only extensions loaded in that session now.
+function _extUiSnapshot() {
+  const snap = _extUi.snapshot();
+  const meta = _extMeta();
+  let loaded = [];
+  try { loaded = _exts(secureSessions.fromPartition('persist:main')).getAllExtensions().map(x => path.basename(x.path)).sort(); }
+  catch (err) { console.error('[Extensions] could not read the loaded extensions:', err.message); }
+  // The pinned ones (in pin order), and which are running, so the toolbar
+  // knows when to draw its buttons again.
+  const out = { menus: {}, action: {}, exts: {}, pins: _readExtPins(), loaded };
+  for (const kind of ['menus', 'action']) {
+    for (const [p, byExt] of Object.entries(snap[kind])) {
+      const ses = _sessionForKey(p);
+      for (const [id, value] of Object.entries(byExt)) {
+        if (!ses || !_exts(ses).getExtension(id) || !meta.has(id)) continue;
+        (out[kind][p] = out[kind][p] || {})[id] = value;
+        out.exts[id] = meta.get(id);
+      }
+    }
+  }
+  return out;
+}
+function _extUiChanged() {
+  if (!_extUiPushTimer) {
+    _extUiPushTimer = setTimeout(() => {
+      _extUiPushTimer = null;
+      const snap = _extUiSnapshot();
+      for (const host of secureSessions.hosts.values()) {
+        if (host.win && !host.win.isDestroyed()) host.win.webContents.send('extensions:ui-state', snap);
+      }
+    }, 30);
+  }
+  if (!_extMenusSaveTimer) {
+    _extMenusSaveTimer = setTimeout(() => { _extMenusSaveTimer = null; _saveExtensionMenus(); }, 500);
+  }
+}
+
+// Menu items survive a restart for an extension whose background stops when
+// idle (a service worker, or an MV2 event page): Chrome keeps them, and such
+// an extension makes them once, when installed.
+function _idleBackground(manifest) {
+  const bg = (manifest && manifest.background) || {};
+  return !!bg.service_worker || bg.persistent === false;
+}
+function _saveExtensionMenus() {
+  const data = _extUi.saved((p, id) => {
+    const ses = _sessionForKey(p);
+    const ext = ses && _exts(ses).getExtension(id);
+    return !!ext && _idleBackground(ext.manifest);
+  });
+  atomicWrite(EXT_MENUS_FILE, JSON.stringify(data), { backup: false })
+    .catch(err => console.error('[Extensions] could not save the extensions\' menu items:', err.message));
+}
+function _restoreExtensionMenus() {
+  if (!fs.existsSync(EXT_MENUS_FILE)) return;
+  try { _extUi.restore(JSON.parse(fs.readFileSync(EXT_MENUS_FILE, 'utf-8'))); }
+  catch (err) { console.error('[Extensions] the saved menu items could not be read, so extensions start without them:', err.message); }
+}
+
+// Tell an extension something, in every context of it in that session that
+// listens: its pages (background page, popup, options) and its service
+// worker, which is started for it if it was asleep (as Chrome wakes it).
+async function _extDispatch(ses, extId, type, args) {
+  const msg = { type, args };
+  const prefix = `chrome-extension://${extId}/`;
+  let reached = 0;
+  for (const wc of webContents.getAllWebContents()) {
+    if (wc.isDestroyed() || wc.session !== ses) continue;
+    let url;
+    try { url = wc.getURL(); } catch { url = ''; }
+    if (!url.startsWith(prefix)) continue;
+    // A page still loading has not set its listeners yet.
+    if (wc.isLoading()) await new Promise(r => { wc.once('did-stop-loading', r); setTimeout(r, 5000); });
+    if (wc.isDestroyed()) continue;
+    wc.send('extensions:event', msg);
+    reached++;
+  }
+  const ext = _exts(ses).getExtension(extId);
+  if (ext && ext.manifest && ext.manifest.background && ext.manifest.background.service_worker) {
+    let worker = null;
+    for (const [versionId, info] of Object.entries(ses.serviceWorkers.getAllRunning())) {
+      if (info.scope === prefix) { worker = ses.serviceWorkers.getWorkerFromVersionID(Number(versionId)); break; }
+    }
+    if (!worker || worker.isDestroyed()) worker = await ses.serviceWorkers.startWorkerForScope(prefix);
+    worker.send('extensions:event', msg);
+    reached++;
+  }
+  if (!reached) throw new Error(`${type}: the extension has nothing running to tell`);
+}
+
+// The tab an extension hears about, as chrome.tabs describes it. Its address
+// and title only for an extension allowed to read them ("tabs", "activeTab" —
+// a click on its item or button grants it — or a host permission for it).
+function _extTabFor(ext, page) {
+  if (!page || page.isDestroyed()) return undefined;
+  const m = (ext && ext.manifest) || {};
+  const perms = [].concat(m.permissions || [], m.host_permissions || []).filter(p => typeof p === 'string');
+  const url = page.getURL();
+  const host = perms.some(p => {
+    if (!/[:/*<]/.test(p)) return false;
+    try { return _extMenuModel.matchPattern(p, url); } catch { return false; }
+  });
+  const tab = { id: page.id, index: 0, windowId: 0, active: true, highlighted: true, selected: true, pinned: false,
+    audible: page.isCurrentlyAudible(), discarded: false, autoDiscardable: true, incognito: false, groupId: -1,
+    mutedInfo: { muted: page.isAudioMuted() }, status: page.isLoading() ? 'loading' : 'complete' };
+  if (perms.includes('tabs') || perms.includes('activeTab') || host) { tab.url = url; tab.title = page.getTitle(); }
+  return tab;
+}
+// A tab (page) id from the interface, if it is a page in that session.
+function _extPage(ses, id) {
+  const page = Number.isSafeInteger(id) && id > 0 ? webContents.fromId(id) : null;
+  return page && !page.isDestroyed() && page.session === ses ? page : null;
+}
+
+// action.setPopup / the popup opened: one of the extension's own pages.
+function _extPopupUrlOf(ext, page) {
+  const u = new URL(String(page).replace(/^\/+/, ''), `chrome-extension://${ext.id}/`);
+  if (u.protocol !== 'chrome-extension:' || u.host !== ext.id) throw new Error('A popup must be one of the extension\'s own pages');
+  return u.href;
+}
+// The popup for a tab: what action.setPopup set for it or for every tab,
+// else the manifest's. '' is none.
+function _extPopupUrl(ses, ext, tabId, manifestPopup) {
+  const page = _extUi.actionGet(_partitionKey(ses), ext.id, 'popup', tabId, { popup: manifestPopup || '' });
+  return page ? _extPopupUrlOf(ext, page) : '';
+}
+// action.setIcon's imageData ({ width, height, data: RGBA numbers }, made
+// plain by the stand-ins) as a PNG, or its path as a file of the extension.
+function _extIconValue(ext, value) {
+  if (value == null) return null;
+  if (typeof value.path === 'string') {
+    const root = path.resolve(ext.path);
+    const full = path.resolve(root, value.path.replace(/^\/+/, ''));
+    if (!full.startsWith(root + path.sep)) throw new Error('The icon must be a file of the extension');
+    if (!fs.existsSync(full)) throw new Error(`Could not load the icon ${value.path}`);
+    return full;
+  }
+  const img = value.imageData;
+  if (img && Number.isInteger(img.width) && Number.isInteger(img.height) && img.width > 0 && img.height > 0 && img.width <= 256 && img.height <= 256
+    && Array.isArray(img.data) && img.data.length === img.width * img.height * 4) {
+    // Electron's bitmaps are BGRA.
+    const buf = Buffer.alloc(img.data.length);
+    for (let i = 0; i < img.data.length; i += 4) { buf[i] = img.data[i + 2]; buf[i + 1] = img.data[i + 1]; buf[i + 2] = img.data[i]; buf[i + 3] = img.data[i + 3]; }
+    return nativeImage.createFromBitmap(buf, { width: img.width, height: img.height }).toDataURL();
+  }
+  throw new Error('setIcon needs imageData or a path');
+}
+
+// --- Asked by the extension (the stand-ins).
+async function _extApi(senderUrl, ses, request) {
+  const m = /^chrome-extension:\/\/([a-p]{32})\//.exec(String(senderUrl || ''));
+  if (!m) throw new Error('Only an extension can ask this');
+  const extId = m[1];
+  const ext = _exts(ses).getExtension(extId);
+  if (!ext) throw new Error('This extension is not loaded here');
+  const r = request && typeof request === 'object' ? request : {};
+  const args = r.args && typeof r.args === 'object' ? r.args : {};
+  const manifest = ext.manifest || {};
+  const partition = _partitionKey(ses);
+  const perms = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+  const needMenus = () => { if (!perms.includes('contextMenus') && !perms.includes('menus')) throw new Error('The "contextMenus" permission is required'); };
+  const needAction = () => { if (!manifest.action && !manifest.browser_action) throw new Error('This extension has no toolbar button in its manifest'); };
+  const tabId = args.tabId == null ? null : args.tabId;
+  if (tabId !== null && !_extPage(ses, tabId)) throw new Error(`No tab with id: ${tabId}.`);
+  switch (r.op) {
+    case 'menus.create': needMenus(); return _extUi.menusCreate(partition, extId, args.props);
+    case 'menus.update': needMenus(); _extUi.menusUpdate(partition, extId, args.id, args.props); return undefined;
+    case 'menus.remove': needMenus(); _extUi.menusRemove(partition, extId, args.id); return undefined;
+    case 'menus.removeAll': needMenus(); _extUi.menusRemoveAll(partition, extId); return undefined;
+    case 'action.set': {
+      needAction();
+      let value = args.value;
+      if (args.prop === 'icon') value = _extIconValue(ext, value);
+      if (args.prop === 'popup' && value) _extPopupUrlOf(ext, value); // refuses a page that is not the extension's
+      _extUi.actionSet(partition, extId, args.prop, value, tabId);
+      return undefined;
+    }
+    case 'action.get': {
+      needAction();
+      if (args.prop === 'popup') return _extPopupUrl(ses, ext, tabId, extHelpers.pickPages(manifest).popup);
+      const own = (manifest.action || manifest.browser_action || {}).default_title;
+      return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
+    }
+    case 'commands.getAll': {
+      const rows = _extCommands().byFolder[path.basename(ext.path)] || [];
+      return rows.map(row => ({ name: row.name, description: row.description, shortcut: row.shortcut }));
+    }
+    default: throw new Error('Vex does not know ' + String(r.op));
+  }
+}
+ipcMain.handle('extensions:api', (event, request) => _extApi(event.senderFrame?.url, event.sender.session, request));
+
+// --- Asked by the interface.
+ipcMain.handle('extensions:ui-state', () => _extUiSnapshot());
+
+// A click on an extension's item in the page's right-click menu, or in its
+// button's menu (ctx.kind 'action').
+ipcMain.handle('extensions:menu-click', async (_event, request) => {
+  const ses = _sessionForKey(request.partition);
+  const ext = ses && _exts(ses).getExtension(request.id);
+  if (!ext) throw new Error('That extension does not run in this tab (private and Tor tabs have none)');
+  const page = _extPage(ses, request.tab);
+  const ctx = { ...request.ctx };
+  // The button's menu is about the tab in front, which the extension may
+  // not be allowed to read.
+  if (ctx.kind === 'action') ctx.pageUrl = (_extTabFor(ext, page) || {}).url || '';
+  const { info } = _extUi.menusClick(request.partition, request.id, request.item, ctx);
+  await _extDispatch(ses, request.id, 'menus.onClicked', [info, _extTabFor(ext, page)]);
+  return true;
+});
+
+// A click on the button of an extension with no popup (chrome.action.onClicked).
+ipcMain.handle('extensions:action-click', async (_event, request) => {
+  const ses = _sessionForKey(request.partition);
+  const ext = ses && _exts(ses).getExtension(request.id);
+  if (!ext) throw new Error('That extension does not run in this tab (private and Tor tabs have none)');
+  await _extDispatch(ses, request.id, 'action.onClicked', [_extTabFor(ext, _extPage(ses, request.tab))]);
+  return true;
+});
+
+// --- Shortcuts.
+// The Vex shortcut on a key, or null: main's own keys and the ones the
+// interface's registry answers (_guestWantedKeys).
+function _vexKeyLabel(combo) {
+  return _extCmds.FIXED_VEX_KEYS.get(combo) || (_guestWantedKeys.has(combo) ? 'one of the shortcuts in Settings › Shortcuts' : null);
+}
+function _extCommands() {
+  if (_extCommandsCache) return _extCommandsCache;
+  let overrides = {};
+  try { overrides = _extCmds.readOverrides(extensionsDir); _extCommandsError = null; }
+  catch (err) { _extCommandsError = err.message; console.error('[Extensions]', err.message); }
+  // persist:main holds every extension that is switched on. Descriptions
+  // may be "__MSG_name__" placeholders, in the extension's own words.
+  const entries = new Map(_extEntriesOnDisk().map(e => [path.resolve(e.path), e]));
+  const exts = _exts(secureSessions.fromPartition('persist:main')).getAllExtensions()
+    .map(ext => {
+      const entry = entries.get(path.resolve(ext.path));
+      return { folder: path.basename(ext.path), id: ext.id, name: (_extMeta().get(ext.id) || {}).name || ext.name, manifest: ext.manifest,
+        localize: (text) => extHelpers.localize(text, entry ? entry.messages : Object.create(null)) };
+    })
+    .sort((a, b) => a.folder.localeCompare(b.folder));
+  _extCommandsCache = _extCmds.resolve(exts, overrides, _vexKeyLabel);
+  return _extCommandsCache;
+}
+// The interface's own keys changed: a key it gave up may now be an extension's.
+function _extKeysChanged() { _extCommandsCache = null; }
+
+// A key pressed in the window (contents null) or in a page. Taken before the
+// page hears it, as Chrome does with an extension's shortcut; never a key
+// Vex answers (resolve() leaves those out), never behind the lock screen, and
+// in a page only when the extension is loaded in that page's session — so
+// never in a private or Tor tab.
+function handleExtensionCommandKey(event, input, contents) {
+  if (!input || input.type !== 'keyDown' || !(input.control || input.alt || input.meta) || _vexLocked) return false;
+  const combo = _extCmds.comboFromInput(input);
+  if (!combo) return false;
+  const hit = _extCommands().byCombo.get(combo);
+  if (!hit) return false;
+  if (contents && !_exts(contents.session).getExtension(hit.id)) return false;
+  const win = contents ? _shortcutWindow(contents) : (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null);
+  if (!win) return false;
+  event.preventDefault();
+  _runExtensionCommand(hit, win, contents).catch(err => console.error(`[Extensions] the shortcut ${combo} for ${hit.folder} did not reach it:`, err.message));
+  return true;
+}
+async function _runExtensionCommand(hit, win, page) {
+  if (!page) {
+    // The window's tab in front.
+    const id = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); try { return wv ? wv.getWebContentsId() : null; } catch { return null; } })()');
+    const front = Number.isInteger(id) ? webContents.fromId(id) : null;
+    page = front && !front.isDestroyed() ? front : null;
+  }
+  const ses = page ? page.session : secureSessions.fromPartition('persist:main');
+  const ext = _exts(ses).getExtension(hit.id);
+  if (!ext) throw new Error('the tab in front is in a session without it (a private or Tor tab, or a panel it does not run in)');
+  if (_extCmds.ACTION_COMMANDS.has(hit.command)) {
+    win.webContents.send('extensions:run-action', { id: hit.id, folder: hit.folder, partition: _partitionKey(ses), tab: page ? page.id : null });
+    return;
+  }
+  await _extDispatch(ses, hit.id, 'commands.onCommand', [hit.command, _extTabFor(ext, page)]);
+}
+
+ipcMain.handle('extensions:commands', () => ({ byFolder: _extCommands().byFolder, error: _extCommandsError }));
+// Give a command a key you pressed, take its key away (key null), or put
+// back the extension's own (reset). A Vex key or another extension's is refused.
+ipcMain.handle('extensions:set-command-key', (_event, request) => {
+  const { folder, command } = request;
+  const rows = _extCommands().byFolder[folder];
+  if (!rows || !rows.some(r => r.name === command)) return { ok: false, error: 'That extension has no such shortcut, or is not switched on' };
+  let combo = '';
+  if (request.key) {
+    combo = _extCmds.comboFromInput(request.key);
+    if (!combo) return { ok: false, error: 'That key cannot be a shortcut' };
+    const checked = _extCmds.checkCombo(combo);
+    if (checked.error) return { ok: false, error: checked.error };
+    const vex = _vexKeyLabel(combo);
+    if (vex) return { ok: false, error: `${_extCmds.toChrome(combo)} is taken by Vex: ${vex}` };
+    const taken = _extCommands().byCombo.get(combo);
+    if (taken && !(taken.folder === folder && taken.command === command)) {
+      const other = (_extMeta().get(taken.id) || {}).name || taken.folder;
+      return { ok: false, error: `${_extCmds.toChrome(combo)} is already ${other}'s shortcut` };
+    }
+  }
+  let overrides;
+  try { overrides = _extCmds.readOverrides(extensionsDir); }
+  catch (err) { return { ok: false, error: err.message }; }
+  const mine = overrides[folder] || {};
+  if (request.reset) delete mine[command];
+  else mine[command] = combo;
+  if (Object.keys(mine).length) overrides[folder] = mine;
+  else delete overrides[folder];
+  try { _extCmds.writeOverrides(extensionsDir, overrides); }
+  catch (err) { return { ok: false, error: `Could not save it: ${err.message}` }; }
+  _extCommandsCache = null;
+  const row = (_extCommands().byFolder[folder] || []).find(r => r.name === command);
+  return { ok: true, shortcut: row ? row.shortcut : '', conflict: row ? row.conflict : null, conflictWith: row ? row.conflictWith : null };
+});
 
 // Windows keeps a border on a frameless, non-resizable window that Electron
 // does not count, and ignores a size that would make it smaller: popups came
@@ -3707,7 +4217,6 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     const entry = _extEntries().find(e => path.resolve(e.path) === path.resolve(extPath));
     if (!entry || !entry.manifest) return { ok: false, error: 'Not found' };
     const pages = extHelpers.pickPages(entry.manifest);
-    if (!pages.popup) return { ok: false, error: 'This extension has no toolbar popup' };
 
     // Over a container tab the popup belongs in the container's session: from
     // persist:main the extension cannot see that tab, and Dark Reader said
@@ -3722,6 +4231,10 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     if (tabUnder && tabUnder.session !== ses && tabUnder.session.getAllExtensions().some(isThis)) ses = tabUnder.session;
     const live = ses.getAllExtensions().find(isThis);
     if (!live) return { ok: false, error: 'That extension is not loaded — enable it first' };
+    // The popup the extension set for this tab or for all (action.setPopup),
+    // else its manifest's; '' is none.
+    const popupUrl = _extPopupUrl(ses, live, tabUnder && tabUnder.session === ses ? tabUnder.id : null, pages.popup);
+    if (!popupUrl) return { ok: false, error: 'This extension has no toolbar popup' };
 
     if (_extPopupWindow && !_extPopupWindow.isDestroyed()) _extPopupWindow.destroy();
     const win = new BrowserWindow({
@@ -3798,7 +4311,7 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
       if (input.type === 'keyDown' && input.key === 'Escape') { event.preventDefault(); if (!win.isDestroyed()) win.close(); }
     });
 
-    await win.loadURL(`chrome-extension://${live.id}/${String(pages.popup).replace(/^\/+/, '')}`);
+    await win.loadURL(popupUrl);
     // The content's preferred size once it has laid out; a page that has not
     // reported one yet is measured, and follows when it does.
     let first = preferred ? { w: preferred.width, h: preferred.height } : await win.webContents.executeJavaScript(
@@ -3828,6 +4341,9 @@ app.on('web-contents-created', (_event, contents) => {
   _trackSessionUse(contents);
   _coverNewSession(contents.session)
     .catch(err => console.error('[Extensions] new-session coverage failed:', err.message));
+  // A badge set for this tab alone goes with it (as in Chrome).
+  const tabId = contents.id;
+  contents.once('destroyed', () => _extUi.forgetTab(tabId));
 });
 
 // Load installed extensions once the app is ready
@@ -4447,6 +4963,8 @@ app.on('web-contents-created', (_event, contents) => {
     handleDevToolsShortcut(event, input);
     if (handleDictateShortcut(event, input)) return;
     if (handleCommandBarShortcut(event, input, contents)) return;
+    // An extension's shortcut (chrome.commands), before the page hears it.
+    if (handleExtensionCommandKey(event, input, contents)) return;
     if (handleBrowserShortcut(event, input, contents)) return;
     // Ctrl+Alt+L locks Vex (js/vex-lock.js) even with a page focused.
     if (input && input.type === 'keyDown' && input.control && input.alt && !input.shift && (input.key || '').toLowerCase() === 'l' && mainWindow && !mainWindow.isDestroyed()) {
@@ -5528,6 +6046,8 @@ app.whenReady().then(async () => {
   mainWindow.webContents.on('before-input-event', (event, input) => {
     // The shortcut editor is recording: every key goes to it, F11 and F12 too.
     if (_shortcutCapturing) return;
+    // An extension's shortcut (chrome.commands); never one of the keys below.
+    if (handleExtensionCommandKey(event, input, null)) return;
     if (input && input.key === 'F11') {
       console.log('[Vex F11] before-input-event fired on MAIN window webContents. type:', input.type, 'defaultPrevented(before):', event.defaultPrevented);
     }

@@ -1747,11 +1747,15 @@ const TabManager = {
         el.addEventListener('click', () => { closeSub(); it.action(); this._dismissMenu(menu); });
         sub.appendChild(el);
       }
-      sub.style.position = 'fixed';
-      document.body.appendChild(sub);
+      // Placed before it is put in the page, or it is measured at the
+      // stylesheet's left (the window's right edge) and always flips left
+      // over the menu (found 2026-10-08; webview.js _renderMenu does the same).
       const rowBox = row.getBoundingClientRect(), menuBox = menu.getBoundingClientRect();
       let left = menuBox.right - 4, top = rowBox.top - 7;
+      sub.style.position = 'fixed';
+      sub.style.transition = 'none';
       sub.style.left = left + 'px'; sub.style.top = top + 'px';
+      document.body.appendChild(sub);
       const r = sub.getBoundingClientRect();
       if (r.right > window.innerWidth - 4) left = Math.max(4, menuBox.left - r.width + 4);
       if (r.bottom > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 8);
@@ -2989,7 +2993,13 @@ const TabManager = {
     // first moments so the menu isn't dismissed before the user ever sees
     // it; a real app-switch after that still closes it.
     const openedAt = Date.now();
-    const onBlur = () => {
+    const onBlur = (ev) => {
+      // Listened for in the capture phase, so every element's blur in the
+      // window lands here too: a press on a submenu's row took the focus off
+      // the page (<webview>), and that blur closed the whole menu — "Page",
+      // "This site" and an extension's submenu vanished when clicked (found
+      // 2026-10-08). Only the window's own blur is a reason to close.
+      if (ev && ev.target && ev.target.nodeType) return; // an element's (or the document's), not the window's
       if (Date.now() - openedAt < 400) {
         console.log('[Vex menu] ignoring early window-blur (guest focus churn)');
         return;
@@ -3058,6 +3068,10 @@ const TabManager = {
       let nx = x, ny = y;
       if (r.right > window.innerWidth)  nx = Math.max(8, window.innerWidth  - r.width  - 8);
       if (r.bottom > window.innerHeight) ny = Math.max(8, window.innerHeight - r.height - 8);
+      // Off the left or top edge too (a right-click near the window's edge,
+      // a scaled window): the menu began off screen (found 2026-10-08).
+      if (r.left < 8) nx = 8;
+      if (r.top < 8) ny = 8;
       if (nx !== x) menu.style.left = nx + 'px';
       if (ny !== y) menu.style.top  = ny + 'px';
     });

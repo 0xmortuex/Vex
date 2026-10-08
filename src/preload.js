@@ -523,6 +523,15 @@ contextBridge.exposeInMainWorld('vex', {
   // Free memory now: unload extensions from sessions with no page open.
   extensionsReleaseIdle:    () => ipcRenderer.invoke('extensions:release-idle'),
   extensionsOpenPopup:      (request) => ipcRenderer.invoke('extensions:open-popup', request),
+  // Extensions' right-click menu items, toolbar badges and shortcuts (js/ext-ui.js).
+  extensionsUiState:        () => ipcRenderer.invoke('extensions:ui-state'),
+  onExtensionsUiState:      (callback) => subscribe('extensions:ui-state', callback),
+  extensionsMenuClick:      (request) => ipcRenderer.invoke('extensions:menu-click', request),
+  extensionsActionClick:    (request) => ipcRenderer.invoke('extensions:action-click', request),
+  onExtensionsRunAction:    (callback) => subscribe('extensions:run-action', callback),
+  extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
+  extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
+  extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),
 
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),

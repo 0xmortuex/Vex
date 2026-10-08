@@ -43,6 +43,35 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+// Pressing a submenu's row took the focus off the page's <webview>: that
+// element's blur reached the capture-phase listener and closed the whole menu
+// ("Page" and "This site" vanished when clicked, found 2026-10-08).
+describe('an element losing focus is not the window losing it', () => {
+    it('keeps the menu when the page\'s webview loses focus to the menu', () => {
+        openMenu();
+        vi.advanceTimersByTime(500);
+        const wv = document.createElement('webview');
+        document.body.appendChild(wv);
+        setActiveElement(document.body);
+        wv.dispatchEvent(new FocusEvent('blur'));
+        vi.advanceTimersByTime(500);
+        expect(menuIsOpen()).toBe(true);
+    });
+});
+
+// A menu opened near the left or top edge began off screen (found 2026-10-08).
+describe('menus stay on screen', () => {
+    it('is moved in from the left and top edges as well as the right and bottom', () => {
+        const menu = document.createElement('div');
+        document.body.appendChild(menu);
+        menu.getBoundingClientRect = () => ({ left: -40, top: -10, right: 140, bottom: 300, width: 180, height: 310 });
+        const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((fn) => { fn(); return 1; });
+        TabManager._clampMenuToViewport(menu, -40, -10);
+        expect([menu.style.left, menu.style.top]).toEqual(['8px', '8px']);
+        raf.mockRestore();
+    });
+});
+
 describe('context menu dismissal on window blur', () => {
     it('keeps the menu when a guest webview takes focus', () => {
         const menu = openMenu();

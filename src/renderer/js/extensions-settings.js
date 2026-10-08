@@ -96,6 +96,21 @@ const ExtensionsSettings = (() => {
         border:1px solid color-mix(in srgb, #f59e0b 55%, transparent);background:color-mix(in srgb, #f59e0b 10%, transparent);color:var(--text,#e9e9ee);}
       .ext-pending ul{margin:3px 0 4px;padding-left:16px;}
       .ext-fileaccess{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
+      .ext-commands{margin-top:7px;display:flex;flex-direction:column;gap:4px;font-size:11px;}
+      .ext-commands-title{display:flex;align-items:center;gap:5px;color:var(--text-muted,#9a9aa5);font-weight:600;}
+      .ext-command{display:grid;grid-template-columns:minmax(0,1fr) minmax(96px,auto) auto;align-items:center;gap:6px;color:var(--text,#e9e9ee);}
+      .ext-command-what{min-width:0;overflow-wrap:anywhere;}
+      .ext-command-btns{display:flex;gap:6px;justify-content:flex-start;min-width:118px;}
+      .ext-command-key{font:inherit;font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer;text-align:center;
+        border:1px solid var(--border,rgba(255,255,255,0.12));background:var(--surface,transparent);color:var(--text,#e9e9ee);font-family:ui-monospace,Consolas,monospace;}
+      .ext-command-key.unset{color:var(--text-muted,#9a9aa5);font-family:inherit;}
+      .ext-command-key.capturing{border-color:var(--primary,#6366f1);}
+      .ext-command-note{grid-column:1 / -1;color:var(--vex-warning,#d97706);}
+      @media (max-width: 760px) {
+        .ext-command{display:flex;flex-wrap:wrap;gap:4px 6px;}
+        .ext-command-what{flex:1 1 100%;}
+        .ext-command-btns{min-width:0;}
+      }
     `;
     document.head.appendChild(st);
   }
@@ -162,6 +177,78 @@ const ExtensionsSettings = (() => {
     return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-file-access="${_esc(e.folder)}"${e.fileAccess ? ' checked' : ''}> Allow access to file URLs</label>${note ? `<span>${_esc(note)}</span>` : ''}</div>`;
   }
 
+  // An extension's keyboard shortcuts (chrome.commands): its own suggested
+  // keys, or the ones you chose; a key Vex or another extension already
+  // answers is shown as taken, not active (main.js, extensions:commands).
+  function _commandsHtml(e, commands) {
+    if (!commands || !e.loaded) return '';
+    const rows = (commands.byFolder || {})[e.folder] || [];
+    if (!rows.length) return '';
+    return `<div class="ext-commands"><div class="ext-commands-title">${VexIcons.svg('keyboard', { size: 12 })} Keyboard shortcuts</div>
+      ${rows.map(r => {
+        const what = /^_execute_(browser_|page_)?action$/.test(r.name) ? (e.hasPopup ? 'Open its toolbar popup' : 'Click its toolbar button') : (r.description || r.name);
+        const key = r.shortcut ? _esc(r.shortcut) : 'Not set';
+        let note = '';
+        if (r.conflict === 'vex') note = `Its key is taken by Vex (${_esc(r.conflictWith)}), so it has none here. Choose another.`;
+        else if (r.conflict === 'extension') note = `Its key is already ${_esc(r.conflictWith)}'s shortcut, so it has none here. Choose another.`;
+        else if (r.suggestedError) note = `Its own key cannot be used here: ${_esc(r.suggestedError)}.`;
+        const data = `data-cmd-folder="${_esc(e.folder)}" data-cmd-name="${_esc(r.name)}"`;
+        return `<div class="ext-command">
+          <span class="ext-command-what">${_esc(what)}</span>
+          <button class="shortcut-key ext-command-key${r.shortcut ? '' : ' unset'}" ${data} data-cmd-record title="Press to choose a key">${key}</button>
+          <span class="ext-command-btns">
+          ${r.shortcut ? `<button class="ext-open-btn" ${data} data-cmd-remove title="Take the key away">Remove</button>` : ''}
+          ${r.source === 'user' || r.source === 'removed' ? `<button class="ext-open-btn" ${data} data-cmd-reset title="Back to the extension's own key">Reset</button>` : ''}
+          </span>
+          ${note ? `<div class="ext-command-note">${note}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Record a key for a command: the key goes to main as pressed (its physical
+  // key, so Ctrl+Shift+1 is not Ctrl+Shift+!), and main decides.
+  let _cancelCmdCapture = null;
+  function _captureCommandKey(btn, container) {
+    if (_cancelCmdCapture) _cancelCmdCapture();
+    const original = btn.innerHTML;
+    btn.classList.add('capturing');
+    btn.textContent = 'Press keys… (Esc to cancel)';
+    const onKey = async (ev) => {
+      if (!btn.isConnected) { stop(); return; }
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === 'Escape') { stop(); return; }
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(ev.key)) return;
+      stop();
+      const r = await window.vex.extensionsSetCommandKey({ folder: btn.dataset.cmdFolder, command: btn.dataset.cmdName,
+        key: { key: ev.key, code: ev.code, ctrl: ev.ctrlKey || ev.metaKey, alt: ev.altKey, shift: ev.shiftKey } });
+      if (r && r.ok) _toast(r.shortcut ? `Set to ${r.shortcut}` : 'Saved', 'success');
+      else _toast((r && r.error) || 'That key could not be set', 'warn');
+      render(container);
+    };
+    const onDown = (ev) => { if (ev.target !== btn) stop(); };
+    const onBlur = () => stop();
+    const keep = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
+    function stop() {
+      if (_cancelCmdCapture === stop) _cancelCmdCapture = null;
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('blur', onBlur);
+      clearInterval(keep);
+      btn.classList.remove('capturing');
+      btn.innerHTML = original;
+      window.vex?.setShortcutCapturing?.(false);
+    }
+    _cancelCmdCapture = stop;
+    // While recording, main lets every key through to here (Ctrl+T would
+    // open a tab, an extension's own key would fire).
+    window.vex?.setShortcutCapturing?.(true);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('blur', onBlur);
+  }
+
   function _ago(ms) {
     const m = Math.round((Date.now() - ms) / 60000);
     if (m < 1) return 'just now';
@@ -188,6 +275,11 @@ const ExtensionsSettings = (() => {
     let updates = null;
     try { updates = await window.vex.extensionsUpdateStatus(); }
     catch (err) { updates = { ok: false, error: (err && err.message) || String(err) }; }
+    let commands = null, commandsError = null;
+    if (typeof window.vex.extensionsCommands === 'function') {
+      try { commands = await window.vex.extensionsCommands(); if (commands && commands.error) commandsError = commands.error; }
+      catch (err) { commandsError = (err && err.message) || String(err); }
+    }
 
     // The ones that can read everything come first: this list is read to
     // check, and what you are checking for should not be at the bottom.
@@ -208,6 +300,7 @@ const ExtensionsSettings = (() => {
 
         ${listError ? `<div class="ext-state-error">Couldn't read the installed extensions: ${_esc(listError)}</div>` : ''}
         ${stateError ? `<div class="ext-state-error">${_esc(stateError)}</div>` : ''}
+        ${commandsError ? `<div class="ext-state-error">Extension shortcuts: ${_esc(commandsError)}</div>` : ''}
 
         <div class="extensions-actions">
           <button class="btn-primary" id="btn-install-zip">${VexIcons.svg('box', { size: 14 })} Install from .zip / .crx</button>
@@ -247,7 +340,7 @@ const ExtensionsSettings = (() => {
                 <li>Extract it, locate the folder containing <code>manifest.json</code></li>
                 <li>Click &quot;Install from folder&quot; &rarr; pick that folder</li>
               </ol>
-              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code> (<code>storage.sync</code> is kept on this machine, not synced), <code>chrome.tabs</code> (including opening and closing tabs), <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, <code>chrome.permissions</code>, options pages and toolbar popups.</p>
+              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code> (<code>storage.sync</code> is kept on this machine, not synced), <code>chrome.tabs</code> (including opening and closing tabs), <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, <code>chrome.permissions</code>, options pages and toolbar popups, right-click menu items (<code>chrome.contextMenus</code>, in the page's menu and on the extension's row in the extensions menu), keyboard shortcuts (<code>chrome.commands</code>, changeable on the extension's card below) and badge text on its icon in the extensions menu.</p>
               <p><strong>What Electron can't do:</strong></p>
               <ul class="ext-unsupported">${VexExtensionCatalog.UNSUPPORTED.map(u => `<li>${_esc(u)}</li>`).join('')}</ul>
             </div>
@@ -304,6 +397,7 @@ const ExtensionsSettings = (() => {
                   ${_updateHtml(e)}
                   ${_auditHtml(e)}
                   ${_fileAccessHtml(e)}
+                  ${_commandsHtml(e, commands)}
                   ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements — and its background page costs about 85 MB for that.</div>` : ''}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>
@@ -311,6 +405,7 @@ const ExtensionsSettings = (() => {
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
                   ${e.webstore ? `<button class="ext-open-btn" data-webstore-update="${_esc(e.webstore)}" title="Download the newest version from the Chrome Web Store">Update from Web Store</button>` : ''}
+                  <label class="ext-toggle" title="Its own button on the toolbar, beside the extensions button"><input type="checkbox" data-pin="${_esc(e.folder)}" ${e.pinned ? 'checked' : ''}> Pinned</label>
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
                   <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
@@ -431,6 +526,30 @@ const ExtensionsSettings = (() => {
         else _toast(wanted ? 'It can now open files on this computer (file:// pages)' : 'It can no longer open files on this computer', 'success');
         render(container);
       });
+    });
+    // Pinned to the toolbar (main.js, extensions:set-pinned; js/extensions-menu.js draws it).
+    container.querySelectorAll('[data-pin]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetPinned(box.dataset.pin, wanted);
+        if (!r || !r.ok) { box.checked = !wanted; _toast('Could not ' + (wanted ? 'pin' : 'unpin') + ' it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        _toast(wanted ? 'Pinned to the toolbar' : 'No longer pinned', 'success');
+      });
+    });
+    container.querySelectorAll('[data-cmd-record]').forEach(btn => {
+      btn.addEventListener('click', () => _captureCommandKey(btn, container));
+    });
+    const setKey = async (btn, request, done) => {
+      const r = await window.vex.extensionsSetCommandKey({ folder: btn.dataset.cmdFolder, command: btn.dataset.cmdName, ...request });
+      if (r && r.ok) _toast(done(r), 'success');
+      else _toast((r && r.error) || 'That could not be changed', 'error');
+      render(container);
+    };
+    container.querySelectorAll('[data-cmd-remove]').forEach(btn => {
+      btn.addEventListener('click', () => setKey(btn, { key: null }, () => 'The shortcut is off'));
+    });
+    container.querySelectorAll('[data-cmd-reset]').forEach(btn => {
+      btn.addEventListener('click', () => setKey(btn, { reset: true }, (r) => r.shortcut ? `Back to ${r.shortcut}` : (r.conflict ? 'Its own key is taken, so it has none' : 'It has no key of its own')));
     });
     document.getElementById('btn-open-ext-folder')?.addEventListener('click', () => {
       window.vex.extensionsOpenFolder();

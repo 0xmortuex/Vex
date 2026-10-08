@@ -25,10 +25,18 @@ const { contextBridge, ipcRenderer } = require('electron');
 //     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
 //     them "On" (2026-09-29).
 // Each gets an honest stand-in: permissions reports what the manifest granted
-// and Vex provides and grants nothing new; the toolbar and menu calls succeed
-// and change nothing (Vex has no per-extension button, badge or menu items);
-// no keys are bound to extension shortcuts; file access is allowed (Vex loads
+// and Vex provides and grants nothing new; file access is allowed (Vex loads
 // extensions with allowFileAccess) and there is no incognito here.
+//
+// Right-click menu items, the toolbar button's badge and title, and keyboard
+// shortcuts are real (since 2026-10-08): extApi, where given, takes them to
+// main ({ op, args }), which keeps the items and the badge, draws them in
+// Vex's right-click menu and toolbar menu, and binds the keys
+// (src/main/extension-ui.js, src/main/extension-commands.js). onExtEvent,
+// where given, is called once with a function that main's events then reach
+// ({ type, args }): a menu click, a shortcut, a click on the toolbar button.
+// Every context of the extension that listens hears them, as in Chrome, and
+// an item's own onclick runs in the context that made it.
 //
 // It runs in the extension's own world: directly in a page without isolation
 // (a background page), through contextBridge.executeInMainWorld where the
@@ -49,7 +57,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 //
 // askActiveTabs, where given, asks main which page is the tab in front in each
 // Vex window ({ ids }) and in the Vex window used last ({ current }).
-function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, extApi, onExtEvent) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -62,6 +70,45 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
     };
   }
   function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
+
+  // Main's side of the menus, the badge and the shortcuts. A failure comes
+  // back in main's own words, without the wrapping Electron puts round it.
+  var api = typeof extApi === 'function' ? function (op, args) {
+    return Promise.resolve(extApi({ op: op, args: args || {} })).catch(function (err) {
+      throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+    });
+  } : null;
+  // With a callback a failure is what Chrome calls an unchecked
+  // runtime.lastError: said in the console, and the callback still runs.
+  function settle(p, cb, what) {
+    if (typeof cb !== 'function') return p;
+    p.then(function (v) { cb(v); }, function (err) { console.error('Unchecked runtime.lastError (' + what + '): ' + err.message); cb(); });
+    return undefined;
+  }
+  var hubs = {};
+  var heard = false;
+  var ownClicks = {};
+  function deliver(msg) {
+    if (!msg || typeof msg.type !== 'string') return;
+    var args = Array.isArray(msg.args) ? msg.args : [];
+    var call = function (fn) { try { fn.apply(null, args); } catch (err) { setTimeout(function () { throw err; }, 0); } };
+    if (msg.type === 'menus.onClicked' && args[0] && Object.prototype.hasOwnProperty.call(ownClicks, String(args[0].menuItemId))) call(ownClicks[String(args[0].menuItemId)]);
+    (hubs[msg.type] || []).slice().forEach(call);
+  }
+  function listen() {
+    if (heard || typeof onExtEvent !== 'function') return;
+    heard = true;
+    onExtEvent(deliver);
+  }
+  function hubEvent(type) {
+    var fns = hubs[type] || (hubs[type] = []);
+    return {
+      addListener: function (fn) { if (typeof fn === 'function' && fns.indexOf(fn) === -1) fns.push(fn); listen(); },
+      removeListener: function (fn) { var i = fns.indexOf(fn); if (i !== -1) fns.splice(i, 1); },
+      hasListener: function (fn) { return fns.indexOf(fn) !== -1; },
+      hasListeners: function () { return fns.length > 0; },
+    };
+  }
 
   if (!c.permissions) {
     var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
@@ -87,6 +134,58 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
     };
   }
 
+  // The toolbar button: its badge and title are kept by main and drawn on the
+  // extension's icon in Vex's extensions menu and on its pinned toolbar
+  // button, for every tab or for one (details.tabId), and so are its icon
+  // and popup (setIcon, setPopup). Its on/off stays as the manifest says.
+  function actionApi() {
+    var setter = function (prop, key) {
+      return function (details, cb) {
+        var d = details || {};
+        return settle(api('action.set', { prop: prop, value: d[key], tabId: d.tabId }).then(function () { return undefined; }), cb, 'action.set');
+      };
+    };
+    var getter = function (prop) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        return settle(api('action.get', { prop: prop, tabId: (details || {}).tabId }), cb, 'action.get');
+      };
+    };
+    // setIcon's imageData (an ImageData, or one per size) as plain numbers
+    // main can take; of several sizes, the one nearest 32 px (a toolbar icon
+    // at 200%). A path, or one per size, is passed as it is.
+    var nearest = function (bySize) {
+      var sizes = Object.keys(bySize || {}).map(Number).filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      if (!sizes.length) return null;
+      var best = sizes.filter(function (n) { return n >= 32; })[0] || sizes[sizes.length - 1];
+      return bySize[best];
+    };
+    var iconValue = function (d) {
+      if (d.imageData) {
+        var img = d.imageData.data ? d.imageData : nearest(d.imageData);
+        if (!img || !img.data) throw new Error('setIcon: imageData must be an ImageData or a dictionary of them');
+        return { imageData: { width: img.width, height: img.height, data: Array.prototype.slice.call(img.data) } };
+      }
+      if (d.path) return { path: typeof d.path === 'string' ? d.path : nearest(d.path) };
+      throw new Error('setIcon needs imageData or a path');
+    };
+    return {
+      setBadgeText: setter('text', 'text'), getBadgeText: getter('text'),
+      setBadgeBackgroundColor: setter('bg', 'color'), getBadgeBackgroundColor: getter('bg'),
+      setBadgeTextColor: setter('color', 'color'), getBadgeTextColor: getter('color'),
+      setTitle: setter('title', 'title'), getTitle: getter('title'),
+      setPopup: setter('popup', 'popup'), getPopup: getter('popup'),
+      setIcon: function (details, cb) {
+        var d = details || {};
+        var p;
+        try { p = api('action.set', { prop: 'icon', value: iconValue(d), tabId: d.tabId }).then(function () { return undefined; }); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, 'action.setIcon');
+      },
+      enable: done(undefined), disable: done(undefined), isEnabled: done(true),
+      onClicked: hubEvent('action.onClicked'),
+    };
+  }
   function actionStub() {
     return {
       setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
@@ -96,27 +195,102 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       onClicked: noEvent(),
     };
   }
-  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
-  if (manifest.action && !c.action) c.action = actionStub();
+  // Electron 42 has a chrome.action of its own in a service worker, which
+  // keeps a badge nobody can see (found 2026-10-08): Vex's is put in its place.
+  function takeOver(target, mine, what) {
+    Object.keys(mine).forEach(function (k) {
+      try { target[k] = mine[k]; } catch (e) { /* read-only: tried again below */ }
+      if (target[k] !== mine[k]) { try { Object.defineProperty(target, k, { value: mine[k], configurable: true, writable: true }); } catch (e) { /* said below */ } }
+      if (target[k] !== mine[k]) console.error('[Vex] could not provide ' + what + '.' + k + ' here');
+    });
+    return target;
+  }
+  var ACTION_KEYS = ['setBadgeText', 'getBadgeText', 'setBadgeBackgroundColor', 'getBadgeBackgroundColor', 'setBadgeTextColor', 'getBadgeTextColor', 'setTitle', 'getTitle', 'setIcon', 'setPopup', 'getPopup', 'onClicked'];
+  function actionFor(name) {
+    if (!c[name]) { c[name] = api ? actionApi() : actionStub(); return; }
+    if (!api) return;
+    var mine = actionApi(), part = {};
+    ACTION_KEYS.forEach(function (k) { part[k] = mine[k]; });
+    takeOver(c[name], part, name);
+  }
+  if (manifest.browser_action) actionFor('browserAction');
+  if (manifest.action) actionFor('action');
+
+  // chrome.runtime.onInstalled: Electron never fires it, and most extensions
+  // make their menu items there. Main fires it (main.js _extTellInstalled);
+  // a listener hears that as well as anything Electron itself might send.
+  if (api && c.runtime.onInstalled && typeof c.runtime.onInstalled.addListener === 'function') {
+    var installed = c.runtime.onInstalled;
+    var installedHub = hubEvent('runtime.onInstalled');
+    var nativeOn = installed.addListener.bind(installed);
+    var nativeOff = typeof installed.removeListener === 'function' ? installed.removeListener.bind(installed) : null;
+    takeOver(installed, {
+      addListener: function (fn) { nativeOn(fn); installedHub.addListener(fn); },
+      removeListener: function (fn) { if (nativeOff) nativeOff(fn); installedHub.removeListener(fn); },
+    }, 'runtime.onInstalled');
+  }
 
   var perms = manifest.permissions || [];
-  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && (!c.contextMenus || api)) {
     var menuId = 0;
-    c.contextMenus = {
+    // Only what can cross to main: no functions.
+    var plainProps = function (props) {
+      var out = {};
+      Object.keys(props || {}).forEach(function (k) { if (k !== 'onclick' && typeof props[k] !== 'function') out[k] = props[k]; });
+      return out;
+    };
+    var ContextType = {}, ItemType = {};
+    ['all', 'page', 'frame', 'selection', 'link', 'editable', 'image', 'video', 'audio', 'launcher', 'browser_action', 'page_action', 'action'].forEach(function (t) { ContextType[t.toUpperCase()] = t; });
+    ['normal', 'checkbox', 'radio', 'separator'].forEach(function (t) { ItemType[t.toUpperCase()] = t; });
+    var menusApi = api ? {
+      ACTION_MENU_TOP_LEVEL_LIMIT: 6, ContextType: ContextType, ItemType: ItemType,
+      create: function (props, cb) {
+        props = props || {};
+        var id = props.id != null ? props.id : ++menuId;
+        var plain = plainProps(props);
+        plain.id = id;
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        var p = api('menus.create', { props: plain }).then(function () { return undefined; });
+        if (typeof cb === 'function') settle(p, cb, 'contextMenus.create');
+        else p.catch(function (err) { console.error('Unchecked runtime.lastError (contextMenus.create): ' + err.message); });
+        return id;
+      },
+      update: function (id, props, cb) {
+        props = props || {};
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        return settle(api('menus.update', { id: id, props: plainProps(props) }).then(function () { return undefined; }), cb, 'contextMenus.update');
+      },
+      remove: function (id, cb) {
+        delete ownClicks[String(id)];
+        return settle(api('menus.remove', { id: id }).then(function () { return undefined; }), cb, 'contextMenus.remove');
+      },
+      removeAll: function (cb) {
+        ownClicks = {};
+        return settle(api('menus.removeAll').then(function () { return undefined; }), cb, 'contextMenus.removeAll');
+      },
+      onClicked: hubEvent('menus.onClicked'),
+    } : {
       create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
       update: done(undefined), remove: done(undefined), removeAll: done(undefined),
       onClicked: noEvent(),
     };
+    if (!c.contextMenus) c.contextMenus = menusApi;
+    else takeOver(c.contextMenus, menusApi, 'contextMenus');
   }
 
-  if (!c.commands) {
+  if (!c.commands || api) {
     var commands = manifest.commands || {};
-    c.commands = {
+    var commandsApi = api ? {
+      getAll: function (cb) { return settle(api('commands.getAll'), cb, 'commands.getAll'); },
+      onCommand: hubEvent('commands.onCommand'),
+    } : {
       getAll: done(Object.keys(commands).map(function (name) {
         return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
       })),
       onCommand: noEvent(),
     };
+    if (!c.commands) c.commands = commandsApi;
+    else takeOver(c.commands, commandsApi, 'commands');
   }
 
   if (!c.extension) c.extension = {};
@@ -426,5 +600,9 @@ const askPopupTab = () => ipcRenderer.invoke('extensions:popup-tab');
 const openTab = (request) => ipcRenderer.invoke('extensions:open-tab', request);
 const closeTab = (request) => ipcRenderer.invoke('extensions:close-tab', request);
 const askActiveTabs = () => ipcRenderer.invoke('extensions:active-tabs');
-contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab, askActiveTabs] });
+// Menus, badge, shortcuts (main.js _extApi), and main's events for them
+// (serviceWorkerMain.send, main.js _extDispatch).
+const extApi = (request) => ipcRenderer.invoke('extensions:api', request);
+const onExtEvent = (fn) => { ipcRenderer.on('extensions:event', (_event, msg) => fn(msg)); };
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab, askActiveTabs, extApi, onExtEvent] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

@@ -10,7 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
+const { createExtensionUi } = createRequire(import.meta.url)('../../src/main/extension-ui.js');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // A Windows checkout may turn one file's line endings into CRLF and not the
 // other's (git treats preload-webview.js as binary), so compare them as LF.
@@ -80,11 +82,45 @@ function page(chrome, { protocol = 'chrome-extension:', localStorage = localStor
 
 // An extension service worker: the worker preload, with executeInMainWorld
 // running the function in the worker's own world.
-function worker(chrome) {
-  const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String,
-    require: (m) => { if (m !== 'electron') throw new Error('only electron'); return { contextBridge: { executeInMainWorld: ({ func, args = [] }) => { ctx.__args = args; return vm.runInContext('(' + func.toString() + ').apply(null, __args)', ctx); } } }; } });
+function worker(chrome, { ipcRenderer = null } = {}) {
+  const ctx = vm.createContext({ chrome, setTimeout, Promise, JSON, Object, Array, String, console,
+    require: (m) => { if (m !== 'electron') throw new Error('only electron'); return { ipcRenderer, contextBridge: { executeInMainWorld: ({ func, args = [] }) => { ctx.__args = args; return vm.runInContext('(' + func.toString() + ').apply(null, __args)', ctx); } } }; } });
   vm.runInContext(SW_SRC, ctx);
   return chrome;
+}
+
+// Main's side of extensions:api (main.js _extApi) for one extension, on the
+// real keeper of menu items and badges (src/main/extension-ui.js), and its
+// events back (extensions:event). A failure comes back the way Electron
+// wraps one.
+function fakeMain({ commands = [] } = {}) {
+  const ui = createExtensionUi();
+  const asked = [];
+  const listeners = [];
+  const answer = (req) => {
+    const a = req.args || {};
+    switch (req.op) {
+      case 'menus.create': return ui.menusCreate('persist:main', 'ext', a.props);
+      case 'menus.update': return ui.menusUpdate('persist:main', 'ext', a.id, a.props);
+      case 'menus.remove': return ui.menusRemove('persist:main', 'ext', a.id);
+      case 'menus.removeAll': return ui.menusRemoveAll('persist:main', 'ext');
+      // main.js turns setIcon's picture into a PNG (_extIconValue).
+      case 'action.set': return ui.actionSet('persist:main', 'ext', a.prop, a.prop === 'icon' ? 'data:image/png;base64,AAAA' : a.value, a.tabId == null ? null : a.tabId);
+      case 'action.get': return ui.actionGet('persist:main', 'ext', a.prop, a.tabId == null ? null : a.tabId, { title: 'Own title' });
+      case 'commands.getAll': return commands;
+      default: throw new Error('Vex does not know ' + req.op);
+    }
+  };
+  const ipcRenderer = {
+    invoke: (ch, req) => {
+      asked.push([ch, req]);
+      if (ch !== 'extensions:api') return Promise.resolve(null);
+      try { return Promise.resolve(answer(req)); }
+      catch (err) { return Promise.reject(new Error(`Error invoking remote method 'extensions:api': Error: ${err.message}`)); }
+    },
+    on: (ch, fn) => { if (ch === 'extensions:event') listeners.push(fn); },
+  };
+  return { ui, asked, ipcRenderer, listeners, emit: (msg) => listeners.forEach(fn => fn({}, msg)) };
 }
 
 const STAND_INS_END = '// === END vex-extension-stand-ins ===';
@@ -108,7 +144,7 @@ describe('the sync stand-in is one function in two places', () => {
 // "On", and Stylus's popup drew nothing (2026-09-29).
 describe('every extension context gets the stand-ins', () => {
   it("a service worker: Stylus's permissions.contains and Violentmonkey's isAllowedIncognitoAccess", async () => {
-    const sw = worker(extension().chrome({ manifest: { permissions: ['storage', 'tabs'] } }));
+    const sw = worker(extension().chrome({ manifest: { permissions: ['storage', 'tabs'] } }), { ipcRenderer: fakeMain().ipcRenderer });
     expect(await sw.permissions.contains({ permissions: ['tabs'] })).toBe(true);
     await new Promise((resolve) => sw.extension.isAllowedIncognitoAccess((v) => { expect(v).toBe(false); resolve(); }));
     expect(sw.extension.inIncognitoContext).toBe(false);
@@ -216,22 +252,72 @@ describe('chrome.permissions, browserAction and contextMenus for extension pages
     await new Promise((resolve) => c.permissions.contains({ permissions: ['tabs'] }, (v) => { expect(v).toBe(true); resolve(); }));
   });
 
-  it('contextMenus exists only for an extension that asked, and adds nothing', async () => {
-    const withIt = page(extension().chrome({ manifest: { permissions: ['contextMenus', 'storage'] } }));
-    expect(withIt.contextMenus.create({ id: 'block', title: 'Block element' })).toBe('block');
+  it('contextMenus exists only for an extension that asked, and its items reach main', async () => {
+    const main = fakeMain();
+    const withIt = page(extension().chrome({ manifest: { permissions: ['contextMenus', 'storage'] } }), { ipcRenderer: main.ipcRenderer });
+    expect(withIt.contextMenus.create({ id: 'block', title: 'Block element', contexts: ['page', 'link'] })).toBe('block');
+    expect(withIt.contextMenus.create({ id: 'sub', parentId: 'block', title: 'Just this one' })).toBe('sub');
+    await tick();
+    expect(main.ui.snapshot().menus['persist:main'].ext.map(i => [i.id, i.parentId])).toEqual([['block', null], ['sub', 'block']]);
+    await withIt.contextMenus.update('block', { title: 'Hide element' });
+    expect(main.ui.snapshot().menus['persist:main'].ext[0].title).toBe('Hide element');
+    // Main's refusal, in its own words.
+    await expect(withIt.contextMenus.update('nope', { title: 'x' })).rejects.toThrow(/^Cannot find menu item with id nope$/);
     expect(await withIt.contextMenus.removeAll()).toBeUndefined();
-    expect(typeof withIt.contextMenus.onClicked.addListener).toBe('function');
+    expect(main.ui.snapshot().menus).toEqual({});
+    expect(withIt.contextMenus.ContextType.SELECTION).toBe('selection');
     expect(page(extension().chrome({ manifest: { permissions: ['storage'] } })).contextMenus).toBeUndefined();
   });
 
-  it('browserAction or action, whichever the manifest declares, accepts calls and changes nothing', async () => {
-    const mv2 = page(extension().chrome({ manifest: { name: 'X', browser_action: {} } }));
-    expect(await mv2.browserAction.setBadgeText({ text: '1' })).toBeUndefined();
-    expect(await mv2.browserAction.getBadgeText({})).toBe('');
+  it('a click reaches onClicked and the item\'s own onclick, with the info and the tab', async () => {
+    const main = fakeMain();
+    const c = page(extension().chrome({ manifest: { permissions: ['contextMenus'] } }), { ipcRenderer: main.ipcRenderer });
+    const heard = [], own = [];
+    c.contextMenus.onClicked.addListener((info, tab) => heard.push([info.menuItemId, info.selectionText, tab.id]));
+    c.contextMenus.create({ id: 'look', title: 'Look up "%s"', contexts: ['selection'], onclick: (info) => own.push(info.menuItemId) });
+    c.contextMenus.create({ id: 'other', title: 'Other' });
+    await tick();
+    // Functions never cross to main.
+    expect(main.asked.find(([, r]) => r && r.op === 'menus.create').at(1).args.props.onclick).toBeUndefined();
+    main.emit({ type: 'menus.onClicked', args: [{ menuItemId: 'look', selectionText: 'word' }, { id: 7 }] });
+    main.emit({ type: 'menus.onClicked', args: [{ menuItemId: 'other' }, { id: 7 }] });
+    expect(heard).toEqual([['look', 'word', 7], ['other', undefined, 7]]);
+    expect(own).toEqual(['look']);
+    expect(c.contextMenus.onClicked.hasListeners()).toBe(true);
+  });
+
+  it('a refused create with a callback is an unchecked lastError: said, and the callback still runs', async () => {
+    const main = fakeMain();
+    const c = page(extension().chrome({ manifest: { permissions: ['contextMenus'] } }), { ipcRenderer: main.ipcRenderer });
+    const said = [];
+    const orig = console.error;
+    console.error = (m) => said.push(String(m));
+    try {
+      c.contextMenus.create({ id: 'a', title: 'A' });
+      await new Promise((resolve) => c.contextMenus.create({ id: 'a', title: 'A again' }, resolve));
+    } finally { console.error = orig; }
+    expect(said.join('\n')).toMatch(/Unchecked runtime\.lastError \(contextMenus\.create\): Cannot create item with duplicate id a/);
+  });
+
+  it('the toolbar badge and title are kept by main, for every tab or for one', async () => {
+    const main = fakeMain();
+    const mv2 = page(extension().chrome({ manifest: { name: 'X', browser_action: {} } }), { ipcRenderer: main.ipcRenderer });
+    expect(await mv2.browserAction.setBadgeText({ text: '12' })).toBeUndefined();
+    await mv2.browserAction.setBadgeText({ text: '3', tabId: 5 });
+    expect(await mv2.browserAction.getBadgeText({})).toBe('12');
+    expect(await mv2.browserAction.getBadgeText({ tabId: 5 })).toBe('3');
+    await mv2.browserAction.setBadgeBackgroundColor({ color: '#00ff00' });
+    expect(await mv2.browserAction.getBadgeBackgroundColor({})).toEqual([0, 255, 0, 255]);
+    await expect(mv2.browserAction.setBadgeBackgroundColor({ color: 'not-a-colour' })).rejects.toThrow(/not a colour/);
+    await new Promise((resolve) => mv2.browserAction.getTitle({}, (t) => { expect(t).toBe('Own title'); resolve(); }));
     expect(mv2.action).toBeUndefined();
-    const mv3 = page(extension().chrome({ manifest: { action: {} } }));
+    const mv3 = page(extension().chrome({ manifest: { action: {} } }), { ipcRenderer: main.ipcRenderer });
     expect(typeof mv3.action.setIcon).toBe('function');
     expect(mv3.browserAction).toBeUndefined();
+    const clicks = [];
+    mv3.action.onClicked.addListener((tab) => clicks.push(tab.id));
+    main.emit({ type: 'action.onClicked', args: [{ id: 9 }] });
+    expect(clicks).toEqual([9]);
   });
 
   it('a real API is never replaced', () => {
@@ -241,13 +327,44 @@ describe('chrome.permissions, browserAction and contextMenus for extension pages
 });
 
 describe('what Dark Reader needs to fill its popup', () => {
-  it('commands lists the manifest shortcuts with no key, and file access is allowed', async () => {
-    const c = page(extension().chrome({ manifest: { commands: { addSite: { description: 'Toggle current site' }, toggle: {} } } }));
-    expect(await c.commands.getAll()).toEqual([
-      { name: 'addSite', description: 'Toggle current site', shortcut: '' },
-      { name: 'toggle', description: '', shortcut: '' },
-    ]);
-    expect(typeof c.commands.onCommand.addListener).toBe('function');
+  // Electron 42 gives a service worker a chrome.action of its own that keeps a
+  // badge nobody can see, and never fires runtime.onInstalled (2026-10-08).
+  it('a service worker\'s own chrome.action is taken over, and main\'s onInstalled reaches its listener', async () => {
+    const main = fakeMain();
+    const nativeSet = () => Promise.resolve('native');
+    const nativeInstalled = [];
+    const sw = worker(extension().chrome({
+      manifest: { action: {}, permissions: ['contextMenus'] },
+      extra: { action: { setBadgeText: nativeSet, setIcon: nativeSet, openPopup: nativeSet, onClicked: { addListener() {} } },
+        runtime: { id: 'ext-id', getManifest: () => ({ action: {}, permissions: ['contextMenus'] }), onInstalled: { addListener: (fn) => nativeInstalled.push(fn), removeListener() {} } } },
+    }), { ipcRenderer: main.ipcRenderer });
+    await sw.action.setBadgeText({ text: '5' });
+    expect(main.ui.actionGet('persist:main', 'ext', 'text', null)).toBe('5');
+    expect(sw.action.openPopup).toBe(nativeSet); // what Vex does not provide stays Electron's
+    // setIcon: ImageData as plain numbers (of several sizes, the one nearest 32), a path as it is.
+    const px = (n) => ({ width: n, height: n, data: new Uint8ClampedArray(n * n * 4).fill(9) });
+    await sw.action.setIcon({ imageData: { 16: px(16), 32: px(32) }, tabId: 3 });
+    const sent = main.asked.filter(([, r]) => r && r.op === 'action.set' && r.args.prop === 'icon').at(-1)[1].args;
+    expect([sent.tabId, sent.value.imageData.width, sent.value.imageData.data.length, Array.isArray(sent.value.imageData.data)]).toEqual([3, 32, 32 * 32 * 4, true]);
+    await expect(sw.action.setIcon({})).rejects.toThrow(/imageData or a path/);
+    await sw.action.setPopup({ popup: 'other.html' });
+    expect(main.ui.actionGet('persist:main', 'ext', 'popup', null)).toBe('other.html');
+    const heard = [];
+    sw.runtime.onInstalled.addListener((d) => heard.push(d.reason));
+    expect(nativeInstalled.length).toBe(1);
+    main.emit({ type: 'runtime.onInstalled', args: [{ reason: 'install' }] });
+    expect(heard).toEqual(['install']);
+  });
+
+  it('commands lists the shortcuts as main has bound them, onCommand hears them, and file access is allowed', async () => {
+    const rows = [{ name: 'addSite', description: 'Toggle current site', shortcut: 'Alt+Shift+A' }, { name: 'toggle', description: '', shortcut: '' }];
+    const main = fakeMain({ commands: rows });
+    const c = page(extension().chrome({ manifest: { commands: { addSite: { description: 'Toggle current site' }, toggle: {} } } }), { ipcRenderer: main.ipcRenderer });
+    expect(await c.commands.getAll()).toEqual(rows);
+    const heard = [];
+    c.commands.onCommand.addListener((name, tab) => heard.push([name, tab && tab.id]));
+    main.emit({ type: 'commands.onCommand', args: ['addSite', { id: 4 }] });
+    expect(heard).toEqual([['addSite', 4]]);
     // Dark Reader asks with a callback.
     await new Promise((resolve) => c.extension.isAllowedFileSchemeAccess((v) => { expect(v).toBe(true); resolve(); }));
   });
