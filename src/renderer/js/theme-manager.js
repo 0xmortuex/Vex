@@ -120,7 +120,20 @@ const ThemeManager = {
     this.currentTheme = (typeof saved === 'string' && this.availableThemes.includes(saved))
       ? saved
       : this.DEFAULT_THEME;
+    // Light and dark (js/theme-auto.js): when it is on, the first paint already
+    // wears the theme for right now, not the one saved when Vex last closed.
+    if (typeof ThemeAuto !== 'undefined') {
+      try {
+        const auto = await ThemeAuto.bootTheme();
+        if (auto) this.currentTheme = auto;
+      } catch (e) {
+        console.error('[ThemeManager] light/dark at start-up failed, keeping the saved theme:', e);
+      }
+    }
     this.applyTheme(this.currentTheme, { persist: false });
+    if (typeof ThemeAuto !== 'undefined') {
+      ThemeAuto.start().catch(e => console.error('[ThemeAuto] start failed:', e));
+    }
   },
 
   applyTheme(themeName, opts) {
@@ -167,38 +180,54 @@ const ThemeManager = {
           const isStart = url.startsWith('vex://start')
             || (/^file:/i.test(url) && /\/renderer\/start\.html(?:[?#]|$)/i.test(url));
           if (!isStart) continue;
-          // Instant recolor of the live doc...
-          const js = `document.documentElement.setAttribute('data-theme','${safe}');`;
-          try { wv.executeJavaScript(js).catch(() => {}); } catch {}
-          // ...then reload so a refresh keeps the new theme. vex://start reloads
-          // through its server-side baker; the file:// page must reload at a URL
-          // carrying the new ?theme= (its only theme source).
           if (url.startsWith('vex://start')) {
+            // Instant recolor of the live doc, then a reload through the
+            // server-side baker so a refresh keeps the new theme.
+            const js = `document.documentElement.setAttribute('data-theme','${safe}');`;
+            try { wv.executeJavaScript(js).catch(() => {}); } catch {}
             try { wv.reloadIgnoringCache?.(); } catch {}
           } else {
-            let newUrl;
+            // The file:// page takes its theme from ?theme= (its only theme
+            // source). It is recoloured in place (applyStartTheme also paints
+            // the Custom Image wallpaper) and its address rewritten with
+            // replaceState, so a refresh keeps the theme without reloading the
+            // page — a reload flashed the whole New Tab on every switch, and
+            // Light and dark switches by itself (js/theme-auto.js).
             try {
-              const u = new URL(url);
-              u.searchParams.set('theme', safe);
-              newUrl = u.toString();
-            } catch {
-              newUrl = url.split('#')[0].split('?')[0] + `?theme=${safe}`;
+              wv.executeJavaScript(this.startPageThemeJs(safe)).catch(err => console.error('[ThemeManager] New Tab recolour failed:', err && err.message));
+            } catch (err) {
+              // A New Tab whose page has not loaded yet: its dom-ready handler
+              // (webview.js) gives it the current theme when it does.
+              if (!/dom-ready|attached/i.test(String(err && err.message))) console.error('[ThemeManager] New Tab recolour failed:', err && err.message);
             }
-            try {
-              // .catch: a start-page reload superseded by another navigation
-              // rejects with ERR_ABORTED (-3) — expected and self-healing, but
-              // without a catch it surfaces as an uncaught rejection on startup.
-              if (typeof wv.loadURL === 'function') wv.loadURL(newUrl).catch(() => {});
-              else wv.src = newUrl;
-            } catch {}
           }
         }
       }
     } catch {}
 
     // userChoice: someone picked this theme, as opposed to the startup restore
-    // (the only persist:false caller) — gui-style.js follows only real picks.
-    document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: themeName, userChoice: opts.persist !== false } }));
+    // (persist:false) or Light and dark switching by itself (auto:true) —
+    // gui-style.js and theme-auto.js follow only real picks.
+    const detail = { theme: themeName, userChoice: opts.persist !== false && !opts.auto };
+    if (opts.auto) detail.auto = true;
+    document.dispatchEvent(new CustomEvent('theme-changed', { detail }));
+  },
+
+  // The script that brings a file:// New Tab page to `theme` without a reload:
+  // recolour it (applyStartTheme is start.html's own, and paints the Custom
+  // Image wallpaper too) and rewrite its ?theme= so a refresh keeps it. Does
+  // nothing when the page already wears it. `theme` is a checked theme id.
+  startPageThemeJs(theme) {
+    const t = JSON.stringify(String(theme).replace(/[^a-z-]/g, ''));
+    return `(() => {
+      const t = ${t};
+      if (document.documentElement.getAttribute('data-theme') === t && new URL(location.href).searchParams.get('theme') === t) return;
+      if (typeof applyStartTheme === 'function') applyStartTheme(t);
+      else document.documentElement.setAttribute('data-theme', t);
+      const u = new URL(location.href);
+      u.searchParams.set('theme', t);
+      history.replaceState(history.state, '', u.toString());
+    })()`;
   },
 
   // Store a user-uploaded image (data URL) for the Custom Image theme and push

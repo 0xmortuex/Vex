@@ -455,6 +455,9 @@ contextBridge.exposeInMainWorld('vex', {
   openAsApp: (url, title, partition) => ipcRenderer.invoke('app:open-as-app', url, title, partition),
   getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
   setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
+  // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
+  getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
+  onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
 

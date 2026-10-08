@@ -69,8 +69,11 @@ describe('theme registry', () => {
     }]]) };
     const TM = await loadThemeManager();
     TM.applyTheme('firefox-light', { persist: false });
-    expect(exec.mock.calls[0][0]).toContain("setAttribute('data-theme','firefox-light')");
-    expect(load.mock.calls[0][0]).toContain('theme=firefox-light');
+    // Recoloured in place and its ?theme= rewritten (no reload since Light
+    // and dark, js/theme-auto.js) — with the hyphen kept.
+    expect(exec.mock.calls[0][0]).toContain('const t = "firefox-light"');
+    expect(exec.mock.calls[0][0]).toContain("searchParams.set('theme', t)");
+    expect(load).not.toHaveBeenCalled();
     delete globalThis.WebviewManager;
   });
 });

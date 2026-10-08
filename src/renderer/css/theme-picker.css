@@ -159,6 +159,30 @@
   margin: 16px 2px 9px;
 }
 .vtp-section-title:first-child { margin-top: 2px; }
+
+/* === Light and dark (js/theme-auto.js): what a pick does, and each slot === */
+.vtp-auto-note {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--vex-text-secondary, var(--text-muted));
+  background: var(--vex-accent-dim, var(--surface));
+  border: 1px solid var(--vex-border-subtle, var(--border));
+  border-radius: 8px;
+  padding: 9px 12px;
+  margin: 0 2px 12px;
+}
+.vtp-slot {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--vex-text-secondary, var(--text-muted));
+  border: 1px solid var(--vex-border-medium, var(--border));
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 6px;
+}
 .vtp-star {
   position: absolute;
   top: 7px; right: 8px; z-index: 3;

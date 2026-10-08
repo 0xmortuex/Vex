@@ -47,6 +47,8 @@ const PREFERENCE_KEYS = [
   'vex.weatherLoc', 'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
   'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
+  // Settings › Appearance › Light and dark (js/theme-auto.js).
+  'vex.themeAuto',
 ];
 
 describe('Reset to Defaults key policy', () => {
