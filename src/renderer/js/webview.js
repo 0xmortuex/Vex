@@ -271,6 +271,12 @@ const WebviewManager = {
         if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
           const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
           webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
+          // The colour theme, in case it changed while this page was loading
+          // (Light and dark switches by itself): a no-op when it already matches.
+          if (typeof ThemeManager !== 'undefined' && !/^vex:/i.test(webview.getURL())) {
+            webview.executeJavaScript(ThemeManager.startPageThemeJs(ThemeManager.getCurrentTheme()))
+              .catch(err => console.error('[ThemeManager] New Tab theme at load failed:', err && err.message));
+          }
           // The Today block on the new tab page (js/today.js): the start page
           // runs in its own session and cannot read this renderer's storage,
           // so the snapshot is handed to it here, the same way the theme is.

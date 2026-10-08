@@ -777,6 +777,36 @@
                 <span>Colour theme<br><span style="font-size:11.5px;color:var(--text-muted)"><span data-count="themes">Dozens</span> of them, including Firefox Light and Dark. Ctrl+Shift+Y.</span></span>
                 <button id="setting-open-theme" class="btn-secondary">Choose a theme…</button>
               </div>
+              <!-- Light and dark: a light and a dark theme, switched by Windows'
+                   app mode or the clock (js/theme-auto.js fills and runs it). -->
+              <div class="setting-toggle-row" id="theme-auto-row">
+                <span>Light and dark<br><span id="theme-auto-hint" style="font-size:11.5px;color:var(--text-muted)">Wear a light theme by day and a dark one at night, by Windows’ own setting or by the clock.</span></span>
+                <select id="setting-theme-auto-mode" aria-label="Light and dark" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="off">Off — one theme</option>
+                  <option value="system">Follow Windows</option>
+                  <option value="schedule">On a schedule</option>
+                  <option value="sun">Sunset to sunrise</option>
+                </select>
+              </div>
+              <div id="theme-auto-details" style="display:none">
+                <div class="setting-toggle-row">
+                  <span>Light theme</span>
+                  <select id="setting-theme-light" aria-label="Light theme" style="flex:0 1 260px;max-width:260px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px"></select>
+                </div>
+                <div class="setting-toggle-row">
+                  <span>Dark theme</span>
+                  <select id="setting-theme-dark" aria-label="Dark theme" style="flex:0 1 260px;max-width:260px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px"></select>
+                </div>
+                <div class="setting-toggle-row" id="theme-auto-schedule-row" style="display:none">
+                  <span>Dark from</span>
+                  <span style="display:flex;align-items:center;gap:8px">
+                    <input type="time" id="setting-theme-dark-from" aria-label="Dark from" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                    <span>to</span>
+                    <input type="time" id="setting-theme-dark-to" aria-label="Dark until" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  </span>
+                </div>
+                <div id="theme-auto-status" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:6px"></div>
+              </div>
               <div class="setting-toggle-row">
                 <span>Skin<br><span style="font-size:11.5px;color:var(--text-muted)">A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light — on top of any theme.</span></span>
                 <button id="setting-open-skin" class="btn-secondary">Choose a skin…</button>
@@ -1400,6 +1430,7 @@
   <script src="js/vex-utils.js"></script>
   <script src="js/vex-markdown.js"></script>
   <script src="js/theme-manager.js"></script>
+  <script src="js/theme-auto.js"></script>
   <script src="js/theme-picker.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/horizontal-tabs.js"></script>

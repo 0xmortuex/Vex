@@ -68,6 +68,14 @@ const ThemePicker = {
     // is the way back. While it is in force no theme card is ticked.
     const look = this._lookCard();
     const lookColours = !!look && window.VexGuiStyle.getColors() === 'look';
+    // Light and dark on: say which slot a pick fills (js/theme-auto.js).
+    const autoNote = (typeof ThemeAuto !== 'undefined') ? ThemeAuto.pickerNote() : '';
+    if (autoNote) {
+      const n = document.createElement('div');
+      n.className = 'vtp-auto-note';
+      n.textContent = autoNote;
+      container.appendChild(n);
+    }
 
     const section = (title, themes) => {
       if (!themes.length) return;
@@ -145,12 +153,14 @@ const ThemePicker = {
     // (scoped via data-theme). No image files, so previews are always identical in
     // style and can never be stale/cached/mismatched between builds.
     const upload = isCustom ? '<span class="vtp-thumb-upload">' + VexIcons.svg('upload', { size: 13 }) + ' Upload image</span>' : '';
+    const slot = (typeof ThemeAuto !== 'undefined') ? ThemeAuto.slotOf(t.id) : '';
+    const slotTag = slot ? `<span class="vtp-slot" title="Your ${slot} theme (Light and dark)">${slot === 'light' ? 'Light' : 'Dark'}</span>` : '';
     card.innerHTML = `
       <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}${upload}
         <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
       </div>
       <div class="vtp-label">
-        <span class="vtp-label-text">${t.label}</span>
+        <span class="vtp-label-text">${t.label}</span>${slotTag}
         <span class="vtp-check" aria-hidden="true">${VexIcons.svg('check', { size: 14 })}</span>
       </div>
     `;
@@ -163,7 +173,8 @@ const ThemePicker = {
       if (isCustom) { this._applyCustom(this._modal); return; }
       ThemeManager.applyTheme(t.id);
       this._modal.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === t.id));
-      window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
+      // With Light and dark on, theme-auto.js says which slot it filled instead.
+      if (typeof ThemeAuto === 'undefined' || !ThemeAuto.isOn()) window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
       setTimeout(() => this.close(), 180);
     });
     return card;

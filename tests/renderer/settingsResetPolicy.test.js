@@ -51,6 +51,8 @@ const PREFERENCE_KEYS = [
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
   'vex.whatsNewCard',
   'vex.readingDigest.newTab',
+  // Settings › Appearance › Light and dark (js/theme-auto.js).
+  'vex.themeAuto',
 ];
 
 describe('Reset to Defaults key policy', () => {

@@ -291,6 +291,9 @@
   async function apply(style) {
     if (!STYLES[style]) style = 'classic';
     const def = STYLES[style];
+    // What the New Tab page is told (its own look: classic or glass) before
+    // and after; only a change there needs the open New Tabs reloaded.
+    const prevStart = (STYLES[document.body.dataset.guiStyle] || {}).startPage || 'classic';
     if (def.layout === 'top') {
       try {
         const cur = document.body.dataset.tabLayout || 'horizontal';
@@ -323,7 +326,12 @@
     // the file lands and stay on the old style. Only send a value it accepts:
     // anything else fails main's IPC schema.
     try { await window.vex?.setGuiStyle?.(def.startPage || 'classic'); } catch {}
-    try { window.Onboarding?._reloadStartPages?.(); } catch {}
+    // Between two looks the page wears the same way (Firefox and Firefox dark,
+    // which Light and dark swaps by itself) it is repainted in place below
+    // instead: a reload flashed every open New Tab.
+    if ((def.startPage || 'classic') !== prevStart) {
+      try { window.Onboarding?._reloadStartPages?.(); } catch {}
+    }
     paintStartPages();
     try { window.dispatchEvent(new CustomEvent('vex:gui-style', { detail: { style } })); } catch {}
   }
@@ -385,6 +393,7 @@
     // theme. start.html styles html[data-look="chrome"] and friends.
     const look = isBrowserLook() ? document.body.dataset.guiStyle : '';
     const js = `(() => {
+      document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(current())});
       const look = ${JSON.stringify(look)};
       if (look) { document.documentElement.setAttribute('data-look', look); localStorage.setItem('vex.lookName', look); }
       else { document.documentElement.removeAttribute('data-look'); localStorage.removeItem('vex.lookName'); }

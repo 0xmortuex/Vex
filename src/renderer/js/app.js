@@ -590,7 +590,7 @@ function vexOwnTextFocused(doc) {
   // control in this panel writes; anything not on it is user content and stays.
   const SETTINGS_PREF_KEYS = [
     'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
-    'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette',
+    'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette', 'vex.themeAuto',
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
     'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
     'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',

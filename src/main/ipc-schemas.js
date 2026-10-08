@@ -175,6 +175,8 @@ define('routing:forget', [string(160)]);
 define('routing:prune', [value => Array.isArray(value) && value.length <= 500 && value.every(string(160))]);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
+// Light and dark (src/main/system-theme.js): is Windows in dark mode.
+define('system-theme:get', []);
 define('theme:set-custom-image', [optional(value => typeof value === 'string' && value.length <= 12 * 1024 * 1024 && /^data:image\/(png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value))]);
 define('site:clear-data cookies:list', [shape({ url: web, partition: optional(string(160)) })]);
 // Editing one cookie: the name and the three things that decide which cookie

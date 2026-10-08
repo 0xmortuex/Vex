@@ -27,6 +27,8 @@ const SyncEngine = (() => {
     'vex.bookmarks',
     'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
     'vex.notes', 'vex.history', 'vex.theme', 'vex.schedules',
+    // Light and dark: the two themes and when each is worn (js/theme-auto.js).
+    'vex.themeAuto',
     'vex.agentMode', 'vex.aiIndexingEnabled', 'vex.zooms',
     // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and

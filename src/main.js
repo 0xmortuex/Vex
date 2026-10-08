@@ -7072,6 +7072,15 @@ function _loadCustomThemeImage() {
   catch { _customThemeImage = null; }
   return _customThemeImage;
 }
+// Light and dark follows Windows' app mode (src/main/system-theme.js); every
+// Vex window (the main one and private ones) hears when it changes.
+app.whenReady().then(() => {
+  require('./main/system-theme').wireSystemTheme({
+    ipcMain,
+    nativeTheme: require('electron').nativeTheme,
+    windows: () => BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && secureSessions.owner(w.webContents)?.win === w),
+  });
+});
 ipcMain.handle('theme:get-custom-image', () => _loadCustomThemeImage());
 ipcMain.handle('theme:set-custom-image', (_e, dataUrl) => {
   try {
