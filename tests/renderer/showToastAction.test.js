@@ -15,7 +15,7 @@ const end = src.indexOf('\n  window.showToast = showToast;', start);
 // hand: real ones outlive the test window and fire into its teardown.
 const observers = [];
 class FakeObserver { constructor(cb) { this.cb = cb; observers.push(this); } observe(target) { this.target = target; } disconnect() {} }
-const [showToast, placeToastsForTest] = new Function('MutationObserver', src.slice(start, end) + '\nreturn [showToast, placeToasts];')(FakeObserver);
+const [showToast, placeToastsForTest] = new Function('MutationObserver', 'ResizeObserver', src.slice(start, end) + '\nreturn [showToast, placeToasts];')(FakeObserver, FakeObserver);
 
 beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); });
 
@@ -121,5 +121,29 @@ describe('toasts and an open panel', () => {
     await flush();
     observers.filter(o => o.target === c).forEach(o => o.cb([]));   // the stack's watcher
     expect(panel.classList.contains('toast-capped')).toBe(false);
+  });
+});
+
+// An Undo toast takes clicks; over a download card it hid the card's Open and
+// Show for ten seconds (final review, 2026-10-09). The stack sits above it.
+describe('toasts and the download cards', () => {
+  const rect = (el, r) => { el.getBoundingClientRect = () => ({ ...r, right: r.left + r.width, bottom: r.top + r.height }); el.getClientRects = () => [1]; };
+  it('sit above the cards in the same corner, and come back down when the cards go', () => {
+    Object.defineProperty(window, 'innerWidth', { value: 1400, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true });
+    const cards = document.createElement('div');
+    cards.setAttribute('data-avoid-toasts', 'above');
+    document.body.appendChild(cards);
+    rect(cards, { left: 1036, top: 790, width: 340, height: 86 });
+    showToast('Deleted “Harbour”', 'undo', 10000, { action: { label: 'Undo', run: () => {} } });
+    const c = document.getElementById('toast-container');
+    rect(c, { left: 1020, top: 820, width: 360, height: 60 });
+    placeToastsForTest();
+    expect(c.style.bottom).toBe('118px');   // 900 - 790 + 8
+    expect(cards.classList.contains('toast-capped')).toBe(false);
+    rect(cards, { left: 1036, top: 876, width: 340, height: 0 });   // no cards left
+    rect(c, { left: 1020, top: 820, width: 360, height: 60 });
+    placeToastsForTest();
+    expect(c.style.bottom).toBe('');
   });
 });

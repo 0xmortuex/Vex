@@ -1912,13 +1912,19 @@ function vexOwnTextFocused(doc) {
     const panels = [...document.querySelectorAll('[data-avoid-toasts]')];
     panels.forEach(p => p.classList.remove('toast-capped'));
     container.style.right = '';
+    container.style.bottom = '';
     const live = [...container.children].some(t => !t.dataset.leaving);
     if (!live) return;
     const GAP = 8, EDGE = 20;
     for (const p of panels) {
       if (!p.getClientRects().length) continue;
       const c = container.getBoundingClientRect(), r = p.getBoundingClientRect();
+      if (!r.width || !r.height) continue;   // an empty card stack
       if (!(c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top)) continue;
+      // Docked in the same corner (the download cards, data-avoid-toasts=
+      // "above"): the stack sits on top of it. An Undo toast takes clicks, so
+      // over a card it hid that card's Open and Show for ten seconds.
+      if (p.dataset.avoidToasts === 'above') { container.style.bottom = (window.innerHeight - r.top + GAP) + 'px'; continue; }
       if (r.left - GAP - EDGE >= c.width) { container.style.right = (window.innerWidth - r.left + GAP) + 'px'; continue; }
       p.style.setProperty('--toast-cap', Math.max(96, c.top - GAP - r.top) + 'px');
       p.classList.add('toast-capped');
@@ -1926,7 +1932,12 @@ function vexOwnTextFocused(doc) {
   }
   function watchToastPlacement(container) {
     new MutationObserver(placeToasts).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leaving'] });
+    // What sits in the corner grows and shrinks as its cards come and go.
+    const watchAbove = (el) => new ResizeObserver(placeToasts).observe(el);
+    document.querySelectorAll('[data-avoid-toasts="above"]').forEach(watchAbove);
     new MutationObserver((records) => {
+      const added = records.flatMap(m => [...m.addedNodes]).filter(n => n.nodeType === 1 && n.getAttribute('data-avoid-toasts') === 'above');
+      added.forEach(watchAbove);
       if (records.some(m => [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1 && n.hasAttribute('data-avoid-toasts')))) placeToasts();
     }).observe(document.body, { childList: true });
     // After the panels' own resize handlers have placed them.

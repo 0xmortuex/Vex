@@ -18,6 +18,8 @@ const DownloadToast = {
     if (!c) {
       c = document.createElement('div');
       c.id = 'download-toast-container';
+      // The other toasts sit above these cards (app.js placeToasts).
+      c.setAttribute('data-avoid-toasts', 'above');
       document.body.appendChild(c);
     }
     return c;
