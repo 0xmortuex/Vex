@@ -104,14 +104,22 @@ const FocusFlows = {
       row.querySelector('[data-act="go"]')?.addEventListener('click', () => { const f = this._load()[i]; if (f) { this.activate(f); m.remove(); } });
       row.querySelector('[data-act="edit"]')?.addEventListener('click', () => { const f = this._load()[i]; if (f) this._paint(m, f); });
       // A flow went at one click, with no way back (found 2026-09-29).
-      row.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
-        const f = this._load()[i];
-        if (!f) return;
-        if (!await vexConfirm({ title: 'Delete flow', message: 'Delete the flow "' + (f.name || 'Flow') + '"? This cannot be undone.', okLabel: 'Delete', danger: true })) return;
+      // Gone at once, with Undo on the toast (js/vex-undo.js).
+      row.querySelector('[data-act="del"]')?.addEventListener('click', () => {
         const a = this._load();
-        const at = a.findIndex(x => JSON.stringify(x) === JSON.stringify(f));   // the list may have changed while asking
-        if (at >= 0) { a.splice(at, 1); this._save(a); }
+        const removed = window.VexUndo.takeOut(a, (_x, j) => j === i);
+        if (!removed) return;
+        this._save(a);
         this._paint(m);
+        window.VexUndo.offer({
+          message: 'Deleted the flow “' + (removed.item.name || 'Flow') + '”',
+          undo: () => {
+            const now = this._load();
+            window.VexUndo.putBack(now, removed);
+            this._save(now);
+            if (m.isConnected) this._paint(m);
+          },
+        });
       });
     });
 

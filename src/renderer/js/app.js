@@ -776,16 +776,26 @@ function vexOwnTextFocused(doc) {
   document.getElementById('btn-group-tabs-now')?.addEventListener('click', () => {
     TabGrouper?.analyzeAndPropose();
   });
-  document.getElementById('btn-clear-patterns')?.addEventListener('click', async () => {
-    if (!await vexConfirm({ title: 'Clear group patterns', message: 'Clear all remembered group patterns? New tabs won\u2019t auto-join groups anymore.', okLabel: 'Clear', danger: true })) return;
-    TabGrouper?.clearPatterns();
-    showToast('Patterns cleared', 'success');
+  // Both clear at once, with Undo on the toast (js/vex-undo.js).
+  document.getElementById('btn-clear-patterns')?.addEventListener('click', () => {
+    if (!window.TabGrouper) return;
+    const before = TabGrouper.getPatterns();
+    TabGrouper.clearPatterns();
     updateGroupPatternsCount();
+    VexUndo.offer({
+      message: 'Group patterns cleared \u2014 new tabs no longer join groups by themselves',
+      undo: () => { TabGrouper.restorePatterns(before); updateGroupPatternsCount(); },
+    });
   });
   document.getElementById('btn-clear-rejected')?.addEventListener('click', () => {
-    TabGrouper?.clearRejectedPatterns?.();
-    showToast('Rejected suggestions cleared \u2014 AI will suggest all types of groups again', 'success');
+    if (!window.TabGrouper) return;
+    const before = TabGrouper.getRejectedPatterns();
+    TabGrouper.clearRejectedPatterns();
     updateGroupPatternsCount();
+    VexUndo.offer({
+      message: 'Rejected suggestions cleared \u2014 AI will suggest all types of groups again',
+      undo: () => { TabGrouper.restoreRejectedPatterns(before); updateGroupPatternsCount(); },
+    });
   });
   function updateGroupPatternsCount() {
     const el = document.getElementById('group-patterns-count');
@@ -1774,9 +1784,15 @@ function vexOwnTextFocused(doc) {
   // DownloadsPanel (js/downloads-panel.js) and DownloadToast — no
   // duplicate toasts here.
 
-  function showToast(message, type, duration) {
+  // opts.action = { label, title, run }: one button on the toast (the Undo of
+  // js/vex-undo.js). Such a toast takes clicks, holds still while the pointer
+  // or the focus is on it, and calls opts.onExpire when it goes without being
+  // used — on time, pushed out by newer toasts, or Escape. Returns
+  // { el, dismiss } so its owner can take it down.
+  function showToast(message, type, duration, opts) {
     type = type || 'info';
     duration = duration || 3000;
+    const action = opts && opts.action;
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -1786,21 +1802,96 @@ function vexOwnTextFocused(doc) {
       container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
     }
-    // Skip exact duplicates of a toast that is still visible.
-    for (const t of container.children) {
-      if (t.textContent === message) return;
+    // Skip exact duplicates of a toast that is still visible. One with a
+    // button is about one thing that happened, so two of them are two things.
+    if (!action) {
+      for (const t of container.children) {
+        if (t.textContent === message) return null;
+      }
     }
-    // Cap visible toasts at 4 — drop the oldest first.
-    while (container.children.length >= 4) container.firstElementChild.remove();
+    // Cap visible toasts at 4 — drop the oldest first, a plain one before one
+    // with a button; one with a button that has to go counts as expired. One
+    // already fading out does not count, and a dropped one goes at once (the
+    // count has to fall, or this loop never ends).
+    for (;;) {
+      const shown = Array.from(container.children).filter(t => !t.dataset.leaving);
+      if (shown.length < 4) break;
+      const old = shown.find(t => !t._vexToast) || shown[0];
+      if (old._vexToast) old._vexToast.expire();
+      old.remove();
+    }
     const el = document.createElement('div');
     el.className = 'toast-item ' + type;
-    el.textContent = message;
-    container.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
+    let gone = false, timer = null, left = duration, startedAt = 0;
+    let hoverHold = null;
+    const takeDown = () => {
+      if (gone) return;
+      gone = true;
+      el.dataset.leaving = '1';
+      clearTimeout(timer);
+      clearTimeout(hoverHold);
       el.classList.remove('show');
       setTimeout(() => el.remove(), 300);
-    }, duration);
+    };
+    if (!action) {
+      el.textContent = message;
+      container.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      timer = setTimeout(takeDown, duration);
+      return { el, dismiss: takeDown };
+    }
+    const text = document.createElement('span');
+    text.className = 'toast-text';
+    text.textContent = message;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    if (action.title) btn.title = action.title;
+    el.classList.add('has-action');
+    el.append(text, btn);
+    const handle = {
+      el,
+      dismiss: takeDown,
+      expire() {
+        if (gone) return;
+        takeDown();
+        if (opts.onExpire) opts.onExpire();
+      },
+    };
+    el._vexToast = handle;
+    const run = () => { if (gone) return; takeDown(); action.run(); };
+    btn.addEventListener('click', run);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handle.expire(); }
+    });
+    // Time stands still while you are reading it or about to press it. The
+    // pointer leaving it straight onto the page (a <webview>) never tells this
+    // window it left (measured 2026-10-08), so a hover holds it 15 s at most;
+    // the keyboard's focus holds it until the focus goes.
+    const pause = () => { if (gone || !timer) return; clearTimeout(timer); timer = null; left -= Date.now() - startedAt; };
+    const resume = (ignoreHover) => {
+      if (gone || timer || el.contains(document.activeElement) || (!ignoreHover && el.matches(':hover'))) return;
+      startedAt = Date.now();
+      timer = setTimeout(() => handle.expire(), Math.max(1500, left));
+    };
+    el.addEventListener('mouseenter', () => {
+      pause();
+      clearTimeout(hoverHold);
+      hoverHold = setTimeout(() => resume(true), 15000);
+    });
+    el.addEventListener('focusin', pause);
+    el.addEventListener('mouseleave', () => { clearTimeout(hoverHold); setTimeout(() => resume(false), 0); });
+    el.addEventListener('focusout', () => setTimeout(() => resume(false), 0));
+    container.appendChild(el);
+    // Slid in by a forced layout rather than the next animation frame, which
+    // does not come while the window is not being drawn; until then its Undo
+    // sat off screen, out of reach.
+    void el.offsetWidth;
+    el.classList.add('show');
+    startedAt = Date.now();
+    timer = setTimeout(() => handle.expire(), duration);
+    return handle;
   }
 
   window.showToast = showToast;

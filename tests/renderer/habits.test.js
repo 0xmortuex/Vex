@@ -105,17 +105,22 @@ describe('the sheet', () => {
     expect(o().querySelectorAll('tbody input[type=checkbox]')).toHaveLength(7);
   });
 
-  it('removing asks first, and a no keeps it', async () => {
-    Habits.add('Walk');
-    window.vexConfirm = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it('removing is at once, and Undo brings it back with its ticked days in its place', async () => {
+    require('../../src/renderer/js/vex-undo.js');
+    let offered = null;
+    window.showToast = vi.fn((_m, _t, _d, opts) => { if (opts) offered = opts; return { dismiss() {} }; });
+    window.vexConfirm = vi.fn();
+    Habits.add('Walk'); Habits.add('Read');
+    const walk = Habits.list()[0];
+    Habits.toggle(walk.id, Habits.dayKey(new Date()));
+    const before = JSON.stringify(Habits.list());
     Habits.open();
-    const btn = () => document.querySelector('.vex-habits-overlay [data-remove]');
-    btn().click();
-    await Promise.resolve(); await Promise.resolve();
-    expect(Habits.list()).toHaveLength(1);
-    btn().click();
-    await Promise.resolve(); await Promise.resolve();
-    expect(Habits.list()).toHaveLength(0);
-    expect(window.vexConfirm).toHaveBeenCalledTimes(2);
+    document.querySelector('.vex-habits-overlay [data-remove]').click();
+    expect(Habits.list().map(x => x.name)).toEqual(['Read']);
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(window.showToast.mock.calls.at(-1)[0]).toMatch(/Removed the habit “Walk”/);
+    offered.action.run();
+    await Promise.resolve();
+    expect(JSON.stringify(Habits.list())).toBe(before);
   });
 });

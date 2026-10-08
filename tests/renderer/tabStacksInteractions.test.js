@@ -368,11 +368,17 @@ describe('_handleStackAction — ungroup', () => {
 });
 
 describe('_handleStackAction — close-tabs', () => {
-  it('closes every tab in the stack and removes the stack', async () => {
+  it('closes every tab in the stack and removes the stack; Undo brings both back as they were', async () => {
     installGlobals();
+    let offered = null;
+    window.showToast = vi.fn((_m, _t, _d, opts) => { if (opts) offered = opts; return { dismiss() {} }; });
     const TM = await loadTabManager();
-    TM.tabs = [fakeTab('t1'), fakeTab('t2'), fakeTab('t3')];
+    await import('../../src/renderer/js/tab-policy.js');
+    await import('../../src/renderer/js/vex-undo.js');
+    TM.tabs = [fakeTab('t0'), fakeTab('t1'), fakeTab('t2'), fakeTab('t3')];
+    TM.activeTabId = 't0';
     const s = TM.createStack(['t1', 't2', 't3']);
+    const stackBefore = { ...TM.stacks.find(x => x.id === s.id) };
 
     TM._handleStackAction('close-tabs', s.id);
 
@@ -381,6 +387,13 @@ describe('_handleStackAction — close-tabs', () => {
     for (const id of ['t1', 't2', 't3']) {
       expect(TM.tabs.find(t => t.id === id)).toBeUndefined();
     }
+
+    offered.action.run();
+    await Promise.resolve();
+    expect(TM.tabs.map(t => t.id)).toEqual(['t0', 't1', 't2', 't3']);
+    expect(TM.tabs.slice(1).every(t => t.stackId === s.id)).toBe(true);
+    expect(TM.stacks.find(x => x.id === s.id)).toEqual(stackBefore);
+    expect(TM.activeTabId).toBe('t0');
   });
 });
 

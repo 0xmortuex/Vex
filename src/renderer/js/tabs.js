@@ -234,54 +234,7 @@ const TabManager = {
       for (const t of savedTabs) {
         const id = /^tab-[a-f0-9-]{36}$/i.test(t.id || '') && !this.tabs.some(tab => tab.id === t.id) ? t.id : this._newId();
         restoredIds.set(t.id, id);
-        // Restored start tabs reload in the CURRENT persisted theme: rebuild
-        // their URL with a fresh ?theme= (the saved one may carry a stale
-        // theme). Non-start tabs keep their saved URL untouched.
-        const tabUrl = isStartPage(t.url) ? startUrlWithTheme() : (t.url || START_URL);
-        if (t.sleeping) {
-          // Sleeping at shutdown → stay sleeping; no webview, scroll preserved.
-          this.tabs.push({
-            id,
-            partition: t.partition || null,
-            url: tabUrl,
-            title: t.title || (isStartPage(t.url) ? 'New Tab' : t.url),
-            favicon: null,
-            loading: false,
-            pinned: !!t.pinned,
-            unread: false,
-            groupId: t.groupId || null,
-            stackId: t.stackId || null,
-            sleeping: true,
-            originalUrl: isStartPage(t.url) ? tabUrl : (t.originalUrl || t.url),
-            scrollPosition: t.scrollPosition || null,
-            keepAwakeUntil: t.keepAwakeUntil || 0,
-            note: t.note || '',
-            // Keeps the Memory panel's "(was 219 MB)" across the restart; a
-            // malformed saved figure is dropped rather than shown.
-            memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null
-          });
-        } else {
-          // Lazy restore: rebuild the tab record WITHOUT a webview. It
-          // materializes (creates its webview, loads the URL) only when first
-          // activated — see switchTab → _materializeTab. So a big saved session
-          // costs almost nothing at launch; only the focused tab is live.
-          // Saved title + favicon keep the sidebar looking right meanwhile.
-          this.tabs.push({
-            id,
-            partition: t.partition || null,
-            url: tabUrl,
-            title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
-            favicon: this._persistableFavicon(t.favicon, t.partition),
-            loading: false,
-            pinned: !!t.pinned,
-            unread: false,
-            groupId: t.groupId || null,
-            stackId: t.stackId || null,
-            keepAwakeUntil: t.keepAwakeUntil || 0,
-            note: t.note || '',
-            _lazy: true
-          });
-        }
+        this.tabs.push(this._savedTabRecord(t, id));
       }
       // On launch, always focus a Home (vex://start) tab rather than the
       // previously-shown tab. Reuse an existing restored start tab if present
@@ -352,6 +305,60 @@ const TabManager = {
 
     this.setupNewTabButton();
     this.setupDragDrop();
+  },
+
+  // A tab's record built again from what was saved of it (VexTabPolicy.
+  // serialize), with no webview yet: a launch's restore, and the Undo after
+  // closing several tabs. Sleeping stays asleep; anything else is made when
+  // it is first shown (switchTab → _materializeTab).
+  _savedTabRecord(t, id) {
+    // Restored start tabs reload in the CURRENT persisted theme: rebuild
+    // their URL with a fresh ?theme= (the saved one may carry a stale
+    // theme). Non-start tabs keep their saved URL untouched.
+    const tabUrl = isStartPage(t.url) ? startUrlWithTheme() : (t.url || START_URL);
+    if (t.sleeping) {
+      // Sleeping at shutdown → stay sleeping; no webview, scroll preserved.
+      return {
+        id,
+        partition: t.partition || null,
+        url: tabUrl,
+        title: t.title || (isStartPage(t.url) ? 'New Tab' : t.url),
+        favicon: null,
+        loading: false,
+        pinned: !!t.pinned,
+        unread: false,
+        groupId: t.groupId || null,
+        stackId: t.stackId || null,
+        sleeping: true,
+        originalUrl: isStartPage(t.url) ? tabUrl : (t.originalUrl || t.url),
+        scrollPosition: t.scrollPosition || null,
+        keepAwakeUntil: t.keepAwakeUntil || 0,
+        note: t.note || '',
+        // Keeps the Memory panel's "(was 219 MB)" across the restart; a
+        // malformed saved figure is dropped rather than shown.
+        memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null
+      };
+    }
+    // Lazy restore: rebuild the tab record WITHOUT a webview. It
+    // materializes (creates its webview, loads the URL) only when first
+    // activated — see switchTab → _materializeTab. So a big saved session
+    // costs almost nothing at launch; only the focused tab is live.
+    // Saved title + favicon keep the sidebar looking right meanwhile.
+    return {
+      id,
+      partition: t.partition || null,
+      url: tabUrl,
+      title: t.title || (isStartPage(t.url) ? 'New Tab' : (t.url || 'Tab')),
+      favicon: this._persistableFavicon(t.favicon, t.partition),
+      loading: false,
+      pinned: !!t.pinned,
+      unread: false,
+      groupId: t.groupId || null,
+      stackId: t.stackId || null,
+      keepAwakeUntil: t.keepAwakeUntil || 0,
+      note: t.note || '',
+      _lazy: true
+    };
   },
 
   createTab(url, activate = true, groupId = null, opts = null) {
@@ -1324,9 +1331,8 @@ const TabManager = {
         // member set also removes the stack object. closeTab rebuilds the
         // strip per-call (see its 4c tail), keeping the DOM in sync.
         const n = members.length;
-        members.forEach(t => this.closeTab(t.id));
+        this.closeTabsWithUndo(members.map(t => t.id), `Closed ${n} tab${n === 1 ? '' : 's'} in “${stack.name}”`);
         this._expandedStackIds.delete(stackId);
-        window.showToast?.(`Closed ${n} tab${n === 1 ? '' : 's'}`, 'success');
         break;
       }
       case 'ungroup': {
@@ -1477,9 +1483,9 @@ const TabManager = {
         this.convertGroupToStack(groupId);
         break;
       }
+      // Both close at once; Undo on the toast brings the group back whole.
       case 'close-tabs': {
-        if (!await vexConfirm({ title: 'Close tabs', message: `Close ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in "${group.name}"? The group closes with its last tab.`, okLabel: 'Close tabs', danger: true })) return;
-        tabsInGroup.forEach(t => this.closeTab(t.id));
+        this.closeTabsWithUndo(tabsInGroup.map(t => t.id), `Closed ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in “${group.name}”`);
         break;
       }
       case 'ungroup': {
@@ -1492,13 +1498,17 @@ const TabManager = {
         break;
       }
       case 'delete': {
-        if (!await vexConfirm({ title: 'Delete group', message: `Delete "${group.name}" and close all ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} inside? This cannot be undone.`, okLabel: 'Delete group', danger: true })) return;
-        tabsInGroup.forEach(t => this.closeTab(t.id));
-        this.groups = this.groups.filter(g => g.id !== groupId);
-        VexStorage.saveGroups(this.groups);
-        this.rebuildAllTabs();
-        this.persistTabs();
-        window.showToast?.('Group deleted', 'success');
+        // The group goes with its last tab (closeTab), and Undo puts it back
+        // as it was. One with no tabs (never drawn) just goes.
+        if (tabsInGroup.length) {
+          this.closeTabsWithUndo(tabsInGroup.map(t => t.id), `Deleted the group “${group.name}” and closed its ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'}`);
+        }
+        if (this.groups.some(g => g.id === groupId)) {
+          this.groups = this.groups.filter(g => g.id !== groupId);
+          VexStorage.saveGroups(this.groups);
+          this.rebuildAllTabs();
+          this.persistTabs();
+        }
         break;
       }
     }
@@ -2821,9 +2831,104 @@ const TabManager = {
       window.showToast?.('No other tabs to close', 'info');
       return;
     }
-    if (this.activeTabId !== keep) this.switchTab(keep);
-    toClose.forEach(id => this.closeTab(id));
-    window.showToast?.(`Closed ${toClose.length} other tab${toClose.length === 1 ? '' : 's'}`, 'success');
+    this.closeTabsWithUndo(toClose, `Closed ${toClose.length} other tab${toClose.length === 1 ? '' : 's'}`, { focus: keep });
+  },
+
+  // === Closing several tabs, with Undo =====================================
+  // A group's Close tabs / Delete group and Close Others close at once, and
+  // the toast's Undo (js/vex-undo.js) brings every tab back where it was: its
+  // place in the strip, pinned, its group (name, colour, collapsed) or stack,
+  // asleep or not, muted, its note, and the tab that was in front. Each comes
+  // back at its address, as Reopen Closed Tab does; its back list and
+  // anything typed in the page are not kept. A private or Tor tab's session
+  // is wiped when it closes, so it cannot come back and the toast says so.
+  // Quitting with the toast up leaves them closed, as they already are.
+  // opts.focus: the tab to put in front first (Close Others' kept tab); the
+  // one in front before that is what Undo goes back to.
+  closeTabsWithUndo(ids, message, opts = {}) {
+    const policy = window.VexTabPolicy;
+    const closing = ids.map(id => this.tabs.find(t => t.id === id)).filter(Boolean);
+    if (!closing.length) return 0;
+    const closingIds = new Set(closing.map(t => t.id));
+    const snapshot = {
+      activeTabId: this.activeTabId,
+      tabs: closing.map(t => ({
+        index: this.tabs.indexOf(t),
+        data: { ...policy.serialize(t), muted: !!t.muted },
+        restorable: policy.canRestore(t),
+      })).sort((a, b) => a.index - b.index),
+      groups: this.groups.map((g, index) => ({ group: { ...g }, index })),
+      stacks: this.stacks.map((s, index) => ({ stack: { ...s }, index })),
+      members: new Map(this.tabs.map(t => [t.id, { groupId: t.groupId || null, stackId: t.stackId || null }])),
+    };
+    if (opts.focus && this.activeTabId !== opts.focus && this.tabs.some(t => t.id === opts.focus)) this.switchTab(opts.focus);
+    // The tab in front moves to a tab that stays, rather than being handed
+    // from one closing tab to the next (each would load its page first).
+    if (closingIds.has(this.activeTabId)) {
+      const order = this.displayOrder();
+      const at = order.findIndex(t => t.id === this.activeTabId);
+      const stays = order.slice(at + 1).find(t => !closingIds.has(t.id)) || order.slice(0, at).reverse().find(t => !closingIds.has(t.id));
+      if (stays) this.switchTab(stays.id);
+    }
+    const before = new Set(this.tabs.map(t => t.id));
+    closing.forEach(t => this.closeTab(t.id));
+    // Closing the last tab opens a New Tab; Undo takes it away again.
+    const madeForEmpty = this.tabs.filter(t => !before.has(t.id)).map(t => t.id);
+    const lost = snapshot.tabs.filter(s => !s.restorable).length;
+    window.VexUndo.offer({
+      message: message + (lost ? ` (${lost} private or Tor tab${lost === 1 ? '' : 's'} cannot come back)` : ''),
+      undo: () => this._restoreClosedTabs(snapshot, madeForEmpty),
+    });
+    return closing.length;
+  },
+
+  _restoreClosedTabs(snapshot, madeForEmpty) {
+    const back = snapshot.tabs.filter(s => s.restorable);
+    if (!back.length) throw new Error('Private and Tor tabs cannot come back');
+    const wanted = (id) => back.some(s => s.data.groupId === id);
+    // Groups that went with their last tab, in their old place and look.
+    for (const { group, index } of snapshot.groups) {
+      if (this.groups.some(g => g.id === group.id) || !wanted(group.id)) continue;
+      this.groups.splice(Math.min(index, this.groups.length), 0, { ...group });
+    }
+    // Stacks as they were (a member closing moves the top, or breaks up a
+    // stack of two), and the tabs that stayed back in them.
+    const stackIds = new Set(back.map(s => s.data.stackId).filter(Boolean));
+    for (const { stack, index } of snapshot.stacks) {
+      if (!stackIds.has(stack.id)) continue;
+      const now = this.stacks.findIndex(s => s.id === stack.id);
+      if (now >= 0) this.stacks[now] = { ...stack };
+      else this.stacks.splice(Math.min(index, this.stacks.length), 0, { ...stack });
+    }
+    for (const t of this.tabs) {
+      const was = snapshot.members.get(t.id);
+      if (was && was.stackId && stackIds.has(was.stackId) && !t.stackId) this._setTabStack(t.id, was.stackId);
+    }
+    // Each back in its place, under the id it had.
+    const ids = new Set();
+    for (const s of back) {
+      const id = this.tabs.some(t => t.id === s.data.id) ? this._newId() : s.data.id;
+      const tab = this._savedTabRecord(s.data, id);
+      if (s.data.muted) tab.muted = true;
+      if (tab.groupId && !this.groups.some(g => g.id === tab.groupId)) tab.groupId = null;
+      if (tab.stackId && !this.stacks.some(st => st.id === tab.stackId)) tab.stackId = null;
+      this.tabs.splice(Math.min(s.index, this.tabs.length), 0, tab);
+      ids.add(s.data.id);
+    }
+    // They are open again, so they are not "recently closed".
+    saveRecentlyClosed(getRecentlyClosed().filter(entry => !ids.has(entry.id)));
+    // The New Tab that closing the last one made, if it is still untouched.
+    for (const id of madeForEmpty) {
+      const t = this.tabs.find(x => x.id === id);
+      if (t && isStartPage(t.url) && this.tabs.length > 1) this.closeTab(id);
+    }
+    VexStorage.saveGroups(this.groups);
+    if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(this.stacks);
+    this.rebuildAllTabs();
+    const front = this.tabs.find(t => t.id === snapshot.activeTabId) ? snapshot.activeTabId : null;
+    if (front) this.switchTab(front);
+    this.persistTabs();
+    this._notifyTabsChanged();
   },
 
   // The tabs in the order the strip draws them, which is not list order: both
@@ -2896,9 +3001,7 @@ const TabManager = {
       window.showToast?.('No tabs to the right', 'info');
       return;
     }
-    if (toClose.includes(this.activeTabId)) this.switchTab(anchorId);
-    toClose.forEach(id => this.closeTab(id));
-    window.showToast?.(`Closed ${toClose.length} tab${toClose.length === 1 ? '' : 's'} to the right`, 'success');
+    this.closeTabsWithUndo(toClose, `Closed ${toClose.length} tab${toClose.length === 1 ? '' : 's'} to the right`, { focus: toClose.includes(this.activeTabId) ? anchorId : null });
   },
 
   // Close tabs whose URL duplicates another open tab, keeping one of each. The
@@ -2916,8 +3019,8 @@ const TabManager = {
       if (seen.has(k)) { if (t.id !== seen.get(k)) toClose.push(t.id); }
       else seen.set(k, t.id);
     }
-    toClose.forEach(id => this.closeTab(id));
-    window.showToast?.(toClose.length ? `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}` : 'No duplicate tabs', 'info');
+    if (toClose.length) this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
+    else window.showToast?.('No duplicate tabs', 'info');
     return toClose.length;
   },
 

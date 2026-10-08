@@ -203,15 +203,35 @@ const WorkspaceManager = {
     return ws;
   },
 
+  // Returns what went and where, for restoreWorkspace (the Undo on the toast).
   async deleteWorkspace(id) {
-    if (this.workspaces.length <= 1 || this._switching) return;
-    if (id === this.activeId) {
+    if (this.workspaces.length <= 1 || this._switching) return null;
+    const wasActive = id === this.activeId;
+    if (wasActive) {
       const other = this.workspaces.find(w => w.id !== id);
       if (other) await this.switchTo(other.id);
+      if (this.activeId === id) return null;   // the switch did not happen
     }
-    this.workspaces = this.workspaces.filter(w => w.id !== id);
+    const index = this.workspaces.findIndex(w => w.id === id);
+    if (index < 0) return null;
+    const removed = { item: this.workspaces[index], index, prevId: index > 0 ? this.workspaces[index - 1].id : null, wasActive };
+    this.workspaces.splice(index, 1);
     this.save();
     this.render();
+    return removed;
+  },
+
+  // Back in its place with the tabs saved in it; back in front if it was.
+  async restoreWorkspace(removed) {
+    if (!removed || !removed.item) throw new Error('Nothing to put back');
+    if (!this.workspaces.some(w => w.id === removed.item.id)) {
+      let at = removed.prevId ? this.workspaces.findIndex(w => w.id === removed.prevId) + 1 : 0;
+      if (at <= 0 && removed.prevId) at = Math.min(removed.index, this.workspaces.length);
+      this.workspaces.splice(at, 0, removed.item);
+      this.save();
+      this.render();
+    }
+    if (removed.wasActive) await this.switchTo(removed.item.id);
   },
 
   render() {
@@ -343,9 +363,14 @@ const WorkspaceManager = {
       // (found 2026-09-29).
       modal.querySelector('#ws-modal-delete')?.addEventListener('click', async () => {
         if (this.workspaces.length <= 1) { window.showToast?.('The last workspace cannot be deleted'); return; }
-        if (!await vexConfirm({ title: 'Delete workspace', message: `Delete "${editing.name}" and the tabs saved in it?`, okLabel: 'Delete', danger: true })) return;
+        // Done at once; Undo on the toast brings it back with its tabs.
         this.hideModal();
-        await this.deleteWorkspace(editing.id);
+        const removed = await this.deleteWorkspace(editing.id);
+        if (!removed) return;
+        window.VexUndo.offer({
+          message: `Deleted the workspace “${removed.item.name}” and its saved tabs`,
+          undo: () => this.restoreWorkspace(removed),
+        });
       });
     }
 

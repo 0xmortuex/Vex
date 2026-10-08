@@ -14,7 +14,8 @@ beforeEach(() => {
   sessionStorage.clear();
   document.body.innerHTML = '';
   toasts = [];
-  window.showToast = (message, type, duration) => toasts.push({ message, type, duration });
+  // A toast with a button (the Undo of js/vex-undo.js) keeps its options.
+  window.showToast = (message, type, duration, opts) => { toasts.push({ message, type, duration, opts }); return { dismiss() {} }; };
   window.vexConfirm = vi.fn(async () => true);
 });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -209,27 +210,40 @@ describe('boosts: turning one off actually un-injects it', () => {
     delete global.TabManager; delete global.WebviewManager;
   });
 
-  it('asks before deleting a boost and does nothing when the user says no', async () => {
-    VexBoosts.boosts['example.test'] = { zaps: [], css: 'body{color:red}', js: '' };
+  it('deletes a boost at once, and Undo brings it back whole', async () => {
+    require('../../src/renderer/js/vex-undo.js');
+    const boost = { zaps: ['#ad'], css: 'body{color:red}', js: '' };
+    VexBoosts.boosts['example.test'] = JSON.parse(JSON.stringify(boost));
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexBoosts.renderPanel(host);
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(VexBoosts.boosts['example.test']).toBeUndefined();
+    lastToast().opts.action.run();
     await new Promise(r => setTimeout(r, 0));
-    expect(window.vexConfirm).toHaveBeenCalled();
-    expect(VexBoosts.boosts['example.test']).toBeTruthy();
+    expect(VexBoosts.boosts['example.test']).toEqual(boost);
+    expect(host.textContent).toContain('example.test');
   });
 
-  it('deletes on confirmation and warns that custom JS needs a reload', async () => {
+  it('a deleted boost with custom JS says a reload is needed, and Undo does not run the JS again', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     VexBoosts.boosts['example.test'] = { zaps: [], css: '', js: 'window.x=1' };
+    const ran = [];
+    global.TabManager = { tabs: [{ id: 't1', url: 'https://example.test/' }] };
+    global.WebviewManager = { webviews: new Map([['t1', { executeJavaScript: (js) => { ran.push(js); return Promise.resolve(); } }]]) };
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexBoosts.renderPanel(host);
     host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
     expect(VexBoosts.boosts['example.test']).toBeUndefined();
     expect(lastToast().message).toMatch(/reload the page/i);
+    ran.length = 0;
+    lastToast().opts.action.run();
+    await new Promise(r => setTimeout(r, 0));
+    expect(VexBoosts.boosts['example.test'].js).toBe('window.x=1');
+    expect(ran.some(js => js.includes('window.x=1'))).toBe(false);
+    delete global.TabManager; delete global.WebviewManager;
   });
 
   it('uses an icon, not an emoji, for the delete control', () => {
@@ -244,25 +258,30 @@ describe('boosts: turning one off actually un-injects it', () => {
 });
 
 // ---------------------------------------------------------------------------
-describe('skills and chains: destructive buttons ask first', () => {
-  it('a skill is only deleted after confirmation', async () => {
+describe('skills and chains: deleting comes with Undo', () => {
+  it('a skill goes at once and Undo puts it back in its place', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     const { VexSkills } = require('../../src/renderer/js/skills.js');
-    VexSkills.skills = [{ id: 'sk_a', name: 'Mine', prompt: 'do it', icon: 'sparkles' }];
+    VexSkills.skills = [
+      { id: 'sk_a', name: 'Mine', prompt: 'do it', icon: 'sparkles' },
+      { id: 'sk_b', name: 'Other', prompt: 'do that', icon: 'sparkles' },
+    ];
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexSkills.renderPanel(host);
 
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(VexSkills.skills.map(s => s.id)).toEqual(['sk_b']);
+    expect(lastToast().message).toBe('Deleted the skill “Mine”');
+    lastToast().opts.action.run();
     await new Promise(r => setTimeout(r, 0));
-    expect(VexSkills.skills).toHaveLength(1);
-
-    host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
-    expect(VexSkills.skills).toHaveLength(0);
+    expect(VexSkills.skills.map(s => s.id)).toEqual(['sk_a', 'sk_b']);
+    expect(JSON.parse(localStorage.getItem(VexSkills.KEY)).map(s => s.id)).toEqual(['sk_a', 'sk_b']);
   });
 
-  it('a chain is only deleted after confirmation', async () => {
+  it('a chain goes at once and Undo puts it back', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     global.CommandBar = { commands: [] };
     const { CommandChains } = require('../../src/renderer/js/compose-chains.js');
     CommandChains.chains = [{ id: 'ch1', name: 'Read it', steps: ['read', 'aloud'] }];
@@ -270,14 +289,11 @@ describe('skills and chains: destructive buttons ask first', () => {
     document.body.appendChild(host);
     CommandChains.renderPanel(host);
 
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
-    expect(CommandChains.chains).toHaveLength(1);
-
-    host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
     expect(CommandChains.chains).toHaveLength(0);
+    lastToast().opts.action.run();
+    await new Promise(r => setTimeout(r, 0));
+    expect(CommandChains.chains).toEqual([{ id: 'ch1', name: 'Read it', steps: ['read', 'aloud'] }]);
     delete global.CommandBar;
   });
 

@@ -41,9 +41,10 @@ describe('Settings › Extensions', () => {
   }
   const ext = { folder: 'dark-reader-1', name: 'Dark Reader', version: '4.9', enabled: false, loaded: false, where: [], scope: 'auto', audit: null };
 
-  it('the uninstall question has a space between its sentences', async () => {
+  // The question became an Undo toast (js/vex-undo.js); it names the extension.
+  it('the uninstall toast names the extension', async () => {
     const src = fs.readFileSync(path.resolve('src/renderer/js/extensions-settings.js'), 'utf8');
-    expect(src).toMatch(/Uninstall "\$\{btn\.dataset\.name \|\| folder\}"\? Restart Vex/);
+    expect(src).toMatch(/message: `Uninstalled “\$\{btn\.dataset\.name \|\| folder\}”`/);
   });
 
   it('switching one on in safe mode says it loads after a normal restart', async () => {

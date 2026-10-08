@@ -241,13 +241,21 @@ const SchedulesPanel = {
       card.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
         const task = Scheduler.getTask(id);
         if (!task) return;
-        const ok = await (window.vexConfirm
-          ? window.vexConfirm({ title: 'Delete this task?', message: '"' + task.name + '" and its schedule will be removed. Run history is kept.', okLabel: 'Delete', danger: true })
-          : Promise.resolve(true));
-        if (!ok) return;
-        Scheduler.deleteTask(id);
+        // Done at once; Undo puts it back where it was (js/vex-undo.js). Run
+        // history is kept either way.
+        const wasOpen = this._expanded.has(id);
+        const removed = Scheduler.deleteTask(id);
         this._expanded.delete(id);
         this._render();
+        if (!removed) return;
+        window.VexUndo.offer({
+          message: 'Deleted the task “' + task.name + '”',
+          undo: () => {
+            Scheduler.restoreTask(removed);
+            if (wasOpen) this._expanded.add(id);
+            this._render();
+          },
+        });
       });
       card.querySelector('[data-action="expand"]')?.addEventListener('click', () => {
         if (this._expanded.has(id)) this._expanded.delete(id); else this._expanded.add(id);
@@ -345,14 +353,20 @@ const SchedulesPanel = {
       this._historyFilter = e.target.value;
       this._render();
     });
-    document.getElementById('sched-clear-hist')?.addEventListener('click', async () => {
-      const ok = await (window.vexConfirm
-        ? window.vexConfirm({ title: 'Clear run history?', message: 'Every recorded run will be removed. The tasks themselves stay.', okLabel: 'Clear', danger: true })
-        : Promise.resolve(true));
-      if (!ok) return;
-      Scheduler.clearHistory();
+    document.getElementById('sched-clear-hist')?.addEventListener('click', () => {
+      const filter = this._historyFilter;
+      const runs = Scheduler.clearHistory();
       this._historyFilter = 'all';
       this._render();
+      if (!runs.length) return;
+      window.VexUndo.offer({
+        message: 'Cleared ' + runs.length + ' recorded run' + (runs.length === 1 ? '' : 's'),
+        undo: () => {
+          Scheduler.restoreHistory(runs);
+          this._historyFilter = filter;
+          this._render();
+        },
+      });
     });
   },
 

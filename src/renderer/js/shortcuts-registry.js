@@ -282,6 +282,15 @@ const ShortcutsRegistry = (() => {
     return ok;
   }
   function resetAll() { userShortcuts = {}; const ok = _save(); _tellMain(); return ok; }
+  // The custom bindings as they are, and putting them back (Reset all's Undo).
+  function customBindings() { return JSON.parse(JSON.stringify(userShortcuts)); }
+  function restoreBindings(saved) {
+    if (!saved || typeof saved !== 'object') throw new Error('Nothing to put back');
+    userShortcuts = JSON.parse(JSON.stringify(saved));
+    const ok = _save();
+    _tellMain();
+    return ok;
+  }
 
   function register(id, handler) {
     if (!DEFAULT_SHORTCUTS[id]) {
@@ -357,7 +366,7 @@ const ShortcutsRegistry = (() => {
 
   return {
     init, getShortcut, getAllShortcuts, assignable,
-    setShortcut, resetShortcut, removeShortcut, resetAll,
+    setShortcut, resetShortcut, removeShortcut, resetAll, customBindings, restoreBindings,
     register, eventToShortcut, _tellMain
   };
 })();

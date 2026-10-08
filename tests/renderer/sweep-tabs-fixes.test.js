@@ -69,7 +69,8 @@ describe('Close Tabs to the Right follows the screen', () => {
     TM.groups = []; TM.stacks = [];
     TM.activeTabId = 'c';
     const closed = [];
-    TM.closeTab = (id) => closed.push(id);
+    // They close together, with one Undo (closeTabsWithUndo).
+    TM.closeTabsWithUndo = (ids) => closed.push(...ids);
     TM.closeTabsToTheRight('c');
     expect(closed).toEqual(['a', 'b']);
   });

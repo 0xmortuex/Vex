@@ -322,6 +322,7 @@ contextBridge.exposeInMainWorld('vex', {
   siteRoutesRoutedHosts: () => ipcRenderer.invoke('siteroutes:routed-hosts'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
   permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
+  permissionsClearUndo: (token) => ipcRenderer.invoke('permissions:clear-undo', token),
 
   onDownloadStarted:  (cb) => subscribe('download-started', cb),
   onDownloadProgress: (cb) => subscribe('download-progress', cb),
@@ -523,6 +524,8 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsWebStorePreview: (input) => ipcRenderer.invoke('extensions:webstore-preview', input),
   extensionsInstallWebStore: (input) => ipcRenderer.invoke('extensions:install-webstore', input),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
+  extensionsUninstallLater: (folderName) => ipcRenderer.invoke('extensions:uninstall-later', folderName),
+  extensionsUninstallUndo:  (folderName) => ipcRenderer.invoke('extensions:uninstall-undo', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),
   // 'auto' (browsing sessions + the app panels it names) or 'everywhere'.

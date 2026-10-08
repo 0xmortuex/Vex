@@ -84,6 +84,11 @@ define('extensions:menu-click', [shape({ partition: string(160), id: extId, item
   linkUrl: optional(string(8192)), srcUrl: optional(string(8192)), mediaType: optional(oneOf(['', 'image', 'video', 'audio'])), editable: optional(boolean),
 }) })]);
 define('extensions:set-pinned', [string(160), boolean]);
+// Uninstall with Undo (js/vex-undo.js): switched off now, removed when the
+// toast goes (extensions:uninstall) or on the next start; Undo turns it back on.
+define('extensions:uninstall-later extensions:uninstall-undo', [string(160)]);
+// Clear all site permissions' Undo: the token clear-all answered with.
+define('permissions:clear-undo', [value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value)]);
 define('extensions:action-click', [shape({ partition: string(160), id: extId, tab: pageId })]);
 define('extensions:set-command-key', [shape({ folder: string(160), command: string(200), reset: optional(boolean),
   key: optional(shape({ key: string(40), code: optional(string(40)), ctrl: boolean, alt: boolean, shift: boolean })) })]);

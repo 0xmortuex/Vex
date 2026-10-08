@@ -238,20 +238,29 @@ const VexBoosts = {
         <button data-edit style="padding:5px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Edit</button>
         <button data-del aria-label="Delete boost for ${esc(host)}" title="Delete this boost" style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center">${window.VexIcons?.svg('trash', { size: 13 }) || 'Delete'}</button>`;
       row.querySelector('[data-edit]').addEventListener('click', () => this.openEditor(host));
-      row.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!await window.vexConfirm({
-          title: 'Delete boost',
-          message: `Delete everything Vex remembers for ${host} — ${bits.join(', ') || 'this entry'}? This cannot be undone.`,
-          okLabel: 'Delete', danger: true,
-        })) return;
+      // Gone at once (its CSS out of the open pages); Undo on the toast puts
+      // the zaps, CSS and JS back and applies them again.
+      row.querySelector('[data-del]').addEventListener('click', () => {
         const hadJs = !!b.js;
+        const kept = JSON.parse(JSON.stringify(b));
         delete this.boosts[host];
         const saved = this.save();
-        const tabs = this.refreshHost(host);
+        this.refreshHost(host);
         this.renderPanel(container);
-        window.showToast?.(saved
-          ? this._offMessage(hadJs, tabs)
-          : 'Removed for now, but the change could not be saved — the boost returns when you restart Vex', saved ? undefined : 'error');
+        if (!saved) { window.showToast?.('Removed for now, but the change could not be saved — the boost returns when you restart Vex', 'error'); return; }
+        window.VexUndo.offer({
+          message: 'Deleted the boost for ' + host + (hadJs ? ' — its JS already ran; reload the page to undo that' : ''),
+          undo: () => {
+            if (this.boosts[host]) throw new Error(host + ' has a boost again already');
+            // Its JS never left the open pages, so only the zaps and CSS go
+            // back on them; running the JS a second time would not be undoing.
+            this.boosts[host] = { ...kept, js: '' };
+            this.refreshHost(host);
+            this.boosts[host] = kept;
+            if (!this.save()) throw new Error('It could not be saved');
+            if (container.isConnected) this.renderPanel(container);
+          },
+        });
       });
       container.appendChild(row);
     });

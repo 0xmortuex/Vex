@@ -153,27 +153,7 @@
 }
 .preview-options input[type="checkbox"] { accent-color: var(--primary); }
 
-/* Undo toast */
-.group-apply-toast {
-  position: fixed; bottom: 60px; left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 20px;
-  display: flex; align-items: center; gap: 14px;
-  z-index: 9999;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-  transition: transform 0.3s;
-  color: var(--text); font-size: 13px;
-  font-family: 'Outfit', sans-serif;
-}
-.group-apply-toast.show { transform: translateX(-50%) translateY(0); }
-.undo-btn {
-  background: var(--primary); color: var(--on-primary, #fff); border: none;
-  padding: 5px 12px; border-radius: 6px;
-  font-size: 12px; cursor: pointer;
-  font-family: 'Outfit', sans-serif;
-}
-.undo-btn:hover { filter: brightness(1.1); }
+/* The Undo after grouping is the shared toast (js/vex-undo.js, app.css). */
 
 /* Loading modal — shown while AI analyses tabs (3-8 s) */
 .loading-card {

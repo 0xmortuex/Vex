@@ -120,11 +120,18 @@ const PersonasSettings = (() => {
         renderPanel(container);
       });
       card.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
-        const p = PersonasManager.getById(personaId);
-        if (!await vexConfirm({ title: 'Delete persona', message: `Delete "${p.name}"?`, okLabel: 'Delete', danger: true })) return;
-        PersonasManager.remove(personaId);
-        toast('Deleted', 'success');
+        const token = PersonasManager.removeForUndo(personaId);
+        if (!token) return;
         renderPanel(container);
+        if (typeof AIPanel !== 'undefined' && typeof AIPanel.updatePersonaSwitcher === 'function') AIPanel.updatePersonaSwitcher();
+        window.VexUndo.offer({
+          message: `Deleted the persona “${token.persona.name}”`,
+          undo: () => {
+            PersonasManager.restore(token);
+            if (container.isConnected) renderPanel(container);
+            if (typeof AIPanel !== 'undefined' && typeof AIPanel.updatePersonaSwitcher === 'function') AIPanel.updatePersonaSwitcher();
+          },
+        });
       });
       card.querySelector('[data-action="activate"]')?.addEventListener('click', () => {
         const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
