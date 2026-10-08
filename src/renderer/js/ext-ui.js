@@ -14,7 +14,7 @@
 // Which items show for a click is decided by js/ext-menu-model.js, the same
 // rules main checks the click against.
 const VexExtUi = {
-  state: { menus: {}, action: {}, exts: {} },
+  state: { menus: {}, action: {}, exts: {}, pins: [], loaded: [] },
   _listeners: new Set(),
 
   init() {
@@ -28,7 +28,9 @@ const VexExtUi = {
   },
 
   _set(s) {
-    this.state = s && typeof s === 'object' ? { menus: s.menus || {}, action: s.action || {}, exts: s.exts || {} } : { menus: {}, action: {}, exts: {} };
+    this.state = s && typeof s === 'object'
+      ? { menus: s.menus || {}, action: s.action || {}, exts: s.exts || {}, pins: Array.isArray(s.pins) ? s.pins : [], loaded: Array.isArray(s.loaded) ? s.loaded : [] }
+      : { menus: {}, action: {}, exts: {}, pins: [], loaded: [] };
     this._listeners.forEach((fn) => { try { fn(); } catch (err) { console.error('[Extensions] a listener failed:', err); } });
   },
   onChange(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); },
@@ -109,14 +111,34 @@ const VexExtUi = {
     return this._rows(tree, (node) => this._click(partition, extId, node.id, ctx, tab));
   },
 
-  // { text, bg: [r,g,b,a], color: [r,g,b,a], title } for the tab in front.
-  badgeFor(extId) {
+  // What the extension set for its button, for the tab in front: a tab's
+  // own value, else the one for every tab; undefined where it set nothing.
+  _actionValue(extId, key) {
     const { partition, tab } = this._front();
     const st = ((this.state.action || {})[partition] || {})[extId];
-    if (!st) return null;
+    if (!st) return undefined;
     const own = (tab != null && st.tabs && st.tabs[tab]) || {};
-    const pick = (k) => (Object.prototype.hasOwnProperty.call(own, k) ? own[k] : st.def[k]);
-    return { text: pick('text') || '', bg: pick('bg') || [217, 48, 37, 255], color: pick('color') || [255, 255, 255, 255], title: pick('title') || '' };
+    if (Object.prototype.hasOwnProperty.call(own, key)) return own[key];
+    return st.def && Object.prototype.hasOwnProperty.call(st.def, key) ? st.def[key] : undefined;
+  },
+  // { text, bg: [r,g,b,a], color: [r,g,b,a], title } for the tab in front.
+  badgeFor(extId) {
+    const { partition } = this._front();
+    if (!((this.state.action || {})[partition] || {})[extId]) return null;
+    const v = (k) => this._actionValue(extId, k);
+    return { text: v('text') || '', bg: v('bg') || [217, 48, 37, 255], color: v('color') || [255, 255, 255, 255], title: v('title') || '' };
+  },
+  // The button's picture (action.setIcon) as an address, else the manifest's.
+  iconFor(extId, manifestIconPath) {
+    const set = extId ? this._actionValue(extId, 'icon') : undefined;
+    if (typeof set === 'string' && set) return set.startsWith('data:') ? set : this.iconUrl({ iconPath: set });
+    return this.iconUrl({ iconPath: manifestIconPath });
+  },
+  // Whether a click opens a popup: what action.setPopup said ('' is none),
+  // else whether the manifest has one.
+  hasPopupFor(ext) {
+    const set = ext && ext.id ? this._actionValue(ext.id, 'popup') : undefined;
+    return typeof set === 'string' ? !!set : !!(ext && ext.hasPopup);
   },
   rgba(c) { return Array.isArray(c) && c.length === 4 ? `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255).toFixed(3)})` : ''; },
 };

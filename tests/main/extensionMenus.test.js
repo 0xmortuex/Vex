@@ -229,7 +229,20 @@ describe('the badge', () => {
     expect(ui.actionGet('p', 'e', 'color', null)).toEqual([255, 255, 255, 255]);
     expect(ui.actionGet('p', 'e', 'title', null, { title: 'Mine' })).toBe('Mine');
     expect(() => ui.actionSet('p', 'e', 'text', 5, null)).toThrow(/string/);
-    expect(() => ui.actionSet('p', 'e', 'icon', 'x', null)).toThrow(/Unknown/);
+    expect(() => ui.actionSet('p', 'e', 'shape', 'x', null)).toThrow(/Unknown/);
+  });
+  it('the icon and the popup, for every tab or for one; back to the manifest\'s with none', () => {
+    const ui = createExtensionUi();
+    expect(ui.actionGet('p', 'e', 'icon', null, { icon: 'C:\\x\\i.png' })).toBe('C:\\x\\i.png');
+    ui.actionSet('p', 'e', 'icon', 'data:image/png;base64,AAAA', 7);
+    expect(ui.actionGet('p', 'e', 'icon', 7)).toBe('data:image/png;base64,AAAA');
+    expect(ui.actionGet('p', 'e', 'icon', 8)).toBe(null);
+    expect(() => ui.actionSet('p', 'e', 'icon', 'https://evil.example/i.png', null)).toThrow(/PNG image or a file/);
+    expect(ui.actionGet('p', 'e', 'popup', null, { popup: 'popup.html' })).toBe('popup.html');
+    ui.actionSet('p', 'e', 'popup', '', null);
+    expect(ui.actionGet('p', 'e', 'popup', null, { popup: 'popup.html' })).toBe('');
+    ui.actionSet('p', 'e', 'popup', null, null);
+    expect(ui.actionGet('p', 'e', 'popup', null, { popup: 'popup.html' })).toBe('popup.html');
   });
   it('reads colours the ways extensions give them', () => {
     expect(parseColour('#f00')).toEqual([255, 0, 0, 255]);

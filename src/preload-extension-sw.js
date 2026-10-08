@@ -135,8 +135,9 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   }
 
   // The toolbar button: its badge and title are kept by main and drawn on the
-  // extension's icon in Vex's extensions menu, for every tab or for one
-  // (details.tabId). Its icon, popup and on/off stay as the manifest says.
+  // extension's icon in Vex's extensions menu and on its pinned toolbar
+  // button, for every tab or for one (details.tabId), and so are its icon
+  // and popup (setIcon, setPopup). Its on/off stays as the manifest says.
   function actionApi() {
     var setter = function (prop, key) {
       return function (details, cb) {
@@ -150,12 +151,37 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
         return settle(api('action.get', { prop: prop, tabId: (details || {}).tabId }), cb, 'action.get');
       };
     };
+    // setIcon's imageData (an ImageData, or one per size) as plain numbers
+    // main can take; of several sizes, the one nearest 32 px (a toolbar icon
+    // at 200%). A path, or one per size, is passed as it is.
+    var nearest = function (bySize) {
+      var sizes = Object.keys(bySize || {}).map(Number).filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      if (!sizes.length) return null;
+      var best = sizes.filter(function (n) { return n >= 32; })[0] || sizes[sizes.length - 1];
+      return bySize[best];
+    };
+    var iconValue = function (d) {
+      if (d.imageData) {
+        var img = d.imageData.data ? d.imageData : nearest(d.imageData);
+        if (!img || !img.data) throw new Error('setIcon: imageData must be an ImageData or a dictionary of them');
+        return { imageData: { width: img.width, height: img.height, data: Array.prototype.slice.call(img.data) } };
+      }
+      if (d.path) return { path: typeof d.path === 'string' ? d.path : nearest(d.path) };
+      throw new Error('setIcon needs imageData or a path');
+    };
     return {
       setBadgeText: setter('text', 'text'), getBadgeText: getter('text'),
       setBadgeBackgroundColor: setter('bg', 'color'), getBadgeBackgroundColor: getter('bg'),
       setBadgeTextColor: setter('color', 'color'), getBadgeTextColor: getter('color'),
       setTitle: setter('title', 'title'), getTitle: getter('title'),
-      setIcon: done(undefined), setPopup: done(undefined), getPopup: done(''),
+      setPopup: setter('popup', 'popup'), getPopup: getter('popup'),
+      setIcon: function (details, cb) {
+        var d = details || {};
+        var p;
+        try { p = api('action.set', { prop: 'icon', value: iconValue(d), tabId: d.tabId }).then(function () { return undefined; }); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, 'action.setIcon');
+      },
       enable: done(undefined), disable: done(undefined), isEnabled: done(true),
       onClicked: hubEvent('action.onClicked'),
     };
@@ -179,7 +205,7 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     });
     return target;
   }
-  var ACTION_KEYS = ['setBadgeText', 'getBadgeText', 'setBadgeBackgroundColor', 'getBadgeBackgroundColor', 'setBadgeTextColor', 'getBadgeTextColor', 'setTitle', 'getTitle', 'onClicked'];
+  var ACTION_KEYS = ['setBadgeText', 'getBadgeText', 'setBadgeBackgroundColor', 'getBadgeBackgroundColor', 'setBadgeTextColor', 'getBadgeTextColor', 'setTitle', 'getTitle', 'setIcon', 'setPopup', 'getPopup', 'onClicked'];
   function actionFor(name) {
     if (!c[name]) { c[name] = api ? actionApi() : actionStub(); return; }
     if (!api) return;

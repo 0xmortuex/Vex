@@ -405,6 +405,7 @@ const ExtensionsSettings = (() => {
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
                   ${e.webstore ? `<button class="ext-open-btn" data-webstore-update="${_esc(e.webstore)}" title="Download the newest version from the Chrome Web Store">Update from Web Store</button>` : ''}
+                  <label class="ext-toggle" title="Its own button on the toolbar, beside the extensions button"><input type="checkbox" data-pin="${_esc(e.folder)}" ${e.pinned ? 'checked' : ''}> Pinned</label>
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
                   <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
@@ -524,6 +525,15 @@ const ExtensionsSettings = (() => {
         if (!r || !r.ok) { _toast('Could not change file access: ' + ((r && r.error) || 'unknown'), 'error'); }
         else _toast(wanted ? 'It can now open files on this computer (file:// pages)' : 'It can no longer open files on this computer', 'success');
         render(container);
+      });
+    });
+    // Pinned to the toolbar (main.js, extensions:set-pinned; js/extensions-menu.js draws it).
+    container.querySelectorAll('[data-pin]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetPinned(box.dataset.pin, wanted);
+        if (!r || !r.ok) { box.checked = !wanted; _toast('Could not ' + (wanted ? 'pin' : 'unpin') + ' it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        _toast(wanted ? 'Pinned to the toolbar' : 'No longer pinned', 'success');
       });
     });
     container.querySelectorAll('[data-cmd-record]').forEach(btn => {

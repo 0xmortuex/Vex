@@ -1129,13 +1129,18 @@ const WebviewManager = {
       // submenu inside it was clipped away, so every submenu of the page's
       // right-click menu (Page, This site, "More for this …") could not be
       // reached (found 2026-09-29). Removed with the menu (see `gone` below).
-      sub.style.position = 'fixed';
-      sub.style.right = 'auto';
-      document.body.appendChild(sub);
       // Beside the row; flipped to the left, or lifted, to stay on screen.
+      // Placed before it is put in the page: put in first, it stood for a
+      // moment at the stylesheet's left (the window's right edge), was
+      // measured there as off screen and always opened to the left, over
+      // the menu (found 2026-10-08).
       const rowBox = row.getBoundingClientRect(), menuBox = menu.getBoundingClientRect();
       let left = menuBox.right - 4, top = rowBox.top - 7;
+      sub.style.position = 'fixed';
+      sub.style.right = 'auto';
+      sub.style.transition = 'none';
       sub.style.left = left + 'px'; sub.style.top = top + 'px';
+      document.body.appendChild(sub);
       const r = sub.getBoundingClientRect();
       if (r.right > window.innerWidth - 4) left = Math.max(4, menuBox.left - r.width + 4);
       if (r.bottom > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 8);

@@ -37,9 +37,67 @@ const ExtensionsMenu = {
     if (!btn) return;
     this._injectStyles();
     btn.addEventListener('click', (e) => { e.stopPropagation(); this.toggle(btn); });
-    // A badge that changes while the menu is open changes on it too.
-    if (typeof VexExtUi !== 'undefined') VexExtUi.onChange(() => this._refreshBadges());
+    // A badge that changes while the menu is open changes on it too, and on
+    // the pinned buttons; pins and loaded extensions changing redraw those.
+    if (typeof VexExtUi !== 'undefined') {
+      VexExtUi.onChange(() => {
+        this._refreshBadges();
+        const sig = JSON.stringify([VexExtUi.state.pins, VexExtUi.state.loaded]);
+        if (sig !== this._pinSig) { this._pinSig = sig; this._renderPins(); }
+      });
+    }
+    window.addEventListener('vex:tab-activated', () => this._refreshBadges());
   },
+
+  // === Pinned extensions: their own buttons on the toolbar ===
+  // Beside the extensions button, in pin order, as in Chrome. Each is a
+  // button of #top-bar-right, so in a narrow window js/toolbar-overflow.js
+  // moves it into "More tools" like any other, still clickable there (its
+  // label carries the badge). Click: the popup under it, or the extension's
+  // own click; right-click: its button menu; the badge and title for the tab
+  // in front.
+  _pinSig: null,
+  _pinBusy: null,
+  async _renderPins() {
+    const right = document.getElementById('top-bar-right');
+    const anchor = document.getElementById('btn-extensions');
+    if (!right || !anchor || !window.vex || typeof window.vex.extensionsList !== 'function') return;
+    const run = (async () => {
+      let list;
+      try { list = await window.vex.extensionsList(); }
+      catch (err) { console.warn('[ExtensionsMenu] could not list extensions for the toolbar:', err && err.message); return; }
+      const pins = (typeof VexExtUi !== 'undefined' ? VexExtUi.state.pins : null) || list.filter(e => e.pinned).map(e => e.folder);
+      const show = pins.map(f => list.find(e => e.folder === f && e.pinned && e.enabled && e.loaded)).filter(Boolean);
+      right.querySelectorAll('.ext-pin-btn').forEach(b => { if (!show.some(e => e.folder === b.dataset.extFolder)) b.remove(); });
+      for (const ext of show) {
+        let b = right.querySelector(`.ext-pin-btn[data-ext-folder="${CSS.escape(ext.folder)}"]`);
+        if (!b) {
+          b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'nav-btn ext-pin-btn';
+          b.dataset.extFolder = ext.folder;
+          b.innerHTML = '<span class="ext-menu-ico ext-pin-ico"></span>';
+          b.addEventListener('click', (ev) => { ev.stopPropagation(); this.close(); this._runExtension(b._vexExt, b); });
+          b.addEventListener('contextmenu', (ev) => this._openActionMenu(ev, b._vexExt, b));
+        }
+        b._vexExt = ext;
+        right.insertBefore(b, anchor);
+        this._drawBadge(b, ext);
+      }
+    });
+    // One at a time: a second change while listing waits for the first.
+    this._pinBusy = (this._pinBusy || Promise.resolve()).then(run, run);
+    return this._pinBusy;
+  },
+
+  async _setPinned(ext, pinned) {
+    const r = await window.vex.extensionsSetPinned(ext.folder, pinned);
+    if (!r || !r.ok) { window.showToast?.('Could not ' + (pinned ? 'pin' : 'unpin') + ' it: ' + ((r && r.error) || 'unknown'), 'error'); return false; }
+    ext.pinned = pinned;
+    window.showToast?.(pinned ? ext.name + ' is pinned to the toolbar' : ext.name + ' is no longer pinned');
+    return true;
+  },
+  _hasPopup(ext) { return typeof VexExtUi !== 'undefined' ? VexExtUi.hasPopupFor(ext) : !!ext.hasPopup; },
 
   toggle(btn) {
     if (this._menu) { this.close(); return; }
@@ -110,7 +168,7 @@ const ExtensionsMenu = {
   },
 
   _rowSubtitle(ext) {
-    if (ext.hasPopup) return 'Open popup';
+    if (this._hasPopup(ext)) return 'Open popup';
     if (ext.hasAction) return 'Run it on this page';
     if (ext.hasOptions) return 'Open options page';
     return 'No popup or options page';
@@ -120,7 +178,16 @@ const ExtensionsMenu = {
   // tab in front, and its button title as the row's tooltip (js/ext-ui.js).
   _drawBadge(row, ext) {
     const ico = row.querySelector('.ext-menu-ico');
-    if (!ico || typeof VexExtUi === 'undefined' || !ext.id) return;
+    if (!ico) return;
+    // Its picture: what action.setIcon set for this tab, else the manifest's.
+    const src = typeof VexExtUi !== 'undefined' ? VexExtUi.iconFor(ext.id, ext.iconPath) : this._fileUrl(ext.iconPath);
+    let img = ico.querySelector('img');
+    if (src) {
+      if (!img) { ico.querySelector('svg')?.remove(); img = document.createElement('img'); img.width = 16; img.height = 16; img.alt = ''; ico.prepend(img); }
+      if (img.getAttribute('src') !== src) img.src = src;
+    } else if (!ico.querySelector('svg')) { img?.remove(); ico.insertAdjacentHTML('afterbegin', VexIcons.svg('puzzle', { size: 16 })); }
+    const isPin = row.classList.contains('ext-pin-btn');
+    if (typeof VexExtUi === 'undefined' || !ext.id) { if (isPin) { row.setAttribute('aria-label', ext.name); row.title = ext.name; } return; }
     const b = VexExtUi.badgeFor(ext.id);
     let el = ico.querySelector('.ext-menu-badge');
     const text = b && b.text ? String(b.text).slice(0, 4) : '';
@@ -132,9 +199,16 @@ const ExtensionsMenu = {
       el.style.color = VexExtUi.rgba(b.color);
     }
     const title = b && b.title ? b.title : '';
-    if (title) row.title = title; else row.removeAttribute('title');
+    if (isPin) {
+      // A toolbar button says what it is; its label is also its row in
+      // "More tools" when the toolbar is too narrow, badge included.
+      row.title = title || ext.name;
+      row.setAttribute('aria-label', ext.name + (text ? ` (${text})` : ''));
+    } else if (title) row.title = title;
+    else row.removeAttribute('title');
   },
   _refreshBadges() {
+    document.querySelectorAll('#top-bar-right .ext-pin-btn').forEach(b => { if (b._vexExt) this._drawBadge(b, b._vexExt); });
     if (!this._menu) return;
     this._menu.querySelectorAll('.ext-menu-item[data-ext-folder]').forEach(row => {
       const ext = row._vexExt;
@@ -150,8 +224,11 @@ const ExtensionsMenu = {
     if (typeof WebviewManager === 'undefined' || typeof WebviewManager._renderMenu !== 'function') return;
     const items = typeof VexExtUi !== 'undefined' ? VexExtUi.actionMenuRows(ext.id) : [];
     if (items.length) items.push({ sep: true });
-    if (ext.hasPopup) items.push({ label: 'Open its popup', icon: 'window', action: () => { this.close(); this._runExtension(ext, btn); } });
+    if (this._hasPopup(ext)) items.push({ label: 'Open its popup', icon: 'window', action: () => { this.close(); this._runExtension(ext, btn); } });
     if (ext.optionsUrl) items.push({ label: 'Options', icon: 'settings', action: () => { this.close(); if (typeof TabManager !== 'undefined') TabManager.createTab(ext.optionsUrl, true); } });
+    items.push(ext.pinned
+      ? { label: 'Unpin from the toolbar', icon: 'pin', action: () => { this.close(); this._setPinned(ext, false); } }
+      : { label: 'Pin to the toolbar', icon: 'pin', action: () => { this.close(); this._setPinned(ext, true); } });
     items.push({ label: 'Keyboard shortcuts and settings', icon: 'keyboard', action: () => { this.close(); SettingsUI.openSection('extensions-panel-content'); } });
     document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove());
     const menu = document.createElement('div');
@@ -174,11 +251,14 @@ const ExtensionsMenu = {
     catch (err) { window.showToast?.('Could not run the extension: ' + err.message, 'error'); return; }
     const ext = list.find(e => e.folder === req.folder && e.loaded);
     if (!ext) { window.showToast?.('That extension is not running', 'error'); return; }
-    if (ext.hasPopup) {
-      const btn = document.getElementById('btn-extensions');
-      const visible = btn && btn.getClientRects().length > 0;
+    if (this._hasPopup(ext)) {
+      // Under its own pinned button when that is on show, else under the
+      // extensions button, else under the top of the window.
+      const shown = (b) => b && b.getClientRects().length > 0 && !b.classList.contains('tb-overflowed');
+      const pinBtn = document.querySelector(`#top-bar-right .ext-pin-btn[data-ext-folder="${CSS.escape(ext.folder)}"]`);
+      const btn = shown(pinBtn) ? pinBtn : document.getElementById('btn-extensions');
       this.close();
-      await this._runExtension(ext, visible ? btn : null);
+      await this._runExtension(ext, shown(btn) ? btn : null);
       return;
     }
     await this._actionClick(ext, req.partition, req.tab);
@@ -208,15 +288,7 @@ const ExtensionsMenu = {
       const row = document.createElement('button');
       row.className = 'ext-menu-item';
       row.innerHTML = '<span class="ext-menu-ico"></span><span class="ext-menu-text"><span class="ext-menu-label"></span><span class="ext-menu-sub"></span></span>';
-      const ico = row.querySelector('.ext-menu-ico');
-      const iconUrl = this._fileUrl(ext.iconPath);
-      if (iconUrl) {
-        const img = document.createElement('img');
-        img.src = iconUrl; img.width = 16; img.height = 16; img.alt = '';
-        ico.appendChild(img);
-      } else {
-        ico.innerHTML = VexIcons.svg('puzzle', { size: 16 });
-      }
+      // Its icon and badge: _drawBadge.
       row.querySelector('.ext-menu-label').textContent = ext.name;
       row.querySelector('.ext-menu-sub').textContent = this._rowSubtitle(ext);
       row.dataset.extFolder = ext.folder;
@@ -224,7 +296,27 @@ const ExtensionsMenu = {
       this._drawBadge(row, ext);
       row.addEventListener('click', () => { this.close(); this._runExtension(ext, btn); });
       row.addEventListener('contextmenu', (ev) => this._openActionMenu(ev, ext, btn));
-      frag.appendChild(row);
+      // Pin it to the toolbar, as Chrome's extensions menu does.
+      const wrap = document.createElement('div');
+      wrap.className = 'ext-menu-extrow';
+      const pin = document.createElement('button');
+      pin.type = 'button';
+      pin.className = 'ext-menu-pin' + (ext.pinned ? ' on' : '');
+      pin.innerHTML = VexIcons.svg('pin', { size: 14 });
+      const pinLabel = () => (ext.pinned ? 'Unpin ' : 'Pin ') + ext.name + (ext.pinned ? ' from the toolbar' : ' to the toolbar');
+      pin.title = pinLabel();
+      pin.setAttribute('aria-label', pinLabel());
+      pin.setAttribute('aria-pressed', String(!!ext.pinned));
+      pin.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if (!await this._setPinned(ext, !ext.pinned)) return;
+        pin.classList.toggle('on', !!ext.pinned);
+        pin.setAttribute('aria-pressed', String(!!ext.pinned));
+        pin.title = pinLabel();
+        pin.setAttribute('aria-label', pinLabel());
+      });
+      wrap.append(row, pin);
+      frag.appendChild(wrap);
     });
     const sep = document.createElement('div');
     sep.className = 'ext-menu-sep';
@@ -240,7 +332,7 @@ const ExtensionsMenu = {
       const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
       let tab = null;
       if (wv && typeof wv.getWebContentsId === 'function') { try { tab = wv.getWebContentsId(); } catch { /* not attached yet */ } }
-      if (ext.hasPopup) {
+      if (this._hasPopup(ext)) {
         // Under the extensions button; with no button on show (a shortcut,
         // a look that hides it), under the top of the window.
         const rect = btn ? btn.getBoundingClientRect() : { left: window.innerWidth / 2, bottom: 48 };
@@ -295,6 +387,14 @@ const ExtensionsMenu = {
       .ext-menu-item:hover{background:color-mix(in srgb, var(--primary,#6366f1) 16%, transparent);}
       .ext-menu-ico{width:22px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;position:relative;}
       .tab-context-menu.ext-action-menu{z-index:100001;}
+      .ext-menu-extrow{position:relative;}
+      .ext-menu-extrow > .ext-menu-item{padding-right:38px;}
+      .ext-menu-pin{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+        border:none;border-radius:6px;background:transparent;color:var(--text-muted,#9a9aa5);cursor:pointer;opacity:.75;}
+      .ext-menu-pin:hover{background:color-mix(in srgb, var(--primary,#6366f1) 16%, transparent);opacity:1;}
+      .ext-menu-pin.on{color:var(--primary,#6366f1);opacity:1;}
+      .ext-pin-btn .ext-pin-ico{width:18px;}
+      .ext-pin-btn .ext-pin-ico img{display:block;width:16px;height:16px;}
       .ext-menu-badge{position:absolute;right:-7px;bottom:-6px;min-width:14px;height:13px;padding:0 3px;box-sizing:border-box;border-radius:7px;
         font-size:9px;font-weight:700;line-height:13px;text-align:center;white-space:nowrap;pointer-events:none;
         box-shadow:0 0 0 1.5px var(--surface,#1b1b24);}

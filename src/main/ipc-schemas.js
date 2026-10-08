@@ -83,6 +83,7 @@ define('extensions:menu-click', [shape({ partition: string(160), id: extId, item
   kind: oneOf(['page', 'action']), pageUrl: optional(string(8192)), frameUrl: optional(string(8192)), selectionText: optional(string(10000)),
   linkUrl: optional(string(8192)), srcUrl: optional(string(8192)), mediaType: optional(oneOf(['', 'image', 'video', 'audio'])), editable: optional(boolean),
 }) })]);
+define('extensions:set-pinned', [string(160), boolean]);
 define('extensions:action-click', [shape({ partition: string(160), id: extId, tab: pageId })]);
 define('extensions:set-command-key', [shape({ folder: string(160), command: string(200), reset: optional(boolean),
   key: optional(shape({ key: string(40), code: optional(string(40)), ctrl: boolean, alt: boolean, shift: boolean })) })]);

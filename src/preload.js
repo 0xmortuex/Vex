@@ -525,6 +525,7 @@ contextBridge.exposeInMainWorld('vex', {
   onExtensionsRunAction:    (callback) => subscribe('extensions:run-action', callback),
   extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
   extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
+  extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),
 
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),

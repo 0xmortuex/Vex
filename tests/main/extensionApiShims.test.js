@@ -104,7 +104,8 @@ function fakeMain({ commands = [] } = {}) {
       case 'menus.update': return ui.menusUpdate('persist:main', 'ext', a.id, a.props);
       case 'menus.remove': return ui.menusRemove('persist:main', 'ext', a.id);
       case 'menus.removeAll': return ui.menusRemoveAll('persist:main', 'ext');
-      case 'action.set': return ui.actionSet('persist:main', 'ext', a.prop, a.value, a.tabId == null ? null : a.tabId);
+      // main.js turns setIcon's picture into a PNG (_extIconValue).
+      case 'action.set': return ui.actionSet('persist:main', 'ext', a.prop, a.prop === 'icon' ? 'data:image/png;base64,AAAA' : a.value, a.tabId == null ? null : a.tabId);
       case 'action.get': return ui.actionGet('persist:main', 'ext', a.prop, a.tabId == null ? null : a.tabId, { title: 'Own title' });
       case 'commands.getAll': return commands;
       default: throw new Error('Vex does not know ' + req.op);
@@ -334,12 +335,20 @@ describe('what Dark Reader needs to fill its popup', () => {
     const nativeInstalled = [];
     const sw = worker(extension().chrome({
       manifest: { action: {}, permissions: ['contextMenus'] },
-      extra: { action: { setBadgeText: nativeSet, setIcon: nativeSet, onClicked: { addListener() {} } },
+      extra: { action: { setBadgeText: nativeSet, setIcon: nativeSet, openPopup: nativeSet, onClicked: { addListener() {} } },
         runtime: { id: 'ext-id', getManifest: () => ({ action: {}, permissions: ['contextMenus'] }), onInstalled: { addListener: (fn) => nativeInstalled.push(fn), removeListener() {} } } },
     }), { ipcRenderer: main.ipcRenderer });
     await sw.action.setBadgeText({ text: '5' });
     expect(main.ui.actionGet('persist:main', 'ext', 'text', null)).toBe('5');
-    expect(sw.action.setIcon).toBe(nativeSet); // what Vex does not draw stays Electron's
+    expect(sw.action.openPopup).toBe(nativeSet); // what Vex does not provide stays Electron's
+    // setIcon: ImageData as plain numbers (of several sizes, the one nearest 32), a path as it is.
+    const px = (n) => ({ width: n, height: n, data: new Uint8ClampedArray(n * n * 4).fill(9) });
+    await sw.action.setIcon({ imageData: { 16: px(16), 32: px(32) }, tabId: 3 });
+    const sent = main.asked.filter(([, r]) => r && r.op === 'action.set' && r.args.prop === 'icon').at(-1)[1].args;
+    expect([sent.tabId, sent.value.imageData.width, sent.value.imageData.data.length, Array.isArray(sent.value.imageData.data)]).toEqual([3, 32, 32 * 32 * 4, true]);
+    await expect(sw.action.setIcon({})).rejects.toThrow(/imageData or a path/);
+    await sw.action.setPopup({ popup: 'other.html' });
+    expect(main.ui.actionGet('persist:main', 'ext', 'popup', null)).toBe('other.html');
     const heard = [];
     sw.runtime.onInstalled.addListener((d) => heard.push(d.reason));
     expect(nativeInstalled.length).toBe(1);

@@ -45,7 +45,15 @@ function parseColour(value) {
   throw new Error(`"${value}" is not a colour Vex understands (use #RRGGBB, rgb(), a colour name or [r, g, b, a])`);
 }
 
-const ACTION_PROPS = ['text', 'bg', 'color', 'title'];
+// text/title: strings; bg/color: [r,g,b,a]; icon: a PNG data URL or the
+// absolute path of a file of the extension (main.js turns setIcon's imageData
+// or path into one); popup: the extension's page for its popup, '' for none.
+const ACTION_PROPS = ['text', 'bg', 'color', 'title', 'icon', 'popup'];
+function checkIcon(value) {
+  if (typeof value !== 'string' || value.length > 3 * 1024 * 1024) throw new Error('The icon is too large');
+  if (value.startsWith('data:image/png;base64,') || /^(?:[A-Za-z]:[\\/]|\/)/.test(value)) return value;
+  throw new Error('The icon must be a PNG image or a file of the extension');
+}
 
 function createExtensionUi({ onChange = () => {} } = {}) {
   const menus = new Map();    // key → items[] (ext-menu-model records)
@@ -115,13 +123,19 @@ function createExtensionUi({ onChange = () => {} } = {}) {
       if (!target) { target = {}; state.tabs.set(tabId, target); }
     }
     if (value === null || value === undefined) {
-      // No value for one tab: that tab follows the default again.
+      // No value for one tab: that tab follows the default again. For all
+      // tabs: no text or title; the manifest's icon and popup again.
       if (tabId != null) delete target[prop];
       else if (prop === 'text' || prop === 'title') target[prop] = '';
       else delete target[prop];
     } else if (prop === 'text' || prop === 'title') {
       if (typeof value !== 'string') throw new Error(`The badge ${prop} must be a string`);
       target[prop] = value.slice(0, prop === 'text' ? 100 : 1000);
+    } else if (prop === 'popup') {
+      if (typeof value !== 'string' || value.length > 2048) throw new Error('The popup must be the path of one of the extension\'s pages');
+      target[prop] = value;
+    } else if (prop === 'icon') {
+      target[prop] = checkIcon(value);
     } else {
       target[prop] = parseColour(value);
     }
@@ -137,6 +151,8 @@ function createExtensionUi({ onChange = () => {} } = {}) {
     if (state && Object.prototype.hasOwnProperty.call(state.def, prop)) return copy(state.def[prop]);
     if (prop === 'text') return '';
     if (prop === 'title') return defaults.title || '';
+    if (prop === 'popup') return defaults.popup || '';
+    if (prop === 'icon') return defaults.icon || null;
     return (prop === 'bg' ? DEFAULT_BADGE_BG : DEFAULT_BADGE_TEXT).slice();
   }
   function copy(v) { return Array.isArray(v) ? v.slice() : v; }
