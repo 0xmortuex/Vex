@@ -121,6 +121,18 @@ const VexToday = {
     const brief = this.brief(now);
     if (brief) snap.brief = brief;
 
+    // Today's reading digest (js/reading-digest.js), when it is made and the
+    // user keeps it on the new tab. Opening a new tab never makes one.
+    try {
+      const digest = (typeof ReadingDigest !== 'undefined') ? ReadingDigest.card(now) : null;
+      if (digest) {
+        snap.digest = digest;
+        // A saved page already summarised in the card is not listed again below it.
+        const inCard = new Set(digest.items.map(i => i.url));
+        snap.saved = snap.saved.filter(s => !inCard.has(s.url));
+      }
+    } catch (err) { snap.errors.push('reading digest: ' + ((err && err.message) || 'unavailable')); }
+
     return snap;
   },
 

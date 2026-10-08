@@ -1861,6 +1861,14 @@
     .today-text { flex: 1; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .today-error { font-size: 12px; color: #e5484d; padding: 6px 14px; }
     .today-brief { margin: 0 0 6px; padding: 12px 14px; font-size: 14px; line-height: 1.55; color: var(--vex-text-primary); background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-left: 3px solid var(--vex-accent, var(--vex-border-accent)); border-radius: var(--vex-radius-md); }
+    .today-digest { margin: 0 0 6px; padding: 12px 14px; background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-left: 3px solid var(--vex-accent, var(--vex-border-accent)); border-radius: var(--vex-radius-md); }
+    .today-digest-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; font-size: 13px; color: var(--vex-text-primary); }
+    .today-digest-head span { font-size: 12px; color: var(--vex-text-muted); }
+    .today-digest-item { display: block; padding: 7px 8px; margin: 0 -8px; border-radius: var(--vex-radius-md); text-decoration: none; color: var(--vex-text-secondary); }
+    .today-digest-item:hover { background: var(--vex-accent-glow); color: var(--vex-text-primary); }
+    .today-digest-title { display: block; font-size: 13.5px; font-weight: 600; color: var(--vex-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .today-digest-summary { display: block; font-size: 12.5px; line-height: 1.5; margin-top: 2px; }
+    .today-digest-more { font-size: 12px; color: var(--vex-text-muted); padding-top: 4px; }
     .today-world-list { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; }
     .today-city b { font-variant-numeric: tabular-nums; color: var(--vex-text-primary); }
     .today-city.night b { color: var(--vex-text-muted); }
@@ -1895,6 +1903,23 @@
         if (snap.brief && snap.brief.text) {
           var p = document.createElement('p'); p.className = 'today-brief'; p.textContent = snap.brief.text;
           rows.push(p);
+        }
+        // Today's reading digest (Library › Digest), when the browser made one.
+        if (snap.digest && snap.digest.items && snap.digest.items.length) {
+          var card = document.createElement('div'); card.className = 'today-digest';
+          var head = document.createElement('div'); head.className = 'today-digest-head';
+          var h = document.createElement('strong'); h.textContent = 'Reading digest';
+          var meta = document.createElement('span'); meta.textContent = snap.digest.count + ' article' + (snap.digest.count === 1 ? '' : 's') + ' · made ' + hhmm(snap.digest.at);
+          head.appendChild(h); head.appendChild(meta); card.appendChild(head);
+          snap.digest.items.forEach(function (it) {
+            var a = document.createElement('a'); a.className = 'today-digest-item'; a.href = it.url;
+            a.addEventListener('click', function (e) { e.preventDefault(); location.href = it.url; });
+            var t = document.createElement('span'); t.className = 'today-digest-title'; t.textContent = it.title;
+            var s = document.createElement('span'); s.className = 'today-digest-summary'; s.textContent = it.summary;
+            a.appendChild(t); a.appendChild(s); card.appendChild(a);
+          });
+          if (snap.digest.more) { var more = document.createElement('div'); more.className = 'today-digest-more'; more.textContent = snap.digest.more + ' more in the Library › Digest'; card.appendChild(more); }
+          rows.push(card);
         }
         (snap.events || []).forEach(function (e) {
           rows.push(row('Calendar', e.allDay ? 'All day' : hhmm(e.at), e.text + (e.where ? ' · ' + e.where : ''), null, ''));

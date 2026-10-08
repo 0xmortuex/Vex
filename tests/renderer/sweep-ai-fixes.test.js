@@ -12,7 +12,6 @@ const { ChatFile } = require('../../src/renderer/js/chat-file.js');
 const { GuideTemplates } = require('../../src/renderer/js/guide-templates.js');
 const { TeachMode } = require('../../src/renderer/js/teach-mode.js');
 const { AIHealth } = require('../../src/renderer/js/ai-health.js');
-const { CatchMeUp } = require('../../src/renderer/js/catch-me-up.js');
 const { TwoModels } = require('../../src/renderer/js/two-models.js');
 
 const flush = () => new Promise(r => setTimeout(r, 0));
@@ -263,32 +262,8 @@ describe('TabAI', () => {
   });
 });
 
-// ---- 10: Catch Me Up ----------------------------------------------------------
-describe('Catch Me Up', () => {
-  beforeEach(() => {
-    globalThis.ReadLater = { items: [{ title: 'An article', url: 'https://x', read: false }] };
-    globalThis.VexFeeds = { feeds: [{ url: 'u' }], fetchAll: async () => ({ items: [{ title: 'Feed item', link: 'https://f', src: 'Feed' }], errors: [] }) };
-  });
-  afterEach(() => { delete globalThis.ReadLater; delete globalThis.VexFeeds; CatchMeUp._close(); });
-
-  it('shows the reply, not the JSON around it, and lists feed items too', async () => {
-    globalThis.AIRouter = { callAI: vi.fn(async () => ({ result: '{"reply":"- Two things to read"}' })) };
-    await CatchMeUp.open();
-    const text = document.getElementById('vex-catchup').textContent;
-    expect(text).toContain('Two things to read');
-    expect(text).not.toContain('"reply"');
-    expect(text).toContain('Feed item');
-  });
-  it('says why a summary failed, and Escape closes it', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    globalThis.AIRouter = { callAI: vi.fn(async () => { throw new Error('Ollama is not running'); }) };
-    await CatchMeUp.open();
-    expect(document.getElementById('cmu-summary').textContent).toContain('Ollama is not running');
-    expect(document.querySelector('#cmu-close svg')).not.toBe(null);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(document.getElementById('vex-catchup')).toBe(null);
-  });
-});
+// ---- 10: Catch Me Up became the reading digest (tests/renderer/readingDigest.test.js:
+// the {"reply"} unwrapping and the reason a summary failed are pinned there).
 
 // ---- 12: Two Models sends the page ------------------------------------------
 describe('Two Models', () => {
