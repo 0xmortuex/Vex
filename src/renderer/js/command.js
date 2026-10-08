@@ -130,7 +130,7 @@ const CommandBar = {
     { id: 'translate-selection', label: 'Translate Selection', hint: 'Translate the highlighted text into your language', icon: 'globe', action: () => { if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.translateSelection(); } },
     { id: 'tabai', label: 'AI Tab Command', hint: 'Tell AI what to do with your tabs — "close all YouTube tabs", "group my shopping tabs"', icon: 'tabs', action: () => TabAI.open() },
     { id: 'wsnap', label: 'Workspace Time-Travel', hint: 'Restore a past set of open tabs for this workspace', icon: 'history', action: () => { if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.open(); } },
-    { id: 'catchup', label: 'Catch Me Up', hint: 'AI digest of your RSS feeds + unread Read Later', icon: 'coffee', action: () => { if (typeof CatchMeUp !== 'undefined') CatchMeUp.open(); } },
+    { id: 'catchup', label: 'Reading digest (Catch me up)', hint: 'Your Read Later articles summarised by the local AI, in the Library', icon: 'coffee', action: () => { if (typeof ReadingDigest !== 'undefined') ReadingDigest.open({ build: true }); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: 'incognito', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
     { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (Vex downloads and starts Tor the first time)', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
     { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: 'mask', action: async () => {

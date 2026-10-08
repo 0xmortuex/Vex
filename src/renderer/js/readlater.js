@@ -121,10 +121,12 @@ const ReadLater = {
   // both are "the things in Vex you meant to come back to".
   TAB_KEY: 'vex.libraryTab',
 
-  tab() { try { return localStorage.getItem(this.TAB_KEY) === 'features' ? 'features' : 'saved'; } catch { return 'saved'; } },
+  // The third tab, Digest, is the saved articles summarised (js/reading-digest.js).
+  TABS: ['saved', 'digest', 'features'],
+  tab() { try { const t = localStorage.getItem(this.TAB_KEY); return this.TABS.includes(t) ? t : 'saved'; } catch { return 'saved'; } },
 
   showTab(which) {
-    try { localStorage.setItem(this.TAB_KEY, which === 'features' ? 'features' : 'saved'); } catch { /* the tab is a convenience */ }
+    try { localStorage.setItem(this.TAB_KEY, this.TABS.includes(which) ? which : 'saved'); } catch { /* the tab is a convenience */ }
     const panel = document.getElementById('panel-library');
     if (panel) this.renderPanel(panel);
   },
@@ -136,11 +138,17 @@ const ReadLater = {
     container.innerHTML = `<div class="panel-header"><h2>Library</h2></div>
       <div class="lib-tabs">
         <button data-tab="saved" class="${on === 'saved' ? 'on' : ''}">Saved</button>
+        <button data-tab="digest" class="${on === 'digest' ? 'on' : ''}">Digest</button>
         <button data-tab="features" class="${on === 'features' ? 'on' : ''}">Everything Vex can do</button>
       </div>
       <div id="lib-body" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 148px)"></div>`;
     container.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
     const body = container.querySelector('#lib-body');
+    if (on === 'digest') {
+      if (typeof ReadingDigest === 'undefined') { body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">The reading digest is not available in this window.</div>'; return; }
+      ReadingDigest.render(body);
+      return;
+    }
     if (on === 'features') {
       if (typeof FeatureLibrary === 'undefined') { body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">The feature list is not available in this window.</div>'; return; }
       FeatureLibrary.render(body);

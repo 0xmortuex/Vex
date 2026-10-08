@@ -87,7 +87,8 @@ const AISettings = (() => {
       { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' },
       // Was routable in the router but had no row here, so the only way to
       // change it was editing localStorage by hand.
-      { id: 'groupTabs', label: 'Group tabs', desc: 'AI tab grouping suggestions' }
+      { id: 'groupTabs', label: 'Group tabs', desc: 'AI tab grouping suggestions' },
+      { id: 'digest', label: 'Reading digest', desc: 'Summaries of your Read Later pile. Local unless you choose Auto or Cloud here' }
     ];
     const prefs = AIRouter.getRoutingPrefs();
     container.innerHTML = features.map(f => `

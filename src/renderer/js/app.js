@@ -609,6 +609,8 @@ function vexOwnTextFocused(doc) {
     'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',
     'vex.discordIdleSleepMin', 'vex.discordMemoryLimitMB', 'vex.discordRestHidden',
     'vex.discordLite', 'vex.discordMode', 'vex.autoSleepPrefs',
+    // Library › Digest: show today's digest on the New Tab page.
+    'vex.readingDigest.newTab',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
