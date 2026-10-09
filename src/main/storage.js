@@ -27,7 +27,12 @@ function createPreferenceStore(file) {
     load();
     const next = pending.catch(() => {}).then(async () => {
       const updated = { ...cache };
-      change(updated);
+      // Nothing changed: the file is not written. Every setItem in the
+      // interface comes here, most with the value already saved, and each one
+      // rewrote the whole file (1.3 MB) and its .bak, about once a minute
+      // (found 2026-10-09). Decided here, in the queue, so a write still
+      // waiting ahead of this one is what it is compared with.
+      if (change(updated) === false) return true;
       updated.__vexPreferenceStore = 1;
       await atomicWrite(file, JSON.stringify(updated), { backup: !eraseBackup });
       if (eraseBackup) await fs.promises.rm(file + '.bak', { force: true });
@@ -39,8 +44,8 @@ function createPreferenceStore(file) {
   }
   return {
     load,
-    set(key, value) { return mutate(data => { data[key] = value; }); },
-    delete(key) { return mutate(data => { delete data[key]; }); },
+    set(key, value) { return mutate(data => { if (Object.hasOwn(data, key) && data[key] === value) return false; data[key] = value; }); },
+    delete(key) { return mutate(data => { if (!Object.hasOwn(data, key)) return false; delete data[key]; }); },
     clearKeys(keys) { return mutate(data => { for (const key of keys) delete data[key]; }, true); },
     flush() { return pending; },
   };

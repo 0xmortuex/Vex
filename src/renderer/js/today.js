@@ -186,8 +186,19 @@ const VexToday = {
   async refresh() {
     const snap = await this.build();
     this._last = snap;
-    try { localStorage.setItem(this.KEY, JSON.stringify(snap)); }
-    catch (err) { console.error('[Today] could not write the snapshot:', err.message); return null; }
+    // Built again every minute with a new `at` and the world clock's new
+    // minute. Saved only when anything else changed: each save rewrote the
+    // whole of vex-persist.json (1.3 MB) and its .bak, once a minute (found
+    // 2026-10-09). The start page gets the fresh one from pushAll below; its
+    // own storage is a different partition, so it never reads this copy.
+    const steady = (s) => JSON.stringify({ ...s, at: 0, clock: (s.clock || []).map(c => [c.name, c.zone]) });
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(this.KEY) || 'null'); } catch { saved = null; }
+    const same = !!saved && steady(saved) === steady(snap);
+    if (!same) {
+      try { localStorage.setItem(this.KEY, JSON.stringify(snap)); }
+      catch (err) { console.error('[Today] could not write the snapshot:', err.message); return null; }
+    }
     this.pushAll();
     return snap;
   },

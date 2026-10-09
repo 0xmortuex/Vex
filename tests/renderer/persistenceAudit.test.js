@@ -44,7 +44,9 @@ describe('private tab persistence boundaries', () => {
     const expected = window.VexTabPolicy.snapshot(TM.tabs);
     expect(session.tabs).toEqual(expected);
     expect(WM.getActive().tabs).toEqual(expected);
-    expect(snapshots._currentTabs()).toEqual(expected);
+    // Time-Travel snapshots go through the same policy but keep only what
+    // restore and the list use (found 2026-10-09: whole tabs were 650 KB).
+    expect(snapshots._currentTabs()).toEqual(expected.map(t => ({ url: t.url, title: t.title, partition: t.partition, pinned: t.pinned })));
   });
 
   it('excludes all tab snapshots in private windows even when a tab lacks a partition', async () => {

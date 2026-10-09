@@ -40,6 +40,29 @@ describe('the Today snapshot', () => {
     expect(JSON.parse(localStorage.getItem('vex.today')).reminders).toHaveLength(3);
   });
 
+  // Each save rewrote all of vex-persist.json once a minute, for a new `at`
+  // nothing shows (found 2026-10-09).
+  it('is not saved again a minute later when only its time changed', async () => {
+    globalThis.VexClock = {
+      cities: () => [{ name: 'Tokyo', zone: 'Asia/Tokyo' }],
+      partsIn: (_zone, at) => ({ hour: 3, minute: new Date(at).getMinutes() }),
+      offsetLabel: () => '+9h',
+    };
+    await VexToday.refresh();
+    const set = vi.spyOn(Storage.prototype, 'setItem');
+    Date.now.mockReturnValue(NOW + 60000);
+    const snap = await VexToday.refresh();
+    expect(snap.at).toBe(NOW + 60000);
+    expect(snap.clock[0].hhmm).toBe('03:31');
+    expect(set.mock.calls.filter(c => c[0] === 'vex.today')).toHaveLength(0);
+    // Something it shows changed: saved.
+    globalThis.ReadLater.items.push({ id: 'r3', url: 'https://new.example/', title: 'New', at: NOW, read: false });
+    await VexToday.refresh();
+    expect(set.mock.calls.filter(c => c[0] === 'vex.today')).toHaveLength(1);
+    set.mockRestore();
+    delete globalThis.VexClock;
+  });
+
   it('reports a source that failed instead of hiding it, and keeps the rest', async () => {
     global.window.vex.reminders.list = vi.fn(async () => { throw new Error('bridge down'); });
     const snap = await VexToday.refresh();
