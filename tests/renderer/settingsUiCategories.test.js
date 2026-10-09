@@ -113,3 +113,30 @@ describe('SettingsUI.enhance', () => {
     expect(Array.from(root.querySelectorAll('.setting-group')).every(g => g.style.display !== 'none')).toBe(true);
   });
 });
+
+// The owner, 2026-10-09: at the normal size the chip bar is not a scroll box.
+// A two-row cap (v2.37.0) hid Personalization and Cloud behind a scrollbar.
+// It stays one scrolling row only in a short window and at Larger/Largest.
+describe('the chip bar height', () => {
+  const { readFileSync } = require('node:fs');
+  const css = readFileSync(require('node:path').join(__dirname, '../../src/renderer/css/settings-redesign.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rulesFor = (sel) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(m => m[1].split(',').some(s => s.trim() === sel))
+    .map(m => m[2]);
+
+  it('at the normal size every chip shows: no height cap, no scroll box', () => {
+    const base = rulesFor('.set-nav');
+    expect(base.length).toBeGreaterThan(0);
+    // The plain .set-nav rules: the one at the top level, and the one inside the short-window query.
+    const top = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+    const plain = [...top.matchAll(/(^|\})\s*\.set-nav\s*\{([^}]*)\}/g)].map(m => m[2]).join(';');
+    expect(plain).toMatch(/flex-wrap:\s*wrap/);
+    expect(plain).not.toMatch(/max-height|overflow/);
+  });
+
+  it('a short window and Larger/Largest keep one row that scrolls', () => {
+    expect(css).toMatch(/@media \(max-height: 760px\)\s*\{\s*\.set-nav\s*\{[^}]*max-height:\s*34px;[^}]*overflow-y:\s*auto/);
+    expect(css).toMatch(/\[data-vex-scale="largest"\]\) \.set-nav\s*\{[^}]*max-height:\s*34px;[^}]*overflow-y:\s*auto/);
+  });
+});
