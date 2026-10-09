@@ -153,6 +153,21 @@ const SyncEngine = (() => {
 
   // ===== AUTH =====
 
+  // The AI worker turns away a request without its token with 401
+  // "Authentication required" (and a GET with 405 "Method not allowed"), and
+  // that was all the Sync field holding the AI worker's address said (found
+  // 2026-10-09). Ask the address which worker it is (VexConfig.workerKind)
+  // and say that instead. → the sentence, or null.
+  async function wrongWorker(status, error) {
+    if (!(status === 401 && error === 'Authentication required') && !(status === 405 && error === 'Method not allowed')) return null;
+    try { return (await window.VexConfig.workerKind(syncWorkerUrl())) === 'ai' ? window.VexConfig.WRONG_WORKER.sync : null; }
+    catch (err) { console.error('[Sync] Could not ask the Sync Worker URL which worker it is:', (err && err.message) || err); return null; }
+  }
+  async function authFailure(r, fallback) {
+    const err = await r.json().catch(() => ({ error: fallback }));
+    return new Error((await wrongWorker(r.status, err.error)) || err.error || fallback);
+  }
+
   async function requestCode(email) {
     refuseInPrivate();
     requireSyncUrl();
@@ -161,10 +176,7 @@ const SyncEngine = (() => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ error: 'Failed to request code' }));
-      throw new Error(err.error || 'Failed to request code');
-    }
+    if (!r.ok) throw await authFailure(r, 'Failed to request code');
     return await r.json();
   }
 
@@ -176,10 +188,7 @@ const SyncEngine = (() => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code, deviceName: deviceName || getDefaultDeviceName() })
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ error: 'Code verification failed' }));
-      throw new Error(err.error || 'Code verification failed');
-    }
+    if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
     if (data.hasEncryptedData !== false) {
       // An older server registered this device before answering; a refusal
@@ -229,10 +238,7 @@ const SyncEngine = (() => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, code, deviceName: deviceName || getDefaultDeviceName() })
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ error: 'Code verification failed' }));
-      throw new Error(err.error || 'Code verification failed');
-    }
+    if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
 
     state = {
@@ -623,7 +629,13 @@ const SyncEngine = (() => {
         },
         body: JSON.stringify({ encryptedBlob, updatedAt: new Date().toISOString(), baseRevision: revision })
       });
-      if (r.status === 401) { await signedOutByServer(); return { ok: false, reason: 'unauthorized' }; }
+      if (r.status === 401) {
+        // The Sync field now holding the AI worker's address is not this
+        // device being removed: say it and keep the sign-in.
+        const why = await wrongWorker(401, (await r.json().catch(() => ({}))).error);
+        if (why) throw new Error(why);
+        await signedOutByServer(); return { ok: false, reason: 'unauthorized' };
+      }
       if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
       if (!r.ok) throw new Error('Push returned ' + r.status);
       revision = (await r.json()).revision;
@@ -655,7 +667,11 @@ const SyncEngine = (() => {
       const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/pull`, {
         headers: { 'Authorization': `Bearer ${state.sessionToken}` }
       });
-      if (r.status === 401) { await signedOutByServer(); return { ok: false, reason: 'unauthorized' }; }
+      if (r.status === 401 || r.status === 405) {
+        const why = await wrongWorker(r.status, (await r.json().catch(() => ({}))).error);
+        if (why) throw new Error(why);
+        if (r.status === 401) { await signedOutByServer(); return { ok: false, reason: 'unauthorized' }; }
+      }
       if (!r.ok) throw new Error('Pull returned ' + r.status);
 
       const result = await r.json();

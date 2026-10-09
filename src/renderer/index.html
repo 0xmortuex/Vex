@@ -1121,6 +1121,7 @@
                 <div>
                   <label for="setting-ai-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">AI Worker URL</label>
                   <input type="text" id="setting-ai-worker-url" class="set-input" placeholder="https://your-vex-ai.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+                  <div id="setting-ai-worker-url-check" role="alert" hidden style="color:var(--danger,#e5484d);font-size:12px;margin-top:6px"></div>
                   <label for="setting-ai-worker-token" style="display:block;font-size:12px;color:var(--text-muted);margin:10px 0 4px">AI access token</label>
                   <input type="password" id="setting-ai-worker-token" class="set-input" autocomplete="new-password" placeholder="Stored with Windows encryption">
                   <button type="button" id="save-ai-worker-token" class="btn-secondary">Save access token</button>
@@ -1128,6 +1129,7 @@
                 <div>
                   <label for="setting-sync-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Sync Worker URL</label>
                   <input type="text" id="setting-sync-worker-url" class="set-input" placeholder="https://your-vex-sync.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+                  <div id="setting-sync-worker-url-check" role="alert" hidden style="color:var(--danger,#e5484d);font-size:12px;margin-top:6px"></div>
                 </div>
                 <div id="cloud-config-status" style="font-size:11px;color:var(--text-muted)"></div>
               </div>

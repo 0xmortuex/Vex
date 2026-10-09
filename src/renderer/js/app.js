@@ -509,6 +509,8 @@ function vexOwnTextFocused(doc) {
     bind('setting-ai-worker-url', 'vex.aiWorkerUrl', refreshStatus);
     bind('setting-sync-worker-url', 'vex.syncWorkerUrl', refreshStatus);
     refreshStatus();
+    VexConfig.watchWorkerField(document.getElementById('setting-ai-worker-url'), 'ai', document.getElementById('setting-ai-worker-url-check'));
+    VexConfig.watchWorkerField(document.getElementById('setting-sync-worker-url'), 'sync', document.getElementById('setting-sync-worker-url-check'));
 
     // Theme — open the visual picker.
     document.getElementById('setting-open-theme-picker')?.addEventListener('click', () => {
