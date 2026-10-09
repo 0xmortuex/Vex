@@ -56,8 +56,8 @@ function installTabManager(over = {}) {
 function installWebviewManager(captureImpl = () => Promise.resolve(fakeImg)) {
   globalThis.WebviewManager = {
     webviews: new Map([
-      ['t1', { capturePage: captureImpl }],
-      ['t2', { capturePage: captureImpl }],
+      ['t1', { _attached: true, capturePage: captureImpl }],
+      ['t2', { _attached: true, capturePage: captureImpl }],
     ]),
   };
 }

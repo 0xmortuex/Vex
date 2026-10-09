@@ -2775,15 +2775,19 @@ const TabManager = {
     const tab = this.tabs.find(t => t.id === tabId);
     if (!tab) return;
     const wv = WebviewManager.webviews.get(tabId);
-    if (wv) {
+    // A page still being made (a tab just woken or opened) has no page
+    // attached yet, and isAudioMuted() threw "The WebView must be attached to
+    // the DOM…" out of the speaker button (found 2026-10-10).
+    if (wv && wv._attached) {
       const muted = wv.isAudioMuted();
       wv.setAudioMuted(!muted);
       tab.muted = !muted;
     } else {
       // Asleep or not loaded yet: there is no page to mute, and this used to
       // do nothing. Record it; _applyMuted sets it when the page is made
-      // (found 2026-09-29).
+      // (found 2026-09-29), or at its dom-ready when it is being made now.
       tab.muted = !tab.muted;
+      if (wv) this._applyMuted(tab);
     }
     this.renderTabUpdate(tab);
     window.showToast?.(tab.muted ? 'Tab muted' : 'Tab unmuted');
@@ -2796,7 +2800,8 @@ const TabManager = {
     const wv = WebviewManager.webviews.get(tab.id);
     if (!wv) return;
     wv.addEventListener('dom-ready', () => {
-      try { wv.setAudioMuted(true); }
+      // As the tab is by then: it may have been unmuted while the page loaded.
+      try { wv.setAudioMuted(!!tab.muted); }
       catch (err) { console.error('[Tabs] could not mute the tab:', err.message); }
     }, { once: true });
   },

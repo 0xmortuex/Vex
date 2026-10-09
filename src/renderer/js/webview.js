@@ -1001,9 +1001,14 @@ const WebviewManager = {
     else wv.reload();
   },
 
+  // Ctrl+= / Ctrl+- / Ctrl+0 right after switching to a tab whose page is
+  // only now being made reached a webview with no page attached yet, and its
+  // zoom methods throw "The WebView must be attached to the DOM and the
+  // dom-ready event emitted" (found 2026-10-10). The saved zoom for the site
+  // is put on at dom-ready anyway.
   zoomIn() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
       const next = Math.min(cur + 0.1, 5);
       wv.setZoomFactor(next);
@@ -1013,7 +1018,7 @@ const WebviewManager = {
 
   zoomOut() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
       const next = Math.max(cur - 0.1, 0.25);
       wv.setZoomFactor(next);
@@ -1023,7 +1028,7 @@ const WebviewManager = {
 
   zoomReset() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       wv.setZoomFactor(1);
       this._saveZoom(wv, 1);
     }

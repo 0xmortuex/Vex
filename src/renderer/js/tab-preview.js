@@ -85,7 +85,11 @@ const TabPreview = {
         ? WebviewManager.webviews.get(tabId)
         : null;
 
-      if (wv && typeof wv.capturePage === 'function') {
+      // A tab opened in the background a moment ago has a webview with no
+      // page attached yet: capturePage() throws "The WebView must be attached
+      // to the DOM…" there, synchronously, out of this timer (found
+      // 2026-10-10). It gets the popup without a picture, like a sleeping tab.
+      if (wv && wv._attached && typeof wv.capturePage === 'function') {
         // capturePage is async; the user may have moved off the tab by the
         // time the bitmap arrives. We still show — the timer already proved
         // intent — but bail if the captured bitmap is empty (happens on
