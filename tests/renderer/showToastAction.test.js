@@ -33,6 +33,19 @@ describe('a toast with a button', () => {
     expect(onExpire).not.toHaveBeenCalled();
   });
 
+  // The kept-awake memory toast: Reload, and Let it sleep (found 2026-10-09).
+  it('takes several buttons; each runs its own action, once, and takes the toast down', () => {
+    const reload = vi.fn(), sleep = vi.fn();
+    const t = showToast('claude.ai is using 3.3 GB and never sleeps.', 'warn', 20000, { actions: [{ label: 'Reload', run: reload }, { label: 'Let it sleep', run: sleep }] });
+    const btns = [...t.el.querySelectorAll('.toast-action')];
+    expect(btns.map(b => b.textContent)).toEqual(['Reload', 'Let it sleep']);
+    expect(btns[1].classList.contains('secondary')).toBe(true);
+    btns[1].click(); btns[0].click();
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+    expect(t.el.dataset.leaving).toBe('1');
+  });
+
   it('runs out after its time and says so once', () => {
     const onExpire = vi.fn();
     showToast('x', 'undo', 10000, { action: { label: 'Undo', run: () => {} }, onExpire });

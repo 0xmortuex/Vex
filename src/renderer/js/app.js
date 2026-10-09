@@ -1341,6 +1341,9 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('free-memory',    () => { if (typeof MemoryPanel !== 'undefined') MemoryPanel.freeNow().catch(err => showToast(err.message, 'error')); });
     // A tab past its memory ceiling gets a notice with Reload (tabs.js).
     if (typeof TabManager !== 'undefined' && TabManager.startHeavyTabWatch) TabManager.startHeavyTabWatch();
+    // A tab or panel kept awake by choice that grows past 1.5 GB says so once,
+    // even with the memory notice off (js/kept-awake-memory.js).
+    if (typeof KeptAwakeMemory !== 'undefined') KeptAwakeMemory.init();
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());
@@ -1791,14 +1794,16 @@ function vexOwnTextFocused(doc) {
   // duplicate toasts here.
 
   // opts.action = { label, title, run }: one button on the toast (the Undo of
-  // js/vex-undo.js). Such a toast takes clicks, holds still while the pointer
+  // js/vex-undo.js); opts.actions = [action, …] for more than one, the first
+  // the main one. Such a toast takes clicks, holds still while the pointer
   // or the focus is on it, and calls opts.onExpire when it goes without being
   // used — on time, pushed out by newer toasts, or Escape. Returns
   // { el, dismiss } so its owner can take it down.
   function showToast(message, type, duration, opts) {
     type = type || 'info';
     duration = duration || 3000;
-    const action = opts && opts.action;
+    const actions = opts && (Array.isArray(opts.actions) && opts.actions.length ? opts.actions : (opts.action ? [opts.action] : null));
+    const action = actions && actions[0];
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -1850,13 +1855,16 @@ function vexOwnTextFocused(doc) {
     const text = document.createElement('span');
     text.className = 'toast-text';
     text.textContent = message;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'toast-action';
-    btn.textContent = action.label;
-    if (action.title) btn.title = action.title;
+    const buttons = actions.map((a, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action' + (i ? ' secondary' : '');
+      b.textContent = a.label;
+      if (a.title) b.title = a.title;
+      return b;
+    });
     el.classList.add('has-action');
-    el.append(text, btn);
+    el.append(text, ...buttons);
     const handle = {
       el,
       dismiss: takeDown,
@@ -1867,8 +1875,7 @@ function vexOwnTextFocused(doc) {
       },
     };
     el._vexToast = handle;
-    const run = () => { if (gone) return; takeDown(); action.run(); };
-    btn.addEventListener('click', run);
+    buttons.forEach((b, i) => b.addEventListener('click', () => { if (gone) return; takeDown(); actions[i].run(); }));
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handle.expire(); }
     });
