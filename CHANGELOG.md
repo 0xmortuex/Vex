@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.38.1 (2026-10-09) — Two fixes
+
+### Fixes
+- **Vex Sync no longer signs you out without a word.** If Vex was closed in the middle of signing in, or Windows can no longer read the saved sign-in, Vex says so when it starts and in Settings › Vex Sync, instead of quietly showing "Not signed in".
+- **Deleting the theme you are wearing with Light and dark on** puts on the theme for the hour, with no "is now your theme" toast.
+
 ## v2.38.0 (2026-10-09) — Themes your way, a calmer Vex, and Undo instead of "Are you sure?"
 
 ### Themes
