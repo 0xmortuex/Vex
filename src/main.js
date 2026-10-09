@@ -906,6 +906,25 @@ app.whenReady().then(() => {
       } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
     }, 1000)));
   }
+  // Vex's own Start menu and desktop shortcuts that open a Vex.exe that is
+  // gone are pointed back at this one (src/main/shortcut-repair.js; found
+  // 2026-10-09). Every start, not only after an update: the installer starts
+  // the updated Vex through the Start menu shortcut, so a broken one is the
+  // very thing that keeps the --updated run from happening.
+  if (process.platform === 'win32' && app.isPackaged) {
+    setTimeout(() => {
+      try {
+        require('./main/shortcut-repair').repairShortcuts({
+          packaged: app.isPackaged, shell, fs, execPath: process.execPath,
+          dirs: [
+            process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : null,
+            app.getPath('desktop'),
+          ],
+          log: (m) => console.log(m),
+        });
+      } catch (err) { console.error('[Shortcuts] could not check Vex\'s shortcuts:', err.message); }
+    }, 5000);
+  }
 });
 app.on('browser-window-created', (_e, win) => {
   win.once('show', () => _diagMark('window-shown'));
