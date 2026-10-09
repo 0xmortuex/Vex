@@ -93,6 +93,9 @@ const SyncSettings = (() => {
   }
 
   function renderSignedOut(container) {
+    // Why this device is signed out, when its saved sign-in could not be used
+    // at start (sync-engine.js restoreFailed); the toast alone was gone in seconds.
+    const why = SyncEngine.getState().lastError;
     container.innerHTML = `
       <div class="sync-section">
         <div class="sync-header">
@@ -102,6 +105,7 @@ const SyncSettings = (() => {
             <div class="sync-subtitle">Sync your tabs, notes, and settings across devices</div>
           </div>
         </div>
+        ${why ? `<div class="sync-restore-error" role="alert" style="display:flex;align-items:center;gap:8px;color:var(--danger,#e5484d);font-size:12px;margin-bottom:12px">${VexIcons.svg('warning', { size: 14 })}<span>${escapeHtml(why)}</span></div>` : ''}
 
         <div class="sync-signed-out">
           <div class="step" id="step-email">

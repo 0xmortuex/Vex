@@ -68,7 +68,8 @@ const setColour = (key, value) => {
 };
 const flush = () => new Promise(r => setTimeout(r, 0));
 
-afterEach(() => { globalThis.ThemeAuto?.stop?.(); delete globalThis.WebviewManager; });
+let listening = new AbortController();
+afterEach(() => { listening.abort(); listening = new AbortController(); globalThis.ThemeAuto?.stop?.(); delete globalThis.WebviewManager; });
 
 describe('your themes in the theme list', () => {
   it('are registered after the built-in ones, with a CSS block each, and restored at start', async () => {
@@ -261,13 +262,22 @@ describe('deleting', () => {
     const { TM, TA, TS } = await load({ list: [{ id: 'user-first', name: 'First', colors: DARK }, { id: 'user-harbour', name: 'Harbour', colors: DARK, base: 'nord' }, { id: 'user-last', name: 'Last', colors: DARK }], theme: 'user-harbour' });
     await import('../../src/renderer/js/vex-undo.js');
     images.set('user-harbour', 'data:image/jpeg;base64,AAAA');
-    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'user-harbour', from: '00:00', to: '00:01' }));
+    // Noon, inside the dark hours: Harbour is worn as the dark theme.
+    TA._clock = () => new Date(2026, 9, 9, 12, 0);
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'user-harbour', from: '06:00', to: '18:00' }));
+    // Light and dark's own hand-pick listener (ThemeAuto.start adds it).
+    const picks = [];
+    document.addEventListener('theme-changed', (e) => { picks.push(e.detail); TA._onThemeChanged(e); }, { signal: listening.signal });
     let offer = null;
     window.showToast = vi.fn((msg, type, ms, opts) => { if (opts && opts.action) offer = { msg, run: opts.action.run }; return { el: document.createElement('div'), dismiss() {} }; });
     document.querySelector('[data-act="delete"][aria-label="Delete Harbour"]').click();
     for (let i = 0; i < 10; i++) await flush();
     expect(window.showToast.mock.calls.filter(c => c[1] === 'error').map(c => c[0])).toEqual([]);
     expect(window.vexConfirm).not.toHaveBeenCalled();
+    // The replacement went on as Light and dark would put it, not as a pick:
+    // no "… is now your dark theme" about a theme nobody chose.
+    expect(picks.filter(d => d.userChoice)).toEqual([]);
+    expect(window.showToast.mock.calls.map(c => c[0]).filter(m => /is now your/.test(m))).toEqual([]);
     expect(TS.record('user-harbour')).toBeNull();
     expect(TM.getCurrentTheme()).toBe('nord');
     expect(TM.availableThemes).not.toContain('user-harbour');
@@ -282,6 +292,33 @@ describe('deleting', () => {
     expect(TM.availableThemes).toContain('user-harbour');
     expect(TA.state().dark).toBe('user-harbour');
     expect(images.get('user-harbour')).toBe('data:image/jpeg;base64,AAAA');
+  });
+
+  it('a theme held on screen against the hour, when deleted, gives way to the theme for the hour; the slots stay as they were', async () => {
+    const paper = { ...DARK, background: '#f4f1ea', surface: '#ffffff', text: '#1b1b1b', muted: '#5c5c5c', primary: '#0b5cad' };
+    const { TM, TA, TS } = await load({ list: [{ id: 'user-paper', name: 'Paper', colors: paper }], theme: 'user-paper' });
+    await import('../../src/renderer/js/vex-undo.js');
+    TA._clock = () => new Date(2026, 9, 9, 12, 0);
+    // Dark now; Paper (light) was picked by hand and is held until the switch.
+    localStorage.setItem('vex.themeAuto', JSON.stringify({ mode: 'schedule', light: 'oxford', dark: 'dracula', from: '06:00', to: '18:00', held: { theme: 'user-paper', dark: true } }));
+    const picks = [];
+    document.addEventListener('theme-changed', (e) => { picks.push(e.detail); TA._onThemeChanged(e); }, { signal: listening.signal });
+    window.showToast = vi.fn(() => ({ el: document.createElement('div'), dismiss() {} }));
+    await TS.deleteWithUndo('user-paper');
+    expect(TM.getCurrentTheme()).toBe('dracula');
+    expect(picks.filter(d => d.userChoice)).toEqual([]);
+    expect(window.showToast.mock.calls.map(c => c[0]).filter(m => /is now your/.test(m))).toEqual([]);
+    const st = TA.state();
+    expect([st.light, st.dark]).toEqual(['oxford', 'dracula']);
+    expect(st.held).toBeUndefined();
+  });
+
+  it('with Light and dark off, the theme it came from goes on as before', async () => {
+    const { TM, TS } = await load({ list: [{ id: 'user-harbour', name: 'Harbour', colors: DARK, base: 'nord' }], theme: 'user-harbour' });
+    await import('../../src/renderer/js/vex-undo.js');
+    window.showToast = vi.fn(() => ({ el: document.createElement('div'), dismiss() {} }));
+    await TS.deleteWithUndo('user-harbour');
+    expect(TM.getCurrentTheme()).toBe('nord');
   });
 
   it('a light theme with no base falls back to Oxford, a dark one to Firefox Dark', async () => {

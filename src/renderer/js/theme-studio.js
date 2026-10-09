@@ -716,7 +716,15 @@ const ThemeStudio = {
       }
     }
     this._changed();
-    if (ThemeManager.getCurrentTheme() === id) ThemeManager.applyTheme(fallback);
+    if (ThemeManager.getCurrentTheme() === id) {
+      // With Light and dark on, the theme for the hour goes on, as a switch
+      // would put it. Applied as a hand pick it moved a slot and said "… is now
+      // your light theme" about a theme nobody picked (final review, 2026-10-09).
+      if (typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn()) ThemeAuto.evaluate();
+      // Light and dark off, or it could not decide (the editor is open, or
+      // Windows' mode is unknown): the fallback, as before.
+      if (ThemeManager.getCurrentTheme() === id) ThemeManager.applyTheme(fallback, { auto: typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn() });
+    }
     if (window.vex && typeof window.vex.setCustomThemeImage === 'function') {
       const r = await window.vex.setCustomThemeImage(null, id);
       if (!r || !r.ok) window.showToast?.('The theme is gone, but its picture could not be deleted: ' + ((r && r.error) || 'no answer'), 'error');

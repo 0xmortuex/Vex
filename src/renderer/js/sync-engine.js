@@ -816,14 +816,42 @@ const SyncEngine = (() => {
     });
   }
 
+  // A saved sign-in that cannot be used is said, not shown as a quiet "Not
+  // signed in". Reading it could fail (Windows can no longer decrypt it), or
+  // Vex could have been closed between saving the key and its details while
+  // signing in (saveStateToDisk writes one, then the other), which left the
+  // device signed out with no word on the next start (found 2026-10-09).
+  function restoreFailed(why) {
+    state.lastError = why;
+    stateChanged();
+    // Shown while Vex is still starting: long enough to be read.
+    window.showToast?.(why + ' Sign in again in Settings › Vex Sync.', 'error', 15000);
+  }
+
   async function initFromDisk() {
     if (privateWindow()) return false;
     let meta, keyHex;
     try {
       meta = await window.vex.syncLoadMeta();
       keyHex = await window.vex.syncLoadKey();
-    } catch { return false; }
-    if (!meta || !keyHex) return false;
+    } catch (err) {
+      console.error('[Sync] Could not read the saved sign-in:', err);
+      // Said in words, not as Electron's "Error invoking remote method …".
+      const raw = String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+      const reason = /decrypt/i.test(raw) ? 'Windows could not decrypt it' : raw;
+      restoreFailed('Vex Sync could not read this device’s saved sign-in (' + reason + '), so it is signed out.');
+      return false;
+    }
+    if (!meta && !keyHex) return false;
+    if (!meta || !keyHex) {
+      // Half a sign-in. A sign-in cut short leaves the key without its
+      // details, and nothing was pushed with it (the first push comes after
+      // both are saved), so the leftover is removed and nothing is lost.
+      console.error('[Sync] The saved sign-in is incomplete (' + (meta ? 'no key' : 'no account details') + '); clearing it');
+      await window.vex.syncClearState();
+      restoreFailed('Vex Sync’s last sign-in did not finish (Vex was closed during it), so this device is signed out.');
+      return false;
+    }
     revision = meta.revision || 0;
     pullBlocked = true;
 
@@ -851,6 +879,7 @@ const SyncEngine = (() => {
       return true;
     } catch (err) {
       console.error('[Sync] Failed to restore state:', err);
+      restoreFailed('Vex Sync could not use this device’s saved key (' + (err.message || String(err)) + '), so it is signed out.');
       return false;
     }
   }
