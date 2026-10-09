@@ -49,6 +49,14 @@ const SettingsUI = {
   // before the Layout row, and "Personalization" has to reach its own category
   // before Personas (it contains the substring "persona") — it used to be filed
   // under Personas and got no nav chip of its own.
+  //
+  // A category with a `group` keeps its own mark and colour on its card, but
+  // shares one chip in the nav with the rest of its group; the group's sections
+  // get a row of smaller chips of their own, above the first of them (`short`
+  // is the name on that row). The AI sections were seven chips of 37, which
+  // wrapped the bar to five rows (the owner, 2026-10-10). Recall and
+  // Personalization are not AI — a local full-text index, and the start page's
+  // name/weather — so they keep their chips.
   CATS: [
     { name: 'General',         icon: 'search',   color: '#6366f1', match: ['general', 'search engine'] },
     { name: 'Browser',         icon: 'globe',    color: '#0ea5e9', match: ['default browser'] },
@@ -62,14 +70,15 @@ const SettingsUI = {
     { name: 'Workspaces',      icon: 'folders',  color: '#14b8a6', match: ['workspace'] },
     { name: 'Location',        icon: 'pin',      color: '#ef4444', match: ['location'] },
     { name: 'Sync',            icon: 'refresh',  color: '#06b6d4', match: ['sync'] },
-    { name: 'AI',              icon: 'spark',    color: '#d4a574', match: ['ai backend', 'assistant'] },
+    { name: 'AI',              icon: 'spark',    color: '#d4a574', match: ['ai backend', 'assistant'], group: 'AI' },
     { name: 'Personalization', icon: 'user',     color: '#f0abfc', match: ['personalization'] },
     { name: 'Profiles',        icon: 'users',    color: '#22d3ee', match: ['profiles'] },
-    { name: 'Personas',        icon: 'users',    color: '#8b5cf6', match: ['persona'] },
-    { name: 'AI Memory',       icon: 'memory',   color: '#c084fc', match: ['ai memory'] },
-    { name: 'On-Device',       icon: 'monitor',  color: '#2dd4bf', match: ['on-device', 'webgpu'] },
-    { name: 'MCP',             icon: 'plug',     color: '#38bdf8', match: ['mcp'] },
-    { name: 'Skills',          icon: 'star',     color: '#fbbf24', match: ['skill'] },
+    { name: 'Personas',        icon: 'users',    color: '#8b5cf6', match: ['persona'], group: 'AI' },
+    { name: 'AI Memory',       icon: 'memory',   color: '#c084fc', match: ['ai memory'], group: 'AI', short: 'Memory' },
+    { name: 'On-Device',       icon: 'monitor',  color: '#2dd4bf', match: ['on-device', 'webgpu'], group: 'AI' },
+    { name: 'MCP',             icon: 'plug',     color: '#38bdf8', match: ['mcp'], group: 'AI' },
+    { name: 'Skills',          icon: 'star',     color: '#fbbf24', match: ['skill'], group: 'AI' },
+    { name: 'AI History',      icon: 'clock',    color: '#7dd3fc', match: ['ai history'], group: 'AI', short: 'History' },
     { name: 'Boosts',          icon: 'rocket',   color: '#f472b6', match: ['boost'] },
     { name: 'Passwords',       icon: 'key',      color: '#34d399', match: ['password'] },
     { name: 'Focus',           icon: 'target',   color: '#fb7185', match: ['focus'] },
@@ -87,6 +96,11 @@ const SettingsUI = {
     { name: 'Data',            icon: 'box',      color: '#ec4899', match: ['data', 'reset', 'export'] },
     { name: 'About',           icon: 'info',     color: '#64748b', match: ['about', 'version', 'update'] },
   ],
+
+  // How a group's one chip looks in the nav (see `group` in CATS).
+  GROUPS: {
+    AI: { name: 'AI', icon: 'spark', color: '#d4a574' },
+  },
 
   // Which tab layout actually applies, given the stored Tab Layout choice and
   // the active GUI style. Glass and the browser looks lay the window out
@@ -156,6 +170,7 @@ const SettingsUI = {
     });
     const nav = (root.parentElement || root).querySelector('.set-nav');
     if (nav) nav.style.display = q ? 'none' : '';
+    root.querySelectorAll(':scope > .set-subnav').forEach(row => { row.style.display = q ? 'none' : ''; });
     // While searching, Simple mode hides nothing: the advanced sections that
     // match are in the results (css/simple-mode.css marks them Advanced).
     (root.parentElement || root).classList.toggle('set-searching', !!q);
@@ -270,7 +285,9 @@ const SettingsUI = {
       search = toolbar.querySelector('.set-search');
     }
     nav.innerHTML = '';
+    root.querySelectorAll(':scope > .set-subnav').forEach(row => row.remove());
     const seen = new Set();
+    const rows = {};   // group name -> { row, chip, names } for its row of sub-chips
 
     groups.forEach((g, i) => {
       const labelEl = g.querySelector('.setting-label');
@@ -288,15 +305,55 @@ const SettingsUI = {
         labelEl.insertBefore(chip, labelEl.firstChild);
       }
 
-      if (!seen.has(cat.name)) {
-        seen.add(cat.name);
+      // A grouped section: one row of sub-chips just above the group's first
+      // section, outside every card so the search never matches a card by the
+      // names on that row (2026-10-10).
+      let grp = null;
+      if (cat.group) {
+        grp = rows[cat.group];
+        if (!grp) {
+          const row = document.createElement('div');
+          row.className = 'set-subnav';
+          row.setAttribute('role', 'group');
+          row.setAttribute('aria-label', this.GROUPS[cat.group].name + ' sections');
+          row.dataset.tier = tier;
+          g.before(row);
+          grp = rows[cat.group] = { row, chip: null, names: new Set() };
+        }
+        if (!grp.names.has(cat.name)) {
+          grp.names.add(cat.name);
+          const sub = document.createElement('button');
+          sub.type = 'button';
+          sub.className = 'set-nav-chip set-subnav-chip';
+          sub.style.setProperty('--chip-color', cat.color);
+          sub.innerHTML = this._svg(cat.icon, 12) + '<span>' + (cat.short || cat.name) + '</span>';
+          sub.dataset.tier = tier;
+          sub.addEventListener('click', () => g.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          grp.row.appendChild(sub);
+        }
+      }
+
+      const key = cat.group || cat.name;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const look = cat.group ? this.GROUPS[cat.group] : cat;
+        // The group's chip lands on its row of sub-chips, which sits right
+        // above the group's first section.
+        const target = grp ? grp.row : g;
         const navChip = document.createElement('button');
         navChip.className = 'set-nav-chip';
-        navChip.style.setProperty('--chip-color', cat.color);
-        navChip.innerHTML = this._svg(cat.icon, 13) + '<span>' + cat.name + '</span>';
+        navChip.style.setProperty('--chip-color', look.color);
+        navChip.innerHTML = this._svg(look.icon, 13) + '<span>' + look.name + '</span>';
         navChip.dataset.tier = tier;
-        navChip.addEventListener('click', () => g.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        navChip.addEventListener('click', () => target.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         nav.appendChild(navChip);
+        if (grp) grp.chip = navChip;
+      }
+      // Simple mode hides a group's chip and row only when every section in
+      // the group is tucked away.
+      if (grp && tier === 'basic') {
+        grp.row.dataset.tier = 'basic';
+        grp.chip.dataset.tier = 'basic';
       }
     });
 

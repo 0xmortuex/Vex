@@ -100,6 +100,10 @@ body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced):not(.set-sea
 body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced) .set-nav-chip[data-tier="advanced"] {
   display: none !important;
 }
+/* A group's row of sub-chips when every section in it is tucked away (2026-10-10). */
+body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced) .settings-content > .set-subnav[data-tier="advanced"] {
+  display: none !important;
+}
 /* A search result from the tucked-away part says so. */
 body[data-ui-mode="simple"] #panel-settings:not(.set-show-advanced) .settings-content > .setting-group[data-tier="advanced"] > .setting-label::after {
   content: "Advanced";

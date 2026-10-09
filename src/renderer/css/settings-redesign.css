@@ -98,6 +98,20 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
   background: color-mix(in srgb, var(--chip-color, var(--primary)) 12%, var(--surface));
   transform: translateY(-1px);
 }
+/* A group's own row of smaller chips (the AI sections, 2026-10-10), above its
+   first section in the scroll area. It wraps; never a scroll box. */
+.settings-content > .set-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.set-subnav .set-subnav-chip {
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
 
 /* Each setting-group becomes a vivid category card */
 .settings-content .setting-group {

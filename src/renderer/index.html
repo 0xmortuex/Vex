@@ -739,6 +739,64 @@
               </details>
             </div>
 
+            <!-- Phase 15: AI Personas -->
+            <div class="setting-group">
+              <label class="setting-label">AI Personas</label>
+              <div id="personas-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading personas...</div>
+              </div>
+            </div>
+
+            <!-- AI Memory — facts the assistant remembers across sessions -->
+            <div class="setting-group">
+              <label class="setting-label">AI Memory</label>
+              <div id="ai-memory-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- On-Device AI — WebLLM / WebGPU, fully local & private -->
+            <div class="setting-group">
+              <label class="setting-label">On-Device AI (WebGPU)</label>
+              <div id="webllm-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- MCP — connect to Model Context Protocol tool servers -->
+            <div class="setting-group">
+              <label class="setting-label">MCP Servers</label>
+              <div id="mcp-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- AI Skills — saved, reusable prompts -->
+            <div class="setting-group">
+              <label class="setting-label">AI Skills</label>
+              <div id="skills-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading skills...</div>
+              </div>
+            </div>
+
+            <!-- Phase 12: AI History Indexing -->
+            <div class="setting-group">
+              <label class="setting-label">AI History Indexing</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Summarize the pages you visit so AI history search can find them by meaning, not just title and address. <strong>Off by default:</strong> it runs the AI model (the local one, unless you route it to the cloud in the table above) for every page you open, which costs memory and graphics power while you browse. Only the summary is kept.</p>
+              <div class="setting-toggle-row">
+                <span>Enable AI history indexing</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-ai-indexing-enabled">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button id="btn-reindex-open" class="btn-secondary">Re-index Open Tabs</button>
+                <button id="btn-clear-summaries" class="btn-danger">Clear AI Summaries</button>
+              </div>
+              <div id="indexing-stats" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading stats...</div>
+            </div>
+
             <!-- GUI Style (whole-UI look category) -->
             <div class="setting-group">
               <label class="setting-label">GUI Style</label>
@@ -945,46 +1003,6 @@
               <div id="group-patterns-count" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading...</div>
             </div>
 
-            <!-- Phase 15: AI Personas -->
-            <div class="setting-group">
-              <label class="setting-label">AI Personas</label>
-              <div id="personas-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading personas...</div>
-              </div>
-            </div>
-
-            <!-- AI Memory — facts the assistant remembers across sessions -->
-            <div class="setting-group">
-              <label class="setting-label">AI Memory</label>
-              <div id="ai-memory-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
-              </div>
-            </div>
-
-            <!-- On-Device AI — WebLLM / WebGPU, fully local & private -->
-            <div class="setting-group">
-              <label class="setting-label">On-Device AI (WebGPU)</label>
-              <div id="webllm-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
-              </div>
-            </div>
-
-            <!-- MCP — connect to Model Context Protocol tool servers -->
-            <div class="setting-group">
-              <label class="setting-label">MCP Servers</label>
-              <div id="mcp-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
-              </div>
-            </div>
-
-            <!-- AI Skills — saved, reusable prompts -->
-            <div class="setting-group">
-              <label class="setting-label">AI Skills</label>
-              <div id="skills-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading skills...</div>
-              </div>
-            </div>
-
             <!-- Boosts — per-site customization -->
             <div class="setting-group">
               <label class="setting-label">Boosts</label>
@@ -1065,24 +1083,6 @@
                 <label class="toggle"><input type="checkbox" id="setting-auto-pip" aria-label="Float a playing video when you switch tabs"><span class="toggle-slider"></span></label>
               </div>
               <p class="setting-info muted" style="margin-top:6px">Re-enables text selection, copying, and right-click on sites that disable them. Applies on next page load. You can also unlock a single page on demand from the command bar (Ctrl+K → “Unlock Copy &amp; Right-Click”). Doesn’t work on canvas-based editors like Google Docs and never affects DRM-protected media.</p>
-            </div>
-
-            <!-- Phase 12: AI History Indexing -->
-            <div class="setting-group">
-              <label class="setting-label">AI History Indexing</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Summarize the pages you visit so AI history search can find them by meaning, not just title and address. <strong>Off by default:</strong> it runs the AI model (the local one, unless you route it to the cloud in the table above) for every page you open, which costs memory and graphics power while you browse. Only the summary is kept.</p>
-              <div class="setting-toggle-row">
-                <span>Enable AI history indexing</span>
-                <label class="toggle">
-                  <input type="checkbox" id="setting-ai-indexing-enabled">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                <button id="btn-reindex-open" class="btn-secondary">Re-index Open Tabs</button>
-                <button id="btn-clear-summaries" class="btn-danger">Clear AI Summaries</button>
-              </div>
-              <div id="indexing-stats" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading stats...</div>
             </div>
 
             <div class="setting-group">

@@ -73,6 +73,9 @@ const VexI18nUI = {
       'Autofill': 'Otomatik doldurma', 'Security': 'Güvenlik',
       'Keyboard Shortcuts': 'Klavye kısayolları', 'Tab Groups': 'Sekme grupları',
       'Personalization': 'Kişiselleştirme', 'Reading': 'Okuma', 'Focus': 'Odak',
+      // The AI section's own row of chips (2026-10-10).
+      'AI sections': 'Yapay zekâ bölümleri', 'Personas': 'Kişilikler',
+      'Skills': 'Beceriler', 'On-Device': 'Cihaz üzerinde',
 
       // --- settings controls people actually change ---
       'Default search engine': 'Varsayılan arama motoru',
