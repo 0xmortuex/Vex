@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.38.2 (2026-10-10) — All settings categories show again
+
+### Fixes
+- **Settings shows every category again**: at the normal size the category chips are no longer squeezed into two rows with a small scrollbar that hid Personalization and Cloud. A short window or Larger/Largest text still keeps them to one row that scrolls, so the settings themselves stay in view.
+
 ## v2.38.1 (2026-10-09) — Two fixes
 
 ### Fixes
