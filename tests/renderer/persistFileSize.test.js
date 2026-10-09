@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const req = createRequire(import.meta.url);
+req('../../src/renderer/js/data-contracts.js'); // index.html loads it before tab-policy.js
 req('../../src/renderer/js/tab-policy.js');
 globalThis.VexJobs = { every: () => ({ stop() {} }) };
 const { WorkspaceSnapshots } = req('../../src/renderer/js/workspace-snapshots.js');
