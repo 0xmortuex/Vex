@@ -268,7 +268,7 @@ const AIRouter = (() => {
       const featurePref = routingPrefs[feature] || 'auto';
       const userWantsLocal = preferLocal || featurePref === 'local';
       if (primary === 'local' && userWantsLocal) {
-        throw new Error(`Local AI failed: ${err.message}. (Not falling back to cloud because you selected local mode.)`);
+        throw new Error(`Local AI failed: ${String(err.message).replace(/\.$/, '')}. (Not falling back to cloud because you selected local mode.)`);
       }
       // Same rule for on-device (WebGPU): the user switched it on to keep the
       // conversation on their machine. Quietly re-sending the same prompt — and
@@ -399,7 +399,7 @@ const AIRouter = (() => {
     // request.signal is the agent's Stop: it cancels the generation in flight.
     // onToken streams the reply as it is written — without it a local model
     // shows "Thinking…" for a minute and a stuck run looks the same as a slow one.
-    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta, onToken: request.onToken, ...thinkOpts(request) });
+    const text = await Ollama.chat(model, msgs, { temperature: 0.2, maxTokens: 3000, format: 'json', numCtx: agentNumCtx(), signal: request.signal, onMeta: request.onMeta, onToken: request.onToken, ...thinkOpts(request), ...localCheck(request) });
     return { result: text, backend: 'local', model };
   }
 
@@ -413,7 +413,7 @@ const AIRouter = (() => {
       if (m && m.role && m.content) msgs.push({ role: m.role, content: String(m.content).slice(0, 3000) });
     }
     msgs.push({ role: 'user', content: String(request.message || 'What is in this image?'), images: [String(request.image).replace(/^data:image\/[a-z]+;base64,/, '')] });
-    const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
+    const text = await Ollama.chat(model, msgs, { temperature: 0.4, maxTokens: 1200, numCtx: agentNumCtx(), signal: request.signal, onToken: request.onToken, ...thinkOpts(request), ...localCheck(request) });
     return { result: text, backend: 'local', model };
   }
   // Before a local request that will be slow, say why and what to do instead
@@ -421,6 +421,17 @@ const AIRouter = (() => {
   async function warnIfSlow(request) {
     if (typeof AIHealth === 'undefined' || typeof request.onSlow !== 'function') return;
     try { const advice = await AIHealth.slowAdvice(); if (advice) request.onSlow(advice.why, advice); } catch { /* a diagnosis is never worth failing the request for */ }
+  }
+
+  // Every local request first asks Ollama whether it runs, has the model and
+  // has it in memory (Ollama.ready). A dead Ollama or a missing model is then
+  // said at once, and a model still loading gets a longer wait and a line
+  // saying so, instead of a vague failure at two minutes (found 2026-10-09).
+  function localCheck(request) {
+    return {
+      checkFirst: true,
+      onLoading: (model) => { if (typeof request.onSlow === 'function') request.onSlow(String(model).replace(/:latest$/, '') + ' is loading…', null); },
+    };
   }
 
   // Which local model answers this: the small one for routine work, the one
@@ -506,7 +517,7 @@ const AIRouter = (() => {
       for (const m of [...system, ...turns]) msgs.push({ role: m.role, content: m.content });
       msgs.push({ role: 'user', content: userMessage });
       const model = modelFor(feature);
-      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', signal: request.signal, onToken: request.onToken, ...thinkOpts(request) });
+      const text = await Ollama.chat(model, msgs, { temperature, maxTokens: 2000, format: 'json', signal: request.signal, onToken: request.onToken, ...thinkOpts(request), ...localCheck(request) });
       return { result: text, backend: 'local', model };
     }
 
@@ -521,6 +532,7 @@ const AIRouter = (() => {
       // Only the local backend streams; the cloud worker answers in one piece.
       onToken: request.onToken,
       ...thinkOpts(request),
+      ...localCheck(request),
     });
     return { result: text, backend: 'local', model };
   }
