@@ -119,6 +119,9 @@
 .memory-health { font-size: 12px; line-height: 1.5; color: var(--vex-text-secondary); }
 .memory-health-line.sub { padding-left: 14px; color: var(--vex-text-muted); font-family: var(--vex-font-mono); font-size: 11px; }
 .memory-health.bad .memory-health-line.sub { color: var(--vex-danger); }
+/* Problems from an older version, folded (memory-panel.js). */
+.memory-health-older { margin-top: 6px; font-size: 12px; color: var(--vex-text-muted); }
+.memory-health-older > summary { cursor: pointer; }
 
 /* Health: clearing the quiet-problems list */
 .memory-clear-problems {

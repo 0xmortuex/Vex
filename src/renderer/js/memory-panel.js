@@ -472,7 +472,7 @@ const MemoryPanel = {
     // the DevTools console and nowhere else.
     if (typeof VexProblems !== 'undefined') {
       const n = VexProblems.count();
-      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : 'Nothing has failed quietly.');
+      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : (VexProblems.olderCount() ? 'Nothing has failed quietly since the last update.' : 'Nothing has failed quietly.'));
       for (const l of VexProblems.lines(12)) lines.push('  ' + l);
     }
     return lines;
@@ -487,17 +487,46 @@ const MemoryPanel = {
     catch (err) { host.innerHTML = `<div class="memory-proc-detail">Could not read health: ${this._esc(err && err.message)}</div>`; return null; }
     const lines = this.healthLines(d);
     const problems = (typeof VexProblems !== 'undefined') ? VexProblems.count() : 0;
+    // Lines, not repeats: the fold lists one line per problem.
+    const olderN = (typeof VexProblems !== 'undefined') ? VexProblems.older().length : 0;
     const bad = (d.events && d.events.length) || (d.extensionErrors && d.extensionErrors.length) || (d.update && d.update.error) || problems;
     host.innerHTML = `<div class="memory-health${bad ? ' bad' : ''}">${lines.map(l => `<div class="memory-health-line${/^  /.test(l) ? ' sub' : ''}">${this._esc(l.trim())}</div>`).join('')}</div>`;
-    if (problems) {
+    // Problems from before the last update, folded: most were fixed by it
+    // (found 2026-10-09). Open to read; Clear takes them with the rest.
+    let olderText = [];
+    if (olderN) {
+      olderText = VexProblems.olderLines(12);
+      const fold = document.createElement('details');
+      fold.className = 'memory-health-older';
+      fold.id = 'memory-health-older';
+      const head = document.createElement('summary');
+      head.textContent = `From an older version (${olderN})`;
+      fold.appendChild(head);
+      for (const l of olderText) {
+        const row = document.createElement('div');
+        row.className = 'memory-health-line sub';
+        row.textContent = l;
+        fold.appendChild(row);
+      }
+      host.appendChild(fold);
+    }
+    if (problems || olderN) {
       const clear = document.createElement('button');
       clear.className = 'memory-clear-problems';
       clear.id = 'memory-clear-problems';
       clear.textContent = 'Clear the problem list';
-      clear.addEventListener('click', () => { VexProblems.clear(); this.renderDiagnostics(); });
+      // Undo, not "Are you sure?" (js/vex-undo.js).
+      clear.addEventListener('click', () => {
+        const removed = VexProblems.clear();
+        this.renderDiagnostics();
+        VexUndo.offer({
+          message: 'Cleared the problem list',
+          undo: () => { VexProblems.restore(removed); return this.renderDiagnostics(); },
+        });
+      });
       host.appendChild(clear);
     }
-    this._lastHealth = lines.join('\n');
+    this._lastHealth = lines.concat(olderText.length ? [`${olderN} from an older version:`, ...olderText.map(l => '  ' + l)] : []).join('\n');
     return d;
   },
 

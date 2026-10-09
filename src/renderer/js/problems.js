@@ -27,6 +27,13 @@ const VexProblems = (() => {
   // Order cannot come from the clock: eighty problems in the same millisecond
   // all carry the same timestamp, and "newest first" then depends on the sort.
   let seq = 0;
+  // The Vex version running, once main has said (setVersion). Each problem
+  // carries the version it happened in (`v`), so after an update the old
+  // ones fold away under "From an older version" instead of reading as
+  // today's: "under.click is not a function" was still listed long after it
+  // was fixed (found 2026-10-09). Noted before the version is known: null,
+  // stamped when it comes. Saved before stamping existed: '' (older).
+  let version = '';
 
   function load() {
     if (loaded) return list;
@@ -35,7 +42,7 @@ const VexProblems = (() => {
       const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
       if (Array.isArray(raw)) {
         list = raw.filter(p => p && typeof p.message === 'string')
-          .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1 }))
+          .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1, v: typeof p.v === 'string' ? p.v.slice(0, 40) : '' }))
           .slice(-MAX);
       }
     } catch { list = []; }
@@ -59,9 +66,11 @@ const VexProblems = (() => {
       message: String(message == null ? 'Something failed' : message).slice(0, 200),
       detail: String(detail == null ? '' : (detail.message || detail)).slice(0, MAX_DETAIL),
       n: 1,
+      v: version || null,
     };
     const same = list.find(p => p.area === entry.area && p.message === entry.message && p.detail === entry.detail);
-    if (same) { same.n++; same.at = entry.at; same.seq = entry.seq; }
+    // Happening again now makes it a problem of this version.
+    if (same) { same.n++; same.at = entry.at; same.seq = entry.seq; same.v = entry.v; }
     else { list.push(entry); if (list.length > MAX) list.splice(0, list.length - MAX); }
     save();
     try { document.dispatchEvent(new CustomEvent('vex:problem', { detail: same || entry })); } catch {}
@@ -76,10 +85,41 @@ const VexProblems = (() => {
     return Promise.resolve(promise).catch(err => { note(area, message, err); return fallback; });
   }
 
+  function setVersion(v) {
+    const next = String(v || '').slice(0, 40);
+    if (!next) throw new Error('No version to stamp problems with');
+    version = next;
+    // Not load(): the answer comes before app.js has copied the saved list
+    // into browser storage, and loading then read an empty list that the
+    // next problem saved over the real one (found 2026-10-09, live).
+    if (!loaded) return version;
+    let stamped = false;
+    for (const p of list) if (p.v === null) { p.v = version; stamped = true; }
+    if (stamped) save();
+    return version;
+  }
+
+  // From an older Vex: only once the running version is known.
+  function isOlder(p) { return !!version && p.v !== null && p.v !== version; }
   function all() { return load().slice().sort((a, b) => (b.seq || 0) - (a.seq || 0)); }
+  function current() { return all().filter(p => !isOlder(p)); }
+  function older() { return all().filter(isOlder); }
   function since(ms) { const t = Date.now() - ms; return all().filter(p => p.at >= t); }
-  function count() { return load().reduce((n, p) => n + p.n, 0); }
-  function clear() { list = []; loaded = true; save(); try { document.dispatchEvent(new CustomEvent('vex:problem', { detail: null })); } catch {} }
+  // This version's problems; olderCount() for the folded ones.
+  function count() { return current().reduce((n, p) => n + p.n, 0); }
+  function olderCount() { return older().reduce((n, p) => n + p.n, 0); }
+  function changed() { try { document.dispatchEvent(new CustomEvent('vex:problem', { detail: null })); } catch {} }
+  // Returns what it took away, for restore() (the Undo of Clear).
+  function clear() { const removed = load().slice(); list = []; loaded = true; save(); changed(); return removed; }
+  function restore(removed) {
+    if (!Array.isArray(removed)) throw new Error('Nothing to put back');
+    load();
+    const back = removed.filter(p => p && !list.some(q => q.area === p.area && q.message === p.message && q.detail === p.detail));
+    list = back.concat(list).slice(-MAX);
+    save();
+    changed();
+    return back.length;
+  }
 
   // "3 minutes ago", for the Health lines.
   function ago(at) {
@@ -90,9 +130,9 @@ const VexProblems = (() => {
     return Math.round(s / 86400) + ' d ago';
   }
 
-  function lines(max) {
-    return all().slice(0, max || 12).map(p => `${ago(p.at)} — ${p.area}: ${p.message}${p.n > 1 ? ` (×${p.n})` : ''}${p.detail ? ' — ' + p.detail : ''}`);
-  }
+  function line(p) { return `${ago(p.at)} — ${p.area}: ${p.message}${p.n > 1 ? ` (×${p.n})` : ''}${p.detail ? ' — ' + p.detail : ''}`; }
+  function lines(max) { return current().slice(0, max || 12).map(line); }
+  function olderLines(max) { return older().slice(0, max || 12).map(p => line(p) + (p.v ? ` (Vex ${p.v})` : '')); }
 
   // An uncaught error in the interface used to reach the DevTools console and
   // nowhere else, so a feature could be broken for days with no trace.
@@ -110,10 +150,14 @@ const VexProblems = (() => {
       const r = e && e.reason;
       note('Vex interface', 'A background step failed: ' + ((r && r.message) || String(r || 'unknown')).slice(0, 160), (r && r.stack) ? String(r.stack).split('\n')[1]?.trim() : '');
     });
+    if (window.vex && typeof window.vex.getAppVersion === 'function') {
+      Promise.resolve(window.vex.getAppVersion()).then(setVersion)
+        .catch(err => console.error('[Problems] could not learn the Vex version:', err && err.message));
+    }
     return true;
   }
 
-  return { init, note, guard, all, since, count, clear, lines, ago, KEY, MAX };
+  return { init, note, guard, all, current, older, since, count, olderCount, clear, restore, lines, olderLines, setVersion, ago, KEY, MAX };
 })();
 
 // Wired at load, before every other script: an error thrown while Vex is
