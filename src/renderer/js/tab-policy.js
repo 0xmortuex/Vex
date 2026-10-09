@@ -9,7 +9,13 @@
     isCleanWindow: !!privatePartition && query.get('clean') === 'true',
     defaultPartition: privatePartition || 'persist:main',
     partitionFor(partition) { return privatePartition || partition || 'persist:main'; },
-    canRestore(tab) { return !!tab && !isEphemeral(tab.partition) && typeof tab.url === 'string' && /^(https?:|about:|file:|vex:)/i.test(tab.url); },
+    // The saved-tab contract's own URL test (js/data-contracts.js), not a
+    // look-alike: a prefix check let through an address longer than 8192
+    // characters (a sign-in redirect carrying its state in the query) or one
+    // that does not parse, and that one tab made every tab, workspace and
+    // session save reject with "Invalid tab URL", so the stored session went
+    // stale (found 2026-10-10).
+    canRestore(tab) { return !!tab && !isEphemeral(tab.partition) && window.VexDataContracts.url(tab.url); },
     canPersist(tab) { return !privatePartition && policy.canRestore(tab); },
     canReadWebview(webview) {
       return !privatePartition && !!webview && !isEphemeral(webview.getAttribute?.('partition'));

@@ -296,6 +296,7 @@ describe('the tab menu', () => {
     globalThis.WebviewManager = { webviews: new Map() };
     globalThis.SidebarManager = { hideActivePanel() {} };
     globalThis.START_URL = 'vex://start';
+    await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
     await import('../../src/renderer/js/tab-policy.js');
     const TM = (await import('../../src/renderer/js/tabs.js')).TabManager;
     globalThis.Handoff = loadHandoff();

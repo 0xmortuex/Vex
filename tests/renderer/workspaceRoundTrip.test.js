@@ -42,6 +42,7 @@ async function load() {
   vi.resetModules();
   installGlobals();
   await import('../../src/renderer/js/vex-utils.js');
+  await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
   await import('../../src/renderer/js/tab-policy.js');
   const tabs = await import('../../src/renderer/js/tabs.js');
   globalThis.TabManager = tabs.TabManager;

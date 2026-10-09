@@ -18,6 +18,7 @@ beforeEach(async () => {
   globalThis.SidebarManager = { hideActivePanel: vi.fn() };
   globalThis.START_URL = 'vex://start';
   await import('../../src/renderer/js/vex-utils.js');
+  await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
   await import('../../src/renderer/js/tab-policy.js');
   TM = (await import('../../src/renderer/js/tabs.js')).TabManager;
   globalThis.TabManager = TM;

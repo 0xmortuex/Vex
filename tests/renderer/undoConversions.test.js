@@ -36,6 +36,7 @@ describe('tab groups: Close tabs and Delete group', () => {
     window.vex = { getStartPageUrl: () => new Promise(() => {}) };
     document.body.innerHTML = '<input id="url-input"><div id="tab-groups-container"></div><div id="tabs-list"></div>';
     await import('../../src/renderer/js/vex-utils.js');
+    await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
     await import('../../src/renderer/js/tab-policy.js');
     await import('../../src/renderer/js/vex-undo.js');
     const TM = (await import('../../src/renderer/js/tabs.js')).TabManager;

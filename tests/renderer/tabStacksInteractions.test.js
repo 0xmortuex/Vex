@@ -373,6 +373,7 @@ describe('_handleStackAction — close-tabs', () => {
     let offered = null;
     window.showToast = vi.fn((_m, _t, _d, opts) => { if (opts) offered = opts; return { dismiss() {} }; });
     const TM = await loadTabManager();
+    await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
     await import('../../src/renderer/js/tab-policy.js');
     await import('../../src/renderer/js/vex-undo.js');
     TM.tabs = [fakeTab('t0'), fakeTab('t1'), fakeTab('t2'), fakeTab('t3')];
