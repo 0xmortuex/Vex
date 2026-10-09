@@ -146,7 +146,8 @@ const HistoryPanel = {
     return {
       id: e.id || 'h_' + (Date.parse(when || '') || Date.now()) + '_' + Math.random().toString(36).slice(2, 7),
       url: e.url,
-      title: typeof e.title === 'string' && e.title ? e.title : e.url,
+      // Capped like addEntry's: this list is saved back as read.
+      title: (typeof e.title === 'string' && e.title ? e.title : e.url).slice(0, 4096),
       favicon: this._safeFavicon(e.favicon),
       ...(e.ownSession === true ? { ownSession: true } : {}),
       visitedAt: when || new Date().toISOString(),
@@ -212,7 +213,11 @@ const HistoryPanel = {
     this.entries.unshift({
       id: existing?.id || 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       url,
-      title: this._isPlaceholder(title, url) ? (existing?.title || url) : title,
+      // At most what the saved list takes (js/data-contracts.js): a page still
+      // "Loading…" is titled with its address, and one of 4097-8192
+      // characters made every later save of this list fail with "Invalid
+      // record text" (found 2026-10-10).
+      title: String(this._isPlaceholder(title, url) ? (existing?.title || url) : title).slice(0, 4096),
       // A visit from a tab in its own session keeps no icon address at all.
       favicon: ownSession ? '' : (this._safeFavicon(favicon) || existing?.favicon || ''),
       ...(ownSession ? { ownSession: true } : {}),

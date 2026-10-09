@@ -78,3 +78,32 @@ describe('the history visit a navigation sends', () => {
     expect(VexStorage.addHistory).not.toHaveBeenCalled();
   });
 });
+
+// The same visit in the history list (vex.history, saved through persist-set
+// and the same contract): a page still "Loading…" is titled with its address,
+// and a 5000-character one failed every later save of the list with "Invalid
+// record text" (seen live, 2026-10-10).
+describe('the history list kept by the History panel', () => {
+  const MODULE = '../../src/renderer/js/history-panel.js';
+  const fresh = () => { delete require.cache[require.resolve(MODULE)]; return require(MODULE).HistoryPanel; };
+
+  it('stays savable after a visit to a long, still-loading address', () => {
+    localStorage.clear();
+    window.escapeHtml = s => String(s == null ? '' : s);
+    const H = fresh();
+    const url = longQuery(5000);
+    H.addEntry(url, 'Loading…');
+    const saved = JSON.parse(localStorage.getItem('vex.history'));
+    expect(saved[0].url).toBe(url);
+    expect(() => dataContracts.storage('history', saved)).not.toThrow();
+  });
+
+  it('stays savable when an old entry with no title is read and saved back', () => {
+    localStorage.clear();
+    const url = longQuery(5000);
+    localStorage.setItem('vex.history', JSON.stringify([{ url, time: Date.now() - 60000 }]));
+    const H = fresh();
+    H.addEntry('https://example.org/', 'Example');
+    expect(() => dataContracts.storage('history', JSON.parse(localStorage.getItem('vex.history')))).not.toThrow();
+  });
+});
