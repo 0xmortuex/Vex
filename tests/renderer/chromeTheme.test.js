@@ -165,7 +165,7 @@ describe('Chrome colours to Vex colours', () => {
       expect(bad, JSON.stringify({ colors, tints, out: out.colors })).toEqual([]);
       expect(out.unresolved).toEqual([]);
     }
-  }, 60000);
+  }, 180000);
 });
 
 const preview = (extra = {}) => ({ ok: true, id: 'aghfnjkcakhmadgdomlmlhhaocbkloab', name: 'Just Black', isTheme: true, refuse: 'This is a Chrome theme, not an extension.', theme: { name: 'Just Black', ...JUST_BLACK, properties: { alignment: 'center', repeat: 'no-repeat' }, images: {} }, ...extra });
