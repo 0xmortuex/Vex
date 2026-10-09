@@ -6,10 +6,11 @@
 //                       Cancel), check it against the release's checksum, then
 //                       close Vex (tabs saved) and install quietly; Vex opens
 //                       again on the new version by itself (src/main/updates.js);
-//   Later               nothing is remembered: asked again at the next start;
+//   Later               nothing is remembered: asked again at the next check
+//                       (the next start, or six hours on while Vex stays open);
 //   Skip this version   silent until a version newer than this one is out.
 // Settings › About › Check for Updates opens the same cover, and its "Check
-// for updates when Vex starts" switch turns the check at start off.
+// for updates automatically" switch turns both automatic checks off.
 // Only the main window shows it: a private window never checks.
 
 const UpdateNotifier = {
@@ -25,14 +26,28 @@ const UpdateNotifier = {
   CHANNEL_KEY: 'vex.updateChannel',
   STABLE_MS: 2 * 24 * 3600 * 1000,
 
-  // Settings › About › Check for updates when Vex starts. On unless turned
+  // Settings › About › Check for updates automatically. On unless turned
   // off; off, nothing is asked of GitHub until Check for Updates is pressed.
+  // The key keeps its old name (it was "when Vex starts") so a saved choice
+  // still holds.
   ON_START_KEY: 'vex.updateCheckOnStart',
+
+  // Vex is often left open for days: the owner's copy sat on 2.36.4 while
+  // 2.37.0, 2.38.0 and 2.38.1 shipped, because the only automatic check ran
+  // at start (found 2026-10-09). So it is asked again every six hours.
+  EVERY_MS: 6 * 3600 * 1000,
+  JOB_NAME: 'Update check',
 
   init() {
     if (window.VexTabPolicy?.isPrivateWindow) return;
     window.vex.updates?.onProgress?.((p) => this._progress(p));
     window.vex.updates?.onInstallFailed?.((p) => this._fail((p && p.error) || 'Vex did not close to install the update.'));
+    // On the shared job timer as a 'ui' job: held while Vex is hidden or a
+    // game is running, then run once when Vex is back on screen, so the cover
+    // never comes up where nobody sees it. Registered whatever the switch
+    // says; each run reads it, so turning it on or off applies at once.
+    if (typeof VexJobs === 'undefined') window.VexProblems?.note('Updates', 'The update check while Vex stays open could not start: the job timer is not loaded', new Error('VexJobs is missing'));
+    else VexJobs.every(this.JOB_NAME, this.EVERY_MS, () => this.checkWhileOpen());
     if (!this.checksOnStart()) return;
     // A few seconds after launch, so the window and its tabs are up first.
     setTimeout(() => this.checkOnStartup(), 4000);
@@ -75,6 +90,19 @@ const UpdateNotifier = {
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    if (this.shouldAnnounce(r)) this.showCover(r);
+  },
+
+  // The six-hourly check. Same rules as the one at start (channel, skipped
+  // version, roll-back pause), and it leaves a cover that is already up
+  // alone: one asking, downloading or installing stays exactly as it is.
+  async checkWhileOpen() {
+    if (window.VexTabPolicy?.isPrivateWindow || !this.checksOnStart() || this._el) return;
+    let r;
+    try { r = await window.vex.checkForUpdates(); }
+    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    // A cover opened from Settings while the check was out wins.
+    if (this._el) return;
     if (this.shouldAnnounce(r)) this.showCover(r);
   },
 

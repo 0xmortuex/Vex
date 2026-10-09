@@ -104,9 +104,9 @@ Private and Tor tabs are never read for AI. The one exception is a picture you r
 
 ## 4. Updates
 
-**What happens:** about 4 seconds after Vex starts (not in private windows, and not if you turned off "Check for updates when Vex starts" in Settings › About), and when you click "Check for Updates", Vex downloads `latest.yml` from the Vex releases on **GitHub** (github.com). If you choose to update, it downloads the installer (or only the changed parts) and the changelog from GitHub and checks it against a SHA-512 hash.
+**What happens:** about 4 seconds after Vex starts and then every 6 hours while it stays open (not in private windows, and not if you turned off "Check for updates automatically" in Settings › About), and when you click "Check for Updates", Vex downloads `latest.yml` from the Vex releases on **GitHub** (github.com). If you choose to update, it downloads the installer (or only the changed parts) and the changelog from GitHub and checks it against a SHA-512 hash.
 
-**What GitHub sees:** your IP address and a `User-Agent` header with your Vex version (for example `Vex/2.35.2`). Vex sends nothing else. GitHub's privacy policy applies. Turn off "Check for updates when Vex starts" in Settings › About and Vex only checks when you click "Check for Updates". The "Stable" channel does not reduce checking; it only delays the prompt.
+**What GitHub sees:** your IP address and a `User-Agent` header with your Vex version (for example `Vex/2.35.2`). Vex sends nothing else. GitHub's privacy policy applies. Turn off "Check for updates automatically" in Settings › About and Vex only checks when you click "Check for Updates". The "Stable" channel does not reduce checking; it only delays the prompt.
 
 ## 5. Other features that use the internet
 
