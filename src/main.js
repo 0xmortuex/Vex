@@ -174,6 +174,22 @@ let mainWindow = null;
 let reminders = null;
 let adBlockerEnabled = true;
 let pendingOpenUrl = null;
+// The main window's own keys (before-input-event), set once Vex has started
+// (app.whenReady below), so a main window made again gets them too.
+let _wireMainWindowKeys = null;
+// The main window closed while a private window or an Open as App window
+// kept Vex running: a link from another program, a second start, or a link
+// clicked in an app window found no window and was lost (audit TA6,
+// 2026-10-10). The main window is made again, with the link in a tab.
+function _reopenMainWindow(url) {
+  if (!_wireMainWindowKeys) { if (url) pendingOpenUrl = url; return; }
+  createWindow();
+  _wireMainWindowKeys();
+  if (url) {
+    const wc = mainWindow.webContents;
+    wc.once('did-finish-load', () => { if (!wc.isDestroyed()) wc.send('open-url', url); });
+  }
+}
 // The currently-open Peek-style auth popup window (frameless OAuth child), so a
 // backdrop click in the renderer can dismiss it. Null when none is open.
 let _activePeekOAuthPopup = null;
@@ -706,13 +722,15 @@ if (!gotTheLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     } else if (url && !mainWindow) {
-      console.log('[Vex URL]   no mainWindow yet — stashing as pendingOpenUrl');
-      pendingOpenUrl = url;
+      console.log('[Vex URL]   no mainWindow — opening it again (or stashing as pendingOpenUrl while starting)');
+      _reopenMainWindow(url);
     } else {
       console.log('[Vex URL]   no URL found in second-instance argv — nothing to forward');
       // Starting a profile that is already open (its shortcut, the profile
-      // menu, the Start menu) brings its window forward.
-      focusMainWindow();
+      // menu, the Start menu) brings its window forward, or makes it again
+      // when only a private or app window was left.
+      if (!mainWindow) _reopenMainWindow(null);
+      else focusMainWindow();
     }
   });
 }
@@ -6451,6 +6469,7 @@ app.whenReady().then(async () => {
   }
 
   // Register global shortcuts
+  _wireMainWindowKeys = () => {
   mainWindow.on('blur', () => _setShortcutCapturing(false));
   mainWindow.webContents.on('before-input-event', (event, input) => {
     // The shortcut editor is recording: every key goes to it, F11 and F12 too.
@@ -6577,6 +6596,8 @@ app.whenReady().then(async () => {
       event.preventDefault();
     }
   });
+  };
+  _wireMainWindowKeys();
 
   // Disable default menu
   Menu.setApplicationMenu(null);
@@ -8419,7 +8440,10 @@ function _refuseMainProfileCopy(partition) {
 // never as further windows of their own (security scan L4).
 function _openLinksAsTabs(contents) {
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url || '') && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tab:create-from-external', { url });
+    if (/^https?:\/\//i.test(url || '')) {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('tab:create-from-external', { url });
+      else _reopenMainWindow(url);
+    }
     return { action: 'deny' };
   });
 }
