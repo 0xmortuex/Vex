@@ -169,10 +169,22 @@ const AIRouter = (() => {
   // chose, and its reply is parsed leniently (plain text becomes the summary).
   const ONDEVICE_FEATURES = ['chat', 'digest'];
   const ONDEVICE_CHAT_PROMPT = `You are Vex AI, a friendly, concise browser assistant running locally on the user's device. Answer clearly and directly in plain text (no JSON, no preamble). Use any provided page content to inform your answer, and match the user's language.`;
+  // After a restart the switch is still on but no model is in memory. Chat
+  // used to go to the cloud without a word (found 2026-10-10); now the chosen
+  // model is loaded again (from the browser's cache) for the question. The
+  // background digest does not load one by itself.
   function onDeviceReady(feature) {
-    try {
-      return typeof WebLLM !== 'undefined' && WebLLM.preferred() && WebLLM.isLoaded() && ONDEVICE_FEATURES.includes(feature);
-    } catch { return false; }
+    if (typeof WebLLM === 'undefined' || !WebLLM.preferred() || !ONDEVICE_FEATURES.includes(feature)) return false;
+    return WebLLM.isLoaded() || feature === 'chat';
+  }
+  let _onDeviceLoad = null;
+  async function ensureOnDeviceModel() {
+    if (WebLLM.isLoaded()) return;
+    if (!_onDeviceLoad) {
+      if (typeof window !== 'undefined' && typeof window.showToast === 'function') window.showToast('Loading the on-device model ' + WebLLM.chosenModel() + '…');
+      _onDeviceLoad = WebLLM.load().finally(() => { _onDeviceLoad = null; });
+    }
+    await _onDeviceLoad;
   }
 
   async function resolveBackend(feature) {
@@ -302,7 +314,8 @@ const AIRouter = (() => {
   // model locally in the renderer. Any failure throws and callAI falls back to
   // cloud/local automatically.
   async function callOnDevice(feature, request) {
-    if (typeof WebLLM === 'undefined' || !WebLLM.isLoaded()) throw new Error('On-device model not loaded');
+    if (typeof WebLLM === 'undefined') throw new Error('On-device AI is not part of this build');
+    await ensureOnDeviceModel();
     // chat-only (see ONDEVICE_FEATURES). Plain-text answer → _parseResponse wraps
     // it as { reply }. A persona prompt still wins if one is active.
     const systemPrompt = feature === 'digest' ? LOCAL_SYSTEM_PROMPTS.digest : (request.persona?.systemPrompt || ONDEVICE_CHAT_PROMPT);

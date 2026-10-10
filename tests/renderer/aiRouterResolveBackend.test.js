@@ -76,11 +76,15 @@ describe('AIRouter.resolveBackend — on-device (WebLLM) routing', () => {
     expect(await AIRouter.resolveBackend('chat')).toBe('ondevice');
   });
 
-  it('does NOT route to ondevice when no model is loaded', async () => {
+  // After a restart no model is in memory: chat still stays on the device
+  // (the model is loaded for it) instead of going to the cloud without a word
+  // (AI audit 2026-10-10). The background digest does not load one.
+  it('chat stays on the device when the switch is on but no model is loaded yet; the digest does not', async () => {
     const AIRouter = await loadRouter();
     stubOllama(true);
     stubWebLLM({ preferred: true, loaded: false });
-    expect(await AIRouter.resolveBackend('chat')).not.toBe('ondevice');
+    expect(await AIRouter.resolveBackend('chat')).toBe('ondevice');
+    expect(await AIRouter.resolveBackend('digest')).not.toBe('ondevice');
   });
 
   it('does NOT route agent to ondevice even when loaded (small models stay off agent)', async () => {

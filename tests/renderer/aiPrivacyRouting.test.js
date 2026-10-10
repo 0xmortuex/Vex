@@ -49,6 +49,56 @@ describe('Tab grouping with AI', () => {
   });
 });
 
+describe('On-device AI after a restart', () => {
+  function freshRouter() {
+    vi.resetModules();
+    window.VexConfig = { aiWorkerUrl: () => 'https://my-worker.example.workers.dev' };
+    globalThis.VexJobs = { every: () => ({ stop() {} }) };
+    globalThis.Ollama = { ping: async () => false, getBaseUrl: () => 'http://localhost:11434' };
+    return require('../../src/renderer/js/ai-router.js').AIRouter;
+  }
+
+  it('"Use on-device AI for chat" on, model not loaded yet: chat is not sent to the cloud', async () => {
+    localStorage.setItem('vex.preferOnDeviceAI', 'true');
+    const { WebLLM } = require('../../src/renderer/js/webllm.js');
+    globalThis.WebLLM = WebLLM;
+    const AIRouter = freshRouter();
+    await AIRouter.init();
+    expect(WebLLM.isLoaded()).toBe(false);
+    expect(await AIRouter.resolveBackend('chat')).toBe('ondevice');
+    // The background digest does not load a model by itself.
+    expect(await AIRouter.resolveBackend('digest')).not.toBe('ondevice');
+  });
+
+  it('loads the chosen model for the question and answers on the device', async () => {
+    localStorage.setItem('vex.preferOnDeviceAI', 'true');
+    let loaded = false;
+    globalThis.WebLLM = {
+      preferred: () => true, isLoaded: () => loaded, chosenModel: () => 'tiny-model', loadedModel: () => 'tiny-model',
+      load: vi.fn(async () => { loaded = true; return 'tiny-model'; }),
+      chat: vi.fn(async () => 'hello from the device'),
+    };
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy;
+    const AIRouter = freshRouter();
+    const out = await AIRouter.callAI('chat', { message: 'hi', conversationHistory: [] });
+    expect(WebLLM.load).toHaveBeenCalledTimes(1);
+    expect(out).toMatchObject({ result: 'hello from the device', backend: 'ondevice' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('a model that cannot load says so instead of going to the cloud', async () => {
+    localStorage.setItem('vex.preferOnDeviceAI', 'true');
+    globalThis.WebLLM = {
+      preferred: () => true, isLoaded: () => false, chosenModel: () => 'tiny-model', loadedModel: () => null,
+      load: vi.fn(async () => { throw new Error('WebGPU is not available on this device/build.'); }),
+      chat: vi.fn(),
+    };
+    const AIRouter = freshRouter();
+    await expect(AIRouter.callAI('chat', { message: 'hi', conversationHistory: [] })).rejects.toThrow(/On-device AI failed: WebGPU.*Not falling back to the cloud/);
+  });
+});
+
 describe('Two models on a private tab', () => {
   it('asks the cloud without the private page, and the local model with it', async () => {
     const tab = { id: 'tor', url: 'https://secretforum.example/thread/42', title: 'My secret Tor tab', partition: 'tor-1' };
