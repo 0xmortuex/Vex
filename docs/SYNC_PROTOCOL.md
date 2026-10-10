@@ -507,6 +507,7 @@ A device with no local data can just adopt the cloud document.
 
 ### 5.6 Timing (desktop)
 - Push every 2 minutes, pull every 5 minutes, pull 1.5 s after start, and "Sync Now" (pull, then push). One push or pull runs at a time; one asked while another runs waits its turn.
+- From the release after v14.72.3 the desktop also pushes about **5 s after a synced setting or list changes** (several changes in a row make one push), and once more while its window closes (given at most 4 s). Expect more frequent revisions, and so more 409s, than before.
 - A timed push is sent only when the document differs from the one the server holds at the desktop's revision (the one it last pushed or pulled). Up to v2.38.1 the desktop pushed on its timer even when nothing changed, so the revision rose by about 1 every 2 minutes per running desktop; such desktops are still about, so expect 409s.
 - A pull that returns the revision the desktop already has is not applied again. Nothing on the wire changes: the pull is still made and returns the whole blob.
 - Handoff polling: on window focus, every 2 minutes, and 8 s after launch.

@@ -1044,7 +1044,10 @@ const SyncEngine = (() => {
         }
         throw err;
       }
-      const applied = await applySyncData(decrypted, restore);
+      let applied;
+      applying = true;
+      try { applied = await applySyncData(decrypted, restore); }
+      finally { applying = false; }
       // Only acknowledge a revision after its contents were decrypted and applied.
       // Otherwise a stale or damaged local key could overwrite unreadable cloud data.
       revision = receivedRevision;
@@ -1077,6 +1080,46 @@ const SyncEngine = (() => {
 
   // ===== AUTO-SYNC =====
 
+  // A change to something synced goes up about this long after it is made,
+  // not on the next two-minute round (found 2026-10-10): a bookmark added just
+  // before closing the laptop never reached the phone. Several changes in a
+  // row make one upload.
+  const CHANGE_PUSH_MS = 5000;
+  let changeTimer = null;
+  // Set while a pull writes what it brought: those writes are not changes to
+  // send back.
+  let applying = false;
+  function changed(isSynced) {
+    if (applying || !state.enabled || privateWindow() || !syncWorkerUrl() || !isSynced) return;
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(() => {
+      changeTimer = null;
+      pushNow().then((r) => {
+        if (!r.ok && r.reason !== 'not-ready') console.error('[Sync] Could not upload a change: ' + r.reason);
+      });
+    }, CHANGE_PUSH_MS);
+  }
+  const syncedPreference = key => preferenceKeys().includes(key) || TILE_LISTS.includes(key);
+  function watchChanges() {
+    if (typeof PersistentStorage !== 'undefined') PersistentStorage.onChange = key => changed(syncedPreference(String(key)));
+    if (typeof VexStorage !== 'undefined') VexStorage.onChange = key => changed(STORE_KEYS.includes(String(key)));
+  }
+  // The window is closing (js/storage.js): one last upload, so the change made
+  // a moment ago and this device's open tabs reach the other devices. At most
+  // a few seconds; closing never waits on the network for longer, and a
+  // failure is logged, not raised.
+  const CLOSE_PUSH_MS = 4000;
+  async function pushBeforeClose() {
+    clearTimeout(changeTimer); changeTimer = null;
+    if (!state.enabled || privateWindow() || !syncWorkerUrl()) return { ok: false, reason: 'off' };
+    let timer;
+    const late = new Promise(resolve => { timer = setTimeout(() => resolve({ ok: false, reason: 'still uploading when the window closed' }), CLOSE_PUSH_MS); });
+    const result = await Promise.race([pushNow().catch(err => ({ ok: false, reason: err.message || String(err) })), late]);
+    clearTimeout(timer);
+    if (!result.ok) console.error('[Sync] The last upload before closing did not finish: ' + result.reason);
+    return result;
+  }
+
   function startAutoSync() {
     if (privateWindow()) return;
     stopAutoSync();
@@ -1086,13 +1129,15 @@ const SyncEngine = (() => {
     }
     pushTimer = setInterval(() => pushNow(), 2 * 60 * 1000);
     pullTimer = setInterval(() => pullNow(), 5 * 60 * 1000);
+    watchChanges();
   }
 
   function stopAutoSync() {
     if (pushTimer) clearInterval(pushTimer);
     if (pullTimer) clearInterval(pullTimer);
     if (markerTimer) clearTimeout(markerTimer);
-    pushTimer = pullTimer = markerTimer = null;
+    clearTimeout(changeTimer);
+    pushTimer = pullTimer = markerTimer = changeTimer = null;
   }
 
   // ===== DEVICES =====
@@ -1343,6 +1388,7 @@ const SyncEngine = (() => {
     // devices that waits on (an older Vex, or the phone).
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     otherDeviceTabs,
+    pushBeforeClose,
     renameDevice,
     thisDeviceName: () => thisDeviceName() || getDefaultDeviceName(),
     // The name to show for a device in the list: its own choice, else the server's.

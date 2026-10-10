@@ -110,7 +110,12 @@ const PersistentStorage = {
     return true;
   },
 
+  // Told the key of every preference that changes (js/sync-engine.js pushes
+  // a synced one a few seconds later).
+  onChange: null,
+
   _enqueue(op, key, value) {
+    if (typeof this.onChange === 'function') this.onChange(key);
     const version = (this._versions.get(key) || 0) + 1;
     this._versions.set(key, version);
     this._queue.set(key, { op, value, version });
@@ -292,6 +297,9 @@ window.vex?.onFlushRequested?.(async () => {
   await PersistentStorage._flush();
   await VexStorage.retryFailed();
   await window.vex.flushStorage?.();
+  // Last: what changed since the last sync goes up before the window closes.
+  // Bounded, and never a reason not to close (js/sync-engine.js).
+  if (typeof SyncEngine !== 'undefined') await SyncEngine.pushBeforeClose();
 });
 
 // Mirrors VexTabPolicy.sleepMemory for the fallback serializer below, which
@@ -305,7 +313,10 @@ const sleepMemory = tab => {
 const VexStorage = {
   _failed: new Map(),
   _versions: new Map(),
+  // Told the key of every store saved (js/sync-engine.js, as PersistentStorage.onChange).
+  onChange: null,
   async save(key, data) {
+    if (typeof this.onChange === 'function') this.onChange(key);
     const version = (this._versions.get(key) || 0) + 1;
     this._versions.set(key, version);
     try {
