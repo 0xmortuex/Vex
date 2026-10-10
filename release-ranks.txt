@@ -21,3 +21,7 @@ ead1029 feature-mid-some           # never-sleep memory notice
 3fabcec none                       # test setup for a change in this same batch
 9a1c284 fix-high-some              # email-code autofill almost never filled (slots taken by every page)
 a5cd8ce security-high-some         # email codes filled into any site, look-alikes included
+2f69515 none                       # widens the never-sleep notice, which is itself unreleased (scored on ead1029)
+97adba8 fix-mid-rare               # a problem at start-up could wipe the saved problem list
+b129c86 performance-mid-everyone   # history no longer rewritten twice (166 KB) on every visit
+d630550 none                       # test fixes for this same batch
