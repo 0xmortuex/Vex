@@ -3,13 +3,17 @@
 // the code of that moment. Clicking an emptied 2FA field later re-filled that
 // code, long after it expired (codes last 30 s), even after a newer code had
 // been injected. Now a click asks Vex for the code of that moment.
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TotpAutofill } from '../../src/renderer/js/totp-autofill.js';
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 describe('TOTP click-to-fill', () => {
-  beforeEach(() => { delete window.__vexTotpFocusWired; delete window.__vexTotpWant; delete window.VexTabPolicy; });
+  // The injected filler's short retry (every 400 ms) is not what is tested
+  // here, and on a slow run it re-filled the cleared field before the click.
+  const realSetInterval = window.setInterval;
+  beforeEach(() => { delete window.__vexTotpFocusWired; delete window.__vexTotpWant; delete window.VexTabPolicy; window.setInterval = () => 0; });
+  afterEach(() => { window.setInterval = realSetInterval; });
 
   it('fills the current code on a click into the emptied field, not the first one', async () => {
     Element.prototype.getBoundingClientRect = function () { return { width: 120, height: 30, top: 0, left: 0, right: 120, bottom: 30 }; };

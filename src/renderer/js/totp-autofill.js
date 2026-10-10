@@ -130,16 +130,10 @@ const TotpAutofill = {
     let match = matches[0];
     if (matches.length > 1) {
       // Several saved accounts claim this site. Filling an arbitrary one silently
-      // is worse than asking, so let the user pick (recommendation 31).
-      if (!window.vexPrompt) return;
-      const choice = await window.vexPrompt({
-        title: 'Choose an authenticator account',
-        message: matches.map((m, i) => `${i + 1}. ${m.account.issuer || ''} ${m.account.label || ''}`.trim()).join(String.fromCharCode(10)),
-        label: 'Account number', value: '',
-      });
-      const index = Number(choice) - 1;
-      if (choice === null || !Number.isInteger(index) || index < 0 || index >= matches.length) return;
-      match = matches[index];
+      // is worse than asking, so let the user pick from a list (it was "type a
+      // number" in a text box).
+      match = await this._pickAccount(matches, host);
+      if (!match || !here()) return;
     }
     if (match.kind === 'label') {
       // The site's name matches this account, which is a good guess but one an
@@ -167,6 +161,61 @@ const TotpAutofill = {
     try { window.AutofillLog?.record('totp', url, true, chosen[0].issuer || chosen[0].label); } catch {}
   },
 
+
+  // A list of the accounts that match this site, like the saved-password
+  // chooser. -> the chosen match, or null when dismissed.
+  _pickAccount(matches, host) {
+    return new Promise((resolve) => {
+      document.getElementById('vex-totp-pick')?.remove();
+      const prevFocus = document.activeElement;
+      const overlay = document.createElement('div');
+      overlay.id = 'vex-totp-pick';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:100052;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
+      overlay.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="vex-totp-pick-title" style="width:340px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
+        <div id="vex-totp-pick-title" style="padding:16px 18px 8px;font-size:13.5px;font-weight:700;color:var(--text)">Which account's code?</div>
+        <div data-host style="padding:0 18px 10px;font-size:11.5px;color:var(--text-muted)"></div>
+        <div data-list style="max-height:46vh;overflow-y:auto;padding:0 10px 10px"></div>
+        <div style="padding:10px 18px 16px;display:flex;justify-content:flex-end"><button type="button" data-cancel style="padding:7px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Not now</button></div>
+      </div>`;
+      overlay.querySelector('[data-host]').textContent = 'Authenticator codes for ' + host;
+      const list = overlay.querySelector('[data-list]');
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKey, true);
+        overlay.remove();
+        try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); } catch {}
+        resolve(value);
+      };
+      for (const m of matches) {
+        const issuer = String(m.account.issuer || '').trim();
+        const label = String(m.account.label || '').trim();
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.style.cssText = 'display:block;width:100%;text-align:left;padding:9px 10px;margin:2px 0;background:none;border:1px solid transparent;border-radius:8px;color:var(--text);font-family:inherit;font-size:12.5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        button.textContent = issuer && label && issuer.toLowerCase() !== label.toLowerCase() ? `${issuer} · ${label}` : (issuer || label || 'Account');
+        button.addEventListener('mouseenter', () => { button.style.background = 'var(--bg)'; button.style.borderColor = 'var(--border)'; });
+        button.addEventListener('mouseleave', () => { button.style.background = 'none'; button.style.borderColor = 'transparent'; });
+        button.addEventListener('click', () => done(m));
+        list.appendChild(button);
+      }
+      const onKey = (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); done(null); return; }
+        if (e.key === 'Tab') {
+          const all = [...overlay.querySelectorAll('button')];
+          const first = all[0], last = all[all.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      };
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+      overlay.querySelector('[data-cancel]').addEventListener('click', () => done(null));
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(overlay);
+      list.querySelector('button')?.focus();
+    });
+  },
 
   // Is this page plausibly part of a sign-in that could reach a 2FA step? Used
   // only to decide whether waiting for the field is worth it.
