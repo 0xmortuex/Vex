@@ -5,7 +5,11 @@
 // no release).
 //
 // Usage:
-//   node scripts/release.js <version> "<title>" [--no-publish] [--dry-run]
+//   node scripts/release.js <version> "<title>" [--no-publish] [--dry-run] [--any-version]
+//
+// The version must be the one scripts/version-points.js works out from the
+// commits' ranks (run it first to see the table); --any-version skips that,
+// for a release whose version the owner picked by hand.
 //
 // What it does, in order (fails loudly at the first problem):
 //   1. Verifies CHANGELOG.md already has a "## v<version> " entry (write the
@@ -46,9 +50,18 @@ function run(cmd, opts) {
   return execSync(cmd, { cwd: REPO, stdio: (opts && opts.inherit) ? 'inherit' : ['inherit', 'pipe', 'inherit'], encoding: 'utf8' });
 }
 
-if (!version || !/^\d+\.\d+\.\d+$/.test(version)) fail('usage: node scripts/release.js <x.y.z> "<title>" [--no-publish] [--dry-run]');
+if (!version || !/^\d+\.\d+\.\d+$/.test(version)) fail('usage: node scripts/release.js <x.y.z> "<title>" [--no-publish] [--dry-run] [--any-version]');
 if (!title) fail('a release title is required (used as the commit subject)');
 if (flags.has('--no-website')) fail('--no-website is gone: this script no longer touches the website. post-publish.js moves the badge after `npm run publish` proves the release.');
+
+// 0. The ranked commits decide the version.
+if (!flags.has('--any-version')) {
+  const points = require('./version-points.js');
+  const p = points.plan();
+  if (p.unranked.length) fail(`${p.unranked.length} commit(s) since ${p.tag} have no rank — run node scripts/version-points.js`);
+  const expected = points.nextVersion(p.current, p.total);
+  if (version !== expected) fail(`the ranked commits make this v${expected}, not v${version} (${p.total} points since ${p.tag}); --any-version to override`);
+}
 
 // 1. Changelog entry must exist before anything moves. The trailing space keeps
 //    2.36.1 from matching "## v2.36.10" (same check as write-release-notes.js).

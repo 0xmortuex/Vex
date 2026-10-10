@@ -1,0 +1,21 @@
+# Ranks for commits that have no "Rank:" line, or whose rank the owner changed.
+# <hash> <kind>-<size>-<reach>  or  <hash> none     (see scripts/version-points.js)
+# Run `node scripts/version-points.js` to see the table and the next version.
+
+# Since v2.38.1
+133037f none                       # CI test timeout only
+3d0efbc fix-mid-some               # Settings chips hidden behind a scroll box
+b536014 none                       # changelog
+729e755 feature-mid-everyone       # update check every 6 hours while open
+3a32b23 fix-high-rare              # shortcut to a deleted Vex.exe would not open Vex
+82e6827 fix-high-some              # one bad tab address made every session save fail
+604784f fix-small-some             # history refused very long addresses
+51043d1 fix-small-some             # "WebView must be attached" errors
+355d5c2 fix-mid-some               # History panel stopped saving
+0d3535b improvement-mid-some       # clear local AI messages
+a6b5a86 improvement-mid-rare       # Sync says when it has the AI worker's address
+e58e7e4 improvement-mid-some       # one AI chip in Settings
+49988b9 performance-mid-everyone   # settings file halved, no rewrite every minute
+ead1029 feature-mid-some           # never-sleep memory notice
+239a8f4 improvement-small-some     # problems folded by version, Clear has Undo
+3fabcec none                       # test setup for a change in this same batch
