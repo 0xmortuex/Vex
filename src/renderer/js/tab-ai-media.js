@@ -9,7 +9,9 @@ const TabAI = {
 Return ONLY JSON, no fences: {"close":["tab-ids"],"groups":[{"name":"Group name","color":"indigo|cyan|green|amber|red|violet|rose|teal","ids":["tab-ids"]}],"explanation":"one short sentence"}.
 Rules: never close the active tab unless explicitly told; "keep only X" means close everything else except X and the active tab if X is the active tab; only group when asked to group/organize; ids must come from the list.`,
 
-  open() {
+  // `request`: what was already typed elsewhere (Ctrl+K "Ask Vex to do
+  // something…"), planned straight away instead of asked for again.
+  open(request) {
     document.getElementById('vex-tabai-modal')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-tabai-modal';
@@ -42,6 +44,8 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     // A new instruction needs a new plan.
     q.addEventListener('input', () => { if (m._applyPlan) { m._applyPlan = null; m.querySelector('#tai-go').textContent = 'Plan'; } });
+    const said = String(request || '').trim();
+    if (said) { q.value = said; this._plan(m); }
   },
 
   async _plan(m) {
