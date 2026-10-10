@@ -800,11 +800,14 @@ const TabManager = {
     // "paste twice" bug). When the bar is focused we skip the overwrite; the
     // blur handler below re-syncs the bar to the real URL once editing ends.
     if (document.activeElement === urlInput) return;
-    if (isStartPage(tab.url)) {
+    // An address asked for and still loading is shown over the old one
+    // (WebviewManager.navigate sets it, did-navigate clears it).
+    const shown = tab._typedUrl || tab.url;
+    if (isStartPage(shown)) {
       urlInput.value = '';
       urlInput.placeholder = 'Search or enter URL...';
     } else {
-      urlInput.value = tab.url;
+      urlInput.value = shown;
     }
   },
 

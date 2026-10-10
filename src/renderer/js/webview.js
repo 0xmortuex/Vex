@@ -377,6 +377,9 @@ const WebviewManager = {
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
       const url = e.url;
+      // Arrived: the bar follows the page from here (navigate() above).
+      const arriving = TabManager.tabs.find(t => t.id === tab.id);
+      if (arriving) delete arriving._typedUrl;
       // A fresh page starts with a clean count.
       if (tab.consoleErrors) { tab.consoleErrors = 0; tab.lastConsoleError = ''; TabManager.renderTabUpdate(tab); }
       // An address pretending to be a familiar one (js/link-safety.js). Said
@@ -912,10 +915,32 @@ const WebviewManager = {
         // page went blank while the address bar still showed the old site
         // (found 2026-09-29). Show the address asked for, and say why.
         const tabId = TabManager.activeTabId;
-        const load = () => wv.loadURL(url).catch(err => {
+        // The address bar shows the address asked for while it loads, as in
+        // Chrome: it went back to the old address as soon as the bar let go,
+        // until the new page arrived (found 2026-10-10). did-navigate ends
+        // it; a load that never arrives and never fails puts the bar back on
+        // the page still there. Electron's loadURL says ERR_ABORTED (-3) for
+        // one overtaken by another, and ERR_FAILED (-2) for one that stopped
+        // without finishing or failing: stopped, turned into a download, or
+        // handed to another program (mailto:). Those -2s were taken for
+        // failures: the tab took the address and said "Could not open".
+        const asked = TabManager.tabs.find(t => t.id === tabId);
+        if (asked) asked._typedUrl = url;
+        const settle = () => {
+          const tab = TabManager.tabs.find(t => t.id === tabId);
+          if (!tab || tab._typedUrl !== url) return null;
+          delete tab._typedUrl;
+          return tab;
+        };
+        const load = () => wv.loadURL(url).then(settle, err => {
           const m = String((err && err.message) || err);
-          if (/ERR_ABORTED|\(-3\)/.test(m)) return;
+          if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
+            const tab = settle();
+            if (tab && TabManager.activeTabId === tabId) TabManager.updateUrlBar(tab);
+            return;
+          }
           console.warn('[Vex] navigate failed:', m);
+          settle();
           const tab = TabManager.tabs.find(t => t.id === tabId);
           if (tab) { tab.url = url; TabManager.renderTabUpdate?.(tab); }
           const input = document.getElementById('url-input');
