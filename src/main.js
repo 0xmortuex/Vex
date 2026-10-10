@@ -2070,14 +2070,14 @@ function wireAdblockerOnSession(ses, tag) {
     // regress an existing block while the richer engine adds coverage. When the
     // engine isn't ready yet engineBlocks() returns null and the legacy list
     // carries on alone.
-    // A site whose third-party content is switched off (js/site-rules.js).
-    if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
+    // A site whose third-party content is switched off (js/site-rules.js),
+    // then the blocker (src/main/ad-verdict.js).
+    const verdict = _adVerdict.judge(details, ses);
+    if (verdict === 'third-party') {
       callback({ cancel: true });
       return;
     }
-    if (adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
-        && !repairAllows(details.url, _pageUrlOf(details.webContentsId))
-        && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses)) {
+    if (verdict === 'ad') {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
@@ -2556,6 +2556,33 @@ function _pageUrlOf(webContentsId) {
   _pageUrlCache.set(webContentsId, { url, at: now });
   if (_pageUrlCache.size > 200) _pageUrlCache.delete(_pageUrlCache.keys().next().value);
   return url;
+}
+// A page that commits is the page from then on: what was remembered for the
+// one before it is forgotten (EX2, src/main/ad-verdict.js).
+app.on('web-contents-created', (_event, contents) => {
+  const id = contents.id;
+  const forget = () => _pageUrlCache.delete(id);
+  contents.on('did-navigate', forget);
+  contents.on('did-navigate-in-page', forget);
+  contents.once('destroyed', () => { forget(); _adVerdict.forget(id); });
+});
+// What every session's onBeforeRequest refuses (src/main/ad-verdict.js).
+const _adVerdict = require('./main/ad-verdict').createAdVerdict({
+  pageUrlOf: _pageUrlOf,
+  enabled: () => adBlockerEnabled,
+  engineBlocks: (details) => engineBlocks(details),
+  shouldBlock: (url) => shouldBlock(url),
+  repairAllows: (url, page) => repairAllows(url, page),
+  adsAllowedOn: (page, ses) => _adsAllowedOn(page, ses),
+  blocksThirdParty: (page, url) => Object.keys(_siteRules).length > 0 && SiteRules.blocksThirdParty(_siteRules, page, url),
+  onBlockedPage: (id, url) => setTimeout(() => _adBlockedPage(id, url), 0),
+});
+// A page the ad blocker refused (a click on an ad or sponsored link) says so,
+// with "Go anyway", in place of a blank tab (EX9).
+function _adBlockedPage(id, url) {
+  const contents = webContents.fromId(id);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') return;
+  _showVexPage(contents, require('./main/ad-verdict').blockedPageHtml(url), url, 'ad-blocked page');
 }
 
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
@@ -4892,6 +4919,13 @@ app.on('web-contents-created', (_event, contents) => {
     const shown = _httpsNoHttpsShown.get(contents.id);
     if (shown && url !== shown.failedUrl && !/^data:/i.test(url || '')) _httpsNoHttpsShown.delete(contents.id);
   });
+  // "Go anyway" on the page the ad blocker showed (_adBlockedPage): only a
+  // click on that page's own link lets the address through, once
+  // (will-navigate is the page navigating itself, never the address bar).
+  contents.on('will-navigate', (evt, url) => {
+    const to = (evt && evt.url) || url;
+    if (_adVerdict.takeBlockedPage(contents.id, to)) _adVerdict.allowOnce(contents.id, to);
+  });
   // A clean main-frame load means there's no pending upgrade left to fall back
   // for on this tab — clearing avoids a stale entry ever downgrading a later nav.
   contents.on('did-finish-load', () => { try { _httpsUpgradedByWc.delete(contents.id); } catch {} });
@@ -7081,9 +7115,10 @@ ipcMain.handle('identity:create', () => {
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
-      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
-        && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
-      if (blocked) _recordTracker(details.url, details.webContentsId);
+      // As in a private window: the third-party switch, the repairs, the blocker.
+      const verdict = _adVerdict.judge(details, ses);
+      const blocked = verdict !== null;
+      if (verdict === 'ad') _recordTracker(details.url, details.webContentsId);
       callback(blocked ? { cancel: true } : _httpsAnswer(details));
     });
     try { attachGuestPreloads(ses); } catch {}
@@ -7300,7 +7335,9 @@ ipcMain.handle('tor:create', async (event) => {
       callback({ responseHeaders: rh });
     });
     ses.webRequest.onBeforeRequest((details, callback) => {
-      const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
+      // The blocker with its repairs; a site's switches made in a normal
+      // window do not loosen it here (_adsAllowedOn).
+      const blocked = _adVerdict.judge(details, ses, { thirdParty: false }) === 'ad';
       if (blocked) _recordTracker(details.url, details.webContentsId);
       callback(blocked ? { cancel: true } : _httpsAnswer(details));
     });
@@ -7693,14 +7730,11 @@ function _wireEphemeralBrowsing(ses, tag) {
   });
   ses.webRequest.onBeforeRequest((details, callback) => {
     // A site whose third-party content is switched off, as in
-    // wireAdblockerOnSession (found 2026-09-29).
-    if (Object.keys(_siteRules).length && SiteRules.blocksThirdParty(_siteRules, _pageUrlOf(details.webContentsId), details.url)) {
-      callback({ cancel: true });
-      return;
-    }
-    const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
-      && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
-    if (blocked) _recordTracker(details.url, details.webContentsId);
+    // wireAdblockerOnSession (found 2026-09-29), then the blocker with its
+    // repairs (src/main/ad-verdict.js).
+    const verdict = _adVerdict.judge(details, ses);
+    const blocked = verdict !== null;
+    if (verdict === 'ad') _recordTracker(details.url, details.webContentsId);
     callback(blocked ? { cancel: true } : _httpsAnswer(details));
   });
   ses.setUserAgent(CHROME_UA);
