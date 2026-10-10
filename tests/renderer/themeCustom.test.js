@@ -35,6 +35,25 @@ describe('colour maths', () => {
     }
   });
 
+  it('works a colour\'s luminance out once and gives the same value after (audit S7)', () => {
+    // The contrast fixer asks for the same few colours many thousands of times.
+    const rgbOf = C.rgb;
+    let parsed = 0;
+    C.rgb = function (h) { parsed++; return rgbOf.call(this, h); };
+    try {
+      const first = C.luminance('#3A7bC9');
+      expect(C.luminance('#3a7bc9')).toBe(first);
+      expect(C.luminance(' #3A7BC9 ')).toBe(first);
+      expect(parsed).toBe(1);
+      expect(first).toBeCloseTo(lum('#3a7bc9'), 12);
+    } finally { C.rgb = rgbOf; }
+    expect(() => C.luminance('#12345')).toThrow('Not a colour: #12345');
+    expect(() => C.luminance(null)).toThrow('Not a colour');
+    // Far past the bound, every value is still right.
+    const r = rng(11);
+    for (let i = 0; i < 25000; i++) { const h = randHex(r); if (i % 997 === 0) expect(C.luminance(h)).toBeCloseTo(lum(h), 12); else C.luminance(h); }
+  });
+
   it('accepts #rgb and #rrggbb in any case, and nothing else', () => {
     expect(C.normHex('#ABC')).toBe('#aabbcc');
     expect(C.normHex(' #A1b2C3 ')).toBe('#a1b2c3');
