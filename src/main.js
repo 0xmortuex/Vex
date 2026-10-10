@@ -6642,6 +6642,9 @@ ipcMain.on('popup-chrome:action', (e, payload) => {
 });
 
 ipcMain.handle('get-start-page-path', () => 'vex://start');
+// The guest preload hands the start page its bridges only when main says the
+// page is Vex's own start.html, by the frame's own address (audit SE6).
+ipcMain.on('start-page:is-own', (e) => { e.returnValue = secureSessions.isStartPageFile(e.senderFrame?.url || ''); });
 ipcMain.handle('get-start-page-url', () => {
   // Return file:// URL as a bulletproof fallback that never triggers OS "open with" dialog
   const filePath = path.join(__dirname, 'renderer', 'start.html');

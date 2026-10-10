@@ -165,7 +165,9 @@ const Handoff = {
     if (!webview || typeof webview.executeJavaScript !== 'function') return false;
     let url = '';
     try { url = webview.getURL(); } catch { return false; }
-    if (!/\/renderer\/start\.html(?:[?#]|$)/i.test(String(url || ''))) return false;
+    // Vex's own start page only (js/webview.js): a web page at
+    // /renderer/start.html was handed the list too (audit SE6).
+    if (!_isTrustedStartPage(String(url || ''))) return false;
     // A private window's New Tab shows none of them.
     const cards = (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) ? [] : this._cards();
     const code = `(() => { window.__vexHandoff = ${JSON.stringify(cards)}; window.dispatchEvent(new Event('vex-handoff')); return true; })()`;

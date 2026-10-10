@@ -1394,9 +1394,16 @@ function _isVexStartPage(href) {
   if (u.protocol === 'vex:' && /^start$/i.test(u.host || '')) return true;
   // Real runtime origin: start.html served as a LOCAL file. Require file:
   // scheme AND pathname ending /renderer/start.html — no remote page qualifies.
-  if (u.protocol === 'file:') return /\/renderer\/start\.html$/i.test(u.pathname);
-  return false;
+  // And Vex's own file, not any file of that name (a download, a network
+  // share): main compares the frame's whole path (audit SE6, 2026-10-10).
+  if (u.protocol !== 'file:' || !/\/renderer\/start\.html$/i.test(u.pathname)) return false;
+  if (_vexStartPageOwn === null) {
+    try { _vexStartPageOwn = require('electron').ipcRenderer.sendSync('start-page:is-own') === true; }
+    catch (err) { console.error('[Vex] could not ask whether this is the start page:', err && err.message); _vexStartPageOwn = false; }
+  }
+  return _vexStartPageOwn;
 }
+let _vexStartPageOwn = null;
 
 (function () {
   let href;

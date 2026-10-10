@@ -88,6 +88,7 @@ describe('the Today snapshot', () => {
   // The start page runs in its own session partition and cannot see this
   // storage, so the snapshot is handed to it directly.
   it('hands the snapshot to every open start page, and only to start pages', async () => {
+    globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/x/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
     const injected = [];
     const wv = (url) => ({ getURL: () => url, executeJavaScript: vi.fn(async (code) => { injected.push({ url, code }); return true; }) });
     const start = wv('file:///C:/x/src/renderer/start.html?theme=oxford');
@@ -101,6 +102,9 @@ describe('the Today snapshot', () => {
     expect(VexToday.push(site)).toBe(false);
     expect(VexToday.isStartPage('file:///C:/x/src/renderer/start.html')).toBe(true);
     expect(VexToday.isStartPage('https://example.com/renderer/start.html.evil')).toBe(false);
+    // Audit SE6: a web page or another file of the same name is not it.
+    expect(VexToday.isStartPage('https://example.com/renderer/start.html')).toBe(false);
+    expect(VexToday.isStartPage('file:///C:/Users/me/Downloads/renderer/start.html')).toBe(false);
   });
 });
 

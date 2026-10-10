@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url": "http://localhost/C:/vex/src/renderer/index.html"}
 //
 // Fixes of 2026-09-30 (r5), window side:
 //   * the New Tab page's grid (its own storage, 'vex.shortcuts' there) synced
@@ -10,6 +11,8 @@
 //   * a container tab's page was told persist:main's permission decisions;
 //   * a closed tab's JavaScript-off back list was kept by main for half an hour.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// The window's start-page check (js/start-page-trust.js), as index.html loads it.
+require('../../src/renderer/js/start-page-trust.js');
 
 require('../../src/renderer/js/vex-utils.js');
 const Records = require('../../src/renderer/js/sync-records.js');

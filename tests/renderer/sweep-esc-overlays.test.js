@@ -84,6 +84,7 @@ describe('modal overlays close on Escape', () => {
     require('../../src/renderer/js/site-profiles.js');
     const { SitePanel } = require('../../src/renderer/js/site-panel.js');
     globalThis.SitePanel = SitePanel;
+    globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/vex/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
     globalThis.TabManager = { getActiveTab: () => ({ id: 't1', url: 'file:///C:/vex/src/renderer/start.html' }) };
     globalThis.WebviewManager = { webviews: new Map() };
     try { await closesOnEscape(() => window.SiteProfiles.open(), '#vex-site-panel'); }

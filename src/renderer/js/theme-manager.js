@@ -275,7 +275,9 @@ const ThemeManager = {
     for (const wv of WebviewManager.webviews.values()) {
       let url = '';
       try { url = typeof wv.getURL === 'function' ? wv.getURL() : ''; } catch { continue; }
-      if (!(/^file:/i.test(url) && /\/renderer\/start\.html(?:[?#]|$)/i.test(url))) continue;
+      // Vex's own start page only (js/webview.js; audit SE6): the theme's
+      // picture went to any file named renderer/start.html.
+      if (!(/^file:/i.test(url) && _isTrustedStartPage(url))) continue;
       wv.executeJavaScript(this.startPageThemeJs(theme, preview)).catch(err => console.error('[ThemeManager] New Tab recolour failed:', err && err.message));
     }
   },

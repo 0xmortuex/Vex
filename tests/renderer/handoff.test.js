@@ -33,6 +33,8 @@ beforeEach(() => {
   window.VexConfig = { syncWorkerUrl: () => 'https://sync.test' };
   window.vex = { notify: vi.fn(async (title, body) => { notes.push({ title, body }); return { ok: true }; }) };
   globalThis.isStartPage = (u) => /start\.html|^vex:\/\/start/.test(String(u || ''));
+  // js/webview.js's check, for a Vex window at C:\x\src\renderer.
+  globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/x/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
   delete globalThis.GameMode;
   delete globalThis.SyncEngine;
   delete globalThis.WebviewManager;
@@ -116,6 +118,16 @@ describe('receiving', () => {
     // must not show it twice): no second notification.
     await H.receive();
     expect(notes.length).toBe(1);
+  });
+
+  // Audit SE6: a web page at /renderer/start.html, or a downloaded file of
+  // that name, was handed the list too.
+  it('hands the list to Vex\'s own New Tab page only', () => {
+    const H = loadHandoff();
+    const page = (url) => ({ getURL: () => url, executeJavaScript: vi.fn(async () => true) });
+    expect(H.push(page('https://evil.example/renderer/start.html'))).toBe(false);
+    expect(H.push(page('file:///C:/Users/me/Downloads/kit/renderer/start.html'))).toBe(false);
+    expect(H.push(page('file:///C:/x/src/renderer/start.html?theme=nord'))).toBe(true);
   });
 
   it('several at once are one notification', async () => {

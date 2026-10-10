@@ -115,7 +115,10 @@ describe('your themes in the theme list', () => {
 
 describe('the editor', () => {
   let wv;
-  beforeEach(() => { wv = { getURL: () => 'file:///C:/vex/src/renderer/start.html?theme=nord', executeJavaScript: vi.fn(() => Promise.resolve()) }; });
+  beforeEach(() => {
+    wv = { getURL: () => 'file:///C:/vex/src/renderer/start.html?theme=nord', executeJavaScript: vi.fn(() => Promise.resolve()) };
+    globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/vex/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
+  });
 
   it('Customise a built-in theme: the window and the New Tab wear the edit, Cancel puts it all back', async () => {
     const { TM, TS } = await load({ theme: 'nord' });

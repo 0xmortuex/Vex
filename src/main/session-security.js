@@ -95,14 +95,22 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
   // edited by hand, so a carried list is checked here as strictly as one read.
   const SAVED_ENTRIES = 12, SAVED_FORWARD = 4, SAVED_URL = 2048, SAVED_TITLE = 120, CARRIED_MAX = 50;
   const startPage = path.resolve(root, 'renderer/start.html');
+  // Vex's own New Tab page as a file: address, and no other file that happens
+  // to be called renderer/start.html (a download, a network share). The IPC
+  // policy and the guest preload ask this too (audit SE6, 2026-10-10).
+  function isStartPageFile(url) {
+    let parsed;
+    try { parsed = url instanceof URL ? url : new URL(url); } catch { return false; }
+    if (parsed.protocol !== 'file:') return false;
+    try { return path.resolve(fileURLToPath(parsed)) === startPage; } catch { return false; }
+  }
   function restorableEntry(url) {
     if (typeof url !== 'string' || url.length > SAVED_URL) return false;
     let parsed;
     try { parsed = new URL(url); } catch { return false; }
     if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return true;
     if (parsed.protocol === 'vex:') return parsed.hostname === 'start';
-    if (parsed.protocol !== 'file:') return false;
-    try { return path.resolve(fileURLToPath(parsed)) === startPage; } catch { return false; }
+    return isStartPageFile(parsed);
   }
   // { entries: [{ url, title }], index } or null when there is nothing to go
   // back or forward to. A page that cannot be kept (a reading-mode data: page,
@@ -321,7 +329,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     });
   }
   return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews, registerWebWindow,
-    readHistory, carryHistory, trimHistory,
+    readHistory, carryHistory, trimHistory, isStartPageFile,
     isAuxiliary(event, channel) {
       // Any frame of an Open as App / overlay window: the ad blocker runs in its iframes too.
       if (WEB_WINDOW_CHANNELS.has(channel) && webWindows.has(event.sender.id)) return true;

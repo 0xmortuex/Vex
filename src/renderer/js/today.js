@@ -202,7 +202,10 @@ const VexToday = {
   // start page directly, on its dom-ready and on every refresh — the same
   // route the theme attribute takes.
   _last: null,
-  isStartPage(url) { return /\/renderer\/start\.html(?:[?#]|$)/i.test(String(url || '')); },
+  // Vex's own start page, by its whole path (js/webview.js): any address
+  // ending in /renderer/start.html, a web page's too, was given the snapshot
+  // (audit SE6, 2026-10-10).
+  isStartPage(url) { return _isTrustedStartPage(String(url || '')); },
 
   push(webview) {
     if (!webview || typeof webview.executeJavaScript !== 'function') return false;

@@ -196,7 +196,9 @@ const Onboarding = {
       : `try{localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(String(value))})}catch(e){}`;
     for (const wv of WebviewManager.webviews.values()) {
       let url = ''; try { url = wv.getURL(); } catch {}
-      if (url && (url.startsWith('vex://start') || /\/renderer\/start\.html/i.test(url))) {
+      // Vex's own start page only (js/webview.js): your weather place and
+      // shortcuts went to any page at /renderer/start.html (audit SE6).
+      if (url && _isTrustedStartPage(url)) {
         try { wv.executeJavaScript(js).catch(() => {}); } catch {}
       }
     }

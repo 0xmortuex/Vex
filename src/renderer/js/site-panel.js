@@ -87,11 +87,10 @@ const SitePanel = {
     };
   },
 
+  // Vex's own New Tab page only, by its whole path (js/webview.js; audit SE6).
   _isStart(url) {
-    try {
-      const p = new URL(url);
-      return (p.protocol === 'vex:' && p.hostname === 'start') || (p.protocol === 'file:' && /\/renderer\/start\.html$/i.test(p.pathname));
-    } catch { return false; }
+    if (typeof _isTrustedStartPage !== 'function') throw new Error('The site panel needs js/webview.js loaded first');
+    return _isTrustedStartPage(url);
   },
 
   // Why nothing here is kept, when it is not.

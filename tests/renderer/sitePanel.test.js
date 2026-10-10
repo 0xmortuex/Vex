@@ -20,6 +20,8 @@ function setup({ url = 'https://www.news.example/a', partition = 'persist:main',
   // jsdom has no CSS.escape; Chromium does.
   if (!globalThis.CSS || !globalThis.CSS.escape) globalThis.CSS = { escape: (s) => String(s).replace(/[^\w-]/g, c => '\\' + c) };
   window.VexTabPolicy = { isPrivateWindow: privateWindow, defaultPartition: privateWindow ? 'private-1' : 'persist:main' };
+  // js/webview.js's start-page check, for a Vex window at C:\vex\src\renderer.
+  globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/vex/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
   const wv = { getURL: () => url, getWebContentsId: () => 7, getZoomFactor: () => 1, setZoomFactor: vi.fn(), getAttribute: () => partition, reload: vi.fn() };
   const tab = { id: 't1', url, partition };
   globalThis.TabManager = { tabs: [tab], getActiveTab: () => tab, activeTabId: 't1', rebuildTab: vi.fn(), wakeTab: vi.fn(), _materializeTab: vi.fn(), createTab: vi.fn(), closeTab: vi.fn() };
@@ -84,6 +86,9 @@ describe('what the panel is looking at', () => {
     setup({ url: 'file:///C:/vex/src/renderer/start.html' }); let P = load();
     expect(P.context().kind).toBe('start');
     setup({ url: 'file:///C:/Users/me/notes.html' }); P = load();
+    expect(P.context().kind).toBe('file');
+    // Audit SE6: a downloaded file of the same name is a file, not Vex's page.
+    setup({ url: 'file:///C:/Users/me/Downloads/kit/renderer/start.html' }); P = load();
     expect(P.context().kind).toBe('file');
   });
 });

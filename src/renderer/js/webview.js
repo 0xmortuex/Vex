@@ -6,19 +6,10 @@
 // Public API: WebviewManager (singleton). Depends on TabManager, VexStorage,
 // HistoryPanel (optional), HistoryIndexer (optional), TabGrouper (optional).
 
-// Strict start-page matcher for the privileged VEX_CMD console channel.
-// Deliberately stricter than isStartPage() (which matches ANY url containing
-// "start.html", so https://evil.com/start.html would pass): require the
-// canonical vex://start origin OR a file: URL whose path ends in
-// /renderer/start.html. Mirrors _isVexStartPage in preload-webview.js.
-function _isTrustedStartPage(href) {
-  if (typeof href !== 'string' || !href) return false;
-  let u;
-  try { u = new URL(href); } catch { return false; }
-  if (u.protocol === 'vex:' && /^start$/i.test(u.host || '')) return true;
-  if (u.protocol === 'file:') return /\/renderer\/start\.html$/i.test(u.pathname);
-  return false;
-}
+// The privileged VEX_CMD console channel and the start-page pushes below are
+// gated on _isTrustedStartPage (js/start-page-trust.js): Vex's own start.html
+// by its whole path, not isStartPage() (js/tabs.js), which matches any file
+// named renderer/start.html.
 
 const WebviewManager = {
   webviews: new Map(),
@@ -296,8 +287,10 @@ const WebviewManager = {
     // current GUI Style so the home page matches Classic/Glass.
     onWebview('dom-ready', () => {
       try {
-        if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
-          const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
+        // Vex's own start page only: Today, the tabs from your devices and
+        // the theme went to any file named renderer/start.html (audit SE6).
+        if (_isTrustedStartPage(webview.getURL())) {
+          const gs =(window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
           webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
           // The colour theme, in case it changed while this page was loading
           // (Light and dark switches by itself): a no-op when it already matches.
@@ -2065,5 +2058,5 @@ if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
 // `module` is undefined, so the guard keeps the global WebviewManager surface
 // unchanged. Used by tests/renderer/webviewContextMenu.test.js.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WebviewManager, _isTrustedStartPage };
+  module.exports = { WebviewManager };
 }

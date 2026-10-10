@@ -466,6 +466,7 @@ describe('Shareable setup codes', () => {
 
 describe('Onboarding._setStart', () => {
   it('writes to host localStorage and pushes JS into live start-page webviews', () => {
+    globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///x/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
     const calls = [];
     const fakeWv = { getURL: () => 'file:///x/renderer/start.html', executeJavaScript: (js) => { calls.push(js); return Promise.resolve(); } };
     const other = { getURL: () => 'https://example.com', executeJavaScript: () => { calls.push('SHOULD_NOT'); return Promise.resolve(); } };

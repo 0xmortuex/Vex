@@ -305,6 +305,9 @@ define('page-dialog:answer', [shape({ id: string(64), ok: boolean, value: option
 define('page:leave-answer', [shape({ id: string(64), leave: boolean })]);
 // Guest compatibility bridges use sender-derived identity; legacy arguments are ignored.
 define('geolocation:get geolocation:check-permission compatibility:get privacy:config-sync', [optional(string())]);
+// Whether the asking page is Vex's own New Tab page, judged by main from the
+// frame's own address (preload-webview.js _isVexStartPage).
+define('start-page:is-own', []);
 // Profiles (src/main/profiles.js, js/profiles-ui.js): ids are 'default' or
 // p-xxxxxxxx; the look is a name, a #rrggbb colour and a VexIcons name.
 const profileId = value => typeof value === 'string' && /^(?:default|p-[a-z0-9]{8})$/.test(value);
