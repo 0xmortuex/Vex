@@ -25,3 +25,10 @@ a5cd8ce security-high-some         # email codes filled into any site, look-alik
 97adba8 fix-mid-rare               # a problem at start-up could wipe the saved problem list
 b129c86 performance-mid-everyone   # history no longer rewritten twice (166 KB) on every visit
 d630550 none                       # test fixes for this same batch
+9c4f7ea fix-mid-some               # find bar: counts on background tabs, per-tab, labels, Shift+Enter
+d8a0744 fix-small-rare             # rebinding Organize Tabs left Ctrl+Shift+G running it
+75ead11 fix-small-rare             # Ctrl+K Switch environment opened a new tab
+d1246a8 fix-small-some             # Ctrl+D bookmarks missing from address-bar suggestions
+b5f549a none                       # reset-to-defaults test reads every key
+fba9e71 none                       # PRIVACY.md history count
+124a5b2 fix-mid-everyone           # address bar showed the old address while loading
