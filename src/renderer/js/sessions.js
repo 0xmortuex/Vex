@@ -88,7 +88,7 @@ const SessionManager = {
     let selected = null;
     for (const [index, t] of (Array.isArray(session.tabs) ? session.tabs : []).entries()) {
       if (!window.VexTabPolicy.canRestore(t)) continue;
-      const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
+      const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned, muted: t.muted });
       tab.keepAwakeUntil = t.keepAwakeUntil || 0;
       // The session keeps each tab's note (VexTabPolicy.serialize); restoring
       // dropped it (found 2026-09-29).

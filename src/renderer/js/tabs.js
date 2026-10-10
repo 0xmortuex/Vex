@@ -334,6 +334,7 @@ const TabManager = {
         scrollPosition: t.scrollPosition || null,
         keepAwakeUntil: t.keepAwakeUntil || 0,
         note: t.note || '',
+        muted: !!t.muted,
         // Keeps the Memory panel's "(was 219 MB)" across the restart; a
         // malformed saved figure is dropped rather than shown.
         memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null,
@@ -359,6 +360,7 @@ const TabManager = {
       stackId: t.stackId || null,
       keepAwakeUntil: t.keepAwakeUntil || 0,
       note: t.note || '',
+      muted: !!t.muted,
       history: window.VexTabPolicy?.savedHistory(t) || null,
       _lazy: true
     };
@@ -387,6 +389,8 @@ const TabManager = {
       scrollPosition: opts?.scrollPosition || null,
       keepAwakeUntil: opts?.keepAwakeUntil || 0,
       note: opts?.note || '',
+      // A reopened tab stays muted (found 2026-10-10: the mute was lost).
+      muted: !!opts?.muted,
       // A reopened tab's back list (reopenLastClosed), for its new page.
       history: (opts && window.VexTabPolicy?.savedHistory(opts)) || null,
       unread: false,
@@ -415,6 +419,7 @@ const TabManager = {
     this.tabs.splice(at, 0, tab);
     if (opener && !adjacent) this._openerRun = { openerId: opener.id, lastId: tab.id };
     WebviewManager.createWebview(tab);
+    this._applyMuted(tab);
     // A site rule can also say how the tab behaves once it is open — muted,
     // or never allowed to sleep (js/site-routes.js).
     if (typeof SiteRoutes !== 'undefined') {
@@ -728,6 +733,7 @@ const TabManager = {
       favicon: null,
       loading: false,
       pinned: !!opts.pinned,
+      muted: !!opts.muted,
       unread: false,
       groupId: groupId,
       stackId: null,

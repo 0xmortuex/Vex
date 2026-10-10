@@ -117,7 +117,7 @@ const WorkspaceManager = {
       let selectedId = null;
       const savedToNewId = new Map();
       for (const t of tabsToRestore) {
-        const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
+        const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned, muted: t.muted });
         tab.keepAwakeUntil = t.keepAwakeUntil || 0;
         // The workspace keeps each tab's note (VexTabPolicy.serialize);
         // switching back dropped it (found 2026-09-29).
