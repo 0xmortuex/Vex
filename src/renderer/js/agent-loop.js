@@ -910,7 +910,14 @@ const AgentLoop = {
     // a newer run (found 2026-09-29).
     const token = this._runToken = {};
     const live = () => this._running && this._runToken === token;
-    this._mode = mode || this._mode || 'ask';
+    // The mode the person chose in the panel, never the one an earlier run
+    // left behind, and a plan approved then approves nothing here (Ctrl+K
+    // "Repeat a task" replayed in Auto-approve after the pill was set back to
+    // Approve manually, found 2026-10-10).
+    let chosen = null;
+    try { chosen = localStorage.getItem('vex.agentMode'); } catch (err) { console.warn('[Agent] could not read the permission mode:', err.message); }
+    this._mode = mode || (['ask', 'plan', 'auto'].includes(chosen) ? chosen : 'ask');
+    this._planApproved = false;
     // The same site rules as a real run: a recorded step that acts somewhere
     // the user did not point it is still asked about.
     this._allowedSites = new Set();

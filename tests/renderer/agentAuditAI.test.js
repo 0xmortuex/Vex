@@ -30,6 +30,40 @@ beforeEach(() => {
   AgentLoop._running = false; AgentLoop._mode = 'ask'; AgentLoop._planApproved = false;
 });
 
+describe('Repeat a task (Ctrl+K) permission mode', () => {
+  it('asks before each step when the chosen mode is "Approve manually", even after an auto-approve run', async () => {
+    script([{ tool: 'finish', parameters: { summary: 'done' } }]);
+    await AgentLoop.start('look at my orders on shop.example', 'auto');
+    localStorage.setItem('vex.agentMode', 'ask');
+    const macro = AgentLoop.saveMacroFromSteps('Open orders', [{ tool: 'click_text', parameters: { text: 'Orders' } }]);
+    const p = AgentLoop.runMacro(macro.id);
+    await tick(50);
+    const asked = document.querySelectorAll('.agent-approve').length > 0;
+    const ran = exec.executeTool.mock.calls.length;
+    AgentLoop.stop(); await p.catch(() => {});
+    expect({ asked, ran }).toEqual({ asked: true, ran: 0 });
+  });
+
+  it('a plan approved in an earlier Plan-first run does not pre-approve a later replay', async () => {
+    localStorage.setItem('vex.agentMode', 'plan');
+    AgentLoop._mode = 'plan'; AgentLoop._planApproved = true;
+    const macro = AgentLoop.saveMacroFromSteps('Open orders', [{ tool: 'click_text', parameters: { text: 'Orders' } }]);
+    const p = AgentLoop.runMacro(macro.id);
+    await tick(50);
+    const asked = document.querySelectorAll('.agent-approve').length > 0;
+    const ran = exec.executeTool.mock.calls.length;
+    AgentLoop.stop(); await p.catch(() => {});
+    expect({ asked, ran }).toEqual({ asked: true, ran: 0 });
+  });
+
+  it('Auto-approve chosen in the panel replays without asking', async () => {
+    localStorage.setItem('vex.agentMode', 'auto');
+    const macro = AgentLoop.saveMacroFromSteps('Open orders', [{ tool: 'click_text', parameters: { text: 'Orders' } }]);
+    await AgentLoop.runMacro(macro.id);
+    expect(exec.executeTool).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Auto-approve and download_file', () => {
   it('asks before downloading a file (the tool description promises "The user is asked first")', async () => {
     AgentLoop._mode = 'auto'; AgentLoop._allowedSites = new Set(['https://shop.example']); AgentLoop._currentSite = 'https://shop.example';
