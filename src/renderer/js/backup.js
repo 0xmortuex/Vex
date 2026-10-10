@@ -23,11 +23,17 @@
 const VexBackup = {
   VERSION: 1,
 
-  // Never leaves the machine, whatever it is called. Matched against the
-  // whole key, case-insensitively: a denylist of shapes rather than of names,
-  // so a key added next year is covered before anyone remembers this file.
+  // Never leaves the machine, whatever it is called: a denylist of shapes
+  // rather than of names, so a key added next year is covered before anyone
+  // remembers this file. Matched against the WORDS of the key (camelCase,
+  // dots and dashes split): as a bare substring, "pass" and "auth" also threw
+  // out ordinary settings — vex.discordBypassMode, vex.robloxBypass,
+  // vex.passkeySuppressedHosts (found 2026-10-10).
+  // Short stems must be a whole word (or its plural)...
+  NEVER_WORDS: ['pass', 'passwd', 'passphrase', 'password', 'secret', 'token', 'key', 'apikey', 'credential', 'vault', 'totp', 'otp', 'seed', 'auth', 'oauth'],
+  // ...long ones are unambiguous anywhere in a word (vex.synctoken, vex.aiapisecret).
+  NEVER_INSIDE: /password|passphrase|secret|token|credential/i,
   NEVER: [
-    /pass|secret|token|key\b|credential|vault|totp|otp|seed|auth/i,
     // Lock Vex's PIN hash, and its lock state and wrong-PIN count: a 4-digit
     // PIN is quick to try against a hash in a backup file (found 2026-09-29).
     /^vex\.lock(Pin|ed|Fails|WaitUntil)$/i,
@@ -104,7 +110,19 @@ const VexBackup = {
     this._undoStores = null;
   },
 
-  _blocked(key) { return this.NEVER.some(re => re.test(key)); },
+  _words(key) {
+    return String(key)
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+      .map(w => w.toLowerCase());
+  },
+  _blocked(key) {
+    if (this.NEVER_INSIDE.test(key)) return true;
+    if (this._words(key).some(w => this.NEVER_WORDS.includes(w) || (w.endsWith('s') && this.NEVER_WORDS.includes(w.slice(0, -1))))) return true;
+    return this.NEVER.some(re => re.test(key));
+  },
   _isLocal(key) { return this.LOCAL.some(re => re.test(key)); },
   _isOptional(key, what) { return (this.OPTIONAL[what] || []).some(re => re.test(key)); },
 
