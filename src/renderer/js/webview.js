@@ -248,8 +248,12 @@ const WebviewManager = {
       // The visit is recorded the moment the page starts loading, when its
       // title is still "Loading…" or the bare URL. Without this every history
       // entry keeps that placeholder.
+      // Never from a private or Tor tab (an in-memory session), whose visit is
+      // not recorded either: its title renamed the normal entry for the same
+      // address, and history syncs (found 2026-10-09).
       const current = TabManager.tabs.find(x => x.id === tab.id);
-      if (current && current.url && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
+      const ephemeral = !!(tab.partition && !tab.partition.startsWith('persist:'));
+      if (current && current.url && !ephemeral && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
     });
 
     onWebview('dom-ready', () => {
