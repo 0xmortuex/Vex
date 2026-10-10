@@ -22,8 +22,25 @@ const appSrc = readFileSync(resolve(process.cwd(), 'src/renderer/js/app.js'), 'u
 function settingsPrefKeys() {
   const m = appSrc.match(/const SETTINGS_PREF_KEYS = \[([\s\S]*?)\];/);
   if (!m) throw new Error('SETTINGS_PREF_KEYS not found in app.js — the reset allow-list is gone');
-  return [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  // Read as JavaScript, so a quote in a comment ("Discord's") cannot shift
+  // which strings count as keys: a quote-matching regex read 13 fewer keys
+  // than the list holds (found 2026-10-10).
+  // eslint-disable-next-line no-new-func
+  const keys = new Function('return [' + m[1] + '];')();
+  if (!keys.every(k => typeof k === 'string')) throw new Error('SETTINGS_PREF_KEYS holds something that is not a key');
+  return keys;
 }
+
+describe('reading the allow-list', () => {
+  it('reads every key in it, whatever its comments say', () => {
+    const keys = settingsPrefKeys();
+    const listed = appSrc.match(/const SETTINGS_PREF_KEYS = \[([\s\S]*?)\];/)[1]
+      .split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+    expect(keys).toHaveLength((listed.match(/'vex\.[^']*'/g) || []).length);
+    expect(keys.every(k => k.startsWith('vex.'))).toBe(true);
+    expect(keys).toEqual(expect.arrayContaining(['vex.sleepConsent', 'vex.discordMode', 'vex.uiMode']));
+  });
+});
 
 // Keys that hold things the user made or collected. A reset must never touch
 // these — losing them is not "back to defaults", it is data loss.
