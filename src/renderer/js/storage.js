@@ -61,6 +61,14 @@ const PersistentStorage = {
           }
         }
 
+        // A problem noted while this was loading was saved over an empty
+        // list, and the key, waiting to be written, was skipped above: the
+        // problem list merges the file's copy back in instead of losing it.
+        if (typeof VexProblems !== 'undefined') {
+          const saved = fileKeys.length ? fileData[VexProblems.KEY] : undefined;
+          VexProblems.restored(saved == null ? undefined : (typeof saved === 'string' ? saved : JSON.stringify(saved)));
+        }
+
         this._ready = true;
         this.warnIfNearlyFull();
         await this._flush();

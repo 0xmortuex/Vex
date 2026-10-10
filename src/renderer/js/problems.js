@@ -34,18 +34,30 @@ const VexProblems = (() => {
   // was fixed (found 2026-10-09). Noted before the version is known: null,
   // stamped when it comes. Saved before stamping existed: '' (older).
   let version = '';
+  // Problems noted before PersistentStorage has copied the saved list from
+  // vex-persist.json into browser storage (restored()). When browser storage
+  // started empty, the first problem of the start-up was saved as a one-item
+  // list over the real one: hydration skips a key that is waiting to be
+  // written, so the file got the one item (found 2026-10-10). They are kept
+  // here, by what they are, and replayed onto the restored list.
+  let early = new Map();
+  let restoreDone = false;
+  const keyOf = (p) => p.area + '\u0000' + p.message + '\u0000' + p.detail;
+
+  function parse(rawText) {
+    try {
+      const raw = JSON.parse(rawText || '[]');
+      if (!Array.isArray(raw)) return [];
+      return raw.filter(p => p && typeof p.message === 'string')
+        .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1, v: typeof p.v === 'string' ? p.v.slice(0, 40) : '' }))
+        .slice(-MAX);
+    } catch { return []; }
+  }
 
   function load() {
     if (loaded) return list;
     loaded = true;
-    try {
-      const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
-      if (Array.isArray(raw)) {
-        list = raw.filter(p => p && typeof p.message === 'string')
-          .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1, v: typeof p.v === 'string' ? p.v.slice(0, 40) : '' }))
-          .slice(-MAX);
-      }
-    } catch { list = []; }
+    list = parse(localStorage.getItem(KEY));
     return list;
   }
 
@@ -72,6 +84,12 @@ const VexProblems = (() => {
     // Happening again now makes it a problem of this version.
     if (same) { same.n++; same.at = entry.at; same.seq = entry.seq; same.v = entry.v; }
     else { list.push(entry); if (list.length > MAX) list.splice(0, list.length - MAX); }
+    if (!restoreDone) {
+      const k = keyOf(entry);
+      const e = early.get(k);
+      if (e) { e.n++; e.at = entry.at; }
+      else if (early.size < MAX) early.set(k, { ...entry });
+    }
     save();
     try { document.dispatchEvent(new CustomEvent('vex:problem', { detail: same || entry })); } catch {}
     console.warn(`[Problem] ${entry.area}: ${entry.message}${entry.detail ? ' — ' + entry.detail : ''}`);
@@ -97,6 +115,30 @@ const VexProblems = (() => {
     for (const p of list) if (p.v === null) { p.v = version; stamped = true; }
     if (stamped) save();
     return version;
+  }
+
+  // Called by PersistentStorage once it has copied vex-persist.json into
+  // browser storage, with the saved list as the file held it (a string), or
+  // undefined when the file had none or was empty (a first run: browser
+  // storage is then the saved copy). The file's list is the real one; what was
+  // noted before this is replayed onto it, as if it had been noted after.
+  function restored(rawText) {
+    if (restoreDone) return 0;
+    restoreDone = true;
+    const replay = [...early.values()];
+    early = new Map();
+    // Nothing read or noted yet: load() will read the restored copy.
+    if (!loaded || typeof rawText !== 'string') return 0;
+    const base = parse(rawText);
+    for (const e of replay) {
+      const same = base.find(p => keyOf(p) === keyOf(e));
+      if (same) { same.n += e.n; same.at = e.at; same.seq = ++seq; same.v = version || e.v; }
+      else base.push({ ...e, seq: ++seq, v: version || e.v });
+    }
+    list = base.slice(-MAX);
+    save();
+    changed();
+    return replay.length;
   }
 
   // From an older Vex: only once the running version is known.
@@ -157,7 +199,7 @@ const VexProblems = (() => {
     return true;
   }
 
-  return { init, note, guard, all, current, older, since, count, olderCount, clear, restore, lines, olderLines, setVersion, ago, KEY, MAX };
+  return { init, note, guard, all, current, older, since, count, olderCount, clear, restore, restored, lines, olderLines, setVersion, ago, KEY, MAX };
 })();
 
 // Wired at load, before every other script: an error thrown while Vex is
