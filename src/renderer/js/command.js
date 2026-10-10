@@ -433,7 +433,9 @@ const CommandBar = {
       const n = parseInt(pick, 10);
       const chosen = options[n - 1];
       if (!chosen) return;
-      TabManager.navigateTo ? TabManager.navigateTo(chosen.url) : TabManager.createTab(chosen.url, true);
+      // The tab you are on moves; it called a TabManager.navigateTo that
+      // does not exist, so it always opened a new tab (found 2026-10-10).
+      WebviewManager.navigate(chosen.url);
     } },
     { id: 'setenv', label: 'Set environments', hint: 'Tell Vex this site\u2019s staging and local addresses', icon: 'code', action: async () => {
       if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
