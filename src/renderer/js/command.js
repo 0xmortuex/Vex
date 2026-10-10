@@ -1102,11 +1102,10 @@ const CommandBar = {
   async showHistory() {
     this.close();
     // One list. The History panel and the address-bar suggestions read
-    // HistoryPanel's store; this used to read the separate file-backed copy,
-    // which has a different shape and a smaller cap, so the two disagreed.
-    const history = (typeof HistoryPanel !== 'undefined' && HistoryPanel.list().length)
-      ? HistoryPanel.list()
-      : await VexStorage.loadHistory();
+    // HistoryPanel's store, the only copy since the file-backed one was
+    // folded into it (main/history-fold.js).
+    if (typeof HistoryPanel === 'undefined') throw new Error('The history list is not loaded');
+    const history = HistoryPanel.list();
     this.open();
     this.results = history.slice(0, 15).map(h => ({
       id: 'hist-' + (h.id || h.visitedAt || h.time),

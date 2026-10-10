@@ -5345,7 +5345,14 @@ function getStorageFile(key) {
 const persistFile = path.join(userDataPath, 'vex-persist.json');
 const preferences = require('./main/storage').createPreferenceStore(persistFile);
 const _persistLoad = preferences.load;
-ipcMain.handle('persist-get-all', () => _persistLoad());
+// History is kept once, in vex.history: visits still only in the old second
+// copy (vex-storage/history.json) join it before the interface reads it, and
+// the file goes (main/history-fold.js). A failure keeps the file, says why,
+// and is tried again next start.
+const _historyFolded = require('./main/history-fold').foldHistoryFile({ dataStore, preferences })
+  .then(r => { if (r.removed) console.log('[History] folded history.json into vex.history: ' + r.added + ' visit(s) added'); })
+  .catch(err => console.error('[History] history.json could not be folded into vex.history; it is kept for the next start:', err));
+ipcMain.handle('persist-get-all', async () => { await _historyFolded; return _persistLoad(); });
 
 // === Geolocation preference exposed to webview preloads ===
 // The preload polyfill (preload-webview.js) runs in guest processes and can't
@@ -6574,16 +6581,11 @@ ipcMain.handle('web-suggest', async (event, query) => {
 
 ipcMain.handle('storage-save', (_event, key, data) => dataStore.write(key, data));
 ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
-ipcMain.handle('storage:history-add', async (_event, entry) => {
-  if (!entry || typeof entry.url !== 'string' || !/^https?:\/\//i.test(entry.url)) throw new Error('Invalid history entry');
-  await dataStore.update('history', value => [{ id: require('crypto').randomUUID(), url: entry.url, title: String(entry.title || '').slice(0, 1000), time: Date.now() }, ...(Array.isArray(value) ? value : [])].slice(0, 500));
-  return true;
-});
 ipcMain.handle('storage:flush', async () => { await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
-  await dataStore.clear('history', []);
+  await dataStore.remove('history');
   await dataStore.clear('sync-records', null);
   // Without the records, the next tile sync has to add this device's tiles
   // to the account's again, which only happens while this flag is unset
@@ -6600,7 +6602,7 @@ ipcMain.handle('browsing:clear-data', async () => {
 // clearKeys() erase the backups too, as browsing:clear-data does.
 ipcMain.handle('browsing:clear-history', async () => {
   await dataStore.flush(); await preferences.flush();
-  await dataStore.clear('history', []);
+  await dataStore.remove('history');
   await preferences.clearKeys(['vex.history', 'vex.recentlyClosed']);
   // The open-tab list, and the groups and stacks that name tabs, keep their
   // previous version in a .bak: tabs.json.bak still held a tab closed just

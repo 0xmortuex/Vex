@@ -557,7 +557,7 @@ A small per-account mailbox, separate from the record document.
 - **Scalar preferences** (raw localStorage strings): `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`. All are prefixed `preference:`.
 - **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied.
 - **Tile lists** (gated): `preference:vex.shortcuts`, `preference:vex.startTiles`.
-- **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:history`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`.
+- **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
 - **Markers**: `sync:device:<id>`.
 
 `vex.tabs`, `vex.theme`, `vex.groups` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. They travel as `storage:*`, or for shortcuts as a tile list.
@@ -585,7 +585,7 @@ The desktop runs these checks on the **sources it owns** in the merged result (�
 - **Every value, recursively:** nesting depth ≤ 40; no non-finite numbers; strings ≤ 12 MiB; objects/arrays ≤ 30 000 keys; no property named `__proto__`, `constructor` or `prototype`.
 - **List preferences** (`LIST_PREFERENCES`): after `JSON.parse` if the value is a string, the value MUST be an array, else "Invalid synced list".
 - **Tile lists** (with the gate open): MUST be arrays.
-- **`preference:vex.bookmarks`, `preference:vex.history`** (and `storage:history`): an array of ≤ 10 000 items.
+- **`preference:vex.bookmarks`, `preference:vex.history`** (and `storage:history` on v2.38.1 and older): an array of ≤ 10 000 items.
   - Each item is a plain object.
   - `id`, `groupId`, `stackId`, when not null, match `^[\w.:-]+$`, are ≤ 160 characters, and are not one of the three unsafe names.
   - `title`, `name`, `label`, when not null, are strings ≤ 4096.

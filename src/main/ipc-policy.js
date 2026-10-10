@@ -34,7 +34,6 @@ function validatePayload(channel, args) {
     dataContracts.storage(args[0].slice(4), JSON.parse(args[1]));
   }
   const contracts = require('./contracts');
-  if (channel === 'storage:history-add') contracts.assertHistoryEntry(args[0]);
   if (channel === 'storage-save' && args[0] === 'tabs') contracts.assertTabs(args[1]);
   const encoded = JSON.stringify(args);
   if (encoded.length > 12 * 1024 * 1024) throw new Error('IPC payload too large');
@@ -94,7 +93,7 @@ function installIpcPolicy(ipcMain, security) {
     if (host?.privatePartition) {
       if (channel === 'storage-load') return host.data[args[0]] ?? null;
       if (channel === 'storage-save') { host.data[args[0]] = structuredClone(args[1]); return true; }
-      if (channel === 'storage:history-add' || channel === 'storage:flush') return true;
+      if (channel === 'storage:flush') return true;
       if (channel === 'persist-get-all') return { ...host.persist };
       if (channel === 'persist-set') { host.persist[args[0]] = args[1]; return true; }
       if (channel === 'persist-delete') { delete host.persist[args[0]]; return true; }

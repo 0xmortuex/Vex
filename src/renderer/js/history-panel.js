@@ -284,36 +284,21 @@ const HistoryPanel = {
     }
   },
 
-  // History has two more copies: the file-store list (storage:history-add),
-  // which the command bar reads when this list is empty, and Recall's
-  // full-text index. Clearing only this list left visits in both (found
-  // 2026-09-29). `host` null means everything.
+  // History has one more copy: Recall's full-text index. Clearing only this
+  // list left visits there (found 2026-09-29). `host` null means everything.
+  // (The file-store list that was a second copy is gone: main/history-fold.js.)
   async _forgetElsewhere(host) {
-    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
-    const file = host ? await VexStorage.loadHistory() : [];
-    await VexStorage.save('history', file.filter(e => { try { return new URL(e.url).hostname !== host; } catch { return true; } }));
     const r = host ? await window.vex.recallForget({ host }) : await window.vex.recallClear();
     if (!r || !r.ok) throw new Error((r && r.error) || 'Recall still remembers these pages');
   },
 
-  // Deleting one row or one day left the same visits in the file copy and in
-  // Recall, like Clear History did before it was fixed (found 2026-09-29). A
-  // page no longer listed anywhere goes from every day of the file copy and
-  // from Recall; one still listed on another day only loses the removed
-  // days' visits, and Recall keeps it. `clearedDay` also takes every other
-  // visit the file copy holds for that day.
-  async _forgetVisits(removed, clearedDay) {
-    if (!removed.length && !clearedDay) return;
-    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
+  // Deleting one row or one day left the same visits in Recall, like Clear
+  // History did before it was fixed (found 2026-09-29). A page no longer
+  // listed anywhere goes from Recall; one still listed on another day stays.
+  async _forgetVisits(removed) {
+    if (!removed.length) return;
     const urls = new Set(removed.map(e => e.url));
-    const days = new Set(removed.map(e => this._dayLabel(this._when(e))));
     const kept = new Set(this.entries.map(e => e.url));
-    const file = await VexStorage.loadHistory();
-    await VexStorage.save('history', file.filter(f => {
-      const day = this._dayLabel(this._when(f));
-      if (day === clearedDay) return false;
-      return !urls.has(f.url) || (kept.has(f.url) && !days.has(day));
-    }));
     for (const url of urls) {
       if (kept.has(url)) continue;
       const r = await window.vex.recallForget({ url });
@@ -329,7 +314,7 @@ const HistoryPanel = {
     this.save();
     this.renderList();
     try {
-      await this._forgetVisits(removed, label);
+      await this._forgetVisits(removed);
       window.showToast?.(`Cleared ${before - this.entries.length} from ${label}`);
     } catch (err) {
       console.error('[History] clearing the day did not reach every copy:', err);

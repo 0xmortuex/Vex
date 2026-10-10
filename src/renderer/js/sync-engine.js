@@ -146,10 +146,12 @@ const SyncEngine = (() => {
   let markerTimer = null;   // the push that puts this device's marker back (pullNow)
   let revision = 0;
   let recordDocument = null;
-  const STORE_KEYS = ['tabs', 'groups', 'stacks', 'history', 'settings', 'shortcuts', 'theme'];
-  // HistoryPanel keeps enriched records separately from the lightweight visit
-  // log. Include both until their format migration is complete.
-  const preferenceKeys = () => SYNC_KEYS.filter(key => key === 'vex.history' || !STORE_KEYS.some(store => key === 'vex.' + store));
+  // 'history' is not one: the file-store visit log was folded into
+  // vex.history (main/history-fold.js), which syncs as a preference. A
+  // storage:history an older desktop still sends is carried as it came
+  // (ownsSource), never applied.
+  const STORE_KEYS = ['tabs', 'groups', 'stacks', 'settings', 'shortcuts', 'theme'];
+  const preferenceKeys = () => SYNC_KEYS.filter(key => !STORE_KEYS.some(store => key === 'vex.' + store));
 
   // ===== AUTH =====
 

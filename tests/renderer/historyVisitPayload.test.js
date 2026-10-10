@@ -8,6 +8,10 @@
 // of at most 4096, and a sign-in redirect is longer than the first, while a
 // page with no title yet sent its whole address as the title. The visit is
 // now shaped (or skipped) where it is made, the did-navigate handler.
+//
+// That channel and its second copy of history (history.json) are gone since
+// (main/history-fold.js): a visit goes to the History panel's list only, under
+// the same limits (js/data-contracts.js).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -15,11 +19,9 @@ const dataContracts = require('../../src/renderer/js/data-contracts.js');
 window.VexDataContracts = dataContracts;
 require('../../src/renderer/js/vex-utils.js');
 const { WebviewManager } = require('../../src/renderer/js/webview.js');
-const { validate } = require('../../src/main/ipc-schemas.js');
-const { assertHistoryEntry } = require('../../src/main/contracts.js');
 
-// What main does with the payload before the handler runs (main/ipc-policy.js).
-const accepted = entry => { validate('storage:history-add', [entry]); assertHistoryEntry(entry); return true; };
+// What the list's saves are checked against (persist-set, main/ipc-policy.js).
+const accepted = entry => { dataContracts.storage('history', [entry]); return true; };
 
 let tab, sent, panel;
 beforeEach(() => {
@@ -35,7 +37,8 @@ beforeEach(() => {
     updateTab: vi.fn((id, patch) => Object.assign(tab, patch)),
     renderTabUpdate: vi.fn(), windowMayAsk: () => true,
   };
-  globalThis.VexStorage = { addHistory: vi.fn(async entry => { sent.push(entry); accepted(entry); return true; }) };
+  // A second copy written on every visit would show up here.
+  globalThis.VexStorage = { addHistory: vi.fn(async entry => { sent.push(entry); return true; }), save: vi.fn(async () => true) };
   globalThis.HistoryPanel = { addEntry: vi.fn((url, title) => panel.push({ url, title })), entries: [] };
 });
 
@@ -51,31 +54,32 @@ function navigate(url) {
 const longQuery = n => 'https://www.xbox.com/en-US/auth/msa?action=loggedIn&state=' + 'x'.repeat(n);
 
 describe('the history visit a navigation sends', () => {
-  it('sends a title history accepts when the page has none yet and the address is long', async () => {
+  it('gives a title history accepts when the page has none yet and the address is long', async () => {
     const url = longQuery(5000);           // under 8192, over 4096
     navigate(url);
-    expect(sent).toHaveLength(1);
-    expect(sent[0].url).toBe(url);
-    expect(() => accepted(sent[0])).not.toThrow();
+    expect(panel).toHaveLength(1);
+    expect(panel[0].url).toBe(url);
+    expect(() => accepted(panel[0])).not.toThrow();
     expect(panel[0].title.length).toBeLessThanOrEqual(4096);
   });
 
-  it('records nothing for an address too long for history, rather than sending one main refuses', () => {
+  it('records nothing for an address too long for history', () => {
     navigate(longQuery(9000));
-    expect(VexStorage.addHistory).not.toHaveBeenCalled();
     expect(HistoryPanel.addEntry).not.toHaveBeenCalled();
   });
 
-  it('records an ordinary visit as before', () => {
+  it('records an ordinary visit in the History panel\'s list, and nowhere else', () => {
     tab.title = 'Example';
     navigate('https://example.org/page');
-    expect(sent).toEqual([{ url: 'https://example.org/page', title: 'Example' }]);
+    expect(panel).toEqual([{ url: 'https://example.org/page', title: 'Example' }]);
+    expect(sent).toEqual([]);
+    expect(VexStorage.save).not.toHaveBeenCalled();
   });
 
   it('still leaves out pages that are not web pages', () => {
     navigate('chrome-extension://abc/page.html');
     navigate('file:///C:/x.pdf');
-    expect(VexStorage.addHistory).not.toHaveBeenCalled();
+    expect(HistoryPanel.addEntry).not.toHaveBeenCalled();
   });
 });
 

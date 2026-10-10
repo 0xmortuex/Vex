@@ -60,7 +60,8 @@ describe('main wiring', () => {
   });
   it('Clear History has a channel that erases the backup copies', () => {
     const fn = main.slice(main.indexOf("ipcMain.handle('browsing:clear-history'"), main.indexOf("ipcMain.handle('open-pip-window'"));
-    expect(fn).toMatch(/dataStore\.clear\('history', \[\]\)/);
+    // The old second copy (history.json) and its backup are removed outright.
+    expect(fn).toMatch(/dataStore\.remove\('history'\)/);
     expect(fn).toMatch(/preferences\.clearKeys\(\['vex\.history', 'vex\.recentlyClosed'\]\)/);
     const { schemas } = require('../../src/main/ipc-schemas.js');
     expect(schemas.has('browsing:clear-history')).toBe(true);

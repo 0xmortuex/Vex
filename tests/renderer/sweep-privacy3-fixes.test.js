@@ -147,7 +147,8 @@ describe('Clear History clears the closed-tab list and the backups', () => {
     for (let i = 0; i < 5; i++) await tick();
     expect(localStorage.getItem('vex.recentlyClosed')).toBe(null);
     expect(H.entries).toEqual([]);
-    expect(calls).toEqual(['save', 'recall', 'clearHistory']);
+    // No 'save' first: the file copy of history is gone (main/history-fold.js).
+    expect(calls).toEqual(['recall', 'clearHistory']);
     expect(window.showToast).toHaveBeenLastCalledWith('History cleared');
     delete globalThis.VexStorage; delete globalThis.vexConfirm;
   });

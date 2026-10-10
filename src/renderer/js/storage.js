@@ -2,7 +2,7 @@
 //
 // Two layers, both renderer-side:
 //   1. VexStorage — structured per-key JSON files (tabs, groups, settings,
-//      history, shortcuts) via window.vex.{saveData,loadData}.
+//      shortcuts) via window.vex.{saveData,loadData}.
 //   2. PersistentStorage — localStorage shim backed by a single JSON file
 //      (vex-persist.json) in userData. Hydrates localStorage on startup and
 //      mirrors every setItem/removeItem call to disk. Data survives
@@ -373,30 +373,8 @@ const VexStorage = {
     };
   },
 
-  async addHistory(entry) {
-    if (window.vex.addHistory) return window.vex.addHistory(entry);
-    // Serialize read-modify-write operations: simultaneous tab loads must not
-    // both read the same history and overwrite one another's new entry.
-    const next = (this._historyWrite || Promise.resolve()).then(() => this._addHistory(entry));
-    this._historyWrite = next.catch(() => {});
-    return next;
-  },
-
-  async _addHistory(entry) {
-    const history = await this.loadHistory();
-    history.unshift({
-      url: entry.url,
-      title: entry.title,
-      time: Date.now()
-    });
-    // Keep last 500
-    if (history.length > 500) history.length = 500;
-    return this.save('history', history);
-  },
-
-  async loadHistory() {
-    return (await this.load('history')) || [];
-  },
+  // Browsing history is not kept here: the History panel's list (vex.history)
+  // is the one copy (main/history-fold.js).
 
   async saveShortcuts(shortcuts) {
     return this.save('shortcuts', shortcuts);

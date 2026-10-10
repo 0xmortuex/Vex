@@ -87,6 +87,14 @@ class JsonStore {
       return true;
     });
   }
+  // The file and its backup gone, for a store that is no longer kept.
+  remove(key) {
+    return this.enqueue(key, async () => {
+      await fs.promises.rm(this.file(key), { force: true });
+      await fs.promises.rm(this.file(key) + '.bak', { force: true });
+      return true;
+    });
+  }
   async flush() { await Promise.all([...this.pending.values()]); }
 }
 

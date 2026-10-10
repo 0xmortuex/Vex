@@ -52,7 +52,6 @@ contextBridge.exposeInMainWorld('vex', {
   loadData: (key) => ipcRenderer.invoke('storage-load', key),
   clearBrowsingData: () => ipcRenderer.invoke('browsing:clear-data'),
   clearHistory: () => ipcRenderer.invoke('browsing:clear-history'),
-  addHistory: (entry) => ipcRenderer.invoke('storage:history-add', entry),
   flushStorage: () => ipcRenderer.invoke('storage:flush'),
   cloudRequest: body => ipcRenderer.invoke('cloud:request', body),
   saveCloudToken: token => ipcRenderer.invoke('cloud:token-save', token),

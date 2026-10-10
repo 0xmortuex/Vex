@@ -208,13 +208,12 @@ describe('session and workspace restoration', () => {
 });
 
 describe('structured storage', () => {
-  it('preserves both history entries when page loads finish concurrently', async () => {
-    let saved = [];
-    window.vex.loadData = vi.fn(async () => structuredClone(saved));
-    window.vex.saveData = vi.fn(async (_key, value) => { saved = structuredClone(value); return true; });
+  // History is the History panel's list only (main/history-fold.js): the
+  // structured store keeps no second copy to write on every visit.
+  it('keeps no second copy of history', async () => {
     const { VexStorage: storage } = await import('../../src/renderer/js/storage.js');
-    await Promise.all([storage.addHistory({ url: 'https://a.test' }), storage.addHistory({ url: 'https://b.test' })]);
-    expect(saved.map(e => e.url).sort()).toEqual(['https://a.test', 'https://b.test']);
+    expect(storage.addHistory).toBeUndefined();
+    expect(storage.loadHistory).toBeUndefined();
   });
 
   it('saves container metadata but not ephemeral tabs', async () => {

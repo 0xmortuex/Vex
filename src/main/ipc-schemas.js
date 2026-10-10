@@ -126,7 +126,6 @@ define('sync-save-key', [value => typeof value === 'string' && /^[a-f0-9]{64}$/i
 define('persist-set', [string(170), string(12 * 1024 * 1024)]);
 define('persist-delete storage-load', [string(170)]);
 define('storage-save', [string(64), value => value !== undefined]);
-define('storage:history-add', [shape({ url: web, title: optional(string(4096)) })]);
 // Desktop notifications and reminders are sent by the main process (see
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
 // A password or one-time code to copy, and how long until it is cleared.

@@ -121,15 +121,16 @@ describe('Clear History clears every copy', () => {
   const MODULE = '../../src/renderer/js/history-panel.js';
   const load = () => { vi.resetModules(); delete require.cache[require.resolve(MODULE)]; return require(MODULE).HistoryPanel; };
 
-  it('Delete site forgets it in the history file and in Recall', async () => {
+  // History is one list now (main/history-fold.js): the list and Recall.
+  it('Delete site forgets it in the history list and in Recall', async () => {
     const H = load();
-    localStorage.setItem('vex.history', JSON.stringify([{ id: 'a', url: 'https://bad.example/x', visitedAt: new Date().toISOString() }]));
-    let file = [{ url: 'https://bad.example/x', time: 1 }, { url: 'https://ok.example/', time: 2 }];
-    globalThis.VexStorage = { loadHistory: vi.fn(async () => file), save: vi.fn(async (k, v) => { file = v; return true; }) };
+    localStorage.setItem('vex.history', JSON.stringify([{ id: 'a', url: 'https://bad.example/x', visitedAt: new Date().toISOString() }, { id: 'b', url: 'https://ok.example/', visitedAt: new Date().toISOString() }]));
+    globalThis.VexStorage = { save: vi.fn(async () => true) };
     window.vex = { recallForget: vi.fn(async () => ({ ok: true, removed: 3 })) };
     H.renderList = () => {};
     await H.deleteSite('bad.example');
-    expect(file).toEqual([{ url: 'https://ok.example/', time: 2 }]);
+    expect(JSON.parse(localStorage.getItem('vex.history')).map(e => e.url)).toEqual(['https://ok.example/']);
+    expect(globalThis.VexStorage.save).not.toHaveBeenCalled();
     expect(window.vex.recallForget).toHaveBeenCalledWith({ host: 'bad.example' });
     expect(window.showToast).toHaveBeenLastCalledWith('Removed 1 from bad.example');
     delete globalThis.VexStorage;
@@ -140,7 +141,7 @@ describe('Clear History clears every copy', () => {
     globalThis.VexStorage = { save: vi.fn(async () => true) };
     window.vex = { recallClear: vi.fn(async () => ({ ok: false, error: 'disk full' })) };
     await expect(H._forgetElsewhere(null)).rejects.toThrow('disk full');
-    expect(globalThis.VexStorage.save).toHaveBeenCalledWith('history', []);
+    expect(globalThis.VexStorage.save).not.toHaveBeenCalled();
     delete globalThis.VexStorage;
   });
 });

@@ -419,16 +419,15 @@ const WebviewManager = {
         try { SiteRoutes.applyTo(tab); } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
       }
 
-      // Add to history (both legacy storage and new HistoryPanel) — but never
-      // for Off-the-Record tabs (in-memory partition, no trace).
+      // Add to history (the History panel's list, the only copy: the second
+      // one in history.json is gone, main/history-fold.js) — but never for
+      // Off-the-Record tabs (in-memory partition, no trace).
       // Only web pages: history takes http(s), and an extension's page or a
       // file:// one threw "Invalid payload for storage:history-add" on every
       // visit (found 2026-09-29).
       const t = TabManager.tabs.find(t => t.id === tab.id);
       const visit = this.historyVisit(url, t?.title);
       if (visit && !isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
-        Promise.resolve(VexStorage.addHistory(visit))
-          .catch(err => window.VexProblems?.note('History', 'Could not add a visit to history', err));
         if (typeof HistoryPanel !== 'undefined') {
           // A visit from a tab in its own session (a container, a Tor or proxy
           // route) is marked, so no history list asks its site for an icon
@@ -1822,8 +1821,8 @@ const WebviewManager = {
   },
 
   // The history entry for a visit, or null when history cannot hold it.
-  // storage:history-add takes an http(s) address of at most 8192 characters
-  // and a title of at most 4096 (main/ipc-schemas.js, main/contracts.js). A
+  // History holds an http(s) address of at most 8192 characters and a title
+  // of at most 4096 (js/data-contracts.js; it was storage:history-add's). A
   // sign-in redirect ran past the first; a page with no title yet sent its
   // address as the title, past the second. Both came back as "Invalid payload
   // for storage:history-add" (found 2026-10-10).
