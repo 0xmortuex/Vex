@@ -32,3 +32,12 @@ d1246a8 fix-small-some             # Ctrl+D bookmarks missing from address-bar s
 b5f549a none                       # reset-to-defaults test reads every key
 fba9e71 none                       # PRIVACY.md history count
 124a5b2 fix-mid-everyone           # address bar showed the old address while loading
+7eeb11f security-high-everyone     # F12/Ctrl+Shift+J/Ctrl+Alt+H stolen from every other program; lock bypass via DevTools
+ee601d2 fix-small-some             # Clear this site's data always said it worked
+820d991 security-mid-rare          # burner identities and Tor tabs gave away a different Chrome version
+cddf5d7 fix-small-some             # shutdowns and updates logged as crashes
+08b3dc2 fix-high-some              # "Leave site?" never asked, typed text lost
+7e2b9d2 none                       # lint
+d32d27b fix-high-some              # Back/Forward lost on sleep, reopen and restart
+1b0cfc6 fix-mid-everyone           # link tabs opened at the far right
+883ad20 none                       # code moved for a test
