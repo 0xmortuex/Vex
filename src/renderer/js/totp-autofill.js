@@ -163,7 +163,7 @@ const TotpAutofill = {
     const code = entry && entry.code;
     if (!code || !/^\d{4,8}$/.test(code)) return;
     if (!here()) return;   // origin, not exact URL: the 2FA step is a navigation
-    this._inject(webview, code, url);
+    this._inject(webview, code, url, chosen[0]);
     try { window.AutofillLog?.record('totp', url, true, chosen[0].issuer || chosen[0].label); } catch {}
   },
 
@@ -206,7 +206,7 @@ const TotpAutofill = {
     }catch(e){return false;}})();`;
     try { return !!(await webview.executeJavaScript(js)); } catch { return false; }
   },
-  _inject(webview, code, url) {
+  _inject(webview, code, url, account = null) {
     if (!url) return;
     const js = `(function(){try{
       var ORIGIN=${JSON.stringify(new URL(url).origin)};
@@ -239,14 +239,42 @@ const TotpAutofill = {
         return false;
       }
       fill();
-      // 2FA fields often render a beat after load — retry briefly, and re-fill on
-      // focus (click-to-fill), always only into an empty field.
+      // 2FA fields often render a beat after load — retry briefly.
       var n=0;var iv=setInterval(function(){if(fill()||++n>8)clearInterval(iv);},400);
+      // Click-to-fill: a real click into an emptied 2FA field asks Vex for the
+      // code of THAT moment (the promise below resolves, _inject's caller fetches
+      // a fresh code and injects again). The listener is wired once per page and
+      // used to re-fill the code it was first wired with, long expired.
+      window.__vexTotpIsOtp=isOtp;
+      var prev=window.__vexTotpWant;
+      var waiter=new Promise(function(resolve){window.__vexTotpWant=resolve;});
+      if(prev)prev('replaced');
       if(!window.__vexTotpFocusWired){window.__vexTotpFocusWired=true;
-        document.addEventListener('focusin',function(e){try{var el=e.target;if(el&&el.tagName==='INPUT'&&!el.value&&isOtp(el)){setTimeout(fill,0);}}catch(e){}},true);
+        document.addEventListener('focusin',function(e){try{if(!e.isTrusted)return;var el=e.target;var want=window.__vexTotpWant;if(want&&el&&el.tagName==='INPUT'&&!el.value&&window.__vexTotpIsOtp(el)){window.__vexTotpWant=null;want('focus');}}catch(e){}},true);
       }
+      return waiter;
     }catch(e){}})();`;
-    try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+    let pending;
+    try { pending = webview.executeJavaScript(js); } catch { return; }
+    Promise.resolve(pending).then((asked) => {
+      if (asked === 'focus' && account) return this._refill(webview, url, account);
+    }).catch(() => {});
+  },
+
+  // The emptied field was clicked: the current code, never the one from before.
+  async _refill(webview, url, account) {
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { return; }
+    const here = () => { try { return webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { return false; } };
+    if (!here()) return;
+    let codes = [];
+    try { codes = await window.vex.totpCodes(); }
+    catch (err) { console.error('[TOTP] could not read the current code:', err.message); return; }
+    const entry = (codes || []).find((x) => x.id === account.id);
+    const code = entry && entry.code;
+    if (!code || !/^\d{4,8}$/.test(code) || !here()) return;
+    this._inject(webview, code, url, account);
   },
 };
 
