@@ -73,9 +73,21 @@ function _scoreMatch(query, item) {
   return score;
 }
 
-// Rank + dedup + cap. `items` are normalized { url, title, kind } objects.
-// Returns up to `cap` items (no scores) in best-first order.
-function rankSuggestions(query, items, cap = 8) {
+// What one recorded visit adds to a page's frecency: recent visits count for
+// more (Firefox's age buckets). History keeps one row per page per day
+// (HistoryPanel.addEntry), so a page's rows are the days it was visited and
+// their sum is "how often and how recently".
+function _visitWeight(time, now = Date.now()) {
+  if (!Number.isFinite(time)) return 10;
+  const days = (now - time) / 86400000;
+  return days <= 4 ? 100 : days <= 14 ? 70 : days <= 31 ? 50 : days <= 90 ? 30 : 10;
+}
+
+// Rank + dedup + cap. `items` are normalized { url, title, kind, time? }
+// objects. Returns up to `cap` items (no scores) in best-first order: how well
+// the text matches first, then frecency (only recency used to count, by the
+// order history happened to be in), then the kind of item.
+function rankSuggestions(query, items, cap = 8, now = Date.now()) {
   const q = (query == null ? '' : String(query)).trim();
   if (!q || !Array.isArray(items)) return [];
 
@@ -89,18 +101,53 @@ function rankSuggestions(query, items, cap = 8) {
     if (s <= 0) continue;
     const key = _normalizeUrl(it.url);
     const prev = byUrl.get(key);
+    const frecency = (prev ? prev.frecency : 0) + (it.kind === 'history' ? _visitWeight(it.time, now) : 0);
     const better = !prev
       || s > prev.score
       || (s === prev.score && (kindRank[it.kind] || 0) > (kindRank[prev.item.kind] || 0));
-    if (better) byUrl.set(key, { item: it, score: s });
+    if (better) byUrl.set(key, { item: it, score: s, frecency });
+    else prev.frecency = frecency;
   }
 
   const ranked = [...byUrl.values()];
   ranked.sort((a, b) =>
     b.score - a.score ||
+    b.frecency - a.frecency ||
     (kindRank[b.item.kind] || 0) - (kindRank[a.item.kind] || 0)
   );
   return ranked.slice(0, Math.max(0, cap)).map(e => e.item);
+}
+
+// The inline completion for what was typed, like Chrome's and Firefox's: the
+// first ranked page whose address (without scheme or www.) starts with it.
+// Typed text without a "/" completes to the site ("gith" -> "github.com");
+// with one, to the whole address. Returns { text, url } — `text` is what the
+// box shows (typed text kept as typed), `url` where Enter goes — or null.
+// Never completes words with a space (a search) or anything not http(s).
+function _inlineCompletion(typed, ranked) {
+  const raw = typed == null ? '' : String(typed);
+  if (!raw || /\s/.test(raw) || !Array.isArray(ranked)) return null;
+  const prefix = raw.toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '');
+  if (!prefix) return null;
+  const wantPath = prefix.includes('/');
+  for (const it of ranked) {
+    if (!it || it.kind === 'web' || typeof it.url !== 'string') continue;
+    let u;
+    try { u = new URL(it.url); } catch { continue; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;
+    const host = u.host.toLowerCase().replace(/^www\./, '');
+    let full, url;
+    if (wantPath) {
+      full = (host + u.pathname + u.search).replace(/\/+$/, '');
+      url = it.url;
+    } else {
+      full = host;
+      url = u.origin + '/';
+    }
+    if (full.length <= prefix.length || full.toLowerCase().slice(0, prefix.length) !== prefix) continue;
+    return { text: raw + full.slice(prefix.length), url };
+  }
+  return null;
 }
 
 const SmartSearchbar = (() => {
@@ -131,6 +178,13 @@ const SmartSearchbar = (() => {
   // bumps _webSeq; a response is only applied if it carries the latest id.
   let _webSeq = 0;
   let _lastQuery = '';
+  // The inline completion on screen: { typed, text, url } — `typed` is what
+  // the user typed, `text` the box's value with the selected remainder, `url`
+  // where Enter goes. Live only while the box still holds `text`.
+  let _completion = null;
+  // The inputType of the latest edit: only typing completes, so Backspace or
+  // Delete over the selected remainder leaves just what was typed.
+  let _lastInputType = 'insertText';
 
   function _esc(s) { return window.escapeHtml(s); }
 
@@ -152,12 +206,15 @@ const SmartSearchbar = (() => {
         }
       }
     } catch {}
-    // 2) Browsing history (newest-first array of { url, title, time }).
+    // 2) Browsing history (newest-first array of { url, title, visitedAt },
+    // or an epoch `time` from older writers). The time feeds frecency.
     try {
       const hist = JSON.parse(localStorage.getItem('vex.history') || '[]');
       if (Array.isArray(hist)) {
         for (const h of hist) {
-          if (h && h.url) out.push({ url: h.url, title: h.title || h.url, kind: 'history' });
+          if (!h || !h.url) continue;
+          const time = h.visitedAt ? Date.parse(h.visitedAt) : Number(h.time);
+          out.push({ url: h.url, title: h.title || h.url, kind: 'history', time });
         }
       }
     } catch {}
@@ -299,7 +356,32 @@ const SmartSearchbar = (() => {
     _webResults = arr.slice(0, MAX_WEB_RESULTS)
       .filter(s => typeof s === 'string' && s.trim())
       .map(s => ({ query: s, kind: 'web', engine }));
-    if ((_input.value || '').trim() === q) _render();
+    if (_typed().trim() === q) _render();
+  }
+
+  // The completion, if the box still shows it.
+  function _liveCompletion() {
+    return _completion && _input && _input.value === _completion.text ? _completion : null;
+  }
+
+  // What the user typed: the box's value without a completion's remainder.
+  function _typed() {
+    const c = _liveCompletion();
+    return c ? c.typed : (_input.value || '');
+  }
+
+  // Complete inline only after typing (not deleting, pasting or composing)
+  // with the caret at the end — never inside what is being typed.
+  function _maybeComplete(value) {
+    _completion = null;
+    if (_lastInputType && _lastInputType !== 'insertText') return;
+    const end = value.length;
+    if (_input.selectionStart !== end || _input.selectionEnd !== end) return;
+    const c = _inlineCompletion(value, _localResults);
+    if (!c) return;
+    _input.value = c.text;
+    _input.setSelectionRange(end, c.text.length);
+    _completion = { typed: value, text: c.text, url: c.url };
   }
 
   // Not asked at all with suggestions off, in a private window, or while the
@@ -338,34 +420,91 @@ const SmartSearchbar = (() => {
         // Ignore stale responses (a newer keystroke already fired) and any
         // response whose query no longer matches what's in the box.
         if (seq !== _webSeq) return;
-        if ((_input.value || '').trim() !== q) return;
+        if (_typed().trim() !== q) return;
         _applyWeb(q, arr, engine);
       }).catch(() => { /* fail-silent: keep locals */ });
     }, WEB_DEBOUNCE_MS);
   }
 
-  function _onInput() {
+  function _onInput(e) {
+    _completion = null;
+    _lastInputType = (e && e.isComposing) ? 'insertCompositionText' : ((e && e.inputType) || 'insertText');
     clearTimeout(_debounceTimer);
-    _debounceTimer = setTimeout(() => {
-      const q = (_input.value || '').trim();
-      if (q !== _lastQuery) _webResults = []; // drop stale web rows from prior query
-      _lastQuery = q;
-      if (!q) { _webResults = []; _localResults = []; _close(); return; }
-      // Locals render INSTANTLY — never wait on the network.
-      _localResults = rankSuggestions(q, _gather(), MAX_RESULTS);
-      _selectedIndex = -1; // nothing pre-highlighted → typed Enter still works
-      _render();
-      // Web predictions come in asynchronously and append below.
-      _fetchWeb(q);
-    }, DEBOUNCE_MS);
+    _debounceTimer = setTimeout(_update, DEBOUNCE_MS);
+  }
+
+  function _update() {
+    clearTimeout(_debounceTimer);
+    _debounceTimer = null;
+    const value = _input.value || '';
+    const q = value.trim();
+    if (q !== _lastQuery) _webResults = []; // drop stale web rows from prior query
+    _lastQuery = q;
+    if (!q) { _webResults = []; _localResults = []; _completion = null; _close(); return; }
+    // Locals render INSTANTLY — never wait on the network.
+    _localResults = rankSuggestions(q, _gather(), MAX_RESULTS);
+    _maybeComplete(value);
+    _selectedIndex = -1; // nothing pre-highlighted → typed Enter still works
+    _render();
+    // Web predictions come in asynchronously and append below.
+    _fetchWeb(q);
+  }
+
+  // Shift+Delete on a highlighted history row removes that page from history
+  // through History's own delete (the list, sync's copy, and Recall).
+  function _forget(r) {
+    if (typeof HistoryPanel === 'undefined' || typeof HistoryPanel.deleteUrls !== 'function') {
+      throw new Error('History is not loaded, so the suggestion cannot be removed');
+    }
+    const key = _normalizeUrl(r.url);
+    const urls = [...new Set(_gather().filter(it => it.kind === 'history' && _normalizeUrl(it.url) === key).map(it => it.url))];
+    HistoryPanel.deleteUrls(urls);
+    const index = _selectedIndex;
+    const c = _liveCompletion();
+    if (c) _input.value = c.typed;
+    _update();
+    if (!_results.length) return;
+    _selectedIndex = Math.min(index, _results.length - 1);
+    _refreshSelection();
   }
 
   // Returns true ONLY when the key was consumed. app.js calls this first and
   // returns early on true; on false it runs its normal Enter/Escape logic.
   function handleKeydown(e) {
+    // Enter typed before the suggestions caught up with the last keystroke
+    // still gets the completion that keystroke would have shown.
+    if (e.key === 'Enter' && _debounceTimer) _update();
+
+    // An inline completion is on screen and no row is highlighted: Enter goes
+    // to the completed site, Esc takes the completion away.
+    const completion = _liveCompletion();
+    if (completion && !(_open && _selectedIndex >= 0)) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        _close();
+        _completion = null;
+        _input.value = completion.url;
+        if (typeof _onSubmit === 'function') _onSubmit(completion.url, e.ctrlKey || e.altKey);
+        return true;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        _completion = null;
+        _input.value = completion.typed;
+        _close();
+        return true;
+      }
+    }
+
     // When the dropdown is closed there is nothing to consume — let every key
     // (including ArrowUp/Down caret movement and typed Enter) behave normally.
     if (!_open || !_results.length) return false;
+
+    if (e.key === 'Delete' && e.shiftKey && _selectedIndex >= 0 && _results[_selectedIndex]?.kind === 'history') {
+      e.preventDefault();
+      _forget(_results[_selectedIndex]);
+      return true;
+    }
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -409,7 +548,7 @@ const SmartSearchbar = (() => {
     _input.addEventListener('input', _onInput);
     // Genuine focus-loss closes the dropdown. Row clicks use mousedown+
     // preventDefault so they never trigger this.
-    _input.addEventListener('blur', () => _close());
+    _input.addEventListener('blur', () => { _completion = null; _close(); });
   }
 
   return { init, handleKeydown, close: _close, _gather };
@@ -417,5 +556,5 @@ const SmartSearchbar = (() => {
 
 if (typeof window !== 'undefined') window.SmartSearchbar = SmartSearchbar;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SmartSearchbar, rankSuggestions, _normalizeUrl, _scoreMatch, parseGoogleSuggest };
+  module.exports = { SmartSearchbar, rankSuggestions, _normalizeUrl, _scoreMatch, _inlineCompletion, _visitWeight, parseGoogleSuggest };
 }

@@ -290,6 +290,24 @@ const HistoryPanel = {
     }
   },
 
+  // Every visit to these exact addresses, as deleteEntry removes one row: the
+  // address bar's Shift+Delete on a suggestion (js/smart-searchbar.js).
+  async deleteUrls(urls) {
+    const gone = new Set(urls);
+    if (!gone.size) return;
+    this._hydrate();
+    const removed = this.entries.filter(e => gone.has(e.url));
+    this.entries = this.entries.filter(e => !gone.has(e.url));
+    this.save();
+    this.renderList();
+    try {
+      await this._forgetVisits(removed);
+    } catch (err) {
+      console.error('[History] delete did not reach every copy:', err);
+      window.showToast?.(`Removed from the list, but not everywhere: ${err.message}`, 'error');
+    }
+  },
+
   // One day's heading, used both to group rows and to clear that group.
   _dayLabel(d) {
     return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
