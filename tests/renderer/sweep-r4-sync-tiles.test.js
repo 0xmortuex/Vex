@@ -130,7 +130,11 @@ describe('shortcut tiles sync when every device understands them', () => {
     const key = await accountKey();
     await newDevice(server, key, 'devB', v => { v[TILES] = [...v[TILES], { ...tile('b'), id: 'tile-b' }]; });
     setTiles([tile('a'), tile('c')]);
-    expect((await engine.pushNow()).ok).toBe(true);   // 409 → pull, merge → push
+    // Until a pull shows devB's marker, devB is a device tiles wait on, so a
+    // push alone has nothing new to send (and sends nothing). Sync Now pulls
+    // first, then pushes.
+    expect((await engine.pullNow()).ok).toBe(true);
+    expect((await engine.pushNow()).ok).toBe(true);
     expect(names(tiles())).toEqual(['a', 'b', 'c']);
     expect(names((await accountValues(server, key))[TILES])).toEqual(['a', 'b', 'c']);
     // The other device removes "a".

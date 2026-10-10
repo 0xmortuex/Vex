@@ -476,8 +476,9 @@ A device with no local data can just adopt the cloud document.
 - Inserting at the front re-indexes later items. If two devices do that concurrently, every shifted item becomes a "conflict" (same item, different `index`) and the desktop toasts "N sync conflicts retained in recovery data". The data is fine. A mobile client SHOULD append new list items **at the end** to keep this churn small. The desktop shows bookmarks grouped by folder and in stored order; notes and history are sorted by their timestamps, so the position barely matters there.
 
 ### 5.6 Timing (desktop)
-- Push every 2 minutes, pull every 5 minutes, pull 1.5 s after start, and "Sync Now" (pull, then push).
-- **The desktop pushes on its timer even when nothing changed**, so the revision rises by about 1 every 2 minutes per running desktop. Expect frequent 409s.
+- Push every 2 minutes, pull every 5 minutes, pull 1.5 s after start, and "Sync Now" (pull, then push). One push or pull runs at a time; one asked while another runs waits its turn.
+- A timed push is sent only when the document differs from the one the server holds at the desktop's revision (the one it last pushed or pulled). Up to v2.38.1 the desktop pushed on its timer even when nothing changed, so the revision rose by about 1 every 2 minutes per running desktop; such desktops are still about, so expect 409s.
+- A pull that returns the revision the desktop already has is not applied again. Nothing on the wire changes: the pull is still made and returns the whole blob.
 - Handoff polling: on window focus, every 2 minutes, and 8 s after launch.
 
 ---

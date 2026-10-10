@@ -146,6 +146,16 @@ const SyncEngine = (() => {
   let markerTimer = null;   // the push that puts this device's marker back (pullNow)
   let revision = 0;
   let recordDocument = null;
+  // The document the server holds at `revision`, as this device last saw it
+  // (its own push, or a pull), in a form that ignores key order; null when
+  // not known this session. A push that would send it again is not sent, and
+  // a pull of the same revision is not applied again: every two minutes the
+  // whole account (about 1 MB) was uploaded unchanged, and every pull
+  // rewrote every store (found 2026-10-09).
+  let server = null;
+  const canonical = (value) => JSON.stringify(value, function (key, v) {
+    return v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v;
+  });
   // 'history' is not one: the file-store visit log was folded into
   // vex.history (main/history-fold.js), which syncs as a preference. A
   // storage:history an older desktop still sends is carried as it came
@@ -312,6 +322,7 @@ const SyncEngine = (() => {
     revision = 0;
     pullBlocked = false;
     recordDocument = null;
+    server = null;
     tileGate = { open: false, waitingOn: [] };
     if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); }
     try { await window.vex.syncClearState(); } catch {}
@@ -592,11 +603,28 @@ const SyncEngine = (() => {
   // A 409 means another device pushed since this one last pulled. The worker
   // refuses the push until we merge, so pull and try once more instead of
   // failing with "Push returned 409" (found 2026-09-29). Auto-push uses this too.
-  async function pushNow() {
+  // One push or pull at a time, in the order asked. The two timers start
+  // together, and a pull asked while a push ran returned "not ready" and was
+  // dropped, so every other pull was lost and another device's change could
+  // take ten minutes to arrive (found 2026-10-09). A round asked while the
+  // same kind is already waiting joins it rather than queueing a second.
+  let queue = Promise.resolve();
+  const waiting = {};
+  function serial(kind, run) {
+    if (waiting[kind]) return waiting[kind];
+    const round = queue.then(() => { waiting[kind] = null; return run(); });
+    waiting[kind] = round;
+    queue = round.catch(() => {});
+    return round;
+  }
+  const pushNow = () => serial('push', pushRound);
+  const pullNow = (options = {}) => serial(options.restore ? 'restore' : 'pull', () => pullRound(options));
+
+  async function pushRound() {
     if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
     const first = await pushOnce();
     if (!first.conflict) return first;
-    const pulled = await pullNow();
+    const pulled = await pullRound();
     if (!pulled.ok) return { ok: false, reason: pulled.reason };
     const second = await pushOnce();
     if (second.conflict) {
@@ -622,6 +650,9 @@ const SyncEngine = (() => {
     try {
       if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || window.VexSyncRecords.empty();
       const data = await collectSyncData(await checkTileGate(recordDocument));
+      const text = canonical(data);
+      // Nothing changed since the server got this document: nothing to send.
+      if (server && server.revision === revision && server.text === text) return { ok: true, unchanged: true };
       const encryptedBlob = await SyncCrypto.encrypt(data, state.encryptionKey);
       const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/push`, {
         method: 'POST',
@@ -641,6 +672,7 @@ const SyncEngine = (() => {
       if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
       if (!r.ok) throw new Error('Push returned ' + r.status);
       revision = (await r.json()).revision;
+      server = { revision, text };
       state.lastPushAt = new Date().toISOString();
       state.lastError = null;
       await saveMetaToDisk();
@@ -656,7 +688,7 @@ const SyncEngine = (() => {
     }
   }
 
-  async function pullNow({ restore = false } = {}) {
+  async function pullRound({ restore = false } = {}) {
     if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
     if (!syncWorkerUrl()) {
       console.log('[Sync] not configured — skipping pull');
@@ -680,6 +712,15 @@ const SyncEngine = (() => {
       const receivedRevision = result.revision || 0;
       if (!Number.isSafeInteger(receivedRevision) || receivedRevision < 0) throw new Error('Invalid sync revision');
       const blob = result.encryptedBlob;
+      // The revision this device already has: the same document it pushed or
+      // applied, so there is nothing new to apply (and nothing to rewrite).
+      if (blob && !restore && server && recordDocument && receivedRevision === server.revision && receivedRevision === revision) {
+        pullBlocked = false;
+        state.lastPullAt = new Date().toISOString();
+        state.lastError = null;
+        await saveMetaToDisk();
+        return { ok: true, unchanged: true };
+      }
       if (!blob) {
         // The account is empty (new, or its data was lost while the sessions
         // survived). The next push starts from an empty document and this
@@ -689,6 +730,7 @@ const SyncEngine = (() => {
         recordDocument = window.VexSyncRecords.empty();
         await VexStorage.save('sync-records', recordDocument);
         revision = receivedRevision;
+        server = { revision, text: canonical(recordDocument) };
         pullBlocked = false;
         state.lastPullAt = new Date().toISOString();
         await saveMetaToDisk();
@@ -711,6 +753,7 @@ const SyncEngine = (() => {
       // Only acknowledge a revision after its contents were decrypted and applied.
       // Otherwise a stale or damaged local key could overwrite unreadable cloud data.
       revision = receivedRevision;
+      server = { revision, text: canonical(decrypted) };
       pullBlocked = false;
       state.lastPullAt = new Date().toISOString();
       state.lastError = null;
@@ -811,6 +854,7 @@ const SyncEngine = (() => {
     if (!r.ok) return { ok: false, reason: 'Server returned ' + r.status };
     revision = 0;
     recordDocument = null;
+    server = null;
     await signOut();
     return { ok: true, signedOut: true };
   }
