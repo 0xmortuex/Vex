@@ -70,6 +70,7 @@ describe('titles', () => {
     H.addEntry('https://a.example/', 'Loading...');
     expect(stored()[0].title).toBe('https://a.example/');   // URL until it is known
     H.updateTitle('https://a.example/', 'Example Domain');
+    H.flush();   // titles are saved up to 30 seconds later (historyTitleWrites.test.js)
     expect(stored()[0].title).toBe('Example Domain');
   });
 

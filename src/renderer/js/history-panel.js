@@ -126,14 +126,24 @@ const HistoryPanel = {
   // one-item array over everything saved before it — the whole history, lost
   // on the first visit of every session. Hydrating before any write (and at
   // load, at the bottom of this file) is what stops that.
+  //
+  // Read again only when the saved copy is not the one this list came from
+  // or last wrote (sync, Clear History, an import): every title change
+  // re-parsed and re-sorted the whole list, about 16 ms at 5,000 entries
+  // (found 2026-10-09).
   _hydrate() {
+    const raw = localStorage.getItem(this.STORAGE_KEY);
+    if (this._hydrated && raw === this._raw) return this.entries;
+    // A title waiting to be saved belonged to the list being replaced.
+    clearTimeout(this._titleTimer); this._titleTimer = null;
     let saved = [];
-    try { saved = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]'); } catch { saved = []; }
+    try { saved = JSON.parse(raw || '[]'); } catch { saved = []; }
     const list = Array.isArray(saved) ? saved.map(e => this._normalize(e)).filter(Boolean) : [];
     // Newest first, whatever order the writer — or a sync merge — left behind.
     list.sort((a, b) => this._when(b) - this._when(a));
     this.entries = list;
     this._hydrated = true;
+    this._raw = raw;
     return this.entries;
   },
 
@@ -186,9 +196,25 @@ const HistoryPanel = {
   },
 
   save() {
+    clearTimeout(this._titleTimer); this._titleTimer = null;
     if (this.entries.length > this.MAX_ENTRIES) this.entries.length = this.MAX_ENTRIES;
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.entries));
+    this._raw = localStorage.getItem(this.STORAGE_KEY);
   },
+
+  // Titles are saved at most this often. Spotify, Discord and Gmail change
+  // theirs all the time, and each change rewrote the whole list.
+  TITLE_SAVE_MS: 30000,
+  _titleTimer: null,
+  _saveTitles() {
+    this._titleTimer = null;
+    // The saved list was replaced meanwhile (a sync pull): writing this one
+    // over it would lose what arrived. The title comes again on its next change.
+    if (localStorage.getItem(this.STORAGE_KEY) !== this._raw) { this._hydrate(); return; }
+    this.save();
+  },
+  // Before the window closes (js/storage.js).
+  flush() { if (this._titleTimer) { clearTimeout(this._titleTimer); this._saveTitles(); } },
 
   // The title is unknown when a visit is recorded: "Loading…" and the bare URL
   // are placeholders that updateTitle() replaces once the page says its name.
@@ -236,7 +262,7 @@ const HistoryPanel = {
     const entry = this.entries.find(e => e.url === url);
     if (!entry || entry.title === title) return;
     entry.title = title;
-    this.save();
+    if (!this._titleTimer) this._titleTimer = setTimeout(() => this._saveTitles(), this.TITLE_SAVE_MS);
     this._refreshIfOpen();
   },
 

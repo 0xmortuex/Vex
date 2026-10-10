@@ -788,6 +788,8 @@ const TabManager = {
     return true;
   },
 
+  TITLES_SAVE_MS: 30000,
+
   updateTab(id, data) {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
@@ -2070,13 +2072,32 @@ const TabManager = {
     }
   },
 
-  async persistTabs() {
+  // `now`: save a change of titles at once too (the window is closing).
+  async persistTabs({ now = false } = {}) {
     if (this._applyingSync) return;
+    if (now) this._persistNow = true;
     // Coalesce all mutations in a bulk restore into one final snapshot.
     if (!this._pendingPersist) {
-      this._pendingPersist = Promise.resolve().then(() => {
+      this._pendingPersist = Promise.resolve().then(async () => {
         this._pendingPersist = null;
-        return VexStorage.saveTabs(this.tabs);
+        const urgent = this._persistNow; this._persistNow = false;
+        // Only a real change is saved. Every loading event came here and
+        // rewrote tabs.json, though the saved list (address, title, pin,
+        // group…) was the same; and Spotify, Discord or Gmail change their
+        // title every few seconds, so a change of titles alone waits up to
+        // TITLES_SAVE_MS (found 2026-10-09).
+        const snap = window.VexTabPolicy ? window.VexTabPolicy.snapshot(this.tabs) : null;
+        const saved = snap ? JSON.stringify(snap) : null;
+        const shape = snap ? JSON.stringify(snap.map(t => ({ ...t, title: null }))) : null;
+        if (saved !== null && saved === this._savedTabs) return true;
+        if (!urgent && shape !== null && shape === this._savedShape) {
+          if (!this._titlesTimer) this._titlesTimer = setTimeout(() => { this._titlesTimer = null; this.persistTabs({ now: true }); }, this.TITLES_SAVE_MS);
+          return true;
+        }
+        clearTimeout(this._titlesTimer); this._titlesTimer = null;
+        const result = await VexStorage.saveTabs(this.tabs);
+        if (saved !== null) { this._savedTabs = saved; this._savedShape = shape; }
+        return result;
       });
       // A failed save means the session on disk is now stale — say so loudly.
       // The toast alone was easy to miss, and the console line is what turns a
@@ -2117,6 +2138,8 @@ const TabManager = {
       else WebviewManager.destroyWebview(current.id);
     }
     this._applyingSync = true;
+    // tabs.json now holds what sync wrote, not what this window saved last.
+    this._savedTabs = this._savedShape = null;
     try {
       this.tabs = next;
       if (Array.isArray(groups)) this.groups = groups.map(group => ({ ...group }));

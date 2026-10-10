@@ -285,8 +285,10 @@ window.vex?.onFlushRequested?.(async () => {
   // storage first.
   if (typeof NotesPanel !== 'undefined') { NotesPanel.flush(); NotesPanel._flushSticky(); }
   if (typeof StickyNotes !== 'undefined') StickyNotes.flush();
+  // History titles wait up to 30 seconds (js/history-panel.js).
+  if (typeof HistoryPanel !== 'undefined') HistoryPanel.flush();
   if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.saveCurrentState();
-  if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
+  if (typeof TabManager !== 'undefined') await TabManager.persistTabs({ now: true });
   await PersistentStorage._flush();
   await VexStorage.retryFailed();
   await window.vex.flushStorage?.();
