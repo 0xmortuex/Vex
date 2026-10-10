@@ -592,7 +592,9 @@ const TabGrouper = (() => {
     // Snapshot for undo
     const snapshotTabs = _allTabs().map(t => ({ id: t.id, groupId: t.groupId || null }));
     const snapshotGroupIds = new Set(_allGroups().map(g => g.id));
-    lastGroupedSnapshot = { tabs: snapshotTabs, originalGroupIds: snapshotGroupIds, timestamp: Date.now() };
+    // createdGroupIds: the groups this grouping made, and only those are
+    // taken back by Undo — not groups made by hand since (found 2026-10-10).
+    lastGroupedSnapshot = { tabs: snapshotTabs, originalGroupIds: snapshotGroupIds, createdGroupIds: new Set(), timestamp: Date.now() };
 
     let created = 0;
     for (const g of groupsToApply) {
@@ -604,6 +606,7 @@ const TabGrouper = (() => {
         : (COLOR_HEX[g.color] || '#6366f1');
       const newGroupId = _createGroup({ name: displayName, color });
       if (!newGroupId) continue;
+      lastGroupedSnapshot.createdGroupIds.add(newGroupId);
       for (const tabId of g.tabIds) _assignTabToGroup(tabId, newGroupId);
       if (rememberPatterns && g.pattern) {
         // Capture the domain + keyword signals so maybeAutoAssignToGroup can
@@ -640,19 +643,22 @@ const TabGrouper = (() => {
 
   function undoLastGrouping() {
     if (!lastGroupedSnapshot) { _toast('Nothing to undo', 'warn'); return; }
-    const { tabs: snap, originalGroupIds } = lastGroupedSnapshot;
+    const { tabs: snap, createdGroupIds } = lastGroupedSnapshot;
 
-    // Restore each tab's original groupId
-    for (const { id, groupId } of snap) _assignTabToGroup(id, groupId || null);
+    // A tab still in a group this grouping made goes back where it was; a tab
+    // moved by hand since stays where it was put.
+    const now = new Map(_allTabs().map(t => [t.id, t.groupId || null]));
+    for (const { id, groupId } of snap) {
+      if (createdGroupIds.has(now.get(id))) _assignTabToGroup(id, groupId || null);
+    }
 
-    // Delete groups created after the snapshot
-    const current = _allGroups();
-    for (const g of current) if (!originalGroupIds.has(g.id)) _deleteGroup(g.id);
+    // Only the groups this grouping made.
+    for (const g of _allGroups()) if (createdGroupIds.has(g.id)) _deleteGroup(g.id);
 
     // Drop patterns tied to deleted groups
     const kept = {};
     for (const [gid, p] of Object.entries(groupPatterns)) {
-      if (originalGroupIds.has(gid)) kept[gid] = p;
+      if (!createdGroupIds.has(gid)) kept[gid] = p;
     }
     groupPatterns = kept;
     _save('vex.groupPatterns', groupPatterns);
