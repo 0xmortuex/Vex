@@ -1,6 +1,7 @@
 const path = require('path');
 const { atomicWrite } = require('./file-store');
-function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false }) {
+// dialog / windowFor: the CSV export's save dialog.
+function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null }) {
 let vaultCache = null;
 let writes = Promise.resolve();
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
@@ -139,17 +140,63 @@ ipcMain.handle('vault:health', () => {
   }
 });
 ipcMain.handle('vault:save', async (_e, entry) => {
-  const { host, username, password } = entry || {};
+  const { host, username, password, note } = entry || {};
   if (!host || !username || !password) return { ok: false, error: 'Missing fields' };
   try {
     const arr = vaultLoad();
     const existing = arr.find(e => e.host === host && e.username === username);
     if (existing) { existing.password = password; existing.updatedAt = new Date().toISOString(); }
     else arr.push({ host, username, password, updatedAt: new Date().toISOString() });
+    // A note only from Settings › Passwords › Add; a site's save card has none.
+    if (typeof note === 'string' && note) (existing || arr[arr.length - 1]).note = note;
     await vaultSave(arr);
     return { ok: true, updated: !!existing };
   } catch (err) { return { ok: false, error: err.message }; }
 });
+// Settings › Passwords › Edit: the username, the password (left empty: kept)
+// and the note ('' removes it) of one saved login.
+ipcMain.handle('vault:update', async (_e, { host, username, newUsername, password, note } = {}) => {
+  try {
+    if (!host || !username || !newUsername) return { ok: false, error: 'Missing fields' };
+    const arr = vaultLoad();
+    const entry = arr.find(e => e.host === host && e.username === username);
+    if (!entry) return { ok: false, error: 'That saved login is no longer in the vault' };
+    if (newUsername !== username && arr.some(e => e.host === host && e.username === newUsername)) {
+      return { ok: false, error: `There is already a saved login for ${newUsername} on ${host}` };
+    }
+    entry.username = newUsername;
+    if (password) entry.password = password;
+    if (typeof note === 'string') { if (note) entry.note = note; else delete entry.note; }
+    entry.updatedAt = new Date().toISOString();
+    await vaultSave(arr);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Chrome's password CSV (name,url,username,password,note), so it imports into
+// Chrome, Edge, Firefox, Bitwarden and Vex itself. Written here, after the
+// person picks where: the passwords never cross to the window for this.
+function csvField(value) {
+  const s = String(value == null ? '' : value);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toChromeCsv(entries) {
+  const rows = [['name', 'url', 'username', 'password', 'note']];
+  for (const e of entries) rows.push([e.host, 'https://' + e.host + '/', e.username, e.password, e.note || '']);
+  return rows.map(r => r.map(csvField).join(',')).join('\r\n') + '\r\n';
+}
+ipcMain.handle('vault:export-csv', async (e) => {
+  const arr = vaultLoad();
+  if (!arr.length) return { ok: false, error: 'There are no saved passwords to export' };
+  if (!dialog) throw new Error('Exporting is not available here');
+  const win = windowFor(e);
+  const opts = { title: 'Export passwords', defaultPath: path.join(app.getPath('documents'), 'Vex Passwords.csv'), filters: [{ name: 'CSV', extensions: ['csv'] }] };
+  const picked = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts);
+  if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
+  await require('fs').promises.writeFile(picked.filePath, toChromeCsv(arr), 'utf8');
+  return { ok: true, count: arr.length, path: picked.filePath };
+});
+
 ipcMain.handle('vault:delete', async (_e, { host, username } = {}) => {
   try {
     await vaultSave(vaultLoad().filter(e => !(e.host === host && e.username === username)));
@@ -181,6 +228,6 @@ async function addMissing(entries) {
   return { added, duplicates };
 }
 
-return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes, addMissing };
+return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes, addMissing, toChromeCsv };
 }
 module.exports = { createVaultService };

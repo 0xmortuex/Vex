@@ -525,6 +525,215 @@ const PasswordVault = {
   },
 
   // --- Settings → Passwords ---
+  // Add, edit (username, password, note), show and copy behind a re-check (the
+  // Vex PIN if set, otherwise a confirmation; js/vex-lock.js), search, export
+  // to Chrome's CSV, and undo the "Never save" and authenticator "don't fill
+  // here" choices.
+  _btn: "padding:5px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:5px",
+
+  // One re-check covers the next two minutes in this window, so showing then
+  // copying a password does not ask twice.
+  RECHECK_MS: 2 * 60 * 1000,
+  _recheckedUntil: 0,
+  async _recheck(what) {
+    if (Date.now() < this._recheckedUntil) return true;
+    const lock = window.VexLock;
+    if (!lock || typeof lock.recheck !== 'function') throw new Error('The PIN check did not load');
+    const ok = await lock.recheck({ title: 'Saved passwords', message: `Vex asks again before it ${what}.`, okLabel: 'Continue' });
+    if (ok) this._recheckedUntil = Date.now() + this.RECHECK_MS;
+    return ok;
+  },
+
+  // The saved login as it is now (with its password and note), or null.
+  async _fullEntry(host, username) {
+    const full = await window.vex.vaultGet(host);
+    return (full || []).find(x => x.username === username) || null;
+  },
+
+  // "https://www.Example.com/login" -> "example.com", as the vault keys logins.
+  _hostFromInput(value) {
+    let s = String(value || '').trim().toLowerCase();
+    if (!s) return '';
+    if (!/^[a-z][a-z0-9+.-]*:\/\//.test(s)) s = 'https://' + s;
+    let host = '';
+    try { host = new URL(s).hostname; } catch { return ''; }
+    host = this._host(host);
+    return /^[a-z0-9.-]{1,253}$/.test(host) && host.includes('.') ? host : '';
+  },
+
+  // The add / edit form. -> { host, username, password, note } or null.
+  _editDialog({ title, okLabel, host = '', username = '', password = '', note = '', hostEditable = false, passwordRequired = true }) {
+    return new Promise((resolve) => {
+      document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel?.());
+      const prevFocus = document.activeElement;
+      const esc = (s) => window.escapeHtml(s);
+      const overlay = document.createElement('div');
+      overlay.className = 'vex-dialog-overlay';
+      overlay.innerHTML = `
+        <div class="vex-dialog" role="dialog" aria-modal="true" aria-labelledby="vex-pwedit-title">
+          <div class="vex-dialog-title" id="vex-pwedit-title">${esc(title)}</div>
+          <label class="vex-dialog-label" for="vex-pwedit-host">Site</label>
+          <input class="vex-dialog-input" id="vex-pwedit-host" type="text" spellcheck="false" placeholder="example.com" ${hostEditable ? '' : 'readonly'}>
+          <label class="vex-dialog-label" for="vex-pwedit-user">Username or email</label>
+          <input class="vex-dialog-input" id="vex-pwedit-user" type="text" spellcheck="false" autocomplete="off">
+          <label class="vex-dialog-label" for="vex-pwedit-pass">Password${passwordRequired ? '' : ' (leave empty to keep it)'}</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="vex-dialog-input" id="vex-pwedit-pass" type="password" spellcheck="false" autocomplete="new-password" style="flex:1">
+            <button type="button" class="vex-dialog-btn" id="vex-pwedit-show" aria-pressed="false">Show</button>
+          </div>
+          <label class="vex-dialog-label" for="vex-pwedit-note">Note</label>
+          <textarea class="vex-dialog-input" id="vex-pwedit-note" rows="3" spellcheck="false" placeholder="Optional, kept encrypted with the password"></textarea>
+          <div id="vex-pwedit-error" role="alert" style="display:none;font-size:12px;color:var(--danger);margin-top:6px"></div>
+          <div class="vex-dialog-actions">
+            <button type="button" class="vex-dialog-btn" data-cancel>Cancel</button>
+            <button type="button" class="vex-dialog-btn primary" data-ok>${esc(okLabel)}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const $ = (sel) => overlay.querySelector(sel);
+      $('#vex-pwedit-host').value = host;
+      $('#vex-pwedit-user').value = username;
+      $('#vex-pwedit-pass').value = password;
+      $('#vex-pwedit-note').value = note;
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        overlay.remove();
+        try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); } catch {}
+        resolve(value);
+      };
+      overlay._vexCancel = () => done(null);
+      const fail = (message) => { const box = $('#vex-pwedit-error'); box.textContent = message; box.style.display = 'block'; };
+      const submit = () => {
+        const siteHost = hostEditable ? this._hostFromInput($('#vex-pwedit-host').value) : host;
+        const user = $('#vex-pwedit-user').value.trim();
+        const pass = $('#vex-pwedit-pass').value;
+        if (!siteHost) { fail('Enter the site, like example.com'); $('#vex-pwedit-host').focus(); return; }
+        if (!user) { fail('Enter the username or email'); $('#vex-pwedit-user').focus(); return; }
+        if (passwordRequired && !pass) { fail('Enter the password'); $('#vex-pwedit-pass').focus(); return; }
+        done({ host: siteHost, username: user, password: pass, note: $('#vex-pwedit-note').value.trim() });
+      };
+      $('[data-ok]').addEventListener('click', submit);
+      $('[data-cancel]').addEventListener('click', () => done(null));
+      $('#vex-pwedit-show').addEventListener('click', (e) => {
+        const field = $('#vex-pwedit-pass');
+        const show = field.type === 'password';
+        field.type = show ? 'text' : 'password';
+        e.currentTarget.textContent = show ? 'Hide' : 'Show';
+        e.currentTarget.setAttribute('aria-pressed', String(show));
+      });
+      overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) done(null); });
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); done(null); return; }
+        if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); submit(); return; }
+        if (e.key === 'Tab') {
+          const focusables = [...overlay.querySelectorAll('input:not([readonly]), textarea, button')];
+          const first = focusables[0], last = focusables[focusables.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+      (hostEditable ? $('#vex-pwedit-host') : $('#vex-pwedit-user')).focus();
+    });
+  },
+
+  async _addLogin(container) {
+    const got = await this._editDialog({ title: 'Add a password', okLabel: 'Save', hostEditable: true });
+    if (!got) return;
+    try {
+      if (await this._fullEntry(got.host, got.username)) {
+        window.showToast?.(`There is already a saved login for ${got.username} on ${got.host}: edit that one`, 'error');
+        return;
+      }
+      const r = await window.vex.vaultSave({ host: got.host, username: got.username, password: got.password, note: got.note });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'unknown error');
+      window.showToast?.('Password saved');
+    } catch (err) {
+      window.showToast?.('Could not save it: ' + err.message, 'error');
+      return;
+    }
+    await this.renderPanel(container);
+  },
+
+  async _editLogin(container, entry) {
+    if (!await this._recheck('shows a saved password')) return;
+    const m = await this._fullEntry(entry.host, entry.username);
+    if (!m) { window.showToast?.('That saved login is no longer in the vault', 'error'); await this.renderPanel(container); return; }
+    const got = await this._editDialog({ title: 'Edit saved password', okLabel: 'Save changes', host: m.host, username: m.username, password: m.password, note: m.note || '', passwordRequired: false });
+    if (!got) return;
+    const r = await window.vex.vaultUpdate({ host: m.host, username: m.username, newUsername: got.username, password: got.password, note: got.note });
+    if (!r || !r.ok) { window.showToast?.('Could not save the changes: ' + ((r && r.error) || 'unknown error'), 'error'); return; }
+    window.showToast?.('Changes saved');
+    await this.renderPanel(container);
+  },
+
+  // Settings → Passwords: CSV in Chrome's format, after a plain warning.
+  async _exportCsv() {
+    const go = await window.vexConfirm({
+      title: 'Export passwords',
+      message: 'The file holds every saved password in plain text. Anyone or any program that can open it can read them all. Keep it somewhere safe, import it where you need it, then delete it.',
+      okLabel: 'Export', danger: true,
+    });
+    if (!go) return;
+    // That warning is the confirmation; with a PIN set, the PIN as well.
+    if (window.VexLock && window.VexLock.hasPin() && !await this._recheck('exports your passwords')) return;
+    try {
+      const r = await window.vex.vaultExportCsv();
+      if (r && r.canceled) return;
+      if (!r || !r.ok) throw new Error((r && r.error) || 'unknown error');
+      window.showToast?.(`Exported ${r.count} password${r.count === 1 ? '' : 's'} — delete the file once you have used it`);
+    } catch (err) {
+      window.showToast?.('Could not export: ' + err.message, 'error');
+    }
+  },
+
+  // The "Never" choices on the save card, and the authenticator's "don't fill
+  // here" answers, each with Remove.
+  _choicesSection(container) {
+    const never = this._never();
+    let totpNo = [];
+    try {
+      const all = JSON.parse(localStorage.getItem('vex.totpSites') || '{}') || {};
+      totpNo = Object.keys(all).filter(k => all[k] === false);
+    } catch (err) { console.error('[Vault] the authenticator site choices cannot be read:', err.message); }
+    if (!never.length && !totpNo.length) return;
+    const box = document.createElement('div');
+    box.id = 'pw-choices';
+    box.style.cssText = 'margin-top:14px;padding-top:10px;border-top:1px solid var(--border)';
+    const section = (title, items, label, remove) => {
+      if (!items.length) return;
+      const head = document.createElement('div');
+      head.style.cssText = 'font-size:12.5px;font-weight:600;color:var(--text);margin:6px 0 4px';
+      head.textContent = title;
+      box.appendChild(head);
+      for (const item of items) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:var(--text)';
+        const name = document.createElement('span');
+        name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis';
+        name.textContent = label(item);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.style.cssText = this._btn;
+        b.textContent = 'Remove';
+        b.setAttribute('aria-label', 'Remove ' + label(item));
+        b.addEventListener('click', () => { remove(item); this.renderPanel(container); });
+        row.append(name, b);
+        box.appendChild(row);
+      }
+    };
+    section('Never offered to save on', never, h => h, (h) => {
+      localStorage.setItem(this.NEVER_KEY, JSON.stringify(this._never().filter(x => x !== h)));
+    });
+    section('Authenticator codes not filled on', totpNo, (k) => { const at = k.lastIndexOf('@'); return `${k.slice(at + 1)} (${k.slice(0, at)})`; }, (k) => {
+      const all = JSON.parse(localStorage.getItem('vex.totpSites') || '{}') || {};
+      delete all[k];
+      localStorage.setItem('vex.totpSites', JSON.stringify(all));
+    });
+    container.appendChild(box);
+  },
+
   async renderPanel(container) {
     if (!container) return;
     const esc = (s) => window.escapeHtml(s);
@@ -536,24 +745,65 @@ const PasswordVault = {
       return;
     }
     container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Saved logins are encrypted with your OS keychain (Windows DPAPI) and filled in when you click a sign-in field on the matching site. Vex offers to save when you log in.</p>`;
-    if (!list.length) container.innerHTML += '<div style="font-size:12.5px;color:var(--text-muted)">No saved passwords yet — log in somewhere and Vex will offer to save.</div>';
-    container.insertBefore(this._generatorCard(), container.children[1] || null);
-    list.sort((a, b) => (a.host || '').localeCompare(b.host || ''));
+    container.appendChild(this._generatorCard());
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:6px;align-items:center;margin:0 0 6px';
+    bar.innerHTML = `
+      <input id="pw-search" type="search" aria-label="Search saved passwords" placeholder="Search sites and usernames" spellcheck="false" style="flex:1;min-width:0;padding:6px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:12.5px;font-family:inherit">
+      <button type="button" id="pw-add" style="${this._btn}">${VexIcons.svg('plus', { size: 13 })}Add</button>
+      <button type="button" id="pw-export" style="${this._btn}" ${list.length ? '' : 'disabled'}>${VexIcons.svg('download', { size: 13 })}Export</button>`;
+    container.appendChild(bar);
+    bar.querySelector('#pw-add').addEventListener('click', () => this._addLogin(container));
+    bar.querySelector('#pw-export').addEventListener('click', () => this._exportCsv());
+    const rows = document.createElement('div');
+    rows.id = 'pw-rows';
+    container.appendChild(rows);
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12.5px;color:var(--text-muted);padding:8px 0';
+    empty.textContent = list.length ? 'No saved password matches that.' : 'No saved passwords yet — log in somewhere and Vex will offer to save, or Add one.';
+    empty.style.display = list.length ? 'none' : 'block';
+    container.appendChild(empty);
+    list.sort((a, b) => (a.host || '').localeCompare(b.host || '') || (a.username || '').localeCompare(b.username || ''));
     list.forEach(entry => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)';
+      row.dataset.search = ((entry.host || '') + ' ' + (entry.username || '')).toLowerCase();
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--border);flex-wrap:wrap';
       row.innerHTML = `
-        <img src="${typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon('https://' + entry.host + '/') ? `https://${encodeURIComponent(entry.host)}/favicon.ico` : ''}" style="width:18px;height:18px;border-radius:4px" data-image-fallback="hide">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(entry.host)}</div>
-          <div style="font-size:11.5px;color:var(--text-muted)">${esc(entry.username)}</div>
+        <img src="${typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon('https://' + entry.host + '/') ? `https://${encodeURIComponent(entry.host)}/favicon.ico` : ''}" style="width:18px;height:18px;border-radius:4px" alt="" data-image-fallback="hide">
+        <div style="flex:1;min-width:120px">
+          <div style="font-size:13.5px;font-weight:600;color:var(--text);overflow-wrap:anywhere">${esc(entry.host)}</div>
+          <div style="font-size:11.5px;color:var(--text-muted);overflow-wrap:anywhere">${esc(entry.username)}</div>
+          <div data-shown style="display:none;font:12.5px/1.4 Consolas,'Cascadia Mono',monospace;color:var(--text);overflow-wrap:anywhere;margin-top:3px"></div>
         </div>
-        <button data-copy style="padding:5px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Copy</button>
-        <button data-del style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Delete" aria-label="Delete this password">${VexIcons.svg('x', { size: 13 })}</button>`;
+        <button type="button" data-reveal style="${this._btn}" aria-pressed="false" aria-label="Show the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('eye', { size: 13 })}<span>Show</span></button>
+        <button type="button" data-copy style="${this._btn}" aria-label="Copy the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('copy', { size: 13 })}Copy</button>
+        <button type="button" data-edit style="${this._btn}" aria-label="Edit the login for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('edit', { size: 13 })}Edit</button>
+        <button type="button" data-del style="${this._btn};color:var(--danger);line-height:0" title="Delete" aria-label="Delete the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('x', { size: 13 })}</button>`;
+      const shown = row.querySelector('[data-shown]');
+      const reveal = row.querySelector('[data-reveal]');
+      reveal.addEventListener('click', async () => {
+        if (shown.style.display !== 'none') {
+          shown.textContent = ''; shown.style.display = 'none';
+          reveal.querySelector('span').textContent = 'Show'; reveal.setAttribute('aria-pressed', 'false');
+          return;
+        }
+        try {
+          if (!await this._recheck('shows a saved password')) return;
+          const m = await this._fullEntry(entry.host, entry.username);
+          if (!m) { window.showToast?.('That saved login is no longer in the vault', 'error'); this.renderPanel(container); return; }
+          shown.textContent = m.password + (m.note ? '\n' + m.note : '');
+          shown.style.whiteSpace = 'pre-wrap';
+          shown.style.display = 'block';
+          reveal.querySelector('span').textContent = 'Hide'; reveal.setAttribute('aria-pressed', 'true');
+        } catch (err) {
+          console.error('[Vault] show failed:', err.message);
+          window.showToast?.('Could not show that password: ' + err.message, 'error');
+        }
+      });
       row.querySelector('[data-copy]').addEventListener('click', async () => {
         try {
-          const full = await window.vex.vaultGet(entry.host);
-          const m = (full || []).find(x => x.username === entry.username);
+          if (!await this._recheck('copies a saved password')) return;
+          const m = await this._fullEntry(entry.host, entry.username);
           // Never say "copied" when nothing was: the entry may have been deleted
           // in another window since this list was painted.
           if (!m) { window.showToast?.('That saved login is no longer in the vault', 'error'); this.renderPanel(container); return; }
@@ -564,14 +814,27 @@ const PasswordVault = {
           window.showToast?.('Could not copy that password', 'error');
         }
       });
+      row.querySelector('[data-edit]').addEventListener('click', () => {
+        this._editLogin(container, entry).catch((err) => {
+          console.error('[Vault] edit failed:', err.message);
+          window.showToast?.('Could not edit that login: ' + err.message, 'error');
+        });
+      });
       row.querySelector('[data-del]').addEventListener('click', async () => {
         if (!await vexConfirm({ title: 'Delete password', message: 'Delete the saved password for ' + entry.username + ' on ' + entry.host + '?', okLabel: 'Delete', danger: true })) return;
         const result = await window.vex.vaultDelete({ host: entry.host, username: entry.username });
         if (result && !result.ok) { window.showToast?.('Delete failed: ' + (result.error || 'unknown error'), 'error'); return; }
         this.renderPanel(container);
       });
-      container.appendChild(row);
+      rows.appendChild(row);
     });
+    bar.querySelector('#pw-search').addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      let any = false;
+      for (const row of rows.children) { const hit = !q || row.dataset.search.includes(q); row.style.display = hit ? '' : 'none'; any = any || hit; }
+      empty.style.display = list.length && any ? 'none' : 'block';
+    });
+    this._choicesSection(container);
   },
 };
 

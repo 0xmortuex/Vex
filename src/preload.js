@@ -282,6 +282,9 @@ contextBridge.exposeInMainWorld('vex', {
   vaultHealth: () => ipcRenderer.invoke('vault:health'),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+  vaultUpdate: (q) => ipcRenderer.invoke('vault:update', q),
+  // Main asks where and writes the file; no password crosses for it.
+  vaultExportCsv: () => ipcRenderer.invoke('vault:export-csv'),
   // Import from another browser (main/browser-import.js). The passwords CSV is
   // chosen, read and saved in main; only hosts and usernames come back.
   browserImportSources: () => ipcRenderer.invoke('browser-import:sources'),

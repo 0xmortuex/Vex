@@ -1717,7 +1717,8 @@ ipcMain.handle('vex-lock:verify', async (e, pin) => {
   }
   return _lockGate.tryUnlock(pin);
 });
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
+  dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender) });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
