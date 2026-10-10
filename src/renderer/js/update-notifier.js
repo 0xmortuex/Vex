@@ -20,11 +20,15 @@ const UpdateNotifier = {
   SNOOZE_KEY: 'vex.updateSnoozeUntil',
   SKIP_KEY: 'vex.updateSkipVersion',
   SNOOZE_MS: 24 * 3600 * 1000,
-  // Channels. Latest: every release, as it comes out. Stable: only once the
-  // newest release has stood for two days — Vex can ship several a day, and
-  // a copy on Stable hears about the one they settle on, not each one.
+  // Channels. Latest: every release, as it comes out. Stable: once this copy
+  // has been behind for two days, counted from the first time Vex saw a newer
+  // version (or that version's release date, if earlier). It used to wait
+  // until the NEWEST release was two days old, and Vex ships several a day,
+  // so that almost never happened (one 48-hour gap in 222 releases).
   CHANNEL_KEY: 'vex.updateChannel',
   STABLE_MS: 2 * 24 * 3600 * 1000,
+  // { "<version>": <ms first seen> } for versions newer than the running one.
+  FIRST_SEEN_KEY: 'vex.updateFirstSeen',
 
   // Settings › About › Check for updates automatically. On unless turned
   // off; off, nothing is asked of GitHub until Check for Updates is pressed.
@@ -71,10 +75,40 @@ const UpdateNotifier = {
     return 0;
   },
 
+  _firstSeen() {
+    const raw = localStorage.getItem(this.FIRST_SEEN_KEY);
+    if (!raw) return {};
+    const map = JSON.parse(raw);
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  },
+
+  // Remember when each newer version was first seen. Versions at or below the
+  // running one are dropped, so after an update the clock starts again.
+  noteSeen(info, now = Date.now()) {
+    if (!info || !info.ok || !info.hasUpdate || !info.latest) return;
+    const map = this._firstSeen();
+    for (const v of Object.keys(map)) {
+      if (info.current && this.cmpVersion(v, info.current) <= 0) delete map[v];
+    }
+    if (!Number.isFinite(map[info.latest])) map[info.latest] = now;
+    this._remember(this.FIRST_SEEN_KEY, JSON.stringify(map));
+  },
+
+  // Since when this copy has been behind: the earliest first-seen time of any
+  // newer version, or the newest release's date if that is earlier.
+  behindSince(info, now = Date.now()) {
+    let since = now;
+    for (const [v, t] of Object.entries(this._firstSeen())) {
+      if (Number.isFinite(t) && (!info.current || this.cmpVersion(v, info.current) > 0)) since = Math.min(since, t);
+    }
+    if (Number.isFinite(info.releasedAt)) since = Math.min(since, info.releasedAt);
+    return since;
+  },
+
   // Should the cover come up by itself for this check result?
   shouldAnnounce(info, now = Date.now()) {
     if (!info || !info.ok || !info.hasUpdate) return false;
-    if (this.channel() === 'stable' && info.releasedAt && now - info.releasedAt < this.STABLE_MS) return false;
+    if (this.channel() === 'stable' && now - this.behindSince(info, now) < this.STABLE_MS) return false;
     const skipped = this.skippedVersion();
     if (skipped && info.latest && this.cmpVersion(info.latest, skipped) <= 0) return false;
     if (now < this.snoozedUntil()) return false;
@@ -90,6 +124,7 @@ const UpdateNotifier = {
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    this.noteSeen(r);
     if (this.shouldAnnounce(r)) this.showCover(r);
   },
 
@@ -101,6 +136,7 @@ const UpdateNotifier = {
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    this.noteSeen(r);
     // A cover opened from Settings while the check was out wins.
     if (this._el) return;
     if (this.shouldAnnounce(r)) this.showCover(r);
@@ -116,6 +152,7 @@ const UpdateNotifier = {
     let result;
     try { result = await window.vex.checkForUpdates(); }
     catch (err) { result = { ok: false, error: err.message }; }
+    this.noteSeen(result);
     if (result?.ok && result.hasUpdate) this.showCover(result);
     else if (result?.ok) window.showToast?.('You\'re running the latest version');
     else window.showToast?.('Couldn\'t check for updates: ' + (result?.error || 'network error'), 'error', 5000);

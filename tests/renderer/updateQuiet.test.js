@@ -104,4 +104,35 @@ describe('update channels', () => {
     expect(UpdateNotifier.shouldAnnounce(fresh, now)).toBe(false);
     expect(UpdateNotifier.shouldAnnounce(settled, now)).toBe(true);
   });
+  it('Stable counts from the first time Vex saw a newer version, not the newest release date', () => {
+    UpdateNotifier.setChannel('stable');
+    const day = 24 * 3600 * 1000;
+    const t0 = Date.parse('2026-10-07T12:00:00Z');
+    // 14.72.2 seen 2.5 days ago; 14.72.3 came out 20 h ago. The user is on 14.60.0.
+    UpdateNotifier.noteSeen({ ok: true, hasUpdate: true, latest: '14.72.2', current: '14.60.0', releasedAt: t0 - 3600e3 }, t0);
+    const later = t0 + 2.5 * day;
+    const newest = { ok: true, hasUpdate: true, latest: '14.72.3', current: '14.60.0', releasedAt: later - 20 * 3600e3 };
+    UpdateNotifier.noteSeen(newest, later);
+    expect(UpdateNotifier.shouldAnnounce(newest, later)).toBe(true);
+    // One day behind is not yet two.
+    expect(UpdateNotifier.shouldAnnounce(newest, t0 + day)).toBe(false);
+  });
+  it('Stable starts the clock again after the update: older first-seen entries are dropped', () => {
+    UpdateNotifier.setChannel('stable');
+    const day = 24 * 3600 * 1000;
+    const t0 = Date.parse('2026-10-01T12:00:00Z');
+    UpdateNotifier.noteSeen({ ok: true, hasUpdate: true, latest: '3.0.0', current: '2.0.0' }, t0);
+    // Now running 3.0.0; 3.0.1 just seen, released an hour ago.
+    const now = t0 + 5 * day;
+    const next = { ok: true, hasUpdate: true, latest: '3.0.1', current: '3.0.0', releasedAt: now - 3600e3 };
+    UpdateNotifier.noteSeen(next, now);
+    expect(JSON.parse(localStorage.getItem(UpdateNotifier.FIRST_SEEN_KEY))).toEqual({ '3.0.1': now });
+    expect(UpdateNotifier.shouldAnnounce(next, now)).toBe(false);
+    expect(UpdateNotifier.shouldAnnounce(next, now + 2 * day)).toBe(true);
+  });
+  it('the automatic check remembers when it first saw the version', async () => {
+    window.vex.checkForUpdates = vi.fn(async () => update('2.31.99'));
+    await UpdateNotifier.checkOnStartup();
+    expect(Object.keys(JSON.parse(localStorage.getItem(UpdateNotifier.FIRST_SEEN_KEY)))).toEqual(['2.31.99']);
+  });
 });
