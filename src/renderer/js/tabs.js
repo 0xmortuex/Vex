@@ -408,9 +408,12 @@ const TabManager = {
     // (js/tab-trail.js). A tab opened from nothing records nothing.
     if (typeof TabTrail !== 'undefined') TabTrail.record(tab, opener || this.getActiveTab());
 
-    const at = this._insertIndexFor(tab, opener);
+    // A copy (duplicateTab) goes straight after its original, not after the
+    // tabs the original opened, and starts no run of its own.
+    const adjacent = !!(opts && opts.rightAfterOpener);
+    const at = this._insertIndexFor(tab, opener, adjacent);
     this.tabs.splice(at, 0, tab);
-    if (opener) this._openerRun = { openerId: opener.id, lastId: tab.id };
+    if (opener && !adjacent) this._openerRun = { openerId: opener.id, lastId: tab.id };
     WebviewManager.createWebview(tab);
     // A site rule can also say how the tab behaves once it is open — muted,
     // or never allowed to sleep (js/site-routes.js).
@@ -439,10 +442,13 @@ const TabManager = {
   // among its loose tabs, and one opened from a stacked tab, or into another
   // section than its opener's, at the end. A new tab from + or Ctrl+T, which
   // has no opener, goes at the end as before.
-  _insertIndexFor(tab, opener) {
+  // With adjacent (a copy of a tab) it goes straight after the opener, a
+  // pinned tab's pinned copy among the pinned.
+  _insertIndexFor(tab, opener, adjacent = false) {
     const end = this.tabs.length;
     if (!opener || opener.stackId) return end;
-    const sameSection = t => !t.pinned && !t.stackId && (t.groupId || null) === (tab.groupId || null);
+    const sameSection = t => !t.stackId && (tab.pinned ? !!t.pinned : !t.pinned && (t.groupId || null) === (tab.groupId || null));
+    if (adjacent && sameSection(opener)) return this.tabs.indexOf(opener) + 1;
     const run = this._openerRun;
     const last = run && run.openerId === opener.id ? this.tabs.find(t => t.id === run.lastId && sameSection(t)) : null;
     if (last) return this.tabs.indexOf(last) + 1;
@@ -451,6 +457,18 @@ const TabManager = {
       return first < 0 ? end : first;
     }
     return sameSection(opener) ? this.tabs.indexOf(opener) + 1 : end;
+  },
+
+  // Duplicate (the tab menu, the page menu, Ctrl+K, the gesture): the copy
+  // went to the far end and started with an empty Back list (found
+  // 2026-10-10). As in Chrome it goes right after the original, in its group,
+  // pinned if it is, and keeps the original's Back and Forward list (the one
+  // kept with the tab, js/webview.js _noteHistory; main checks it again).
+  duplicateTab(source) {
+    if (!source || !source.url) throw new Error('No tab to duplicate');
+    const saved = window.VexTabPolicy ? window.VexTabPolicy.serialize(source, { history: true }) : source;
+    return this.createTab(source.url, true, source.groupId || null,
+      { ...saved, allowDuplicate: true, openerTabId: source.id, rightAfterOpener: true });
   },
 
   // === Back and forth between two tabs ======================================
@@ -1714,7 +1732,7 @@ const TabManager = {
       // Reload and Bookmark were missing, and the six snooze times sat inline,
       // which made this menu 620px tall (walkthrough L10, 2026-10-07).
       { label: 'Reload', action: () => this._reloadTabFromMenu(tab) },
-      { label: 'Duplicate', action: () => this.createTab(tab.url, true, tab.groupId, { ...(window.VexTabPolicy?.serialize(tab) || tab), allowDuplicate: true }) },
+      { label: 'Duplicate', action: () => this.duplicateTab(tab) },
       // Route through togglePinTab, which rebuilds the strip. Flipping
       // tab.pinned inline (the old code) persisted the new state but left the
       // UI untouched: the pinned-tabs row was never built and the horizontal

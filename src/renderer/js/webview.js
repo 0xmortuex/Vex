@@ -1505,7 +1505,7 @@ const WebviewManager = {
       // A tab's own rows. In a panel (Gemini, Claude, Discord...) "Duplicate
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.
-      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
+      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.duplicateTab(t); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       { label: 'Print…', action: () => this.printPage(webview) },
       { label: 'View Page Source', action: () => this.viewSource(webview) },

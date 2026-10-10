@@ -51,13 +51,12 @@ describe('mouse gestures', () => {
   it('↓← reopens the last closed tab, and ↑← makes a real copy', async () => {
     const { MouseGestures } = await import('../../src/renderer/js/gestures.js');
     const tab = fakeTab('a', { groupId: 'g1' });
-    globalThis.TabManager = { getActiveTab: () => tab, reopenLastClosed: vi.fn(), createTab: vi.fn(), tabs: [tab] };
+    globalThis.TabManager = { getActiveTab: () => tab, reopenLastClosed: vi.fn(), duplicateTab: vi.fn(), tabs: [tab] };
     MouseGestures.run('DL', {});
     expect(TabManager.reopenLastClosed).toHaveBeenCalledTimes(1);
     MouseGestures.run('UL', {});
-    const [url, activate, groupId, opts] = TabManager.createTab.mock.calls[0];
-    expect([url, activate, groupId]).toEqual(['https://a.example/', true, 'g1']);
-    expect(opts.allowDuplicate).toBe(true);
+    // The copy itself (allowDuplicate, its group, next to it): moreTabPlacement.test.js.
+    expect(TabManager.duplicateTab).toHaveBeenCalledWith(tab);
     delete globalThis.TabManager;
   });
 });

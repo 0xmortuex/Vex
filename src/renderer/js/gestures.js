@@ -55,7 +55,7 @@ const MouseGestures = {
       // A copy on purpose: without allowDuplicate createTab's already-open
       // guard just switched to this same tab (found 2026-09-29). Same options
       // as the tab menu's Duplicate.
-      'UL': () => { try { if (t) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } catch {} return '↑← Duplicate tab'; },
+      'UL': () => { try { if (t) TabManager.duplicateTab(t); } catch {} return '↑← Duplicate tab'; },
       'RD': () => { const id = this._adjacent(1); if (id) TabManager.switchTab(id); return '→↓ Next tab'; },
       'LD': () => { const id = this._adjacent(-1); if (id) TabManager.switchTab(id); return '←↓ Previous tab'; },
     }[dir];
