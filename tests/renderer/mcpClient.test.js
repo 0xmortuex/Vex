@@ -131,3 +131,31 @@ describe('McpClient agent integration', () => {
     expect(McpClient.agentToolDefs()).toEqual([]);
   });
 });
+
+// AI audit 2026-10-10: saved servers were not connected after a restart, so
+// the agent had none of their tools until each was opened in Settings.
+describe('McpClient at start', () => {
+  const rpc = (result, headers = {}) => ({ ok: true, status: 200, headers, body: JSON.stringify({ jsonrpc: '2.0', id: 1, result }) });
+
+  it('connects saved servers in the background and gives their tools to the agent', async () => {
+    localStorage.setItem('vex.mcpServers', JSON.stringify([{ id: 'mcp_a', name: 'Files', url: 'https://files.example/mcp' }]));
+    globalThis.window.vex = { apiRequest: vi.fn(async ({ body }) => {
+      const { method } = JSON.parse(body);
+      if (method === 'initialize') return rpc({ serverInfo: { name: 'files' } });
+      if (method === 'tools/list') return rpc({ tools: [{ name: 'read_file', description: 'Read a file', inputSchema: { properties: { path: { type: 'string' } } } }] });
+      return { ok: true, status: 202, headers: {}, body: '' };
+    }) };
+    McpClient.load();
+    const results = await McpClient.connectSaved();
+    expect(results).toEqual([{ id: 'mcp_a', ok: true, tools: 1 }]);
+    expect(McpClient.agentToolDefs().map(d => d.name)).toEqual(['mcp__mcp_a__read_file']);
+  });
+
+  it('a server that does not answer is given up on after the timeout, without holding the rest', async () => {
+    localStorage.setItem('vex.mcpServers', JSON.stringify([{ id: 'mcp_slow', name: 'Slow', url: 'https://slow.example/mcp' }]));
+    globalThis.window.vex = { apiRequest: vi.fn(() => new Promise(() => {})) };
+    McpClient.load();
+    const results = await McpClient.connectSaved(30);
+    expect(results).toEqual([{ id: 'mcp_slow', ok: false, error: expect.stringMatching(/^no answer within/) }]);
+  });
+});

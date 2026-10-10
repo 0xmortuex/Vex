@@ -75,6 +75,18 @@ describe('Repeat a task (Ctrl+K) permission mode', () => {
   });
 });
 
+describe('Auto-approve and MCP tools', () => {
+  it('asks before an MCP server tool runs', async () => {
+    AgentLoop._mode = 'auto'; AgentLoop._allowedSites = new Set(['https://shop.example']); AgentLoop._currentSite = 'https://shop.example';
+    const p = AgentLoop._checkPermission({ tool: 'mcp__mcp_a__write_file', parameters: { path: 'x' }, intent: 'action', thought: 'write it' });
+    await tick(20);
+    const asked = vexConfirm.mock.calls.length > 0 || document.querySelectorAll('.agent-approve').length > 0;
+    expect(asked).toBe(true);
+    AgentLoop.stop();
+    await Promise.race([p, tick(50)]);
+  });
+});
+
 describe('Auto-approve and download_file', () => {
   it('asks before downloading a file (the tool description promises "The user is asked first")', async () => {
     AgentLoop._mode = 'auto'; AgentLoop._allowedSites = new Set(['https://shop.example']); AgentLoop._currentSite = 'https://shop.example';

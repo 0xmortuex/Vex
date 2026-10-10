@@ -1241,6 +1241,9 @@ const AgentLoop = {
     // A file from the web lands on the disk: always asked, as the tool says
     // ("The user is asked first"), even in Auto-approve.
     if (decision.tool === 'download_file') return true;
+    // An MCP server's tool can do anything that server can (write files, send
+    // messages); Vex cannot tell which, so each call is asked about.
+    if (typeof decision.tool === 'string' && decision.tool.startsWith('mcp__')) return true;
     return false;
   },
 

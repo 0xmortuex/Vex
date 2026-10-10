@@ -112,7 +112,28 @@ const McpClient = (() => {
     return await _rpc(server, 'tools/call', { name, arguments: args || {} });
   }
 
-  function init() { load(); }
+  // Saved servers are connected again in the background at start: their tools
+  // were missing from the agent after every restart until the server was
+  // opened in Settings (found 2026-10-10). One that does not answer within
+  // the time is left for later and noted; start-up does not wait for any.
+  const CONNECT_TIMEOUT_MS = 10000;
+  function connectSaved(timeoutMs = CONNECT_TIMEOUT_MS) {
+    return Promise.all(servers.map(async (s) => {
+      let timer;
+      const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('no answer within ' + Math.round(timeoutMs / 1000) + ' s')), timeoutMs); });
+      try {
+        const sess = await Promise.race([connect(s), late]);
+        return { id: s.id, ok: true, tools: sess.tools.length };
+      } catch (err) {
+        const why = (err && err.message) || 'failed';
+        console.warn('[MCP] could not connect to ' + s.name + ': ' + why);
+        if (typeof VexProblems !== 'undefined') VexProblems.note('MCP', 'Could not connect to ' + s.name, why);
+        return { id: s.id, ok: false, error: why };
+      } finally { clearTimeout(timer); }
+    }));
+  }
+
+  function init() { load(); connectSaved(); }
 
   // ---------------- Agent integration ----------------
   // Expose connected servers' tools to the autonomous agent as tool defs shaped
@@ -258,7 +279,7 @@ const McpClient = (() => {
     });
   }
 
-  return { load, save, list, addServer, removeServer, connect, callTool, session, init, renderSettings, openExplorer, agentToolDefs, agentCall, _parseBody };
+  return { load, save, list, addServer, removeServer, connect, connectSaved, callTool, session, init, renderSettings, openExplorer, agentToolDefs, agentCall, _parseBody };
 })();
 
 if (typeof window !== 'undefined') window.McpClient = McpClient;
