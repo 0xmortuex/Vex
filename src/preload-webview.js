@@ -2576,7 +2576,7 @@ if (typeof module !== 'undefined' && module.exports) {
 // previewed page the key went to that page and the overlay stayed open (found
 // 2026-09-29). An Escape the page did not use is reported to the host; only
 // the webviews those overlays own act on it (peek.js, devtools-pack.js), a
-// tab ignores it. A page that takes Escape itself (its own menu, a <dialog>,
+// tab stops a page still loading (webview.js). A page that takes Escape itself (its own menu, a <dialog>,
 // leaving full screen) keeps it.
 (function () {
   'use strict';

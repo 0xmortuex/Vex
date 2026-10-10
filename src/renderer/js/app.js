@@ -183,8 +183,22 @@ function vexOwnTextFocused(doc) {
     if (e.key === 'Enter') {
       submitUrlBar(urlInput.value, e.ctrlKey || e.altKey);
     } else if (e.key === 'Escape') {
-      urlInput.blur();
+      // As in Chrome: the first Esc undoes what you typed and keeps the bar;
+      // with nothing to undo it stops a page still loading; after that it
+      // lets go of the bar. Esc never stopped a load (found 2026-10-10).
       const tab = TabManager.getActiveTab();
+      if (tab && urlInput.value !== TabManager.urlBarText(tab)) {
+        urlInput.value = TabManager.urlBarText(tab);
+        urlInput.select();
+        return;
+      }
+      if (tab && tab.loading) {
+        WebviewManager.stop();
+        urlInput.value = TabManager.urlBarText(tab);
+        urlInput.select();
+        return;
+      }
+      urlInput.blur();
       if (tab) TabManager.updateUrlBar(tab);
     }
   });
@@ -207,7 +221,11 @@ function vexOwnTextFocused(doc) {
   // === Navigation Buttons ===
   document.getElementById('btn-back').addEventListener('click', () => WebviewManager.goBack());
   document.getElementById('btn-forward').addEventListener('click', () => WebviewManager.goForward());
-  document.getElementById('btn-reload').addEventListener('click', () => WebviewManager.reload());
+  // Stop while the page loads, Reload otherwise (TabManager.syncReloadButton).
+  document.getElementById('btn-reload').addEventListener('click', (e) => {
+    if (e.currentTarget.dataset.state === 'stop') WebviewManager.stop();
+    else WebviewManager.reload();
+  });
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   // Restart Vex from the toolbar. Confirm first: a restart closes every tab, and
   // this button sits next to one that only opens a wizard, so a mis-click is easy.

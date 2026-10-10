@@ -834,20 +834,42 @@ const TabManager = {
     const urlInput = document.getElementById('url-input');
     // The send button is for web pages in normal tabs only (js/handoff.js).
     if (typeof Handoff !== 'undefined' && tab && tab.id === this.activeTabId) Handoff.syncButton(tab);
+    if (tab && tab.id === this.activeTabId) this.syncReloadButton(tab);
     // Don't stomp the user's in-progress edit. Async webview load events
     // (did-navigate/did-stop-loading/etc.) re-run this while the user has just
     // focused + pasted/typed into the bar, which would wipe their text (the
     // "paste twice" bug). When the bar is focused we skip the overwrite; the
     // blur handler below re-syncs the bar to the real URL once editing ends.
     if (document.activeElement === urlInput) return;
-    // An address asked for and still loading is shown over the old one
-    // (WebviewManager.navigate sets it, did-navigate clears it).
+    urlInput.value = this.urlBarText(tab);
+    if (isStartPage(tab._typedUrl || tab.url)) urlInput.placeholder = 'Search or enter URL...';
+  },
+
+  // What the address bar shows for a tab when nobody is editing it. An
+  // address asked for and still loading is shown over the old one
+  // (WebviewManager.navigate sets it, did-navigate clears it); a start page
+  // shows nothing.
+  urlBarText(tab) {
     const shown = tab._typedUrl || tab.url;
-    if (isStartPage(shown)) {
-      urlInput.value = '';
-      urlInput.placeholder = 'Search or enter URL...';
+    return isStartPage(shown) ? '' : shown;
+  },
+
+  // While the active tab's page loads, Reload is Stop, as in every browser.
+  // There was no way to stop a load at all (found 2026-10-10). The button is
+  // the same element in every look, so this is the one place it changes.
+  syncReloadButton(tab) {
+    const btn = document.getElementById('btn-reload');
+    if (!btn) return;
+    const state = tab && tab.loading ? 'stop' : 'reload';
+    if ((btn.dataset.state || 'reload') === state) return;
+    if (btn._reloadMarkup === undefined) { btn._reloadMarkup = btn.innerHTML; btn._reloadTitle = btn.title; }
+    btn.dataset.state = state;
+    if (state === 'stop') {
+      btn.innerHTML = VexIcons.svg('x', { size: 16 });
+      btn.title = 'Stop loading this page (Esc)';
     } else {
-      urlInput.value = shown;
+      btn.innerHTML = btn._reloadMarkup;
+      btn.title = btn._reloadTitle;
     }
   },
 

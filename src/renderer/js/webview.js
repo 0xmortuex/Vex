@@ -336,6 +336,14 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // An Escape the page left alone (preload-webview.js) stops the page
+      // while it loads, as in Chrome. It did nothing in a tab (found
+      // 2026-10-10).
+      if (e.channel === 'vex-escape') {
+        const live = TabManager.tabs.find(t => t.id === tab.id);
+        if (live && live.loading) this.stop(tab.id);
+        return;
+      }
       // PiP video-detection from the guest preload (sent via sendToHost because a
       // guest window.postMessage can't cross to the host). Re-emit as a host
       // window message so PiPManager (app.js) handles it unchanged. Gate on the
@@ -1018,6 +1026,21 @@ const WebviewManager = {
     const real = this._blankRecoveryUrl(wv);
     if (real) { try { if (wv.dataset) delete wv.dataset.hibernated; this._loadUnwatched(wv, real, 'reload'); } catch { try { wv.src = real; } catch {} } return; }
     wv.reload();
+  },
+
+  // Stop a tab's load (the Stop button, Esc in the address bar or the page).
+  // An address typed and still loading gives way to the page still showing,
+  // as in Chrome; navigate()'s own settle finds it already gone.
+  stop(tabId = TabManager.activeTabId) {
+    const wv = this.webviews.get(tabId);
+    if (!wv) return false;
+    wv.stop();
+    const tab = TabManager.tabs.find(t => t.id === tabId);
+    if (tab) {
+      delete tab._typedUrl;
+      if (tabId === TabManager.activeTabId) TabManager.updateUrlBar(tab);
+    }
+    return true;
   },
 
   // Hard reload: clear the webview's HTTP cache in the main process, then
