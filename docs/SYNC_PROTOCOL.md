@@ -80,7 +80,7 @@ Request: `{ "email": string }`. The address must contain `@`.
 Each new code replaces the previous one and resets the wrong-guess counter. A code is valid for 10 minutes and is 6 decimal digits, zero-padded.
 
 #### `POST /auth/verify-code`
-Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. The server compares `String(code)`, so a number works. `deviceName` defaults to `"Unknown device"` and is **not validated**. A client SHOULD send a short human-readable string; desktop sends e.g. `Windows-7K2Q`.
+Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. The server compares `String(code)`, so a number works. `deviceName` defaults to `"Unknown device"` and is **not validated**. A client SHOULD send a short human-readable string; desktop sends the name the user typed at sign-in (by default e.g. `Windows-7K2Q`). A later rename travels only in the device's marker (§4.6).
 
 | Status | Body |
 |---|---|
@@ -384,7 +384,7 @@ Levels:
 | 1 | `{"level":1}` | understands shortcut tiles and the New Tab grid | Vex 2.34.3 to v14.72.3 |
 | 2 | `{"level":2,"revision":<int>}` | level 1, plus §6 rule 1 (copies every record it does not own verbatim), §4.7 (drops a tombstone the account no longer holds; never writes a retired source), and `revision` = the account revision of the document this push was built from | the release after v14.72.3 |
 
-A level-2 marker's `revision` only has to be at most the revision the device last merged; it may lag. The desktop rewrites it along with any other change, and on its own at most once a day (when the marker record's `at` is a day old), so two idle desktops do not keep pushing each other's revision back and forth. Other fields MAY be added to a marker later; a client MUST ignore fields it does not know and copy other devices' markers verbatim.
+A marker MAY carry `"name": <string ≤ 60, no control characters>`, the name the user gave the device (desktop: Settings › Vex Sync, at sign-in or with Rename, from the release after v14.72.3). The desktop shows it in place of the server's `deviceName`, which is only the name sent at sign-in; unlike that one, it is encrypted. A level-2 marker's `revision` only has to be at most the revision the device last merged; it may lag. The desktop rewrites it along with any other change, and on its own at most once a day (when the marker record's `at` is a day old), so two idle desktops do not keep pushing each other's revision back and forth. Other fields MAY be added to a marker later; a client MUST ignore fields it does not know and copy other devices' markers verbatim.
 
 Tile gating needs level ≥ 1 (`TILES_LEVEL`). Before writing tiles, each desktop runs `checkTileGate`:
 1. `GET /sync/devices`.

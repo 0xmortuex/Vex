@@ -149,8 +149,40 @@ const SyncEngine = (() => {
   let compactGate = { open: false, waitingOn: [], floor: 0 };
   // The account's device list as last read (checkTileGate).
   let knownDevices = [];
+  // A device's name: the one it gave itself in its marker (renameDevice), else
+  // the one the server was told when it signed in.
   function deviceName(deviceId, listed) {
-    return (listed && typeof listed.deviceName === 'string' && listed.deviceName.trim()) || 'Another device';
+    const marker = recordDocument?.records[JSON.stringify([DEVICE_SOURCE + deviceId, 'value'])];
+    const own = marker && !marker.deleted && marker.value && typeof marker.value.name === 'string' ? cleanName(marker.value.name) : '';
+    return own || (listed && typeof listed.deviceName === 'string' && listed.deviceName.trim()) || 'Another device';
+  }
+
+  // This device's name, chosen in Settings › Vex Sync. Kept on this device
+  // (not synced) and sent in its marker, so it is encrypted like everything
+  // else: the server keeps only the name given at sign-in, which was always
+  // "Windows-" and four letters (found 2026-10-10).
+  const NAME_KEY = 'vex.syncDeviceName';
+  const cleanName = name => String(name == null ? '' : name).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  function thisDeviceName() {
+    try { return cleanName(localStorage.getItem(NAME_KEY)); }
+    catch (err) { console.error('[Sync] This device\'s name could not be read:', err.message); return ''; }
+  }
+  // The name a sign-in sends, remembered as this device's name.
+  function signInName(asked) {
+    const name = cleanName(asked) || thisDeviceName() || getDefaultDeviceName();
+    localStorage.setItem(NAME_KEY, name);
+    return name;
+  }
+  // Renames this device on every device on the account (on the next sync,
+  // which this starts).
+  async function renameDevice(name) {
+    const clean = cleanName(name);
+    if (!clean) throw new Error('Give this device a name');
+    localStorage.setItem(NAME_KEY, clean);
+    if (!state.enabled) return { ok: true };
+    const pushed = await pushNow();
+    if (!pushed.ok) throw new Error('Renamed here, but your other devices will see it only after the next sync: ' + pushed.reason);
+    return { ok: true };
   }
   // A marker whose revision is older than this is written again even when
   // nothing else changed, so the other devices learn this one is up to date.
@@ -301,7 +333,7 @@ const SyncEngine = (() => {
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/verify-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code, deviceName: deviceName || getDefaultDeviceName() })
+      body: JSON.stringify({ email, code, deviceName: signInName(deviceName) })
     });
     if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
@@ -389,7 +421,7 @@ const SyncEngine = (() => {
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/verify-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code, deviceName: deviceName || getDefaultDeviceName() })
+      body: JSON.stringify({ email, code, deviceName: signInName(deviceName) })
     });
     if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
@@ -673,10 +705,12 @@ const SyncEngine = (() => {
     // written again only along with another change, or once a day (see
     // MARKER_REFRESH_MS); otherwise the one already in the account stays.
     const markerKey = JSON.stringify([DEVICE_SOURCE + state.deviceId, 'value']);
-    const freshMarker = { level: SYNC_LEVEL, revision };
+    const myName = thisDeviceName();
+    const freshMarker = { level: SYNC_LEVEL, revision, ...(myName ? { name: myName } : {}) };
     const previous = before.records[markerKey];
     const keepMarker = !!previous && !previous.deleted && previous.value?.level === SYNC_LEVEL
-      && Number.isSafeInteger(previous.value.revision) && Date.now() - (previous.at || 0) < MARKER_REFRESH_MS;
+      && Number.isSafeInteger(previous.value.revision) && (previous.value.name || '') === myName
+      && Date.now() - (previous.at || 0) < MARKER_REFRESH_MS;
     data[DEVICE_SOURCE + state.deviceId] = keepMarker ? previous.value : freshMarker;
     if (gate.open) {
       // First tile sync on this device, or the first since an older device
@@ -1309,6 +1343,10 @@ const SyncEngine = (() => {
     // devices that waits on (an older Vex, or the phone).
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     otherDeviceTabs,
+    renameDevice,
+    thisDeviceName: () => thisDeviceName() || getDefaultDeviceName(),
+    // The name to show for a device in the list: its own choice, else the server's.
+    nameOf: (device) => (device && device.deviceId === state.deviceId && thisDeviceName()) || deviceName(device && device.deviceId, device),
     isEnabled: () => state.enabled && !privateWindow(),
     // Settings and the sync indicator say so in a private window.
     offInThisWindow: () => (privateWindow() ? PRIVATE_OFF : ''),

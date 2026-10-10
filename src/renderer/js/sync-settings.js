@@ -115,6 +115,8 @@ const SyncSettings = (() => {
               <button class="btn-primary" id="btn-send-code">Send Code</button>
             </div>
             <div class="step-error" id="email-error" hidden></div>
+            <label class="step-label" for="sync-device-name-input" style="display:block;margin-top:10px">This device's name, as your other devices will show it</label>
+            <input type="text" id="sync-device-name-input" maxlength="60" value="${escapeHtml(SyncEngine.thisDeviceName())}" autocomplete="off">
           </div>
 
           <div class="step" id="step-code" hidden>
@@ -162,6 +164,8 @@ const SyncSettings = (() => {
     // landed (found 2026-09-29).
     setTimeout(() => document.getElementById('sync-email-input')?.focus({ preventScroll: true }), 50);
   }
+
+  const deviceNameAsked = () => (document.getElementById('sync-device-name-input')?.value || '').trim();
 
   function wireSignedOutHandlers(container) {
     document.getElementById('btn-send-code')?.addEventListener('click', async () => {
@@ -216,11 +220,11 @@ const SyncSettings = (() => {
           usedPending = SyncEngine.pendingJoinFor(email);
           const joined = usedPending
             ? await SyncEngine.joinPending(recoveryCode)
-            : await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
+            : await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode, deviceNameAsked());
           if (joined.pushError) toast('Signed in and pulled your data, but this device’s own data could not be uploaded yet — ' + human(joined.pushError) + '. It will try again on the next sync.', 'error');
           else toast('Signed in — pulled your data', 'success');
         } else {
-          const result = await SyncEngine.verifyCode(email, code);
+          const result = await SyncEngine.verifyCode(email, code, deviceNameAsked());
           if (result.needsRecoveryCode) {
             // Ask for it here; the session waits for it.
             const box = document.getElementById('has-recovery-code');
@@ -299,10 +303,10 @@ const SyncSettings = (() => {
       : (devices.map(d => `
               <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
                 <div class="device-info">
-                  <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
+                  <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(SyncEngine.nameOf(d))} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
                   <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}${cleanupWaitOn.has(d.deviceId) && !tilesWaitOn.has(d.deviceId) ? ' &middot; Deleted items are cleared out of your account once this device has synced with this version of Vex' : ''}</div>
                 </div>
-                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
+                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : '<button class="btn-secondary" id="btn-rename-device">Rename</button>'}
               </div>
             `).join('') || '<div style="color:var(--text-muted);font-size:12px">No devices yet.</div>');
 
@@ -374,6 +378,16 @@ const SyncSettings = (() => {
       setTimeout(async () => {
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       }, 1500);
+    });
+
+    document.getElementById('btn-rename-device')?.addEventListener('click', async () => {
+      const name = await vexPrompt({ title: 'Rename this device', message: 'The name your other devices show for this one.', value: SyncEngine.thisDeviceName(), okLabel: 'Rename' });
+      if (name == null) return;
+      try {
+        await SyncEngine.renameDevice(name);
+        toast('Renamed', 'success');
+      } catch (err) { toast(human(err && err.message), 'error'); }
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
     });
 
     // The device list failed to load; let the user ask again without leaving.
