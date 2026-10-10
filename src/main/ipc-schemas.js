@@ -66,7 +66,7 @@ define('downloads:control', [string(160), oneOf(['pause', 'resume', 'cancel'])])
 // The address, and the id the panel knows the download by: main retries it
 // through the session the first attempt used (src/main/downloads.js).
 define('downloads:retry', [web, optional(string(160))]);
-define('downloads:ask-where', [string(4 * 1024 * 1024 + 64)]);
+define('downloads:ask-where downloads:mine', [string(4 * 1024 * 1024 + 64)]);
 define('image:copy', [string(4 * 1024 * 1024 + 64), string(200)]);
 define('extensions:open-popup', [shape({ folder: string(160), x: optional(coordinate), y: optional(coordinate), tab: optional(integer) })]);
 define('extensions:popup-tab', []);
@@ -241,7 +241,7 @@ define('siterules:set', [object]);
 define('permissions:list-for-page', [integer]);
 // The site panel (js/site-panel.js): one permission of a tab's page set to
 // allow, block or ask; all of its site's reset; the certificate it was served with.
-define('permissions:set-for-page', [integer, value => typeof value === 'string' && /^(?:camera|microphone|geolocation|notifications|clipboard-read|display-capture|midi|midiSysex|popups|external:[a-z][a-z0-9+.-]{0,40})$/.test(value), oneOf(['allow', 'deny', 'ask'])]);
+define('permissions:set-for-page', [integer, value => typeof value === 'string' && /^(?:camera|microphone|geolocation|notifications|clipboard-read|display-capture|midi|midiSysex|popups|automatic-downloads|external:[a-z][a-z0-9+.-]{0,40})$/.test(value), oneOf(['allow', 'deny', 'ask'])]);
 define('permissions:reset-for-page site:certificate', [integer]);
 // The pages of a tab just closed, whose saved back lists go (session-security.js).
 define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);

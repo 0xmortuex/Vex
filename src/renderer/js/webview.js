@@ -1154,6 +1154,11 @@ const WebviewManager = {
       if (as) {
         if (!window.vex || typeof window.vex.downloadsAskWhere !== 'function') throw new Error('Save As is not available in this window');
         await window.vex.downloadsAskWhere(src);
+      } else {
+        // You asked for it, so it is never taken for one the page started by
+        // itself (src/main/downloads.js, automatic downloads).
+        const r = await window.vex.downloadsMine(src);
+        if (!r || !r.ok) throw new Error((r && r.error) || 'Vex did not answer');
       }
       webview.downloadURL(src);
     } catch (err) {

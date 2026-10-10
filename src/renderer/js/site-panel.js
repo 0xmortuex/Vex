@@ -48,6 +48,8 @@ const SitePanel = {
     { id: 'clipboard-read', name: 'Read your clipboard', icon: 'clipboard' },
     { id: 'display-capture', name: 'Share your screen', icon: 'monitor' },
     { id: 'midi', name: 'MIDI devices', icon: 'music' },
+    { id: 'automatic-downloads', name: 'Automatic downloads', icon: 'download',
+      note: 'Several files the page downloads by itself. A file you click always downloads.' },
   ],
   CONTAINERS: ['work', 'personal', 'shopping'],
 

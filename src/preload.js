@@ -341,6 +341,7 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
   downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
+  downloadsMine:         (url) => ipcRenderer.invoke('downloads:mine', url),
   copyImageFrom:         (url, partition) => ipcRenderer.invoke('image:copy', url, partition),
   // A picture for the AI, fetched through its tab's own session; a private or
   // Tor tab's only with confirmed (else { needsConsent, kind }).

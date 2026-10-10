@@ -727,7 +727,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
+const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -2373,7 +2373,7 @@ ipcMain.handle('media:list', (_e, wcId) => {
 ipcMain.handle('media:download', (_e, wcId, url) => {
   try {
     const wc = webContents.fromId(wcId);
-    if (wc && !wc.isDestroyed() && url) { wc.downloadURL(url); return { ok: true }; }
+    if (wc && !wc.isDestroyed() && url) { _downloadService.markMine(url); wc.downloadURL(url); return { ok: true }; }
   } catch (err) { return { ok: false, error: err.message }; }
   return { ok: false, error: 'tab not found' };
 });
@@ -2560,6 +2560,9 @@ function _pageUrlOf(webContentsId) {
 
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
   prefs: () => _downloadPrefs.current(),
+  // A page's second download with no click asks first (Chrome's automatic
+  // downloads); a click or key press is read from _watchGestures.
+  lastGestureAt: (contents) => _lastGestureAt.get(contents.id), askAutoDownloads: askAutomaticDownloads,
   // Read lazily, the first time a download finishes or is opened.
   knownBefore: () => {
     const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');

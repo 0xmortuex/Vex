@@ -413,6 +413,51 @@ function askExternalApp(contents, origin, scheme, { app = scheme, detail = '', n
   return answer;
 }
 
+// A page starting another download by itself, with no click, moments after
+// the last (src/main/downloads.js): Chrome's "automatic downloads". Asked per
+// site, Allow or Block, kept in the site's permissions (the site panel and
+// Settings > Site permissions show it). remember false — a private window, a
+// Tor tab — keeps nothing anywhere but the tab, which is not asked twice: the
+// tab's answer holds while it is open, as Chrome's does. An answer already
+// known comes back at once as true or false, so a blocked download is refused
+// before Vex shows anything for it; a question comes back as a Promise.
+const AUTO_DOWNLOADS = 'automatic-downloads';
+const _autoDownloadPending = new Map();   // page id|origin -> Promise
+const _autoDownloadTab = new Map();       // page id|origin -> true | false
+function askAutomaticDownloads(contents, origin, { remember = true } = {}) {
+  origin = originKey(origin);
+  if (remember) {
+    const saved = savedDecision(decisionsFor(contents), origin, [AUTO_DOWNLOADS], sessionDecisionsFor(contents));
+    if (saved) return saved === 'allow';
+  }
+  const key = `${contents.id}|${origin}`;
+  if (_autoDownloadTab.has(key)) return _autoDownloadTab.get(key);
+  // More downloads while it is being asked wait for the one answer.
+  if (_autoDownloadPending.has(key)) return _autoDownloadPending.get(key);
+  const host = secureSessions.owner(contents);
+  if (!host) return false;
+  const answer = new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const callback = (ok) => {
+      if (!_autoDownloadTab.has(key)) contents.once('destroyed', () => _autoDownloadTab.delete(key));
+      _autoDownloadTab.set(key, !!ok);
+      resolve(!!ok);
+    };
+    Object.assign(callback, { _host: host, _contents: contents, _origin: origin, _permission: AUTO_DOWNLOADS, _parts: [AUTO_DOWNLOADS], _noRemember: !remember });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, origin, permission: AUTO_DOWNLOADS, choice: 'allow-block', remember });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      resolve(false);
+      try { if (!host.win.isDestroyed()) host.win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  }).finally(() => _autoDownloadPending.delete(key));
+  _autoDownloadPending.set(key, answer);
+  return answer;
+}
+
 ipcMain.handle('permission:respond', async (_e, payload) => {
   const { id, decision, remember } = payload || {};
   const cb = pendingPermissions.get(id);
@@ -424,7 +469,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   // closes; false = this once.
   // "Allow" used to mean for ever or not at all, and the box was ticked by
   // default — so agreeing to a microphone for one call agreed to it for good.
-  if (remember && cb._origin && cb._permission && !(decision === 'allow' && cb._noRememberAllow)) {
+  if (remember && cb._origin && cb._permission && !cb._noRemember && !(decision === 'allow' && cb._noRememberAllow)) {
     const parts = cb._parts || [cb._permission];
     if (remember === 'session') {
       for (const part of parts) sessionDecisionsFor(cb._contents).set(`${cb._origin}::${part}`, decision);
@@ -450,7 +495,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 // or a private window's in-memory one (never to disk), which is exactly where
 // Settings › Site permissions lists it. A "just this visit" answer for the same
 // permission is dropped too, or it would go on overruling the choice.
-const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups']);
+const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS]);
 function setPageDecision(contents, origin, permission, decision) {
   origin = originKey(origin);
   if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
@@ -518,6 +563,6 @@ async function restorePageDecisions(snapshot) {
 }
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, flushPermissions: () => writes };
+return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

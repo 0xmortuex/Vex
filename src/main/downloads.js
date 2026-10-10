@@ -4,7 +4,11 @@ const path = require('path');
 // webContents: Electron's, to find a live page in a session for a retry.
 // prefs: where downloads go and whether each is asked about
 // (src/main/download-prefs.js current()); folder null = the Downloads folder.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }) }) {
+// lastGestureAt(contents): when the page last had a click or key press
+// (main.js, _watchGestures). askAutoDownloads: permissions.js
+// askAutomaticDownloads; without it no download is ever asked about.
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null }) {
+const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
 // can pause/resume/cancel a transfer that is still running. An item is dropped
@@ -18,7 +22,93 @@ const _askWhere = new Map();                       // url -> until
 function askWhere(url, now = Date.now()) {
   if (typeof url !== 'string' || !url) throw new Error('Nothing to save');
   _askWhere.set(url, now + ASK_FOR_MS);
+  markMine(url, now);
   return true;
+}
+
+// === A page downloading many files by itself (Chrome's "automatic downloads")
+// The first download a page starts is never asked, nor one right after a click
+// or key press on the page (one press, one download). A second or later one in
+// AUTO_WINDOW_MS with no press asks once per site (permissions.js,
+// askAutomaticDownloads), held in the profile's holding folder for the
+// answer; Block cancels it and deletes it before it is in the panel. Downloads Vex itself starts for you (Save image,
+// a media download, Retry) are marked mine and never counted.
+const AUTO_WINDOW_MS = 30000;
+const _pageDownloads = new Map();                  // page id -> { at: [times], gestureUsed }
+const _mine = new Map();                           // url -> until
+function markMine(url, now = Date.now()) {
+  if (typeof url !== 'string' || !url) throw new Error('Nothing to download');
+  _mine.set(url, now + ASK_FOR_MS);
+  return true;
+}
+function _takeMine(urls, now) {
+  let mine = false;
+  for (const u of urls) {
+    const until = _mine.get(u);
+    if (until == null) continue;
+    _mine.delete(u);
+    if (until >= now) mine = true;
+  }
+  for (const [u, until] of _mine) if (until < now) _mine.delete(u);
+  return mine;
+}
+// Where a download waits while its site is asked about: in the profile, never
+// the user's folder. Whatever an earlier run left there (Vex closed while
+// asking) is cleared the first time it is used.
+let _heldSwept = false;
+function _heldRoot() {
+  const root = path.join(app.getPath('userData'), 'held-downloads');
+  if (!_heldSwept) { _heldSwept = true; require('fs').rmSync(root, { recursive: true, force: true }); }
+  return root;
+}
+function _removeHeld(dir) {
+  try { require('fs').rmSync(dir, { recursive: true, force: true }); }
+  catch (err) { console.error('[Downloads] could not clear ' + dir + ':', err.message); }
+}
+// Across drives a rename fails; a copy keeps the file's "downloaded from the
+// internet" mark (its Zone.Identifier stream) as the rename does.
+function _moveFile(from, to) {
+  const fs = require('fs');
+  try { fs.renameSync(from, to); }
+  catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    fs.copyFileSync(from, to);
+    fs.unlinkSync(from);
+  }
+}
+// "Ask where to save each file" for a download that was held: Electron's own
+// dialog was skipped by saving it into the holding folder.
+async function _askSavePath(owner, defaultPath, title) {
+  const d = dialog || require('electron').dialog;
+  const opts = { title, defaultPath, buttonLabel: 'Save' };
+  const win = owner && owner.win && !owner.win.isDestroyed() ? owner.win : null;
+  const r = win ? await d.showSaveDialog(win, opts) : await d.showSaveDialog(opts);
+  return r.canceled || !r.filePath ? null : r.filePath;
+}
+// null: go ahead. { origin, remember }: ask before it goes on.
+function autoDownloadCheck(contents, urls, partition, now = Date.now()) {
+  if (!contents || typeof askAutoDownloads !== 'function') return null;
+  if (_takeMine(urls, now)) return null;
+  let origin;
+  try { origin = new URL(contents.getURL()).origin; } catch { return null; }
+  if (!/^https?:\/\//.test(origin)) return null;
+  const id = contents.id;
+  let page = _pageDownloads.get(id);
+  if (!page) {
+    page = { at: [], gestureUsed: null };
+    _pageDownloads.set(id, page);
+    contents.once('destroyed', () => _pageDownloads.delete(id));
+  }
+  page.at = page.at.filter(t => now - t <= AUTO_WINDOW_MS);
+  const earlier = page.at.length;
+  page.at.push(now);
+  const gesture = lastGestureAt(contents);
+  if (hasRecentGesture(gesture, now) && page.gestureUsed !== gesture) { page.gestureUsed = gesture; return null; }
+  if (!earlier) return null;
+  // A private window's, an off-the-record or Tor tab's answer is not kept.
+  const remember = (!partition || (partition.startsWith('persist:') && !partition.startsWith('persist:route-tor')))
+    && !(contents.session && contents.session.__vexTor);
+  return { origin, remember };
 }
 function _takeAsk(urls, now = Date.now()) {
   let asked = false;
@@ -113,6 +203,16 @@ function wireDownloadsOnSession(ses, tag) {
       if (partition && !partition.startsWith('persist:')) { try { owner?.win.webContents.send(channel, data); } catch {} }
       else _broadcastDownloadEvent(channel, data);
     };
+    const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
+    // A page's second download with no click: allowed, blocked, or asked
+    // (a Promise) — see autoDownloadCheck. Blocked never reaches the panel.
+    const auto = autoDownloadCheck(contents, chain, partition);
+    const answer = auto ? askAutoDownloads(contents, auto.origin, { remember: auto.remember }) : true;
+    if (answer === false) {
+      console.log(`[Downloads] (${tag || 'session'}) blocked a download ${auto.origin} started by itself`);
+      event.preventDefault();
+      return;
+    }
     // A sorting rule can put this in a folder of its own and rename it
     // (src/main/download-rules.js). No rule matching leaves both alone.
     const placed = require('./download-rules').place(rules(), { filename: item.getFilename(), url: item.getURL() });
@@ -131,61 +231,109 @@ function wireDownloadsOnSession(ses, tag) {
       try { require('fs').mkdirSync(wanted, { recursive: true }); dir = wanted; }
       catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using ' + dir + ':', err.message); }
     }
-    const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
     const askImage = _takeAsk(chain);
     const ask = askImage || where.ask || folderGone;
     let savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
+    // A download being asked about is saved into Vex's own holding folder,
+    // paused: a small file finishes even while paused (measured), so it must
+    // not be written where the user's files are until the site is allowed.
+    const held = answer !== true;
+    const heldDir = held ? path.join(_heldRoot(), `h_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`) : null;
+    const heldPath = held ? path.join(heldDir, path.basename(savePath)) : null;
+    let heldDone = null;                               // how it ended while it was being asked
     // Not setting a save path is what makes Electron show the Save dialog;
     // where the user puts it is read back from the item once it is chosen.
     // Wherever it goes, Chromium still marks the file as downloaded from the
     // internet (Windows' Zone.Identifier), and Open still takes only it.
-    if (ask) item.setSaveDialogOptions({ title: askImage ? 'Save image as' : 'Save as', defaultPath: savePath, buttonLabel: 'Save' });
+    if (held) {
+      require('fs').mkdirSync(heldDir, { recursive: true });
+      item.setSavePath(heldPath);
+      item.pause();
+      item.once('done', (_e, state) => { heldDone = state; });
+    } else if (ask) item.setSaveDialogOptions({ title: askImage ? 'Save image as' : 'Save as', defaultPath: savePath, buttonLabel: 'Save' });
     else item.setSavePath(savePath);
-    const info = {
-      id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      fileName: path.basename(savePath),
-      url: item.getURL(),
-      totalBytes: item.getTotalBytes(),
-      path: savePath,
-      startedAt: new Date().toISOString(),
-      ephemeral,
-    };
-    _liveDownloads.set(info.id, item);
-    _sources.set(info.id, { session: ses, partition: partition || '', hostId: owner ? owner.win.webContents.id : null });
-    while (_sources.size > SOURCES_MAX) _sources.delete(_sources.keys().next().value);
-    console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
-    emit('download-started', info);
-    item.on('updated', (_e, state) => {
-      if (ask) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
-      emit('download-progress', {
-        id: info.id,
-        receivedBytes: item.getReceivedBytes(),
+    const readChosen = ask && !held;
+    // Into the panel, and its progress reported: at once, or once allowed.
+    const begin = () => {
+      const info = {
+        id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        fileName: path.basename(savePath),
+        url: item.getURL(),
         totalBytes: item.getTotalBytes(),
-        // A paused transfer still reports state 'progressing'; the panel needs
-        // to know it has actually stopped, or the row lies about what it's doing.
-        paused: safeCall(item, 'isPaused', false),
-        canResume: safeCall(item, 'canResume', false),
-        state
-      });
-    });
-    item.once('done', (_e, state) => {
-      _liveDownloads.delete(info.id);
-      if (ask) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.fileName = path.basename(chosen); } }
-      console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
-      if (state === 'completed') _noteFile(savePath, ephemeral);
-      // Report the real byte counts: a server that sent no Content-Length leaves
-      // totalBytes at 0, and the panel used to copy that 0 over the received
-      // count and then render a completed download as "0 B".
-      emit('download-complete', {
-        id: info.id,
-        fileName: info.fileName,
-        state,
         path: savePath,
-        url: info.url,
+        startedAt: new Date().toISOString(),
         ephemeral,
-        receivedBytes: safeCall(item, 'getReceivedBytes', 0),
-        totalBytes: safeCall(item, 'getTotalBytes', 0)
+      };
+      _liveDownloads.set(info.id, item);
+      _sources.set(info.id, { session: ses, partition: partition || '', hostId: owner ? owner.win.webContents.id : null });
+      while (_sources.size > SOURCES_MAX) _sources.delete(_sources.keys().next().value);
+      console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
+      emit('download-started', info);
+      item.on('updated', (_e, state) => {
+        if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
+        emit('download-progress', {
+          id: info.id,
+          receivedBytes: item.getReceivedBytes(),
+          totalBytes: item.getTotalBytes(),
+          // A paused transfer still reports state 'progressing'; the panel needs
+          // to know it has actually stopped, or the row lies about what it's doing.
+          paused: safeCall(item, 'isPaused', false),
+          canResume: safeCall(item, 'canResume', false),
+          state
+        });
       });
+      const finish = (state) => {
+        _liveDownloads.delete(info.id);
+        if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.fileName = path.basename(chosen); } }
+        // An allowed download that was held: moved to where it belongs.
+        if (held) {
+          if (state === 'completed') {
+            try { _moveFile(heldPath, savePath); }
+            catch (err) { console.error('[Downloads] could not move ' + info.fileName + ' out of the holding folder:', err.message); state = 'interrupted'; }
+          }
+          _removeHeld(heldDir);
+        }
+        console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
+        if (state === 'completed') _noteFile(savePath, ephemeral);
+        // Report the real byte counts: a server that sent no Content-Length leaves
+        // totalBytes at 0, and the panel used to copy that 0 over the received
+        // count and then render a completed download as "0 B".
+        emit('download-complete', {
+          id: info.id,
+          fileName: info.fileName,
+          state,
+          path: savePath,
+          url: info.url,
+          ephemeral,
+          receivedBytes: safeCall(item, 'getReceivedBytes', 0),
+          totalBytes: safeCall(item, 'getTotalBytes', 0)
+        });
+      };
+      if (heldDone) finish(heldDone);
+      else item.once('done', (_e, state) => finish(state));
+    };
+    if (!held) { begin(); return; }
+    // Blocked, or the Save dialog cancelled: never in the panel, nothing kept.
+    const drop = (why) => {
+      console.log(`[Downloads] (${tag || 'session'}) not downloading what ${auto.origin} started by itself: ${why}`);
+      if (!heldDone) { item.once('done', () => _removeHeld(heldDir)); item.cancel(); }
+      _removeHeld(heldDir);
+    };
+    answer.then(async (ok) => {
+      if (!ok) { drop('blocked'); return; }
+      if (ask) {
+        const chosen = await _askSavePath(owner, savePath, askImage ? 'Save image as' : 'Save as');
+        if (!chosen) { drop('Save was cancelled'); return; }
+        savePath = chosen;
+      } else {
+        // Its name may have been taken while it was being asked.
+        savePath = _uniqueDownloadPath(path.dirname(savePath), path.basename(savePath));
+      }
+      begin();
+      if (!heldDone) item.resume();
+    }).catch((err) => {
+      console.error('[Downloads] could not ask about a download ' + auto.origin + ' started by itself; not downloading it:', err.message);
+      drop('the question failed');
     });
   });
 }
@@ -225,6 +373,12 @@ if (ipcMain) {
     try { return { ok: askWhere(url) }; }
     catch (err) { return { ok: false, error: err.message }; }
   });
+  // Save image (js/webview.js): a download Vex starts for you, never counted
+  // as one the page started by itself.
+  ipcMain.handle('downloads:mine', (_e, url) => {
+    try { return { ok: markMine(url) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+  });
   // Re-request a URL that failed or was cancelled, through the session the
   // first attempt used (its proxy or Tor route, its cookies).
   ipcMain.handle('downloads:retry', (event, url, id) => {
@@ -255,12 +409,13 @@ function retry(sender, url, id) {
   // Through a page of this window in that session when there is one, so the
   // download is this window's; else through the session itself.
   const page = webContentsModule.getAllWebContents().find(c => !c.isDestroyed() && c.session === ses && c.getType() === 'webview' && secureSessions.owner(c) === host);
+  markMine(url);
   if (page) { page.downloadURL(url); return { ok: true }; }
   if (host) _retryHosts.set(url, host);
   ses.downloadURL(url);
   return { ok: true };
 }
 
-return { wireDownloadsOnSession, control, askWhere, _takeAsk, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites };
+return { wireDownloadsOnSession, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites };
 }
 module.exports = { createDownloadService };
