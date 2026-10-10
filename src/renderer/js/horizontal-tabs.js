@@ -386,8 +386,108 @@ const HorizontalTabs = (() => {
     requestAnimationFrame(() => { applyTabSizeClasses(); revealActiveTab(); });
   };
 
+  // "List all tabs", as Firefox has at the end of its strip: every open tab in
+  // a menu, those hidden in a collapsed group or a folded stack too, so a tab
+  // can be found when the strip is crowded. Keyboard: Enter, Space or Down on
+  // the button opens it at the tab in front; Up/Down/Home/End move; Enter or
+  // Space goes to the tab; Escape closes it back to the button.
+  let _allTabs = null;   // { menu, overlay, btn }
+
+  function closeAllTabsMenu(refocus) {
+    if (!_allTabs) return;
+    const { menu, overlay, btn } = _allTabs;
+    _allTabs = null;
+    menu.remove();
+    overlay.remove();
+    btn.setAttribute('aria-expanded', 'false');
+    if (refocus) btn.focus();
+  }
+
+  // A tab hidden in a collapsed group or folded stack is opened out first,
+  // so the tab put in front is seen on the strip.
+  function pickFromAllTabs(id) {
+    const tab = TabManager.tabs.find(t => t.id === id);
+    closeAllTabsMenu(false);
+    if (!tab) return;
+    const group = tab.groupId && !tab.pinned ? TabManager.groups.find(g => g.id === tab.groupId) : null;
+    if (group && group.collapsed) { group.collapsed = false; VexStorage.saveGroups(TabManager.groups); }
+    if (tab.stackId) TabManager._expandedStackIds.add(tab.stackId);
+    TabManager.rebuildAllTabs();
+    TabManager.switchTab(id);
+  }
+
+  function openAllTabsMenu(btn) {
+    closeAllTabsMenu(false);
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu all-tabs-menu';
+    menu.id = 'all-tabs-menu';
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-label', 'All tabs');
+    for (const tab of TabManager.displayOrder()) {
+      const item = document.createElement('div');
+      item.className = 'tab-context-item all-tabs-item';
+      item.setAttribute('role', 'menuitem');
+      item.tabIndex = -1;
+      item.dataset.tabId = tab.id;
+      if (tab.id === TabManager.activeTabId) { item.classList.add('active'); item.setAttribute('aria-current', 'true'); }
+      if (tab.sleeping) item.classList.add('sleeping');
+      const group = tab.groupId ? TabManager.groups.find(g => g.id === tab.groupId) : null;
+      if (group) item.style.setProperty('--group-color', group.color || '#6366f1');
+      item.innerHTML = `${tab.favicon ? '<img class="all-tabs-favicon" alt="" data-image-fallback="hide">' : '<span class="all-tabs-favicon"></span>'}<span class="all-tabs-title"></span>`;
+      if (tab.favicon) item.querySelector('img').src = tab.favicon;
+      item.querySelector('.all-tabs-title').textContent = tab.title || tab.url || 'New Tab';
+      item.title = `${tab.title || 'New Tab'}\n${tab.url || ''}${group ? `\nGroup: ${group.name}` : ''}`;
+      item.addEventListener('click', () => pickFromAllTabs(tab.id));
+      menu.appendChild(item);
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'context-menu-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:transparent;';
+    overlay.addEventListener('mousedown', () => closeAllTabsMenu(false), true);
+    document.body.appendChild(overlay);
+    document.body.appendChild(menu);
+    // Under the button, its right edge on the button's.
+    const r = btn.getBoundingClientRect();
+    const x = Math.max(8, r.right - menu.offsetWidth), y = r.bottom + 4;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    TabManager._clampMenuToViewport(menu, x, y);
+    _allTabs = { menu, overlay, btn };
+    btn.setAttribute('aria-expanded', 'true');
+
+    const items = () => [...menu.querySelectorAll('.all-tabs-item')];
+    menu.addEventListener('keydown', (e) => {
+      const list = items();
+      const at = list.indexOf(document.activeElement);
+      const go = (i) => { const el = list[(i + list.length) % list.length]; if (el) el.focus(); };
+      if (e.key === 'ArrowDown') go(at + 1);
+      else if (e.key === 'ArrowUp') go(at - 1);
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(list.length - 1);
+      else if (e.key === 'Enter' || e.key === ' ') { if (at >= 0) pickFromAllTabs(list[at].dataset.tabId); }
+      else if (e.key === 'Escape') closeAllTabsMenu(true);
+      else if (e.key === 'Tab') closeAllTabsMenu(true);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    const start = items().find(el => el.classList.contains('active')) || items()[0];
+    if (start) { start.focus(); start.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  function _setupAllTabsButton() {
+    const btn = document.getElementById('btn-list-all-tabs');
+    if (!btn) return;
+    if (typeof VexIcons !== 'undefined') btn.innerHTML = VexIcons.svg('chevron-down', { size: 14 });
+    btn.addEventListener('click', () => { if (_allTabs) closeAllTabsMenu(true); else openAllTabsMenu(btn); });
+    btn.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' && !_allTabs) { e.preventDefault(); openAllTabsMenu(btn); }
+    });
+  }
+
   function init() {
     _patchTabManager();
+    _setupAllTabsButton();
     document.getElementById('btn-new-tab-top')?.addEventListener('click', () => {
       try { TabManager.createTab(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true); }
       catch { TabManager.createTab('about:blank', true); }
@@ -414,7 +514,7 @@ const HorizontalTabs = (() => {
     requestAnimationFrame(() => requestAnimationFrame(applyTabSizeClasses));
   }
 
-  return { init, render, reorderTab };
+  return { init, render, reorderTab, openAllTabsMenu, closeAllTabsMenu };
 })();
 
 window.HorizontalTabs = HorizontalTabs;
