@@ -80,38 +80,7 @@ describe('autofill leaves a login alone once the person types', () => {
     expect(e.isTrusted).toBe(true);
   };
 
-  it('does not refill a field the person cleared, or move the cursor', async () => {
-    window.vex = { vaultGet: async () => [{ username: 'saved@example.test', password: 'Saved-Pass-1' }] };
-    const { webview, location } = page('<input type="email" id="email"><input type="password" id="pw"><button id="other">x</button>');
-    await PasswordVault.autofill(webview, location.href);
-    const email = document.getElementById('email'), pw = document.getElementById('pw');
-    expect(email.value).toBe('saved@example.test');
-    expect(document.activeElement).not.toBe(email);            // an automatic fill takes no focus
-    typed(pw, ''); typed(email, '');
-    pw.focus(); pw.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(email.value).toBe('');
-    expect(pw.value).toBe('');
-    expect(document.activeElement).toBe(pw);
-    typed(email, 'other@example.test');
-    email.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(email.value).toBe('other@example.test');
-    expect(pw.value).toBe('');
-  });
-
-  it('still fills a password step the person has not touched', async () => {
-    window.vex = { vaultGet: async () => [{ username: 'saved@example.test', password: 'Saved-Pass-1' }] };
-    const { webview, location } = page('<input type="email" id="email">');
-    await PasswordVault.autofill(webview, location.href);
-    document.body.insertAdjacentHTML('beforeend', '<input type="password" id="pw">');
-    const pw = document.getElementById('pw');
-    pw.getBoundingClientRect = () => ({ width: 100, height: 20 });
-    pw.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(pw.value).toBe('Saved-Pass-1');
-  });
-
+  // The saved-password cases moved to loginFillGesture.test.js (audit S5).
   it('the remembered-email fill stops too once the person types', async () => {
     const { webview, location } = page('<input type="email" id="email">');
     PasswordVault._rememberedEmail = () => 'me@example.test';

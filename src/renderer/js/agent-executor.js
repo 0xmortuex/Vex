@@ -400,7 +400,7 @@ const AgentExecutor = {
           try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
           const saved = await window.vex.vaultGet(host);
           if (!saved || !saved.length) return { ok: false, error: 'There is no saved login for ' + host + ' — the user has to sign in themselves this once' };
-          await PasswordVault.autofill(wv, url);
+          await PasswordVault.autofill(wv, url, { now: true });
           return { ok: true, result: 'Filled the saved login for ' + host + '. Press the page’s own sign-in button to continue — the password was never shown to you.' };
         }
 

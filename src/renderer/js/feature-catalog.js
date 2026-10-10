@@ -446,7 +446,7 @@ const VexFeatures = {
 
     // --- Logins & autofill ------------------------------------------------
     { id: 'passwords', phrases: 'passwords remember my passwords saved logins password manager sign in login', cat: 'logins', cmd: 'loginshub',
-      what: 'A password vault encrypted by Windows itself, that offers to save a login and fills it when you come back.' },
+      what: 'A password vault encrypted by Windows itself, that offers to save a login and fills it in when you click the sign-in field.' },
     { id: 'totp', phrases: 'two factor 2fa authenticator one time code', cat: 'logins', name: '2FA codes, filled in', cmd: 'loginshub',
       what: 'Vex generates your six-digit code and types it into the 2FA screen for you.' },
     { id: 'emailcode', cat: 'logins', cmd: 'fillemailcode',

@@ -3,7 +3,8 @@
 // Companion to the main-process vault (safeStorage-encrypted at rest):
 //  - capture: webviews send 'vex-cred-submit' on login-form submit (see
 //    preload-webview.js) → a save/update prompt card appears
-//  - autofill: on dom-ready, saved credentials for the host are filled in
+//  - autofill: on dom-ready the page is armed; the saved login is filled
+//    only after a real click in a login field (preload-webview.js)
 //  - manage: Settings → Passwords lists entries (copy / delete / add)
 // Plaintext passwords only cross IPC when filling or when the user copies.
 
@@ -55,6 +56,14 @@ const PasswordVault = {
       if (e.channel === 'vex-login-email') {
         const d = (e.args && e.args[0]) || {};
         if (this._host(d.host) === actualHost) this._rememberEmail(actualHost, d.email);
+        return;
+      }
+      if (e.channel === 'vex-login-want') {
+        await this._onLoginWant(webview, (e.args && e.args[0]) || {}, actualHost);
+        return;
+      }
+      if (e.channel === 'vex-login-filled') {
+        this._onLoginFilled(webview, (e.args && e.args[0]) || {});
         return;
       }
       if (e.channel === 'vex-pwgen-ask' || e.channel === 'vex-pwgen-used') {
@@ -160,27 +169,6 @@ const PasswordVault = {
     this._offerSave(data, false);
   },
 
-  // Is a real login form on screen right now? Mirrors the field rules the
-  // injected filler uses, so we never ask the user to choose an account for a
-  // page that has nowhere to put it.
-  async _hasLoginForm(webview, url) {
-    let origin = '';
-    try { origin = new URL(url).origin; } catch { return false; }
-    const js = `(function(){try{
-      if(location.origin!==${JSON.stringify(origin)})return false;
-      function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
-      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
-      function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query/.test(meta(el));}
-      function loginSignal(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|account name/.test(meta(el));}
-      if(Array.prototype.slice.call(document.querySelectorAll('input[type=password]')).some(visible))return true;
-      var cands=document.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');
-      for(var i=0;i<cands.length;i++){var el=cands[i];if(visible(el)&&!isSearchy(el)&&loginSignal(el))return true;}
-      return false;
-    }catch(e){return false;}})();`;
-    try { return !!(await webview.executeJavaScript(js)); }
-    catch (err) { console.warn('[Vault] login-form probe failed:', err.message); return false; }
-  },
-
   // A list of the saved usernames for this host. Returns the chosen entry, or
   // null if the user dismissed it.
   _pickCredential(creds, host) {
@@ -224,83 +212,78 @@ const PasswordVault = {
     });
   },
 
-  async autofill(webview, url) {
+  // A saved login is never typed into a page as it loads: there any script on
+  // the page could read it, out of a form the person never saw (audit S5).
+  // This only arms the page side (preload-webview.js, "Saved-login fill") with
+  // the page's origin. A real click in a login field asks for the login
+  // ('vex-login-want', handled in attach()), the account chooser comes up if
+  // the site has several, and the page side fills it in its isolated world.
+  // opts.now: the AI agent's "sign in", which the person asked for, fills at
+  // once (still from the isolated world).
+  async autofill(webview, url, opts = {}) {
     if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
     const generation = webview._navigationGeneration;
-    let host = '';
-    try { host = this._host(new URL(url).hostname); } catch { return; }
+    let host = '', origin = '';
+    try { const u = new URL(url); host = this._host(u.hostname); origin = u.origin; } catch { return; }
     if (!host || !/^https:/i.test(url)) return;
     let creds = [];
     try { creds = await window.vex.vaultGet(host); } catch (err) { console.error('[Vault] read failed for', host, '-', err.message); return; }
     if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
     if (!creds || !creds.length) { this._autofillEmailOnly(webview, host, url); return; }
+    webview._vexLoginArm = { host, origin };
+    try { webview.send('vex-login-arm', { origin }); }
+    catch (err) { console.error('[Vault] could not offer the saved login to the page:', err.message); return; }
+    if (opts.now) await this._sendLogin(webview, { host, origin, id: 'now-' + Date.now(), now: true });
+  },
+
+  // The page side asks after a real click in a login field.
+  async _onLoginWant(webview, d, actualHost) {
+    const arm = webview._vexLoginArm;
+    if (!arm || arm.host !== actualHost || this._host(d.host) !== actualHost) return;
+    if (typeof d.id !== 'string' || !d.id || d.id.length > 64) return;
+    let origin = '';
+    try { origin = new URL(webview.getURL()).origin; } catch { return; }
+    if (d.origin !== origin || arm.origin !== origin) return;
+    await this._sendLogin(webview, { host: actualHost, origin, id: d.id, now: false });
+  },
+
+  // Reads the login (through the chooser when there are several) and hands it
+  // to the page side, as long as the page is still on the same origin.
+  async _sendLogin(webview, { host, origin, id, now }) {
+    const generation = webview._navigationGeneration;
+    const still = () => {
+      if (generation !== webview._navigationGeneration) return false;
+      try { return new URL(webview.getURL()).origin === origin; } catch { return false; }
+    };
+    let creds = [];
+    try { creds = await window.vex.vaultGet(host); }
+    catch (err) {
+      console.error('[Vault] read failed for', host, '-', err.message);
+      window.showToast?.('Could not reach the password vault', 'error');
+      return;
+    }
+    if (!creds || !creds.length || !still()) return;
     let c = creds[0];
     if (creds.length > 1) {
-      // Several logins for this host. The old code opened a "type the account
-      // number" prompt from dom-ready — on EVERY page of the site, login page or
-      // not — so browsing a site with two saved accounts meant a modal on every
-      // single navigation. Only ask once a real login form is actually on screen,
-      // and ask with a proper list instead of a number to type.
-      if (!(await this._hasLoginForm(webview, url))) return;
-      if (generation !== webview._navigationGeneration) return;
       const picked = await this._pickCredential(creds, host);
-      if (!picked) return;
-      if (generation !== webview._navigationGeneration || (webview.getURL && webview.getURL() !== url)) return;
+      if (!picked || !still()) return;
       c = picked;
     }
-    // Fills on load AND on focus (click-to-fill): clicking an empty email or
-    // password field re-fills the saved login, which also covers multi-step
-    // logins (email view → password view) that never reload the page, so the
-    // one-shot dom-ready fill would otherwise miss the password step. Uses the
-    // native value setter so React/Vue controlled inputs actually register the
-    // change (plain el.value is ignored by their synthetic event system).
-    const js = `(function(){try{
-      if(location.origin!==${JSON.stringify(new URL(url).origin)})return;
-      var ORIGIN=${JSON.stringify(new URL(url).origin)};
-      var U=${JSON.stringify(c.username)},P=${JSON.stringify(c.password)};
-      var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      // No el.focus(): a fill set off by focusing the password field moved the
-      // cursor back to the address field mid-sign-in (found 2026-09-29).
-      var fire=function(el,val){try{if(!visible(el)||el.disabled||el.readOnly)return false;if(el.form&&new URL(el.form.action||location.href,location.href).origin!==location.origin)return false;setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true;}catch(e){}return false;};
-      function visible(el){try{var r=el.getBoundingClientRect();var s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
-      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
-      // Search / combobox / chat inputs are NOT login fields. This is what caused
-      // the bug: the email got typed into Discord's "Find or start a conversation",
-      // the role picker, etc. Exclude them explicitly.
-      function isSearchy(el){var t=(el.type||'').toLowerCase();if(t==='search')return true;var role=(el.getAttribute('role')||'').toLowerCase();if(role==='search'||role==='searchbox'||role==='combobox')return true;if(el.getAttribute('aria-autocomplete'))return true;return /search|find|filter|query|recipient|channel|message|mention|invite|\\brole\\b|emoji|gif|jump to/.test(meta(el));}
-      // Strong "this is a login username/email field" signal.
-      function loginSignal(el){var t=(el.type||'').toLowerCase();if(t==='email')return true;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='username'||ac==='email')return true;return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));}
-      function looksLikeUser(el){if(!visible(el))return false;var t=(el.type||'').toLowerCase();if(!(t===''||t==='text'||t==='email'||t==='tel'))return false;return !isSearchy(el);}
-      function userField(pw){var scope=(pw&&pw.form)||document;var cands=scope.querySelectorAll('input[type=text],input[type=email],input[type=tel],input:not([type])');var signal=null,plain=null;for(var i=0;i<cands.length;i++){var el=cands[i];if(!looksLikeUser(el))continue;if(loginSignal(el)){signal=el;break;}if(!plain)plain=el;}return signal||(pw?plain:null);}
-      // Only fill the username when this is really a login: a password field is
-      // present, OR the field itself carries a strong login signal (covers
-      // email-first 2-step logins). Never fill a lone search box.
-      // Once the person has typed into a login field themselves, the page is
-      // theirs: clearing the saved address to sign in with another account
-      // had it filled straight back on the next focus (found 2026-09-29).
-      // Only real key presses count — the fill's own events are not trusted.
-      if(!window.__vexLoginTypedWired){window.__vexLoginTypedWired=true;
-        document.addEventListener('input',function(e){try{var el=e.target;if(!e.isTrusted||!el||el.tagName!=='INPUT')return;var t=(el.type||'').toLowerCase();if(t==='password'||looksLikeUser(el))window.__vexLoginTyped=true;}catch(e){}},true);
-      }
-      // A field asking for a NEW password (a sign-up or change-password form)
-      // never gets the saved one: it went into a sign-up form's first field
-      // and hid "Use a strong password" there (found 2026-10-08).
-      function isNewPw(el){return /new-password/i.test(el.getAttribute('autocomplete')||'');}
-      function fill(force){if(location.origin!==ORIGIN||window.__vexLoginTyped)return 0;var n=0;var pw=Array.from(document.querySelectorAll('input[type=password]')).find(function(el){return visible(el)&&!isNewPw(el);});var user=userField(pw);if(user&&(pw||loginSignal(user))&&(force||!user.value)&&fire(user,U))n++;if(pw&&(force||!pw.value)&&fire(pw,P))n++;return n;}
-      var filled=fill(false);
-      if(!window.__vexPwFocusWired){window.__vexPwFocusWired=true;
-        document.addEventListener('focusin',function(e){try{var el=e.target;if(!el||el.tagName!=='INPUT'||el.value)return;var t=(el.type||'').toLowerCase();if(t==='password'||(looksLikeUser(el)&&(loginSignal(el)||document.querySelector('input[type=password]')))){setTimeout(function(){fill(false);},0);}}catch(e){}},true);
-      }
-      return filled;
-    }catch(e){return 0;}})();`;
-    // Logged only when a field was really filled: it used to be recorded
-    // before the fill, so every page of a site with a saved login counted as
-    // "password filled" (found 2026-09-29).
-    try {
-      webview.executeJavaScript(js)
-        .then((filled) => { if (filled > 0) window.AutofillLog?.record('password', url, true, c.username); })
-        .catch(() => {});
-    } catch {}
+    let url = '';
+    try { url = webview.getURL(); } catch { return; }
+    webview._vexLoginSent = { id, username: c.username, url };
+    try { webview.send('vex-login-fill', { id, origin, username: c.username, password: c.password, now }); }
+    catch (err) { console.error('[Vault] could not hand the saved login to the page:', err.message); }
+  },
+
+  // Logged only when a field was really filled: it used to be recorded before
+  // the fill, so every page of a site with a saved login counted as "password
+  // filled" (found 2026-09-29).
+  _onLoginFilled(webview, d) {
+    const sent = webview._vexLoginSent;
+    if (!sent || d.id !== sent.id) return;
+    webview._vexLoginSent = null;
+    if (Number(d.filled) > 0) window.AutofillLog?.record('password', sent.url, true, sent.username);
   },
 
   // No saved credential for this host, but we remembered the email used here
@@ -447,7 +430,7 @@ const PasswordVault = {
       container.innerHTML = `<div style="font-size:12.5px;color:var(--danger)">Could not read the password vault: ${window.escapeHtml(err.message)}</div>`;
       return;
     }
-    container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Saved logins are encrypted with your OS keychain (Windows DPAPI) and autofilled on matching sites. Vex offers to save when you log in.</p>`;
+    container.innerHTML = `<p class="setting-info muted" style="margin-bottom:10px">Saved logins are encrypted with your OS keychain (Windows DPAPI) and filled in when you click a sign-in field on the matching site. Vex offers to save when you log in.</p>`;
     if (!list.length) container.innerHTML += '<div style="font-size:12.5px;color:var(--text-muted)">No saved passwords yet — log in somewhere and Vex will offer to save.</div>';
     container.insertBefore(this._generatorCard(), container.children[1] || null);
     list.sort((a, b) => (a.host || '').localeCompare(b.host || ''));

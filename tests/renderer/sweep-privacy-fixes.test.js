@@ -201,20 +201,8 @@ describe('a privacy toggle main refused is not reported as done', () => {
   });
 });
 
-describe('the autofill log counts only real fills', () => {
-  const { PasswordVault } = require('../../src/renderer/js/passwords.js');
-  it('records a password fill only when the page says a field was filled', async () => {
-    window.AutofillLog = { record: vi.fn() };
-    window.vex = { vaultGet: vi.fn(async () => [{ username: 'me', password: 'pw' }]) };
-    const wv = (filled) => ({ _navigationGeneration: 1, getURL: () => 'https://site.example/a', executeJavaScript: vi.fn(async () => filled) });
-    await PasswordVault.autofill(wv(0), 'https://site.example/a');
-    await tick();
-    expect(window.AutofillLog.record).not.toHaveBeenCalled();
-    await PasswordVault.autofill(wv(2), 'https://site.example/a');
-    await tick();
-    expect(window.AutofillLog.record).toHaveBeenCalledWith('password', 'https://site.example/a', true, 'me');
-  });
-});
+// The autofill log counting only real fills: moved to loginFillGesture.test.js. The saved login is filled only
+// after a real click, from the guest preload (audit S5).
 
 describe('Escape in a prompt over Site Data closes only the prompt', () => {
   const { SiteData } = require('../../src/renderer/js/site-data.js');

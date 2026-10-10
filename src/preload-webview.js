@@ -1583,6 +1583,151 @@ function _isVexStartPage(href) {
 })();
 
 
+// === Saved-login fill — only after a real click in a login field ===
+//
+// The host (js/passwords.js) arms this on a page whose site has a saved login
+// ("vex-login-arm": the page's origin, no password). Nothing is filled as the
+// page loads: a saved password typed in on load could be read by any script on
+// the page, out of a form the person never saw (audit S5). A real (isTrusted)
+// press in a login field, or Down arrow in one, asks the host for the login
+// ("vex-login-want"); the host answers ("vex-login-fill"), through its account
+// chooser when the site has several, and the fields are filled HERE, in this
+// preload's isolated world, where page scripts cannot see the password, make
+// up the click, or swap getComputedStyle under the visibility check. Sign-in
+// popups work the same way (main/vault.js). The AI agent's "sign in" answers
+// with now:true, without a click: the person told it to sign in.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  let armed = "";      // the origin the host armed this page for
+  let typed = false;   // the person typed into a login field: leave it to them
+  let asked = null;    // { id, field } waiting for the host's answer
+  let seq = 0;
+
+  function visible(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+    } catch { return false; }
+  }
+  function meta(el) {
+    try { return ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("autocomplete") || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase(); } catch { return ""; }
+  }
+  // Search / combobox / chat inputs are not login fields (the email once went
+  // into Discord's "Find or start a conversation").
+  function isSearchy(el) {
+    const t = (el.type || "").toLowerCase();
+    if (t === "search") return true;
+    const role = (el.getAttribute("role") || "").toLowerCase();
+    if (role === "search" || role === "searchbox" || role === "combobox") return true;
+    if (el.getAttribute("aria-autocomplete")) return true;
+    return /search|find|filter|query|recipient|channel|message|mention|invite|\brole\b|emoji|gif|jump to/.test(meta(el));
+  }
+  function loginSignal(el) {
+    const t = (el.type || "").toLowerCase();
+    if (t === "email") return true;
+    const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+    if (ac === "username" || ac === "email") return true;
+    return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));
+  }
+  function looksLikeUser(el) {
+    if (!visible(el)) return false;
+    const t = (el.type || "").toLowerCase();
+    if (!(t === "" || t === "text" || t === "email" || t === "tel")) return false;
+    return !isSearchy(el);
+  }
+  // A field asking for a NEW password (sign-up, change-password) never gets
+  // the saved one (found 2026-10-08).
+  function isNewPw(el) { return /new-password/i.test(el.getAttribute("autocomplete") || ""); }
+  function loginPassword() {
+    return Array.prototype.find.call(document.querySelectorAll("input[type=password]"), (el) => visible(el) && !isNewPw(el)) || null;
+  }
+  function userField(pw) {
+    const scope = (pw && pw.form) || document;
+    const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+    let plain = null;
+    for (let i = 0; i < cands.length; i++) {
+      const el = cands[i];
+      if (!looksLikeUser(el)) continue;
+      if (loginSignal(el)) return el;
+      if (!plain) plain = el;
+    }
+    return pw ? plain : null;
+  }
+  function sameOriginForm(el) {
+    try { return !el.form || new URL(el.form.action || location.href, location.href).origin === location.origin; } catch { return false; }
+  }
+  function isLoginField(el) {
+    if (!el || el.tagName !== "INPUT" || el.disabled || el.readOnly || !visible(el) || !sameOriginForm(el)) return false;
+    if ((el.type || "").toLowerCase() === "password") return !isNewPw(el);
+    return looksLikeUser(el) && (loginSignal(el) || !!loginPassword());
+  }
+  // The native setter, so React/Vue controlled inputs register the change.
+  // No el.focus(): it moved the cursor mid-sign-in (found 2026-09-29).
+  const setter = (function () { try { return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; } catch { return null; } })();
+  function fire(el, value) {
+    if (!visible(el) || el.disabled || el.readOnly || !sameOriginForm(el)) return false;
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+  // The username only on a real login: a password field is there, or the field
+  // itself says it is a login (email-first two-step sign-ins).
+  function fill(username, password) {
+    if (typed) return 0;
+    let n = 0;
+    const pw = loginPassword();
+    const user = userField(pw);
+    if (user && (pw || loginSignal(user)) && !user.value && fire(user, username)) n++;
+    if (pw && !pw.value && fire(pw, password)) n++;
+    return n;
+  }
+
+  ipcRenderer.on("vex-login-arm", (_e, d) => {
+    try { if (d && typeof d.origin === "string" && d.origin === location.origin) armed = d.origin; } catch {}
+  });
+  ipcRenderer.on("vex-login-fill", (_e, d) => {
+    try {
+      if (!d || !armed || armed !== location.origin || d.origin !== location.origin) return;
+      if (typeof d.username !== "string" || typeof d.password !== "string") return;
+      if (!d.now && (!asked || asked.id !== d.id || !asked.field.isConnected)) return;
+      asked = null;
+      const filled = fill(d.username, d.password);
+      ipcRenderer.sendToHost("vex-login-filled", { id: String(d.id || ""), host: location.hostname.replace(/^www\./, ""), filled });
+    } catch {}
+  });
+
+  function onGesture(e) {
+    try {
+      if (!e.isTrusted || !armed || typed || armed !== location.origin) return;
+      if (e.type === "keydown" && e.key !== "ArrowDown") return;
+      const el = e.target;
+      if (!isLoginField(el) || el.value) return;
+      const id = "lf" + (++seq) + "-" + Date.now();
+      asked = { id, field: el };
+      ipcRenderer.sendToHost("vex-login-want", { id, host: location.hostname.replace(/^www\./, ""), origin: location.origin });
+    } catch {}
+  }
+  document.addEventListener("pointerdown", onGesture, true);
+  document.addEventListener("keydown", onGesture, true);
+  // Once the person types into a login field the page is theirs: clearing the
+  // saved address to sign in as someone else had it filled straight back
+  // (found 2026-09-29). Only real key presses count.
+  document.addEventListener("input", (e) => {
+    try {
+      const el = e.target;
+      if (!e.isTrusted || !el || el.tagName !== "INPUT") return;
+      if ((el.type || "").toLowerCase() === "password" || looksLikeUser(el)) typed = true;
+    } catch {}
+  }, true);
+})();
+
+
 // === Suggest a strong password — on a sign-up / new-password field ===
 //
 // When a field that is clearly asking for a NEW password gets the focus, this

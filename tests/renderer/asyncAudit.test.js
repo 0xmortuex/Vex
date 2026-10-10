@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import vm from 'node:vm';
 beforeEach(() => { vi.resetModules(); vi.useFakeTimers(); });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -8,14 +7,16 @@ it('does not fill credentials into an origin reached while the vault request was
   let resolveVault;
   window.vex = { vaultGet: () => new Promise(r => { resolveVault = r; }) };
   const { PasswordVault } = await import('../../src/renderer/js/passwords.js');
-  let injected;
-  const wv = { executeJavaScript: vi.fn(async js => { injected = js; }) };
+  // The tab moves on while the vault is read: the new page is never armed, so
+  // a click there can never ask for the login (and nothing runs in its world).
+  let current = 'https://trusted.test/login';
+  const wv = { getURL: () => current, send: vi.fn(), executeJavaScript: vi.fn() };
   const pending = PasswordVault.autofill(wv, 'https://trusted.test/login');
+  current = 'https://evil.test/login';
   resolveVault([{ username: 'person', password: 'secret' }]);
   await pending;
-  const querySelector = vi.fn();
-  vm.runInNewContext(injected, { location: { origin: 'https://evil.test' }, document: { querySelector }, window: {} });
-  expect(querySelector).not.toHaveBeenCalled();
+  expect(wv.send).not.toHaveBeenCalled();
+  expect(wv.executeJavaScript).not.toHaveBeenCalled();
 });
 
 it('headless agents report failure when they exhaust their iteration budget', async () => {
