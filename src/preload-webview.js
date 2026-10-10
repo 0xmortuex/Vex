@@ -2124,8 +2124,57 @@ let _vexStartPageOwn = null;
     } catch { /* best-effort */ }
   }
 
-  document.addEventListener("copy", () => report("copy"), true);
-  document.addEventListener("cut", () => report("cut"), true);
+  // Only a copy the person made: a page could dispatch made-up copy events by
+  // the thousand and fill the history with whatever it liked (audit SE8).
+  document.addEventListener("copy", (e) => { if (e.isTrusted) report("copy"); }, true);
+  document.addEventListener("cut", (e) => { if (e.isTrusted) report("cut"); }, true);
+
+  // A site's own "Copy" button usually calls navigator.clipboard.writeText,
+  // which fires no copy event, so those copies never reached the history. The
+  // page's writeText is wrapped in the page's world, and the wrapper reports
+  // to `seen` below, which only this closure holds (passed through
+  // executeInMainWorld, never put on window): a page cannot call it except by
+  // really writing to the clipboard. And it counts only while the person has
+  // just clicked or typed, judged here in the isolated world, where the
+  // page's own navigator.userActivation cannot be faked.
+  let pending = null;
+  function seen(text, phase) {
+    try {
+      if (phase === "call") {
+        pending = (navigator.userActivation && navigator.userActivation.isActive && typeof text === "string") ? text : null;
+        return;
+      }
+      if (phase !== "done" || pending === null || text !== pending) return;
+      pending = null;
+      if (fromSecretField()) return;
+      const t = text.replace(/\u0000/g, "");
+      if (!t.trim() || t.length > MAX) return;
+      ipcRenderer.sendToHost("vex-copy", { text: t, kind: "write", title: String(document.title || "").slice(0, 120) });
+    } catch { /* best-effort */ }
+  }
+  function hookWriteText(seen) {
+    try {
+      if (typeof Clipboard === "undefined" || !Clipboard.prototype.writeText) return;
+      // Taken now, before any of the page's own script runs, so a page that
+      // later replaces Promise.prototype.then cannot fake a finished write.
+      const write = Clipboard.prototype.writeText;
+      const then = Promise.prototype.then;
+      const wrapped = {
+        writeText(data) {
+          const text = String(data);
+          try { seen(text, "call"); } catch (e) { /* the report never stops the copy */ }
+          const p = write.apply(this, arguments);
+          try { then.call(p, () => { try { seen(text, "done"); } catch (e) { /* never break the page */ } }, () => {}); } catch (e) { /* never break the page */ }
+          return p;
+        },
+      }.writeText;
+      Object.defineProperty(Clipboard.prototype, "writeText", { value: wrapped, writable: true, configurable: true, enumerable: true });
+    } catch (e) { /* never break the page */ }
+  }
+  if (__vexCB && typeof __vexCB.executeInMainWorld === "function") {
+    try { __vexCB.executeInMainWorld({ func: hookWriteText, args: [seen] }); }
+    catch (err) { console.error("[Vex] copy-button tracking could not reach this page:", err && err.message); }
+  }
 })();
 
 // === Mouse-gesture tracker — right-button drag → direction(s) to host ===
