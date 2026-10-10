@@ -286,6 +286,8 @@ define('popup:activation', [boolean]);
 define('page-dialog', [shape({ type: oneOf(['alert', 'confirm', 'prompt']), message: string(10000), value: optional(string(10000)) })]);
 // The window's answer to one (renderer/js/page-dialogs.js).
 define('page-dialog:answer', [shape({ id: string(64), ok: boolean, value: optional(string(10000)), stop: optional(boolean) })]);
+// The window's answer to "Leave site?" (main/leave-page.js).
+define('page:leave-answer', [shape({ id: string(64), leave: boolean })]);
 // Guest compatibility bridges use sender-derived identity; legacy arguments are ignored.
 define('geolocation:get geolocation:check-permission compatibility:get privacy:config-sync', [optional(string())]);
 // Profiles (src/main/profiles.js, js/profiles-ui.js): ids are 'default' or

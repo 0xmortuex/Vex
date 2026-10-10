@@ -5306,9 +5306,10 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleExternalProtocol(details.url, contents)) details.preventDefault();
   });
 
-  // Block window.onbeforeunload confirm prompts (prevents "Leave page?" spam
-  // when user closes a tab that has an unload handler).
-  contents.on('will-prevent-unload', (evt) => evt.preventDefault());
+  // "Leave site?" for a page you clicked or typed in, asked in Vex's own
+  // dialog; never when a tab or window closes (src/main/leave-page.js).
+  _leaveGuard.watch(contents);
+  contents.on('will-prevent-unload', (evt) => { _leaveGuard.onWillPreventUnload(evt, contents); });
 
   // F11 / Esc fullscreen and F12 / Ctrl+Shift+I DevTools must work even when
   // the guest page has focus. Without this, pressing them inside any loaded
@@ -5357,6 +5358,27 @@ const _pageDialogs = require('./main/page-dialogs').createPageDialogs({
 });
 ipcMain.on('page-dialog', (event, req) => _pageDialogs.request(event, req));
 ipcMain.on('page-dialog:answer', (event, res) => _pageDialogs.answer(event, res));
+
+// "Leave site?" (src/main/leave-page.js): asked by the window the page is in
+// (js/page-dialogs.js), never while that window or Vex is closing.
+const _leavePage = require('./main/leave-page');
+const _leaveQuestions = _leavePage.createLeaveQuestions({
+  owner: (contents) => secureSessions.owner(contents),
+  newId: () => require('crypto').randomUUID(),
+});
+const _leaveGuard = _leavePage.createLeaveGuard({
+  ask: (contents) => _leaveQuestions.ask(contents, { origin: require('./main/page-dialogs').originOf(contents.getURL()) }),
+  isClosing: (contents) => {
+    const host = secureSessions.owner(contents);
+    return !!(host && host.allowClose) || !!_exitWatch.ending();
+  },
+  tellAgain: (contents) => {
+    const host = secureSessions.owner(contents);
+    if (host && host.win && !host.win.isDestroyed()) host.win.webContents.send('vex:toast', 'Do that again to leave the page');
+  },
+  log: (m) => console.error(m),
+});
+ipcMain.on('page:leave-answer', (event, res) => _leaveQuestions.answer(event, res));
 
 // Ctrl+Alt+D from inside a page: dictation types into web pages, and the page
 // has the focus while you do — so this one key is passed up to Vex.

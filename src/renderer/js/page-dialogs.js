@@ -422,13 +422,34 @@ const PageDialogs = (() => {
     if (entry) finish(entry);
   }
 
-  function init() {
-    if (!window.vex?.onPageDialog) throw new Error('PageDialogs: the page-dialog bridge is missing from preload.js');
-    window.vex.onPageDialog(show);
-    window.vex.onPageDialogClose(close);
+  // "Leave site?" (src/main/leave-page.js): a page you clicked or typed in
+  // asks before it is left. Vex's own dialog, never the native box; "Leave"
+  // lets main do again what the page held up.
+  async function askLeave(d) {
+    let leave = false;
+    try {
+      leave = await window.vexConfirm({
+        title: t('leaveSiteTitle', 'Leave site?'),
+        message: (d && d.origin ? d.origin + ': ' : '') + t('leaveSiteMessage', 'Changes you made may not be saved.'),
+        okLabel: t('leaveSiteLeave', 'Leave'),
+        cancelLabel: t('leaveSiteStay', 'Stay'),
+      });
+    } catch (err) {
+      console.error('[PageDialogs] could not ask about leaving the page:', err);
+      window.VexProblems?.note('Page dialog', 'Could not ask "Leave site?"', err);
+    }
+    window.vex.pageLeaveAnswer({ id: d.id, leave: leave === true });
   }
 
-  return { init, show, close, waiting, _refresh: refresh, _card: () => card, _open: openEntry };
+  function init() {
+    if (!window.vex?.onPageDialog) throw new Error('PageDialogs: the page-dialog bridge is missing from preload.js');
+    if (!window.vex.onPageLeaveAsk) throw new Error('PageDialogs: the leave-page bridge is missing from preload.js');
+    window.vex.onPageDialog(show);
+    window.vex.onPageDialogClose(close);
+    window.vex.onPageLeaveAsk(askLeave);
+  }
+
+  return { init, show, close, waiting, askLeave, _refresh: refresh, _card: () => card, _open: openEntry };
 })();
 
 window.PageDialogs = PageDialogs;

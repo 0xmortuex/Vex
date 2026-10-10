@@ -26,6 +26,8 @@ beforeEach(() => {
     onPageDialog: (cb) => { listeners.show = cb; },
     onPageDialogClose: (cb) => { listeners.close = cb; },
     pageDialogAnswer: (p) => answers.push(p),
+    onPageLeaveAsk: (cb) => { listeners.leave = cb; },
+    pageLeaveAnswer: (p) => answers.push({ leaveAnswer: p }),
   };
   globalThis.VexIcons = { svg: () => '<svg></svg>' };
   if (!globalThis.CSS) globalThis.CSS = {};
@@ -289,5 +291,28 @@ describe('Vex\'s own interface never uses the native boxes', () => {
     }
     // chat-file.js has a method named prompt(doc) — its own, not the window's.
     expect(hits.filter(h => !/chat-file\.js:\d+: prompt\(doc\) \{/.test(h)), hits.join('\n')).toEqual([]);
+  });
+});
+
+// Audit B3 (2026-10-10): "Leave site?" never showed. Main asks the window
+// (src/main/leave-page.js); the window asks in Vex's own dialog.
+describe('"Leave site?"', () => {
+  it('is asked in a Vex dialog naming the site, and the answer goes back to main', async () => {
+    window.vexConfirm = vi.fn(async () => true);
+    await listeners.leave({ id: 'L1', guestId: 7, origin: 'docs.example' });
+    expect(window.vexConfirm).toHaveBeenCalledWith({ title: 'Leave site?', message: 'docs.example: Changes you made may not be saved.', okLabel: 'Leave', cancelLabel: 'Stay' });
+    expect(answers).toContainEqual({ leaveAnswer: { id: 'L1', leave: true } });
+  });
+
+  it('"Stay" (or a dialog that could not be shown) keeps the page', async () => {
+    window.vexConfirm = vi.fn(async () => false);
+    await listeners.leave({ id: 'L2', guestId: 7, origin: '' });
+    expect(answers).toContainEqual({ leaveAnswer: { id: 'L2', leave: false } });
+    window.vexConfirm = vi.fn(async () => { throw new Error('no dialog'); });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await listeners.leave({ id: 'L3', guestId: 7, origin: '' });
+    expect(answers).toContainEqual({ leaveAnswer: { id: 'L3', leave: false } });
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
   });
 });

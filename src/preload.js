@@ -305,6 +305,9 @@ contextBridge.exposeInMainWorld('vex', {
   onPageDialog:      (cb) => subscribe('page-dialog:show', cb),
   onPageDialogClose: (cb) => subscribe('page-dialog:close', cb),
   pageDialogAnswer:  (payload) => ipcRenderer.send('page-dialog:answer', payload),
+  // "Leave site?" for a page that asks before it is left (main/leave-page.js).
+  onPageLeaveAsk:    (cb) => subscribe('page:leave-ask', cb),
+  pageLeaveAnswer:   (payload) => ipcRenderer.send('page:leave-answer', payload),
   // The decisions one tab's page is held to (its container's own, or a
   // private window's), by the page's webContents id.
   permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),

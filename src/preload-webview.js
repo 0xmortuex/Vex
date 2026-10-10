@@ -2529,6 +2529,48 @@ if (typeof module !== 'undefined' && module.exports) {
   }, false);
 })();
 
+// === What the page was left by, done again after "Leave site?" ===
+// A page you typed in asks before it is left; Vex asks you in its own dialog
+// while the page stays (src/main/leave-page.js). When it was a link or a form
+// in the page that was held up, main cannot know where it went: this notes
+// the link or form clicked just before the page asked, and on "Leave"
+// ('vex:leave-replay') follows it again. Main lets that second try through.
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.on !== 'function') return;
+  try { if (window.top !== window) return; } catch (e) { return; }
+  var last = null;   // { at, kind: 'link' | 'form', href | form, submitter }
+  var held = null;   // what the page was being left by when it asked
+  document.addEventListener('click', function (e) {
+    if (!e.isTrusted || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    var a = null;
+    for (var i = 0; i < path.length; i++) { var n = path[i]; if (n && n.tagName === 'A' && n.href) { a = n; break; } }
+    if (!a || a.hasAttribute('download') || /^javascript:/i.test(String(a.href))) return;
+    var target = String(a.target || '').toLowerCase();
+    if (target && target !== '_self' && target !== '_top') return;
+    last = { at: Date.now(), kind: 'link', href: String(a.href) };
+  }, true);
+  document.addEventListener('submit', function (e) {
+    if (!e.isTrusted || !e.target || e.target.tagName !== 'FORM') return;
+    last = { at: Date.now(), kind: 'form', form: e.target, submitter: e.submitter || null };
+  }, true);
+  window.addEventListener('beforeunload', function () {
+    held = last && Date.now() - last.at < 1000 ? last : null;
+  }, true);
+  ipc.on('vex:leave-replay', function () {
+    var h = held;
+    held = null; last = null;
+    if (!h) return;   // main says "do that again" when nothing starts
+    if (h.kind === 'link') { window.location.assign(h.href); return; }
+    if (!h.form.isConnected) return;
+    if (h.submitter && h.submitter.isConnected && typeof h.form.requestSubmit === 'function') h.form.requestSubmit(h.submitter);
+    else HTMLFormElement.prototype.submit.call(h.form);
+  });
+})();
+
 // === Escape the page left alone, told to the host ===
 // Peek and Responsive Preview close on Escape, but once you clicked into the
 // previewed page the key went to that page and the overlay stayed open (found
