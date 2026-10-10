@@ -97,6 +97,9 @@ const HistoryPanel = {
     document.getElementById('history-clear-btn')?.addEventListener('click', async () => {
       if (await vexConfirm({ title: 'Clear history', message: 'Clear all browsing history?', okLabel: 'Clear', danger: true })) {
         this.entries = [];
+        // Only recent history syncs (js/sync-engine.js historyWindow); this
+        // time tells your other devices to clear their older visits too.
+        localStorage.setItem('vex.historyClearedAt', new Date().toISOString());
         this.save();
         this.lastAISearch = null;
         this.renderList();

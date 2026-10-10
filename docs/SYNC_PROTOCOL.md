@@ -1,4 +1,6 @@
-# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4)
+# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3)
+
+> **Release after v14.72.3 — document contents only, no server change.** The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
 
 > **Release after v2.37.0 — server-internal change only.** The worker keeps each account in its own Durable Object instead of one shared object (§1.2). Every endpoint, request, response, status code and token format in this document is unchanged; no client change is needed.
 
@@ -45,7 +47,7 @@ A sync round is **pull → merge → push**. A push carries `baseRevision`. The 
 
 - Every request and response body is JSON (`Content-Type: application/json`). Every response, errors included, is `application/json` with a body like `{"error": "<message>"}` or `{"ok": true, ...}`. The only exception is `OPTIONS`, which returns 204 with no body.
 - Authenticated endpoints (`/sync/*`) need `Authorization: Bearer <sessionToken>`. The server strips the prefix with `/^Bearer\s+/`.
-- **Request body cap: 4 MiB** (`boundedJson`, 4·1024·1024 bytes). The cap is checked against `Content-Length` first and then while streaming. Over the cap the server returns **413** `{"error":"Request too large"}`. The worker's own `encryptedBlob.length > 5 MB → 413 "Blob too large (max 5 MB)"` check can never fire, because the 4 MiB body cap is reached first. **The effective limit for a push is the entire JSON body ≤ 4 MiB**, and base64 adds about 33%, so the plaintext document must stay under roughly 3 MiB.
+- **Request body cap: 4 MiB** (`boundedJson`, 4·1024·1024 bytes). The cap is checked against `Content-Length` first and then while streaming. Over the cap the server returns **413** `{"error":"Request too large"}`. (The desktop says "Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded…" from the release after v14.72.3.) The worker's own `encryptedBlob.length > 5 MB → 413 "Blob too large (max 5 MB)"` check can never fire, because the 4 MiB body cap is reached first. **The effective limit for a push is the entire JSON body ≤ 4 MiB**, and base64 adds about 33%, so the plaintext document must stay under roughly 3 MiB.
 - If the request body is not read within 10 s, the server returns **408** `{"error":"Body read timed out"}`.
 - A body that is not JSON gets **400** `{"error":"Invalid JSON"}`. A missing body gets **400** `{"error":"JSON body required"}`.
 - Unknown paths get **404** `{"error":"Not found"}`. An unexpected server exception gets **500** `{"error":"Sync request failed"}`.
@@ -343,7 +345,7 @@ A record written by `capture` has exactly this field order:
 { "clock": { "<deviceId>": <int>, ... }, "deleted": false, "value": <any>, "at": <ms epoch int>, "conflicts": [] }
 ```
 - `clock` is a version vector. Each device increments **its own** entry every time it changes the record. The entry key is the server-issued `deviceId`; the desktop's legacy conversion uses `legacy`.
-- `deleted: true` marks a tombstone, and its `value` is `null`. Tombstones are kept forever. Nothing garbage-collects them.
+- `deleted: true` marks a tombstone, and its `value` is `null`. Up to v14.72.3 tombstones were kept forever. From the release after it, they are cleared out once every device on the account has synced past them (§4.7).
 - `at` is `Date.now()` on the device that made the edit. It decides concurrent edits (§5.2).
 - `conflicts` holds the variants kept from a concurrent merge, each `{deleted, value, at}`. A new local edit clears it to `[]`.
 - A record produced by **merge** has field order `{deleted, value, at, clock, conflicts}` (`{...winner, clock, conflicts}`). Field order is not semantic, but see rule 9 in §6.
@@ -369,12 +371,21 @@ Every other preference is a **scalar**: its value is the raw localStorage string
 `index` is just the position in the list at capture time. Inserting at the front (the desktop's bookmark add uses `unshift`) changes `index` on every later item, and each of those counts as an edit of that item's record. See §5.5.
 
 ### 4.6 Device markers and tile gating
-Every current client writes a scalar source `sync:device:<its deviceId>` with value `{"level": 1}`. That is two records:
+Every current client writes a scalar source `sync:device:<its deviceId>`. That is two records:
 ```
 ["sync:device:<id>","type"]  → "scalar"
-["sync:device:<id>","value"] → {"level":1}
+["sync:device:<id>","value"] → {"level":2,"revision":41}
 ```
-`SYNC_LEVEL = 1` means "understands shortcut tiles and the New Tab grid" (Vex 2.34.3+). Before writing tiles, each desktop runs `checkTileGate`:
+Levels:
+
+| Level | Value | Promises | Desktop |
+|---|---|---|---|
+| 1 | `{"level":1}` | understands shortcut tiles and the New Tab grid | Vex 2.34.3 to v14.72.3 |
+| 2 | `{"level":2,"revision":<int>}` | level 1, plus §6 rule 1 (copies every record it does not own verbatim), §4.7 (drops a tombstone the account no longer holds; never writes a retired source), and `revision` = the account revision of the document this push was built from | the release after v14.72.3 |
+
+A level-2 marker's `revision` only has to be at most the revision the device last merged; it may lag. The desktop rewrites it along with any other change, and on its own at most once a day (when the marker record's `at` is a day old), so two idle desktops do not keep pushing each other's revision back and forth. Other fields MAY be added to a marker later; a client MUST ignore fields it does not know and copy other devices' markers verbatim.
+
+Tile gating needs level ≥ 1 (`TILES_LEVEL`). Before writing tiles, each desktop runs `checkTileGate`:
 1. `GET /sync/devices`.
 2. For every listed device other than itself, it checks the cloud document for a non-deleted marker with `value.level >= 1`.
 3. If any listed device lacks one, the **gate is shut**. The desktop then leaves `preference:vex.shortcuts` and `preference:vex.startTiles` records exactly as it found them, and keeps its tiles local. A failed device-list call (or 403) also shuts the gate.
@@ -406,6 +417,16 @@ Vectors (from running the real `withTileIds`):
 | `https://x.test/😀` | `tile-4c794857` |
 
 Because it hashes code points rather than UTF-8 bytes, this is **not** standard FNV-1a for non-ASCII URLs. Implement it exactly as written.
+
+### 4.7 Clearing out deleted records and retired sources (from the release after v14.72.3)
+Tombstones used to be kept forever, so the document only grew: history alone turns over thousands of visits, each leaving a tombstone, toward the 30 000-record and 4 MiB limits. The desktop now clears them out, and only while **every** listed device (`GET /sync/devices`, the caller excluded) has a level-2 marker with an integer `revision`. One level-1 device, an older desktop or the phone, stops all clean-up for the account.
+
+- **Seen revision.** A device notes, for each tombstone, the first account revision it saw it in: the revision of a pulled document that held it, or of its own push that created it. This is local state, not on the wire.
+- **Floor.** `floor = min(own revision, every other listed device's marker revision)`.
+- **Clean-up.** When building a push, a tombstone whose seen revision is ≤ `floor` is left out of the document (not copied, not re-tombstoned). Every device on the account has merged a document holding it, so each already applied the deletion.
+- **Retired sources** (§8.1 "No longer synced": `storage:history`, `preference:vex.autosleep`, `preference:vex.autosleepMinutes`, `preference:vex.autosleepExcludePinned`, `preference:vex.customCommands`, `preference:vex.settings`, `preference:vex-theme`): every record of these is left out under the same condition.
+- **Drop on absence (MUST at level 2).** When a pull's document no longer holds a tombstone this device has seen in an earlier document, another device cleared it away: drop it from your own document before merging. Otherwise `merge` keeps the left-only record and your next push brings it back. A tombstone you made yourself and have not pushed yet is not "seen", and stays.
+- A client that never caches records outside the pulled document (the §9 "rebase" client) drops nothing by construction; it only has to keep its marker at level 2 with a `revision`.
 
 ---
 
@@ -500,7 +521,7 @@ A device with no local data can just adopt the cloud document.
 
 **Device markers**
 
-5. A client MUST write its own marker `sync:device:<deviceId>` = `{"level":1}` in **every** document it pushes, using the server-issued `deviceId`. It MUST NOT write a level higher than 1 until this spec says so: a higher level would promise it understands future features. It MUST copy other devices' markers verbatim.
+5. A client MUST write its own marker `sync:device:<deviceId>` in **every** document it pushes, using the server-issued `deviceId`: `{"level":1}`, or `{"level":2,"revision":<the revision the push is based on, or lower>}` once it follows everything level 2 promises (§4.6, §4.7). It MUST NOT write a higher level than the ones this spec defines: a higher level would promise it understands future features. It MUST copy other devices' markers verbatim.
 6. After any pull in which its own marker is absent or deleted, a client MUST push soon, on the next round at the latest. The desktop pushes immediately.
 7. A client SHOULD push its first document right after its first successful pull or verify. Until its marker is in the account, tile sync is shut for everyone.
 
@@ -528,7 +549,7 @@ A device with no local data can just adopt the cloud document.
 
 19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. The desktop applies them live to its open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers.
 20. A client MUST NOT write tile sources (`preference:vex.shortcuts`, `preference:vex.startTiles`) while the tile gate is shut. That is, unless every listed device, the client included, has a marker with level ≥ 1. When writing tiles, it MUST give them the §4.6 ids and must not keep those ids in its local copy.
-21. A client SHOULD keep its document well under the size limit (§1.2). The desktop's history alone can be thousands of records.
+21. A client SHOULD keep its document well under the size limit (§1.2). The desktop sends at most 1,000 history visits (§8.1), and clears out tombstones while every device is at level 2 (§4.7).
 
 ---
 
@@ -555,8 +576,9 @@ A small per-account mailbox, separate from the record document.
 
 ### 8.1 Complete list (from `SYNC_KEYS`, `preferenceKeys()`, `STORE_KEYS` and `TILE_LISTS`)
 - **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`, `vex.neverSleepHosts`, `vex.translateAlwaysHosts`, `vex.customThemes`.
-- **Scalar preferences** (raw localStorage strings): `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto`, `vex.whatsNewCard`. All are prefixed `preference:`.
-- **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied.
+- **Scalar preferences** (raw localStorage strings): `vex.historyClearedAt`, `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto`, `vex.whatsNewCard`. All are prefixed `preference:`.
+- **History window** (from the release after v14.72.3): the desktop owns `preference:vex.history` but sends only its newest **1,000** visits, and none whose `visitedAt` is more than **90 days** old. A visit that falls out of that window becomes a tombstone once (and is cleared out later, §4.7); every desktop keeps its own older visits locally and does not delete them when they are missing from, or tombstoned in, the account. `vex.historyClearedAt` (an ISO time, written by History › Clear History) is how a clear reaches those older visits: a desktop removes every visit with `visitedAt` at or before it.
+- **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied. Once every device is at level 2 they are cleared out of the document (§4.7).
 - **Tile lists** (gated): `preference:vex.shortcuts`, `preference:vex.startTiles`.
 - **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
 - **Markers**: `sync:device:<id>`.
@@ -569,7 +591,7 @@ A small per-account mailbox, separate from the record document.
 |---|---|---|---|
 | `preference:vex.bookmarks` | yes | **yes (recommended owned source)** | `{ "id": string, "url": http(s) string, "title": string, "folder": string ("" = Unsorted), "at": ms int, "ownSession"?: true }`. `id` matches `^[\w.:-]{1,160}$`. The desktop makes ids like `bm` + base36 time + base36 counter + 5 random base36, e.g. `bmmg5k2x01a3f9q`; any unique id matching the regex is fine. The desktop adds new bookmarks at the **front** and treats the URL as the identity for its star button. |
 | `preference:vex.notes` | yes | yes | `{ "id": string, "title": string, "content": markdown string, "pinned": bool, "tags": string[], "sourceUrl": string, "sourceTitle": string, "createdAt": ISO string, "updatedAt": ISO string }`. Desktop id format: `note_<ms>_<5 base36>`. Every field is optional on read (`NotesPanel.normalize`). Set `updatedAt` on every edit. Data-contracts does not validate notes beyond §8.4's generic rules. |
-| `preference:vex.history` | yes | SHOULD NOT (read-only) | `{ "id": "h_<ms>_<5 base36>", "url": http(s), "title": string, "favicon": http(s) URL or "", "visitedAt": ISO, "indexed": bool, "ownSession"?: true, "summary"?, "tags"?, "contentType"? }`. Up to 5000 entries, newest first. Owning it means holding and pushing the complete list (rule 2). |
+| `preference:vex.history` | yes | SHOULD NOT (read-only) | `{ "id": "h_<ms>_<5 base36>", "url": http(s), "title": string, "favicon": http(s) URL or "", "visitedAt": ISO, "indexed": bool, "ownSession"?: true, "summary"?, "tags"?, "contentType"? }`. Up to 5000 entries on a desktop, newest first; the account holds only the newest 1,000 from the last 90 days (§8.1). Owning it means holding and pushing that complete window (rule 2), and never deleting a local visit because it is outside the window. |
 | `preference:vex.forceDarkHosts` | yes | MAY | A list of host-name **strings**, e.g. `"example.com"`. The item id is the JSON string with quotes (§4.3). |
 | `preference:vex.customThemes` | yes | MAY | Your own colour themes: `{ "id": ^user-[a-z]{4,24}$, "name": string (1-40 chars), "colors": { background, surface, text, muted, primary, success, warning, danger, border: "#rrggbb" each, all nine }, "base"?: built-in theme id, "updated"?: ms int }`. No other fields: the desktop drops a record with any other field or a colour that is not `#rrggbb` (`theme-custom.js validateRecord`). Background images are **not** synced (they stay on each device). The colours, and the `.vextheme` file a theme is shared as, are described in [THEME_FORMAT.md](THEME_FORMAT.md). |
 | `preference:vex.reminders` | yes | add only, with care | A mirror of the desktop main process's reminders: `{ id: ^[A-Za-z0-9_-]{1,64}$, message: string (≤2000 used), at: ms|null, site: host|null, repeat: "daily"/"weekdays"/"weekly"/[0..6 ints]|null, time: "HH:MM"|null, url: http(s)|null, urgent: bool, kind: "reminder"/"alarm"/"timer"/"review", sound: bool, job, owner, ackedAt, createdAt, firedAt, lastFiredAt }`. Desktops **import** new ones (`reminders.js importList`): not `kind:"review"`, not `firedAt`, not older than 7 days. They fire while Vex is open, and only the `owner` machine wakes Windows. **A phone cannot delete a reminder:** the desktop rewrites the mirror from its own list every 5 minutes and after each sync, so a deletion comes straight back. A reminder the desktop refuses to import disappears from the account on that desktop's next push. |
@@ -719,4 +741,4 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 2. **Extra fields on New Tab tiles** (`preference:vex.startTiles`): `src/renderer/js/webview.js` `_startTilesValid` only checks `name` and `url`. What the start page actually stores beyond those was not traced. Carry unknown fields through.
 3. **Recovering conflict variants**: the desktop keeps them in `conflicts` and toasts about them, but no UI was found that lets the user restore a losing variant (`sync-engine.js` `applySyncData` only counts them). A client need not expose them, but MUST keep them on records it does not change.
 4. **`vex.reminders` items written by a non-desktop `owner`**: `reminders.js` `importList` accepts them, but sets `owner` to the value sent or `'unknown'`. What the desktop shows for a reminder whose `owner` is not a known machine was not checked (`src/main/reminders.js`).
-5. **Document growth**: tombstones are never removed and history can reach thousands of items. When an account would hit the 4 MiB body or 30 000 record limits was not measured. No compaction exists in the code.
+5. **Document growth** (settled in the release after v14.72.3): a 5,000-visit history was measured at about 3.8 MB of request body, and a busy week of browsing leaves about 1,000 tombstones. History is now limited to 1,000 visits (§8.1) and tombstones are cleared out while every device is at level 2 (§4.7). While a level-1 device stays on the account, tombstones still accumulate.

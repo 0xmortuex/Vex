@@ -84,6 +84,10 @@ const SyncEngine = (() => {
     'vex.reminders',
     // Settings › About › Show what is new after an update (js/update-log.js).
     'vex.whatsNewCard',
+    // When History › Clear History last ran (an ISO time). Only recent history
+    // syncs (HISTORY_SYNC_*), so a clear on one device reaches the older
+    // visits other devices keep only through this.
+    'vex.historyClearedAt',
   ];
 
   // Lists synced item by item, so two devices' entries merge instead of one
@@ -121,9 +125,35 @@ const SyncEngine = (() => {
   // 1 = shortcut tiles and the New Tab grid (Vex 2.34.3). Raise it for the
   // next feature that must wait for every device, and compare against the
   // level that feature needs.
-  const SYNC_LEVEL = 1;
+  // 2 = this device also copies every record it does not own exactly as it
+  // found it (Vex 2.35.2 did already, but its level-1 marker cannot be told
+  // from 2.34.3 to 2.35.1, which did not), writes the account revision it
+  // last synced in its marker, drops a deleted record the account no longer
+  // holds (another device cleared it away), and never writes a retired source
+  // (SYNC_PROTOCOL.md §4.7). Deleted records and retired sources are cleared
+  // out of the account only while every device on it is at level 2: they were
+  // kept for ever, and the account grew until the server refused it (found
+  // 2026-10-10).
+  const SYNC_LEVEL = 2;
   const TILES_LEVEL = 1;
+  const COMPACT_LEVEL = 2;
   let tileGate = { open: false, waitingOn: [] };
+  let compactGate = { open: false, waitingOn: [], floor: 0 };
+  // A marker whose revision is older than this is written again even when
+  // nothing else changed, so the other devices learn this one is up to date.
+  // Not on every round: two devices would push each other's new revision back
+  // and forth for ever.
+  const MARKER_REFRESH_MS = 24 * 3600 * 1000;
+  // Sources no current Vex reads or writes. Older desktops still send them
+  // and newer ones carry them as they came; once every device is at level 2
+  // they leave the account.
+  const RETIRED_SOURCES = ['storage:history', 'preference:vex.autosleep', 'preference:vex.autosleepMinutes',
+    'preference:vex.autosleepExcludePinned', 'preference:vex.customCommands', 'preference:vex.settings', 'preference:vex-theme'];
+  // History syncs only its newest entries: a full 5,000-visit history was a
+  // 3.8 MB upload, close to the server's 4 MiB limit (found 2026-10-10).
+  // Visits older than this stay on the device that has them.
+  const HISTORY_SYNC_MAX = 1000;
+  const HISTORY_SYNC_DAYS = 90;
 
   let state = {
     enabled: false,
@@ -146,6 +176,62 @@ const SyncEngine = (() => {
   let markerTimer = null;   // the push that puts this device's marker back (pullNow)
   let revision = 0;
   let recordDocument = null;
+  // Deleted records this device has seen in the account, and the first
+  // account revision it saw each in: { recordKey: revision }. A deleted record
+  // may be cleared away once every device has synced that revision.
+  let tombstones = null;
+  async function seenTombstones() {
+    if (!tombstones) {
+      const saved = typeof VexStorage !== 'undefined' ? await VexStorage.load('sync-tombstones') : null;
+      tombstones = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+    }
+    return tombstones;
+  }
+  // Notes the deleted records of `doc`, a document the account held at `rev`,
+  // and forgets the ones `current` no longer has.
+  async function noteTombstones(doc, rev, current) {
+    const seen = await seenTombstones();
+    let changed = false;
+    for (const [key, record] of Object.entries(doc.records)) {
+      if (record.deleted && seen[key] == null) { seen[key] = rev; changed = true; }
+    }
+    for (const key of Object.keys(seen)) {
+      if (!current.records[key]?.deleted) { delete seen[key]; changed = true; }
+    }
+    if (changed) await VexStorage.save('sync-tombstones', seen);
+  }
+  // The document without the deleted records every device has synced past,
+  // and without the retired sources. Only while every device is at level 2.
+  function compactDocument(doc, floor, seen) {
+    const records = {};
+    for (const [key, record] of Object.entries(doc.records)) {
+      if (RETIRED_SOURCES.includes(sourceOf(key))) continue;
+      if (record.deleted && seen[key] != null && seen[key] <= floor) continue;
+      records[key] = record;
+    }
+    return { schema: 2, records };
+  }
+  // The history this device sends: its newest visits, none older than
+  // HISTORY_SYNC_DAYS. The list is kept in its own order.
+  function historyWindow(list, now = Date.now()) {
+    const since = now - HISTORY_SYNC_DAYS * 86400000;
+    const time = entry => { const t = Date.parse(entry && entry.visitedAt); return Number.isFinite(t) ? t : 0; };
+    const recent = list.filter(entry => time(entry) >= since);
+    if (recent.length <= HISTORY_SYNC_MAX) return recent;
+    const cut = new Set([...recent].sort((a, b) => time(b) - time(a)).slice(0, HISTORY_SYNC_MAX));
+    return recent.filter(entry => cut.has(entry));
+  }
+  // The synced history, plus the visits this device keeps to itself because
+  // they are older than what syncs, less everything before a Clear History
+  // made on any device.
+  function withOlderHistory(synced, local, clearedAt) {
+    const ids = new Set(synced.map(entry => entry && entry.id));
+    const recent = new Set(historyWindow([...synced, ...local.filter(entry => !ids.has(entry && entry.id))]));
+    const older = local.filter(entry => entry && !ids.has(entry.id) && !recent.has(entry));
+    const cleared = Date.parse(clearedAt);
+    const after = entry => !Number.isFinite(cleared) || !(Date.parse(entry && entry.visitedAt) <= cleared);
+    return [...synced, ...older].filter(after);
+  }
   // The document the server holds at `revision`, as this device last saw it
   // (its own push, or a pull), in a form that ignores key order; null when
   // not known this session. A push that would send it again is not sent, and
@@ -368,7 +454,9 @@ const SyncEngine = (() => {
     recordDocument = null;
     server = null;
     tileGate = { open: false, waitingOn: [] };
-    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); }
+    compactGate = { open: false, waitingOn: [], floor: 0 };
+    tombstones = null;
+    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); }
     try { await window.vex.syncClearState(); } catch {}
     state = {
       enabled: false, email: null, sessionToken: null, deviceId: null,
@@ -476,22 +564,30 @@ const SyncEngine = (() => {
       } else if (r.status !== 403) console.error('[Sync] Could not read the device list (server returned ' + r.status + '); shortcut tiles stay on this device for now');
     } catch (err) { console.error('[Sync] Could not read the device list; shortcut tiles stay on this device for now:', err); }
     let open = false, waitingOn = [];
+    let compact = { open: false, waitingOn: [], floor: 0 };
     if (devices) {
       try { await noticeNewDevices(devices); }
       catch (err) { console.error('[Sync] Could not check for a new device on the account:', err); }
-      waitingOn = devices.filter(d => {
-        if (!d || d.deviceId === state.deviceId) return false;
+      const markerOf = d => {
         const marker = doc.records[JSON.stringify([DEVICE_SOURCE + d.deviceId, 'value'])];
-        return !(marker && !marker.deleted && marker.value?.level >= TILES_LEVEL);
-      }).map(d => d.deviceId);
+        return marker && !marker.deleted && marker.value && typeof marker.value === 'object' ? marker.value : null;
+      };
+      const others = devices.filter(d => d && d.deviceId !== state.deviceId);
+      waitingOn = others.filter(d => !(markerOf(d)?.level >= TILES_LEVEL)).map(d => d.deviceId);
       open = !waitingOn.length;
+      // Clearing deleted records away waits for every device to be at level 2,
+      // and goes no further than the oldest revision any of them has synced.
+      const behind = others.filter(d => !(markerOf(d)?.level >= COMPACT_LEVEL && Number.isSafeInteger(markerOf(d).revision)));
+      const floor = Math.min(revision, ...others.filter(d => !behind.includes(d)).map(d => markerOf(d).revision));
+      compact = { open: !behind.length, waitingOn: behind.map(d => d.deviceId), floor };
     }
     tileGate = { open, waitingOn };
+    compactGate = compact;
     const joined = await VexStorage.load('sync-tiles-joined') === state.deviceId;
     // Shut again (an older device joined): the next time it opens, this
     // device's tiles are added to the account's once more.
     if (!open && joined) await VexStorage.save('sync-tiles-joined', null);
-    return { open, join: open && !joined, cloud: doc };
+    return { open, join: open && !joined, cloud: doc, compact };
   }
 
   // ===== DATA COLLECTION =====
@@ -510,7 +606,7 @@ const SyncEngine = (() => {
         // Sent as anything but a list, every other device would refuse it
         // ("Invalid synced list"); refuse it here, on the device that has it.
         if (!Array.isArray(list)) throw new Error('Invalid ' + key.slice(4) + ' data');
-        data['preference:' + key] = list;
+        data['preference:' + key] = key === 'vex.history' ? historyWindow(list) : list;
       } else data['preference:' + key] = raw;
     }
     for (const key of STORE_KEYS) {
@@ -520,8 +616,18 @@ const SyncEngine = (() => {
     }
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
+    const original = recordDocument;
     let before = recordDocument;
-    data[DEVICE_SOURCE + state.deviceId] = { level: SYNC_LEVEL };
+    if (gate.compact?.open) before = compactDocument(before, gate.compact.floor, await seenTombstones());
+    // The marker says which account revision this device last synced. It is
+    // written again only along with another change, or once a day (see
+    // MARKER_REFRESH_MS); otherwise the one already in the account stays.
+    const markerKey = JSON.stringify([DEVICE_SOURCE + state.deviceId, 'value']);
+    const freshMarker = { level: SYNC_LEVEL, revision };
+    const previous = before.records[markerKey];
+    const keepMarker = !!previous && !previous.deleted && previous.value?.level === SYNC_LEVEL
+      && Number.isSafeInteger(previous.value.revision) && Date.now() - (previous.at || 0) < MARKER_REFRESH_MS;
+    data[DEVICE_SOURCE + state.deviceId] = keepMarker ? previous.value : freshMarker;
     if (gate.open) {
       // First tile sync on this device, or the first since an older device
       // left: start from the account's tile records and add this device's
@@ -544,16 +650,27 @@ const SyncEngine = (() => {
         if (tiles) data[source] = withTileIds(tiles.synced);
       }
     }
-    recordDocument = records.capture(before, records.flatten(data), state.deviceId);
-    // Records this device leaves exactly as it found them: everything it does
-    // not own (ownsRecord), including the tiles while they wait for every
-    // device to understand them. capture() marked them deleted, as it does
-    // every record missing from its values; they go back unchanged, in place.
-    for (const key of Object.keys(recordDocument.records)) {
-      if (ownsRecord(key, gate)) continue;
-      if (!Object.hasOwn(before.records, key)) throw new Error('Sync tried to write a record it does not own: ' + key);
-      recordDocument.records[key] = before.records[key];
+    const build = () => {
+      const doc = records.capture(before, records.flatten(data), state.deviceId);
+      // Records this device leaves exactly as it found them: everything it does
+      // not own (ownsRecord), including the tiles while they wait for every
+      // device to understand them. capture() marked them deleted, as it does
+      // every record missing from its values; they go back unchanged, in place.
+      for (const key of Object.keys(doc.records)) {
+        if (ownsRecord(key, gate)) continue;
+        if (!Object.hasOwn(before.records, key)) throw new Error('Sync tried to write a record it does not own: ' + key);
+        doc.records[key] = before.records[key];
+      }
+      return doc;
+    };
+    let next = build();
+    const changed = Object.keys(next.records).length !== Object.keys(original.records).length
+      || Object.keys(next.records).some(key => next.records[key] !== original.records[key]);
+    if (keepMarker && changed && previous.value.revision !== revision) {
+      data[DEVICE_SOURCE + state.deviceId] = freshMarker;
+      next = build();
     }
+    recordDocument = next;
     await VexStorage.save('sync-records', recordDocument);
     if (gate.join) await VexStorage.save('sync-tiles-joined', state.deviceId);
     return recordDocument;
@@ -580,6 +697,10 @@ const SyncEngine = (() => {
     }
     records.valid(data);
     const gate = await checkTileGate(data);
+    // Read before anything is applied: the visits too old to sync stay here.
+    let localHistory = [];
+    try { const saved = JSON.parse(localStorage.getItem('vex.history') || '[]'); if (Array.isArray(saved)) localHistory = saved; }
+    catch (err) { console.error('[Sync] This device’s history could not be read; only the synced history is kept:', err.message); }
     const local = await collectSyncData(gate);
     let merged;
     if (restore) {
@@ -611,7 +732,17 @@ const SyncEngine = (() => {
       // This device's tiles were just added on top of the account's (see
       // collectSyncData), so its tile records are the newer ones.
       if (gate.open) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
-    } else merged = records.merge(local, data);
+    } else {
+      // A deleted record this device saw in the account and the account no
+      // longer has was cleared away by another device (compactDocument). It
+      // goes here too, or this device's next push would bring it back.
+      const seen = await seenTombstones();
+      const mine = { schema: 2, records: { ...local.records } };
+      for (const [key, record] of Object.entries(mine.records)) {
+        if (record.deleted && seen[key] != null && !Object.hasOwn(data.records, key)) delete mine.records[key];
+      }
+      merged = records.merge(mine, data);
+    }
     // Only what this device applies is read and checked. A source it does not
     // own stays in the document as it came, and must not stop this device
     // syncing because it fails a check that applies to what this device writes.
@@ -623,6 +754,10 @@ const SyncEngine = (() => {
       const value = typeof sources[name] === 'string' ? JSON.parse(sources[name]) : sources[name];
       if (!Array.isArray(value)) throw new Error('Invalid synced list: ' + key);
       sources[name] = value;
+    }
+    if (preferenceKeys().includes('vex.history') && ownsSource('preference:vex.history', gate)) {
+      const synced = sources['preference:vex.history'];
+      sources['preference:vex.history'] = withOlderHistory(Array.isArray(synced) ? synced : [], localHistory, sources['preference:vex.historyClearedAt']);
     }
     for (const key of preferenceKeys()) {
       const name = 'preference:' + key;
@@ -668,7 +803,7 @@ const SyncEngine = (() => {
     if (conflicts) window.showToast?.(conflicts === 1 ? '1 sync conflict retained in recovery data' : `${conflicts} sync conflicts retained in recovery data`);
     // Tell panels to re-read their state.
     window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
-    return { markerMissing };
+    return { markerMissing, cloud: data };
   }
 
   // ===== PUSH/PULL =====
@@ -743,9 +878,12 @@ const SyncEngine = (() => {
         await signedOutByServer(); return { ok: false, reason: 'unauthorized' };
       }
       if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
+      // The server takes at most 4 MiB in one upload (SYNC_PROTOCOL.md §1.2).
+      if (r.status === 413) throw new Error('Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded. Deleting notes or bookmarks you no longer need makes it smaller.');
       if (!r.ok) throw new Error('Push returned ' + r.status);
       revision = (await r.json()).revision;
       server = { revision, text };
+      await noteTombstones(data, revision, data);
       state.lastPushAt = new Date().toISOString();
       state.lastError = null;
       await saveMetaToDisk();
@@ -802,6 +940,8 @@ const SyncEngine = (() => {
         // (SYNC_PROTOCOL.md §6 rule 3).
         recordDocument = window.VexSyncRecords.empty();
         await VexStorage.save('sync-records', recordDocument);
+        tombstones = {};
+        await VexStorage.save('sync-tombstones', tombstones);
         revision = receivedRevision;
         server = { revision, text: canonical(recordDocument) };
         pullBlocked = false;
@@ -827,6 +967,7 @@ const SyncEngine = (() => {
       // Otherwise a stale or damaged local key could overwrite unreadable cloud data.
       revision = receivedRevision;
       server = { revision, text: canonical(decrypted) };
+      if (applied?.cloud) await noteTombstones(applied.cloud, revision, recordDocument);
       pullBlocked = false;
       state.lastPullAt = new Date().toISOString();
       state.lastError = null;
@@ -1116,6 +1257,9 @@ const SyncEngine = (() => {
     // Whether shortcut tiles synced on the last round, and which devices they
     // are waiting on (too old to understand them).
     tileSyncState: () => ({ open: tileGate.open, waitingOn: [...tileGate.waitingOn] }),
+    // Whether deleted records are being cleared out of the account, and which
+    // devices that waits on (an older Vex, or the phone).
+    cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     isEnabled: () => state.enabled && !privateWindow(),
     // Settings and the sync indicator say so in a private window.
     offInThisWindow: () => (privateWindow() ? PRIVATE_OFF : ''),

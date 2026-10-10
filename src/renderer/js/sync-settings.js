@@ -288,6 +288,9 @@ const SyncSettings = (() => {
     // Shortcut tiles sync only once every device understands them (sync-engine.js
     // checkTileGate); name the devices they are waiting on.
     const tilesWaitOn = new Set(SyncEngine.tileSyncState?.().waitingOn || []);
+    // Deleted items leave the account only once every device is new enough
+    // (sync-engine.js compactDocument).
+    const cleanupWaitOn = new Set(SyncEngine.cleanupState?.().waitingOn || []);
     const deviceBody = devicesError
       ? `<div class="sync-devices-error" role="alert" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--danger,#e5484d);font-size:12px">
            <span>${escapeHtml(devicesError)}</span>
@@ -297,7 +300,7 @@ const SyncSettings = (() => {
               <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
                 <div class="device-info">
                   <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
-                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}</div>
+                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}${cleanupWaitOn.has(d.deviceId) && !tilesWaitOn.has(d.deviceId) ? ' &middot; Deleted items are cleared out of your account once this device has synced with this version of Vex' : ''}</div>
                 </div>
                 ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
               </div>
