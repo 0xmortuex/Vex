@@ -19,3 +19,5 @@ e58e7e4 improvement-mid-some       # one AI chip in Settings
 ead1029 feature-mid-some           # never-sleep memory notice
 239a8f4 improvement-small-some     # problems folded by version, Clear has Undo
 3fabcec none                       # test setup for a change in this same batch
+9a1c284 fix-high-some              # email-code autofill almost never filled (slots taken by every page)
+a5cd8ce security-high-some         # email codes filled into any site, look-alikes included
