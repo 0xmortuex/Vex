@@ -1231,6 +1231,9 @@ const AgentLoop = {
     if (decision.tool === 'click') return RISKY_WORDS.test(String(p.selector || '') + ' ' + String(decision.thought || ''));
     if (decision.tool === 'type_text' && p.submit) return RISKY_WORDS.test(String(decision.thought || ''));
     if (decision.tool === 'vex_command') return RISKY_COMMANDS.test(String(p.command || ''));
+    // A file from the web lands on the disk: always asked, as the tool says
+    // ("The user is asked first"), even in Auto-approve.
+    if (decision.tool === 'download_file') return true;
     return false;
   },
 
