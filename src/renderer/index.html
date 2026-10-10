@@ -1238,15 +1238,15 @@
 
       <!-- Find Bar -->
       <div id="find-bar" style="display: none;">
-        <input type="text" id="find-input" placeholder="Find in page...">
-        <span id="find-count"></span>
-        <button id="find-prev" class="find-btn">
+        <input type="text" id="find-input" placeholder="Find in page..." aria-label="Find in page">
+        <span id="find-count" role="status" aria-live="polite" aria-atomic="true"></span>
+        <button id="find-prev" class="find-btn" title="Previous match (Shift+Enter)" aria-label="Previous match">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M9 8L6 5L3 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
-        <button id="find-next" class="find-btn">
+        <button id="find-next" class="find-btn" title="Next match (Enter)" aria-label="Next match">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 4L6 7L9 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
-        <button id="find-close" class="find-btn">
+        <button id="find-close" class="find-btn" title="Close (Esc)" aria-label="Close find bar">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
         </button>
       </div>

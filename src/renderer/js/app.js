@@ -301,22 +301,76 @@ function vexOwnTextFocused(doc) {
   const handFindToActivePage = () =>
     typeof handFindToPage === 'function' && handFindToPage(WebviewManager.getActiveWebview());
 
+  // The count is read from whichever page is searched, bound the first time
+  // it is searched: only the tab in front when its page was made was bound
+  // before, so a tab opened in the background never showed a count (found
+  // 2026-10-10). A result from a page no longer in front is not shown.
+  function findOnActive(text, options) {
+    const wv = WebviewManager.getActiveWebview();
+    if (!wv || !text) return;
+    if (!wv._findBound) {
+      wv.addEventListener('found-in-page', (e) => {
+        if (e.result && WebviewManager.getActiveWebview() === wv) {
+          findCount.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
+        }
+      });
+      wv._findBound = true;
+    }
+    wv.findInPage(text, options);
+  }
+
+  // Each tab has its own find bar, as in Chrome and Firefox: switching tabs
+  // hides it on a tab where it was not open and brings it back, searched
+  // again, on one where it was. It used to stay open over every tab with the
+  // last tab's "2/5" (found 2026-10-10).
+  const findOpenIn = new Map();   // tab id -> the text its open bar held
+  let findTabId = TabManager.activeTabId;
+
+  function showFindBar() {
+    const wasOpen = findBar.style.display !== 'none';
+    findBar.style.display = 'flex';
+    findInput.focus();
+    findInput.select();
+    if (wasOpen) return;
+    findCount.textContent = '';
+    if (findInput.value) findOnActive(findInput.value);
+  }
+
+  function hideFindBar() {
+    findBar.style.display = 'none';
+    findCount.textContent = '';
+    WebviewManager.stopFindInPage();
+  }
+
   function toggleFindBar() {
     if (findBar.style.display === 'none' && handFindToActivePage()) return;
-    if (findBar.style.display === 'none') {
+    if (findBar.style.display === 'none') showFindBar();
+    else hideFindBar();
+  }
+
+  window.addEventListener('vex:tab-activated', (e) => {
+    const id = e.detail && e.detail.tabId;
+    if (id === findTabId) return;
+    if (findTabId != null) {
+      if (findBar.style.display !== 'none') findOpenIn.set(findTabId, findInput.value);
+      else findOpenIn.delete(findTabId);
+    }
+    findTabId = id;
+    findCount.textContent = '';
+    if (findOpenIn.has(id)) {
       findBar.style.display = 'flex';
-      findInput.focus();
-      findInput.select();
+      findInput.value = findOpenIn.get(id);
+      if (findInput.value) findOnActive(findInput.value);
     } else {
       findBar.style.display = 'none';
-      WebviewManager.stopFindInPage();
     }
-  }
+  });
+  document.addEventListener('vex:tab-closed', (e) => { findOpenIn.delete(e.detail && e.detail.tabId); });
 
   findInput.addEventListener('input', () => {
     const text = findInput.value;
     if (text) {
-      WebviewManager.findInPage(text);
+      findOnActive(text);
     } else {
       WebviewManager.stopFindInPage();
       findCount.textContent = '';
@@ -325,41 +379,16 @@ function vexOwnTextFocused(doc) {
 
   findInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      findBar.style.display = 'none';
-      WebviewManager.stopFindInPage();
+      hideFindBar();
     } else if (e.key === 'Enter') {
-      WebviewManager.findInPage(findInput.value);
+      // Shift+Enter goes back, as in every browser; it went forward.
+      findOnActive(findInput.value, { forward: !e.shiftKey });
     }
   });
 
-  document.getElementById('find-prev').addEventListener('click', () => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && findInput.value) wv.findInPage(findInput.value, { forward: false });
-  });
-
-  document.getElementById('find-next').addEventListener('click', () => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && findInput.value) wv.findInPage(findInput.value, { forward: true });
-  });
-
-  document.getElementById('find-close').addEventListener('click', () => {
-    findBar.style.display = 'none';
-    WebviewManager.stopFindInPage();
-  });
-
-  // Listen for found-in-page results on active webview
-  const observer = new MutationObserver(() => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && !wv._findBound) {
-      wv.addEventListener('found-in-page', (e) => {
-        if (e.result) {
-          findCount.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
-        }
-      });
-      wv._findBound = true;
-    }
-  });
-  observer.observe(document.getElementById('webviews-container'), { childList: true });
+  document.getElementById('find-prev').addEventListener('click', () => findOnActive(findInput.value, { forward: false }));
+  document.getElementById('find-next').addEventListener('click', () => findOnActive(findInput.value, { forward: true }));
+  document.getElementById('find-close').addEventListener('click', hideFindBar);
 
   // === Settings Panel ===
   const searchEngineSelect = document.getElementById('setting-search-engine');
@@ -1386,7 +1415,7 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
     ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
     ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());
-    ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
+    ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; showFindBar(); });
   }
 
   // === Phase 16: Tab auto-grouping ===
