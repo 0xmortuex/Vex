@@ -46,6 +46,19 @@ function createPreferenceStore(file) {
     load,
     set(key, value) { return mutate(data => { if (Object.hasOwn(data, key) && data[key] === value) return false; data[key] = value; }); },
     delete(key) { return mutate(data => { if (!Object.hasOwn(data, key)) return false; delete data[key]; }); },
+    // Many keys in one write: [[key, value], ...], a null value deleting the
+    // key. The renderer saves what changed in the last 300 ms this way; one
+    // persist-set per key rewrote the whole file (and its .bak) once per key.
+    apply(entries) {
+      return mutate(data => {
+        let changed = false;
+        for (const [key, value] of entries) {
+          if (value === null) { if (Object.hasOwn(data, key)) { delete data[key]; changed = true; } }
+          else if (!(Object.hasOwn(data, key) && data[key] === value)) { data[key] = value; changed = true; }
+        }
+        if (!changed) return false;
+      });
+    },
     clearKeys(keys) { return mutate(data => { for (const key of keys) delete data[key]; }, true); },
     flush() { return pending; },
   };

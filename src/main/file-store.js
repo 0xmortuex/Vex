@@ -74,7 +74,14 @@ class JsonStore {
   }
   update(key, transform) {
     return this.enqueue(key, async () => {
-      const data = await transform(await this._read(key));
+      const current = await this._read(key);
+      // Taken before transform, which may change `current` in place.
+      const before = current === null ? null : JSON.stringify(current);
+      const data = await transform(current);
+      // Saved unchanged: the file (and its .bak) is left alone. The tab list
+      // was saved on every loading event and a sync pull saved every store,
+      // each a full rewrite with a forced flush (found 2026-10-09).
+      if (before !== null && before === JSON.stringify(data)) return data;
       await atomicWrite(this.file(key), JSON.stringify({ $vexStore: 1, data }));
       return data;
     });

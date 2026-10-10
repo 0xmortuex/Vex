@@ -126,6 +126,8 @@ define('cloud:token-save', [string(4096)]);
 define('sync-save-key', [value => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)]);
 define('persist-set', [string(170), string(12 * 1024 * 1024)]);
 define('persist-delete storage-load', [string(170)]);
+// Many preference keys in one write: [[key, value or null to delete], ...].
+define('persist-apply', [value => Array.isArray(value) && value.length > 0 && value.length <= 5000 && value.every(e => Array.isArray(e) && e.length === 2 && string(170)(e[0]) && (e[1] === null || string(12 * 1024 * 1024)(e[1])))]);
 define('storage-save', [string(64), value => value !== undefined]);
 // Desktop notifications and reminders are sent by the main process (see
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.

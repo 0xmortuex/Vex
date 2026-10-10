@@ -515,6 +515,8 @@ contextBridge.exposeInMainWorld('vex', {
   persistGetAll: () => ipcRenderer.invoke('persist-get-all'),
   persistSet: (key, value) => ipcRenderer.invoke('persist-set', key, value),
   persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
+  // [[key, value or null to delete], ...] saved in one write.
+  persistApply: (entries) => ipcRenderer.invoke('persist-apply', entries),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
   // Phase 18: Chrome extensions management

@@ -5607,6 +5607,9 @@ ipcMain.handle('persist-delete', async (_e, key) => {
   _refuseLockPinChange(key);
   return preferences.delete(key);
 });
+ipcMain.handle('persist-apply', async (_e, entries) => {
+  return preferences.apply(entries);
+});
 ipcMain.handle('get-user-data-path', () => userDataPath);
 
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.

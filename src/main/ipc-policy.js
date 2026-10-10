@@ -33,6 +33,12 @@ function validatePayload(channel, args) {
   if (channel === 'persist-set' && /^vex\.(bookmarks|sessions|history|workspaces|groups|stacks|shortcuts)$/.test(args[0])) {
     dataContracts.storage(args[0].slice(4), JSON.parse(args[1]));
   }
+  if (channel === 'persist-apply') {
+    for (const [key, value] of args[0]) {
+      if (!/^(?:vex[._-])[\w.:-]{1,160}$/.test(key)) throw new Error('Invalid preference key');
+      if (value !== null && /^vex\.(bookmarks|sessions|history|workspaces|groups|stacks|shortcuts)$/.test(key)) dataContracts.storage(key.slice(4), JSON.parse(value));
+    }
+  }
   const contracts = require('./contracts');
   if (channel === 'storage-save' && args[0] === 'tabs') contracts.assertTabs(args[1]);
   const encoded = JSON.stringify(args);
@@ -97,6 +103,7 @@ function installIpcPolicy(ipcMain, security) {
       if (channel === 'persist-get-all') return { ...host.persist };
       if (channel === 'persist-set') { host.persist[args[0]] = args[1]; return true; }
       if (channel === 'persist-delete') { delete host.persist[args[0]]; return true; }
+      if (channel === 'persist-apply') { for (const [key, value] of args[0]) { if (value === null) delete host.persist[key]; else host.persist[key] = value; } return true; }
       if (channel === 'sync-load-key' || channel === 'sync-load-meta') return null;
       // A private window neither reads nor writes the recall index.
       if (channel === 'recall:search') return { total: 0, hits: [], terms: [], took: 0, private: true };

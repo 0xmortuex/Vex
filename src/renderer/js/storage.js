@@ -118,27 +118,42 @@ const PersistentStorage = {
     this._timer = setTimeout(() => this._flush().catch(() => {}), 300);
   },
 
+  // One save carries at most this much text; past it the batch is split (the
+  // IPC refuses a message over 12 MB).
+  APPLY_CHUNK_CHARS: 8 * 1024 * 1024,
+
   async _flush() {
     if (this._timer) clearTimeout(this._timer);
     this._timer = null;
-    if (!window.vex || !window.vex.persistSet) return;
+    if (!window.vex || !window.vex.persistApply) return;
     const batch = Array.from(this._queue.entries());
     this._queue.clear();
     // Keep batches in invocation order even if an earlier IPC is slow.
     const previous = this._flushPending || Promise.resolve();
     this._flushPending = previous.catch(() => {}).then(async () => {
     let failure = null;
-    for (const [key, { op, value, version }] of batch) {
+    // The whole batch in one write. Each key used to be a call of its own,
+    // and each call rewrote the whole of vex-persist.json and its .bak
+    // (found 2026-10-09). Values go as raw strings — an exact byte-for-byte
+    // round-trip through the file — and null deletes.
+    const chunks = [];
+    let chunk = [], size = 0;
+    for (const entry of batch) {
+      const { op, value } = entry[1];
+      const text = op === 'set' ? (typeof value === 'string' ? value : String(value)) : null;
+      const length = entry[0].length + (text ? text.length : 0);
+      if (chunk.length && size + length > this.APPLY_CHUNK_CHARS) { chunks.push(chunk); chunk = []; size = 0; }
+      chunk.push([entry, text]); size += length;
+    }
+    if (chunk.length) chunks.push(chunk);
+    for (const part of chunks) {
       try {
-        if (op === 'set') {
-          // Store as raw string — exact byte-for-byte round-trip through the file.
-          if (await window.vex.persistSet(key, typeof value === 'string' ? value : String(value)) === false) throw new Error('Save was not acknowledged');
-        } else {
-          if (await window.vex.persistDelete(key) === false) throw new Error('Delete was not acknowledged');
-        }
+        if (await window.vex.persistApply(part.map(([[key], text]) => [key, text])) === false) throw new Error('Save was not acknowledged');
       } catch (e) {
         failure = e;
-        if (this._versions.get(key) === version) this._queue.set(key, { op, value, version });
+        for (const [[key, { op, value, version }]] of part) {
+          if (this._versions.get(key) === version) this._queue.set(key, { op, value, version });
+        }
       }
     }
     if (failure) {
@@ -201,11 +216,18 @@ _storageMethods.setItem = function (key, value) {
   // so a full store meant notes, chats and settings quietly failing to save.
   // Now it is recorded, said once, and the value still goes to the file store,
   // which has no such cap — so nothing is lost even when the cap is reached.
+  // A value saved unchanged is not sent to the file again: most setItem calls
+  // in Vex save what is already there (a sync pull re-applies every key).
+  // Only once the file has been read: before that, browser storage may hold
+  // an older copy that the file's is about to replace.
+  const unchanged = this === localStorage && PersistentStorage._ready && !PersistentStorage._queue.has(String(key))
+    && (FILE_ONLY_KEYS.has(String(key)) || _fileOnly.has(String(key)) ? _fileOnly.get(String(key)) : _origGetItem.call(this, key)) === String(value);
   if (this === localStorage && FILE_ONLY_KEYS.has(String(key))) {
     _fileOnly.set(String(key), String(value));
-    PersistentStorage._enqueue('set', String(key), String(value));
+    if (!unchanged) PersistentStorage._enqueue('set', String(key), String(value));
     return;
   }
+  if (unchanged) return;
   let quota = null;
   try { _origSetItem.call(this, key, value); }
   catch (err) { quota = err; }

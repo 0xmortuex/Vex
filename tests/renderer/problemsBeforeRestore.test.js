@@ -20,6 +20,7 @@ async function start() {
     persistGetAll: vi.fn(() => new Promise(r => { answer = () => r({ ...file }); })),
     persistSet: vi.fn(async (k, v) => { file[k] = v; return true; }),
     persistDelete: vi.fn(async (k) => { delete file[k]; return true; }),
+    persistApply: vi.fn(async (entries) => { for (const [k, v] of entries) { if (v === null) delete file[k]; else file[k] = v; } return true; }),
   };
   ({ VexProblems } = await import('../../src/renderer/js/problems.js?' + Math.random()));
   window.VexProblems = VexProblems;
