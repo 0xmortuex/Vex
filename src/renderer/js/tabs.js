@@ -608,6 +608,9 @@ const TabManager = {
     document.dispatchEvent(new CustomEvent('vex:tab-closed', { detail: { tabId: id } }));
     const idx = this.tabs.findIndex(t => t.id === id);
     if (idx === -1) return;
+    // Where the strip stood before this tab left it, to choose the next tab
+    // in front from (_nextShownAfter below).
+    const orderBefore = this.activeTabId === id && !this._bulkClosing ? this.displayOrder() : null;
 
     // Save to recently closed before destroying (skip during bulk ops)
     if (!this._bulkClosing) {
@@ -665,8 +668,12 @@ const TabManager = {
     if (this.tabs.length === 0) {
       this.createTab(START_URL, true);
     } else if (this.activeTabId === id) {
-      const newIdx = Math.min(idx, this.tabs.length - 1);
-      this.switchTab(this.tabs[newIdx].id);
+      // The tab beside it on screen, as in Chrome. It took the next tab of
+      // the internal list, which could be one hidden in a collapsed group or
+      // a folded stack, put in front with nothing on the strip showing it
+      // (found 2026-10-10).
+      const next = this._nextShownAfter(orderBefore || this.displayOrder(), id);
+      this.switchTab(next.id);
     }
 
     this.persistTabs();
@@ -3097,15 +3104,42 @@ const TabManager = {
   // end. It walked the internal list, which is not the order the strip draws,
   // and stopped on tabs hidden in a collapsed group (found 2026-09-30); like
   // Chrome, a collapsed group's tabs are passed over.
+  // A folded stack's tabs are passed over too (they are drawn only as the
+  // stack's chip).
   cycleTab(dir) {
     const order = this.displayOrder();
-    const shown = (t) => t.pinned || !t.groupId || !(this.groups.find(g => g.id === t.groupId) || {}).collapsed;
     const at = order.findIndex(t => t.id === this.activeTabId);
     for (let step = 1; step <= order.length; step++) {
       const t = order[((at < 0 ? 0 : at) + dir * step + order.length * step) % order.length];
-      if (t && t.id !== this.activeTabId && shown(t)) { this.switchTab(t.id); return t; }
+      if (t && t.id !== this.activeTabId && this.isOnScreen(t)) { this.switchTab(t.id); return t; }
     }
     return null;
+  },
+
+  // Whether the strip draws this tab as a tab of its own: not one in a
+  // collapsed group, nor a member of a folded stack (drawn only as its chip).
+  isOnScreen(t) {
+    if (!t) return false;
+    if (t.pinned) return true;
+    if (t.stackId) return this._expandedStackIds.has(t.stackId) || !this.stacks.some(s => s.id === t.stackId);
+    return !t.groupId || !(this.groups.find(g => g.id === t.groupId) || {}).collapsed;
+  },
+
+  // The tabs drawn on screen, in the order they are drawn (Ctrl+1..9).
+  shownOrder() {
+    return this.displayOrder().filter(t => this.isOnScreen(t));
+  },
+
+  // The tab to put in front once `id` has gone: the next one on screen after
+  // it in `order` (the strip as it stood), else the one before it. With none
+  // on screen at all, the next tab there is, as before.
+  _nextShownAfter(order, id) {
+    const at = order.findIndex(t => t.id === id);
+    const live = (t) => t.id !== id && this.tabs.includes(t);
+    const after = order.slice(at + 1).filter(live);
+    const before = order.slice(0, Math.max(at, 0)).reverse().filter(live);
+    return after.find(t => this.isOnScreen(t)) || before.find(t => this.isOnScreen(t))
+      || after[0] || before[0] || this.tabs[0];
   },
 
   // An extension's tabs.remove (main.js, _closeTabsForExtension) names tabs

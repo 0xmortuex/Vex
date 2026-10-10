@@ -31,15 +31,6 @@ const MouseGestures = {
     });
   },
 
-  _adjacent(delta) {
-    try {
-      const tabs = TabManager.tabs; if (!tabs || !tabs.length) return null;
-      let i = tabs.findIndex(x => x.id === TabManager.activeTabId);
-      if (i < 0) i = 0;
-      return tabs[(i + delta + tabs.length) % tabs.length].id;
-    } catch { return null; }
-  },
-
   run(dir, wv) {
     const t = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
     const act = {
@@ -56,8 +47,11 @@ const MouseGestures = {
       // guard just switched to this same tab (found 2026-09-29). Same options
       // as the tab menu's Duplicate.
       'UL': () => { try { if (t) TabManager.duplicateTab(t); } catch {} return '↑← Duplicate tab'; },
-      'RD': () => { const id = this._adjacent(1); if (id) TabManager.switchTab(id); return '→↓ Next tab'; },
-      'LD': () => { const id = this._adjacent(-1); if (id) TabManager.switchTab(id); return '←↓ Previous tab'; },
+      // The tab beside it on the strip, as Ctrl+Tab goes: it walked the
+      // internal list, not the order on screen, and stopped on tabs hidden in
+      // a collapsed group (found 2026-10-10).
+      'RD': () => { TabManager.cycleTab(1); return '→↓ Next tab'; },
+      'LD': () => { TabManager.cycleTab(-1); return '←↓ Previous tab'; },
     }[dir];
     if (!act) return;
     const label = act();

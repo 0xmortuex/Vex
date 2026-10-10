@@ -274,8 +274,10 @@ function vexOwnTextFocused(doc) {
   // Counted the way the tabs stand on screen, and Ctrl+9 is the last tab, as
   // in every browser: it took the ninth tab of the internal list (found
   // 2026-09-29).
+  // Only tabs drawn on screen count: Ctrl+9 picked a tab inside a folded
+  // stack, Ctrl+2 one in a collapsed group (found 2026-10-10).
   const jumpToTab = (n) => {
-    const order = TabManager.displayOrder();
+    const order = TabManager.shownOrder();
     const t = n === 9 ? order[order.length - 1] : order[n - 1];
     if (t) TabManager.switchTab(t.id);
   };
