@@ -126,6 +126,9 @@ ipcMain.on('storage:flushed', event => {
   if (!host) return;
   clearTimeout(host.flushTimer);
   host.allowClose = true;
+  // The main window closing for good is Vex closing: what its processes do
+  // from here is not a crash (src/main/exit-kinds.js).
+  if (host.win === mainWindow) _exitWatch.mark(_pendingInstall ? 'installing an update' : 'closing');
   host.win.close();
 });
 ipcMain.on('storage:flush-failed', event => {
@@ -1003,9 +1006,20 @@ app.on('browser-window-created', (_e, win) => {
   const startedNet = setTimeout(() => _bootGuard.started(), 60000);
   win.once('closed', () => clearTimeout(startedNet));
 });
+// Processes ended by Vex quitting, updating or Windows ending the session are
+// not crashes (src/main/exit-kinds.js); everything else still is.
+const _exitWatch = require('./main/exit-kinds').createExitWatch();
+app.on('before-quit', () => _exitWatch.mark('quitting'));
+app.on('browser-window-created', (_e, win) => {
+  win.on('query-session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
+  win.on('session-end', () => _exitWatch.mark('closing because Windows is logging off or shutting down'));
+});
 app.on('child-process-gone', (_e, d) => {
-  if (!d || d.reason === 'clean-exit') return;
-  _diagEvent('helper process gone', `${d.type}${d.name ? ' ' + d.name : ''} — ${d.reason} (exit ${d.exitCode})`);
+  if (!d) return;
+  const what = `${d.type}${d.name ? ' ' + d.name : ''} — ${d.reason} (exit ${d.exitCode})`;
+  const notCrash = _exitWatch.notACrash(d);
+  if (notCrash) { if (d.reason !== 'clean-exit') console.log(`[Diagnostics] helper process ended, not a crash (${notCrash}): ${what}`); return; }
+  _diagEvent('helper process gone', what);
 });
 // A guest page's executeJavaScript calls made while it loads share one
 // did-stop-loading wait (src/main/load-wait.js): the New Tab page's dom-ready
@@ -1027,7 +1041,13 @@ app.on('web-contents-created', (_e, wc) => {
       return u.origin && u.origin !== 'null' ? u.origin : wc.getType();
     } catch { return wc.getType(); }
   };
-  wc.on('render-process-gone', (_ev, d) => { if (d && d.reason !== 'clean-exit') _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`); });
+  wc.on('render-process-gone', (_ev, d) => {
+    if (!d) return;
+    const host = secureSessions.owner(wc);
+    const notCrash = _exitWatch.notACrash(d, { closing: !!(host && host.allowClose) });
+    if (notCrash) { if (d.reason !== 'clean-exit') console.log(`[Diagnostics] page ended, not a crash (${notCrash}): ${where()} — ${d.reason} (exit ${d.exitCode})`); return; }
+    _diagEvent('page crashed', `${where()} — ${d.reason} (exit ${d.exitCode})`);
+  });
   wc.on('unresponsive', () => _diagEvent('page hung', where()));
   wc.on('responsive', () => _diagEvent('page recovered', where()));
   if (wc.getType() === 'webview') {
