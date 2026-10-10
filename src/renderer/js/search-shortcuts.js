@@ -2,8 +2,13 @@
 //
 // Resolve a typed address-bar query that isn't a URL into a site-specific search
 // BEFORE falling back to the default engine:
-//   • keyword engines —  "yt cats"  → YouTube,  "gh vex" → GitHub,  "w einstein"
-//     → Wikipedia. First word is the keyword, the rest is the query.
+//   • keyword engines —  "@yt cats"  → YouTube,  "@w einstein" → Wikipedia:
+//     "@" and the keyword, then the query (or the keyword and Tab in the
+//     address bar, which writes the @). A keyword you added yourself, and the
+//     few built-in ones no sentence starts with (yt, gh, npm...), work
+//     without the @. One-letter and everyday-word keywords used to take any
+//     sentence starting with them: "a good book" searched Amazon, "so what is
+//     love" Stack Overflow, "w hotels" Wikipedia (found 2026-10-10).
 //   • DuckDuckGo bangs —  "!w einstein", "einstein !yt"  → routed through DDG,
 //     which resolves the bang server-side (hundreds of bangs, zero maintenance).
 //
@@ -36,42 +41,72 @@ const SEARCH_SHORTCUT_BUILTINS = {
   tr:       'https://translate.google.com/?sl=auto&tl=en&text=%s',
 };
 
+// The built-in keywords that work without "@": no sentence starts with them.
+const SEARCH_SHORTCUT_BARE = new Set(['yt', 'gh', 'ddg', 'npm', 'mdn', 'imdb']);
+
+// What each built-in searches, for the row that says where a search goes.
+const SEARCH_SHORTCUT_NAMES = {
+  g: 'Google', ddg: 'DuckDuckGo', b: 'Bing', yt: 'YouTube', gh: 'GitHub', w: 'Wikipedia', wiki: 'Wikipedia',
+  a: 'Amazon', amazon: 'Amazon', r: 'Reddit', reddit: 'Reddit', so: 'Stack Overflow', npm: 'npm', mdn: 'MDN',
+  maps: 'Google Maps', img: 'Google Images', x: 'X', tw: 'X', imdb: 'IMDb', tr: 'Google Translate',
+};
+
+const USER_KEYWORDS_KEY = 'vex.searchKeywords';
+
+// The keywords you added: { keyword: "https://site/?q=%s" }. A list that
+// cannot be read is said, not taken as "none".
 function _userKeywords() {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem('vex.searchKeywords');
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === 'object' ? obj : null;
-  } catch { return null; }
+  if (typeof localStorage === 'undefined') return {};
+  const raw = localStorage.getItem(USER_KEYWORDS_KEY);
+  if (!raw) return {};
+  let obj;
+  try { obj = JSON.parse(raw); } catch (err) { console.warn('[Search] your search keywords could not be read:', err && err.message); return {}; }
+  return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
 }
 
-function resolveSearchShortcut(raw) {
+// The keyword a word names, with "@" or without: { keyword, url, name, user }
+// or null. Without "@" only your own keywords and the bare-safe built-ins.
+function searchKeyword(word) {
+  const w = String(word == null ? '' : word).trim().toLowerCase();
+  const at = w.startsWith('@');
+  const kw = at ? w.slice(1) : w;
+  if (!kw) return null;
+  const user = _userKeywords();
+  if (typeof user[kw] === 'string' && user[kw].includes('%s')) return { keyword: kw, url: user[kw], name: kw, user: true };
+  const tmpl = SEARCH_SHORTCUT_BUILTINS[kw];
+  if (!tmpl || (!at && !SEARCH_SHORTCUT_BARE.has(kw))) return null;
+  return { keyword: kw, url: tmpl, name: SEARCH_SHORTCUT_NAMES[kw] || kw, user: false };
+}
+
+// The keyword search a typed line asks for: { url, name, query } or null.
+function resolveKeywordSearch(raw) {
   const val = (raw == null ? '' : String(raw)).trim();
   if (!val) return null;
 
   // DDG bang anywhere in the query (leading or trailing) → let DuckDuckGo
   // resolve it. Matches "!w …", "… !yt", "!gh".
   if (/(^|\s)![a-z0-9+._-]+/i.test(val)) {
-    return 'https://duckduckgo.com/?q=' + encodeURIComponent(val);
+    return { url: 'https://duckduckgo.com/?q=' + encodeURIComponent(val), name: 'DuckDuckGo', query: val };
   }
 
   // Keyword engine: "<kw> <query>". Needs a space and a non-empty remainder.
   const sp = val.search(/\s/);
   if (sp <= 0) return null;
-  const kw = val.slice(0, sp).toLowerCase();
   const rest = val.slice(sp + 1).trim();
   if (!rest) return null;
-
-  const user = _userKeywords();
-  const tmpl = (user && typeof user[kw] === 'string' && user[kw]) || SEARCH_SHORTCUT_BUILTINS[kw];
-  if (!tmpl || tmpl.indexOf('%s') === -1) return null;
-  return tmpl.replace('%s', encodeURIComponent(rest));
+  const k = searchKeyword(val.slice(0, sp));
+  if (!k) return null;
+  return { url: k.url.replace('%s', encodeURIComponent(rest)), name: k.name, query: rest };
 }
 
-const SearchShortcuts = { resolve: resolveSearchShortcut, BUILTINS: SEARCH_SHORTCUT_BUILTINS };
+function resolveSearchShortcut(raw) {
+  const hit = resolveKeywordSearch(raw);
+  return hit ? hit.url : null;
+}
+
+const SearchShortcuts = { resolve: resolveSearchShortcut, resolveKeywordSearch, keyword: searchKeyword, BUILTINS: SEARCH_SHORTCUT_BUILTINS, NAMES: SEARCH_SHORTCUT_NAMES, USER_KEYWORDS_KEY };
 
 if (typeof window !== 'undefined') window.SearchShortcuts = SearchShortcuts;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { SearchShortcuts, resolveSearchShortcut, SEARCH_SHORTCUT_BUILTINS };
+  module.exports = { SearchShortcuts, resolveSearchShortcut, resolveKeywordSearch, searchKeyword, SEARCH_SHORTCUT_BUILTINS, SEARCH_SHORTCUT_NAMES };
 }

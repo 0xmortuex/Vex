@@ -471,6 +471,22 @@ const SmartSearchbar = (() => {
   // Returns true ONLY when the key was consumed. app.js calls this first and
   // returns early on true; on false it runs its normal Enter/Escape logic.
   function handleKeydown(e) {
+    // A search keyword and Tab: "yt" Tab becomes "@yt ", and what you type
+    // next is searched on that site, as in Chrome and Firefox
+    // (js/search-shortcuts.js).
+    if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && typeof SearchShortcuts !== 'undefined') {
+      const word = _typed().trim();
+      const k = /^@?[^\s@]+$/.test(word) ? SearchShortcuts.keyword('@' + word.replace(/^@/, '')) : null;
+      if (k) {
+        e.preventDefault();
+        _completion = null;
+        _close();
+        _input.value = '@' + k.keyword + ' ';
+        _input.setSelectionRange(_input.value.length, _input.value.length);
+        return true;
+      }
+    }
+
     // Enter typed before the suggestions caught up with the last keystroke
     // still gets the completion that keystroke would have shown.
     if (e.key === 'Enter' && _debounceTimer) _update();

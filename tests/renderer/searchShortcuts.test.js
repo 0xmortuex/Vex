@@ -12,14 +12,14 @@ describe('resolveSearchShortcut — keyword engines', () => {
   it('"gh vex browser" → GitHub repo search (query encoded)', () => {
     expect(resolveSearchShortcut('gh vex browser')).toBe('https://github.com/search?q=vex%20browser&type=repositories');
   });
-  it('"w albert einstein" → Wikipedia', () => {
-    expect(resolveSearchShortcut('w albert einstein')).toBe('https://en.wikipedia.org/w/index.php?search=albert%20einstein');
+  it('"@w albert einstein" → Wikipedia', () => {
+    expect(resolveSearchShortcut('@w albert einstein')).toBe('https://en.wikipedia.org/w/index.php?search=albert%20einstein');
   });
   it('keyword match is case-insensitive ("YT cats")', () => {
     expect(resolveSearchShortcut('YT cats')).toBe('https://www.youtube.com/results?search_query=cats');
   });
   it('encodes special characters in the query', () => {
-    expect(resolveSearchShortcut('a c++ book')).toBe('https://www.amazon.com/s?k=c%2B%2B%20book');
+    expect(resolveSearchShortcut('@a c++ book')).toBe('https://www.amazon.com/s?k=c%2B%2B%20book');
   });
 });
 
