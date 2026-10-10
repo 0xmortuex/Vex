@@ -136,7 +136,7 @@ const SyncSettings = (() => {
           <div class="sync-features">
             <strong>What gets synced:</strong>
             <ul>
-              <li>Tabs, sessions, and workspaces</li>
+              <li>Your open tabs (listed under History › Tabs from other devices), sessions, and workspaces</li>
               <li>Shortcuts and tools</li>
               <li>Notes and scheduled tasks</li>
               <li>History and settings</li>

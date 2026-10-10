@@ -1,6 +1,6 @@
 # Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3)
 
-> **Release after v14.72.3 — document contents only, no server change.** The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
+> **Release after v14.72.3 — document contents only, no server change.** Each desktop sends its own open tabs as `sync:tabs:<deviceId>` and no longer writes or applies the shared `storage:tabs`, `storage:groups` and `storage:stacks` (§4.8). The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
 
 > **Release after v2.37.0 — server-internal change only.** The worker keeps each account in its own Durable Object instead of one shared object (§1.2). Every endpoint, request, response, status code and token format in this document is unchanged; no client change is needed.
 
@@ -318,6 +318,7 @@ A **source** is one named value of app state:
 - `preference:<localStorage key>`, for example `preference:vex.bookmarks`. Lists are JSON arrays; all other preferences are carried as the **raw localStorage string**.
 - `storage:<file-store key>`, for example `storage:tabs`, `storage:settings`. These are JSON values, possibly `null`.
 - `sync:device:<deviceId>`, the device marker (§4.6).
+- `sync:tabs:<deviceId>`, that device's open tabs (§4.8), from the release after v14.72.3.
 
 ### 4.3 Record keys (flatten)
 A record key is the exact output of JavaScript `JSON.stringify` on an array:
@@ -424,9 +425,17 @@ Tombstones used to be kept forever, so the document only grew: history alone tur
 - **Seen revision.** A device notes, for each tombstone, the first account revision it saw it in: the revision of a pulled document that held it, or of its own push that created it. This is local state, not on the wire.
 - **Floor.** `floor = min(own revision, every other listed device's marker revision)`.
 - **Clean-up.** When building a push, a tombstone whose seen revision is ≤ `floor` is left out of the document (not copied, not re-tombstoned). Every device on the account has merged a document holding it, so each already applied the deletion.
-- **Retired sources** (§8.1 "No longer synced": `storage:history`, `preference:vex.autosleep`, `preference:vex.autosleepMinutes`, `preference:vex.autosleepExcludePinned`, `preference:vex.customCommands`, `preference:vex.settings`, `preference:vex-theme`): every record of these is left out under the same condition.
+- **Retired sources** (§8.1 "No longer synced": `storage:history`, `storage:tabs`, `storage:groups`, `storage:stacks`, `preference:vex.autosleep`, `preference:vex.autosleepMinutes`, `preference:vex.autosleepExcludePinned`, `preference:vex.customCommands`, `preference:vex.settings`, `preference:vex-theme`): every record of these is left out under the same condition.
 - **Drop on absence (MUST at level 2).** When a pull's document no longer holds a tombstone this device has seen in an earlier document, another device cleared it away: drop it from your own document before merging. Otherwise `merge` keeps the left-only record and your next push brings it back. A tombstone you made yourself and have not pushed yet is not "seen", and stays.
 - A client that never caches records outside the pulled document (the §9 "rebase" client) drops nothing by construction; it only has to keep its marker at level 2 with a `revision`.
+
+### 4.8 Open tabs per device (from the release after v14.72.3)
+Up to v14.72.3 the desktops shared one open-tab list, `storage:tabs` (with `storage:groups` and `storage:stacks`), merged across all of them and applied **to the open tabs** on every pull: a tab another computer had navigated or closed was navigated or closed under the user, typed text and all. Now:
+
+- Each desktop owns a scalar source `sync:tabs:<its deviceId>` = `{"tabs":[{"url":<http(s) URL>,"title":<string ≤ 300>}, ...]}`: its open, persistable tabs (no private, Tor or off-the-record tab; web addresses only), at most 100, in tab order. Two records, like a marker: `["sync:tabs:<id>","type"] → "scalar"` and `["sync:tabs:<id>","value"] → {...}`.
+- Other devices' `sync:tabs:*` are copied verbatim (§6 rule 1). The desktop shows them under History › Tabs from other devices, named after the device, and opens one as a new tab when clicked. A device no longer in `GET /sync/devices` is not shown. Nothing on a pull changes an open tab.
+- `storage:tabs`, `storage:groups` and `storage:stacks` are retired (§4.7): no longer written or applied, copied verbatim while an older desktop is on the account, and cleared out once every device is at level 2.
+- A phone or other client MAY write its own `sync:tabs:<deviceId>` the same way, so the desktops list its tabs. It MUST NOT write another device's.
 
 ---
 
@@ -547,7 +556,7 @@ A device with no local data can just adopt the cloud document.
 
 **Sources the phone must not write**
 
-19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. The desktop applies them live to its open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers.
+19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. Desktops up to v14.72.3 apply them live to their open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers. Newer desktops neither write nor apply them (§4.8).
 20. A client MUST NOT write tile sources (`preference:vex.shortcuts`, `preference:vex.startTiles`) while the tile gate is shut. That is, unless every listed device, the client included, has a marker with level ≥ 1. When writing tiles, it MUST give them the §4.6 ids and must not keep those ids in its local copy.
 21. A client SHOULD keep its document well under the size limit (§1.2). The desktop sends at most 1,000 history visits (§8.1), and clears out tombstones while every device is at level 2 (§4.7).
 
@@ -567,7 +576,7 @@ A small per-account mailbox, separate from the record document.
   - Fetching **consumes** those items: they are deleted from the server. The caller's own items stay.
   - There is no addressing. Whichever other device fetches first gets the tab, whether that is the phone or one of several desktops.
 - **Receiving**: decrypt each item on its own and skip any that fail, because one bad item must not lose the others. Accept the item only if `payload.url` is a string with an `http:` or `https:` scheme, and use `String(payload.title || '')`. Because the fetch has already consumed the items, a client SHOULD keep what it accepted until the user acts on it (the wire format is unchanged). The desktop (from the release after v2.37.0, `js/handoff.js`) keeps each one on that computer, shows it as a card "From <fromDeviceName>: <title>" on the New Tab page with Open and Dismiss, and shows one desktop notification per check; a card goes when it is opened or dismissed. Earlier desktops opened each one as a background tab and toasted "Tab from <fromDeviceName>: <title>". A desktop never sends from a private, Off-the-Record or Tor tab or from a private window, and a private window never fetches.
-- **No device list of open tabs**: the protocol carries no per-device list of open tabs. `storage:tabs` is the open-tab set shared by desktops (§8.2), which a phone MUST NOT write (§6 rule 19), so a desktop cannot show "tabs open on your phone".
+- **Open tabs per device**: from the release after v14.72.3 each device's open tabs are `sync:tabs:<deviceId>` in the document (§4.8). Before that the only open-tab list was `storage:tabs`, shared by the desktops, which a phone MUST NOT write (§6 rule 19).
 - Pending sessions get 403 on both endpoints.
 
 ---
@@ -580,10 +589,11 @@ A small per-account mailbox, separate from the record document.
 - **History window** (from the release after v14.72.3): the desktop owns `preference:vex.history` but sends only its newest **1,000** visits, and none whose `visitedAt` is more than **90 days** old. A visit that falls out of that window becomes a tombstone once (and is cleared out later, §4.7); every desktop keeps its own older visits locally and does not delete them when they are missing from, or tombstoned in, the account. `vex.historyClearedAt` (an ISO time, written by History › Clear History) is how a clear reaches those older visits: a desktop removes every visit with `visitedAt` at or before it.
 - **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied. Once every device is at level 2 they are cleared out of the document (§4.7).
 - **Tile lists** (gated): `preference:vex.shortcuts`, `preference:vex.startTiles`.
-- **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
+- **Storage**: `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:tabs`, `storage:groups` and `storage:stacks` are no longer sent or applied from the release after v14.72.3 (§4.8): records an older desktop sends under them are copied verbatim. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
 - **Markers**: `sync:device:<id>`.
+- **Open tabs**: `sync:tabs:<id>`, one per device, written only by that device (§4.8).
 
-`vex.tabs`, `vex.theme`, `vex.groups` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. They travel as `storage:*`, or for shortcuts as a tile list.
+`vex.theme` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. The theme travels as `storage:theme`, the shortcuts as a tile list. (`vex.tabs` and `vex.groups` were in the same position until the shared tab list was retired, §4.8.)
 
 ### 8.2 Sources a phone can sensibly read and write
 
@@ -597,7 +607,8 @@ A small per-account mailbox, separate from the record document.
 | `preference:vex.reminders` | yes | add only, with care | A mirror of the desktop main process's reminders: `{ id: ^[A-Za-z0-9_-]{1,64}$, message: string (≤2000 used), at: ms|null, site: host|null, repeat: "daily"/"weekdays"/"weekly"/[0..6 ints]|null, time: "HH:MM"|null, url: http(s)|null, urgent: bool, kind: "reminder"/"alarm"/"timer"/"review", sound: bool, job, owner, ackedAt, createdAt, firedAt, lastFiredAt }`. Desktops **import** new ones (`reminders.js importList`): not `kind:"review"`, not `firedAt`, not older than 7 days. They fire while Vex is open, and only the `owner` machine wakes Windows. **A phone cannot delete a reminder:** the desktop rewrites the mirror from its own list every 5 minutes and after each sync, so a deletion comes straight back. A reminder the desktop refuses to import disappears from the account on that desktop's next push. |
 | `preference:vex.shortcuts` | yes | only with the gate open (rule 20) | Glass shortcut bar tiles: `{ "name": string, "url": string (http/https/about/file/vex) }`, plus account-only `id` (§4.6). A missing source means "show defaults"; `[]` means "no shortcuts". |
 | `preference:vex.startTiles` | yes | only with the gate open (rule 20) | New Tab grid: `{ "name": string, "url": string, ... }`. At most 500 (`webview.js _startTilesValid`), plus account-only `id`. **UNSURE:** which other fields the New Tab page stores on a tile. `_startTilesValid` only requires `name` and `url` to be strings. Carry unknown fields through. (`src/renderer/js/webview.js` `saveStartTiles`, and the start page itself.) |
-| `storage:tabs` | yes (e.g. a "tabs on my computers" view) | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. This is the open-tab set shared by desktops and **merged across all desktops**, not per device. |
+| `sync:tabs:<deviceId>` | yes (a "tabs on my computers" view) | only its own | `{ "tabs": [{ "url": http(s), "title": string }] }`, at most 100 (§4.8). |
+| `storage:tabs` | only from desktops up to v14.72.3 | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. The open-tab set those desktops shared, **merged across all of them**. Retired (§4.8). |
 
 ### 8.3 Desktop-only sources (copy verbatim, never write)
 `preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto` (Light and dark: `{mode, light, dark, ...}`), `vex.whatsNewCard`, `vex.neverSleepHosts` and `vex.translateAlwaysHosts` (lists of host-name strings, like `vex.forceDarkHosts`), `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, and every other device's `sync:device:*`.

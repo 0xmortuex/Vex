@@ -37,7 +37,12 @@ const SyncEngine = (() => {
   // Keys in localStorage that should be synced across devices.
   const SYNC_KEYS = [
     'vex.bookmarks',
-    'vex.tabs', 'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
+    // Open tabs are not one list shared by every computer any more: each
+    // device sends its own (TABS_SOURCE) and the others show them under
+    // History › Tabs from other devices. A pull used to apply the shared list
+    // to the open tabs, so a tab you were typing in was navigated away or
+    // closed by another computer (found 2026-10-10).
+    'vex.sessions', 'vex.workspaces', 'vex.shortcuts', 'vex.tools',
     'vex.notes', 'vex.history', 'vex.theme', 'vex.schedules',
     // Light and dark: the two themes and when each is worn (js/theme-auto.js).
     'vex.themeAuto',
@@ -55,7 +60,7 @@ const SyncEngine = (() => {
     // 'vex.forceDarkSites' is the retired global flag; per-site force-dark has
     // lived in 'vex.forceDarkHosts' since the right-click menu replaced it, and
     // was left out of this list, so the choice never reached another device.
-    'vex.forceDarkSites', 'vex.forceDarkHosts', 'vex.groups',
+    'vex.forceDarkSites', 'vex.forceDarkHosts',
     // Auto-sleep lives in settings.json; app.js mirrors it here and adopts a
     // copy that arrived from another device on the next start. (The old
     // names — vex.autosleep, vex.autosleepMinutes, vex.autosleepExcludePinned
@@ -122,6 +127,9 @@ const SyncEngine = (() => {
   const TILE_LISTS = ['vex.shortcuts', 'vex.startTiles'];
   const TILE_SOURCES = TILE_LISTS.map(key => 'preference:' + key);
   const DEVICE_SOURCE = 'sync:device:';
+  // Each device's open tabs, written by that device alone: { tabs: [{ url, title }] }.
+  const TABS_SOURCE = 'sync:tabs:';
+  const DEVICE_TABS_MAX = 100;
   // 1 = shortcut tiles and the New Tab grid (Vex 2.34.3). Raise it for the
   // next feature that must wait for every device, and compare against the
   // level that feature needs.
@@ -139,6 +147,11 @@ const SyncEngine = (() => {
   const COMPACT_LEVEL = 2;
   let tileGate = { open: false, waitingOn: [] };
   let compactGate = { open: false, waitingOn: [], floor: 0 };
+  // The account's device list as last read (checkTileGate).
+  let knownDevices = [];
+  function deviceName(deviceId, listed) {
+    return (listed && typeof listed.deviceName === 'string' && listed.deviceName.trim()) || 'Another device';
+  }
   // A marker whose revision is older than this is written again even when
   // nothing else changed, so the other devices learn this one is up to date.
   // Not on every round: two devices would push each other's new revision back
@@ -147,7 +160,7 @@ const SyncEngine = (() => {
   // Sources no current Vex reads or writes. Older desktops still send them
   // and newer ones carry them as they came; once every device is at level 2
   // they leave the account.
-  const RETIRED_SOURCES = ['storage:history', 'preference:vex.autosleep', 'preference:vex.autosleepMinutes',
+  const RETIRED_SOURCES = ['storage:history', 'storage:tabs', 'storage:groups', 'storage:stacks', 'preference:vex.autosleep', 'preference:vex.autosleepMinutes',
     'preference:vex.autosleepExcludePinned', 'preference:vex.customCommands', 'preference:vex.settings', 'preference:vex-theme'];
   // History syncs only its newest entries: a full 5,000-visit history was a
   // 3.8 MB upload, close to the server's 4 MiB limit (found 2026-10-10).
@@ -245,8 +258,9 @@ const SyncEngine = (() => {
   // 'history' is not one: the file-store visit log was folded into
   // vex.history (main/history-fold.js), which syncs as a preference. A
   // storage:history an older desktop still sends is carried as it came
-  // (ownsSource), never applied.
-  const STORE_KEYS = ['tabs', 'groups', 'stacks', 'settings', 'shortcuts', 'theme'];
+  // (ownsSource), never applied. Nor are 'tabs', 'groups' and 'stacks' any
+  // more (TABS_SOURCE): an older desktop's shared tab list is carried the same way.
+  const STORE_KEYS = ['settings', 'shortcuts', 'theme'];
   const preferenceKeys = () => SYNC_KEYS.filter(key => !STORE_KEYS.some(store => key === 'vex.' + store));
 
   // ===== AUTH =====
@@ -455,6 +469,7 @@ const SyncEngine = (() => {
     server = null;
     tileGate = { open: false, waitingOn: [] };
     compactGate = { open: false, waitingOn: [], floor: 0 };
+    knownDevices = [];
     tombstones = null;
     if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); }
     try { await window.vex.syncClearState(); } catch {}
@@ -478,6 +493,7 @@ const SyncEngine = (() => {
   // from every device (SYNC_PROTOCOL.md §6 rule 1).
   const RECORD_KINDS = ['type', 'value', 'item'];
   const ownsSource = (source, gate) => source === DEVICE_SOURCE + state.deviceId
+    || source === TABS_SOURCE + state.deviceId
     || preferenceKeys().some(key => source === 'preference:' + key)
     || STORE_KEYS.some(key => source === 'storage:' + key)
     || (gate.open && TILE_SOURCES.includes(source));
@@ -568,6 +584,7 @@ const SyncEngine = (() => {
     if (devices) {
       try { await noticeNewDevices(devices); }
       catch (err) { console.error('[Sync] Could not check for a new device on the account:', err); }
+      knownDevices = devices.filter(d => d && typeof d.deviceId === 'string');
       const markerOf = d => {
         const marker = doc.records[JSON.stringify([DEVICE_SOURCE + d.deviceId, 'value'])];
         return marker && !marker.deleted && marker.value && typeof marker.value === 'object' ? marker.value : null;
@@ -592,6 +609,42 @@ const SyncEngine = (() => {
 
   // ===== DATA COLLECTION =====
 
+  // The web pages open on this device, for the other devices' list: what the
+  // saved session holds (no private, Tor or off-the-record tab), web
+  // addresses only, at most DEVICE_TABS_MAX.
+  async function openTabsToSync() {
+    const saved = typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs)
+      ? window.VexTabPolicy.snapshot(TabManager.tabs) : await VexStorage.load('tabs');
+    if (!Array.isArray(saved)) return [];
+    return saved.filter(tab => tab && /^https?:\/\//i.test(String(tab.url)) && window.VexDataContracts?.url(tab.url, true) !== false)
+      .slice(0, DEVICE_TABS_MAX)
+      .map(tab => ({ url: tab.url, title: String(tab.title || '').slice(0, 300) }));
+  }
+
+  // The tabs the other devices on the account have open, newest list first:
+  // [{ deviceId, name, tabs: [{ url, title }] }]. From the last document this
+  // device synced; nothing is fetched.
+  function otherDeviceTabs() {
+    if (!recordDocument || !state.deviceId) return [];
+    const values = window.VexSyncRecords.values(recordDocument);
+    const out = [];
+    for (const [key, value] of Object.entries(values)) {
+      const [source, kind] = JSON.parse(key);
+      if (kind !== 'value' || !source.startsWith(TABS_SOURCE) || source === TABS_SOURCE + state.deviceId) continue;
+      const deviceId = source.slice(TABS_SOURCE.length);
+      const listed = knownDevices.find(d => d.deviceId === deviceId);
+      // A device removed from the account is not shown.
+      if (knownDevices.length && !listed) continue;
+      const tabs = (value && Array.isArray(value.tabs) ? value.tabs : [])
+        .filter(tab => tab && typeof tab.url === 'string' && /^https?:\/\//i.test(tab.url) && window.VexDataContracts?.url(tab.url, true) !== false)
+        .map(tab => ({ url: tab.url, title: String(tab.title || tab.url).slice(0, 300) }));
+      if (!tabs.length) continue;
+      const at = recordDocument.records[key]?.at || 0;
+      out.push({ deviceId, name: deviceName(deviceId, listed), tabs, at });
+    }
+    return out.sort((a, b) => b.at - a.at);
+  }
+
   async function collectSyncData(gate = { open: false }) {
     if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
     if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
@@ -609,11 +662,8 @@ const SyncEngine = (() => {
         data['preference:' + key] = key === 'vex.history' ? historyWindow(list) : list;
       } else data['preference:' + key] = raw;
     }
-    for (const key of STORE_KEYS) {
-      let value = await VexStorage.load(key);
-      if (key === 'tabs' && Array.isArray(value)) value = window.VexTabPolicy.snapshot(value);
-      data['storage:' + key] = value;
-    }
+    for (const key of STORE_KEYS) data['storage:' + key] = await VexStorage.load(key);
+    data[TABS_SOURCE + state.deviceId] = { tabs: await openTabsToSync() };
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
     const original = recordDocument;
@@ -690,7 +740,6 @@ const SyncEngine = (() => {
       for (const key of STORE_KEYS) if (Object.hasOwn(data, 'vex.' + key)) {
         let value = data['vex.' + key];
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch {} }
-        if (key === 'tabs' && Array.isArray(value)) value = window.VexTabPolicy.snapshot(value);
         sources['storage:' + key] = value;
       }
       data = records.capture(records.empty(), records.flatten(sources), 'legacy');
@@ -793,7 +842,6 @@ const SyncEngine = (() => {
     // (found 2026-09-30). The account lacking it, it is pushed right away.
     const own = data.records[JSON.stringify([DEVICE_SOURCE + state.deviceId, 'value'])];
     const markerMissing = !(own && !own.deleted && own.value?.level >= SYNC_LEVEL);
-    if (typeof TabManager !== 'undefined' && Array.isArray(sources['storage:tabs'])) TabManager.applySyncedState(sources['storage:tabs'], sources['storage:groups'], sources['storage:stacks']);
     if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.reloadSyncedState?.();
     // Only conflicts this merge created. Counting every record that still
     // carried old variants repeated the toast on every sync (found 2026-09-29).
@@ -1260,6 +1308,7 @@ const SyncEngine = (() => {
     // Whether deleted records are being cleared out of the account, and which
     // devices that waits on (an older Vex, or the phone).
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
+    otherDeviceTabs,
     isEnabled: () => state.enabled && !privateWindow(),
     // Settings and the sync indicator say so in a private window.
     offInThisWindow: () => (privateWindow() ? PRIVATE_OFF : ''),

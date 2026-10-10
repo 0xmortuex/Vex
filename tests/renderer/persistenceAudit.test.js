@@ -135,15 +135,6 @@ describe('private tab persistence boundaries', () => {
 });
 
 describe('session and workspace restoration', () => {
-  it('applies synced tabs without discarding private tabs or retaining deleted public tabs', () => {
-    TM.tabs = seedTabs(); TM.activeTabId = 't3';
-    const keep = TM.tabs[3];
-    TM.applySyncedState([{ ...keep, title: 'Synced title' }, { id: 'remote', url: 'https://remote.test', partition: 'persist:work' }], [], []);
-    expect(TM.tabs.map(tab => tab.id)).toEqual(['t3', 'remote', 't1', 't2']);
-    expect(TM.tabs[0].title).toBe('Synced title');
-    expect(TM.getActiveTab().id).toBe('t3');
-    expect(WebviewManager.destroyWebview).toHaveBeenCalledWith('t0');
-  });
   it('uses stable globally unique IDs across restart', async () => {
     const created = TM.createTab('https://stable.test');
     VexStorage.loadTabs.mockResolvedValue([{ ...created }]);

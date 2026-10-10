@@ -124,11 +124,4 @@ describe('the tab list', () => {
     expect(saveTabs).toHaveBeenCalledTimes(4);
     vi.useRealTimers();
   });
-
-  it('is saved again after sync replaced it, even with the same tabs', async () => {
-    await TM.persistTabs();
-    TM._savedTabs = TM._savedShape = null;   // what applySyncedState does
-    await TM.persistTabs();
-    expect(saveTabs).toHaveBeenCalledTimes(2);
-  });
 });

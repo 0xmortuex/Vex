@@ -18,7 +18,7 @@ const HistoryPanel = {
     // and never look at storage again, so anything visited while it was closed
     // stayed invisible until the next restart.
     this._hydrate();
-    if (panel.dataset.rendered) { this.renderList(); return; }
+    if (panel.dataset.rendered) { this.renderList(); this.renderDeviceTabs(); return; }
     panel.dataset.rendered = 'true';
 
     panel.innerHTML = `
@@ -41,6 +41,7 @@ const HistoryPanel = {
             <button class="history-filter" data-filter="month">Last 30 days</button>
           </div>
         </div>
+        <section class="history-devices" id="history-devices" aria-label="Tabs from other devices" hidden></section>
         <div class="history-list" id="history-list"></div>
         <div class="history-footer">
           <button class="history-clear-btn" id="history-clear-btn">Clear History...</button>
@@ -122,6 +123,48 @@ const HistoryPanel = {
     });
 
     this.renderList();
+    this.renderDeviceTabs();
+  },
+
+  // The tabs open on your other devices (Vex Sync), Chrome's "Tabs from other
+  // devices". They used to be one list every computer shared, applied to the
+  // open tabs on every pull; now each device lists its own here and nothing
+  // changes a tab you have open (js/sync-engine.js otherDeviceTabs).
+  renderDeviceTabs() {
+    const box = document.getElementById('history-devices');
+    if (!box) return;
+    const devices = typeof SyncEngine !== 'undefined' && SyncEngine.isEnabled() ? SyncEngine.otherDeviceTabs() : [];
+    box.hidden = !devices.length;
+    box.textContent = '';
+    if (!devices.length) return;
+    const heading = document.createElement('h3');
+    heading.className = 'history-devices-title';
+    heading.textContent = 'Tabs from other devices';
+    box.append(heading);
+    for (const device of devices) {
+      const group = document.createElement('details');
+      group.className = 'history-device';
+      group.open = true;
+      const summary = document.createElement('summary');
+      summary.innerHTML = VexIcons.svg('monitor', { size: 13 });
+      const name = document.createElement('span'); name.className = 'history-device-name'; name.textContent = device.name;
+      const count = document.createElement('span'); count.className = 'history-device-count'; count.textContent = String(device.tabs.length);
+      summary.append(name, count);
+      group.append(summary);
+      for (const tab of device.tabs) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'history-device-tab';
+        row.title = tab.url;
+        const title = document.createElement('span'); title.className = 'history-device-tab-title'; title.textContent = tab.title;
+        const host = document.createElement('span'); host.className = 'history-device-tab-url';
+        try { host.textContent = new URL(tab.url).hostname; } catch { host.textContent = tab.url; }
+        row.append(title, host);
+        row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(tab.url, true); });
+        group.append(row);
+      }
+      box.append(group);
+    }
   },
 
   // The saved list is the source of truth. `entries` used to be filled only
@@ -652,6 +695,7 @@ window.addEventListener('vex-sync-data-applied', () => {
   HistoryPanel._hydrate();
   HistoryPanel.lastAISearch = null;
   HistoryPanel.renderList();
+  HistoryPanel.renderDeviceTabs();
 });
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { HistoryPanel };

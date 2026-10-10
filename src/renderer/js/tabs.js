@@ -2211,7 +2211,6 @@ const TabManager = {
 
   // `now`: save a change of titles at once too (the window is closing).
   async persistTabs({ now = false } = {}) {
-    if (this._applyingSync) return;
     if (now) this._persistNow = true;
     // Coalesce all mutations in a bulk restore into one final snapshot.
     if (!this._pendingPersist) {
@@ -2245,46 +2244,6 @@ const TabManager = {
       });
     }
     return this._pendingPersist;
-  },
-
-  applySyncedState(records, groups, stacks) {
-    window.VexDataContracts?.tabs(records);
-    const active = this.activeTabId;
-    const existing = new Map(this.tabs.map(tab => [tab.id, tab]));
-    const next = [], used = new Set();
-    for (const saved of records) {
-      if (!window.VexTabPolicy.canRestore(saved)) continue;
-      let id = saved.id || this._newId();
-      if (existing.has(id) && !window.VexTabPolicy.canPersist(existing.get(id))) id = this._newId();
-      if (used.has(id)) continue; used.add(id);
-      const current = existing.get(id);
-      if (current && (current.url !== saved.url || (current.partition || 'persist:main') !== (saved.partition || 'persist:main'))) {
-        WebviewManager.destroyWebview(current.id);
-        current._lazy = true;
-        current.sleeping = false;
-        current.history = null;   // its back list led to the old address
-      }
-      const tab = current || { id, _lazy: !saved.sleeping, loading: false, unread: false };
-      const sleeping = current ? !!current.sleeping : !!saved.sleeping;
-      Object.assign(tab, window.VexTabPolicy.serialize(saved), { id });
-      tab.sleeping = sleeping;
-      next.push(tab);
-    }
-    for (const current of this.tabs) if (!used.has(current.id)) {
-      if (!window.VexTabPolicy.canPersist(current)) next.push(current);
-      else WebviewManager.destroyWebview(current.id);
-    }
-    this._applyingSync = true;
-    // tabs.json now holds what sync wrote, not what this window saved last.
-    this._savedTabs = this._savedShape = null;
-    try {
-      this.tabs = next;
-      if (Array.isArray(groups)) this.groups = groups.map(group => ({ ...group }));
-      if (Array.isArray(stacks)) this.stacks = stacks.map(stack => ({ ...stack }));
-      if (!this.tabs.length) this.createLazyTab(START_URL, null, 'New Tab');
-      this.rebuildAllTabs();
-      this.switchTab(this.tabs.some(tab => tab.id === active) ? active : this.tabs[0].id);
-    } finally { this._applyingSync = false; }
   },
 
   _notifyTabsChanged() {
