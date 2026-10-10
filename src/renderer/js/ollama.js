@@ -173,7 +173,10 @@ const Ollama = (() => {
     let r;
     try {
       r = await (window.VexNet?.fetch || fetch)(`${baseUrl}${path}`, {
-        stream: true, timeoutMs: firstTimeoutMs === GEN_TIMEOUT_MS ? GEN_TIMEOUT_MS : firstTimeoutMs + GEN_TIMEOUT_MS, maxBytes: 16 * 1024 * 1024, signal: ctl.signal,
+        // timeoutMs covers the wait for the first answer; after that the
+        // deadline moves with every piece (a slow model writing for more than
+        // two minutes in all was cut off, found 2026-10-10).
+        stream: true, timeoutMs: firstTimeoutMs === GEN_TIMEOUT_MS ? GEN_TIMEOUT_MS : firstTimeoutMs + GEN_TIMEOUT_MS, idleTimeoutMs: GEN_TIMEOUT_MS, maxBytes: 16 * 1024 * 1024, signal: ctl.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, stream: true }),
@@ -239,6 +242,15 @@ const Ollama = (() => {
           }
         }
       }
+    } catch (err) {
+      // It went quiet in the middle of the answer: say that, not "did not
+      // answer (may still be loading)", which is what a model that had been
+      // writing for minutes used to be told.
+      const timedOut = !(signal && signal.aborted) && (ctl.signal.aborted || (err && err.message === 'Request timed out'));
+      if (timedOut && (full || thinking)) {
+        throw new Error(`${body.model} stopped writing for ${Math.round(GEN_TIMEOUT_MS / 1000)}s in the middle of the answer — try again, or pick a smaller model in Settings › AI.`);
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onOuterAbort);
