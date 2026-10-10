@@ -192,11 +192,14 @@ describe('S2: a push that 409s pulls, merges and retries once', () => {
 });
 
 describe('S3: failed enrolments do not leave ghost devices', () => {
-  it('verifyCode on an account that already has data removes the device it registered', async () => {
+  // The session now waits for the recovery code (syncJoinKeepsSession.test.js);
+  // left unused, it is removed from the server.
+  it('verifyCode on an account that already has data removes the device it registered once the sign-in is left', async () => {
     const server = fakeWorker();
     server.blob = 'something';
     const engine = freshEngine();
-    await expect(engine.verifyCode('a@b.test', '123456')).rejects.toThrow(/recovery code/);
+    expect((await engine.verifyCode('a@b.test', '123456')).needsRecoveryCode).toBe(true);
+    await engine.cancelPendingJoin();
     expect(server.devices).toEqual([]);
     expect(server.calls.some(c => c.method === 'DELETE' && c.path === '/sync/devices/dev1')).toBe(true);
   });

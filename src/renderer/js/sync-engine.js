@@ -183,6 +183,8 @@ const SyncEngine = (() => {
   async function requestCode(email) {
     refuseInPrivate();
     requireSyncUrl();
+    // A new code starts the sign-in over.
+    await cancelPendingJoin();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/request-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -195,6 +197,7 @@ const SyncEngine = (() => {
   async function verifyCode(email, code, deviceName) {
     refuseInPrivate();
     requireSyncUrl();
+    await cancelPendingJoin();
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/auth/verify-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,11 +206,14 @@ const SyncEngine = (() => {
     if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
     if (data.hasEncryptedData !== false) {
-      // An older server registered this device before answering; a refusal
-      // here left a ghost in the device list (found 2026-09-29). A current
-      // one registers it on its first push or pull, and this drops the session.
-      await forgetDevice(data.sessionToken, data.deviceId);
-      throw new Error('This account already has encrypted data, or the server needs updating. Enroll with your recovery code.');
+      // The account already has data, so this device must join it with the
+      // recovery code. The session is kept for that: dropping it burned the
+      // email code, and the user had to ask for a new one just to tick "I have
+      // a recovery code" (found 2026-10-10). joinPending finishes the sign-in
+      // with it; cancelPendingJoin (or ten minutes) removes it, since an
+      // older server registered the device before answering (found 2026-09-29).
+      setPendingJoin(email, data);
+      return { ok: false, needsRecoveryCode: true };
     }
     const cryptoKey = await SyncCrypto.generateKey();
     const keyBytes = await SyncCrypto.exportKey(cryptoKey);
@@ -239,9 +245,44 @@ const SyncEngine = (() => {
     return { ok: true, recoveryCode: SyncCrypto.formatRecoveryCode(keyHex) };
   }
 
+  // A session verified for an account that already has data, waiting for the
+  // recovery code (verifyCode). In memory only.
+  let pendingJoin = null;
+  function setPendingJoin(email, data) {
+    clearPendingJoin();
+    const timer = setTimeout(() => { cancelPendingJoin().catch(err => console.error('[Sync] Could not drop the unfinished sign-in:', err)); }, 10 * 60 * 1000);
+    pendingJoin = { email, data, timer };
+  }
+  function clearPendingJoin() {
+    if (pendingJoin) clearTimeout(pendingJoin.timer);
+    pendingJoin = null;
+  }
+  // The sign-in was left (another address, a new code, ten minutes): the
+  // session it holds is removed from the server.
+  async function cancelPendingJoin() {
+    const pending = pendingJoin;
+    clearPendingJoin();
+    if (pending) await forgetDevice(pending.data.sessionToken, pending.data.deviceId);
+  }
+  const pendingJoinFor = email => !!pendingJoin && pendingJoin.email === email;
+
+  // Finishes the sign-in verifyCode started, with the recovery code, without
+  // asking the server for the email code again.
+  async function joinPending(recoveryCode) {
+    refuseInPrivate();
+    requireSyncUrl();
+    if (!pendingJoin) throw new Error('This sign-in has expired — send a new code.');
+    const cleanHex = SyncCrypto.parseRecoveryCode(recoveryCode);
+    const cryptoKey = await SyncCrypto.importKey(SyncCrypto.hexToKey(cleanHex));
+    const { email, data } = pendingJoin;
+    clearPendingJoin();
+    return joinWithSession(email, data, cleanHex, cryptoKey);
+  }
+
   async function enrollWithRecoveryCode(email, code, recoveryCode, deviceName) {
     refuseInPrivate();
     requireSyncUrl();
+    await cancelPendingJoin();
     const cleanHex = SyncCrypto.parseRecoveryCode(recoveryCode);
     const keyBytes = SyncCrypto.hexToKey(cleanHex);
     const cryptoKey = await SyncCrypto.importKey(keyBytes);
@@ -252,7 +293,10 @@ const SyncEngine = (() => {
     });
     if (!r.ok) throw await authFailure(r, 'Code verification failed');
     const data = await r.json();
+    return joinWithSession(email, data, cleanHex, cryptoKey);
+  }
 
+  async function joinWithSession(email, data, cleanHex, cryptoKey) {
     state = {
       ...state,
       enabled: true,
@@ -1056,6 +1100,9 @@ const SyncEngine = (() => {
     requestCode,
     verifyCode,
     enrollWithRecoveryCode,
+    joinPending,
+    cancelPendingJoin,
+    pendingJoinFor,
     signOut,
     pushNow,
     pullNow,

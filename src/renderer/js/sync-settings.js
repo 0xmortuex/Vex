@@ -208,20 +208,46 @@ const SyncSettings = (() => {
       const btn = document.getElementById('btn-verify-code');
       btn.disabled = true; btn.textContent = 'Verifying...';
 
+      let usedPending = false;
       try {
         if (hasRecovery) {
-          const joined = await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
+          // The email code was already used by a Verify that found the account
+          // has data (below): finish that sign-in instead of sending it again.
+          usedPending = SyncEngine.pendingJoinFor(email);
+          const joined = usedPending
+            ? await SyncEngine.joinPending(recoveryCode)
+            : await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
           if (joined.pushError) toast('Signed in and pulled your data, but this device’s own data could not be uploaded yet — ' + human(joined.pushError) + '. It will try again on the next sync.', 'error');
           else toast('Signed in — pulled your data', 'success');
         } else {
           const result = await SyncEngine.verifyCode(email, code);
+          if (result.needsRecoveryCode) {
+            // Ask for it here; the session waits for it.
+            const box = document.getElementById('has-recovery-code');
+            const input = document.getElementById('recovery-code-input');
+            box.checked = true;
+            input.hidden = false;
+            errorEl.textContent = 'This account already has synced data. Enter the recovery code from one of your other devices, then press Join.';
+            errorEl.hidden = false;
+            btn.textContent = 'Join'; btn.disabled = false;
+            input.focus();
+            return;
+          }
           showRecoveryCodeDialog(result.recoveryCode);
         }
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       } catch (err) {
-        errorEl.textContent = human(err.message); errorEl.hidden = false;
+        // A failed join used up the waiting sign-in: a new code is needed.
+        errorEl.textContent = human(err.message) + (usedPending && !SyncEngine.pendingJoinFor(email) ? ' Send a new code to try again.' : '');
+        errorEl.hidden = false;
         btn.textContent = 'Verify'; btn.disabled = false;
       }
+    });
+
+    // Another address is another sign-in: the one waiting for a recovery code
+    // is dropped.
+    document.getElementById('sync-email-input')?.addEventListener('input', () => {
+      SyncEngine.cancelPendingJoin().catch(err => console.error('[Sync] Could not drop the unfinished sign-in:', err));
     });
   }
 

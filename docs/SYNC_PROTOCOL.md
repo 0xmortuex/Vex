@@ -183,7 +183,7 @@ Accounts are keyed by `hex(HMAC-SHA256(key = UTF-8(EMAIL_HASH_SECRET), msg = UTF
 ### 2.4 Creating an account versus joining one
 The desktop uses `hasEncryptedData` like this (`sync-engine.js` `verifyCode` / `enrollWithRecoveryCode`):
 
-- **Create** (`verifyCode`): only when `hasEncryptedData === false`. If it is anything else, the desktop calls `DELETE /sync/devices/<deviceId>` with the new token and refuses with "This account already has encrypted data … Enroll with your recovery code."
+- **Create** (`verifyCode`): only when `hasEncryptedData === false`. If it is anything else, the desktop keeps the new session in memory and asks for the recovery code in place; with it, it joins (below) **using that session**, without a second `verify-code` (the email code is single-use). If the user leaves that sign-in (another address, a new code, or ten minutes), the desktop calls `DELETE /sync/devices/<deviceId>` with the new token. (Up to v2.38.x the desktop deleted the session at once and refused with "This account already has encrypted data … Enroll with your recovery code.")
   
   Otherwise the client generates a random 256-bit AES key, saves it, and immediately **pushes with `baseRevision: 0`** a document built from its local data plus its device marker. It shows the recovery code (§3.1) once. If that first push fails, it signs out with server removal.
 - **Join** (`enrollWithRecoveryCode`): the user enters email, code **and recovery code**. The recovery code is parsed and imported *before* verify. After verify the client pulls in **restore mode** (§5.4).
