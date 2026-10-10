@@ -5,6 +5,8 @@ const WorkspaceManager = {
   activeId: 'ws_personal',
   workspaces: [],
   _switching: false,
+  // Tab id -> back list, in memory only (saveCurrentState, switchTo).
+  _histories: new Map(),
   COLORS: ['#6366f1','#00b4d8','#22c55e','#e2231a','#a855f7','#f59e0b','#ec4899','#14b8a6'],
 
   defaultWorkspaces: [
@@ -63,6 +65,12 @@ const WorkspaceManager = {
     // workspace you switched to.
     ws.stacks = (TabManager.stacks || []).map(s => ({ ...s }));
     ws.activeTabIndex = tabs.findIndex(t => t.id === TabManager.activeTabId);
+    // Each tab's back list, for switching back during this run only: what is
+    // saved of a workspace leaves it out (VexTabPolicy.savedHistory).
+    for (const t of TabManager.tabs) {
+      const history = window.VexTabPolicy.savedHistory(t);
+      if (history) this._histories.set(t.id, history);
+    }
     this.save();
   },
 
@@ -88,8 +96,10 @@ const WorkspaceManager = {
       const ws = this.getActive();
       if (!ws) { this._hideLoading(); return; }
 
-      // 4. Bulk-close all tabs (no per-tab persist, no auto-create)
-      TabManager.closeAllTabs();
+      // 4. Bulk-close all tabs (no per-tab persist, no auto-create). A
+      //    private or Tor tab is never saved in a workspace, so closing it
+      //    lost it for good (found 2026-10-10): it stays open instead.
+      TabManager.closeAllTabs({ keep: (t) => !!t.partition && !String(t.partition).startsWith('persist:') });
       await new Promise(r => setTimeout(r, 0));
 
       // 5. Update theme immediately
@@ -109,28 +119,18 @@ const WorkspaceManager = {
         if (typeof VexStorage.saveStacks === 'function') await VexStorage.saveStacks(TabManager.stacks);
       }
 
-      // 7. Recreate tabs LAZILY (no webviews yet — instant)
+      // 7. Recreate tabs LAZILY (no webviews yet — instant). Each comes back
+      //    as it was left: asleep or not, muted, its note, its stack, and its
+      //    back list from this run (TabManager.addSavedTabs).
       const savedTabs = Array.isArray(ws.tabs) ? ws.tabs : [];
       const selectedTab = savedTabs[ws.activeTabIndex];
-      const tabsToRestore = savedTabs.filter(t => window.VexTabPolicy.canRestore(t));
-      if (!tabsToRestore.length) tabsToRestore.push({ url: START_URL, title: 'New Tab' });
-      let selectedId = null;
-      const savedToNewId = new Map();
-      for (const t of tabsToRestore) {
-        const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned, muted: t.muted });
-        tab.keepAwakeUntil = t.keepAwakeUntil || 0;
-        // The workspace keeps each tab's note (VexTabPolicy.serialize);
-        // switching back dropped it (found 2026-09-29).
-        if (t.note) tab.note = t.note;
-        tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
-        // createLazyTab always starts a tab unstacked; re-apply the saved
-        // membership so a workspace's stacks survive the round-trip.
-        if (t.stackId && TabManager.stacks.some(s => s.id === t.stackId)) {
-          TabManager._setTabStack(tab.id, t.stackId);
-        }
-        if (t.id) savedToNewId.set(t.id, tab.id);
-        if (t === selectedTab) selectedId = tab.id;
+      const restored = TabManager.addSavedTabs(savedTabs.map(t => (this._histories.has(t.id) ? { ...t, history: this._histories.get(t.id) } : t)));
+      if (!restored.length) {
+        const blank = TabManager.createLazyTab(START_URL, null, 'New Tab');
+        restored.push({ saved: null, tab: blank });
       }
+      const selectedId = (restored.find(r => r.saved && r.saved.id === (selectedTab && selectedTab.id)) || {}).tab?.id || null;
+      const savedToNewId = new Map(restored.filter(r => r.saved && r.saved.id).map(r => [r.saved.id, r.tab.id]));
 
       // Stack tops refer to the ids the workspace was saved with; tabs get
       // fresh ids on restore. Repoint each top, and drop any stack that no
@@ -144,7 +144,9 @@ const WorkspaceManager = {
       // 8. One ordered render pass, then activate the correct tab (this
       //    materializes only ONE webview).
       TabManager.rebuildAllTabs();
-      TabManager.switchTab(selectedId || TabManager.tabs[0].id);
+      TabManager.switchTab(selectedId || restored[0].tab.id);
+      // Kept-awake tabs live, as at start (they stayed unloaded until clicked).
+      TabManager.bringKeptAwakeLive(restored.map(r => r.tab));
 
       await TabManager.persistTabs();
 

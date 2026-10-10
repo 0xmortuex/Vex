@@ -97,34 +97,9 @@ describe('Backup carries saved sessions', () => {
   });
 });
 
-describe('Restoring a session loads its kept-awake tabs', () => {
-  it('materializes kept-awake lazy tabs other than the active one, like start-up does', async () => {
-    const { SessionManager } = await import('../../src/renderer/js/sessions.js');
-    const made = [];
-    globalThis.TabManager = {
-      tabs: [], groups: [], activeTabId: null,
-      createTab: vi.fn(),
-      createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
-      _persistableFavicon: (f) => f || null,
-      renderTabUpdate: vi.fn(), persistTabs: vi.fn(async () => {}),
-      switchTab: vi.fn((id) => { TabManager.activeTabId = id; }),
-      _isKeptAwake: (t) => t.keepAwakeUntil > Date.now(),
-      _materializeTab: vi.fn((t) => { t._lazy = false; }),
-    };
-    window.VexTabPolicy = { canRestore: () => true };
-    SessionManager.hideOverlay = vi.fn();
-    const later = Date.now() + 3600000;
-    SessionManager.sessions = [{ id: 's1', name: 'S', activeTabIndex: 0, tabs: [
-      { url: 'https://active.example/', title: 'Active', keepAwakeUntil: later },
-      { url: 'https://awake.example/', title: 'Awake', keepAwakeUntil: later },
-      { url: 'https://asleep.example/', title: 'Asleep' },
-    ] }];
-    await SessionManager.restoreSession('s1', false);
-    expect(TabManager._materializeTab.mock.calls.map(c => c[0].title)).toEqual(['Awake']);
-    expect(made.find(t => t.title === 'Asleep')._lazy).toBe(true);
-    delete globalThis.TabManager; delete window.VexTabPolicy;
-  });
-});
+// Restoring a session loads its kept-awake tabs: checked against the real
+// TabManager in sessionRestore.test.js since sessions restore through
+// TabManager.addSavedTabs (2026-10-10).
 
 describe('Automations: a daily rule runs once a day', () => {
   it('does not run twice in its minute, even when the rule list is rewritten between ticks', async () => {

@@ -705,17 +705,23 @@ const TabManager = {
   },
 
   // Bulk-close all tabs without triggering auto-create or per-tab persistence
-  closeAllTabs() {
+  // `keep` (a test on each tab) leaves those tabs open, page and all, out of
+  // any group or stack: a workspace switch keeps the private and Tor tabs,
+  // which belong to no workspace and could never be brought back.
+  closeAllTabs({ keep = null } = {}) {
     this._bulkClosing = true;
+    const kept = keep ? this.tabs.filter(keep) : [];
     // Destroy all webviews in one pass — just remove from DOM, no src change
     for (const tab of this.tabs) {
+      if (kept.includes(tab)) continue;
       const wv = WebviewManager.webviews.get(tab.id);
       if (wv) {
         wv.remove();
         WebviewManager.webviews.delete(tab.id);
       }
     }
-    this.tabs = [];
+    for (const tab of kept) { tab.groupId = null; tab.stackId = null; }
+    this.tabs = kept;
     this.activeTabId = null;
     // Stacks and their transient expand state belong to the tab set we just
     // dropped. Leaving them behind leaked a workspace's stacks into the next
@@ -758,6 +764,45 @@ const TabManager = {
     this.tabs.push(tab);
     this.renderTab(tab);
     return tab;
+  },
+
+  // Tabs built again from what a workspace or a saved session kept of them
+  // (VexTabPolicy.snapshot), added at the end of the list with no page yet:
+  // a tab asleep stays asleep with its scroll place, and each keeps its mute,
+  // note, keep-awake, pin, container and back list (when one is given).
+  // Making them with createLazyTab dropped all of that but the pin (found
+  // 2026-10-10). A tab keeps its saved id when no open tab has it; it keeps
+  // its group or stack only if that is open (the caller sets them up first).
+  // Not drawn: the caller rebuilds the strip once, after the groups exist.
+  // Returns [{ saved, tab }] in order.
+  addSavedTabs(savedTabs) {
+    const out = [];
+    for (const saved of Array.isArray(savedTabs) ? savedTabs : []) {
+      if (!window.VexTabPolicy.canRestore(saved)) continue;
+      const id = /^tab-[a-f0-9-]{36}$/i.test(saved.id || '') && !this.tabs.some(t => t.id === saved.id) ? saved.id : this._newId();
+      const tab = this._savedTabRecord(saved, id);
+      tab.favicon = this._persistableFavicon(saved.favicon, tab.partition);
+      if (tab.groupId && !this.groups.some(g => g.id === tab.groupId)) tab.groupId = null;
+      if (tab.stackId && !this.stacks.some(s => s.id === tab.stackId)) tab.stackId = null;
+      this.tabs.push(tab);
+      out.push({ saved, tab });
+    }
+    return out;
+  },
+
+  // A kept-awake tab has to be live, the way init brings them back at start:
+  // restored lazily or asleep, it stayed unloaded until clicked.
+  bringKeptAwakeLive(tabs) {
+    for (const tab of tabs) {
+      if (tab.id === this.activeTabId || !this._isKeptAwake(tab) || !this.tabs.includes(tab)) continue;
+      try {
+        if (tab.sleeping) this.wakeTab(tab.id);
+        else if (tab._lazy) this._materializeTab(tab);
+      } catch (err) {
+        console.error('[Tabs] could not load a kept-awake tab:', err);
+        window.showToast?.('Could not load kept-awake tab ' + (tab.title || tab.url) + ': ' + err.message, 'error');
+      }
+    }
   },
 
   // Build a tab's page again from nothing. Some things are decided when the
@@ -3065,7 +3110,9 @@ const TabManager = {
     }
     window.VexUndo.offer({
       message: message + (lost ? ` (${lost} private or Tor tab${lost === 1 ? '' : 's'} cannot come back)` : ''),
-      undo: () => this._restoreClosedTabs(snapshot, madeForEmpty),
+      // opts.onUndo: what else the caller takes back (a session that replaced
+      // these tabs closes its own again, js/sessions.js).
+      undo: () => { this._restoreClosedTabs(snapshot, madeForEmpty); if (opts.onUndo) opts.onUndo(); },
     });
     return closing.length;
   },

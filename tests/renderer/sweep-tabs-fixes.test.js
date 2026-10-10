@@ -155,26 +155,6 @@ describe('a snoozed tab reopened by hand', () => {
   });
 });
 
-describe('restoring a session', () => {
-  it('makes lazy tabs, so only the one switched to loads', async () => {
-    const { SessionManager } = await import('../../src/renderer/js/sessions.js');
-    const made = [];
-    globalThis.TabManager = {
-      tabs: [], groups: [],
-      createTab: vi.fn(),
-      createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
-      _persistableFavicon: (f) => f || null,
-      renderTabUpdate: vi.fn(), switchTab: vi.fn(), persistTabs: vi.fn(async () => {}),
-      _isKeptAwake: () => false, _materializeTab: vi.fn(),
-    };
-    window.VexTabPolicy = { canRestore: () => true };
-    SessionManager.hideOverlay = vi.fn();
-    SessionManager.sessions = [{ id: 's1', name: 'S', tabs: [{ url: 'https://a.example/', title: 'A' }, { url: 'https://b.example/', title: 'B', pinned: true }], activeTabIndex: 1 }];
-    await SessionManager.restoreSession('s1', false);
-    expect(TabManager.createTab).not.toHaveBeenCalled();
-    expect(made.map(t => t.title)).toEqual(['A', 'B']);
-    expect(made[1].pinned).toBe(true);
-    expect(TabManager.switchTab).toHaveBeenCalledWith('t1');
-    delete globalThis.TabManager; delete window.VexTabPolicy;
-  });
-});
+// Restoring a session makes lazy tabs, so only the one switched to loads:
+// checked against the real TabManager in sessionRestore.test.js since
+// sessions restore through TabManager.addSavedTabs (2026-10-10).

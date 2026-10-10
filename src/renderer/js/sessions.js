@@ -42,6 +42,9 @@ const SessionManager = {
       createdAt: new Date().toISOString(),
       tabs,
       groups: TabManager.groups.map(g => ({ ...g })),
+      // Stacks, as a workspace keeps them: a session lost them, each member
+      // coming back a loose tab (found 2026-10-10).
+      stacks: (TabManager.stacks || []).filter(s => tabs.some(t => t.stackId === s.id)).map(s => ({ ...s })),
       activeTabIndex: tabs.findIndex(t => t.id === TabManager.activeTabId),
       ...(auto ? { auto: true } : {})
     };
@@ -55,78 +58,123 @@ const SessionManager = {
     return session;
   },
 
-  async restoreSession(sessionId, replace = true) {
+  // Opening a session adds its tabs beside the ones open now. With replace
+  // ("Replace my tabs") the tabs open now are closed as Close Others closes
+  // them: into Recently Closed, with Undo on the toast, which also takes the
+  // session's tabs away again. Replacing closed every tab at once, with no
+  // word, no Undo and nothing in Recently Closed, and was what the one button
+  // did (found 2026-10-10). Private and Tor tabs are left open either way:
+  // they could never come back.
+  async restoreSession(sessionId, replace = false) {
     const session = this.sessions.find(s => s.id === sessionId);
     if (!session) return;
+    const ephemeral = (t) => !!t.partition && !String(t.partition).startsWith('persist:');
+    const before = TabManager.tabs.filter(t => !ephemeral(t)).map(t => t.id);
+    const wasActive = TabManager.activeTabId;
 
-    if (replace) {
-      // Close all current tabs. closeTab() auto-creates a START_URL tab whenever
-      // the set hits zero, so without _bulkClosing this while-loop would spin
-      // forever (close → auto-recreate → length still > 0 → …) and freeze the
-      // browser. _bulkClosing makes closeTab skip the auto-create (same guard the
-      // workspace-switch bulk close uses).
-      TabManager._bulkClosing = true;
-      try {
-        while (TabManager.tabs.length > 0) {
-          TabManager.closeTab(TabManager.tabs[0].id);
-        }
-      } finally {
-        TabManager._bulkClosing = false;
-      }
-      // Restore groups
-      if (session.groups) {
-        TabManager.groups = session.groups.map(g => ({ ...g }));
-        await VexStorage.saveGroups(TabManager.groups);
-        TabManager.renderGroups();
-      }
+    // Its groups, beside the ones open now (one open now is shared).
+    const added = { groups: new Set(), stacks: new Set() };
+    for (const g of Array.isArray(session.groups) ? session.groups : []) {
+      if (g && g.id && !TabManager.groups.some(x => x.id === g.id)) { TabManager.groups.push({ ...g }); added.groups.add(g.id); }
     }
+    // Its stacks, as a workspace switch puts them back. A stack whose id is
+    // open now is given a new one, so two sets never merge into one.
+    const stackIds = new Map();
+    for (const s of Array.isArray(session.stacks) ? session.stacks : []) {
+      if (!s || !s.id) continue;
+      const id = TabManager.stacks.some(x => x.id === s.id) ? TabManager._newStackId() : s.id;
+      stackIds.set(s.id, id);
+      added.stacks.add(id);
+      TabManager.stacks.push({ ...s, id });
+    }
+    const savedTabs = (Array.isArray(session.tabs) ? session.tabs : [])
+      .map(t => (t && t.stackId ? { ...t, stackId: stackIds.get(t.stackId) || null } : t));
 
     // Recreate the session's tabs LAZILY, as a workspace switch does: only the
     // tab switched to below gets a page. Creating them with createTab loaded
     // every page of the session at once (found 2026-09-29).
-    const restored = [];
-    let selected = null;
-    for (const [index, t] of (Array.isArray(session.tabs) ? session.tabs : []).entries()) {
-      if (!window.VexTabPolicy.canRestore(t)) continue;
-      const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned, muted: t.muted });
-      tab.keepAwakeUntil = t.keepAwakeUntil || 0;
-      // The session keeps each tab's note (VexTabPolicy.serialize); restoring
-      // dropped it (found 2026-09-29).
-      if (t.note) tab.note = t.note;
-      tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
-      TabManager.renderTabUpdate(tab);
-      restored.push(tab);
-      if (index === session.activeTabIndex) selected = tab;
+    const restored = TabManager.addSavedTabs(savedTabs);
+    const restoredTabs = restored.map(r => r.tab);
+    for (const [oldId, id] of stackIds) {
+      const stack = TabManager.stacks.find(s => s.id === id);
+      const old = (session.stacks || []).find(s => s.id === oldId);
+      const top = restored.find(r => r.saved.id === (old && old.topTabId) && r.tab.stackId === id);
+      stack.topTabId = top ? top.tab.id : (TabManager.tabs.find(t => t.stackId === id) || {}).id || null;
     }
+    this._dropEmpty(added);
+    await VexStorage.saveGroups(TabManager.groups);
+    if (typeof VexStorage.saveStacks === 'function') await VexStorage.saveStacks(TabManager.stacks);
+    // One drawing pass with the groups and stacks there first: groups were
+    // drawn before their tabs existed, which hides an empty group, so the
+    // tabs landed loose in the side list (found 2026-10-10).
+    TabManager.rebuildAllTabs();
 
     // Activate correct tab
+    const selected = restored.find(r => r.saved === savedTabs[session.activeTabIndex]);
     if (selected || restored[0]) {
-      TabManager.switchTab((selected || restored[0]).id);
+      TabManager.switchTab((selected || restored[0]).tab.id);
     } else if (!TabManager.tabs.length) {
       TabManager.createTab(START_URL, true);
     }
 
     // A kept-awake tab has to be live, the way TabManager.init brings them
-    // back at start-up: restored lazily, it stayed unloaded until clicked
-    // (found 2026-09-29).
-    for (const tab of restored) {
-      if (tab.id === TabManager.activeTabId || !tab._lazy || !TabManager._isKeptAwake(tab)) continue;
-      try { TabManager._materializeTab(tab); }
-      catch (err) {
-        console.error('[Sessions] could not load a kept-awake tab:', err);
-        window.showToast?.('Could not load kept-awake tab ' + (tab.title || tab.url) + ': ' + err.message, 'error');
-      }
-    }
+    // back at start-up (found 2026-09-29).
+    TabManager.bringKeptAwakeLive(restoredTabs);
 
     this.hideOverlay();
     await TabManager.persistTabs();
-    window.showToast?.('Restored: ' + session.name);
+
+    const old = before.filter(id => TabManager.tabs.some(t => t.id === id));
+    if (replace && restoredTabs.length && old.length) {
+      TabManager.closeTabsWithUndo(old, `Replaced ${old.length} tab${old.length === 1 ? '' : 's'} with “${session.name}”`, {
+        onUndo: () => this._takeBack(restoredTabs, wasActive, added),
+      });
+    } else {
+      window.showToast?.('Opened: ' + session.name);
+    }
   },
 
+  // Undo of "Replace my tabs": the session's tabs close again (they are not
+  // "recently closed", they were only just opened), with any group or stack
+  // they brought, and the tab in front before goes back in front.
+  _takeBack(tabs, wasActive, added) {
+    TabManager._bulkClosing = true;
+    try { for (const tab of tabs) TabManager.closeTab(tab.id); }
+    finally { TabManager._bulkClosing = false; }
+    this._dropEmpty(added);
+    VexStorage.saveGroups(TabManager.groups);
+    if (typeof VexStorage.saveStacks === 'function') VexStorage.saveStacks(TabManager.stacks);
+    if (!TabManager.tabs.length) TabManager.createTab(START_URL, true);
+    TabManager.rebuildAllTabs();
+    const front = TabManager.tabs.find(t => t.id === wasActive) || TabManager.tabs[0];
+    TabManager.switchTab(front.id);
+    TabManager.persistTabs();
+  },
+
+  // The groups and stacks a session brought that have no tab in them.
+  _dropEmpty(added) {
+    const used = (key, id) => TabManager.tabs.some(t => t[key] === id);
+    TabManager.groups = TabManager.groups.filter(g => !added.groups.has(g.id) || used('groupId', g.id));
+    TabManager.stacks = TabManager.stacks.filter(s => !added.stacks.has(s.id) || used('stackId', s.id));
+  },
+
+  // Gone at once, with Undo on the toast (it went without a word).
   deleteSession(sessionId) {
-    this.sessions = this.sessions.filter(s => s.id !== sessionId);
+    const index = this.sessions.findIndex(s => s.id === sessionId);
+    if (index < 0) return null;
+    const [removed] = this.sessions.splice(index, 1);
     this.save();
     this.renderList();
+    window.VexUndo.offer({
+      message: `Deleted the session “${removed.name}”`,
+      undo: () => {
+        if (this.sessions.some(s => s.id === removed.id)) return;
+        this.sessions.splice(Math.min(index, this.sessions.length), 0, removed);
+        this.save();
+        this.renderList();
+      },
+    });
+    return removed;
   },
 
   renameSession(sessionId, newName) {
@@ -192,10 +240,11 @@ const SessionManager = {
             <div class="session-item-meta">${s.tabs.length} tabs &middot; ${date}</div>
           </div>
           <div class="session-item-actions">
-            <button class="sess-restore" title="Restore">
+            <button class="sess-restore" title="Open beside your tabs" aria-label="Open ${this._esc(s.name)} beside your tabs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
             </button>
-            <button class="sess-delete danger" title="Delete">
+            <button class="sess-replace" title="Replace my tabs (Undo brings them back)" aria-label="Replace my tabs with ${this._esc(s.name)}">${VexIcons.svg('swap', { size: 14 })}</button>
+            <button class="sess-delete danger" title="Delete" aria-label="Delete ${this._esc(s.name)}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
@@ -207,6 +256,13 @@ const SessionManager = {
       btn.addEventListener('click', (e) => {
         const id = e.target.closest('.session-item').dataset.id;
         this.restoreSession(id);
+      });
+    });
+
+    list.querySelectorAll('.sess-replace').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.closest('.session-item').dataset.id;
+        this.restoreSession(id, true);
       });
     });
 
