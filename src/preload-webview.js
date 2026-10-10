@@ -1289,10 +1289,22 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     // instance does nothing — patch the prototype's getter/method instead.
     var proto = Object.getPrototypeOf(uad);
     if(!proto) return;
-    function addChrome(list){
+    // A burner identity or a Tor tab says another Chrome in its User-Agent
+    // (buildIdentity in main.js) and its Sec-CH-UA headers; JS said the real
+    // one, so the page saw two different Chromes (audit B10). The version is
+    // taken from this page's own User-Agent whenever its major differs.
+    var uaFull = '';
+    try{ var uaStr = String(navigator.userAgent||''); var at = uaStr.indexOf('Chrome/'); if(at>=0) uaFull = uaStr.slice(at+7).split(' ')[0]; }catch(e){}
+    var uaMajor = uaFull.split('.')[0];
+    if(!/^[0-9]+$/.test(uaMajor)) { uaMajor = ''; uaFull = ''; }
+    function majorOf(v){ return String(v==null?'':v).split('.')[0]; }
+    function addChrome(list, full){
       var out = (list||[]).map(function(x){return {brand:x.brand, version:x.version};});
+      var c = out.filter(function(x){return x.brand==='Chromium';})[0];
+      if(c && uaMajor && majorOf(c.version)!==uaMajor){
+        out.forEach(function(x){ if(x.brand==='Chromium'||x.brand==='Google Chrome') x.version = full ? uaFull : uaMajor; });
+      }
       if(!out.some(function(x){return x.brand==='Google Chrome';})){
-        var c = out.filter(function(x){return x.brand==='Chromium';})[0];
         if(c) out.push({brand:'Google Chrome', version:c.version});
       }
       return out;
@@ -1310,8 +1322,9 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
         return origHEV.call(this,hints).then(function(res){
           try{
             if(res){
-              if(Array.isArray(res.brands)) res.brands = addChrome(res.brands);
-              if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList);
+              if(Array.isArray(res.brands)) res.brands = addChrome(res.brands, false);
+              if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList, true);
+              if(typeof res.uaFullVersion==='string' && uaMajor && majorOf(res.uaFullVersion)!==uaMajor) res.uaFullVersion = uaFull;
             }
           }catch(e){}
           return res;
