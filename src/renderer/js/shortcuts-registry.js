@@ -49,6 +49,10 @@ const ShortcutsRegistry = (() => {
     'focus-url-alt-d': { default: 'Alt+D',       label: 'Focus URL Bar (third key)',  category: 'Navigation' },
     'next-tab-pagedown': { default: 'Ctrl+PageDown', label: 'Next Tab (second key)',  category: 'Tabs' },
     'prev-tab-pageup':   { default: 'Ctrl+PageUp',   label: 'Previous Tab (second key)', category: 'Tabs' },
+    // Moving the tab in front along the strip from the keyboard, as in Chrome
+    // and Firefox; drag was the only way (found 2026-10-10).
+    'move-tab-left':     { default: 'Ctrl+Shift+PageUp',   label: 'Move Tab Left',  category: 'Tabs' },
+    'move-tab-right':    { default: 'Ctrl+Shift+PageDown', label: 'Move Tab Right', category: 'Tabs' },
 
     // Panels
     'history-panel':  { default: 'Ctrl+H',       label: 'History Panel',              category: 'Panels' },

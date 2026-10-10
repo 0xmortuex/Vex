@@ -1457,6 +1457,8 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('focus-url-alt-d',      focusAddressBar);
     ShortcutsRegistry.register('next-tab-pagedown',    () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab-pageup',      () => cycleTab(-1));
+    ShortcutsRegistry.register('move-tab-left',        () => { const t = TabManager.getActiveTab(); if (t) TabManager.moveTab(t.id, -1); });
+    ShortcutsRegistry.register('move-tab-right',       () => { const t = TabManager.getActiveTab(); if (t) TabManager.moveTab(t.id, 1); });
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
     ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
     ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());

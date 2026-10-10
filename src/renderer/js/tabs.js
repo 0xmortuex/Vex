@@ -3233,6 +3233,25 @@ const TabManager = {
       || after[0] || before[0] || this.tabs[0];
   },
 
+  // Ctrl+Shift+PageUp / PageDown: a tab one place left (-1) or right (1) on
+  // the strip, within its own row: the pinned tabs, its group, the loose
+  // tabs, or its stack. At the end of its row it stays where it is.
+  moveTab(id, dir) {
+    const tab = this.tabs.find(t => t.id === id);
+    if (!tab || (dir !== -1 && dir !== 1)) return false;
+    const sameRow = (t) => !!t.pinned === !!tab.pinned
+      && (tab.pinned || ((t.groupId || null) === (tab.groupId || null) && (t.stackId || null) === (tab.stackId || null)));
+    const row = this.displayOrder().filter(sameRow);
+    const other = row[row.indexOf(tab) + dir];
+    if (!other) return false;
+    const i = this.tabs.indexOf(tab), j = this.tabs.indexOf(other);
+    this.tabs[i] = other;
+    this.tabs[j] = tab;
+    this.rebuildAllTabs();
+    this.persistTabs();
+    return true;
+  },
+
   // An extension's tabs.remove (main.js, _closeTabsForExtension) names tabs
   // by their page's webContents id. Only a tab of this window answers to one;
   // `missing` is the first id that is none of them.
