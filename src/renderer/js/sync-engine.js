@@ -1072,7 +1072,8 @@ const SyncEngine = (() => {
     isEnabled: () => state.enabled && !privateWindow(),
     // Settings and the sync indicator say so in a private window.
     offInThisWindow: () => (privateWindow() ? PRIVATE_OFF : ''),
-    SYNC_KEYS
+    SYNC_KEYS,
+    LIST_PREFERENCES
   };
 })();
 
