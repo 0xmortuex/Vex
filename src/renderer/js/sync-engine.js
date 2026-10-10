@@ -324,7 +324,7 @@ const SyncEngine = (() => {
     recordDocument = null;
     server = null;
     tileGate = { open: false, waitingOn: [] };
-    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); }
+    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); }
     try { await window.vex.syncClearState(); } catch {}
     state = {
       enabled: false, email: null, sessionToken: null, deviceId: null,
@@ -388,6 +388,33 @@ const SyncEngine = (() => {
     return { synced, kept };
   }
 
+  // A device this one has not seen on the account before says so: the email
+  // code alone is enough to sign a device in, and the first anyone heard of
+  // one they did not sign in was their data changing (audit SY3,
+  // 2026-10-10). The devices seen are kept per signed-in device; the first
+  // list after signing in is only remembered, since every device on it is new
+  // to this one. -> the devices that were new.
+  const KNOWN_DEVICES = 'sync-known-devices';
+  async function noticeNewDevices(devices) {
+    const listed = devices.filter(d => d && typeof d.deviceId === 'string');
+    const known = await VexStorage.load(KNOWN_DEVICES);
+    const ids = listed.map(d => d.deviceId);
+    if (!known || known.self !== state.deviceId || !Array.isArray(known.ids)) {
+      await VexStorage.save(KNOWN_DEVICES, { self: state.deviceId, ids });
+      return [];
+    }
+    const fresh = listed.filter(d => d.deviceId !== state.deviceId && !known.ids.includes(d.deviceId));
+    if (ids.length !== known.ids.length || fresh.length) await VexStorage.save(KNOWN_DEVICES, { self: state.deviceId, ids });
+    for (const d of fresh) {
+      const name = String(d.deviceName || 'A device').slice(0, 60);
+      const body = name + ' signed in to your sync account. If that was not you, remove it in Settings › Sync: whoever did it could read the sign-in code sent to your email.';
+      window.showToast?.(body, 'info', 15000);
+      try { await window.vex?.notify?.('A new device signed in to Vex Sync', body); }
+      catch (err) { console.error('[Sync] Could not show the new-device notice:', err); }
+    }
+    return fresh;
+  }
+
   // Whether tiles may sync on this round. It is asked after a pull has been
   // read: a device is in the server's list from its first pull, before it can
   // push, so tile records an older device marked deleted never arrive without
@@ -406,6 +433,8 @@ const SyncEngine = (() => {
     } catch (err) { console.error('[Sync] Could not read the device list; shortcut tiles stay on this device for now:', err); }
     let open = false, waitingOn = [];
     if (devices) {
+      try { await noticeNewDevices(devices); }
+      catch (err) { console.error('[Sync] Could not check for a new device on the account:', err); }
       waitingOn = devices.filter(d => {
         if (!d || d.deviceId === state.deviceId) return false;
         const marker = doc.records[JSON.stringify([DEVICE_SOURCE + d.deviceId, 'value'])];
