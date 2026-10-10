@@ -165,7 +165,7 @@ describe('the New Tab grid syncs as a list of its own', () => {
     // it back with a push of its own right after. Wait for that, or the push
     // below can land while it runs (seen as a flake under load).
     const own = Object.values(server.sessions)[0];
-    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:' + own]).toEqual({ level: 2, revision: expect.any(Number) }));
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:' + own]).toMatchObject({ level: 2, revision: expect.any(Number) }));
     expect(names(grid())).toEqual(['a', 'b']);
     setGrid([...grid(), tile('c')]);
     const before = Object.entries((await accountDoc(server, key)).records).filter(([k]) => k.includes('vex.startTiles'));

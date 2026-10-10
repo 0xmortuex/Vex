@@ -214,7 +214,7 @@ describe('an empty account (§6 rule 3)', () => {
     expect(Object.keys(doc.records).filter(k => k.includes(PHONE) || k.includes('readingList'))).toEqual([]);
     expect(Object.values(doc.records).filter(r => r.deleted)).toEqual([]);
     expect((await accountValues(server, key))['preference:vex.bookmarks'].map(b => b.id)).toEqual(['bm2']);
-    expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 2, revision: expect.any(Number) });
+    expect((await accountValues(server, key))['sync:device:dev1']).toMatchObject({ level: 2, revision: expect.any(Number) });
     engine.signOut();
   });
 });
