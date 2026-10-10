@@ -1,7 +1,10 @@
 const path = require('path');
 const { atomicWrite } = require('./file-store');
-// dialog / windowFor: the CSV export's save dialog.
-function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null }) {
+// dialog / windowFor: the CSV export's save dialog. breachCheckOn: whether the
+// person turned on the breach check ('vex.breachCheck'); nothing is sent to
+// Have I Been Pwned unless it is. fetchRange(prefix) -> the range API's text
+// (a stand-in in tests; never called live there).
+function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null, breachCheckOn = () => false, fetchRange = null }) {
 let vaultCache = null;
 let writes = Promise.resolve();
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
@@ -195,6 +198,47 @@ ipcMain.handle('vault:export-csv', async (e) => {
   if (picked.canceled || !picked.filePath) return { ok: false, canceled: true };
   await require('fs').promises.writeFile(picked.filePath, toChromeCsv(arr), 'utf8');
   return { ok: true, count: arr.length, path: picked.filePath };
+});
+
+// Breach check (Password Health), only when the person turned it on: each
+// password's SHA-1 is worked out here and only its first five hex characters
+// are sent to Have I Been Pwned's range API, which answers with every breached
+// hash starting with them; the match is made here (k-anonymity). Neither the
+// password nor its full hash leaves the computer.
+const crypto = require('crypto');
+async function defaultFetchRange(prefix) {
+  const { net } = require('electron');
+  const res = await net.fetch('https://api.pwnedpasswords.com/range/' + prefix, { headers: { 'Add-Padding': 'true', 'User-Agent': 'Vex-browser' } });
+  if (!res.ok) throw new Error('Have I Been Pwned answered ' + res.status);
+  return res.text();
+}
+ipcMain.handle('vault:breach-check', async () => {
+  if (!breachCheckOn()) throw new Error('The breach check is off. Turn it on in Password Health first.');
+  const arr = vaultLoad();
+  const byPrefix = new Map();
+  for (const e of arr) {
+    if (!e || !e.password) continue;
+    const sha = crypto.createHash('sha1').update(e.password, 'utf8').digest('hex').toUpperCase();
+    const prefix = sha.slice(0, 5);
+    if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
+    byPrefix.get(prefix).push({ suffix: sha.slice(5), host: e.host, username: e.username });
+  }
+  const fetcher = fetchRange || defaultFetchRange;
+  const breached = [];
+  for (const [prefix, list] of byPrefix) {
+    const text = await fetcher(prefix);
+    const counts = new Map();
+    for (const line of String(text).split(/\r?\n/)) {
+      const [suffix, count] = line.trim().split(':');
+      const n = parseInt(count, 10);
+      if (suffix && n > 0) counts.set(suffix.toUpperCase(), n);   // padding lines carry 0
+    }
+    for (const item of list) {
+      if (counts.has(item.suffix)) breached.push({ host: item.host, username: item.username, count: counts.get(item.suffix) });
+    }
+  }
+  breached.sort((a, b) => b.count - a.count);
+  return { checked: arr.filter(e => e && e.password).length, breached };
 });
 
 ipcMain.handle('vault:delete', async (_e, { host, username } = {}) => {

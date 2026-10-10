@@ -285,6 +285,9 @@ contextBridge.exposeInMainWorld('vex', {
   vaultUpdate: (q) => ipcRenderer.invoke('vault:update', q),
   // Main asks where and writes the file; no password crosses for it.
   vaultExportCsv: () => ipcRenderer.invoke('vault:export-csv'),
+  // Only with the breach check turned on (Password Health); main sends the
+  // first five characters of each password's SHA-1 and nothing else.
+  vaultBreachCheck: () => ipcRenderer.invoke('vault:breach-check'),
   // Import from another browser (main/browser-import.js). The passwords CSV is
   // chosen, read and saved in main; only hosts and usernames come back.
   browserImportSources: () => ipcRenderer.invoke('browser-import:sources'),

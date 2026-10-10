@@ -76,7 +76,8 @@ const PasswordHealth = {
     const rowbox = (rows) => `<div style="border:1px solid var(--border);border-radius:9px;max-height:160px;overflow-y:auto">${rows}</div>`;
     const line = (left, right) => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${left}</span><span style="color:var(--text-muted);white-space:nowrap">${right}</span></div>`;
 
-    let html = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${health.total} saved password${health.total === 1 ? '' : 's'} checked. Nothing here leaves your machine — the analysis runs locally.</div>`;
+    const breachOn = this.breachCheckOn();
+    let html = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${health.total} saved password${health.total === 1 ? '' : 's'} checked. ${breachOn ? 'The analysis runs locally; only the breach check below asks Have I Been Pwned, and never sees a password.' : 'Nothing here leaves your machine — the analysis runs locally.'}</div>`;
 
     // Reused
     html += card('#e5556a', 'Reused passwords', (health.reused || []).length);
@@ -95,6 +96,9 @@ const PasswordHealth = {
       ).join(''));
     } else html += `<div style="font-size:12px;color:var(--text-muted)">None flagged — no short, digit-only, or common passwords.</div>`;
 
+    // Breached (opt-in): Have I Been Pwned's range API, k-anonymity.
+    html += this._breachHtml(breachOn, esc, card, rowbox, line);
+
     // No 2FA
     html += card('#8a8aa5', 'No 2FA in Vex', no2fa.length);
     if (no2fa.length) {
@@ -107,6 +111,57 @@ const PasswordHealth = {
     }
 
     body.innerHTML = html;
+    this._wireBreach(m);
+  },
+
+  // --- Breach check, off unless turned on here ---
+  // Main works out each password's SHA-1 and sends only its first five hex
+  // characters to Have I Been Pwned (src/main/vault.js, vault:breach-check);
+  // main refuses to send anything while 'vex.breachCheck' is off.
+  BREACH_KEY: 'vex.breachCheck',
+  _breach: null,          // the last result in this window: { checked, breached, at } or { error }
+  breachCheckOn() { try { return JSON.parse(localStorage.getItem(this.BREACH_KEY) || 'false') === true; } catch { return false; } },
+
+  _breachHtml(on, esc, card, rowbox, line) {
+    const r = this._breach;
+    let html = card('#e5556a', 'Breached passwords', on && r && r.breached ? r.breached.length : '—');
+    html += `<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text);cursor:pointer;margin-bottom:4px">
+      <input type="checkbox" id="pwh-breach-on" ${on ? 'checked' : ''} style="cursor:pointer;margin-top:2px">
+      <span>Check my passwords against known breaches <span style="color:var(--text-muted)">· off by default. Vex sends only the first 5 characters of each password's SHA-1 hash to Have I Been Pwned and compares the answer on this computer; no password, and no full hash, ever leaves it.</span></span>
+    </label>`;
+    if (!on) return html;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin:4px 0 6px"><button id="pwh-breach-run" style="padding:6px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">${r && !r.error ? 'Check again' : 'Check now'}</button><span id="pwh-breach-status" role="status" style="font-size:11.5px;color:var(--text-muted)"></span></div>`;
+    if (!r) return html;
+    if (r.error) return html + `<div role="alert" style="font-size:12px;color:var(--danger)">The breach check failed: ${esc(r.error)}</div>`;
+    if (!r.breached.length) return html + `<div style="font-size:12px;color:var(--text-muted)">None of your ${r.checked} saved password${r.checked === 1 ? '' : 's'} appears in a known breach.</div>`;
+    html += rowbox(r.breached.map(b => line(esc(b.host) + (b.username ? ` <span style="color:var(--text-muted)">· ${esc(b.username)}</span>` : ''), `seen ${Number(b.count).toLocaleString()}×`)).join(''));
+    return html + `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">These passwords are in lists attackers use. Change each one on its site, then update it in Settings › Passwords.</div>`;
+  },
+
+  _wireBreach(m) {
+    const toggle = m.querySelector('#pwh-breach-on');
+    toggle?.addEventListener('change', async () => {
+      try {
+        if (toggle.checked) localStorage.setItem(this.BREACH_KEY, 'true'); else localStorage.removeItem(this.BREACH_KEY);
+        this._breach = null;
+        // Main reads the switch from the saved file: wait for the write.
+        if (window.PersistentStorage && window.PersistentStorage._flush) await window.PersistentStorage._flush();
+      } catch (err) { window.showToast?.('Could not save that: ' + err.message, 'error'); }
+      this._paint(m);
+    });
+    m.querySelector('#pwh-breach-run')?.addEventListener('click', async (e) => {
+      const button = e.currentTarget;
+      button.disabled = true;
+      const status = m.querySelector('#pwh-breach-status');
+      if (status) status.textContent = 'Checking…';
+      try {
+        const r = await window.vex.vaultBreachCheck();
+        this._breach = { checked: r.checked, breached: r.breached || [], at: Date.now() };
+      } catch (err) {
+        this._breach = { error: String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, '') };
+      }
+      this._paint(m);
+    });
   },
 };
 

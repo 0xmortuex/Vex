@@ -269,7 +269,7 @@ define('recall:search', [string(512), optional(shape({
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384), note: optional(string(4096)) })]);
 define('vault:update', [shape({ host: string(253), username: string(4096), newUsername: string(4096), password: optional(string(16384)), note: optional(string(4096)) })]);
-define('vault:export-csv', []);
+define('vault:export-csv vault:breach-check', []);
 define('vault:delete', [shape({ host: string(253), username: string(4096) })]);
 // Import from another browser (main/browser-import.js): a browser and a profile
 // id from browser-import:sources, never a path; the CSV is chosen in main.
