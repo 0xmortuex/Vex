@@ -473,9 +473,16 @@ const EmailCodeAutofill = {
   },
   _exit(webview) { this._active.delete(webview); this._running = this._active.size > 0; },
   // manual: the person asked for it (right-click or Ctrl+K), so it runs even
-  // with the automatic fill turned off in Settings.
+  // with the automatic fill turned off in Settings, and it fills the newest
+  // code from this site's own sender at once: no baseline, no 15-30 s grace.
+  // That wait is there so the automatic watch does not fill a code left over
+  // from an earlier attempt; asking by hand says the code in the inbox is the
+  // one wanted. When the automatic watch is already running on the page, the
+  // request tells that watch to fill now instead of being dropped.
   async tryFill(loginWv, url, { manual = false } = {}) {
-    if (!loginWv || this._watching.has(loginWv)) return;
+    if (!loginWv) return;
+    if (manual) loginWv._vexEmailCodeFillNow = true;
+    if (this._watching.has(loginWv)) return;
     if (!manual && !this.enabled()) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
@@ -552,7 +559,13 @@ const EmailCodeAutofill = {
               if (!current()) break;
               if (loaded) {
                 sawLoaded = true;
-                if (!baselineSet) {
+                if (code && loginWv._vexEmailCodeFillNow) {
+                  // Asked for by hand: the newest code from this site's sender, now.
+                  loginWv._vexEmailCodeFillNow = false;
+                  const ok = await this._injectCode(loginWv, code, url);
+                  this._log(url, ok, 'manual'); filled = true;
+                  if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                } else if (!baselineSet) {
                   // Snapshot the newest code the first time we see a loaded inbox.
                   baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
                 } else if (code && code !== baseline) {
@@ -612,6 +625,7 @@ const EmailCodeAutofill = {
         }
       } finally {
         this._watching.delete(loginWv);
+        loginWv._vexEmailCodeFillNow = false;
         if (slot) {
           this._exit(loginWv);
           // The mail tab is shared by every reading poll: put it back only when
