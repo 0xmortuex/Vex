@@ -69,6 +69,10 @@ const PasswordVault = {
         }
         return;
       }
+      if (e.channel === 'vex-passkey-refused') {
+        this._offerPasskey(webview, (e.args && e.args[0]) || {});
+        return;
+      }
       if (e.channel === 'vex-login-want') {
         await this._onLoginWant(webview, (e.args && e.args[0]) || {}, actualHost);
         return;
@@ -138,6 +142,92 @@ const PasswordVault = {
     card.querySelector('[data-not]').addEventListener('click', close);
     card.querySelector('[data-never]').addEventListener('click', () => { this._addNever(data.host); window.showToast?.('Never for ' + data.host); close(); });
     setTimeout(() => { if (document.body.contains(card)) close(); }, 20000);
+  },
+
+  // --- A site asked for a passkey or security key ---
+  // Vex refuses those requests by default (site-tweaks.js, the setting
+  // 'vex.passkeySuppressedHosts', "*" = every site) so Windows does not put its
+  // passkey dialog over a password sign-in. A site that really signs in with a
+  // passkey then just failed, silently. The page side says when it refused one
+  // (once per page); this bar lets the person allow it on that site and retry.
+  PASSKEY_ALLOWED_KEY: 'vex.passkeyAllowedHosts',
+  passkeyAllowed() {
+    try { const v = JSON.parse(localStorage.getItem(this.PASSKEY_ALLOWED_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch { return []; }
+  },
+  async setPasskeyAllowed(host, allowed) {
+    const list = this.passkeyAllowed().filter(h => h !== host);
+    if (allowed) list.push(host);
+    localStorage.setItem(this.PASSKEY_ALLOWED_KEY, JSON.stringify(list));
+    // Main reads the saved file when the page loads again: wait for the write.
+    if (window.PersistentStorage && window.PersistentStorage._flush) await window.PersistentStorage._flush();
+  },
+
+  // Settings › Privacy: the sites allowed from the bar, each with Remove.
+  renderPasskeyAllowed(box) {
+    if (!box) return;
+    const list = this.passkeyAllowed();
+    box.textContent = '';
+    if (!list.length) return;
+    const head = document.createElement('div');
+    head.className = 'setting-info muted';
+    head.textContent = 'Passkeys allowed on:';
+    box.appendChild(head);
+    for (const host of list) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:var(--text)';
+      const name = document.createElement('span');
+      name.style.flex = '1';
+      name.textContent = host;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.style.cssText = 'padding:3px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11.5px;font-family:inherit';
+      remove.textContent = 'Remove';
+      remove.setAttribute('aria-label', 'Block passkeys on ' + host + ' again');
+      remove.addEventListener('click', async () => {
+        try { await this.setPasskeyAllowed(host, false); }
+        catch (err) { window.showToast?.('Could not save that: ' + err.message, 'error'); return; }
+        this.renderPasskeyAllowed(box);
+      });
+      row.append(name, remove);
+      box.appendChild(row);
+    }
+  },
+
+  _offerPasskey(webview, d) {
+    const host = String(d.host || '').toLowerCase();
+    if (!/^[a-z0-9.-]{1,253}$/.test(host) || this.passkeyAllowed().includes(host)) return;
+    if (webview._vexPasskeyOffered === host) return;      // once per site per tab
+    webview._vexPasskeyOffered = host;
+    document.getElementById('vex-passkey-offer')?.remove();
+    const esc = (s) => window.escapeHtml(s);
+    const card = document.createElement('div');
+    card.id = 'vex-passkey-offer';
+    card.setAttribute('role', 'alert');
+    card.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:95000;width:340px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,0.5);font-family:\'Outfit\',sans-serif';
+    const icon = typeof VexIcons !== 'undefined' ? VexIcons.svg('key', { size: 16 }) : '';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="display:inline-flex;color:var(--primary)">${icon}</span>
+        <span style="font-size:13.5px;font-weight:700;color:var(--text)">This site asked for a passkey or security key</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px"><strong style="color:var(--text)">${esc(host)}</strong> wanted to sign you in with a passkey or security key. Vex blocks these prompts so the Windows dialog does not get in the way of a password sign-in.</div>
+      <div style="display:flex;gap:6px">
+        <button data-allow style="flex:1;padding:8px 0;background:var(--primary);color:var(--on-primary, #fff);border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Allow here</button>
+        <button data-not style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Not now</button>
+      </div>`;
+    document.body.appendChild(card);
+    const close = () => card.remove();
+    card.querySelector('[data-not]').addEventListener('click', close);
+    card.querySelector('[data-allow]').addEventListener('click', async () => {
+      close();
+      try { await this.setPasskeyAllowed(host, true); }
+      catch (err) { window.showToast?.('Could not save that choice: ' + err.message, 'error'); return; }
+      window.showToast?.(`Passkeys allowed on ${host} — trying again`);
+      try { webview.reload(); }
+      catch (err) { console.error('[Vault] could not reload after allowing passkeys:', err.message); window.showToast?.('Reload the page to try again', 'error'); }
+    });
+    setTimeout(() => { if (document.body.contains(card)) close(); }, 30000);
   },
 
   // --- "Use a strong password" on a site's sign-up form ---

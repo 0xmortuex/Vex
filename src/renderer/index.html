@@ -428,9 +428,10 @@
                 </label>
               </div>
               <div style="margin-top:12px">
-                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Sites with passkey prompts disabled</label>
+                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Block passkey and security-key sign-in on these sites</label>
                 <input id="setting-passkey-hosts" class="set-input" placeholder="example.com, login.example.com">
-                <p class="setting-info muted" style="margin-top:6px">Stops Windows showing its passkey / security-key dialog over a password login. Defaults to <b>*</b> (every site). Replace it with exact hostnames to keep passkeys elsewhere, or clear the field to allow passkey prompts everywhere. Reload the site after changing this.</p>
+                <p class="setting-info muted" style="margin-top:6px">While blocked, a site cannot open the Windows "use your passkey or security key" dialog, so it never covers a password sign-in; sites that only sign in with a passkey will not work there. <b>*</b> (the default) blocks it on every site. Type hostnames instead to block it only on those, or clear the field to allow passkeys everywhere. When a blocked site asks for one, Vex shows a bar with <b>Allow here</b>. Reload the site after changing this.</p>
+                <div id="setting-passkey-allowed" style="margin-top:6px"></div>
               </div>
               <div style="margin-top:12px">
                 <button id="setting-clear-data" class="btn-danger">Clear Browsing Data</button>

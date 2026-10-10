@@ -5535,10 +5535,13 @@ try {
 // The default is suppression everywhere again, expressed as "*", and the setting
 // still narrows it: replace "*" with hostnames to keep passkeys on elsewhere, or
 // empty the field to re-enable passkey prompts everywhere.
+// Sites allowed from the "asked for a passkey" bar are never suppressed
+// (main/passkey-policy.js).
 function _passkeySuppressed(hostname) {
-  const hosts = _readPersistString('vex.passkeySuppressedHosts', ['*']);
-  if (!Array.isArray(hosts)) return false;
-  return hosts.includes('*') || hosts.includes(hostname);
+  return require('./main/passkey-policy').passkeySuppressed(
+    _readPersistString('vex.passkeySuppressedHosts', ['*']),
+    _readPersistString('vex.passkeyAllowedHosts', []),
+    hostname);
 }
 function _readPersistString(key, fallback) {
   const raw = _persistLoad()[key];

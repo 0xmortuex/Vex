@@ -42,6 +42,8 @@ function vexOwnTextFocused(doc) {
       localStorage.setItem('vex.passkeySuppressedHosts', JSON.stringify([...new Set(hosts)]));
     });
   }
+  // Sites allowed from the "asked for a passkey" bar (js/passwords.js).
+  PasswordVault.renderPasskeyAllowed(document.getElementById('setting-passkey-allowed'));
 
   // The stored Tab Layout choice, resolved against the active GUI style
   // (SettingsUI.resolveTabLayout owns that rule).
@@ -651,7 +653,7 @@ function vexOwnTextFocused(doc) {
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
     'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
     'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
-    'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
+    'vex.passkeySuppressedHosts', 'vex.passkeyAllowedHosts', 'vex.a11y', 'vex.recall.enabled',
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
     'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
