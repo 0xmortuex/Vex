@@ -1312,9 +1312,10 @@ function vexOwnTextFocused(doc) {
     // new tab goes next to it (TabManager._insertIndexFor). From anywhere else
     // (another app, an extension) it goes at the end. One in a side panel's
     // page (Discord, a sidebar site) goes next to the tab in front.
+    // Only a tab it came from passes on its group: a link from another app
+    // joined whatever group the tab in front was in (found 2026-10-10).
     const linked = Number.isSafeInteger(data.opener) ? TabManager.openerForPage(data.opener) : null;
-    const opener = linked || TabManager.getActiveTab();
-    const inheritGroup = (opener && opener.groupId) || null;
+    const inheritGroup = (linked && linked.groupId) || null;
     let created;
     try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition, openerTabId: linked ? linked.id : null }); }
     catch (err) {
