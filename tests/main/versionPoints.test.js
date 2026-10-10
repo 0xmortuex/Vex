@@ -25,15 +25,15 @@ describe('a rank', () => {
 describe('the next version', () => {
   it('treats all three numbers as one counter', () => {
     expect(nextVersion('13.40.5', 1250)).toBe('14.65.5');
-    expect(nextVersion('13.24.9', 1)).toBe('13.25.0');
+    expect(nextVersion('13.39.9', 1)).toBe('13.40.0');
     expect(nextVersion('13.99.9', 1)).toBe('14.0.0');
-    expect(nextVersion('13.24.9', 10)).toBe('13.25.9');
+    expect(nextVersion('13.39.9', 10)).toBe('13.40.9');
   });
 
   it('carries an old middle above 99 or patch above 9, and needs points', () => {
     expect(nextVersion('2.110.6', 1)).toBe('3.10.7');
     expect(nextVersion('2.32.65', 1)).toBe('2.38.6');
-    expect(() => nextVersion('13.24.9', 0)).toThrow(/no points/);
+    expect(() => nextVersion('13.39.9', 0)).toThrow(/no points/);
   });
 });
 
@@ -62,10 +62,10 @@ describe('ranking the commits', () => {
 
 describe('what a release counts as', () => {
   it('reads base lines, which rank lines ignore', () => {
-    const text = 'base v2.38.1 13.24.9  # every older commit ranked\nabcdef1 fix-small-some';
-    expect(readBases(text).get('v2.38.1')).toBe('13.24.9');
+    const text = 'base v2.38.1 13.39.9  # every older commit ranked\nabcdef1 fix-small-some';
+    expect(readBases(text).get('v2.38.1')).toBe('13.39.9');
     expect([...readOverrides(text).keys()]).toEqual(['abcdef1']);
-    expect(() => readBases('base 2.38.1 13.24.9')).toThrow(/cannot read/);
+    expect(() => readBases('base 2.38.1 13.39.9')).toThrow(/cannot read/);
   });
 
   it('the recorded history adds up to the base it claims, above every released version', () => {

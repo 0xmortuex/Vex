@@ -22,8 +22,8 @@
 // changed before a release without rewriting history).
 //
 // A line `base <tag> <version>` says what that release counts as. The owner
-// had every commit up to v2.38.1 ranked once (ranks-history.txt, 13249 points
-// from 0.0.0), so v2.38.1 counts as 13.24.9 and the next release jumps from
+// had every commit up to v2.38.1 ranked once (ranks-history.txt, 13399 points
+// from 0.0.0), so v2.38.1 counts as 13.39.9 and the next release jumps from
 // there; older releases and their tags keep their numbers.
 //
 // Usage: node scripts/version-points.js   prints the table and the version.

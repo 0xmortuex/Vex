@@ -2,9 +2,9 @@
 # <hash> <kind>-<size>-<reach>  or  <hash> none     (see scripts/version-points.js)
 # Run `node scripts/version-points.js` to see the table and the next version.
 
-# Every commit up to v2.38.1 was ranked once (ranks-history.txt): 13249 points
-# from 0.0.0, so v2.38.1 counts as 13.24.9. Older releases keep their numbers.
-base v2.38.1 13.24.9
+# Every commit up to v2.38.1 was ranked once (ranks-history.txt): 13399 points
+# from 0.0.0, so v2.38.1 counts as 13.39.9. Older releases keep their numbers.
+base v2.38.1 13.39.9
 
 # Since v2.38.1
 133037f none                       # CI test timeout only

@@ -1,5 +1,5 @@
 # Every commit up to v2.38.1, ranked once with the point table (2026-10-10).
-# 759 commits, 13249 points from 0.0.0, so v2.38.1 counts as 13.24.9 (release-ranks.txt base line).
+# 759 commits, 13399 points from 0.0.0, so v2.38.1 counts as 13.39.9 (release-ranks.txt base line).
 # Kept as the record; scripts/version-points.js does not read this file.
 99d98a6 feature-evo-everyone  # v2.0.1 the whole browser, first public release
 17cad59 none  # v2.0.1 README only
@@ -120,7 +120,7 @@ bdd39dd improvement-mid-some  # v2.29.1 password saving for modern logins + clic
 1cd537c none  # v2.29.3 release bump
 4bfb83e fix-mid-some  # v2.29.4 Spotify hardware DRM so tracks play
 1e67b3c none  # v2.29.4 release bump
-8424316 none  # v2.29.5 release bump (fix was a re-signed build, no code)
+8424316 fix-high-some  # v2.29.5 release bump (DRM playback fixed by the re-signed build; owner ranked it 2026-10-10)
 25f1c03 none  # v2.29.6 build gate
 c9223a7 polish-small-some  # v2.29.6 DRM retry button only on real failures
 e0b6b1f none  # v2.29.6 release bump
@@ -690,8 +690,8 @@ b8f43dc none  # v2.35.0 release bump
 86b1613 fix-mid-some  # v2.35.2 sync with other devices: duplicates, emptied account
 15c500d none  # v2.35.2 release bump
 b59d3e8 none  # v2.36.0 license/privacy/terms docs
-f3316c7 feature-high-some  # v2.36.0 browser import, privacy defaults, report a problem, contrast
-62de33a feature-high-some  # v2.36.0 profiles, reader view, read aloud, faster start
+f3316c7 feature-high-everyone  # v2.36.0 browser import, privacy defaults, report a problem, contrast
+62de33a feature-high-everyone  # v2.36.0 profiles, reader view, read aloud, faster start
 5b2d93b polish-small-some  # v2.36.0 read-aloud voice + contrast in looks
 133c974 fix-small-some  # v2.36.0 plain pages white base in dark mode
 269b2d6 none  # v2.36.0 CI audit tooling
