@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isExternalProtocol } from '../../src/main-helpers.js';
+import { externalScheme } from '../../src/main-helpers.js';
 
-// `isExternalProtocol` returns TRUE only for schemes in the EXTERNAL_PROTOCOLS
+// The allowlist main.js hands to shell.openExternal, through externalScheme()
+// (a separate isExternalProtocol wrapper had no caller and was removed).
+const isExternalProtocol = (url) => externalScheme(url) !== null;
+
+// It is TRUE only for schemes in the EXTERNAL_PROTOCOLS
 // allowlist — those are the ones we hand off to shell.openExternal so the OS
 // app launches. Anything not on the list (including dangerous schemes like
 // javascript: and data:) returns FALSE: the caller treats false as "not our

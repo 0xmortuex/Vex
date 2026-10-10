@@ -133,7 +133,7 @@ A one-line summary of each in-tree module. For deeper detail read the file's own
 - `src/main/page-dialogs.js` — A page's `alert`/`confirm`/`prompt` is shown over its own tab or panel (renderer `js/page-dialogs.js`) instead of a native box that froze the whole window.
 - `src/main/window-hang.js` — When the window stops responding: logs what was open to the crash log and offers a reload.
 - `src/main/ipc-schemas.js`, `src/main/ipc-policy.js` — Every IPC channel's argument schema and which senders may call it.
-- `src/main-helpers.js` — Pure helpers extracted from `main.js` for testability: external-protocol allowlist (`isExternalProtocol`), Windows argv URL/path normalisation (`normalizeLaunchArg`/`findLaunchUrl`), and the fullscreen-shortcut decider used to route F11/Esc.
+- `src/main-helpers.js` — Pure helpers extracted from `main.js` for testability: external-protocol allowlist (`externalScheme`), Windows argv URL/path normalisation (`normalizeLaunchArg`/`findLaunchUrl`), and the fullscreen-shortcut decider used to route F11/Esc.
 - `src/adblocker.js` — Pattern-based request blocker. `shouldBlock(url)` is consulted by every session's `webRequest.onBeforeRequest`. Currently has a known substring-match bug (see `docs/security-audit-2026-04.md` M-1).
 - `src/pip.js` — Picture-in-Picture window factory (used by `ipcMain.handle('open-pip-window')`).
 - `src/preload.js` — `contextBridge` surface for the main renderer. Exposes `window.vex.*` with everything the renderer needs from main.

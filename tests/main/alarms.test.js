@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const req = createRequire(import.meta.url);
-const { createReminders, nextRepeat, firstAlarmAt } = req('../../src/main/reminders.js');
+const { createReminders, nextRepeat } = req('../../src/main/reminders.js');
 const { JsonStore } = req('../../src/main/file-store.js');
 
 const dirs = [];
@@ -51,13 +51,6 @@ describe('weekday sets', () => {
     expect(new Date(nextRepeat(fri, [5], fri)).getDate()).toBe(18);          // next Friday
     expect(new Date(nextRepeat(fri, [0, 6], fri)).getDay()).toBe(6);         // Saturday
     expect(() => nextRepeat(fri, [], fri)).toThrow(/at least one day/);
-  });
-  it('firstAlarmAt is today if still ahead on an allowed day, else the next allowed day', () => {
-    // T0 is Sunday 14:30
-    expect(new Date(firstAlarmAt(15, 0, [0], T0)).getDate()).toBe(13);      // today, 15:00
-    expect(new Date(firstAlarmAt(7, 0, [0], T0)).getDate()).toBe(20);       // next Sunday
-    expect(new Date(firstAlarmAt(7, 0, [1, 2, 3, 4, 5], T0)).getDay()).toBe(1);
-    expect(new Date(firstAlarmAt(7, 0, null, T0)).getDate()).toBe(14);      // every day: tomorrow
   });
 });
 

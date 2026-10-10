@@ -21,10 +21,6 @@ const EXTERNAL_PROTOCOLS = new Set([
   'web+mastodon'
 ]);
 
-function isExternalProtocol(url) {
-  return externalScheme(url) !== null;
-}
-
 // The scheme of a link Vex may hand to another program, lower-cased; null for
 // anything not in the set above.
 function externalScheme(url) {
@@ -543,7 +539,6 @@ function parseChangelogList(md) {
 
 module.exports = {
   EXTERNAL_PROTOCOLS,
-  isExternalProtocol,
   farbleSite,
   farbleSeed,
   externalScheme,
