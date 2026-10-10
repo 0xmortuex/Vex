@@ -486,7 +486,7 @@ function vexOwnTextFocused(doc) {
         // Not in a private window: its tabs are never saved, and the save
         // refuses there (found 2026-09-29).
         ? (window.VexTabPolicy?.isPrivateWindow ? null : setInterval(() => {
-          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
+          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString(), null, { auto: true });
         }, 10 * 60 * 1000))
         : null;
     };

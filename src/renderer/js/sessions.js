@@ -22,8 +22,12 @@ const SessionManager = {
   },
 
   // `onlyTabs` saves a subset — a tab group saved as a session, from the
-  // group's own right-click menu.
-  saveCurrentSession(name, onlyTabs) {
+  // group's own right-click menu. `auto` is Settings › "Auto-save session
+  // every 10 minutes": it keeps one session, replaced each time, says nothing,
+  // and is never one of the 50 kept of your own. Each autosave used to be a
+  // new session with a toast, so after about eight hours they had pushed
+  // every session you named out of the list (found 2026-10-09).
+  saveCurrentSession(name, onlyTabs, { auto = false } = {}) {
     // No tab of a private window is ever collected, so this said "Session
     // saved" over a session with no tabs in it (found 2026-09-29).
     if (window.VexTabPolicy.isPrivateWindow) throw new Error('A private window is never saved — its tabs are forgotten when it closes');
@@ -38,13 +42,16 @@ const SessionManager = {
       createdAt: new Date().toISOString(),
       tabs,
       groups: TabManager.groups.map(g => ({ ...g })),
-      activeTabIndex: tabs.findIndex(t => t.id === TabManager.activeTabId)
+      activeTabIndex: tabs.findIndex(t => t.id === TabManager.activeTabId),
+      ...(auto ? { auto: true } : {})
     };
+    if (auto) this.sessions = this.sessions.filter(s => !s.auto);
     this.sessions.unshift(session);
-    if (this.sessions.length > 50) this.sessions.length = 50;
+    const named = this.sessions.filter(s => !s.auto);
+    if (named.length > 50) { const dropped = new Set(named.slice(50)); this.sessions = this.sessions.filter(s => !dropped.has(s)); }
     this.save();
     this.renderList();
-    window.showToast?.('Session saved: ' + name);
+    if (!auto) window.showToast?.('Session saved: ' + name);
     return session;
   },
 
@@ -124,7 +131,8 @@ const SessionManager = {
 
   renameSession(sessionId, newName) {
     const s = this.sessions.find(s => s.id === sessionId);
-    if (s) { s.name = newName; this.save(); this.renderList(); }
+    // A renamed autosave is yours: the next autosave no longer replaces it.
+    if (s) { s.name = newName; delete s.auto; this.save(); this.renderList(); }
   },
 
   buildUI() {
