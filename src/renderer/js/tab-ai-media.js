@@ -51,7 +51,9 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     if (!want) return;
     btn.disabled = true; btn.textContent = 'Thinking…';
     try {
-      const tabs = TabManager.tabs.map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
+      // A Tor, off-the-record or private-window tab is not sent to the AI, so
+      // it is never closed or grouped from here either (found 2026-10-10).
+      const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
       const data = await AIRouter.callAI('chat', {
         message: 'Instruction: ' + want + '\n\nOpen tabs:\n' + JSON.stringify(tabs),
         // As `persona`, the shape the router reads on every backend: a bare
@@ -63,7 +65,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       let plan = null;
       try { plan = JSON.parse(String(data.result).replace(/^```(json)?/i, '').replace(/```$/,'').trim()); } catch { const mm = String(data.result).match(/\{[\s\S]*\}/); if (mm) { try { plan = JSON.parse(mm[0]); } catch {} } }
       if (!plan) throw new Error('Could not understand the AI response');
-      const ids = new Set(TabManager.tabs.map(t => t.id));
+      const ids = new Set(tabs.map(t => t.id));
       // The tab you are on is never closed from here. It used to be dropped
       // silently while the model's explanation ("Closed the YouTube tab")
       // was shown, so it claimed a close that never happened (found
