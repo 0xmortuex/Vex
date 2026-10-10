@@ -1419,13 +1419,8 @@ function vexOwnTextFocused(doc) {
   }
 
   // === Phase 16: Tab auto-grouping ===
+  // Its key is 'group-tabs' in the shortcut registry, so a rebinding holds.
   if (typeof TabGrouper !== 'undefined') TabGrouper.init();
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
-      e.preventDefault();
-      TabGrouper?.analyzeAndPropose();
-    }
-  });
 
   // === Phase 14: AI Router — detect Ollama, load routing prefs ===
   if (typeof AIRouter !== 'undefined') {
