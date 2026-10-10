@@ -25,11 +25,19 @@ const VexLock = {
   FAILS_KEY: 'vex.lockFails',
   WAIT_KEY: 'vex.lockWaitUntil',
   WAIT_MS: 30000,
+  // Each round of five wrong PINs doubles the wait, up to an hour, the same
+  // as main's own count (src/main/lock-pin.js waitFor; audit SE2).
+  ROUNDS_KEY: 'vex.lockRounds',
+  MAX_WAIT_MS: 60 * 60 * 1000,
   get _fails() { const n = Number(localStorage.getItem(this.FAILS_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; },
   set _fails(n) { if (n > 0) localStorage.setItem(this.FAILS_KEY, String(n)); else localStorage.removeItem(this.FAILS_KEY); },
+  get _rounds() { const n = Number(localStorage.getItem(this.ROUNDS_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; },
+  set _rounds(n) { if (n > 0) localStorage.setItem(this.ROUNDS_KEY, String(n)); else localStorage.removeItem(this.ROUNDS_KEY); },
+  _waitFor(round) { return Math.min(this.WAIT_MS * 2 ** (Math.max(1, round) - 1), this.MAX_WAIT_MS); },
+  _waitText(ms) { const s = Math.ceil(ms / 1000); return s < 120 ? s + ' s' : Math.ceil(s / 60) + ' min'; },
   // Never more than one wait from now: a clock that jumped would otherwise
   // leave Vex refusing the right PIN for as long as the jump.
-  get _waitUntil() { const t = Number(localStorage.getItem(this.WAIT_KEY)); return Number.isFinite(t) && t > 0 ? Math.min(t, Date.now() + this.WAIT_MS) : 0; },
+  get _waitUntil() { const t = Number(localStorage.getItem(this.WAIT_KEY)); return Number.isFinite(t) && t > 0 ? Math.min(t, Date.now() + this._waitFor(this._rounds)) : 0; },
   set _waitUntil(t) { if (t > 0) localStorage.setItem(this.WAIT_KEY, String(t)); else localStorage.removeItem(this.WAIT_KEY); },
 
   hasPin() { try { return !!JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null'); } catch { return false; } },
@@ -119,7 +127,7 @@ const VexLock = {
     const msg = el.querySelector('.vex-lock-msg');
     el.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + Math.ceil((this._waitUntil - Date.now()) / 1000) + ' s'; return; }
+      if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + this._waitText(this._waitUntil - Date.now()); return; }
       if (await this.check(input.value)) {
         try { await this.unlock(input.value); }
         catch (err) { input.value = ''; msg.textContent = err.message; }
@@ -127,8 +135,13 @@ const VexLock = {
       }
       this._fails++;
       input.value = '';
-      // Five wrong in a row: thirty seconds before the next try.
-      if (this._fails >= 5) { this._waitUntil = Date.now() + this.WAIT_MS; this._fails = 0; msg.textContent = 'Too many tries — wait 30 s'; }
+      // Five wrong in a row: a wait before the next try, longer each round.
+      if (this._fails >= 5) {
+        this._rounds = this._rounds + 1;
+        const wait = this._waitFor(this._rounds);
+        this._waitUntil = Date.now() + wait; this._fails = 0;
+        msg.textContent = 'Too many tries — wait ' + this._waitText(wait);
+      }
       else msg.textContent = 'Wrong PIN';
     });
     input.focus();
@@ -149,6 +162,7 @@ const VexLock = {
   _open() {
     this._locked = false;
     this._fails = 0;
+    this._rounds = 0;
     localStorage.removeItem(this.LOCKED_KEY);
     this._watch?.disconnect();
     this._watch = null;

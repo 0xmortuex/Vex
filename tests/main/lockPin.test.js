@@ -42,6 +42,51 @@ describe('main checks the PIN the window stored', () => {
     expect(await gate.tryUnlock('4821')).toEqual({ ok: true });
   });
 
+  // Audit SE2: the count lived in memory (a restart gave five fresh tries)
+  // and every wait was thirty seconds.
+  it('the wrong-PIN count survives a restart, and each round waits twice as long', async () => {
+    const os = require('os');
+    const { fileStore, waitFor, MAX_WAIT_MS } = require('../../src/main/lock-pin.js');
+    const { atomicWrite } = require('../../src/main/file-store.js');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-locktries-'));
+    const file = path.join(dir, 'lock-tries.json');
+    const rec = await windowRecord('4821');
+    let t = 5000000;
+    const start = () => createLockGate({ readRecord: () => rec, now: () => t, store: fileStore(file, { atomicWrite }) });
+    try {
+      let gate = start();
+      for (let i = 0; i < 3; i++) expect((await gate.tryUnlock('0000')).error).toBe('Wrong PIN');
+      gate = start(); // restart: two tries left, not five
+      expect((await gate.tryUnlock('0000')).error).toBe('Wrong PIN');
+      expect((await gate.tryUnlock('0000')).error).toBe('Too many tries — wait 30 s');
+      gate = start();
+      expect((await gate.tryUnlock('4821')).error).toMatch(/^Too many tries/);
+      t += 30001;
+      for (let i = 0; i < MAX_FAILS - 1; i++) expect((await gate.tryUnlock('0000')).error).toBe('Wrong PIN');
+      expect((await gate.tryUnlock('0000')).error).toBe('Too many tries — wait 60 s');
+      t += 60001;
+      for (let i = 0; i < MAX_FAILS; i++) await gate.tryUnlock('0000');
+      expect((await start().tryUnlock('4821')).error).toBe('Too many tries — wait 2 min');
+      t += 120001;
+      expect(await start().tryUnlock('4821')).toEqual({ ok: true });
+      expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ fails: 0, rounds: 0, waitUntil: 0 });
+      expect(waitFor(1)).toBe(30000);
+      expect(waitFor(40)).toBe(MAX_WAIT_MS);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }, 60000);
+
+  it('a count file that cannot be read keeps Vex locked and says why', async () => {
+    const os = require('os');
+    const { fileStore } = require('../../src/main/lock-pin.js');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-locktries-'));
+    const file = path.join(dir, 'lock-tries.json');
+    fs.writeFileSync(file, '{broken');
+    try {
+      const gate = createLockGate({ readRecord: () => 'x', store: fileStore(file, { atomicWrite: async () => {} }) });
+      await expect(gate.tryUnlock('4821')).rejects.toThrow(/count of wrong PINs cannot be read/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('says plainly when there is no PIN to check against', async () => {
     const gate = createLockGate({ readRecord: () => undefined });
     expect((await gate.tryUnlock('4821')).error).toMatch(/No PIN is saved/);
@@ -79,5 +124,11 @@ describe('main.js', () => {
   it('the stored PIN cannot be swapped while locked', () => {
     expect(block("ipcMain.handle('persist-set'", 200)).toContain('_refuseLockPinChange(key);');
     expect(block("ipcMain.handle('persist-delete'", 200)).toContain('_refuseLockPinChange(key);');
+    // The batched save the window really uses (audit SE2).
+    expect(block("ipcMain.handle('persist-apply'", 200)).toContain('for (const [key] of entries) _refuseLockPinChange(key);');
+  });
+
+  it("main keeps its wrong-PIN count in a file", () => {
+    expect(block('const _lockGate =', 400)).toContain("fileStore(path.join(userDataPath, 'lock-tries.json')");
   });
 });

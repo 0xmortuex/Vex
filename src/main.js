@@ -1724,7 +1724,10 @@ ipcMain.on('vex-lock:state', (e, locked) => {
   if (locked !== true) { console.error('[Lock] refused: the window cannot unlock Vex without the PIN'); return; }
   _lockVex();
 });
-const _lockGate = require('./main/lock-pin').createLockGate({ readRecord: () => _persistLoad()['vex.lockPin'] });
+const _lockGate = require('./main/lock-pin').createLockGate({
+  readRecord: () => _persistLoad()['vex.lockPin'],
+  store: require('./main/lock-pin').fileStore(path.join(userDataPath, 'lock-tries.json'), { atomicWrite: require('./main/file-store').atomicWrite }),
+});
 ipcMain.handle('vex-lock:unlock', async (e, pin) => {
   if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents || e.senderFrame !== mainWindow.webContents.mainFrame) {
     throw new Error('Only the main Vex window unlocks Vex');
@@ -5623,6 +5626,7 @@ ipcMain.handle('persist-delete', async (_e, key) => {
   return preferences.delete(key);
 });
 ipcMain.handle('persist-apply', async (_e, entries) => {
+  for (const [key] of entries) _refuseLockPinChange(key);
   return preferences.apply(entries);
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);

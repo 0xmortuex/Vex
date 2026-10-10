@@ -78,6 +78,20 @@ describe('VexLock', () => {
     expect(L.locked()).toBe(true);
   });
 
+  // Audit SE2: every round waited thirty seconds.
+  it('each round of five wrong PINs waits twice as long; the right PIN starts over', async () => {
+    await L.setPin('4821');
+    L.lock();
+    L._rounds = 2; // two rounds already spent
+    for (let i = 0; i < 5; i++) await submit('0000');
+    expect(document.querySelector('.vex-lock-msg').textContent).toBe('Too many tries — wait 2 min');
+    expect(L._waitUntil - Date.now()).toBeGreaterThan(110000);
+    L._waitUntil = 0;
+    await submit('4821');
+    expect(L.locked()).toBe(false);
+    expect(L._rounds).toBe(0);
+  });
+
   // Audit B1: VexLock.unlock() typed into DevTools' console opened Vex.
   it('VexLock.unlock() without the PIN leaves Vex locked; main is asked and says no', async () => {
     await L.setPin('4821');
