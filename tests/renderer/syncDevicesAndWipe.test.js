@@ -126,6 +126,7 @@ describe('Sync settings panel distinguishes "no devices" from "could not ask"', 
       getState: () => ({ enabled: true, email: 'a@b.test', deviceId: 'dev1', lastPushAt: null, lastPullAt: null }),
       listDevices,
       nameOf: d => d.deviceName,
+      syncTypes: () => [],
     };
     require('../../src/renderer/js/sync-settings.js');
     const host = document.createElement('div');

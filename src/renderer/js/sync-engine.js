@@ -110,6 +110,50 @@ const SyncEngine = (() => {
     // Colour themes the user made (js/theme-custom.js), merged theme by theme.
     'vex.customThemes'];
 
+  // Settings › Vex Sync › Choose what to sync. Each kind of data can be left
+  // out on this device; there was no way to keep, say, history or AI memory
+  // on one computer only (found 2026-10-10). The choice is this device's own
+  // (CHOICES_KEY, not synced). What a device leaves out it neither sends nor
+  // applies: the account's copy is carried as it came, as for a source a
+  // newer Vex added, and this device's own copy stays as it is.
+  const SYNC_TYPES = [
+    { id: 'bookmarks', label: 'Bookmarks', keys: ['vex.bookmarks'] },
+    { id: 'history', label: 'History', keys: ['vex.history', 'vex.historyClearedAt'] },
+    { id: 'tabs', label: 'Open tabs, sessions and workspaces', keys: ['vex.sessions', 'vex.workspaces', 'vex.autoGroupSuggest', 'vex.autoAddToGroups', 'vex.groupPatterns'] },
+    { id: 'notes', label: 'Notes', keys: ['vex.notes'] },
+    { id: 'shortcuts', label: 'Shortcut tiles and tools', keys: ['vex.shortcuts', 'vex.startTiles', 'vex.tools'] },
+    { id: 'reminders', label: 'Reminders and scheduled tasks', keys: ['vex.reminders', 'vex.schedules'] },
+    { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
+    { id: 'look', label: 'Themes and look', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout'] },
+    // Everything else: site lists, zoom, auto-sleep, keyboard shortcuts...
+    { id: 'settings', label: 'Other settings', keys: [] },
+  ];
+  const CHOICES_KEY = 'vex.syncChoices';
+  // Kinds turned back on whose first pull has not happened yet (CHOICES_KEY).
+  const REJOIN_KEY = 'vex.syncRejoin';
+  function readJson(key, fallback) {
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (err) { console.error('[Sync] ' + key + ' could not be read:', err.message); }
+    if (raw == null) return fallback;
+    try { return JSON.parse(raw); }
+    catch (err) { console.error('[Sync] ' + key + ' is not readable; using the default:', err.message); return fallback; }
+  }
+  function typeOfSource(source) {
+    if (source.startsWith('sync:tabs:')) return 'tabs';
+    if (source === 'storage:theme') return 'look';
+    const key = source.startsWith('preference:') ? source.slice(11) : null;
+    const type = key && SYNC_TYPES.find(t => t.keys.includes(key));
+    return type ? type.id : 'settings';
+  }
+  function typeOn(id) {
+    const choices = readJson(CHOICES_KEY, {});
+    return !(choices && typeof choices === 'object' && choices[id] === false);
+  }
+  function rejoining() {
+    const list = readJson(REJOIN_KEY, []);
+    return Array.isArray(list) ? list.filter(id => typeof id === 'string') : [];
+  }
+
   // Shortcut tiles (vex.shortcuts) never synced: preferenceKeys() dropped the
   // key because the unused storage key 'shortcuts' has the same name (found
   // 2026-09-30). Vex 2.34.2 and older mark every record they do not know as
@@ -503,6 +547,7 @@ const SyncEngine = (() => {
     compactGate = { open: false, waitingOn: [], floor: 0 };
     knownDevices = [];
     tombstones = null;
+    localStorage.removeItem(REJOIN_KEY);
     if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); }
     try { await window.vex.syncClearState(); } catch {}
     state = {
@@ -525,10 +570,21 @@ const SyncEngine = (() => {
   // from every device (SYNC_PROTOCOL.md §6 rule 1).
   const RECORD_KINDS = ['type', 'value', 'item'];
   const ownsSource = (source, gate) => source === DEVICE_SOURCE + state.deviceId
-    || source === TABS_SOURCE + state.deviceId
-    || preferenceKeys().some(key => source === 'preference:' + key)
-    || STORE_KEYS.some(key => source === 'storage:' + key)
-    || (gate.open && TILE_SOURCES.includes(source));
+    || ((source === TABS_SOURCE + state.deviceId
+      || preferenceKeys().some(key => source === 'preference:' + key)
+      || STORE_KEYS.some(key => source === 'storage:' + key)
+      || (gate.open && TILE_SOURCES.includes(source)))
+      && chosen(source, gate));
+  // Whether this device sends and applies `source` now (Choose what to sync).
+  // A kind just turned back on is joined on the next pull (applySyncData), not
+  // by a push: its copy here may lack what other devices added meanwhile, and
+  // sent as it is, that would delete it from every device.
+  const chosen = (source, gate) => {
+    const type = typeOfSource(source);
+    return typeOn(type) && (gate.rejoin === true || TILE_SOURCES.includes(source) || !rejoining().includes(type));
+  };
+  // Tiles sync when every device understands them and this device syncs them.
+  const tilesSync = gate => gate.open && typeOn('shortcuts');
   const ownsRecord = (key, gate) => { const [source, kind] = JSON.parse(key); return RECORD_KINDS.includes(kind) && ownsSource(source, gate); };
   const tileRecords = doc =>({ schema: 2, records: Object.fromEntries(Object.entries(doc.records).filter(([key]) => TILE_SOURCES.includes(sourceOf(key)))) });
 
@@ -677,11 +733,18 @@ const SyncEngine = (() => {
     return out.sort((a, b) => b.at - a.at);
   }
 
+  // A record of a kind being joined again (tiles have a join of their own).
+  const rejoinsRecord = (key, rejoin) => {
+    const source = sourceOf(key);
+    return !TILE_SOURCES.includes(source) && rejoin.includes(typeOfSource(source));
+  };
+
   async function collectSyncData(gate = { open: false }) {
     if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
     if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
     const data = {};
     for (const key of preferenceKeys()) {
+      if (!ownsSource('preference:' + key, gate)) continue;
       const raw = localStorage.getItem(key);
       if (raw === null || raw === undefined) continue;
       // Store the raw string so values round-trip byte-for-byte.
@@ -694,13 +757,18 @@ const SyncEngine = (() => {
         data['preference:' + key] = key === 'vex.history' ? historyWindow(list) : list;
       } else data['preference:' + key] = raw;
     }
-    for (const key of STORE_KEYS) data['storage:' + key] = await VexStorage.load(key);
-    data[TABS_SOURCE + state.deviceId] = { tabs: await openTabsToSync() };
+    for (const key of STORE_KEYS) if (ownsSource('storage:' + key, gate)) data['storage:' + key] = await VexStorage.load(key);
+    if (ownsSource(TABS_SOURCE + state.deviceId, gate)) data[TABS_SOURCE + state.deviceId] = { tabs: await openTabsToSync() };
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
     const original = recordDocument;
     let before = recordDocument;
     if (gate.compact?.open) before = compactDocument(before, gate.compact.floor, await seenTombstones());
+    // A kind turned back on (applySyncData joins it): this device's copy is
+    // captured as new records, not against the account's records it carried
+    // while the kind was off, which would mark everything it lacks deleted.
+    const rejoin = gate.rejoin === true ? rejoining() : [];
+    if (rejoin.length) before = { schema: 2, records: Object.fromEntries(Object.entries(before.records).filter(([key]) => !rejoinsRecord(key, rejoin))) };
     // The marker says which account revision this device last synced. It is
     // written again only along with another change, or once a day (see
     // MARKER_REFRESH_MS); otherwise the one already in the account stays.
@@ -712,7 +780,7 @@ const SyncEngine = (() => {
       && Number.isSafeInteger(previous.value.revision) && (previous.value.name || '') === myName
       && Date.now() - (previous.at || 0) < MARKER_REFRESH_MS;
     data[DEVICE_SOURCE + state.deviceId] = keepMarker ? previous.value : freshMarker;
-    if (gate.open) {
+    if (tilesSync(gate)) {
       // First tile sync on this device, or the first since an older device
       // left: start from the account's tile records and add this device's
       // tiles to them, so neither side loses one. Tiles an older device
@@ -756,7 +824,7 @@ const SyncEngine = (() => {
     }
     recordDocument = next;
     await VexStorage.save('sync-records', recordDocument);
-    if (gate.join) await VexStorage.save('sync-tiles-joined', state.deviceId);
+    if (gate.join && tilesSync(gate)) await VexStorage.save('sync-tiles-joined', state.deviceId);
     return recordDocument;
   }
 
@@ -779,7 +847,8 @@ const SyncEngine = (() => {
       data = records.capture(records.empty(), records.flatten(sources), 'legacy');
     }
     records.valid(data);
-    const gate = await checkTileGate(data);
+    const gate = { ...(await checkTileGate(data)), rejoin: true };
+    const rejoin = rejoining();
     // Read before anything is applied: the visits too old to sync stay here.
     let localHistory = [];
     try { const saved = JSON.parse(localStorage.getItem('vex.history') || '[]'); if (Array.isArray(saved)) localHistory = saved; }
@@ -814,7 +883,7 @@ const SyncEngine = (() => {
       }
       // This device's tiles were just added on top of the account's (see
       // collectSyncData), so its tile records are the newer ones.
-      if (gate.open) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
+      if (tilesSync(gate)) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
     } else {
       // A deleted record this device saw in the account and the account no
       // longer has was cleared away by another device (compactDocument). It
@@ -825,6 +894,18 @@ const SyncEngine = (() => {
         if (record.deleted && seen[key] != null && !Object.hasOwn(data.records, key)) delete mine.records[key];
       }
       merged = records.merge(mine, data);
+      // A kind turned back on joins the way a new device does: the account's
+      // records win, and what only this device has is added.
+      if (rejoin.length) {
+        for (const key of Object.keys(merged.records)) if (rejoinsRecord(key, rejoin)) delete merged.records[key];
+        for (const [key, record] of Object.entries(data.records)) if (rejoinsRecord(key, rejoin)) merged.records[key] = record;
+        for (const [key, record] of Object.entries(local.records)) {
+          if (!rejoinsRecord(key, rejoin) || record.deleted || Object.hasOwn(data.records, key)) continue;
+          const shape = doc => doc.records[JSON.stringify([sourceOf(key), 'type'])];
+          if (shape(data) && !shape(data).deleted && shape(data).value !== shape(local)?.value) continue;
+          merged.records[key] = record;
+        }
+      }
     }
     // Only what this device applies is read and checked. A source it does not
     // own stays in the document as it came, and must not stop this device
@@ -844,12 +925,14 @@ const SyncEngine = (() => {
     }
     for (const key of preferenceKeys()) {
       const name = 'preference:' + key;
+      // Left out on this device (Choose what to sync): its copy stays.
+      if (!ownsSource(name, gate)) continue;
       if (Object.hasOwn(sources, name)) localStorage.setItem(key, typeof sources[name] === 'string' ? sources[name] : JSON.stringify(sources[name]));
       else localStorage.removeItem(key);
     }
     // Tiles only while every device understands them; otherwise this device's
     // own tiles stay as they are, whatever the account holds.
-    if (gate.open) {
+    if (tilesSync(gate)) {
       for (const key of TILE_LISTS) {
         const source = 'preference:' + key;
         if (Object.hasOwn(sources, source) && !Array.isArray(sources[source])) throw new Error('Invalid synced list: ' + key);
@@ -870,6 +953,7 @@ const SyncEngine = (() => {
     }
     recordDocument = merged;
     await VexStorage.save('sync-records', merged);
+    if (rejoin.length) localStorage.removeItem(REJOIN_KEY);
     // An older Vex marks this device's marker deleted on its push. This device
     // put it back only on its own next push, up to two minutes later, and
     // meanwhile the other devices named it as the one tiles wait on
@@ -880,7 +964,7 @@ const SyncEngine = (() => {
     // Only conflicts this merge created. Counting every record that still
     // carried old variants repeated the toast on every sync (found 2026-09-29).
     // A restore copies records as they are and never creates one.
-    const conflicts = restore ? 0 : Object.entries(merged.records).filter(([key, r]) => r.conflicts?.length > 1
+    const conflicts = restore ? 0 : Object.entries(merged.records).filter(([key, r]) => r.conflicts?.length > 1 && !rejoinsRecord(key, rejoin)
       && JSON.stringify(r.conflicts) !== JSON.stringify(local.records[key]?.conflicts || [])).length;
     if (conflicts) window.showToast?.(conflicts === 1 ? '1 sync conflict retained in recovery data' : `${conflicts} sync conflicts retained in recovery data`);
     // Tell panels to re-read their state.
@@ -961,7 +1045,7 @@ const SyncEngine = (() => {
       }
       if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
       // The server takes at most 4 MiB in one upload (SYNC_PROTOCOL.md §1.2).
-      if (r.status === 413) throw new Error('Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded. Deleting notes or bookmarks you no longer need makes it smaller.');
+      if (r.status === 413) throw new Error('Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded. Leave something large out in Settings › Vex Sync › Choose what to sync, such as notes, or delete what you no longer need.');
       if (!r.ok) throw new Error('Push returned ' + r.status);
       revision = (await r.json()).revision;
       server = { revision, text };
@@ -1007,7 +1091,7 @@ const SyncEngine = (() => {
       const blob = result.encryptedBlob;
       // The revision this device already has: the same document it pushed or
       // applied, so there is nothing new to apply (and nothing to rewrite).
-      if (blob && !restore && server && recordDocument && receivedRevision === server.revision && receivedRevision === revision) {
+      if (blob && !restore && server && recordDocument && receivedRevision === server.revision && receivedRevision === revision && !rejoining().length) {
         pullBlocked = false;
         state.lastPullAt = new Date().toISOString();
         state.lastError = null;
@@ -1024,6 +1108,8 @@ const SyncEngine = (() => {
         await VexStorage.save('sync-records', recordDocument);
         tombstones = {};
         await VexStorage.save('sync-tombstones', tombstones);
+        // Nothing in the account to join: this device's copy goes up as it is.
+        localStorage.removeItem(REJOIN_KEY);
         revision = receivedRevision;
         server = { revision, text: canonical(recordDocument) };
         pullBlocked = false;
@@ -1078,6 +1164,28 @@ const SyncEngine = (() => {
     }
   }
 
+  // Turns one kind of data on or off for this device. Turning one on joins
+  // it on a pull straight away (or the next one, offline).
+  async function setTypeSynced(id, on) {
+    if (!SYNC_TYPES.some(t => t.id === id)) throw new Error('Unknown kind of sync data: ' + id);
+    const choices = readJson(CHOICES_KEY, {});
+    const next = choices && typeof choices === 'object' && !Array.isArray(choices) ? { ...choices } : {};
+    if (on) delete next[id]; else next[id] = false;
+    localStorage.setItem(CHOICES_KEY, JSON.stringify(next));
+    const rejoin = rejoining().filter(type => type !== id);
+    if (on) {
+      rejoin.push(id);
+      // Tiles join through their own gate: their next round adds this
+      // device's tiles to the account's.
+      if (id === 'shortcuts' && typeof VexStorage !== 'undefined') await VexStorage.save('sync-tiles-joined', null);
+    }
+    if (rejoin.length) localStorage.setItem(REJOIN_KEY, JSON.stringify(rejoin)); else localStorage.removeItem(REJOIN_KEY);
+    if (!on || !state.enabled) return { ok: true };
+    const pulled = await pullNow();
+    if (!pulled.ok) return { ok: false, reason: pulled.reason };
+    return pushNow();
+  }
+
   // ===== AUTO-SYNC =====
 
   // A change to something synced goes up about this long after it is made,
@@ -1099,10 +1207,10 @@ const SyncEngine = (() => {
       });
     }, CHANGE_PUSH_MS);
   }
-  const syncedPreference = key => preferenceKeys().includes(key) || TILE_LISTS.includes(key);
+  const syncedPreference = key => (preferenceKeys().includes(key) || TILE_LISTS.includes(key)) && typeOn(typeOfSource('preference:' + key));
   function watchChanges() {
     if (typeof PersistentStorage !== 'undefined') PersistentStorage.onChange = key => changed(syncedPreference(String(key)));
-    if (typeof VexStorage !== 'undefined') VexStorage.onChange = key => changed(STORE_KEYS.includes(String(key)));
+    if (typeof VexStorage !== 'undefined') VexStorage.onChange = key => changed(STORE_KEYS.includes(String(key)) && typeOn(typeOfSource('storage:' + key)));
   }
   // The window is closing (js/storage.js): one last upload, so the change made
   // a moment ago and this device's open tabs reach the other devices. At most
@@ -1389,6 +1497,8 @@ const SyncEngine = (() => {
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     otherDeviceTabs,
     pushBeforeClose,
+    syncTypes: () => SYNC_TYPES.map(t => ({ id: t.id, label: t.label, on: typeOn(t.id) })),
+    setTypeSynced,
     renameDevice,
     thisDeviceName: () => thisDeviceName() || getDefaultDeviceName(),
     // The name to show for a device in the list: its own choice, else the server's.

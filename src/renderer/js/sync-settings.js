@@ -329,6 +329,14 @@ const SyncSettings = (() => {
           <div class="device-list">${deviceBody}</div>
         </div>
 
+        <div class="sync-subsection" id="sync-choices">
+          <h3>Choose what to sync</h3>
+          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other.</p>
+          <div class="sync-choice-list" style="display:grid;gap:6px">
+            ${SyncEngine.syncTypes().map(t => `<label class="sync-choice" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" data-sync-type="${escapeHtml(t.id)}"${t.on ? ' checked' : ''}> ${escapeHtml(t.label)}</label>`).join('')}
+          </div>
+        </div>
+
         <div class="sync-subsection">
           <h3>Recovery Code</h3>
           <p class="subsection-desc">Save this code to set up sync on another device. Don't share it with anyone.</p>
@@ -388,6 +396,19 @@ const SyncSettings = (() => {
         toast('Renamed', 'success');
       } catch (err) { toast(human(err && err.message), 'error'); }
       await renderSyncPanel(document.getElementById('sync-panel-content'));
+    });
+
+    container.querySelectorAll('[data-sync-type]').forEach(box => {
+      box.addEventListener('change', async () => {
+        box.disabled = true;
+        try {
+          const r = await SyncEngine.setTypeSynced(box.dataset.syncType, box.checked);
+          if (!r.ok) toast('Saved. It will sync once Vex can reach the sync server: ' + human(r.reason), 'error');
+        } catch (err) {
+          box.checked = !box.checked;
+          toast('Could not change it: ' + human(err && err.message), 'error');
+        } finally { box.disabled = false; }
+      });
     });
 
     // The device list failed to load; let the user ask again without leaving.
