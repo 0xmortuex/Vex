@@ -172,11 +172,24 @@ const AIPanel = {
           } else {
             this.sendMessage('summarize');
           }
-        } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: 'English' });
+        } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: this.translateTarget() });
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
         else if (action === 'group-tabs') { if (typeof TabGrouper !== 'undefined') TabGrouper.analyzeAndPropose(); }
       });
     });
+  },
+
+  // The language AI Translate writes in: the one chosen for translating pages
+  // (vex.translateLang), as a name the model reads. Every AI Translate went
+  // to English whatever was chosen (found 2026-10-10).
+  translateTarget() {
+    let code = 'en';
+    try { code = localStorage.getItem('vex.translateLang') || 'en'; }
+    catch (err) { console.warn('[AI] could not read the translation language:', err.message); }
+    const known = (typeof Translator !== 'undefined' && Array.isArray(Translator.languages)) ? Translator.languages.find(l => l.code === code) : null;
+    if (known) return known.name;
+    try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; }
+    catch { return code; }
   },
 
   // ---- How the agent asks for permission ---------------------------------

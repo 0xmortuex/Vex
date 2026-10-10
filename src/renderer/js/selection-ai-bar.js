@@ -156,7 +156,7 @@ const SelectionAIBar = {
     AIPanel.open();
     if (act === 'explain') AIPanel.sendMessage('explain', { selectedText: text });
     else if (act === 'debug') AIPanel.sendMessage('chat', { message: `Debug this. Say what the error means, the most likely cause, and how to fix it, with the fix as code if it is code:\n\n"""${text}"""` });
-    else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: 'English' });
+    else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: AIPanel.translateTarget() });
     else if (act === 'summarize') {
       // The 'summarize' feature renders only a structured {summary,...} card and
       // comes back blank for a plain-prose summary of a snippet. Route through

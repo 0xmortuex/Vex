@@ -197,6 +197,19 @@ describe('@persona mentions', () => {
   });
 });
 
+// AI audit 2026-10-10: AI Translate always went to English.
+describe('AI Translate language', () => {
+  it('uses the language chosen for translating pages', () => {
+    expect(AIPanel.translateTarget()).toBe('English');
+    localStorage.setItem('vex.translateLang', 'tr');
+    globalThis.Translator = { languages: [{ code: 'tr', name: 'Turkish' }] };
+    expect(AIPanel.translateTarget()).toBe('Turkish');
+    delete globalThis.Translator;
+    localStorage.setItem('vex.translateLang', 'nl');
+    expect(AIPanel.translateTarget()).toBe('Dutch');
+  });
+});
+
 describe('starters and chats', () => {
   it('shows the starters only while the conversation is empty', () => {
     AIPanel._syncStarters();

@@ -1622,7 +1622,7 @@ const WebviewManager = {
         });
         textItems.push({
           label: 'Translate selection',
-          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
+          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: AIPanel.translateTarget() }); }
         });
       }
       textItems.push({
