@@ -1,9 +1,47 @@
 # Changelog
 
-## v2.38.2 (2026-10-10) — All settings categories show again
+## v14.72.3 (2026-10-10) — A safer lock, keys back for your other apps, and a much quieter Vex
+
+### A new kind of version number
+- **Vex's version now grows with what each release brings.** Every change is scored by how much it matters, what kind of change it is and how many people notice it. Every 10 points move the middle number and every 1,000 the first. Every change since the first release was scored the same way, which is why this release is v14: there is no gap, just a bigger number. Updates work as before.
+
+### Privacy and security
+- **F12, Ctrl+Shift+J, Ctrl+Shift+F12 and Ctrl+Alt+H work in your other programs again.** Vex held them for all of Windows while it ran, so VS Code's Go to Definition, Chrome's console and Steam's screenshot key did nothing. They now work only inside Vex. The boss key takes Ctrl+Alt+H for Windows only while Vex is hidden, so you can bring it back.
+- **A locked Vex opens only with its PIN.** It could be unlocked from DevTools. Vex now checks the PIN itself, closes DevTools when it locks and keeps them shut until it is unlocked.
+- **Codes from your email are filled only into the site that sent them**, so a Discord code no longer lands on a look-alike page, and an unmatched code is never sent. Settings › Autofill has a "Fill sign-in codes from your email" switch.
+- A private or Tor tab's page title no longer renames an entry in your normal history.
+- Burner identities and Tor tabs report the same Chrome version everywhere, so they are harder to single out.
+
+### Faster and quieter
+- **Vex Sync uploads only when something changed**, instead of your whole account every two minutes (about 28 MB an hour), and phone changes are no longer missed every other time.
+- **The settings file is half the size** and is no longer rewritten every minute, once per setting, or every time a page changes its title (Spotify, Discord and Gmail do that all the time).
+- History is kept once: a second copy that was rewritten on every page visit is folded into your history the next time Vex starts, keeping every visit.
+- **A tab or panel set never to sleep that grows past 1.5 GB says so once**, with Reload and Let it sleep. Discord kept awake for calls is included.
+
+### Tabs and pages
+- **Back and Forward survive** sleeping a tab, reopening a closed one and restarting Vex.
+- **A tab opened from a link goes next to the tab it came from**, not at the far right.
+- **"Leave site?" is asked again**, in a Vex window, before a page you typed in is left, so typed text is not lost.
+- After you type an address and press Enter, the address bar keeps showing it while the page loads.
+- **The find bar belongs to each tab**: it counts matches on tabs opened in the background, no longer shows another tab's count, and Shift+Enter goes back.
+- Address-bar suggestions include pages bookmarked with Ctrl+D.
+
+### Easier to use
+- **Settings shows every category again** at the normal size; the AI settings sit under one AI chip with a row of smaller chips to jump between them.
+- **Vex checks for updates every six hours while it stays open**, not only when it starts.
+- **Local AI says what is wrong at once**: Ollama not running, the model not installed, the model crashed (out of memory, for example while a game runs), or still loading.
+- Vex Sync says when its address is the AI worker's, instead of "Authentication required".
+- Problems from an older Vex fold under "From an older version" in Memory › Health, and clearing the problem list has Undo.
+- "Auto-save session every 10 minutes" keeps one auto-saved session instead of pushing out your named sessions, without a toast each time.
 
 ### Fixes
-- **Settings shows every category again**: at the normal size the category chips are no longer squeezed into two rows with a small scrollbar that hid Personalization and Cloud. A short window or Larger/Largest text still keeps them to one row that scrolls, so the settings themselves stay in view.
+- Email-code autofill fills again: a page waiting for a code was turned away while other pages held all three mailbox slots.
+- One tab with a very long address made every tab, workspace and session save fail; history refused such pages too.
+- A problem noted while Vex was starting could wipe the saved problem list.
+- Vex's Start menu and desktop shortcuts that point at a deleted Vex.exe are pointed back at the installed Vex.
+- Windows shutting down, quitting Vex and installing an update are no longer listed as crashes.
+- "Clear this site's data" says when it failed, and what failed.
+- Ctrl+K › Switch environment moves the tab you are on; rebinding Organize Tabs with AI frees Ctrl+Shift+G; the zoom keys, the speaker button and tab previews no longer throw errors on a tab still loading.
 
 ## v2.38.1 (2026-10-09) — Two fixes
 
