@@ -487,6 +487,15 @@ describe('chats outlive their tabs', () => {
     expect(AIPanel._getConv()[0].content).toBe('current');
   });
 
+  // AI audit 2026-10-10: Clear while a past chat was showing emptied this tab's chat instead.
+  it('Clear empties the chat on screen, not the active tab\'s', () => {
+    AIPanel._conversations = { 'tab-1': [{ role: 'user', content: 'current' }], old: [{ role: 'user', content: 'earlier' }] };
+    AIPanel._viewingId = 'old';
+    AIPanel._clearChat();
+    expect(AIPanel._conversations.old).toEqual([]);
+    expect(AIPanel._conversations['tab-1'][0].content).toBe('current');
+  });
+
   it('says which chat is on screen, with a way back', () => {
     AIPanel._conversations = { old: [{ role: 'user', content: 'earlier' }] };
     AIPanel._viewingId = 'old';

@@ -2225,7 +2225,10 @@ const AIPanel = {
   },
 
   _clearChat() {
-    const tabId = this._getTabId();
+    // The chat on screen: a past chat opened from Recent chats, or this tab's.
+    // It used to empty this tab's chat while a past one was showing (found
+    // 2026-10-10).
+    const tabId = this._viewingId || this._getTabId();
     if (tabId) this._conversations[tabId] = [];
     if (typeof ChatFile !== 'undefined') ChatFile.clear(tabId);
     this._persistConversations();
