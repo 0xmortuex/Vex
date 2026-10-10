@@ -51,6 +51,21 @@ const VexLock = {
 
   clearPin() { localStorage.removeItem(this.PIN_KEY); },
 
+  // Asked again before a secret is shown or copied (a saved password, the sync
+  // recovery code): the Vex PIN when one is set, checked by main with the same
+  // wrong-PIN count as unlocking; otherwise a plain confirmation, so someone
+  // passing by at least has to mean it. -> true to go ahead.
+  async recheck({ title, message, okLabel = 'Continue' }) {
+    if (!this.hasPin()) return !!(await window.vexConfirm({ title, message, okLabel }));
+    const pin = await window.vexPrompt({ title, message: message + ' Enter your Vex PIN to continue.', label: 'Vex PIN', password: true, okLabel });
+    if (pin === null) return false;
+    let result;
+    try { result = await window.vex.verifyLockPin(String(pin).trim().slice(0, 12)); }
+    catch (err) { window.showToast?.('Could not check the PIN: ' + err.message, 'error'); return false; }
+    if (!result || !result.ok) { window.showToast?.((result && result.error) || 'Wrong PIN', 'error'); return false; }
+    return true;
+  },
+
   async check(pin) {
     const stored = JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null');
     if (!stored) return false;

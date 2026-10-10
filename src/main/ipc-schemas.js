@@ -102,6 +102,7 @@ define('extensions:set-command-key', [shape({ folder: string(160), command: stri
 define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
 define('vex-lock:state', [boolean]);
 define('vex-lock:unlock', [string(12)]);
+define('vex-lock:verify', [string(12)]);
 define('tor:cancel', []);
 define('tor:status tor:stop', []);
 define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);

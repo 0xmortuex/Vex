@@ -1707,6 +1707,16 @@ ipcMain.handle('vex-lock:unlock', async (e, pin) => {
   _hiddenByLock = [];
   return { ok: true };
 });
+// Asking again before a saved password is shown or copied, or the sync
+// recovery code is shown (js/vex-lock.js recheck): the PIN is checked here,
+// against the same hash and the same wrong-PIN count as unlocking, and the
+// answer changes nothing else.
+ipcMain.handle('vex-lock:verify', async (e, pin) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents || e.senderFrame !== mainWindow.webContents.mainFrame) {
+    throw new Error('Only the main Vex window checks the PIN');
+  }
+  return _lockGate.tryUnlock(pin);
+});
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).

@@ -353,6 +353,9 @@ const SyncSettings = (() => {
     });
 
     document.getElementById('btn-show-recovery')?.addEventListener('click', async () => {
+      // The recovery code opens the whole synced account on any computer: ask
+      // again first (the Vex PIN if set), as for a saved password.
+      if (!await window.VexLock.recheck({ title: 'Show recovery code', message: 'Your recovery code lets anyone who sees it sign in to your synced data.', okLabel: 'Show code' })) return;
       const code = await SyncEngine.getRecoveryCode();
       if (code) showRecoveryCodeDialog(code);
       else toast('No recovery code stored', 'error');

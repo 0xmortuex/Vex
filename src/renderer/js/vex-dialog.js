@@ -12,6 +12,7 @@
 //   vexPrompt('New name', 'default value')            -> Promise<string|null>
 //   vexPrompt({ title, message, label, value, placeholder, okLabel })
 //   vexPrompt({ ..., multiline: true, wide: true })     -> a scrollable text box
+//   vexPrompt({ ..., password: true })                 -> a hidden PIN box
 //   vexConfirm / vexPrompt({ ..., extra: { label, run } }) -> a third button:
 //                                     closes as a cancel, then runs
 //   vexAlert('Done!') / vexAlert({ title, message })  -> Promise<void>
@@ -52,7 +53,7 @@
             ${opts.input.label ? `<label class="vex-dialog-label" for="${id}-input">${esc(opts.input.label)}</label>` : ''}
             ${multi
               ? `<textarea class="vex-dialog-input vex-dialog-textarea" id="${id}-input" rows="14" spellcheck="false" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}"></textarea>`
-              : `<input class="vex-dialog-input" id="${id}-input" type="text" aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">`}` : ''}
+              : `<input class="vex-dialog-input" id="${id}-input" type="${opts.input.password ? 'password' : 'text'}"${opts.input.password ? ' autocomplete="off" inputmode="numeric"' : ''} aria-label="${esc(opts.input.label || opts.title || 'Vex')}" placeholder="${esc(opts.input.placeholder || '')}">`}` : ''}
           <div class="vex-dialog-actions">
             ${opts.extra ? `<button class="vex-dialog-btn" data-extra style="margin-right:auto">${esc(opts.extra.label)}</button>` : ''}
             ${opts.cancelLabel === null ? '' : `<button class="vex-dialog-btn" data-cancel>${esc(opts.cancelLabel || t('cancel', 'Cancel'))}</button>`}
@@ -124,7 +125,7 @@
       message: o.message,
       okLabel: o.okLabel,
       cancelLabel: o.cancelLabel,
-      input: { value: o.value, label: o.label, placeholder: o.placeholder, multiline: !!o.multiline },
+      input: { value: o.value, label: o.label, placeholder: o.placeholder, multiline: !!o.multiline, password: !!o.password },
       wide: !!o.wide,
       extra: o.extra,
     });
