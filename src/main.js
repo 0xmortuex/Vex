@@ -138,13 +138,6 @@ ipcMain.on('storage:flush-failed', event => {
   host.flushing = false;
   host.win.webContents.send('vex:toast', 'Changes could not be saved. Retry closing after the storage error is resolved.');
 });
-// A tab closed (js/tabs.js, closeTab): the back lists kept for its
-// JavaScript-off pages go now (session-security.js, forgetHistories).
-ipcMain.on('tabs:closed', (event, pageIds) => {
-  const host = secureSessions.owner(event.sender);
-  if (!host) return;
-  secureSessions.forgetHistories(host.win.webContents.id, pageIds);
-});
 // A tab's back list, kept with the tab so its page can be built again with
 // it after sleep, a reopen or a restart (session-security.js, carryHistory).
 // The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
@@ -156,6 +149,13 @@ ipcMain.on('tabs:carry-history', (event, token, partition, list) => {
   const host = secureSessions.owner(event.sender);
   if (!host) return;
   secureSessions.carryHistory(host.win.webContents.id, token, partition, list);
+});
+// A tab closed (js/tabs.js, closeTab): the back lists kept for its
+// JavaScript-off pages go now (session-security.js, forgetHistories).
+ipcMain.on('tabs:closed', (event, pageIds) => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  secureSessions.forgetHistories(host.win.webContents.id, pageIds);
 });
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
