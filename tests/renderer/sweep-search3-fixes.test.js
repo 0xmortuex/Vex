@@ -137,7 +137,8 @@ describe('the Shortcuts & Gestures guide', () => {
   });
 
   it('lists Print and View Source', () => {
-    const keys = window.ShortcutsGuide.KEYS.map(r => r[1]);
+    globalThis.ShortcutsRegistry = require('../../src/renderer/js/shortcuts-registry.js');
+    const keys = window.ShortcutsGuide.keys().map(r => r[1]);
     expect(keys).toContain('Ctrl+P');
     expect(keys).toContain('Ctrl+U');
   });

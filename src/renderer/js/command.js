@@ -313,13 +313,13 @@ const CommandBar = {
     { id: 'markup', label: 'Mark Up This Page', hint: 'Draw, highlight, add text, or redact private details on a picture of the page, then save or copy it', icon: 'edit', action: async () => { try { await ScreenshotTool.markUp(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'screenshot-full', label: 'Screenshot the Whole Page', hint: 'Top to bottom in one image, not just the part on screen', icon: 'camera', action: () => ScreenshotTool.captureFull() },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: 'keyboard', action: () => SidebarManager.openPanel('shortcuts') },
-    { id: 'theme', label: 'Choose Theme', hint: 'Pick a theme (Ctrl+Shift+Y)', icon: 'palette', action: () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null) },
+    { id: 'theme', label: 'Choose Theme', hint: 'Pick a theme', shortcut: 'Ctrl+Shift+Y', icon: 'palette', action: () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null) },
     { id: 'zoom-in', label: 'Zoom In', hint: 'Zoom in 10%', icon: 'search', action: () => WebviewManager.zoomIn() },
     { id: 'zoom-out', label: 'Zoom Out', hint: 'Zoom out 10%', icon: 'search', action: () => WebviewManager.zoomOut() },
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()) },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },
@@ -1144,5 +1144,36 @@ const CommandBar = {
     this.renderResults();
   }
 };
+
+// The key a command shows is the key that runs it, read from the shortcut
+// registry each time. They were typed in by hand: Private Window said
+// Ctrl+Shift+N, which opens Notes, and a key moved in Settings › Shortcuts
+// still showed the old one (found 2026-10-10). Command id -> registry id; a
+// registry entry that names its command (`cmd`) and a key you gave a command
+// yourself ('cmd:<id>') are found without being listed here.
+const COMMAND_SHORTCUT_IDS = {
+  dictate: 'dictate', 'do-again': 'do-again', new: 'new-tab', 'keys-sheet': 'keys-sheet',
+  print: 'print-page', viewsource: 'view-source', close: 'close-tab', reload: 'reload',
+  'hard-reload': 'hard-reload', pip: 'pip', split: 'split-screen', 'session-load': 'sessions',
+  reopen: 'reopen-tab', history: 'history-panel', memory: 'memory-panel', sleep: 'sleep-tab',
+  read: 'reading-mode', screenshot: 'screenshot', fullscreen: 'fullscreen', private: 'private-window',
+  mute: 'mute-tab', 'tabs-toggle': 'tabs-sidebar', ai: 'ai-panel', schedules: 'schedules',
+  remember: 'history-ai', 'group-tabs': 'group-tabs', theme: 'toggle-theme', 'lock-vex': 'lock-vex',
+  bookmark: 'bookmark', 'zoom-reset': 'zoom-reset',
+};
+CommandBar._keyFor = function (c, typed) {
+  if (typeof ShortcutsRegistry === 'undefined') return typed;
+  const rid = COMMAND_SHORTCUT_IDS[c.id];
+  if (rid) return ShortcutsRegistry.getShortcut(rid) || typed;
+  const all = ShortcutsRegistry.getAllShortcuts();
+  const own = all['cmd:' + c.id];
+  if (own && own.current) return own.current;
+  for (const id in all) if (all[id].cmd === c.id && all[id].current) return all[id].current;
+  return typed;
+};
+for (const c of CommandBar.commands) {
+  const typed = c.shortcut;
+  Object.defineProperty(c, 'shortcut', { get() { return CommandBar._keyFor(c, typed); }, enumerable: true, configurable: true });
+}
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { CommandBar };
