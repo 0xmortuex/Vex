@@ -222,6 +222,25 @@ body {
 #url-zoom:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
 #url-zoom:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
 
+/* "<site> is full screen — press Esc to exit" (js/fullscreen-notice.js). A
+   popover in the top layer, over the page's own fullscreen; dark like
+   Chrome's, since it sits on the page (often a video), not on Vex. */
+#vex-fullscreen-notice {
+  inset: 24px auto auto 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(24, 24, 28, 0.88);
+  color: #fff;
+  font: 500 14px/1.4 var(--vex-font-base, system-ui, sans-serif);
+  text-align: center;
+  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  pointer-events: none;
+}
+
 #url-input::placeholder {
   color: var(--vex-text-muted);
 }
