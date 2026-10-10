@@ -2,7 +2,7 @@
 // owner's point system, 2026-10-10): size x kind x reach, and every 10 points
 // move the middle number.
 import { describe, it, expect } from 'vitest';
-const { parseRank, nextVersion, readOverrides, score } = require('../../scripts/version-points.js');
+const { parseRank, nextVersion, readOverrides, readBases, score } = require('../../scripts/version-points.js');
 
 describe('a rank', () => {
   it('scores size x kind x reach, rounded', () => {
@@ -56,5 +56,25 @@ describe('ranking the commits', () => {
   it('refuses a release-ranks.txt line it cannot read', () => {
     expect(() => readOverrides('zzz fix-small-some')).toThrow(/cannot read/);
     expect(() => readOverrides('abcdef1 fix-giant-some')).toThrow(/bad rank/);
+  });
+});
+
+describe('what a release counts as', () => {
+  it('reads base lines, which rank lines ignore', () => {
+    const text = 'base v2.38.1 2.110.6  # every older commit ranked\nabcdef1 fix-small-some';
+    expect(readBases(text).get('v2.38.1')).toBe('2.110.6');
+    expect([...readOverrides(text).keys()]).toEqual(['abcdef1']);
+    expect(nextVersion(readBases(text).get('v2.38.1'), 90)).toBe('2.119.6');
+    expect(() => readBases('base 2.38.1 2.110.6')).toThrow(/cannot read/);
+  });
+
+  it('the recorded history adds up to the base it claims', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const root = path.join(__dirname, '../..');
+    const ranks = readOverrides(fs.readFileSync(path.join(root, 'ranks-history.txt'), 'utf8'));
+    const total = [...ranks.values()].reduce((n, r) => n + parseRank(r).points, 0);
+    expect(ranks.size).toBe(759);
+    expect(nextVersion('2.0.0', total)).toBe(readBases(fs.readFileSync(path.join(root, 'release-ranks.txt'), 'utf8')).get('v2.38.1'));
   });
 });

@@ -17,6 +17,11 @@
 // line in release-ranks.txt, `<hash> <rank>`, which wins (so a rank can be
 // changed before a release without rewriting history).
 //
+// A line `base <tag> <version>` says what that release counts as. The owner
+// had every commit up to v2.38.1 ranked once (ranks-history.txt, 1106 points
+// from 2.0.0), so v2.38.1 counts as 2.110.6 and the next release jumps from
+// there; older releases and their tags keep their numbers.
+//
 // Usage: node scripts/version-points.js   prints the table and the version.
 'use strict';
 
@@ -48,16 +53,29 @@ function nextVersion(current, points) {
   return `${m[1]}.${Math.floor(counter / 10)}.${counter % 10}`;
 }
 
-// Reads `<hash> <rank>` lines; # starts a comment.
+// Reads `<hash> <rank>` lines; # starts a comment; base lines are readBases'.
 function readOverrides(text) {
   const out = new Map();
   for (const raw of String(text || '').split(/\r?\n/)) {
     const line = raw.replace(/#.*/, '').trim();
-    if (!line) continue;
+    if (!line || /^base\s/.test(line)) continue;
     const [hash, rank] = line.split(/\s+/);
     if (!/^[0-9a-f]{7,40}$/i.test(hash) || !rank) throw new Error(`release-ranks.txt: cannot read "${raw.trim()}"`);
     parseRank(rank);
     out.set(hash.toLowerCase(), rank);
+  }
+  return out;
+}
+
+// Reads `base <tag> <version>` lines: what a release counts as.
+function readBases(text) {
+  const out = new Map();
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.replace(/#.*/, '').trim();
+    if (!/^base\s/.test(line)) continue;
+    const [, tag, version] = line.split(/\s+/);
+    if (!/^v\d+\.\d+\.\d+$/.test(tag || '') || !/^\d+\.\d+\.\d+$/.test(version || '')) throw new Error(`release-ranks.txt: cannot read "${raw.trim()}"`);
+    out.set(tag, version);
   }
   return out;
 }
@@ -77,21 +95,21 @@ function git(cmd) { return execSync('git ' + cmd, { cwd: REPO, encoding: 'utf8' 
 
 function plan() {
   const tag = git('describe --tags --abbrev=0 --match "v*"').trim();
-  const current = tag.replace(/^v/, '');
   const log = git(`log --reverse --format=%H%x1f%s%x1f%b%x1e ${tag}..HEAD`);
   const commits = log.split('\x1e').map(s => s.trim()).filter(Boolean).map(s => {
     const [hash, subject, body] = s.split('\x1f');
     return { hash, subject, body };
   });
   const file = path.join(REPO, 'release-ranks.txt');
-  const overrides = readOverrides(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '');
-  return { tag, current, ...score(commits, overrides) };
+  const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const current = readBases(text).get(tag) || tag.replace(/^v/, '');
+  return { tag, current, ...score(commits, readOverrides(text)) };
 }
 
 if (require.main === module) {
   try {
     const p = plan();
-    console.log(`Since ${p.tag}:`);
+    console.log(`Since ${p.tag}${p.current !== p.tag.slice(1) ? ` (counts as ${p.current})` : ''}:`);
     for (const r of p.rows) console.log(`${String(r.points).padStart(3)}  ${(r.rank || 'UNRANKED').padEnd(26)} ${r.hash.slice(0, 7)} ${r.subject.slice(0, 90)}`);
     console.log(`Total ${p.total} points`);
     if (p.unranked.length) { console.error(`${p.unranked.length} commit(s) have no rank: add "Rank: ..." lines to release-ranks.txt`); process.exit(1); }
@@ -99,4 +117,4 @@ if (require.main === module) {
   } catch (e) { console.error('version-points: ' + e.message); process.exit(1); }
 }
 
-module.exports = { parseRank, nextVersion, readOverrides, score, plan };
+module.exports = { parseRank, nextVersion, readOverrides, readBases, score, plan };

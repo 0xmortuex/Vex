@@ -1,0 +1,762 @@
+# Every commit up to v2.38.1, ranked once with the point table (2026-10-10).
+# 759 commits, 1106 points from 2.0.0, so v2.38.1 counts as 2.110.6 (release-ranks.txt base line).
+# Kept as the record; scripts/version-points.js does not read this file.
+99d98a6 feature-critical-everyone  # v2.0.1 the whole browser, first public release
+17cad59 none  # v2.0.1 README only
+8ba952b fix-small-some  # v2.0.1 intermittent Ctrl+Shift+R hard reload
+50d2ee7 none  # v2.0.1 release bump
+ca12858 feature-small-some  # v2.0.2 start-page shortcut icons + AI service switch
+2eece42 none  # v2.0.2 release bump
+451211f fix-small-some  # v2.0.3 Ctrl+Shift+G fell back to Ollama
+43fff05 none  # v2.0.3 release bump
+af0ce2c feature-high-everyone  # v2.3.2 Peek, AI Skills, Boosts, Handoff, password manager
+2428e1d feature-high-everyone  # v2.3.2 bookmarks, gestures, containers, focus/compact, RSS, read aloud
+11f66c4 feature-high-some  # v2.3.2 Read Later/Library, OTR tab, now playing, boss key, many extras
+7a682de performance-high-some  # v2.3.2 lazy session restore (big memory win at launch)
+11aec00 performance-mid-some  # v2.3.2 adaptive memory guard sleeps LRU tabs
+2340478 feature-mid-some  # v2.4.0 reading pack: highlights, full-text recall, a11y
+8180450 security-mid-everyone  # v2.5.0 fingerprint protection, DoH, privacy report
+a33cf81 feature-mid-some  # v2.6.0 developer tools: API client, responsive preview, page monitor
+c89af72 feature-mid-some  # v2.7.0 persistent AI memory
+5bf4531 feature-small-some  # v2.8.0 cross-site tracker insights
+41cd6f0 feature-mid-some  # v2.9.0 on-device AI (WebLLM)
+01fb184 feature-mid-rare  # v2.10.0 MCP client
+0518bef feature-mid-rare  # v2.11.0 screenshot-to-code + MCP tools in agent
+94040bb fix-mid-some  # v2.11.1 on-device chat hang (from v2.9.0) + settings search
+3ec3645 fix-small-some  # v2.11.2 settings category bar pinned
+05be48b fix-small-some  # v2.11.3 settings scroll
+3ddc117 polish-small-some  # v2.11.4 Ollama status refresh button
+119ae66 polish-small-some  # v2.11.5 spinners jumping
+7be44c1 feature-small-everyone  # v2.12.0 daily verse, weather location, Spotify playback fix
+cb50302 feature-small-some  # v2.13.0 theme changer button on start page
+d9b0167 feature-mid-everyone  # v2.14.0 first-run setup wizard
+d29cd08 feature-mid-everyone  # v2.15.0 search engines, themes, custom wallpaper, sidebar collapse
+2e49b28 fix-mid-some  # v2.15.1 Check for Updates closed the app
+5376610 feature-small-some  # v2.16.0 live theme previews + 6 themes
+abf1d85 improvement-small-rare  # v2.16.1 Widevine/DRM status in About
+6dc336f polish-small-some  # v2.16.2 theme preview screenshots
+7b84582 none  # v2.16.3 partial revert of theme previews
+1d7a8ff polish-small-some  # v2.16.4 consistent theme previews
+e6d0b1f none  # v2.16.5 revert theme previews
+a53c7d3 feature-small-some  # v2.17.0 8 more themes
+bb23d63 feature-small-some  # v2.18.0 favourite themes + 6 themes
+e3a1a6e fix-small-some  # v2.19.0 stale theme preview images
+296d0a1 feature-small-some  # v2.19.1 sidebar toggle button
+2dd7d3d improvement-small-some  # v2.20.0 live CSS theme previews + sidebar fixes
+9d3f197 polish-small-some  # v2.20.1 detailed theme previews
+fdb632c fix-small-some  # v2.20.2 theme previews robust (inline styles)
+2337ede fix-small-some  # v2.20.3 theme preview thumbnails collapsed
+1fbe8ec feature-mid-everyone  # v2.21.0 update-available popup + resumable wizard
+ab72fd0 improvement-small-some  # v2.22.0 fuller wizard + district weather
+921ff92 improvement-small-some  # v2.23.0 wizard steps + weather/theme editable in Settings
+6cde394 none  # v2.24.0 group colour fix attempt superseded in same release (b71b244)
+b71b244 fix-mid-some  # v2.24.0 group colours change + match theme
+8a7fd30 none  # v2.24.0 follow-up to same-release group colour change
+310a0b8 fix-mid-some  # v2.24.1 clicked links not opening on cold start
+cc222d5 feature-small-some  # v2.25.0 customize left-sidebar buttons
+4b55e32 fix-mid-some  # v2.25.1 federated (Firebase) sign-in broken
+23c49e7 fix-small-some  # v2.25.2 Firebase auth popup as real window
+0beebf3 fix-small-some  # v2.25.3 consent blocker broke site layouts
+9180ffb feature-high-everyone  # v2.26.0 EasyList ad blocking, tab hibernation, per-site dark mode
+5e22ee4 none  # v2.26.1 dead file removal
+99a9df2 fix-mid-some  # v2.26.1 resilient Widevine setup + Retry
+2bf1c0b fix-small-some  # v2.26.2 DRM Retry clears cached component
+aa952fc fix-small-some  # v2.26.3 DRM Retry resets stuck updater state
+2981fb7 none  # v2.26.4 build gate
+3aa1b01 none  # v2.26.5 build gate
+0408304 feature-mid-some  # v2.27.0 Copy Unlock
+11534d9 feature-small-some  # v2.27.1 Quick Tools & Extensions menu
+67b8168 feature-small-some  # v2.27.2 Copy Text from Doc
+a9a2971 improvement-small-some  # v2.27.3 Copy Text from Doc gets real text
+7d107f8 fix-small-some  # v2.27.4 Copy Text from Doc hidden webview
+632fe5a fix-mid-some  # v2.27.5 OAuth popups (Discord) failing
+15fcde3 fix-mid-some  # v2.27.6 OAuth popups in redirect flows
+7fce0b4 none  # v2.27.6 build tooling (VMP)
+b8a3f86 feature-mid-some  # v2.27.7 selection AI, Read Free, Media Grabber
+7147ae8 feature-mid-some  # v2.27.8 search shortcuts, Master Volume, image zoom
+754a740 feature-high-some  # v2.27.9 Discord panel with block bypass + Vencord
+58b0e34 improvement-mid-some  # v2.27.10 stronger Discord bypass (ByeDPI)
+9f0302a fix-mid-some  # v2.27.11 Discord bypass auto-configure now works
+e6358c9 feature-small-rare  # v2.27.12 Roku Channel in streaming switcher
+86e2814 feature-high-some  # v2.27.13 Glass GUI, Discord voice/screen share, Roblox panel
+caa400d improvement-small-some  # v2.27.14 Glass shortcuts bar + window-show fix
+c28ec1c improvement-small-rare  # v2.27.15 What's New opens release in browser
+75497df polish-small-some  # v2.27.16 What's New modal closes
+7eee945 fix-mid-some  # v2.27.17 Discord login in normal tabs + panel nav bar
+5ed10fb fix-mid-some  # v2.27.18 Discord panel rendered blank (from v2.27.17)
+3df341c feature-small-some  # v2.27.19 per-tab Prevent from sleeping
+2c6e7ce fix-mid-some  # v2.27.20 Discord panel froze on return
+1c55866 fix-small-some  # v2.27.20 Discord stream pop-out window
+ad36835 none  # v2.27.20 tests only
+7ae8f0d feature-mid-some  # v2.27.21 inline AI edits, link hints, smart recall
+bf3de42 feature-mid-some  # v2.27.22 Tor private tab
+879cec4 feature-small-rare  # v2.27.22 Vencord from a local build
+66e5cbc fix-mid-some  # v2.27.22 Discord panel reconnect/reload on tab switch
+790e1b8 fix-mid-some  # v2.27.23 TikTok frozen video
+2a3c07f security-mid-everyone  # v2.28.0 Electron 42 / Chromium 124->148 + media health
+b6ac5f6 none  # v2.28.0 release bump
+9ff5a3d fix-small-some  # v2.28.1 sidebar toggle left a strip
+652baf8 none  # v2.28.1 release bump
+1b10ec5 improvement-mid-some  # v2.29.0 in-app dialogs, markdown, a11y, command bar (wip bundle)
+d347aef fix-high-some  # v2.29.0 Google sign-in rejected Vex
+facf603 feature-mid-everyone  # v2.29.0 drag-to-reorder tabs + tab shrink ratchet
+91f2c44 fix-small-some  # v2.29.0 Web Push subscribe errors
+2946dfd fix-mid-everyone  # v2.29.0 dead panel right-click, spellcheck never worked
+53ac4fa none  # v2.29.0 merge commit
+7ebe436 fix-small-rare  # v2.29.0 sync requests without worker URL
+5628f6c feature-small-some  # v2.29.0 onboarding starting-point choice
+378b90e feature-small-some  # v2.29.0 wizard setup codes + previews
+688133e none  # v2.29.0 release bump
+8b1749d fix-small-some  # v2.29.0 What's New failed to load for online users
+3d11958 feature-small-some  # v2.29.0 multi-tradition daily wisdom + language
+69301aa none  # v2.29.0 changelog
+5cc257e fix-small-some  # v2.29.1 claude.ai push error + double welcome
+62d97a0 none  # v2.29.1 release bump
+bdd39dd improvement-mid-some  # v2.29.1 password saving for modern logins + click-to-fill
+07fa2d6 fix-small-some  # v2.29.2 claude.ai notification error suppressed
+549b91d none  # v2.29.2 release bump
+7505a7c fix-small-some  # v2.29.2 Spotify DRM robustness retry
+51d5ded fix-small-some  # v2.29.3 spellcheck fix in Discord
+1cd537c none  # v2.29.3 release bump
+4bfb83e fix-mid-some  # v2.29.4 Spotify hardware DRM so tracks play
+1e67b3c none  # v2.29.4 release bump
+8424316 none  # v2.29.5 release bump (fix was a re-signed build, no code)
+25f1c03 none  # v2.29.6 build gate
+c9223a7 polish-small-some  # v2.29.6 DRM retry button only on real failures
+e0b6b1f none  # v2.29.6 release bump
+e64e9ef fix-small-some  # v2.29.7 Discord spellcheck via trusted input
+1bdd13e fix-small-some  # v2.29.7 start-page weather robustness
+dd596a5 fix-mid-everyone  # v2.29.7 tab URL lost (about:blank after wake)
+b015337 feature-mid-some  # v2.29.7 built-in TOTP authenticator
+90111fc fix-small-some  # v2.29.7 autofill filled search inputs
+2244dfe fix-high-some  # v2.29.7 downloads overwrote same-name files, notes panel threw, menus
+3d9e928 fix-mid-everyone  # v2.29.7 core shortcuts did nothing while a page had focus; Ctrl+L
+b3577bd none  # v2.29.7 release bump
+e0a2f2c fix-small-some  # v2.29.7 PiP bridge, password capture
+175e740 fix-high-some  # v2.29.7 session restore froze browser, AI send lockout, scheduler
+2c3f54c fix-mid-some  # v2.29.7 vanishing tab stacks, drop reorder off-by-one
+fd0a310 fix-small-some  # v2.29.7 reading mode snapshot saved as URL
+d4988d4 security-small-everyone  # v2.29.7 favicons leaked visited domains to Google
+22df0dc fix-small-some  # v2.29.8 keep-awake ignored by hibernation
+d27419b security-small-some  # v2.29.8 Tor no-persist leak + notes button
+524f1a5 improvement-small-some  # v2.29.8 Tor start page + click-to-copy codes
+9cf48c5 improvement-small-some  # v2.29.8 private-tab indicators
+4f811e6 improvement-small-some  # v2.29.8 autofill in sign-in popups
+7c925f3 feature-small-some  # v2.29.8 privacy dashboard
+3fe987d feature-small-some  # v2.29.8 2FA import by QR
+a737a59 security-mid-some  # v2.29.8 HTTPS-Only mode
+b3b472a none  # v2.29.8 changelog
+9ef3245 polish-small-some  # v2.29.8 dead persona controls removed
+405422a fix-small-some  # v2.29.8 shortcut editor + Private Window
+581a174 none  # v2.29.8 changelog
+fd7b058 fix-small-some  # v2.29.8 keep-awake badge
+5bac5c0 none  # v2.29.8 changelog
+2320675 polish-small-some  # v2.29.8 sidebar Hide closes panel
+30e20af fix-small-some  # v2.29.8 Discord pop-out zombie window
+81c44f8 improvement-mid-everyone  # v2.29.8 full filter lists + cosmetic filtering
+3049a89 none  # v2.29.8 changelog
+34c6725 improvement-small-some  # v2.29.8 remember login email
+de27ff8 feature-small-rare  # v2.29.8 Claude panel auto Google login
+47b60b3 none  # v2.29.8 fixes de27ff8 in same release
+6a3161f none  # v2.29.8 changelog
+407fb11 fix-mid-some  # v2.29.8 Windows passkey prompt nag
+090a22d none  # v2.29.8 changelog
+a77432a none  # v2.29.8 release bump
+a5a7ce2 feature-mid-some  # v2.29.9 one-click Tor without Tor Browser
+3819fb2 none  # v2.29.9 release bump
+8246a8f feature-mid-some  # v2.29.10 TOTP autofill on sign-in
+cad4735 improvement-small-some  # v2.29.10 Cloud AI setup in wizard
+906f8ab fix-mid-some  # v2.29.10 split screen blank right pane
+0ed7c86 feature-small-some  # v2.29.10 3- and 4-pane split
+43e0787 fix-small-some  # v2.29.10 exit split when panel opens
+1821b57 feature-mid-some  # v2.29.10 email verification codes from Gmail
+c5bb2ab none  # v2.29.10 fixes same-release email-code autofill
+e94166c none  # v2.29.10 fixes same-release email-code autofill
+f3519ff none  # v2.29.10 fixes same-release email-code autofill
+8c4a97a none  # v2.29.10 release bump
+75ca100 feature-mid-some  # v2.30.0 layout editor
+40df8d7 feature-small-some  # v2.30.0 layout editor moves top-bar regions
+ffda9c6 none  # v2.30.0 release bump
+d83851f fix-mid-some  # v2.30.1 email-code autofill filled a stale code
+e372389 none  # v2.30.1 release bump
+abf0109 fix-small-some  # v2.31.0 Discord pop-out always on top
+003ef02 fix-mid-some  # v2.31.0 never-sleep tabs slept; cosmetic filter race
+8b646fb feature-mid-some  # v2.31.0 eleven new tools
+fe3d66f none  # v2.31.0 fixes same-release Tab Health
+8bca4f5 none  # v2.31.0 README
+f74ecde none  # v2.31.0 README
+62cffdf feature-small-some  # v2.31.0 screen-share quality settings
+41fe753 improvement-small-some  # v2.31.0 feature discoverability, gestures, right-click
+035fc77 feature-small-some  # v2.31.0 per-tab AI persona switcher
+397cfc1 feature-mid-some  # v2.31.0 ten original features
+a4a197a none  # v2.31.0 release bump
+c0c70bb feature-small-rare  # v2.31.1 What's New command
+81687b5 none  # v2.31.1 release bump
+ad6da1e feature-small-rare  # v2.31.2 What's New version picker
+3d87639 none  # v2.31.2 release bump
+8da20d6 polish-small-rare  # v2.31.3 What's New typography
+173e725 fix-small-some  # v2.31.3 Custom Image wallpaper unreliable
+0ab41e4 fix-small-some  # v2.31.3 code already in inbox not filled
+fb2804d improvement-mid-some  # v2.31.3 email-code background reader, manual fill
+3e5af91 none  # v2.31.3 release bump
+11df6f7 feature-mid-some  # v2.31.4 split tab picker, autofill providers, password health
+c61bdd7 none  # v2.31.4 release bump
+1fac57f performance-small-some  # v2.31.4 free hidden Gmail reader
+11a930d performance-small-some  # v2.31.4 re-sleep woken Gmail
+a9c84f3 performance-mid-everyone  # v2.31.4 Memory Saver, discard on minimize, lazy modules
+812db82 none  # v2.31.4 changelog
+cab3a35 improvement-small-some  # v2.31.5 restart-to-apply button
+29d0752 none  # v2.31.5 release bump
+c243016 feature-mid-some  # v2.31.6 everyday tools (tab switch, Paste&Go, auto-refresh)
+6d0f5f9 none  # v2.31.6 release bump
+7d78ef4 feature-mid-some  # v2.31.7 inline calc, open as app, copy as markdown
+f92a65e feature-mid-some  # v2.31.7 Job Profiles
+fe6d753 none  # v2.31.7 release bump
+e9c8005 fix-mid-everyone  # v2.31.8 Cloudflare Turnstile verification failed
+b13ecae none  # v2.31.8 release bump
+b8d485d improvement-small-some  # v2.31.9 block html-load.com ads
+c59b022 none  # v2.31.9 release bump
+85f62ba improvement-small-some  # v2.31.10 block Fuse + RTB House ads
+f1c9a33 none  # v2.31.10 release bump
+020f1a2 fix-small-some  # v2.31.11 email-code autofill unread detection
+bb2fc26 none  # v2.31.11 release bump
+9150185 fix-small-some  # v2.31.12 PiP Back to tab
+f6d614a feature-small-some  # v2.31.12 Work sidebar panel
+f978b6b fix-small-some  # v2.31.12 Adobe unsupported browser
+519f49d none  # v2.31.12 release bump
+eb98a95 feature-small-some  # v2.31.13 more job tools and jobs
+e5ba3d1 none  # v2.31.13 release bump
+aefb7e1 feature-small-some  # v2.31.13 Clear This Site's Data & Reload
+9e57a73 fix-small-some  # v2.31.14 Adobe UA shims CSP-proof
+527daa7 none  # v2.31.14 release bump
+b5ab800 fix-small-some  # v2.31.15 CSP-proof geolocation/fingerprint shims
+d5ab4f6 feature-small-rare  # v2.31.15 site browser-identity diagnostic
+a061383 feature-small-some  # v2.31.15 per-site never sleep
+2e68dc8 none  # v2.31.15 release bump
+93e109f fix-small-some  # v2.31.16 sidebar panel Refresh
+48c21f1 none  # v2.31.16 release bump
+97126a6 fix-mid-some  # v2.31.17 Tor setup failed: tar module missing in package
+5b08d30 improvement-small-some  # v2.31.17 back/forward/reload on every web panel
+c55057e improvement-small-some  # v2.31.17 auto-refresh inbox for email code
+4aff9b8 none  # v2.31.17 release bump
+50bc03f polish-small-rare  # v2.31.18 Vencord install feedback
+e643904 none  # v2.31.18 release bump
+4f4659f fix-small-rare  # v2.31.19 local Vencord loaded stale build
+1145ecf none  # v2.31.19 release bump
+cc01541 fix-small-rare  # v2.31.20 duplicate Vencord builds self-heal
+1b0a45b none  # v2.31.20 release bump
+2217882 improvement-small-some  # v2.31.21 Master Volume boosts cross-origin media
+2615614 none  # v2.31.21 release bump
+9680b61 fix-mid-rare  # v2.31.22 Vencord vanished (regression from v2.31.20)
+8a3ba39 none  # v2.31.22 release bump
+2160b03 fix-mid-some  # v2.31.23 Discord voice reconnect loop under bypass
+b7946fc none  # v2.31.23 release bump
+edfc249 fix-mid-everyone  # v2.31.24 stray overlay swallowed all clicks
+f44219d none  # v2.31.24 release bump
+c6e8e55 fix-mid-some  # v2.31.25 PiP unclosable/double
+0ed8757 none  # v2.31.25 release bump
+5cd7cf0 fix-small-rare  # v2.31.26 Roblox panel back button
+5434632 none  # v2.31.26 toolchain catch-up (Electron 42 shipped in v2.28.0)
+7ebc007 none  # v2.31.26 release bump
+efe7b5c security-high-everyone  # v2.31.27 codebase audit: private-window isolation, IPC schemas, sync safety, archive limits
+bde2ac8 fix-mid-some  # v2.31.27 autofill regressions from audit (shipped in v2.31.26 binary)
+f5ef125 none  # v2.31.27 docs
+66d204a fix-high-some  # v2.31.27 main-process crash on OAuth sign-in popups
+01c936e none  # v2.31.27 release bump
+ee29c86 fix-mid-some  # v2.31.28 2FA/email-code autofill on real sites
+943bc11 none  # v2.31.28 release bump
+7b3ce63 fix-small-some  # v2.31.29 2FA screen wait + passkey suppression restored
+80d43e7 fix-small-some  # v2.31.29 email-code poll spent on mailbox
+8f41d8c fix-small-some  # v2.31.29 email-code lookup threw
+d109152 none  # v2.31.29 release bump
+c8ea66e fix-small-some  # v2.31.30 sign-in without code field yet
+486e5b2 none  # v2.31.30 release bump
+683cab4 fix-small-some  # v2.31.31 background mail tab usable
+e096130 none  # v2.31.31 release bump
+1ba1f66 fix-small-some  # v2.31.32 email-code poll per page
+5c01d97 fix-small-some  # v2.31.32 code poll abandoned on unattached guest
+98b35a5 none  # v2.31.32 release bump
+6380e66 fix-small-everyone  # v2.31.33 find-in-page readable, Docs keeps Ctrl+F
+f35a56f none  # v2.31.33 release bump
+c3bb44a fix-small-some  # v2.31.34 panel service switching
+952699a none  # v2.31.34 release bump
+9ea4863 fix-small-some  # v2.31.35 panel stole focus from context menu
+9c0ecd6 none  # v2.31.35 release bump
+842495f fix-small-rare  # v2.31.36 F12 for the visible panel
+87bd1bf none  # v2.31.36 release bump
+b02b571 fix-small-some  # v2.31.37 screen picker behind Discord pop-out
+a675b6b none  # v2.31.37 release bump
+a5f368c fix-small-some  # v2.31.38 Google Sheets copy text + Ctrl+F
+81dea70 none  # v2.31.38 release bump
+7617449 fix-small-rare  # v2.31.39 F12 detached, Sheets links
+530f413 none  # v2.31.39 release bump
+f5cb2df polish-small-some  # v2.31.39 workspace accent + restart icon
+3be62ee feature-mid-everyone  # v2.31.40 seven browser looks
+331b239 none  # v2.31.40 release bump
+608ba3b improvement-small-some  # v2.31.41 New Tab matches browser look
+6c2ef3d none  # v2.31.41 release bump
+f0c0efa improvement-mid-some  # v2.31.42 each look gets its own sidebar
+5fba9a7 none  # v2.31.42 release bump
+d0c1756 improvement-small-some  # v2.31.43 maximize sidebar apps, real memory numbers
+cd606ec none  # v2.31.43 release bump
+43ff035 feature-mid-some  # v2.31.44 318 Toolbox tools, 420 jobs
+62d251b none  # v2.31.44 release bump
+df0ead5 fix-critical-everyone  # v2.31.45 history wiped on first page of each session (data loss)
+85f8869 none  # v2.31.45 release bump
+370eeab fix-high-everyone  # v2.31.46 seven audits of fixes; emoji replaced by icons
+41260c0 none  # v2.31.46 release bump
+4027a8b feature-small-everyone  # v2.31.47 Discover introduces every feature
+eaf9b1e none  # v2.31.47 release bump
+d03b3ef fix-mid-some  # v2.31.48 PiP double audio, Back to tab
+47c25c9 none  # v2.31.48 release bump
+a752a82 security-mid-some  # v2.31.49 shared start-page shortcut could run code
+af44517 none  # v2.31.49 release bump
+367da4a feature-mid-some  # v2.31.50 float the video, translated chrome
+3cb9c33 none  # v2.31.50 release bump
+7ceadf2 security-mid-everyone  # v2.31.51 sites read clipboard without asking
+02842c2 none  # v2.31.51 release bump
+a6a1937 security-mid-everyone  # v2.31.52 page title injected markup into browser chrome
+c590626 none  # v2.31.52 release bump
+84f042b fix-high-some  # v2.31.53 id collisions: deleting one item deleted two
+2579e36 none  # v2.31.53 release bump
+eed0028 none  # v2.31.54 tests only
+f846b66 none  # v2.31.54 release bump
+34acf6d fix-small-some  # v2.31.55 last audit gaps (AI, bypass, Vencord)
+a2afb11 none  # v2.31.55 release bump
+3a4d1f4 fix-small-some  # v2.31.56 three dead buttons
+5a5b124 none  # v2.31.56 release bump
+ad70260 fix-mid-some  # v2.31.57 closed-tab leak grew all day + work panel
+52ee406 none  # v2.31.57 release bump
+255c226 none  # v2.31.58 job-tool filtering, reverted in v2.31.60
+5c8a972 none  # v2.31.58 release bump
+f4c5e47 none  # v2.31.59 release-notes tooling
+225cacb improvement-small-some  # v2.31.59 all tools in Toolbox, Vex AI beside it
+92efcdf none  # v2.31.59 release bump
+b0daee3 none  # v2.31.60 revert
+7e3f005 none  # v2.31.60 release bump
+ce202c7 improvement-mid-some  # v2.31.61 Vex AI panel rebuilt
+57e7f15 none  # v2.31.61 release bump
+5c33df1 improvement-small-some  # v2.31.62 AI thinking shown, spinner unfrozen
+770200f none  # v2.31.62 release bump
+42aad6d improvement-mid-some  # v2.31.63 streamed AI answers, chats survive tab close
+0242ded none  # v2.31.63 release bump
+3a9654a improvement-mid-some  # v2.31.64 tools rebuilt on a workbench
+1d6be8e none  # v2.31.64 release bump
+921a982 improvement-small-some  # v2.31.65 all pack tools on workbench
+45b5dd3 improvement-small-rare  # v2.31.65 last hand-built tools on workbench
+ee5f151 feature-small-some  # v2.31.65 15 encoding/network/CSS tools
+6b5f639 feature-small-rare  # v2.31.65 7 format/text tools
+b7e9541 none  # v2.31.65 release bump
+6c740bd improvement-small-some  # v2.31.66 Toolbox back + favourites
+f7ad18f feature-mid-rare  # v2.31.66 developer mode dashboard
+43c33ac none  # v2.31.66 release bump
+9ba6ab8 improvement-small-some  # v2.31.67 tool references, Work panel rebuilt
+1ecff90 none  # v2.31.67 release bump
+eb741c8 polish-small-rare  # v2.31.68 dev dashboard restart button
+bfc49f5 feature-mid-some  # v2.31.68 Remind me
+6c1c975 none  # v2.31.68 release bump
+0c095a1 improvement-mid-some  # v2.31.69 notifications show; reminders fire with Vex closed
+62dbff8 none  # v2.31.69 release bump
+81224d5 improvement-mid-some  # v2.31.70 website notifications, snooze, test button
+4fc0732 none  # v2.31.70 release bump
+9cadfcb none  # v2.31.71 verify script
+30f6fcd feature-mid-some  # v2.31.71 repeating reminders, quick capture, Today
+45c8a0f none  # v2.31.71 release bump
+de68510 feature-mid-some  # v2.31.72 Clock: alarms, timers, stopwatch
+6087315 none  # v2.31.72 release bump
+d15c04e feature-mid-some  # v2.31.73 sentences in Ctrl+K, weekly review, synced reminders
+d7b16b0 none  # v2.31.73 release bump
+6364d51 improvement-small-some  # v2.31.74 wizard asks key settings
+99e0d3a none  # v2.31.74 release bump
+29985a0 fix-small-rare  # v2.31.75 DevTools opener
+246fb95 none  # v2.31.75 release bump
+36e5368 feature-small-some  # v2.31.76 two sidebar panels at once
+0cb3901 none  # v2.31.76 release bump
+ccf413e improvement-small-some  # v2.31.77 two-panel divider, swap
+d06bbe4 none  # v2.31.77 release bump
+17bda8e performance-mid-everyone  # v2.31.78 extensions only where needed, panels sleep
+4d7e1e8 none  # v2.31.78 release bump
+82baac1 performance-small-everyone  # v2.31.79 container extensions on demand, pinned tabs sleep
+7a2e657 none  # v2.31.79 release bump
+c5e7944 performance-mid-some  # v2.31.80 Discord rests when hidden, free memory, badges
+030547f none  # v2.31.80 release bump
+59605af performance-mid-everyone  # v2.31.81 delta updates, lazy Toolbox, faster launch
+82c25f0 none  # v2.31.81 release bump
+6e9079f none  # v2.31.82 publish tooling
+177d66c fix-small-some  # v2.31.82 memory notice nagging
+c03dfc5 none  # v2.31.82 release bump
+28aef6c fix-small-some  # v2.31.83 AI tab grouping on local reasoning models
+79dcfca none  # v2.31.83 release bump
+0319897 fix-mid-some  # v2.31.84 agent hung at Agent started
+41929e0 none  # v2.31.84 release bump
+98a9345 feature-mid-some  # v2.31.85 agent research tools, local models, permission modes
+c18d316 none  # v2.31.85 release bump
+c4db4d2 feature-mid-some  # v2.31.86 agent vision, Vex features, Stop, saved runs
+4eccaa9 none  # v2.31.86 release bump
+779a577 improvement-mid-some  # v2.31.87 Send routes to agent, Vex starts Ollama
+3142507 none  # v2.31.87 release bump
+79d131c fix-mid-some  # v2.31.88 Discord screen share with Share audio off
+b8090a5 none  # v2.31.88 release bump
+4906ea7 security-small-some  # v2.31.89 permission Remember covered more than asked
+cd6b91c none  # v2.31.89 release bump
+0a3d7ce improvement-mid-some  # v2.31.90 problems log, safe mode, settings snapshots
+24ebf80 none  # v2.31.90 release bump
+3e3d8cc improvement-mid-some  # v2.31.91 AI GPU check, failure reasons, model manager
+f81025e none  # v2.31.91 release bump
+f33e793 improvement-small-some  # v2.31.92 agent reads notes, scoped to sites
+661131d none  # v2.31.92 release bump
+5beadc4 feature-mid-some  # v2.31.93 Discord hotkeys, streamer mode, per-site audio output
+1e88ac4 none  # v2.31.93 release bump
+a569c52 feature-mid-some  # v2.31.94 tab snooze, real link destinations, lookalike warnings
+8d4c709 none  # v2.31.94 release bump
+999b12c security-small-some  # v2.31.95 allow once, stop live capture
+286b2be none  # v2.31.95 release bump
+709df67 feature-small-some  # v2.31.96 tables as CSV, per-site video speed
+7537400 none  # v2.31.96 release bump
+06a30c3 feature-small-some  # v2.31.97 agent undo, videos/PDFs as sources
+7cb4c64 none  # v2.31.97 release bump
+4976f7d feature-mid-some  # v2.31.98 floating quick capture box
+bc08e88 none  # v2.31.98 release bump
+c75ef46 improvement-small-everyone  # v2.31.99 update prompt Later = a day, skip version
+108966e none  # v2.31.99 release bump
+84256db feature-small-rare  # v2.32.0 dev servers + environment switch
+5661ca7 none  # v2.32.0 release bump
+4b225b0 feature-small-some  # v2.32.1 page watch
+e1e2f40 none  # v2.32.1 release bump
+42d2ab5 feature-small-some  # v2.32.2 find tab by page text
+f0f5305 none  # v2.32.2 release bump
+a5dc358 feature-small-some  # v2.32.3 agent macros
+80f8cb5 none  # v2.32.3 release bump
+df38a19 security-small-some  # v2.32.4 explain downloaded program before running
+9dba7d1 none  # v2.32.4 release bump
+94b8ffb feature-mid-some  # v2.32.5 clipboard history
+9024c4f none  # v2.32.5 release bump
+c191c44 feature-small-some  # v2.32.6 text snippets
+5e43df1 none  # v2.32.6 release bump
+7ddce1e feature-small-some  # v2.32.7 eyedropper
+981fd43 none  # v2.32.7 release bump
+d2cf2f2 feature-small-some  # v2.32.8 research projects
+c491983 none  # v2.32.8 release bump
+55fe883 feature-small-some  # v2.32.9 page to PDF/links/images/citations
+441444b none  # v2.32.9 release bump
+62674ea feature-small-some  # v2.32.10 full-page screenshot
+5c2f86a none  # v2.32.10 release bump
+b815589 feature-small-rare  # v2.32.11 reasoning subtitle
+7afe206 none  # v2.32.11 release bump
+1df5075 feature-small-rare  # v2.32.12 link checker
+9203ba7 none  # v2.32.12 release bump
+0561f55 performance-mid-some  # v2.32.13 game mode frees GPU, sleeps tabs
+eec9165 none  # v2.32.13 release bump
+5937034 feature-small-rare  # v2.32.14 accessibility check
+3207e3f none  # v2.32.14 release bump
+ada724d feature-small-some  # v2.32.15 to-do list from notes
+30dd8ba none  # v2.32.15 release bump
+c239215 feature-small-some  # v2.32.16 page mark-up
+c4af5ab none  # v2.32.16 release bump
+78f5d46 feature-mid-some  # v2.32.17 screen recording
+fd727df none  # v2.32.17 release bump
+b45e300 performance-small-some  # v2.32.18 Discord memory limit swap
+639a4e3 none  # v2.32.18 release bump
+238ba6d feature-small-rare  # v2.32.19 why is this page slow
+7de1b06 none  # v2.32.19 release bump
+3b60aab security-small-rare  # v2.32.20 adm-zip symlink overwrite advisory + lint
+3d9c018 feature-small-some  # v2.32.20 task board
+45c4cf3 none  # v2.32.20 release bump
+e623941 feature-small-some  # v2.32.21 habits
+7375088 none  # v2.32.21 release bump
+2fdad75 feature-small-some  # v2.32.22 whiteboard
+93c7810 none  # v2.32.22 release bump
+73c533a feature-small-rare  # v2.32.23 site crawler
+4980512 none  # v2.32.23 release bump
+50c9238 feature-small-some  # v2.32.24 expenses
+eebe38a none  # v2.32.24 release bump
+74ca4d7 feature-small-some  # v2.32.25 parcels
+688233d none  # v2.32.25 release bump
+4f474d9 feature-small-some  # v2.32.26 calendar
+f849fe3 none  # v2.32.26 release bump
+47dbf03 none  # v2.32.27 CI-only Node 22 fix
+63bcb23 feature-small-some  # v2.32.27 price history
+d324d98 none  # v2.32.27 release bump
+c22e441 fix-small-some  # v2.32.28 Today/Review read page watches
+180b930 none  # v2.32.28 release bump
+80f0016 feature-small-some  # v2.32.29 do it again
+deecbd8 none  # v2.32.29 release bump
+d8b885b feature-mid-some  # v2.32.30 local Whisper dictation
+32639e4 none  # v2.32.30 release bump
+206a9c8 feature-mid-some  # v2.32.31 IMAP read-only mail
+d4189de none  # v2.32.31 release bump
+15f67aa fix-mid-everyone  # v2.32.32 Ctrl+K from pages, timers, panel scroll, Firefox sidebar button
+08d249b none  # v2.32.32 release bump
+1307518 feature-small-some  # v2.32.33 AI chat notes, pins, paste images
+28556a9 none  # v2.32.33 release bump
+73cf2b1 security-mid-some  # v2.32.34 safer links, downloads, permissions
+d5cee2c none  # v2.32.34 release bump
+8f77cd8 performance-mid-some  # v2.32.35 history indexing (local LLM) off by default
+07bc6fb none  # v2.32.35 release bump
+1214721 performance-mid-some  # v2.32.36 Discord far less memory
+c1d9810 none  # v2.32.36 release bump
+71dc5a8 improvement-small-some  # v2.32.37 streamer mode only while sharing; agent
+5b42f8e none  # v2.32.37 release bump
+a4f67bd improvement-mid-everyone  # v2.32.38 big stores on disk, crash log, rollback, backups
+bbb8b7c none  # v2.32.38 release bump
+47829a5 feature-mid-some  # v2.32.39 settings by request, GitHub watch, model comparison
+ae22f29 none  # v2.32.39 release bump
+b970bc3 improvement-mid-some  # v2.32.40 capture window, split saved; URL bar fixes
+924658d none  # v2.32.40 release bump
+0ce42ed feature-mid-some  # v2.32.41 morning brief, Markdown/EPUB, OCR copy
+63449c7 none  # v2.32.41 release bump
+51eb4e7 feature-mid-some  # v2.32.42 iCal subscriptions, tab/GIF recording
+554bf73 none  # v2.32.42 release bump
+3015348 improvement-small-rare  # v2.32.43 research highlights with citations
+81e3e9e none  # v2.32.43 release bump
+25a6c18 feature-small-everyone  # v2.32.44 switch to open tab from address bar
+3097681 none  # v2.32.44 release bump
+cdaa1f7 feature-mid-some  # v2.32.45 SponsorBlock + Discord lite pictures fixed
+2a216b4 none  # v2.32.45 release bump
+df26a8c feature-mid-some  # v2.32.46 Lock Vex with a PIN, update channels
+0c99fca none  # v2.32.46 release bump
+48f6fc2 feature-small-rare  # v2.32.47 GitHub panel PRs and CI
+1989806 none  # v2.32.47 release bump
+94504ba feature-small-some  # v2.32.48 overlay mini-Vex
+86445a5 none  # v2.32.48 release bump
+fa86ae7 feature-small-some  # v2.32.49 search all AI chats
+8b3578f none  # v2.32.49 release bump
+76e0d56 feature-small-some  # v2.32.50 per-site volume, console badge
+b676b68 none  # v2.32.50 release bump
+c5119ba feature-small-some  # v2.32.51 reading time, zip preview
+c52f0dc none  # v2.32.51 release bump
+11eb353 feature-small-rare  # v2.32.52 note a video moment
+74ff93c none  # v2.32.52 release bump
+bb03213 feature-small-some  # v2.32.53 Ask Vex what it can do
+8ece2f1 none  # v2.32.53 release bump
+eaf6737 improvement-mid-some  # v2.32.54 downloads card + toolbar list, guide wording
+1ccb789 none  # v2.32.54 release bump
+9cf85d9 feature-small-some  # v2.32.55 group actions, download sorting, music controls
+ef01284 none  # v2.32.55 release bump
+c09639c feature-mid-some  # v2.32.56 per-site cookies, translation, dictionary, tab trail
+7e8bda5 none  # v2.32.56 changelog
+f4ca653 none  # v2.32.56 release bump
+cc6bdbd feature-mid-some  # v2.32.57 per-site switches, meeting mode, no duplicate pages
+863255a none  # v2.32.57 changelog
+f655a0d none  # v2.32.57 release bump
+1c73ebd feature-small-some  # v2.32.58 @ tab mention, two models, file drop
+f514061 none  # v2.32.58 changelog
+0bfeaef none  # v2.32.58 release bump
+fc604c5 feature-small-some  # v2.32.59 extension audit, sound night mode, cards
+44f9358 none  # v2.32.59 changelog
+277affc none  # v2.32.59 release bump
+a56fc22 improvement-mid-some  # v2.32.60 agent parallel sources, schedules, pause
+7abb648 none  # v2.32.60 changelog
+ea5cd2d none  # v2.32.60 release bump
+7518dc8 feature-mid-some  # v2.32.61 teach Vex a task by recording clicks
+1b2402c none  # v2.32.61 changelog
+a433a58 none  # v2.32.61 release bump
+6c8ea96 feature-small-some  # v2.32.62 free games this week, clips folder
+9d713f2 none  # v2.32.62 changelog
+6b47c33 none  # v2.32.62 release bump
+51f56f5 feature-mid-some  # v2.32.63 tree tabs, sorted inbox
+255d3af none  # v2.32.63 changelog
+73b8b9f none  # v2.32.63 release bump
+71f7523 improvement-mid-some  # v2.32.64 small routine model, memory ceiling fits machine
+5c22020 none  # v2.32.64 changelog
+0f8a147 none  # v2.32.64 release bump
+06b3f00 feature-small-some  # v2.32.65 who is live (Twitch/YouTube)
+e3e0c95 none  # v2.32.65 changelog
+d38bade none  # v2.32.65 release bump
+d1a9e2b fix-mid-everyone  # v2.32.66 shortcuts needed a click first, missing look buttons
+9f93809 none  # v2.32.66 changelog
+f4b3cbb none  # v2.32.66 release bump
+357b0b2 improvement-small-some  # v2.32.67 PiP buttons again, shorter wizard, prepared answers
+0bca96d none  # v2.32.67 changelog
+63c9d9a none  # v2.32.67 release bump
+f34ab51 improvement-mid-some  # v2.32.68 running tasks, tour, Firefox colours, formatted answers
+9ebf4da none  # v2.32.68 changelog
+edf1c84 none  # v2.32.68 release bump
+07562f7 feature-mid-some  # v2.32.70 Library of features, app internals, download watch
+13ed70a none  # v2.32.70 changelog
+843bb27 none  # v2.32.70 release bump
+973192a fix-mid-some  # v2.32.70 tabs slept during a call; lighter Discord pictures
+3208a5f none  # v2.32.70 release bump
+90e09dd fix-small-some  # v2.32.73 AI answer lost when panel closed
+a7fd908 none  # v2.32.73 release bump
+27613f0 feature-small-some  # v2.32.73 key for any command, eleven shortcuts
+ddd2c28 none  # v2.32.73 release bump
+18ee9a8 feature-small-some  # v2.32.73 Library shelves, interface font picker
+cf5310f none  # v2.32.73 release bump
+01e019d fix-small-everyone  # v2.32.74 download progress did not move
+cfa10e6 none  # v2.32.74 release bump
+3917a74 improvement-mid-some  # v2.32.77 skins, last-tab key, AI does what it is told
+f73eb61 none  # v2.32.77 release bump
+cb034da improvement-mid-some  # v2.32.77 route all of Vex through Tor/proxy with check
+25cce79 none  # v2.32.77 release bump
+6bead48 none  # v2.32.77 release bump
+786207b performance-mid-some  # v2.32.77 panel sleeps between calls, per-site rules, slow screen
+a99fad2 improvement-mid-some  # v2.32.78 assistant acts, session label, one export file
+c8b8640 none  # v2.32.78 release bump
+575acaf fix-mid-some  # v2.32.79 one crash fixed, quieter console
+63cbd8b none  # v2.32.79 release bump
+80c8288 fix-mid-some  # v2.32.81 Vex closed Discord without asking
+ebee75f none  # v2.32.81 release bump
+baab5bb fix-small-some  # v2.32.81 command phrasing variants
+c333e90 none  # v2.32.81 release bump
+c50e31a fix-mid-everyone  # v2.32.82 tabs slept behind your back
+7683f18 none  # v2.32.82 release bump
+65f3da1 fix-small-some  # v2.32.83 agent answers, cancel works
+712b1b3 none  # v2.32.83 release bump
+2911286 fix-mid-some  # v2.32.84 blank page, unasked sleep
+9cf7139 none  # v2.32.84 release bump
+cea60be fix-mid-some  # v2.32.85 sites could not ask for notifications; tab strip fit
+06abb07 none  # v2.32.85 release bump
+26938e3 fix-small-everyone  # v2.32.86 unasked sleep, tab strip height
+9d4edc2 none  # v2.32.86 release bump
+aa16512 fix-small-some  # v2.32.90 panel closed by Windows comes back
+62756be none  # v2.32.90 release bump
+2463e5a fix-mid-everyone  # v2.32.90 right-click Save image did not work
+7e47c5a none  # v2.32.90 release bump
+a02a617 fix-small-some  # v2.32.90 Never setting reached old profiles
+40fe665 none  # v2.32.90 release bump
+aa0d717 polish-small-everyone  # v2.32.90 readable right-click menu
+e1535f3 none  # v2.32.90 release bump
+bf5300a polish-small-everyone  # v2.32.94 no space above tab strip
+8d9c613 none  # v2.32.94 release bump
+b2c8ffd fix-mid-some  # v2.32.94 ChatGPT blocked from its own service
+219783d none  # v2.32.94 release bump
+2f9f558 fix-small-some  # v2.32.94 sites could not ask for location
+900972b none  # v2.32.94 release bump
+f5cf663 fix-small-some  # v2.32.94 near me used wrong location
+8179bc2 none  # v2.32.94 release bump
+3717325 polish-small-everyone  # v2.32.99 tabs and groups fill the top bar
+6c16f4e none  # v2.32.99 release bump
+c9ba88d fix-small-some  # v2.32.99 location answer not kept as given
+50d497c none  # v2.32.99 release bump
+f438b1d improvement-small-some  # v2.32.99 watch the AI work
+a24236d none  # v2.32.99 release bump
+63b2af6 feature-small-some  # v2.32.99 one-click extension install (RoSuite)
+dfed5a1 none  # v2.32.99 release bump
+60d353e feature-small-rare  # v2.32.99 four Vex extensions
+b21f4f9 none  # v2.32.99 release bump
+6c402c2 polish-small-some  # v2.33.0 group names as big as tab titles
+bf8b014 none  # v2.33.0 release bump
+3cf79d5 fix-small-some  # v2.33.8 extensions menu did not scroll
+087a8e9 none  # v2.33.8 release bump
+25f679b fix-mid-some  # v2.33.8 Dark Reader did not work; compact group chips
+76aa219 none  # v2.33.8 release bump
+e44c02c fix-small-some  # v2.33.8 agent list loops, ambiguous click_text
+244e918 fix-small-some  # v2.33.8 agent refuses ruled-out actions (eval calculator was same-release)
+aa8059c none  # v2.33.8 release bump
+2e14a2b fix-small-some  # v2.33.8 agent tab tools honest, dropdown settings
+9116051 none  # v2.33.8 release bump
+bb8db73 fix-mid-some  # v2.33.8 uBlock did not start (contextMenus stand-in)
+edd9919 none  # v2.33.8 release bump
+b798b74 fix-small-some  # v2.33.8 extension worker sync storage, best model default
+28289af none  # v2.33.8 release bump
+b48d3c0 none  # v2.33.8 tests only
+65b3e48 none  # v2.33.8 release bump
+fe31373 fix-mid-everyone  # v2.33.8 PDFs did not open in the tab
+3edfac1 none  # v2.33.8 release bump
+282a380 fix-small-some  # v2.33.10 Dark Reader recoloured Vex pages
+0f67d57 none  # v2.33.10 release bump
+246d152 fix-mid-some  # v2.33.10 six everyday snags with real input
+a6b103e none  # v2.33.10 release bump
+3cdfc6f polish-small-rare  # v2.33.11 VirusTotal Item not found explained
+3c43fd1 none  # v2.33.11 release bump
+ad3ce05 fix-mid-some  # v2.33.12 window off screen after fullscreen
+1f67d6f none  # v2.33.12 release bump
+e861cb1 fix-small-some  # v2.33.13 extension popups (Dark Reader)
+bd67684 none  # v2.33.13 changelog
+253e281 none  # v2.33.13 release bump
+87f20ef security-critical-some  # v2.33.15 ~120 fixes: download filename ran as PowerShell code, Lock bypass
+f9685a4 security-high-everyone  # v2.33.15 ~90 fixes: pages could fake Vex keys/gestures, Lock leaks
+7c0a710 none  # v2.33.15 release bump
+411c4f1 fix-small-rare  # v2.33.15 download signature check under PowerShell 7
+2bc0cef none  # v2.33.15 release bump
+a78ef76 feature-mid-some  # v2.34.0 28 themes and 5 looks
+263f5da none  # v2.34.0 release bump
+162c072 security-high-some  # v2.34.2 Tor leaks via new tab/WebRTC, sync join wiped data
+c232380 security-mid-everyone  # v2.34.2 Electron 42.11 for four security advisories
+b33751a none  # v2.34.2 release bump
+8aedd27 security-mid-some  # v2.34.2 Tor idle stop, routes fail closed, sync session hardening
+1f95773 none  # v2.34.2 release bump
+94db5d3 security-mid-some  # v2.34.5 ways around Tor closed, New Tab tiles sync
+91fd318 none  # v2.34.5 release bump
+4f8bb41 fix-small-rare  # v2.34.5 Tor small print
+7da94fe none  # v2.34.5 release bump
+f8f52b0 none  # v2.34.5 tests only
+b63eeda none  # v2.34.5 release bump
+7b5b62f feature-mid-everyone  # v2.35.0 Vex updates itself (cover, checked download, quiet install)
+b8f43dc none  # v2.35.0 release bump
+5ac4a2c improvement-mid-everyone  # v2.35.1 backup before update, differential updates
+29737f0 none  # v2.35.1 release bump
+86b1613 fix-mid-some  # v2.35.2 sync with other devices: duplicates, emptied account
+15c500d none  # v2.35.2 release bump
+b59d3e8 none  # v2.36.0 license/privacy/terms docs
+f3316c7 feature-high-some  # v2.36.0 browser import, privacy defaults, report a problem, contrast
+62de33a feature-high-some  # v2.36.0 profiles, reader view, read aloud, faster start
+5b2d93b polish-small-some  # v2.36.0 read-aloud voice + contrast in looks
+133c974 fix-small-some  # v2.36.0 plain pages white base in dark mode
+269b2d6 none  # v2.36.0 CI audit tooling
+81e04b8 none  # v2.36.0 release bump
+1fdf2aa feature-high-some  # v2.36.1 install extensions from Chrome Web Store
+ebf9ab7 none  # v2.36.1 release bump
+250e24c fix-mid-some  # v2.36.2 extensions did not work on the page
+4a2bd24 none  # v2.36.2 release bump
+7bc44dc fix-mid-everyone  # v2.36.3 page alert/confirm froze the whole window
+563beff none  # v2.36.3 release bump
+5f6e135 fix-mid-some  # v2.36.4 full-screen page dialog froze Vex
+1a7f5b1 none  # v2.36.4 release bump
+a9a0fa2 security-high-everyone  # v2.37.0 external-app links need gesture+prompt, extension updates, installer 167->130 MB
+4963f6c none  # v2.37.0 release bump
+9acf4d5 security-small-some  # v2.38.0 Recall opt-in for new profiles
+53f67de feature-small-everyone  # v2.38.0 what's-new card after update
+593ff60 feature-mid-some  # v2.38.0 strong password suggestion + generator
+82193e4 feature-mid-some  # v2.38.0 Simple mode
+4e898d1 feature-small-some  # v2.38.0 Read Later daily digest
+0c99143 improvement-small-some  # v2.38.0 per-account sync storage
+4dcd9df fix-mid-some  # v2.38.0 narrow window address field, readable text, Open as App
+ca87cdc none  # v2.38.0 code signing tooling, not switched on
+d63b2ae none  # v2.38.0 merge commit
+87c3d44 none  # v2.38.0 merge commit
+74eb059 security-small-some  # v2.38.0 copied secret cleared after 30 s in background
+764b42b none  # v2.38.0 merge commit
+bce2b87 none  # v2.38.0 follow-up to same-release digest
+317adee none  # v2.38.0 merge commit
+c7726d5 none  # v2.38.0 merge commit
+0164a29 fix-small-some  # v2.38.0 Glass hidden buttons, shortcut letters, settings search (rest same-release)
+9ee3133 feature-mid-some  # v2.38.0 light/dark follows Windows or clock
+161b61e none  # v2.38.0 merge commit
+52b6435 none  # v2.38.0 merge commit
+ce2a20a feature-mid-some  # v2.38.0 extension context menus, shortcuts, badges
+4d42a96 improvement-mid-some  # v2.38.0 send tabs between devices
+f14ffe2 security-small-some  # v2.38.0 private window never syncs
+fe83dda none  # v2.38.0 merge commit
+9538812 feature-small-some  # v2.38.0 AMOLED, High Contrast Light, Mica themes
+14224ac feature-mid-some  # v2.38.0 pin extensions to toolbar; menus stay on screen
+906dea6 none  # v2.38.0 merge commit
+914c989 feature-mid-some  # v2.38.0 padlock site panel
+cbdc9a5 none  # v2.38.0 merge commit
+e411d50 none  # v2.38.0 follow-up to same-release themes/light-dark
+82d0255 none  # v2.38.0 merge commit
+16a871e none  # v2.38.0 follow-up to same-release site panel
+6eb09bf none  # v2.38.0 merge commit
+3e9117e feature-mid-some  # v2.38.0 theme editor with live preview + .vextheme
+c16dcd8 none  # v2.38.0 merge commit
+dc350a2 improvement-mid-everyone  # v2.38.0 Undo instead of Are you sure
+a373209 none  # v2.38.0 merge commit
+0f2df32 feature-small-some  # v2.38.0 theme from a picture or wallpaper
+949a32d none  # v2.38.0 merge commit
+20f718b improvement-small-some  # v2.38.0 Reset site / Un-zap with Undo
+636e4ba none  # v2.38.0 merge commit
+8e15d56 feature-small-some  # v2.38.0 Chrome Web Store themes as Vex themes
+793a938 none  # v2.38.0 merge commit
+9705a3b fix-small-some  # v2.38.0 hand-picked look version showed nothing
+aa2bbc6 none  # v2.38.0 follow-up to same-release light/dark
+338db17 none  # v2.38.0 same-release private-window refusals
+3c728bd fix-small-rare  # v2.38.0 Boost CSS with site JS off
+3ff9d02 none  # v2.38.0 same-release toast overlap with site panel
+5d44fb2 none  # v2.38.0 same-release theme delete Undo
+c6acfb8 none  # v2.38.0 same-release Undo toast overlap
+9634439 none  # v2.38.0 changelog
+36b1281 none  # v2.38.0 release bump
+d9eebab fix-small-some  # v2.38.1 unusable sync sign-in reported; theme delete with light/dark
+1fb17a4 none  # v2.38.1 changelog
+9a3cbce none  # v2.38.1 release bump
