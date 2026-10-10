@@ -528,7 +528,9 @@ const TabManager = {
     return back;
   },
 
-  switchTab(id) {
+  // opts.keepFocus: the focus is where the user put it (a split pane they
+  // clicked into); a New Tab page does not take it for the address bar.
+  switchTab(id, opts = {}) {
     this._notifyTabsChanged();
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
@@ -586,7 +588,7 @@ const TabManager = {
     // Match Chrome/Edge: when the active tab is a start page, put the caret in
     // the URL bar so Ctrl+T → type/paste lands there instead of being lost.
     // Deferred one frame so the webview swap + class toggles settle first.
-    if (isStartPage(tab.url)) {
+    if (isStartPage(tab.url) && !opts.keepFocus) {
       requestAnimationFrame(() => {
         const urlInput = document.getElementById('url-input');
         if (urlInput) { urlInput.focus(); urlInput.select(); }

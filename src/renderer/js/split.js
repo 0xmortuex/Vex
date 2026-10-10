@@ -62,6 +62,39 @@ const SplitScreen = {
     return true;
   },
 
+  // The split is kept for the next start (vex.splitLayout): it came back as
+  // one tab (found 2026-10-10). Tab ids survive a restart (TabManager.init).
+  // A private window keeps nothing.
+  LAYOUT_KEY: 'vex.splitLayout',
+  _saveLayout() {
+    if (window.VexTabPolicy?.isPrivateWindow) return;
+    if (this.active && this.panes.length >= 2) localStorage.setItem(this.LAYOUT_KEY, JSON.stringify({ tabIds: this.panes, ratio: this.splitRatio }));
+    else localStorage.removeItem(this.LAYOUT_KEY);
+  },
+
+  // At start, after the tabs are back: the split as it was left, with the
+  // first pane in front. Nothing saved, or fewer than two of its tabs still
+  // open: no split. Returns whether it split.
+  restoreSaved() {
+    if (window.VexTabPolicy?.isPrivateWindow) return false;
+    const raw = localStorage.getItem(this.LAYOUT_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    const ids = Array.isArray(saved && saved.tabIds) ? saved.tabIds.filter(id => typeof id === 'string') : [];
+    if (!this.restore(ids, Number(saved.ratio))) { localStorage.removeItem(this.LAYOUT_KEY); return false; }
+    TabManager.switchTab(this.panes[0]);
+    return true;
+  },
+
+  // The toolbar (address bar, Back, Forward, Reload, Ctrl+W) works on the tab
+  // in front; in a split that is now the pane last clicked or typed in. It
+  // stayed on the first pane whatever you clicked (found 2026-10-10).
+  focusPane(tabId) {
+    if (!this.active || !this.panes.includes(tabId) || TabManager.activeTabId === tabId) return false;
+    TabManager.switchTab(tabId, { keepFocus: true });
+    return true;
+  },
+
   // What a saved layout needs to rebuild this split: the panes' addresses, in
   // order, and the divider. Null when the screen is not split.
   arrangement() {
@@ -152,8 +185,10 @@ const SplitScreen = {
     // later 2-way split gets it back even if CSS ordering changes.
     const divider = document.getElementById('split-divider');
     if (divider) divider.style.display = '';
-    const focus = this.panes[0];
+    // The pane in front stays in front (it was always the first pane).
+    const focus = this.panes.includes(TabManager.activeTabId) ? TabManager.activeTabId : this.panes[0];
     this.panes = [];
+    this._saveLayout();
     if (focus) TabManager.switchTab(focus);
     document.getElementById('btn-split')?.classList.remove('active');
   },
@@ -195,6 +230,12 @@ const SplitScreen = {
 
     wvs.forEach((wv, i) => {
       if (!wv) return;
+      if (!wv._vexPaneFocus) {
+        // A click or Tab into a pane's page focuses its <webview> element.
+        const id = this.panes[i];
+        wv._vexPaneFocus = true;
+        wv.addEventListener('focus', () => this.focusPane(id));
+      }
       wv.classList.add('split-pane');
       const gc = this._gridColumn(n, i), gr = this._gridRow(n, i);
       wv.style.gridColumn = gc; wv.style.gridRow = gr;
@@ -204,6 +245,7 @@ const SplitScreen = {
     if (divider) divider.style.display = n === 2 ? '' : 'none';
 
     this.updateMiniUrlBars();
+    this._saveLayout();
   },
 
   // Grid placement per pane index.

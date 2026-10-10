@@ -85,6 +85,11 @@ function vexOwnTextFocused(doc) {
   const tabsAt = performance.now();
   await TabManager.init();
   timed('tabs', tabsAt);
+  // The split screen as it was left (js/split.js).
+  if (!window.VexTabPolicy.isPrivateWindow) {
+    try { SplitScreen.restoreSaved(); }
+    catch (err) { window.VexProblems?.note('Split screen', 'Could not put the split back at start', err); }
+  }
   // A private window takes the look of the window it was opened from.
   if (window.VexTabPolicy.isPrivateWindow) {
     const look = new URLSearchParams(location.search).get('look');
