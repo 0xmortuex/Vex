@@ -1835,6 +1835,10 @@ ipcMain.handle('totp:delete', async (_e, id) => {
   try { await totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Passphrase-encrypted backup and restore, and Google Authenticator's
+// "Transfer accounts" QR (main/totp-transfer.js).
+require('./main/totp-transfer').registerTotpTransfer({ ipcMain, dialog, app, windowFor: (e) => BrowserWindow.fromWebContents(e.sender),
+  load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry), isLocked: () => _vexLocked });
 
 // Only decisions still in force: an "Allow for a day" that has run out is as
 // if never made (savedDecision), so it is not listed as allowed either.

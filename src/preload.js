@@ -299,6 +299,11 @@ contextBridge.exposeInMainWorld('vex', {
   totpCodes: () => ipcRenderer.invoke('totp:codes'),
   totpAdd: (input) => ipcRenderer.invoke('totp:add', input),
   totpDelete: (id) => ipcRenderer.invoke('totp:delete', id),
+  // Google Authenticator's otpauth-migration:// export link (many accounts).
+  totpImportMigration: (uri) => ipcRenderer.invoke('totp:import-migration', uri),
+  // A passphrase-encrypted backup file; main asks where and reads/writes it.
+  totpExportBackup: (passphrase) => ipcRenderer.invoke('totp:export-backup', passphrase),
+  totpImportBackup: (passphrase) => ipcRenderer.invoke('totp:import-backup', passphrase),
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => subscribe('permission:request', cb),

@@ -32,6 +32,10 @@ const Authenticator = {
           </div>
         </div>
         <div id="auth-list" class="auth-list"></div>
+        <div class="auth-transfer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+          <button type="button" id="auth-backup" class="auth-add-btn" title="Save every account in a file locked with a passphrase">Back up…</button>
+          <button type="button" id="auth-restore" class="auth-add-btn" title="Add the accounts from a Vex authenticator backup">Restore…</button>
+        </div>
       </div>`;
     this._injectStyles();
     el.querySelector('#auth-add-toggle').addEventListener('click', () => {
@@ -40,6 +44,8 @@ const Authenticator = {
       if (f.style.display === 'block') el.querySelector('#auth-secret').focus();
     });
     el.querySelector('#auth-save').addEventListener('click', () => this._add());
+    el.querySelector('#auth-backup').addEventListener('click', () => this._backup());
+    el.querySelector('#auth-restore').addEventListener('click', () => this._restore());
     el.querySelector('#auth-secret').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
     el.querySelector('#auth-label').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
 
@@ -85,6 +91,7 @@ const Authenticator = {
     let text = null;
     try { text = await this._decodeQrFromFile(file); } catch { text = null; }
     if (!text) { if (status) status.textContent = 'No QR code found in that image — try a clearer/tighter screenshot.'; return; }
+    if (/^otpauth-migration:\/\//i.test(text.trim())) { await this._importMigration(text.trim()); return; }
     if (!/^otpauth:\/\//i.test(text.trim())) { if (status) status.textContent = 'That QR isn’t a 2FA (otpauth) code.'; return; }
     el.querySelector('#auth-secret').value = text.trim();
     if (status) status.textContent = 'QR read — adding…';
@@ -119,6 +126,7 @@ const Authenticator = {
     const label = el.querySelector('#auth-label').value.trim();
     const status = el.querySelector('#auth-status');
     if (!secret) { status.textContent = 'Paste a key or link first.'; return; }
+    if (/^otpauth-migration:\/\//i.test(secret)) { await this._importMigration(secret); return; }
     status.textContent = 'Adding…';
     const r = await window.vex.totpAdd({ secret, label }).catch(e => ({ ok: false, error: String(e && e.message || e) }));
     if (r && r.ok) {
@@ -130,6 +138,65 @@ const Authenticator = {
       window.showToast?.('Account added');
     } else {
       status.textContent = this._addError(secret, r && r.error);
+    }
+  },
+
+  _plainError(err) { return String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, ''); },
+  _counts(r) {
+    const parts = [`${r.added} account${r.added === 1 ? '' : 's'} added`];
+    if (r.duplicates) parts.push(`${r.duplicates} already here`);
+    if (r.skipped) parts.push(`${r.skipped} counter-based (HOTP) left out`);
+    if (r.invalid) parts.push(`${r.invalid} with an unusable key left out`);
+    return parts.join(', ');
+  },
+
+  // Google Authenticator › Transfer accounts › Export: a QR (or its link)
+  // carrying several accounts at once.
+  async _importMigration(uri) {
+    const el = this._el;
+    const status = el && el.querySelector('#auth-status');
+    if (status) status.textContent = 'Importing from Google Authenticator…';
+    try {
+      const r = await window.vex.totpImportMigration(uri);
+      if (el) { el.querySelector('#auth-secret').value = ''; el.querySelector('#auth-add-form').style.display = 'none'; }
+      if (status) status.textContent = '';
+      await this._refreshList();
+      window.showToast?.('Google Authenticator: ' + this._counts(r));
+    } catch (err) {
+      if (status) status.textContent = this._plainError(err);
+    }
+  },
+
+  // A file holding every account with its secret, sealed with a passphrase.
+  async _backup() {
+    try {
+      const lock = window.VexLock;
+      if (!lock || !await lock.recheck({ title: 'Back up authenticator', message: 'The backup holds every 2FA secret, locked with a passphrase you choose.', okLabel: 'Continue' })) return;
+      const pass = await window.vexPrompt({ title: 'Back up authenticator', message: 'Choose a passphrase for the backup file (at least 8 characters). Without it the file cannot be opened, and Vex cannot recover it for you.', label: 'Passphrase', password: true, okLabel: 'Next' });
+      if (pass === null) return;
+      if (pass.length < 8) { window.showToast?.('Use a passphrase of at least 8 characters', 'error'); return; }
+      const again = await window.vexPrompt({ title: 'Back up authenticator', message: 'Type the passphrase again.', label: 'Passphrase again', password: true, okLabel: 'Save backup' });
+      if (again === null) return;
+      if (again !== pass) { window.showToast?.('The two passphrases are not the same — nothing was saved', 'error'); return; }
+      const r = await window.vex.totpExportBackup(pass);
+      if (r && r.canceled) return;
+      if (!r || !r.ok) throw new Error((r && r.error) || 'unknown error');
+      window.showToast?.(`Backed up ${r.count} account${r.count === 1 ? '' : 's'}`);
+    } catch (err) {
+      window.showToast?.('Could not back up: ' + this._plainError(err), 'error');
+    }
+  },
+
+  async _restore() {
+    try {
+      const pass = await window.vexPrompt({ title: 'Restore authenticator backup', message: 'The passphrase the backup was saved with. Then pick the file. Accounts you already have are left as they are.', label: 'Passphrase', password: true, okLabel: 'Choose file' });
+      if (pass === null) return;
+      const r = await window.vex.totpImportBackup(pass);
+      if (r && r.canceled) return;
+      await this._refreshList();
+      window.showToast?.('Restored: ' + this._counts(r));
+    } catch (err) {
+      window.showToast?.('Could not restore: ' + this._plainError(err), 'error');
     }
   },
 
