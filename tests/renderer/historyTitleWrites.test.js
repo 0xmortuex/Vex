@@ -67,6 +67,14 @@ describe('history titles', () => {
     expect(stored()[0].title).toBe('A, renamed');
   });
 
+  it('a title past 4,096 characters is cut, as a visit\'s is', () => {
+    const H = load();
+    H.addEntry('https://a.example/', 'A');
+    H.updateTitle('https://a.example/', 'x'.repeat(5000));
+    H.flush();
+    expect(stored()[0].title).toBe('x'.repeat(4096));
+  });
+
   it('a visit saves a waiting title with it', () => {
     const H = load();
     H.addEntry('https://a.example/', 'A');

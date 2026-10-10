@@ -259,6 +259,8 @@ const HistoryPanel = {
   updateTitle(url, title) {
     if (!url || this._isPlaceholder(title, url)) return;
     this._hydrate();
+    // Cut as addEntry cuts it: a longer title failed every later save.
+    title = String(title).slice(0, 4096);
     const entry = this.entries.find(e => e.url === url);
     if (!entry || entry.title === title) return;
     entry.title = title;
