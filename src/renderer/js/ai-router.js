@@ -44,7 +44,9 @@ const AIRouter = (() => {
   // chat and the agent keep the model you chose for them. Empty means "use the
   // one model for everything", which is what it does until this is set.
   let smallModel = '';
-  const ROUTINE_FEATURES = ['historyIndex', 'historySearch', 'groupTabs', 'summarizeTab', 'suggest', 'route'];
+  // The features that really ask the AI this way (callAI): three more names
+  // here (summarizeTab, suggest, route) were asked by nothing (2026-10-10).
+  const ROUTINE_FEATURES = ['historyIndex', 'historySearch', 'groupTabs'];
   let ollamaAvailable = null;
   let checkTimer = null;
 
