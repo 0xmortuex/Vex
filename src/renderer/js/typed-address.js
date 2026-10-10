@@ -65,10 +65,37 @@
     return FILE_TYPES.has(last);
   }
 
+  // A # or % in a Windows path is part of a name: "C:\dev\c#\notes.txt" opened
+  // C:\dev\c with "\notes.txt" as a fragment, and "100%.txt" made an address
+  // that could not be read (found 2026-10-10).
   function fileUrlFor(t) {
-    if (DRIVE_PATH.test(t)) return 'file:///' + t.replace(/\\/g, '/');
-    return 'file:' + t.replace(/\\/g, '/');
+    const p = t.replace(/\\/g, '/').replace(/%/g, '%25').replace(/#/g, '%23');
+    if (DRIVE_PATH.test(t)) return 'file:///' + p;
+    return 'file:' + p;
   }
+
+  // The real top-level domains (js/tld-list.js, IANA's list plus local network
+  // names). Any word after a dot counted, so "document.getElementById" and
+  // "e.coli" opened as broken addresses (found 2026-10-10).
+  const TLDS = (typeof window !== 'undefined' && window.VexTlds) ||
+    (typeof require === 'function' ? require('./tld-list.js') : null);
+  if (!TLDS) throw new Error('js/tld-list.js must load before js/typed-address.js');
+  function knownTld(t) {
+    const host = t.split(/[:/?#]/)[0].replace(/\.$/, '');
+    return TLDS.has(host.slice(host.lastIndexOf('.') + 1).toLowerCase());
+  }
+  // A bare name with nothing after it: the only kind that can be words.
+  const BARE_NAME = /^[^:/?#]+$/;
+
+  // An IPv4 address has four parts of at most 255: "999.1.1.1" opened.
+  function realIpv4(t) {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?=$|[:/?#])/.exec(t);
+    return !m || m.slice(1).every(n => Number(n) <= 255);
+  }
+
+  // A one-word intranet name and a slash, as Chrome opens it: "router/",
+  // "nas/admin" were searched. Not a number: "24/7" and "1/2" are words.
+  const INTRANET_PATH = /^(?=[a-z0-9-]*[a-z])[a-z0-9]([a-z0-9-]*[a-z0-9])?\/\S*$/i;
 
   // The address a line names, or null when it is words to search for.
   function addressFor(text) {
@@ -80,9 +107,10 @@
     if (SCHEME.test(t)) return t;
     if (DRIVE_PATH.test(t) || UNC_PATH.test(t)) return fileUrlFor(t);
     if (/\s/.test(t)) return null;
-    if (LOCAL_HOST.test(t)) return 'http://' + t;
+    if (LOCAL_HOST.test(t)) return realIpv4(t) ? 'http://' + t : null;
     if (HOST_WITH_PORT.test(t) && !ALL_CAPS_LABEL.test(t)) return 'http://' + t;
-    if (DOMAIN.test(t) && !isBareFileName(t)) return 'https://' + t;
+    if (INTRANET_PATH.test(t)) return 'http://' + t;
+    if (DOMAIN.test(t) && !isBareFileName(t) && (!BARE_NAME.test(t) || knownTld(t))) return 'https://' + t;
     return null;
   }
 
