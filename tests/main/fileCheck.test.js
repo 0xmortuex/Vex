@@ -37,12 +37,46 @@ describe('which files are worth stopping for', () => {
       expect(fc.kindOf('/d/' + n), n).toBe('runnable');
     }
     for (const n of ['photo.jpg', 'report.pdf', 'notes.txt', 'data.csv']) expect(fc.kindOf('/d/' + n), n).toBe('ordinary');
-    for (const n of ['bundle.zip', 'image.iso', 'x.tar.gz']) expect(fc.kindOf('/d/' + n), n).toBe('archive');
+    for (const n of ['bundle.zip', 'x.tar.gz', 'drivers.cab']) expect(fc.kindOf('/d/' + n), n).toBe('archive');
+  });
+
+  // Audit RD3 (2026-10-10): the check before Open let these through as
+  // "ordinary", so they opened without a word. Chrome warns about each.
+  it('shortcuts, snap-ins, help files, ClickOnce, script hosts, add-ins and disk images', () => {
+    const fc = check();
+    for (const n of ['invoice.lnk', 'site.url', 'x.scf', 'old.pif', 'a.website', 'f.library-ms', 'q.search-ms', 'c.searchconnector-ms', 's.settingcontent-ms',
+      'tool.cpl', 'console.msc', 'manual.chm', 'old.hlp', 'patch.msp', 't.mst', 'app.application', 'app.appref-ms', 'x.xbap',
+      'a.vb', 'a.vbe', 'a.wsc', 'a.ws', 'a.sct', 'a.shb', 'a.shs', 'a.ps1xml', 'a.psc1', 'a.msh',
+      'setup.inf', 'a.ins', 'a.isp', 'addin.xll', 'ctl.ocx', 'w.gadget', 'notes.one', 'start.jnlp',
+      'disk.iso', 'disk.img', 'disk.vhd', 'disk.vhdx', 'Invoice.PDF.LNK']) {
+      expect(fc.kindOf('C:/Downloads/' + n), n).toBe('runnable');
+    }
+    // Not over-reaching: names that merely contain one of these.
+    for (const n of ['onepager.pdf', 'urlnotes.txt', 'image.png', 'lnk.txt', 'inference.csv']) expect(fc.kindOf('C:/Downloads/' + n), n).toBe('ordinary');
   });
 
   it('is not fooled by the case of the extension', () => {
     expect(check().kindOf('C:/d/Setup.EXE')).toBe('runnable');
     expect(RUNNABLE.test('installer.MSI')).toBe(true);
+  });
+});
+
+// Audit RD4 (2026-10-10): Open read the whole of an ordinary file (a film, a
+// disk backup) to fingerprint it before opening it, which nobody asked for.
+describe('the fingerprint', () => {
+  it('is taken of programs and archives, not of an ordinary file', async () => {
+    const read = vi.fn((...a) => realFs.createReadStream(...a));
+    const fc = check({ fs: { ...realFs, createReadStream: read } });
+    const film = await fc.inspect(tempFile('film.mkv', 'x'.repeat(1000)), 'https://example.com/film.mkv');
+    expect(read).not.toHaveBeenCalled();
+    expect(film.sha256).toBe('');
+    expect(film.lines.join('\n')).not.toMatch(/SHA-256/);
+    expect(film.verdict).toBe('ordinary');
+    const zip = await fc.inspect(tempFile('b.zip', 'zz'), '');
+    expect(zip.sha256).toBe(realCrypto.createHash('sha256').update('zz').digest('hex'));
+    const exe = await fc.inspect(tempFile('a.lnk', 'L'), '');
+    expect(exe.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(read).toHaveBeenCalledTimes(2);
   });
 });
 
