@@ -6,27 +6,42 @@ const Ollama = (() => {
   let baseUrl = DEFAULT_URL;
 
   function setBaseUrl(url) {
+    _forgetHealth();
     baseUrl = String(url || DEFAULT_URL).replace(/\/$/, '');
   }
 
   function getBaseUrl() { return baseUrl; }
 
+  // One answer from /api/tags and /api/ps serves every check for a while.
+  // A single chat message used to ask Ollama /api/tags four times and /api/ps
+  // twice (the router's ping, starting it if needed, the slow-answer check,
+  // the ready check; found 2026-10-10). A request in flight is shared, a
+  // failure is not kept, and anything that changes the answer (a reply, an
+  // unload, a pull or delete, another address) forgets it.
+  const HEALTH_CACHE_MS = 20000;
+  let _health = Object.create(null); // path -> { at, promise }
+  function _forgetHealth() { _health = Object.create(null); }
+  function _healthJson(path) {
+    const hit = _health[path];
+    if (hit && Date.now() - hit.at < HEALTH_CACHE_MS) return hit.promise;
+    const promise = (async () => {
+      const r = await _quickGet(path);
+      if (!r.ok) throw new Error(await _errorText(r, ''));
+      return r.json();
+    })();
+    const entry = { at: Date.now(), promise };
+    _health[path] = entry;
+    promise.catch(() => { if (_health[path] === entry) delete _health[path]; });
+    return promise;
+  }
+
   async function ping() {
-    let t;
-    try {
-      const ctl = new AbortController();
-      t = setTimeout(() => ctl.abort(), 2000);
-      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`, { method: 'GET', signal: ctl.signal });
-      clearTimeout(t);
-      return r.ok;
-    } catch { return false; } finally { clearTimeout(t); }
+    try { await _healthJson('/api/tags'); return true; } catch { return false; }
   }
 
   async function listModels() {
     try {
-      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`);
-      if (!r.ok) return [];
-      const data = await r.json();
+      const data = await _healthJson('/api/tags');
       return (data.models || []).map(m => ({
         name: m.name,
         size: m.size,
@@ -70,9 +85,7 @@ const Ollama = (() => {
     if (_readyCache && _readyCache.key === key && Date.now() - _readyCache.at < HEALTH_TTL_MS) return { loaded: true };
     let tags;
     try {
-      const r = await _quickGet('/api/tags');
-      if (!r.ok) throw new Error('Ollama returned ' + r.status);
-      tags = await r.json();
+      tags = await _healthJson('/api/tags');
     } catch (err) {
       console.warn('[Ollama] health check failed:', err && err.message);
       throw new Error('Ollama is not running. Start Ollama, or switch to cloud AI.');
@@ -83,9 +96,7 @@ const Ollama = (() => {
     }
     let loaded = null;
     try {
-      const r = await _quickGet('/api/ps');
-      if (!r.ok) throw new Error('Ollama returned ' + r.status);
-      const ps = await r.json();
+      const ps = await _healthJson('/api/ps');
       loaded = (ps && Array.isArray(ps.models) ? ps.models : []).some(m => _sameModel(m.name || m.model, model));
     } catch (err) {
       // An older Ollama has no /api/ps: it cannot say, and the request runs
@@ -302,11 +313,13 @@ const Ollama = (() => {
     else if (options.think) body.think = true;
 
     const timeoutMs = await _prepare(model, options);
-    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response, timeoutMs), model, null);
-    const r = await _post('/api/generate', body, options.signal, timeoutMs);
-    if (!r.ok) throw new Error(await _errorText(r, model));
-    const data = await r.json();
-    return _notEmpty(data.response || '', model, data);
+    try {
+      if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response, timeoutMs), model, null);
+      const r = await _post('/api/generate', body, options.signal, timeoutMs);
+      if (!r.ok) throw new Error(await _errorText(r, model));
+      const data = await r.json();
+      return _notEmpty(data.response || '', model, data);
+    } finally { _forgetHealth(); }
   }
 
   // A JSON reply from a reasoning model (qwen3, deepseek-r1…): Ollama puts the
@@ -348,10 +361,13 @@ const Ollama = (() => {
     if (format === 'json') _asJson(body, options.think);
     else if (options.think) body.think = true;
     const timeoutMs = await _prepare(model, options);
-    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content, timeoutMs), model, null);
-    const r = await _post('/api/chat', body, options.signal, timeoutMs);
-    if (!r.ok) throw new Error(await _errorText(r, model));
-    const data = await r.json();
+    let data;
+    try {
+      if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content, timeoutMs), model, null);
+      const r = await _post('/api/chat', body, options.signal, timeoutMs);
+      if (!r.ok) throw new Error(await _errorText(r, model));
+      data = await r.json();
+    } finally { _forgetHealth(); }
     // What the call cost: prompt and reply sizes in tokens, and how long each
     // took. Settings › AI "Test as agent" reports these.
     if (typeof options.onMeta === 'function') {
@@ -376,9 +392,7 @@ const Ollama = (() => {
   // out of video memory by a game runs on the processor at a crawl, and that
   // is indistinguishable from "the AI is broken" without asking.
   async function running() {
-    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/ps`);
-    if (!r.ok) throw new Error(await _errorText(r, ''));
-    const data = await r.json();
+    const data = await _healthJson('/api/ps');
     return (data.models || []).map(m => ({
       name: m.name || m.model,
       sizeMB: Math.round((m.size || 0) / (1024 * 1024)),
@@ -398,6 +412,7 @@ const Ollama = (() => {
   // unloads the model. About 5.5 GB here, which is the difference between a
   // game running well and not.
   async function unload(model) {
+    _forgetHealth();
     const r = await _post('/api/generate', { model, prompt: '', keep_alive: 0 }, null, 15000);
     if (!r.ok) throw new Error(await _errorText(r, model));
     return true;
@@ -405,6 +420,7 @@ const Ollama = (() => {
 
   // Remove a model from disk entirely (Settings › AI › the model manager).
   async function deleteModel(model) {
+    _forgetHealth();
     const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/delete`, {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }), timeoutMs: 15000,
     });
@@ -429,11 +445,12 @@ const Ollama = (() => {
   // 2026-10-09). Older Ollama says "llama runner process has terminated".
   function _crashText(detail, model) {
     if (!/(llama-server|llama runner) process has terminated|llama-server process no longer running/i.test(detail || '')) return null;
-    _readyCache = null;
+    _readyCache = null; _forgetHealth();
     return `${model ? shortName(model) : 'The model'} crashed in Ollama (its process stopped). This usually means the graphics card or the computer ran out of memory, for example because a game is running. Close what is using the memory, or pick a smaller model in Settings › AI, then try again.`;
   }
 
   async function pullModel(modelName, onProgress, signal) {
+    _forgetHealth();
     const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/pull`, {
       stream: true, timeoutMs: 30 * 60 * 1000, maxBytes: 32 * 1024 * 1024, signal,
       method: 'POST',
@@ -460,7 +477,7 @@ const Ollama = (() => {
           if (err.message && !/JSON/i.test(err.message)) throw err;
         }
       }
-    } } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    } } finally { _forgetHealth(); await reader.cancel().catch(() => {}); reader.releaseLock(); }
   }
 
   function formatBytes(bytes) {

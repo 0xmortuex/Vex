@@ -140,3 +140,41 @@ describe('through the AI router', () => {
     expect(onSlow).toHaveBeenCalledWith('qwen3.5 is loading…', null);
   });
 });
+
+// AI audit 2026-10-10: one chat message asked /api/tags four times and /api/ps
+// twice. One answer serves every check for 20 s; a reply forgets it.
+describe('health requests are asked once', () => {
+  it('ping, the model list, what is loaded and the ready check share one /api/tags and one /api/ps', async () => {
+    fakeOllama({ answer: async () => ({ ok: true, status: 200, json: async () => ({ message: { content: 'hi' } }) }) });
+    const O = Ollama();
+    expect(await O.ping()).toBe(true);
+    await O.ping();
+    expect((await O.listModels()).map(m => m.name)).toEqual([MODEL]);
+    expect((await O.running()).map(m => m.name)).toEqual([MODEL]);
+    expect(calls.filter(p => p === '/api/tags')).toHaveLength(1);
+    expect(calls.filter(p => p === '/api/ps')).toHaveLength(1);
+    await O.chat(MODEL, [{ role: 'user', content: 'hi' }], { checkFirst: true });
+    expect(calls.filter(p => p === '/api/tags')).toHaveLength(1);
+    // The reply may have loaded a model: the next check asks again.
+    await O.running();
+    expect(calls.filter(p => p === '/api/ps')).toHaveLength(2);
+  });
+
+  it('a failure is not kept: Ollama started a moment later is seen at once', async () => {
+    fakeOllama({ up: false });
+    const O = Ollama();
+    expect(await O.ping()).toBe(false);
+    server.up = true;
+    expect(await O.ping()).toBe(true);
+  });
+
+  it('kept for 20 seconds, then asked again', async () => {
+    vi.useFakeTimers();
+    fakeOllama();
+    const O = Ollama();
+    await O.ping();
+    vi.advanceTimersByTime(21000);
+    await O.ping();
+    expect(calls.filter(p => p === '/api/tags')).toHaveLength(2);
+  });
+});
