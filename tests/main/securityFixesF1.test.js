@@ -302,9 +302,13 @@ describe('IPC policy and smaller items', () => {
     expect(main).toMatch(/preload-capture\.js'\),\s*\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*contextIsolation: true, nodeIntegration: false, sandbox: true,/);
   });
   it('L13: a certificate error is not followed by an unencrypted load', () => {
-    const fn = main.slice(main.indexOf("// HTTPS-Only fallback"), main.indexOf('// A clean main-frame load'));
-    expect(fn).toMatch(/errorCode <= -200 && errorCode >= -299/);
-    expect(fn.indexOf('_httpsCertNotice(')).toBeLessThan(fn.indexOf('_httpsOnlyFailed.add(bare)'));
+    // Since SE4 no failure loads http by itself: the certificate notice, or
+    // the no-HTTPS page whose own "Continue" link is the only way to http.
+    const fn = main.slice(main.indexOf('// HTTPS-Only: a page WE upgraded'), main.indexOf('// A clean main-frame load'));
+    expect(fn).toMatch(/if \(_httpsOnly\.isCertError\(errorCode\)\) \{\s*_httpsOnlyBypass\.set/);
+    expect(fn.indexOf('_httpsCertNotice(')).toBeGreaterThan(-1);
+    expect(fn.indexOf('_httpsCertNotice(')).toBeLessThan(fn.indexOf('_httpsOnly.noHttpsPage('));
+    expect(fn).not.toMatch(/contents\.loadURL\(httpUrl\)/);
   });
   it('S5-2: the crash log keeps no private page and only an origin otherwise', () => {
     const fn = main.slice(main.indexOf('const where = () => {'), main.indexOf("wc.on('render-process-gone'"));

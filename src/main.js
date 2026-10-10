@@ -312,11 +312,15 @@ function privacyLoad() {
 // --- HTTPS-Only mode (privacyCfg.httpsOnly) ---------------------------------
 // When on, upgrade http:// document navigations to https:// so you never load a
 // page in the clear where an encrypted version exists. Safety-critical detail:
-// we ONLY ever fall back to http for a host WE upgraded (tracked per-webContents
+// we ONLY ever offer http for a host WE upgraded (tracked per-webContents
 // in _httpsUpgradedByWc) — never for a site the user explicitly requested over
-// https, which would be a silent downgrade. A host that genuinely has no https
-// is remembered for the session (_httpsOnlyFailed) so it stops being upgraded.
-const _httpsOnlyFailed = new Set();       // bare hosts known http-only this session
+// https, which would be a silent downgrade. A host with no https gets a page
+// saying so (src/main/https-only.js, noHttpsPage); one the person chose to
+// continue to over http is remembered until Vex closes (_httpsOnlyFailed).
+const _httpsOnlyFailed = new Set();       // bare hosts the person chose to load over http this run
+// A tab showing the no-HTTPS page: the host, and the http address its
+// "Continue" link goes to (main.js, will-navigate in web-contents-created).
+const _httpsNoHttpsShown = new Map();     // wcId -> { bare, httpUrl, failedUrl }
 const _httpsUpgradedByWc = new Map();     // wcId -> Set<bareHost> we upgraded (scoped fallback)
 // A host whose https had a certificate error: the tab shows a notice
 // (_httpsCertNotice), and its "load it unencrypted" link is let through
@@ -334,32 +338,58 @@ main{max-width:560px;padding:32px 24px}h1{font-size:21px;margin:0 0 12px;color:v
 <p class="muted">If you trust this network and still want the page, you can <a href="${esc(httpUrl)}">load it unencrypted</a>. Anyone on the network can then read and change what you see and send.</p>
 </main></body></html>`;
 }
-function _httpsIsLocal(h) {
-  return h === 'localhost' || h === '::1' || h === '[::1]'
-    || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)
-    || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /\.local$/i.test(h) || /\.onion$/i.test(h);
-}
-function _httpsIsIpLiteral(h) { return /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.includes(':'); }
+const _httpsOnly = require('./main/https-only');
 // Returns the https URL to redirect to, or null to leave the request alone.
+// The rule (which addresses, ports kept) is src/main/https-only.js.
 function _httpsUpgradeURL(details) {
   if (!privacyCfg.httpsOnly) return null;
-  const rt = details.resourceType;
-  if (rt !== 'mainFrame' && rt !== 'subFrame') return null;
-  let u; try { u = new URL(details.url); } catch { return null; }
-  if (u.protocol !== 'http:') return null;
-  const hn = u.hostname;
-  if (_httpsIsLocal(hn) || _httpsIsIpLiteral(hn)) return null;   // local/dev/IP: no upgrade
-  if (u.port && u.port !== '80') return null;                    // custom-port http servers rarely have https
-  const bare = hn.replace(/^www\./, '');
-  if (_httpsOnlyFailed.has(bare)) return null;                   // proven http-only — don't loop
+  const target = _httpsOnly.upgradeTarget(details.url, details.resourceType);
+  if (!target) return null;
+  const bare = target.bare;
+  // A site the person chose to load unencrypted ("Continue" on the
+  // no-HTTPS page): left alone until Vex closes.
+  if (_httpsOnlyFailed.has(bare)) return null;
   // The person chose "load it unencrypted" on the certificate notice: once.
   const bypass = _httpsOnlyBypass.get(bare);
   if (bypass) { _httpsOnlyBypass.delete(bare); if (bypass >= Date.now()) return null; }
-  u.protocol = 'https:';
-  if (u.port === '80') u.port = '';
   const wc = details.webContentsId;
   if (wc != null) { let s = _httpsUpgradedByWc.get(wc); if (!s) { s = new Set(); _httpsUpgradedByWc.set(wc, s); } s.add(bare); }
-  return u.toString();
+  return target.url;
+}
+// What every session's onBeforeRequest answers for a request it lets through:
+// the https address when HTTPS-Only upgrades it. Only the normal tabs' and the
+// containers' sessions asked before; private windows, off-the-record and
+// burner tabs, New Identity and Tor tabs loaded http as it came (SE3).
+function _httpsAnswer(details) {
+  const upgraded = _httpsUpgradeURL(details);
+  return upgraded ? { redirectURL: upgraded } : { cancel: false };
+}
+// A tab's page (the main session, a container or route, a private window, an
+// off-the-record, burner, New Identity or Tor tab), not an app panel's.
+function _isTabSession(contents) {
+  const p = secureSessions.partitionOf(contents) || '';
+  return p === 'persist:main' || /^persist:(?:container|route)-/.test(p) || !p.startsWith('persist:');
+}
+// One of Vex's own pages (src/main/https-only.js) in place of a failed load.
+// The failed address is taken out of the tab's history once it shows, so
+// Back goes to the page before it rather than into the failure again. That
+// is done when the page commits: loadURL's promise settles earlier, on the
+// error page's own did-finish-load (measured).
+function _showVexPage(contents, html, failedUrl, what) {
+  const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  const shown = (_e, url) => {
+    contents.removeListener('did-navigate', shown);
+    if (url !== dataUrl) return;
+    const h = contents.navigationHistory;
+    const i = h.getActiveIndex();
+    const before = i > 0 ? h.getEntryAtIndex(i - 1) : null;
+    if (before && before.url === failedUrl && !h.removeEntryAtIndex(i - 1)) console.warn('[HTTPS-Only] could not take the failed address out of the history');
+  };
+  contents.on('did-navigate', shown);
+  contents.loadURL(dataUrl).catch(err => {
+    if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
+    console.warn('[HTTPS-Only] could not show the ' + what + ':', err && err.message);
+  });
 }
 let privacyWrites = Promise.resolve();
 function privacySave() {
@@ -2043,9 +2073,7 @@ function wireAdblockerOnSession(ses, tag) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
-      const upgraded = _httpsUpgradeURL(details);
-      if (upgraded) callback({ redirectURL: upgraded });
-      else callback({ cancel: false });
+      callback(_httpsAnswer(details));
     }
   });
 }
@@ -4822,45 +4850,57 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('destroyed', () => {
     _mediaByWc.delete(createdContentsId);
     _httpsUpgradedByWc.delete(createdContentsId);
+    _httpsNoHttpsShown.delete(createdContentsId);
     _claudeGoogleClick.delete(createdContentsId);
   });
 
-  // HTTPS-Only fallback: if a page WE upgraded to https can't load (no https, SSL
-  // failure, reset…), drop that host back to http for the rest of the session so
-  // the site still works. Scoped strictly to our own upgrades (never a downgrade
-  // of a site the user asked for over https). ERR_ABORTED (-3) is a superseded
-  // navigation, not a real failure — ignore it.
-  contents.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {
-    if (!isMainFrame || !privacyCfg.httpsOnly || errorCode === -3) return;
+  // HTTPS-Only: a page WE upgraded to https that can't load (no https, a
+  // reset, a refused connection) gets a page saying the site has no secure
+  // connection, with "Go back" and "Continue" to the http address. It used to
+  // be loaded over http at once with a toast (SE4). Scoped strictly to our own
+  // upgrades (never a downgrade of a site the user asked for over https).
+  // ERR_ABORTED (-3) is a superseded navigation, not a real failure.
+  // A certificate error on any other page of a tab gets a page explaining it
+  // instead of Chromium's bare error name.
+  contents.on('did-fail-load', (_e, errorCode, desc, validatedURL, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return;
     let u; try { u = new URL(validatedURL); } catch { return; }
     if (u.protocol !== 'https:') return;
     const bare = u.hostname.replace(/^www\./, '');
     const s = _httpsUpgradedByWc.get(contents.id);
-    if (!s || !s.has(bare)) return;               // only OUR upgrades fall back
+    if (!privacyCfg.httpsOnly || !s || !s.has(bare)) {
+      if (_httpsOnly.isCertError(errorCode) && _isTabSession(contents)) _showVexPage(contents, _httpsOnly.certErrorPage(u.host, desc), validatedURL, 'certificate page');
+      return;
+    }
     s.delete(bare);
+    const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
     // A certificate error (net::ERR_CERT_*, -200 to -299) is what someone
     // in the middle of the connection causes; falling back to http then hands
     // them the page in the clear without a word (security scan L13). The tab
     // says so instead, and loads it unencrypted only if the person asks.
-    if (errorCode <= -200 && errorCode >= -299) {
+    if (_httpsOnly.isCertError(errorCode)) {
       _httpsOnlyBypass.set(bare, Date.now() + 120000);
-      const plainUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
-      contents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(_httpsCertNotice(u.host, plainUrl))).catch(err => {
-        if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
-        console.warn('[HTTPS-Only] could not show the certificate notice:', err && err.message);
-      });
+      _showVexPage(contents, _httpsCertNotice(u.host, httpUrl), validatedURL, 'certificate notice');
       return;
     }
-    _httpsOnlyFailed.add(bare);
-    const httpUrl = 'http://' + u.host + u.pathname + u.search + u.hash;
-    // loadURL rejects when the load fails, and that went unhandled (found
-    // 2026-09-30). ERR_ABORTED (-3) is the page going somewhere else first;
-    // any other failure is shown in the tab by Chromium, and logged here.
-    contents.loadURL(httpUrl).catch(err => {
-      if (err && (err.errno === -3 || /ERR_ABORTED/.test(err.message))) return;
-      console.warn('[HTTPS-Only] could not load ' + httpUrl + ' over http:', err && err.message);
-    });
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', bare + ' has no HTTPS — loaded over an unencrypted connection'); } catch {}
+    _httpsNoHttpsShown.set(contents.id, { bare, httpUrl, failedUrl: validatedURL });
+    _showVexPage(contents, _httpsOnly.noHttpsPage(u.host, httpUrl), validatedURL, 'no-HTTPS page');
+  });
+  // "Continue" on the no-HTTPS page: that site loads over http until Vex
+  // closes. Only a click on the page's own link counts: will-navigate is the
+  // page itself navigating (never the address bar or Back), and fires before
+  // the request, so it goes out unupgraded. Any page committing after it
+  // (Back, the address bar) forgets it.
+  contents.on('will-navigate', (evt, url) => {
+    const shown = _httpsNoHttpsShown.get(contents.id);
+    if (!shown) return;
+    _httpsNoHttpsShown.delete(contents.id);
+    let to; try { to = new URL((evt && evt.url) || url); } catch { return; }
+    if (to.protocol === 'http:' && to.hostname.replace(/^www\./, '') === shown.bare) _httpsOnlyFailed.add(shown.bare);
+  });
+  contents.on('did-navigate', (_e, url) => {
+    const shown = _httpsNoHttpsShown.get(contents.id);
+    if (shown && url !== shown.failedUrl && !/^data:/i.test(url || '')) _httpsNoHttpsShown.delete(contents.id);
   });
   // A clean main-frame load means there's no pending upgrade left to fall back
   // for on this tab — clearing avoids a stale entry ever downgrading a later nav.
@@ -7018,7 +7058,7 @@ ipcMain.handle('identity:create', () => {
       const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
         && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
       if (blocked) _recordTracker(details.url, details.webContentsId);
-      callback({ cancel: blocked });
+      callback(blocked ? { cancel: true } : _httpsAnswer(details));
     });
     try { attachGuestPreloads(ses); } catch {}
     return { ok: true, partition: part, label: `Chrome ${v}` };
@@ -7236,7 +7276,7 @@ ipcMain.handle('tor:create', async (event) => {
     ses.webRequest.onBeforeRequest((details, callback) => {
       const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url));
       if (blocked) _recordTracker(details.url, details.webContentsId);
-      callback({ cancel: blocked });
+      callback(blocked ? { cancel: true } : _httpsAnswer(details));
     });
     try { attachGuestPreloads(ses); } catch {}
     // Armed now in case the tab is never made; the tab's page cancels it.
@@ -7635,7 +7675,7 @@ function _wireEphemeralBrowsing(ses, tag) {
     const blocked = adBlockerEnabled && (engineBlocks(details) === true || shouldBlock(details.url))
       && !_adsAllowedOn(_pageUrlOf(details.webContentsId), ses);
     if (blocked) _recordTracker(details.url, details.webContentsId);
-    callback({ cancel: blocked });
+    callback(blocked ? { cancel: true } : _httpsAnswer(details));
   });
   ses.setUserAgent(CHROME_UA);
   wireClientHintsOnSession(ses);

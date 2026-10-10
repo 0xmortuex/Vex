@@ -95,21 +95,42 @@ describe('switching a session to Tor', () => {
   });
 });
 
-describe('HTTPS-Only falling back to http', () => {
+// HTTPS-Only no longer falls back to http by itself (SE4): it shows a page
+// (_showVexPage). That load rejecting is still handled.
+describe('HTTPS-Only showing its page in place of a failed load', () => {
   it('handles the load rejecting: -3 is expected, anything else is logged', async () => {
-    const block = between("contents.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {", "// A clean main-frame load");
-    expect(block).not.toContain('try { contents.loadURL(httpUrl); } catch {}');
-    const handler = block.slice(block.indexOf('const httpUrl'), block.indexOf("try { if (mainWindow"));
+    const fn = between('function _showVexPage(', '\n}\n') + '\n}';
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const err of [Object.assign(new Error('ERR_ABORTED (-3) loading'), { errno: -3 }), new Error('ERR_CONNECTION_REFUSED (-102)')]) {
-      const contents = { loadURL: vi.fn(() => Promise.reject(err)) };
-      new Function('contents', 'u', handler)(contents, new URL('https://plain.example/a?b#c'));
+      const contents = { loadURL: vi.fn(() => Promise.reject(err)), on: vi.fn(), removeListener: vi.fn() };
+      new Function(fn + '\nreturn _showVexPage;')()(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page');
       await new Promise(r => setTimeout(r, 0));
-      expect(contents.loadURL).toHaveBeenCalledWith('http://plain.example/a?b#c');
+      expect(contents.loadURL).toHaveBeenCalledWith('data:text/html;charset=utf-8,' + encodeURIComponent('<p>x</p>'));
     }
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][1])).toContain('ERR_CONNECTION_REFUSED');
     warn.mockRestore();
+  });
+  it('takes the failed address out of the history once the page has committed', async () => {
+    const fn = between('function _showVexPage(', '\n}\n') + '\n}';
+    const removed = [];
+    let active = 1;
+    const entries = [{ url: 'https://before.example/' }, { url: 'https://plain.example/a' }, { url: 'data:text/html,x' }];
+    const listeners = {};
+    const contents = {
+      // Settles on the error page's own load, before the new page is there.
+      loadURL: vi.fn(() => Promise.resolve()),
+      on: (ev, fn2) => { listeners[ev] = fn2; },
+      removeListener: (ev) => { delete listeners[ev]; },
+      navigationHistory: { getActiveIndex: () => active, getEntryAtIndex: (i) => entries[i], removeEntryAtIndex: (i) => { removed.push(i); return true; } },
+    };
+    new Function(fn + '\nreturn _showVexPage;')()(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page');
+    await new Promise(r => setTimeout(r, 0));
+    expect(removed).toEqual([]);                     // not on the promise
+    active = 2;
+    listeners['did-navigate']({}, 'data:text/html;charset=utf-8,' + encodeURIComponent('<p>x</p>'));
+    expect(removed).toEqual([1]);
+    expect(listeners['did-navigate']).toBeUndefined();
   });
 });
 
