@@ -131,6 +131,8 @@ const TabManager = {
   // expansion is transient). A newly created stack is collapsed by default
   // because its id is absent from this Set.
   _expandedStackIds: new Set(),
+  // A private window's closed tabs, in memory only (closeTab, reopenLastClosed).
+  _closedInPrivate: [],
   // Legacy seed groups (CUSA/School/Dev/Chat) removed — groups now start
   // empty. Users create groups via right-click "New group from this tab"
   // or the Phase 16 AI auto-grouper (Ctrl+Shift+G).
@@ -415,7 +417,9 @@ const TabManager = {
     // A copy (duplicateTab) goes straight after its original, not after the
     // tabs the original opened, and starts no run of its own.
     const adjacent = !!(opts && opts.rightAfterOpener);
-    const at = this._insertIndexFor(tab, opener, adjacent);
+    // A reopened tab goes back to its old place (reopenLastClosed).
+    const at = Number.isInteger(opts?.atIndex) ? Math.max(0, Math.min(opts.atIndex, this.tabs.length))
+      : this._insertIndexFor(tab, opener, adjacent);
     this.tabs.splice(at, 0, tab);
     if (opener && !adjacent) this._openerRun = { openerId: opener.id, lastId: tab.id };
     WebviewManager.createWebview(tab);
@@ -620,12 +624,23 @@ const TabManager = {
     // Save to recently closed before destroying (skip during bulk ops)
     if (!this._bulkClosing) {
       const tab = this.tabs[idx];
+      // Its place in the list and its group as it was, so Reopen puts it back
+      // there and makes the group again if it went with its last tab (it came
+      // back at the far end, ungrouped: found 2026-10-10).
+      const where = { index: idx, group: tab && tab.groupId ? { ...(this.groups.find(g => g.id === tab.groupId) || {}) } : null };
+      if (where.group && !where.group.id) where.group = null;
       if (tab && !isStartPage(tab.url) && (window.VexTabPolicy ? window.VexTabPolicy.canPersist(tab) : (!tab.partition || String(tab.partition).startsWith('persist:')))) {
         const list = getRecentlyClosed();
         list.unshift({
-          ...(window.VexTabPolicy?.serialize(tab, { history: true }) || { url: tab.url, title: tab.title, favicon: tab.favicon, groupId: tab.groupId, partition: tab.partition || null }), closedAt: new Date().toISOString()
+          ...(window.VexTabPolicy?.serialize(tab, { history: true }) || { url: tab.url, title: tab.title, favicon: tab.favicon, groupId: tab.groupId, partition: tab.partition || null }), closedAt: new Date().toISOString(), ...where
         });
         saveRecentlyClosed(list);
+      } else if (tab && !isStartPage(tab.url) && window.VexTabPolicy?.isPrivateWindow) {
+        // A private window writes nothing down, so Ctrl+Shift+T had nothing to
+        // reopen there. Its closed tabs are kept in memory, for as long as the
+        // window is open, and forgotten with it.
+        this._closedInPrivate.unshift({ ...window.VexTabPolicy.serialize(tab, { history: true }), ...where });
+        if (this._closedInPrivate.length > MAX_RECENTLY_CLOSED) this._closedInPrivate.length = MAX_RECENTLY_CLOSED;
       }
     }
 
@@ -2895,15 +2910,36 @@ const TabManager = {
 
   // === Recently Closed ===
   reopenLastClosed() {
-    const list = getRecentlyClosed();
+    const inPrivate = !!window.VexTabPolicy?.isPrivateWindow;
+    const list = inPrivate ? this._closedInPrivate : getRecentlyClosed();
     if (list.length === 0) {
       window.showToast?.('No recently closed tabs');
       return;
     }
     const last = list.shift();
-    saveRecentlyClosed(list);
-    if (window.VexTabPolicy && !window.VexTabPolicy.canRestore(last)) return;
-    this.createTab(last.url, true, this.groups.some(group => group.id === last.groupId) ? last.groupId : null, { ...last, allowDuplicate: true });
+    if (!inPrivate) saveRecentlyClosed(list);
+    // A private window's own tabs are in its own (unsaved) session, which is
+    // still open while the window is.
+    if (!inPrivate && window.VexTabPolicy && !window.VexTabPolicy.canRestore(last)) return;
+    // Back in its group: the one still open, or the group made again as it
+    // was when its last tab closed. Open, so the tab is seen.
+    let groupId = null;
+    if (last.groupId) {
+      let group = this.groups.find(g => g.id === last.groupId);
+      if (!group && last.group && last.group.id === last.groupId) {
+        group = { ...last.group };
+        this.groups.push(group);
+      }
+      if (group) {
+        groupId = group.id;
+        group.collapsed = false;
+        VexStorage.saveGroups(this.groups);
+      }
+    }
+    const { index, group, ...saved } = last;
+    this.createTab(last.url, true, groupId, { ...saved, allowDuplicate: true, atIndex: Number.isInteger(index) ? index : null });
+    // A group made again, or opened, is drawn with the tab in it.
+    if (groupId) this.rebuildAllTabs();
     // A snoozed tab is also a closed one; back now, it must not come back a
     // second time when the snooze is due (found 2026-09-29).
     if (typeof TabSnooze !== 'undefined') TabSnooze.forgetUrl(last.url);

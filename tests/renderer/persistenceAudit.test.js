@@ -91,7 +91,9 @@ describe('private tab persistence boundaries', () => {
     TM.reopenLastClosed();
     // allowDuplicate: reopening a closed tab is asking for that page again,
     // even when it is open somewhere (js/duplicate-tabs.js).
-    expect(create).toHaveBeenCalledWith(record.url, true, null, { ...record, allowDuplicate: true });
+    // A record from before tabs remembered their place has no index: it goes
+    // where a new tab goes (atIndex null; reopenClosedPlace.test.js).
+    expect(create).toHaveBeenCalledWith(record.url, true, null, { ...record, allowDuplicate: true, atIndex: null });
   });
   it('excludes ephemeral tabs from sessions, workspaces and automatic snapshots', () => {
     TM.tabs = seedTabs(); TM.activeTabId = 't3';
