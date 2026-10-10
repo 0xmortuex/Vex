@@ -30,6 +30,17 @@ beforeEach(() => {
   AgentLoop._running = false; AgentLoop._mode = 'ask'; AgentLoop._planApproved = false;
 });
 
+describe('Undo of a run that made a schedule', () => {
+  it('removes the schedule create_schedule recorded (undo kind "schedule")', async () => {
+    globalThis.Scheduler = { getTask: vi.fn(() => ({ id: 's1' })), deleteTask: vi.fn() };
+    localStorage.setItem('vex.agentRuns', JSON.stringify([{ id: 'run1', goal: 'every morning check x', steps: [{}], undo: [{ kind: 'schedule', id: 's1', label: 'the schedule "Check x"' }], calls: [] }]));
+    const r = await AgentLoop.undoRun('run1');
+    expect(r.undone).toEqual(['the schedule "Check x"']);
+    expect(Scheduler.deleteTask).toHaveBeenCalledWith('s1');
+    delete globalThis.Scheduler;
+  });
+});
+
 describe('Repeat a task (Ctrl+K) permission mode', () => {
   it('asks before each step when the chosen mode is "Approve manually", even after an auto-approve run', async () => {
     script([{ tool: 'finish', parameters: { summary: 'done' } }]);

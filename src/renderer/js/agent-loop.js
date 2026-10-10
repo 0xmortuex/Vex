@@ -769,7 +769,7 @@ const AgentLoop = {
   // Undo what a run MADE. Deliberately only Vex's own things: what it did on a
   // web page is the page's business and cannot be taken back from here, and
   // pretending otherwise would be worse than saying so.
-  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting'],
+  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting', 'schedule'],
 
   async undoRun(id) {
     const run = this.runs().find(r => r.id === id);
