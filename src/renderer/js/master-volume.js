@@ -95,9 +95,14 @@ const MasterVolume = {
           var t=0; try{ t=m.currentTime; }catch(e){}
           var wasPlaying=!m.paused;
           rec.corsTried=true;
+          // Until the reload answers, crossOrigin says "anonymous" but nothing
+          // is known: a second slider move tapped it then, and a server that
+          // refused (one on this computer or the local network gets no
+          // header from Vex) left it tapped and silent.
+          rec.corsPending=true;
           m.crossOrigin='anonymous';
-          var onErr=function(){ try{ m.removeEventListener('error',onErr); m.crossOrigin=null; m.load(); try{ m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); }catch(e){} };
-          var onReady=function(){ try{ m.removeEventListener('canplay',onReady); m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); resume(); hook(m); };
+          var onErr=function(){ try{ m.removeEventListener('error',onErr); m.removeEventListener('canplay',onReady); m.crossOrigin=null; m.load(); try{ m.currentTime=t; }catch(e){} if(wasPlaying) m.play().catch(function(){}); }catch(e){} rec.corsPending=false; };
+          var onReady=function(){ try{ m.removeEventListener('canplay',onReady); m.removeEventListener('error',onErr); m.currentTime=t; }catch(e){} rec.corsPending=false; if(wasPlaying) m.play().catch(function(){}); resume(); hook(m); };
           m.addEventListener('error',onErr,{once:true});
           m.addEventListener('canplay',onReady,{once:true});
           m.load();
@@ -126,7 +131,7 @@ const MasterVolume = {
             rec={gain:null,corsTried:false,base:null,wrote:null};
             map.set(m,rec);
           }
-          if(!rec.gain && st.g>1 && !isDrm(m)){
+          if(!rec.gain && st.g>1 && !isDrm(m) && !rec.corsPending){
             if(canTap(m)) tap(m,rec);
             // Cross-origin, not yet tried: convert to CORS + reload, then re-hook.
             else if(!rec.corsTried){ if(makeCors(m,rec)) return; }

@@ -2072,15 +2072,9 @@ const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${
 // Add Access-Control-Allow-Origin to MEDIA responses so cross-origin <video>/
 // <audio> can be routed through Web Audio for the Master Volume boost (>100%).
 // Without CORS, tapping a cross-origin media element silences it, so boost falls
-// back to 100%. Scoped to media resource loads only; harmless for non-CORS
-// requests (the browser ignores ACAO when the request had no Origin).
-function _addMediaCorsHeaders(details, responseHeaders) {
-  try {
-    if (!responseHeaders || details.resourceType !== 'media') return;
-    const has = Object.keys(responseHeaders).some(k => k.toLowerCase() === 'access-control-allow-origin');
-    if (!has) responseHeaders['Access-Control-Allow-Origin'] = ['*'];
-  } catch {}
-}
+// back to 100%. Scoped to media resource loads from servers on the internet:
+// never this computer or the local network (src/main/media-cors.js).
+const { addMediaCorsHeaders: _addMediaCorsHeaders } = require('./main/media-cors');
 
 function wireClientHintsOnSession(ses) {
   if (!ses || ses.__vexCHWired) return;
