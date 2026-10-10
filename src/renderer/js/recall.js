@@ -146,7 +146,13 @@ const Recall = {
       const res = await AIRouter.callAI('chat', { message:
         `I'm searching the full text of pages I've already read for: "${q}".\n` +
         `List up to 6 alternative search queries — synonyms, related concepts, and specific terms — that would surface relevant pages. Return ONLY the queries, one per line, no numbering or commentary.` });
-      const out = String((res && (res.result || res.text || res.message)) || '');
+      let out = String((res && (res.result || res.text || res.message)) || '');
+      // A chat answer can come in the chat's JSON envelope ({"reply": …}),
+      // which is what the local model sends: read as lines, it was one line
+      // too long to be a query, so the search was never widened (found
+      // 2026-10-10).
+      try { const env = JSON.parse(out); if (env && typeof env.reply === 'string') out = env.reply; }
+      catch { /* plain text: the lines themselves */ }
       terms = out.split('\n').map(s => s.replace(/^[-*\d.)\s]+/, '').trim())
         .filter(s => s && s.length <= 60 && s.toLowerCase() !== q.toLowerCase()).slice(0, 6);
     } catch { return base; }

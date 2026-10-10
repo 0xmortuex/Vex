@@ -49,6 +49,19 @@ describe('Tab grouping with AI', () => {
   });
 });
 
+describe('Recall smart search on a local model', () => {
+  it('expands the query when the local chat backend answers in its {"reply": …} envelope', async () => {
+    const { Recall } = require('../../src/renderer/js/recall.js');
+    const searched = [];
+    window.vex = { recallSearch: vi.fn(async (q) => { searched.push(q); return { total: 0, hits: [], terms: [], took: 1 }; }) };
+    globalThis.AIRouter = { callAI: vi.fn(async () => ({ result: JSON.stringify({ reply: 'dpi throttling\nzapret bypass\ndeep packet inspection', citations: [], suggestedFollowUps: [] }), backend: 'local' })) };
+    const res = await Recall.searchSmart('isp blocking discord', {});
+    expect(searched).toContain('zapret bypass');
+    expect(res.expanded).toEqual(['dpi throttling', 'zapret bypass', 'deep packet inspection']);
+    delete window.vex;
+  });
+});
+
 describe('On-device AI after a restart', () => {
   function freshRouter() {
     vi.resetModules();
