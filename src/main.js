@@ -2265,11 +2265,16 @@ function wireMediaSnifferOnSession(ses) {
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
+// Save dialogs open over the window that asked, in the folder chosen in
+// Settings > Downloads: they opened over the main window from a private one,
+// and always in Downloads (audit RD9, RD10, 2026-10-10).
+const _askingWindow = (e) => BrowserWindow.fromWebContents(e.sender) || undefined;
+const _chosenDownloadFolder = () => _downloadPrefs.current().folder;
 const _pageSave = require('./main/page-save').createPageSave({
-  webContents, dialog, app, getWindow: () => mainWindow,
+  webContents, dialog, app, downloadFolder: _chosenDownloadFolder,
 });
 ipcMain.handle('page:save', async (_e, wcId, format, title) => {
-  try { return await _pageSave.save(wcId, format, title); }
+  try { return await _pageSave.save(wcId, format, title, _askingWindow(_e)); }
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not save the page' }; }
 });
 
@@ -2320,7 +2325,7 @@ ipcMain.handle('crawl:fetch', async (_e, url, accept) => {
 // Screen recordings, appended to a temporary file chunk by chunk so a long
 // recording never sits in memory (src/main/recordings.js).
 const _recordings = require('./main/recordings').createRecordings({
-  fs, path, dialog, app, getWindow: () => mainWindow,
+  fs, path, dialog, app, downloadFolder: _chosenDownloadFolder,
   dir: path.join(app.getPath('userData'), 'recordings-in-progress'),
   randomId: () => require('crypto').randomBytes(8).toString('hex'),
 });
@@ -2334,7 +2339,7 @@ ipcMain.handle('rec:own-window', (e) => {
 });
 ipcMain.handle('rec:start', (_e, ext) => { try { return { ok: true, ..._recordings.start(ext) }; } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:chunk', async (_e, id, bytes) => { try { return { ok: true, ...(await _recordings.chunk(id, bytes)) }; } catch (err) { return { ok: false, error: err.message }; } });
-ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name); } catch (err) { return { ok: false, error: err.message }; } });
+ipcMain.handle('rec:finish', async (_e, id, name) => { try { return await _recordings.finish(id, name, _askingWindow(_e)); } catch (err) { return { ok: false, error: err.message }; } });
 ipcMain.handle('rec:cancel', async (_e, id) => { try { return await _recordings.cancel(id); } catch (err) { return { ok: false, error: err.message }; } });
 
 // The whole page in one image, not one screenful (src/main/full-page-capture.js).
@@ -8278,8 +8283,8 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
       ? [{ name: 'Markdown', extensions: ['md'] }]
       : [{ name: 'Text', extensions: ['txt'] }];
   const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
-  const r = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
-    title: 'Save', defaultPath: path.join(app.getPath('downloads'), safeName), filters,
+  const r = await dialog.showSaveDialog(_askingWindow(_e), {
+    title: 'Save', defaultPath: path.join(_chosenDownloadFolder() || app.getPath('downloads'), safeName), filters,
   });
   if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
   await fs.promises.writeFile(r.filePath, String(text || ''), 'utf8');
@@ -8347,8 +8352,8 @@ ipcMain.handle('tabs:favicon', (_e, guestId, url) => _faviconFetch.fetchIcon(gue
 ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {
   const book = require('./main/epub').buildEpub({ title, url, xhtmlBody: xhtml });
   const safeName = (String(title || 'page').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'page') + '.epub';
-  const r = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
-    title: 'Save as an e-book', defaultPath: path.join(app.getPath('downloads'), safeName), filters: [{ name: 'E-book', extensions: ['epub'] }],
+  const r = await dialog.showSaveDialog(_askingWindow(_e), {
+    title: 'Save as an e-book', defaultPath: path.join(_chosenDownloadFolder() || app.getPath('downloads'), safeName), filters: [{ name: 'E-book', extensions: ['epub'] }],
   });
   if (r.canceled || !r.filePath) return { ok: false, cancelled: true };
   await fs.promises.writeFile(r.filePath, book);
