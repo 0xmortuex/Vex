@@ -1607,7 +1607,11 @@ const WebviewManager = {
       linkItems.push({ sep: true });
       linkItems.push({
         label: 'Open Link in New Tab',
-        action: () => TabManager.createTab(e.params.linkURL, true, null, { partition: webview.getAttribute?.("partition") })
+        // Next to this tab, in its group, as a clicked link opens (js/app.js).
+        action: () => {
+          const from = TabManager.tabs.find(t => t.id === webview.dataset.tabId);
+          TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
+        }
       });
       linkItems.push({
         // Copy where it really GOES, without what identifies you: a wrapped

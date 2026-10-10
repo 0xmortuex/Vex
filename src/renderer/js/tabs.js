@@ -401,18 +401,26 @@ const TabManager = {
     // Screened once its session is known: a routed tab never wears a web address.
     tab.favicon = this._persistableFavicon(opts?.favicon, tab.partition);
 
+    // A tab opened from a link names the tab it came from (opts.openerTabId).
+    const opener = opts && opts.openerTabId ? this.tabs.find(t => t.id === opts.openerTabId) || null : null;
+
     // Where this tab came from: the page that was in front when it opened
     // (js/tab-trail.js). A tab opened from nothing records nothing.
-    if (typeof TabTrail !== 'undefined') TabTrail.record(tab, this.getActiveTab());
+    if (typeof TabTrail !== 'undefined') TabTrail.record(tab, opener || this.getActiveTab());
 
-    this.tabs.push(tab);
+    const at = this._insertIndexFor(tab, opener);
+    this.tabs.splice(at, 0, tab);
+    if (opener) this._openerRun = { openerId: opener.id, lastId: tab.id };
     WebviewManager.createWebview(tab);
     // A site rule can also say how the tab behaves once it is open — muted,
     // or never allowed to sleep (js/site-routes.js).
     if (typeof SiteRoutes !== 'undefined') {
       try { SiteRoutes.applyTo(tab); } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
     }
-    this.renderTab(tab);
+    // The sidebar adds a tab at the end of its list; one placed before others
+    // is drawn again in place (the top strip draws from the list itself).
+    if (at < this.tabs.length - 1) this.rebuildAllTabs();
+    else this.renderTab(tab);
 
     if (activate) {
       this.switchTab(id);
@@ -420,6 +428,29 @@ const TabManager = {
 
     this.persistTabs();
     return tab;
+  },
+
+  // Where a new tab goes in the list. One opened from a link went to the far
+  // end (found 2026-10-10); as in Chrome and Firefox it now goes next to the
+  // tab it came from, after the ones that tab opened before it while it stayed
+  // in front (_openerRun; switching tabs ends the run). The strips draw each
+  // section (pinned, each group, loose tabs, stacks) in list order, so only
+  // the new tab's own section counts: one opened from a pinned tab goes first
+  // among its loose tabs, and one opened from a stacked tab, or into another
+  // section than its opener's, at the end. A new tab from + or Ctrl+T, which
+  // has no opener, goes at the end as before.
+  _insertIndexFor(tab, opener) {
+    const end = this.tabs.length;
+    if (!opener || opener.stackId) return end;
+    const sameSection = t => !t.pinned && !t.stackId && (t.groupId || null) === (tab.groupId || null);
+    const run = this._openerRun;
+    const last = run && run.openerId === opener.id ? this.tabs.find(t => t.id === run.lastId && sameSection(t)) : null;
+    if (last) return this.tabs.indexOf(last) + 1;
+    if (opener.pinned) {
+      const first = this.tabs.findIndex(sameSection);
+      return first < 0 ? end : first;
+    }
+    return sameSection(opener) ? this.tabs.indexOf(opener) + 1 : end;
   },
 
   // === Back and forth between two tabs ======================================
@@ -455,6 +486,8 @@ const TabManager = {
     // The one you were on a moment ago, for the back-and-forth key
     // (lastUsedTab below). Alt+Tab for tabs, without holding anything.
     if (this.activeTabId && this.activeTabId !== id) this._previousTabId = this.activeTabId;
+    // Going to another tab ends the run of tabs opened next to one (_insertIndexFor).
+    if (this._openerRun && this._openerRun.openerId !== id) this._openerRun = null;
 
     // Hide any active panel
     SidebarManager.hideActivePanel();

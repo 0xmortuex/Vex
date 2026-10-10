@@ -5290,6 +5290,9 @@ app.on('web-contents-created', (_event, contents) => {
             // A Tor / burner / private / container tab's link stays in that
             // session; it opened in persist:main before (found 2026-09-29).
             partition: require('./main/routing').keepsOpenerSession(openerPartition) ? openerPartition : undefined,
+            // The page the link was in, so the tab opens next to its own
+            // (js/app.js); it went to the far end (found 2026-10-10).
+            opener: contents.id,
           });
         }
       }

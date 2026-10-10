@@ -1283,10 +1283,14 @@ function vexOwnTextFocused(doc) {
     console.log('[Tabs] external link -> new tab:', data.url, 'background:', !!data.background);
     // Tab-Islands-style ambient grouping: a tab opened FROM a grouped tab
     // joins that tab's group automatically.
-    const opener = TabManager.getActiveTab();
+    // A link or window.open in a tab names that tab's page (main.js), and the
+    // new tab goes next to it (TabManager._insertIndexFor). From anywhere else
+    // (another app, an extension) it goes at the end.
+    const linked = Number.isSafeInteger(data.opener) ? TabManager.tabsByPageId([data.opener]).tabs[0] : null;
+    const opener = linked || TabManager.getActiveTab();
     const inheritGroup = (opener && opener.groupId) || null;
     let created;
-    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
+    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition, openerTabId: linked ? linked.id : null }); }
     catch (err) {
       console.error('[Tabs] createTab failed:', err.message);
       if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
