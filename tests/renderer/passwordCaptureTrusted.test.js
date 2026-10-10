@@ -14,7 +14,7 @@ const SECTION = SRC.slice(SRC.indexOf('// === Password capture'), SRC.indexOf('/
 
 // Runs the page side with a document whose listeners the test calls directly,
 // so it can hand them a trusted or an untrusted event.
-function pageSide(url) {
+function pageSide(url, activation = { isActive: true }) {
   const sent = [];
   const handlers = {};
   const doc = {
@@ -22,7 +22,7 @@ function pageSide(url) {
     querySelectorAll: (s) => document.querySelectorAll(s),
   };
   const ipcRenderer = { sendToHost: (channel, payload) => sent.push({ channel, payload }) };
-  new Function('require', 'location', 'document', SECTION)(() => ({ ipcRenderer }), new URL(url), doc);
+  new Function('require', 'location', 'document', 'navigator', SECTION)(() => ({ ipcRenderer }), new URL(url), doc, { userActivation: activation });
   const fire = (name, event) => { for (const fn of handlers[name] || []) fn(event); };
   return { sent, fire };
 }
@@ -43,6 +43,17 @@ describe('page side', () => {
     expect(sent.filter(m => m.channel === 'vex-cred-submit')).toEqual([
       { channel: 'vex-cred-submit', payload: { host: 'acct.example', username: 'me@acct.example', password: 'hunter22' } },
     ]);
+  });
+
+  it('ignores a trusted submit the page started itself, with no click or key press just before', () => {
+    document.body.innerHTML = '<form><input name="email" value="me@acct.example"><input type="password" value="hunter22"></form>';
+    const activation = { isActive: false };
+    const { sent, fire } = pageSide('https://acct.example/login', activation);
+    fire('submit', { isTrusted: true, target: document.querySelector('form') });   // form.requestSubmit()
+    expect(sent.some(m => m.channel === 'vex-cred-submit')).toBe(false);
+    activation.isActive = true;                                                  // the person just clicked
+    fire('submit', { isTrusted: true, target: document.querySelector('form') });
+    expect(sent.some(m => m.channel === 'vex-cred-submit')).toBe(true);
   });
 
   it('sends the first step\'s username, and the password step with no username', () => {

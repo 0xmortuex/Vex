@@ -1560,7 +1560,11 @@ function _isVexStartPage(href) {
 
   // Only the person's own submit, Enter or click: a page's script could
   // otherwise dispatch a fake one and pop the save card whenever it liked.
-  document.addEventListener("submit", (e) => { if (!e.isTrusted) return; tryCapture(); rememberEmail(); }, true);
+  // A submit the page starts itself (form.requestSubmit(), or a script-made
+  // click on its button) still arrives trusted, so it also needs the page to
+  // have just had a real click or key press (seen live, 2026-10-10).
+  const justActed = () => { try { return !!(navigator.userActivation && navigator.userActivation.isActive); } catch { return false; } };
+  document.addEventListener("submit", (e) => { if (!e.isTrusted || !justActed()) return; tryCapture(); rememberEmail(); }, true);
   document.addEventListener("keydown", (e) => {
     if (!e.isTrusted || e.key !== "Enter") return;
     const el = e.target;
