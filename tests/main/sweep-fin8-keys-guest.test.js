@@ -31,10 +31,10 @@ describe('guest keys the registry answers keep their name', () => {
 });
 
 describe('Reload, Back and Forward from inside a page', () => {
-  it('Ctrl+R reloads (Ctrl+Shift+R stays the hard reload handled in main.js)', () => {
+  it('Ctrl+R reloads (Ctrl+Shift+R stays the hard reload)', () => {
     expect(shortcutFor(key('r'))).toEqual({ channel: 'reload-tab' });
     expect(shortcutFor(key('r'), { wanted: new Set(['Ctrl+R']) })).toEqual({ channel: 'reload-tab' });
-    expect(shortcutFor(key('R', { shift: true }))).toBe(null);
+    expect(shortcutFor(key('R', { shift: true }))).toEqual({ channel: 'hard-reload-tab' });
   });
 
   it('Alt+Left / Alt+Right go back and forward', () => {

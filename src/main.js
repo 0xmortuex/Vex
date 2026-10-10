@@ -542,24 +542,6 @@ app.on('web-contents-created', (_e, contents) => {
   });
 });
 
-// Ctrl+Shift+R — hard reload (clear cache + reload). Like F11/F12, this must
-// work even when a <webview> guest has focus: keydown inside a guest does NOT
-// bubble to the host document, so the renderer's ShortcutsRegistry never sees
-// it there. We catch it in the guest's before-input-event and tell the renderer
-// to hard-reload the active tab. (The renderer still handles the chrome-focused
-// case via ShortcutsRegistry; the two focus states are mutually exclusive, so
-// there's no double-trigger.)
-function handleHardReloadShortcut(event, input) {
-  if (!mainWindow || !input || input.type !== 'keyDown') return false;
-  if (input.control && input.shift && !input.alt && !input.meta &&
-      (input.key === 'R' || input.key === 'r')) {
-    event.preventDefault();
-    mainWindow.webContents.send('hard-reload-tab');
-    return true;
-  }
-  return false;
-}
-
 // Forward the core browser-navigation shortcuts from a focused GUEST page to the
 // renderer. before-input-event only fires where focus is, so without this the
 // user's tab/URL/zoom shortcuts do nothing the moment they click into a web page
@@ -620,8 +602,8 @@ ipcMain.handle('shortcuts:capturing', (event, on) => {
 ipcMain.on('guest:page-shortcut', (event, report) => {
   const win = _shortcutWindow(event.sender);
   if (!win) return;
-  const hit = pageShortcut(report);
-  if (hit) win.webContents.send(hit.channel);
+  const hit = pageShortcut(report, { wanted: _guestWantedKeys });
+  if (hit) win.webContents.send(hit.channel, ...(hit.args || []));
 });
 
 // The window a page's key belongs to: its own. Every key went to the main
@@ -5377,18 +5359,14 @@ app.on('web-contents-created', (_event, contents) => {
       console.log('[Vex F11] before-input-event fired on GUEST webContents id:', contents.id, 'type:', input.type);
     }
     if (handleFullscreenShortcut(event, input)) return;
-    if (handleHardReloadShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
     if (handleDictateShortcut(event, input)) return;
     if (handleCommandBarShortcut(event, input, contents)) return;
     // An extension's shortcut (chrome.commands), before the page hears it.
     if (handleExtensionCommandKey(event, input, contents)) return;
-    if (handleBrowserShortcut(event, input, contents)) return;
-    // Ctrl+Alt+L locks Vex (js/vex-lock.js) even with a page focused.
-    if (input && input.type === 'keyDown' && input.control && input.alt && !input.shift && (input.key || '').toLowerCase() === 'l' && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('lock-vex');
-      event.preventDefault();
-    }
+    // Ctrl+Shift+R (hard reload) and Ctrl+Alt+L (lock) too, following a
+    // rebind (main/guest-shortcuts.js BROWSER_KEYS).
+    handleBrowserShortcut(event, input, contents);
   });
 });
 

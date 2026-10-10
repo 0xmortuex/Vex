@@ -2714,7 +2714,12 @@ if (typeof module !== 'undefined' && module.exports) {
   // from it was refused as an untrusted sender (2026-10-08).
   if (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.indexOf('--vex-web-window') !== -1) return;
   var PAGE_FIRST_PLAIN = 'bhmdpu';
-  var PAGE_FIRST_SHIFTED = 'oszamlh';
+  var PAGE_FIRST_SHIFTED = 'oszamlhnp';
+  // Any other Ctrl or Ctrl+Shift letter the page left alone is reported too:
+  // main passes it on only when Vex's shortcut list has it (Ctrl+Shift+K,
+  // Ctrl+Shift+F, a key you bound yourself), which did nothing from a page
+  // (found 2026-10-10). Never select all, copy, paste, cut, undo or redo.
+  var PAGE_OWN_PLAIN = 'acvxyz';
   // Chromium's own editing commands never call preventDefault, so a page
   // with no key handler of its own looked as if it had left these alone:
   // Ctrl+B in a plain contenteditable made the text bold AND hid the tab
@@ -2738,7 +2743,7 @@ if (typeof module !== 'undefined' && module.exports) {
     if (!e.isTrusted) return;
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
     var k = String(e.key || '').toLowerCase();
-    if (k.length !== 1 || (e.shiftKey ? PAGE_FIRST_SHIFTED : PAGE_FIRST_PLAIN).indexOf(k) === -1) return;
+    if (!/^[a-z0-9]$/.test(k) || (!e.shiftKey && PAGE_OWN_PLAIN.indexOf(k) !== -1)) return;
     // The element really focused, inside a shadow root too.
     var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
     if (nativeEditKey(path[0] || e.target, k, !!e.shiftKey)) return;

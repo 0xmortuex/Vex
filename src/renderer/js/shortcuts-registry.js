@@ -167,6 +167,7 @@ const ShortcutsRegistry = (() => {
     const all = getAllShortcuts();
     // A key saved before the rule in whyNotAKey is never handed to main.
     const combos = Object.values(all).filter(d => d.current && d.hasHandler && !whyNotAKey(d.current)).map(d => d.current);
+    combos.push(...Object.keys(WINDOW_KEYS));
     try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
     catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
   }
@@ -252,6 +253,12 @@ const ShortcutsRegistry = (() => {
   };
   for (let n = 1; n <= 8; n++) FIXED_KEYS['Ctrl+' + n] = 'Go to tab ' + n;
   FIXED_KEYS['Ctrl+9'] = 'Go to the last tab';
+  // Answered in this window outside the registry (app.js, the first three
+  // command chains). The editor gave them away with no warning, and from
+  // inside a page they did nothing (found 2026-10-10): they are handed to
+  // main with the registry's own keys.
+  const WINDOW_KEYS = { 'Ctrl+Alt+1': 'Run command chain 1', 'Ctrl+Alt+2': 'Run command chain 2', 'Ctrl+Alt+3': 'Run command chain 3' };
+  Object.assign(FIXED_KEYS, WINDOW_KEYS);
 
   function setShortcut(id, combo) {
     const why = whyNotAKey(combo);
