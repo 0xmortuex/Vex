@@ -4718,45 +4718,22 @@ function _watchGestures(contents) {
   contents.on('input-event', (_e, input) => {
     if (input && _mainHelpers.GESTURE_INPUT_TYPES.has(input.type)) _lastGestureAt.set(id, Date.now());
   });
-  contents.once('destroyed', () => _lastGestureAt.delete(id));
+  contents.once('destroyed', () => { _lastGestureAt.delete(id); _popupBlocker.forget(id); });
 }
-// A pop-up (a window the page opened with no click or key from you) on a site
-// whose pop-ups are blocked in its site panel. Said in the window, once in a
-// while, so a site that "does nothing" is explained.
-const _popupRefusalSaid = new Map();      // page id -> when the window was last told
-// What the page's own window.open said just before asking (preload-webview.js,
-// vexPopupActivation): whether its frame had transient user activation — the
-// test Chrome's pop-up blocker uses. Sent synchronously, so it is here before
-// the window request it belongs to.
-const _popupActivation = new Map();       // page id -> { active, at }
-ipcMain.on('popup:activation', (e, active) => {
-  const id = e.sender.id;
-  if (!_popupActivation.has(id)) e.sender.once('destroyed', () => _popupActivation.delete(id));
-  _popupActivation.set(id, { active: active === true, at: Date.now() });
-  e.returnValue = true;
+// The pop-up blocker (src/main/popup-blocker.js): a window a page opens with
+// no click or key press of yours on it is refused, unless the site's pop-ups
+// are allowed (site panel › Pop-ups); the window it was in is told, and its
+// address bar says so (js/popup-blocked.js).
+const _popupBlocker = require('./main/popup-blocker').createPopupBlocker({
+  lastGestureAt: (id) => _lastGestureAt.get(id),
+  sitePopups: (contents, origin) => savedDecision(decisionsFor(contents), origin, ['popups'], sessionDecisionsFor(contents)),
 });
-const POPUP_ACTIVATION_MS = 5000;         // Chromium's transient activation lifespan
-function _popupActivated(contents) {
-  const said = _popupActivation.get(contents.id);
-  _popupActivation.delete(contents.id);
-  if (said && Date.now() - said.at < 2000) return said.active;
-  // A frame the check could not reach (another site's frame in the page):
-  // a click or key in the last five seconds, as long as activation lasts.
-  const last = _lastGestureAt.get(contents.id);
-  return Number.isFinite(last) && Date.now() - last <= POPUP_ACTIVATION_MS;
-}
-function _popupRefused(contents, openerUrl) {
-  if (_popupActivated(contents)) return false;
-  let origin;
-  try { origin = new URL(openerUrl).origin; } catch { return false; }
-  if (!/^https?:/.test(origin)) return false;
-  if (savedDecision(decisionsFor(contents), origin, ['popups'], sessionDecisionsFor(contents)) !== 'deny') return false;
-  console.log(`[new-window] pop-up from ${origin} refused: pop-ups are blocked for this site`);
+function _popupRefused(contents, openerUrl, url) {
+  const { block, origin } = _popupBlocker.judge(contents, openerUrl);
+  if (!block) return false;
+  console.log(`[new-window] pop-up from ${origin || 'a page with no site'} blocked: nobody clicked`);
   const host = secureSessions.owner(contents);
-  if (host && !host.win.isDestroyed() && Date.now() - (_popupRefusalSaid.get(contents.id) || 0) > 10000) {
-    _popupRefusalSaid.set(contents.id, Date.now());
-    host.win.webContents.send('vex:toast', `Blocked a pop-up from ${new URL(origin).hostname} — allow pop-ups from the site icon in the address bar`);
-  }
+  if (host && !host.win.isDestroyed()) host.win.webContents.send('popup:blocked', { pageId: contents.id, origin, url: url || 'about:blank' });
   return true;
 }
 const _externalRefusalSaid = new Map();   // page id|scheme -> when the window was last told
@@ -4926,6 +4903,9 @@ app.on('web-contents-created', (_event, contents) => {
       for (let i = 0; i < 12; i++) {
         if (contents.isDestroyed()) return;
         // userGesture=true → the .click()'s window.open passes the activation gate.
+        // Vex's pop-up blocker is told it was a click too: it is Vex clicking
+        // for you, which no input event says.
+        _lastGestureAt.set(contents.id, Date.now());
         const clicked = await contents.executeJavaScript(clickJs, true).catch(() => false);
         if (clicked) { _claudeGoogleClick.set(contents.id, Date.now()); console.log('[claude-auto-google] clicked Continue with Google'); return; }
         await new Promise(r => setTimeout(r, 400));
@@ -5224,6 +5204,12 @@ app.on('web-contents-created', (_event, contents) => {
     if (handleExternalProtocol(url, contents)) {
       return { action: 'deny' };
     }
+    let openerUrl = '';
+    try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
+    // Pop-up blocker: before anything below lets a window through. A print
+    // or about:blank window, an OAuth sign-in, a link opened in a new tab:
+    // each follows a click on the page, and that click is what lets it open.
+    if (_popupRefused(contents, openerUrl, url)) return { action: 'deny' };
     // Print-preview / client-side PDF generation popups. claude.ai's
     // "Export as PDF" calls window.open('about:blank'), writes formatted HTML
     // into the popup, then printWindow.print() — denying the popup makes the
@@ -5284,12 +5270,6 @@ app.on('web-contents-created', (_event, contents) => {
     // and "Open as tab" dead-ended on a blank stream URL. Give it a plain window
     // pinned to the opener's (persist:discord) partition instead. (about:blank
     // popouts are already handled real-and-plain by the print/blank branch above.)
-    let openerUrl = '';
-    try { openerUrl = contents.getURL() || ''; } catch { /* opener gone */ }
-    // Pop-ups blocked for this site (site panel › Pop-ups): a window the page
-    // opens by itself, without a click or key from you, is refused. A link you
-    // click still opens. The answer lives with the site's other permissions.
-    if (_popupRefused(contents, openerUrl)) return { action: 'deny' };
     if (disposition === 'new-window' && _mainHelpers.isDiscordHostUrl(openerUrl)) {
       console.log(`[new-window] Discord pop-out -> real resizable window -> ${url || '(blank)'}`);
       pendingDiscordPopout = true;

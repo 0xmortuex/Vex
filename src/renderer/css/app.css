@@ -222,6 +222,29 @@ body {
 #url-zoom:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
 #url-zoom:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
 
+/* "Pop-up blocked" when the blocker refused one on this page
+   (js/popup-blocked.js); opens the site panel to allow them. */
+#url-popups {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--vex-border-medium, var(--border));
+  background: transparent;
+  color: var(--vex-text-secondary, var(--text-muted));
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#url-popups[hidden] { display: none; }
+#url-popups:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
+#url-popups:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+
 /* "<site> is full screen — press Esc to exit" (js/fullscreen-notice.js). A
    popover in the top layer, over the page's own fullscreen; dark like
    Chrome's, since it sits on the page (often a video), not on Vex. */

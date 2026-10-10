@@ -44,7 +44,7 @@ const SitePanel = {
     { id: 'microphone', name: 'Microphone', icon: 'mic', common: true },
     { id: 'notifications', name: 'Notifications', icon: 'bell', common: true },
     { id: 'popups', name: 'Pop-ups', icon: 'window', common: true, noAsk: true,
-      note: 'Windows the page opens by itself. A link you click always opens.' },
+      note: 'Blocked: windows the page opens without your click. One you click always opens.' },
     { id: 'clipboard-read', name: 'Read your clipboard', icon: 'clipboard' },
     { id: 'display-capture', name: 'Share your screen', icon: 'monitor' },
     { id: 'midi', name: 'MIDI devices', icon: 'music' },
@@ -382,7 +382,8 @@ const SitePanel = {
 
   _permValue(decisions, origin, p) {
     const v = decisions[origin + '::' + p] || ((p === 'camera' || p === 'microphone') ? decisions[origin + '::media'] : undefined);
-    if (p === 'popups') return v === 'deny' ? 'deny' : 'allow';
+    // Blocked unless allowed (src/main/popup-blocker.js), as in Chrome.
+    if (p === 'popups') return v === 'allow' ? 'allow' : 'deny';
     return v === 'allow' || v === 'deny' ? v : 'ask';
   },
 
@@ -410,6 +411,15 @@ const SitePanel = {
     };
     let html = shown.map(p => row(p.id, p.name, p.icon, this._permValue(decisions, o, p.id), p.noAsk, p.note)).join('');
     html += external.map(p => row(p, 'Open ' + p.slice('external:'.length) + ': links in another program', 'link', this._permValue(decisions, o, p), false, '')).join('');
+    // Pop-ups this page tried to open and the blocker refused (js/popup-blocked.js).
+    const refused = typeof PopupBlocked !== 'undefined' && c.pageId != null ? PopupBlocked.forPage(c.pageId) : null;
+    if (refused && this._permValue(decisions, o, 'popups') !== 'allow') {
+      const n = refused.urls.length;
+      html += `<div class="sp-row sp-popups-blocked">
+        <span class="sp-row-text"><span class="sp-row-label">${this._ico('window', 13)}${n === 1 ? 'A pop-up was blocked' : this._esc(n + ' pop-ups were blocked')}</span><span class="sp-row-note">${this._esc(refused.urls[n - 1])}</span></span>
+        <button type="button" class="sp-btn sp-btn-text" data-act="popups-allow">Allow for this site</button>
+      </div>`;
+    }
     const store = c.privateWindow ? 'Answers here last until this private window closes.'
       : c.ephemeral ? 'Answers here last until this tab closes.'
       : c.container ? `In the “${c.container}” container — its permissions are its own.`
@@ -599,8 +609,8 @@ const SitePanel = {
   async _setPerm(permission, value) {
     const c = this._ctx;
     const def = this.PERMS.find(p => p.id === permission);
-    // Pop-ups are allowed unless blocked: "Allow" forgets the answer.
-    const decision = def && def.noAsk && value === 'allow' ? 'ask' : value;
+    // Pop-ups are blocked unless allowed: "Block" forgets the answer.
+    const decision = def && def.noAsk && value === 'deny' ? 'ask' : value;
     this._decisions = (await window.vex.permissionsSetForPage(c.pageId, permission, decision)) || {};
     this._paint();
   },
@@ -624,6 +634,11 @@ const SitePanel = {
         if (this._certOpen && !this._cert) await this._loadCert();
         return;
       case 'perms-all': this._showAllPerms = true; this._paint(); return;
+      case 'popups-allow':
+        await this._setPerm('popups', 'allow');
+        if (typeof PopupBlocked !== 'undefined') PopupBlocked.clear(c.pageId);
+        window.showToast?.(`Pop-ups allowed for ${c.host} — do again what opened it`, 'success', 3500);
+        return;
       case 'perms-reset': {
         const token = await this._resetPerms(c);
         this._paint();

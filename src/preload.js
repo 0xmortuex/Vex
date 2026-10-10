@@ -308,6 +308,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => subscribe('permission:request', cb),
   onPermissionExpired:  (cb) => subscribe('permission:expired', cb),
+  // A page's pop-up the blocker refused (main/popup-blocker.js): { pageId, origin, url }.
+  onPopupBlocked:       (cb) => subscribe('popup:blocked', cb),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),

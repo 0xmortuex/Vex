@@ -110,8 +110,9 @@ describe('what it shows, from the stores', () => {
     expect(document.getElementById('sp-perm-camera').value).toBe('allow');
     expect(document.getElementById('sp-perm-microphone').value).toBe('allow');
     expect(document.getElementById('sp-perm-notifications').value).toBe('ask');
-    // Pop-ups have no "Ask": allowed unless blocked.
+    // Pop-ups have no "Ask": blocked unless allowed, as in Chrome (SE5).
     expect([...document.getElementById('sp-perm-popups').options].map(o => o.value)).toEqual(['allow', 'deny']);
+    expect(document.getElementById('sp-perm-popups').value).toBe('deny');
     expect(window.vex.permissionsListForPage).toHaveBeenCalledWith(7);
   });
   it('the blocked count adds up the site and its subdomains', async () => {
@@ -144,7 +145,7 @@ describe('what it shows, from the stores', () => {
 });
 
 describe('what it changes, and where', () => {
-  it('a permission goes to main for that page; pop-ups "Allow" forgets the block', async () => {
+  it('a permission goes to main for that page; pop-ups "Allow" is kept, "Block" forgets it (the default)', async () => {
     setup(); const P = load();
     P.open(); await flush(); await flush();
     const sel = document.getElementById('sp-perm-notifications');
@@ -154,7 +155,26 @@ describe('what it changes, and where', () => {
     const pop = document.getElementById('sp-perm-popups');
     pop.value = 'allow'; pop.dispatchEvent(new Event('change', { bubbles: true }));
     await flush();
+    expect(window.vex.permissionsSetForPage).toHaveBeenLastCalledWith(7, 'popups', 'allow');
+    document.getElementById('sp-perm-popups').value = 'deny';
+    document.getElementById('sp-perm-popups').dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
     expect(window.vex.permissionsSetForPage).toHaveBeenLastCalledWith(7, 'popups', 'ask');
+  });
+  it('a pop-up blocked on this page is listed with "Allow for this site"', async () => {
+    setup(); const P = load();
+    globalThis.PopupBlocked = { forPage: (id) => (id === 7 ? { origin: 'https://www.news.example', urls: ['https://www.news.example/share'] } : null), clear: vi.fn() };
+    try {
+      P.open(); await flush(); await flush();
+      const row = document.querySelector('.sp-popups-blocked');
+      expect(row.textContent).toMatch(/A pop-up was blocked/);
+      expect(row.textContent).toContain('https://www.news.example/share');
+      row.querySelector('[data-act="popups-allow"]').click();
+      await flush(); await flush();
+      expect(window.vex.permissionsSetForPage).toHaveBeenLastCalledWith(7, 'popups', 'allow');
+      expect(PopupBlocked.clear).toHaveBeenCalledWith(7);
+      expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/Pop-ups allowed for news\.example/), 'success', 3500);
+    } finally { delete globalThis.PopupBlocked; }
   });
   it('never sleep and always translate land in the lists the rest of Vex reads', async () => {
     setup(); const P = load();
