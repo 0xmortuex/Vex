@@ -293,7 +293,7 @@ const AISettings = (() => {
         <ul style="color:var(--text-muted);font-size:12px;line-height:1.7">
           <li><code>llama3.2:3b</code> &mdash; fast, 2GB, good for most tasks</li>
           <li><code>qwen2.5:3b</code> &mdash; fast, 2GB, strong at structured output</li>
-          <li><code>llama3.2:8b</code> &mdash; slower, 5GB, higher quality</li>
+          <li><code>llama3.1:8b</code> &mdash; slower, 5GB, higher quality</li>
           <li><code>gemma2:2b</code> &mdash; very fast, 1.6GB, minimal quality</li>
         </ul>
         <h3 style="font-size:13px;margin:16px 0 6px">Step 4: Click "Refresh Ollama Status"</h3>
