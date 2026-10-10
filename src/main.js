@@ -729,7 +729,7 @@ function _broadcastDownloadEvent(channel, data) {
   });
 }
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive, isLocked: () => _vexLocked });
+const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -1917,53 +1917,11 @@ ipcMain.handle('permissions:clear-undo', async (_e, token) => {
 // Electron does NOT pick a HID device on its own: without a 'select-hid-device'
 // handler the chooser resolves empty and sites report "no compatible devices".
 // We present Vex's own picker (the chooser IS the permission gate, Brave-style)
-// and persist granted (origin → vendorId/productId) pairs so setDevicePermission
-// Handler re-grants them and navigator.hid.getDevices() works on reconnect.
-const hidGrantsFile = path.join(userDataPath, 'hid-grants.json');
-function loadHidGrants() {
-  try { if (fs.existsSync(hidGrantsFile)) return JSON.parse(fs.readFileSync(hidGrantsFile, 'utf-8')) || {}; }
-  catch {}
-  return {};
-}
-function saveHidGrants(data) {
-  try { fs.writeFileSync(hidGrantsFile, JSON.stringify(data, null, 2), 'utf-8'); }
-  catch (err) { console.error('[WebHID] grants save failed:', err.message); }
-}
-function _hidIsGranted(origin, vendorId, productId) {
-  const grants = loadHidGrants();
-  return !!(grants[origin] || []).some(g => g.vendorId === vendorId && g.productId === productId);
-}
-function _hidGrant(origin, vendorId, productId) {
-  if (!origin) return;
-  const grants = loadHidGrants();
-  const list = grants[origin] || (grants[origin] = []);
-  if (!list.some(g => g.vendorId === vendorId && g.productId === productId)) {
-    list.push({ vendorId, productId });
-    saveHidGrants(grants);
-  }
-}
-
-// Origins with an interactive requestDevice() currently in flight. The device-
-// permission handler can't gate on a persisted grant alone (first-connect has
-// none, and returning false there suppresses the chooser). We mark an origin
-// active when Chromium runs the 'hid' capability check that opens every
-// requestDevice() (setPermissionCheckHandler), so the device-permission handler
-// permits enumeration for THAT request only — while an idle origin (no active
-// request, no stored grant) still gets false and cannot enumerate HID devices.
-// The TTL is a safety net for a request abandoned before select-hid-device
-// resolves; the chooser flow clears it explicitly on respond/timeout.
-const _hidActiveRequestOrigins = new Map(); // origin -> expiry ms
-const HID_ACTIVE_TTL_MS = 60 * 1000;
-function _markHidRequestActive(origin) {
-  if (origin && origin !== 'unknown') _hidActiveRequestOrigins.set(origin, Date.now() + HID_ACTIVE_TTL_MS);
-}
-function _isHidRequestActive(origin) {
-  const exp = _hidActiveRequestOrigins.get(origin);
-  if (!exp) return false;
-  if (Date.now() > exp) { _hidActiveRequestOrigins.delete(origin); return false; }
-  return true;
-}
-function _clearHidRequestActive(origin) { _hidActiveRequestOrigins.delete(origin); }
+// and persist the device picked, per session and site (src/main/hid-grants.js),
+// so setDevicePermissionHandler re-grants it and getDevices() works on reconnect.
+// Nothing else is granted: every HID device used to be open to a page while
+// its chooser was up (security finding SE1).
+const _hidGrants = require('./main/hid-grants').createHidGrants({ userDataPath });
 
 // Pending chooser callbacks, keyed by request id. Mirrors the permission-prompt
 // cold-start queue so a request that fires before the renderer attaches its
@@ -2014,33 +1972,25 @@ function wireWebHidOnSession(ses, tag) {
     }));
     const id = `hid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[WebHID] (${tag}) ${origin} requests a device — ${devices.length} offered`);
-    pendingHidSelections.set(id, { callback, origin, devices, host, frame: details.frame, url: details.frame.url });
+    pendingHidSelections.set(id, { callback, origin, devices, host, partition: tag, frame: details.frame, url: details.frame.url });
     _sendHidRequest({ id, origin, devices });
 
     // If the user ignores the chooser for 2 minutes, cancel (empty selection).
     setTimeout(() => {
       if (pendingHidSelections.has(id)) {
         pendingHidSelections.delete(id);
-        _clearHidRequestActive(origin);
         try { callback(''); } catch {}
       }
     }, 120000);
   });
 
-  // Device-access gate. NOTE: returning false for a device that should be
-  // selectable suppresses the chooser on this Electron build (30.5.1+wvcus) —
-  // Chromium checks here during enumeration and, if denied, never emits
-  // 'select-hid-device'. So we permit a device when EITHER (a) the origin
-  // previously picked it (persisted grant → silent getDevices() reconnect), OR
-  // (b) the origin has an interactive requestDevice() in flight (marked by the
-  // 'hid' permission check that opens every request) so the chooser can
-  // enumerate and open. An idle origin with neither gets false → it cannot
-  // enumerate HID devices without a user pick (closes the fingerprinting gap).
+  // Device-access gate: only a device this site picked in this session's
+  // chooser. The chooser lists the devices without asking here (measured on
+  // Electron 42), so no request in flight needs every device opened to it.
   ses.setDevicePermissionHandler((details) => {
     if (!details || details.deviceType !== 'hid') return false;
     const d = details.device || {};
-    if (_hidIsGranted(details.origin, d.vendorId, d.productId)) return true;
-    return _isHidRequestActive(details.origin);
+    return _hidGrants.isGranted(tag, details.origin, d.vendorId, d.productId);
   });
 }
 
@@ -2052,12 +2002,11 @@ ipcMain.handle('hid:select-respond', (_e, payload) => {
   try { if (pending.frame.detached || pending.frame.url !== pending.url) { pendingHidSelections.delete(id); pending.callback(''); return { ok: false, error: 'Requesting page changed' }; } } catch { pendingHidSelections.delete(id); return { ok: false }; }
   if (deviceId && !pending.devices.some(device => device.deviceId === deviceId)) return { ok: false, error: 'Unknown device' };
   pendingHidSelections.delete(id);
-  _clearHidRequestActive(pending.origin);
   // Persist the grant BEFORE resolving so setDevicePermissionHandler (which
   // Chromium calls right after selection) sees it and allows the connection.
   if (deviceId) {
     const chosen = pending.devices.find(d => d.deviceId === deviceId);
-    if (chosen) _hidGrant(pending.origin, chosen.vendorId, chosen.productId);
+    if (chosen) _hidGrants.grant(pending.partition, pending.origin, chosen.vendorId, chosen.productId);
   }
   try { pending.callback(deviceId || ''); } catch (err) { return { ok: false, error: err.message }; }
   return { ok: true };
