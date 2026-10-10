@@ -2813,6 +2813,13 @@ const AIPanel = {
 
     this._sending = true;
     this._setComposerBusy(true);
+    // Stop cancels a history search too: it had no Stop, and a slow model
+    // kept the panel busy until it answered (found 2026-10-10). Same
+    // controller and button as sendMessage.
+    const abort = new AbortController();
+    let finished;
+    this._chat = { abort, done: new Promise(r => { finished = r; }) };
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
     const loadingEl = this._addLoading();
     if (loadingEl) loadingEl.innerHTML = 'Searching your history <span class="ai-spinner"></span>';
 
@@ -2824,8 +2831,9 @@ const AIPanel = {
       }));
 
       const aiResult = await AIRouter.callAI('historySearch', {
-        query, historyEntries: compact, timeContext: new Date().toISOString()
+        query, historyEntries: compact, timeContext: new Date().toISOString(), signal: abort.signal,
       });
+      if (abort.signal.aborted) throw new Error('Stopped');
       loadingEl?.remove();
 
       if (!aiResult || !aiResult.result) {
@@ -2852,11 +2860,20 @@ const AIPanel = {
       return true;
     } catch (err) {
       loadingEl?.remove();
+      if (abort.signal.aborted) {
+        this._getConv(this._getTabId()).push({ role: 'assistant', content: 'Stopped.', at: Date.now(), didIt: true });
+        this._persistConversations();
+        this._renderMessages();
+        return true;
+      }
       this._addError(err.message || 'Network error', () => this._handleHistorySearch(query, { _noEcho: true }));
       return false;
     } finally {
       this._sending = false;
       this._setComposerBusy(false);
+      this._chat = null;
+      if (!(typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.())) document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      finished();
     }
   },
 
