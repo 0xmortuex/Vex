@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 //
-// Today: one snapshot of what will happen and what happened, written to
-// localStorage for the new tab page to read. Each source is isolated — one
-// failing is reported in the snapshot, not allowed to blank the others.
+// Today: one snapshot of what will happen and what happened, handed to the
+// new tab page. Each source is isolated — one failing is reported in the
+// snapshot, not allowed to blank the others.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { VexToday } = require('../../src/renderer/js/today.js');
 require('../../src/renderer/js/page-watch.js');       // the real one: a mock of a module that did not exist hid a dead section
@@ -27,7 +27,7 @@ describe('the Today snapshot', () => {
     globalThis.ReadLater = { items: [{ id: 'r1', url: 'https://read.example/', title: 'Long read', at: later(-120), read: false }, { id: 'r2', url: 'https://old.example/', title: 'Old', at: later(-5 * 24 * 60), read: false }] };
   });
 
-  it('collects today\'s reminders, tasks, changes and saves, and writes them', async () => {
+  it('collects today\'s reminders, tasks, changes and saves', async () => {
     const snap = await VexToday.refresh();
     expect(snap.reminders.map(r => r.id)).toEqual(['b', 'a', 'e']);   // overdue first, tomorrow and fired excluded, site last
     expect(snap.reminders[0].overdue).toBe(true);
@@ -37,30 +37,38 @@ describe('the Today snapshot', () => {
     expect(snap.changed.map(c => c.id)).toEqual(['w1']);
     expect(snap.saved.map(s => s.id)).toEqual(['r1']);
     expect(snap.errors).toEqual([]);
-    expect(JSON.parse(localStorage.getItem('vex.today')).reminders).toHaveLength(3);
   });
 
-  // Each save rewrote all of vex-persist.json once a minute, for a new `at`
-  // nothing shows (found 2026-10-09).
-  it('is not saved again a minute later when only its time changed', async () => {
+  // Each save rewrote all of vex-persist.json and its .bak, for a copy the
+  // start page could not read: it runs in another partition and is handed the
+  // snapshot (found 2026-10-09). Nothing is saved, and an old copy goes.
+  it('is never saved, and the copy an older Vex saved is removed', async () => {
     globalThis.VexClock = {
       cities: () => [{ name: 'Tokyo', zone: 'Asia/Tokyo' }],
       partsIn: (_zone, at) => ({ hour: 3, minute: new Date(at).getMinutes() }),
       offsetLabel: () => '+9h',
     };
-    await VexToday.refresh();
+    globalThis.VexJobs = { every: vi.fn(() => ({ stop: vi.fn() })) };
+    localStorage.setItem('vex.today', '{"at":1}');
     const set = vi.spyOn(Storage.prototype, 'setItem');
+    VexToday.init();
+    expect(localStorage.getItem('vex.today')).toBeNull();
+    await VexToday.refresh();
     Date.now.mockReturnValue(NOW + 60000);
     const snap = await VexToday.refresh();
     expect(snap.at).toBe(NOW + 60000);
     expect(snap.clock[0].hhmm).toBe('03:31');
-    expect(set.mock.calls.filter(c => c[0] === 'vex.today')).toHaveLength(0);
-    // Something it shows changed: saved.
     globalThis.ReadLater.items.push({ id: 'r3', url: 'https://new.example/', title: 'New', at: NOW, read: false });
     await VexToday.refresh();
-    expect(set.mock.calls.filter(c => c[0] === 'vex.today')).toHaveLength(1);
+    expect(set.mock.calls.filter(c => c[0] === 'vex.today')).toHaveLength(0);
     set.mockRestore();
-    delete globalThis.VexClock;
+    delete globalThis.VexClock; delete globalThis.VexJobs;
+  });
+
+  it('the start page reads only the snapshot it is handed, not storage', () => {
+    const html = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/start.html'), 'utf8');
+    expect(html).toContain('window.__vexToday');
+    expect(html).not.toContain("'vex.today'");
   });
 
   it('reports a source that failed instead of hiding it, and keeps the rest', async () => {

@@ -5,18 +5,21 @@
 // saved for later recently. Every one of those is already stored somewhere in
 // Vex; nothing showed them together.
 //
-// The new tab page is a separate document (start.html in a webview) with no
-// bridge to the main process, but it shares this renderer's localStorage. So
-// this module builds a small snapshot here, where everything is reachable,
-// and writes it to localStorage under 'vex.today'; the start page reads that
-// and re-renders on the storage event. The snapshot is display data only —
-// nothing acts on it.
+// The new tab page is a separate document (start.html in a webview, in its
+// own session partition) with no bridge to the main process. So this module
+// builds a small snapshot here, where everything is reachable, and hands it
+// to each open start page (push below). The snapshot is display data only —
+// nothing acts on it, and nothing keeps it.
 const VexToday = {
-  KEY: 'vex.today',
+  // Where the snapshot used to be saved. The start page never could read it
+  // (other partition), and saving it rewrote vex-persist.json; the copy an
+  // older Vex left there is removed once.
+  OLD_KEY: 'vex.today',
   MAX_PER_KIND: 6,
   _timer: null,
 
   init() {
+    if (localStorage.getItem(this.OLD_KEY) !== null) localStorage.removeItem(this.OLD_KEY);
     this.refresh();
     this._timer?.stop();
     this._timer = VexJobs.every('Today refresh', 60 * 1000, () => this.refresh());
@@ -186,19 +189,10 @@ const VexToday = {
   async refresh() {
     const snap = await this.build();
     this._last = snap;
-    // Built again every minute with a new `at` and the world clock's new
-    // minute. Saved only when anything else changed: each save rewrote the
-    // whole of vex-persist.json (1.3 MB) and its .bak, once a minute (found
-    // 2026-10-09). The start page gets the fresh one from pushAll below; its
-    // own storage is a different partition, so it never reads this copy.
-    const steady = (s) => JSON.stringify({ ...s, at: 0, clock: (s.clock || []).map(c => [c.name, c.zone]) });
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(this.KEY) || 'null'); } catch { saved = null; }
-    const same = !!saved && steady(saved) === steady(snap);
-    if (!same) {
-      try { localStorage.setItem(this.KEY, JSON.stringify(snap)); }
-      catch (err) { console.error('[Today] could not write the snapshot:', err.message); return null; }
-    }
+    // Never saved: it was built again every minute and saved whenever it
+    // changed, rewriting the whole of vex-persist.json (1.3 MB) and its .bak
+    // for a copy nothing read (found 2026-10-09). The start page gets the
+    // fresh one from pushAll.
     this.pushAll();
     return snap;
   },

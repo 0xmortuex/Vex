@@ -1988,7 +1988,7 @@
   </script>
 
   <!-- Today: reminders due, tasks about to run, pages that changed, pages saved.
-       Read from the 'vex.today' snapshot the browser writes (js/today.js);
+       The browser hands the snapshot in (js/today.js, window.__vexToday);
        this page has no bridge of its own. Hidden until there is something. -->
   <div class="today-section" id="today-section" hidden>
     <h3>Today</h3>
@@ -2019,7 +2019,6 @@
   </style>
   <script>
     (function () {
-      var KEY = 'vex.today';
       var pad = function (n) { return String(n).padStart(2, '0'); };
       var hhmm = function (ms) { var d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
       function row(kind, when, text, url, cls) {
@@ -2036,10 +2035,8 @@
         var sec = document.getElementById('today-section'), list = document.getElementById('today-list');
         if (!sec || !list) return;
         // The browser hands the snapshot in (window.__vexToday) because this
-        // page's storage is separate from the browser's; localStorage is only
-        // a fallback for the same-partition case.
+        // page's storage is separate from the browser's.
         var snap = window.__vexToday || null;
-        if (!snap) { try { snap = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { snap = null; } }
         list.innerHTML = '';
         if (!snap) { sec.hidden = true; return; }
         var rows = [];
@@ -2107,7 +2104,6 @@
       }
       render();
       window.addEventListener('vex-today', render);
-      window.addEventListener('storage', function (e) { if (!e.key || e.key === KEY) render(); });
     })();
   </script>
 
