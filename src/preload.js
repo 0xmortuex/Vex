@@ -348,6 +348,7 @@ contextBridge.exposeInMainWorld('vex', {
   onDownloadComplete: (cb) => subscribe('download-complete', cb),
   downloadsOpenFile:     (p) => ipcRenderer.invoke('downloads:open-file', p),
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
+  downloadsExist:        (paths) => ipcRenderer.invoke('downloads:exist', paths),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.

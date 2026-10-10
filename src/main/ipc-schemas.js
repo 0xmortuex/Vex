@@ -36,6 +36,8 @@ define('updates:backup-read', [string(120)]);
 define('file:inspect', [string(4096), optional(string(4096))]);
 define('archive:list', [string(4096)]);
 define('downloads:set-rules', [value => Array.isArray(value) && value.length <= 50 && value.every(object)]);
+// Which finished downloads are still on disk (js/downloads-panel.js).
+define('downloads:exist', [value => Array.isArray(value) && value.length <= 1000 && value.every(string(4096))]);
 // Settings > Downloads (src/main/download-prefs.js): the folder comes only
 // from main's own folder dialog, so choosing it takes no argument.
 define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);

@@ -57,6 +57,41 @@ const DownloadsPanel = {
       this._renderShell(panel);
     }
     this.renderList();
+    this.checkDeleted().catch(err => window.VexProblems?.note('Downloads', 'Could not check which downloads are still there', err));
+  },
+
+  // A finished download whose file has since been deleted says "deleted" and
+  // offers Retry, not Open: it said "completed", and Open failed with "Failed
+  // to open path" (audit RD12, 2026-10-10). Asked of main each time the panel
+  // opens, and before a file is opened. A file put back shows Open again.
+  // -> the downloads whose state changed.
+  async checkDeleted(list = this.downloads.filter(d => d.state === 'completed' && d.path)) {
+    if (!list.length || typeof window.vex?.downloadsExist !== 'function') return [];
+    const r = await window.vex.downloadsExist(list.map(d => d.path));
+    if (!r || !r.ok || !Array.isArray(r.exist)) throw new Error((r && r.error) || 'no answer');
+    const changed = [];
+    list.forEach((dl, i) => {
+      if (r.exist[i] == null) return;                  // not one Vex can look for
+      const missing = r.exist[i] === false;
+      if (!!dl.missing === missing) return;
+      if (missing) dl.missing = true; else delete dl.missing;
+      changed.push(dl);
+    });
+    if (changed.length) {
+      this.save();
+      for (const dl of changed) if (this._rowFor(dl.id)) this._replaceRow(dl);
+      try { window.DownloadsButton?.refresh(); } catch { /* the panel is still right */ }
+    }
+    return changed;
+  },
+
+  // Before Open: true when the file has gone, and the row now says so.
+  async _deletedNow(dl) {
+    const changed = await this.checkDeleted([dl]);
+    if (!dl.missing) return false;
+    if (!changed.length && this._rowFor(dl.id)) this._replaceRow(dl);
+    window.showToast?.(dl.filename + ' has been deleted' + (dl.url ? ' — Retry downloads it again' : ''), 'info');
+    return true;
   },
 
   _onStart(data) {
@@ -456,6 +491,12 @@ const DownloadsPanel = {
       rowEl.title = 'Double-click to open';
     }
     rowEl.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', async () => {
+      // Deleted since: the row says so and offers Retry instead.
+      const dl = this.downloads.find(d => d.id === rowEl.dataset.id);
+      if (dl) {
+        try { if (await this._deletedNow(dl)) return; }
+        catch (err) { window.VexProblems?.note('Downloads', 'Could not check the file is still there', err); }
+      }
       // An installer is the one thing a browser hands you that can do anything
       // to the machine, and browsers say nothing about it. Windows asks only
       // after the double-click, and only when the file is signed.
@@ -542,7 +583,7 @@ const DownloadsPanel = {
       return `${progress} &middot; ${date}${dl.paused ? ' &middot; paused' : ''}`;
     }
     const size = this.formatBytes(dl.totalBytes || dl.receivedBytes);
-    const label = dl.state === 'completed' ? ' &middot; completed'
+    const label = dl.state === 'completed' ? (dl.missing ? ' &middot; deleted' : ' &middot; completed')
       : dl.state === 'cancelled' ? ' &middot; cancelled'
       : dl.state === 'interrupted' ? ' &middot; interrupted'
       : dl.state === 'failed' ? ' &middot; failed' : '';
@@ -551,8 +592,10 @@ const DownloadsPanel = {
 
   _rowHtml(dl) {
     const isActive = dl.state === 'progressing';
-    const isComplete = dl.state === 'completed';
-    const isFailed = dl.state === 'failed' || dl.state === 'cancelled' || dl.state === 'interrupted';
+    // Finished, but the file has been deleted since (checkDeleted): no Open,
+    // and Retry as for a failed one.
+    const isComplete = dl.state === 'completed' && !dl.missing;
+    const isFailed = dl.state === 'failed' || dl.state === 'cancelled' || dl.state === 'interrupted' || (dl.state === 'completed' && !!dl.missing);
     const pct = this._percent(dl);
     const id = this._esc(dl.id);
 

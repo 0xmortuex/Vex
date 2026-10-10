@@ -7004,6 +7004,13 @@ ipcMain.handle('downloads:open-file', async (_e, filePath) => {
   try { const r = await shell.openPath(filePath); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Whether each finished download is still on disk: a deleted one showed
+// "completed" and an Open that failed with "Failed to open path" (audit
+// RD12). Only files Vex downloaded are looked for; anything else is null.
+ipcMain.handle('downloads:exist', (_e, paths) => ({
+  ok: true,
+  exist: paths.map(p => (_downloadService.isDownloadedFile(p) ? fs.existsSync(p) : null)),
+}));
 ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
   try { shell.showItemInFolder(filePath); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }

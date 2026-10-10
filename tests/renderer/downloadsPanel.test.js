@@ -245,3 +245,48 @@ describe('open it when it is done', () => {
     expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
   });
 });
+
+// Audit RD12 (2026-10-10): a file deleted after it downloaded still said
+// "completed", and Open failed with "Failed to open path".
+describe('a finished download whose file has been deleted', () => {
+  const finish = (id, path) => { start({ id, path }); DownloadsPanel._onComplete({ id, state: 'completed', path, receivedBytes: 10, totalBytes: 10 }); };
+  const row = (id) => [...document.querySelectorAll('.download-item')].find(r => r.dataset.id === id);
+
+  it('says "deleted" and offers Retry, not Open, when the panel opens; a file put back shows Open again', async () => {
+    finish('k1', 'C:/dl/kept.pdf');
+    finish('g1', 'C:/dl/gone.pdf');
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(p => p !== 'C:/dl/gone.pdf') }));
+    DownloadsPanel.init();
+    await vi.waitFor(() => expect(row('g1').querySelector('.download-meta').textContent).toContain('deleted'));
+    expect(window.vex.downloadsExist).toHaveBeenCalledWith(['C:/dl/gone.pdf', 'C:/dl/kept.pdf']);
+    expect(row('g1').querySelector('[data-action="open-file"]')).toBeNull();
+    expect(row('g1').querySelector('[data-action="retry"]')).not.toBeNull();
+    expect(row('k1').querySelector('[data-action="open-file"]')).not.toBeNull();
+    expect(row('k1').querySelector('.download-meta').textContent).toContain('completed');
+    expect(JSON.parse(localStorage.getItem('vex.downloads')).find(d => d.id === 'g1').missing).toBe(true);
+    row('g1').querySelector('[data-action="retry"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin', 'g1'));
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => true) }));
+    await DownloadsPanel.checkDeleted();
+    expect(row('g1').querySelector('[data-action="open-file"]')).not.toBeNull();
+  });
+
+  it('Open on a file deleted since the panel was drawn says so and opens nothing', async () => {
+    finish('g2', 'C:/dl/gone2.pdf');
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => true) }));
+    DownloadsPanel.init();
+    await vi.waitFor(() => expect(window.vex.downloadsExist).toHaveBeenCalled());
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => false) }));
+    row('g2').querySelector('[data-action="open-file"]').click();
+    await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith('thing.bin has been deleted — Retry downloads it again', 'info'));
+    expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
+    expect(row('g2').querySelector('[data-action="retry"]')).not.toBeNull();
+  });
+
+  it('a file Vex cannot look for (null) is left as it is', async () => {
+    finish('n1', 'C:/dl/other.pdf');
+    window.vex.downloadsExist = vi.fn(async () => ({ ok: true, exist: [null] }));
+    expect(await DownloadsPanel.checkDeleted()).toEqual([]);
+    expect(row('n1').querySelector('[data-action="open-file"]')).not.toBeNull();
+  });
+});

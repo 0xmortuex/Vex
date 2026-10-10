@@ -189,15 +189,20 @@ const DownloadsButton = {
       }
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'downloads-drop-row' + (dl.state === 'completed' ? '' : ' dim');
+      // A finished file deleted since (DownloadsPanel.checkDeleted) is not
+      // offered to open: the panel has its Retry (audit RD12).
+      const openable = dl.state === 'completed' && !dl.missing;
+      row.className = 'downloads-drop-row' + (openable ? '' : ' dim');
       row.setAttribute('role', 'menuitem');
       row.innerHTML = '<span class="ddr-name"></span><span class="ddr-meta"></span>';
       row.querySelector('.ddr-name').textContent = dl.filename || 'download';
       row.querySelector('.ddr-meta').textContent = this._say(dl);
-      row.title = dl.state === 'completed' ? 'Open ' + (dl.filename || '') : this._say(dl);
+      row.title = openable ? 'Open ' + (dl.filename || '') : this._say(dl);
       row.addEventListener('click', async () => {
         this.close();
-        if (dl.state !== 'completed' || !dl.path) { SidebarManager.openPanel('downloads'); return; }
+        if (!openable || !dl.path) { SidebarManager.openPanel('downloads'); return; }
+        try { if (await DownloadsPanel._deletedNow(dl)) { SidebarManager.openPanel('downloads'); return; } }
+        catch (err) { window.VexProblems?.note('Downloads', 'Could not check the file is still there', err); }
         if (!(await DownloadsPanel._okToOpen(dl.path, dl.url || ''))) return;
         const result = await window.vex.downloadsOpenFile?.(dl.path);
         if (result && !result.ok) window.showToast?.(result.error || 'Could not open that file', 'error');
@@ -317,7 +322,7 @@ const DownloadsButton = {
       const pct = dl.totalBytes ? Math.round(dl.receivedBytes / dl.totalBytes * 100) + '%' : this._size(dl.receivedBytes);
       return dl.paused ? 'paused · ' + pct : pct;
     }
-    if (dl.state === 'completed') return this._size(dl.totalBytes || dl.receivedBytes);
+    if (dl.state === 'completed') return dl.missing ? 'deleted' : this._size(dl.totalBytes || dl.receivedBytes);
     return dl.state === 'cancelled' ? 'cancelled' : 'did not finish';
   },
 
