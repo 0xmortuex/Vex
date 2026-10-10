@@ -294,6 +294,14 @@ describe('IPC policy and smaller items', () => {
     expect(main).toMatch(/'app:open-as-app', \(_e, url, title, partition\) => \{[\s\S]{0,200}_refuseMainProfileCopy\(partition\)/);
     expect(main).toMatch(/'overlay:open', \(_e, url, opacity, partition\) => \{[\s\S]{0,200}_refuseMainProfileCopy\(partition\)/);
   });
+  // Audit TA5 (2026-10-10): from a container tab it opened in persist:main.
+  it('Open as App opens in the tab\'s own session', () => {
+    const fn = main.slice(main.indexOf("ipcMain.handle('app:open-as-app'"), main.indexOf("ipcMain.handle('app:open-as-app'") + 1200);
+    expect(fn).toContain("const appPartition = partition || 'persist:main';");
+    expect(fn).toContain('secureSessions.fromPartition(appPartition);');
+    expect(fn).toContain('webPreferences: { partition: appPartition,');
+    expect(fn).not.toContain("partition: 'persist:main'");
+  });
   it('L6: the screen-share quality is per page', () => {
     expect(main).not.toMatch(/_lastShareQuality/);
     expect(main).toMatch(/_shareQuality\.get\(event\.sender\.id\)/);

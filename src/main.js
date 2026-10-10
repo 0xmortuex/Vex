@@ -8429,10 +8429,14 @@ ipcMain.handle('app:open-as-app', (_e, url, title, partition) => {
   try {
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
     _refuseMainProfileCopy(partition);
+    // The tab's own session: from a container tab it opened signed in to the
+    // main profile instead, with that profile's cookies (audit TA5).
+    const appPartition = partition || 'persist:main';
+    secureSessions.fromPartition(appPartition);
     const win = new BrowserWindow({
       width: 1024, height: 720, autoHideMenuBar: true, title: title || 'Vex',
       // --vex-web-window: the guest preload sends no Vex shortcuts from here.
-      webPreferences: { partition: 'persist:main', contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, additionalArguments: ['--vex-web-window'] },
+      webPreferences: { partition: appPartition, contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, additionalArguments: ['--vex-web-window'] },
     });
     secureSessions.registerWebWindow(win.webContents);
     _openLinksAsTabs(win.webContents);
