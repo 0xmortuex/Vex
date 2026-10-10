@@ -16,7 +16,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(
 describe('the tab events', () => {
   it('switching tabs announces the tab now in front, after it is in front', () => {
     const tabs = src('js/tabs.js');
-    const body = tabs.slice(tabs.indexOf('  switchTab(id) {'), tabs.indexOf('  _revealActiveInSidebar() {'));
+    const body = tabs.slice(tabs.indexOf('  switchTab(id, opts = {}) {'), tabs.indexOf('  _revealActiveInSidebar() {'));
     const set = body.indexOf('this.activeTabId = id;');
     const said = body.indexOf("window.dispatchEvent(new CustomEvent('vex:tab-activated'");
     expect(set).toBeGreaterThan(-1);
