@@ -38,6 +38,17 @@ const ShortcutsRegistry = (() => {
     'hard-reload':    { default: 'Ctrl+Shift+R', label: 'Hard Reload (clear cache)',  category: 'Navigation' },
     'find-in-page':   { default: 'Ctrl+F',       label: 'Find in Page',               category: 'Navigation' },
     'zoom-reset':     { default: 'Ctrl+0',       label: 'Reset Zoom',                 category: 'Navigation' },
+    // The other keys every browser has for these, which Vex lacked (found
+    // 2026-10-10). Each is a key of its own, so each can be moved or kept
+    // apart from Ctrl+R, Ctrl+Tab and Ctrl+L. Like Chrome, they are Vex's
+    // even inside a page (main/guest-shortcuts.js passes them up).
+    'reload-f5':      { default: 'F5',           label: 'Reload Page (second key)',   category: 'Navigation' },
+    'hard-reload-ctrl-f5':  { default: 'Ctrl+F5',  label: 'Hard Reload (second key)', category: 'Navigation' },
+    'hard-reload-shift-f5': { default: 'Shift+F5', label: 'Hard Reload (third key)',  category: 'Navigation' },
+    'focus-url-f6':   { default: 'F6',           label: 'Focus URL Bar (second key)', category: 'Navigation' },
+    'focus-url-alt-d': { default: 'Alt+D',       label: 'Focus URL Bar (third key)',  category: 'Navigation' },
+    'next-tab-pagedown': { default: 'Ctrl+PageDown', label: 'Next Tab (second key)',  category: 'Tabs' },
+    'prev-tab-pageup':   { default: 'Ctrl+PageUp',   label: 'Previous Tab (second key)', category: 'Tabs' },
 
     // Panels
     'history-panel':  { default: 'Ctrl+H',       label: 'History Panel',              category: 'Panels' },

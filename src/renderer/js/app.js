@@ -1434,6 +1434,15 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
+    // The other keys browsers have for these (F5, Ctrl+F5, Shift+F5, F6,
+    // Alt+D, Ctrl+PageUp/PageDown).
+    ShortcutsRegistry.register('reload-f5',            () => WebviewManager.reload());
+    ShortcutsRegistry.register('hard-reload-ctrl-f5',  () => WebviewManager.hardReload());
+    ShortcutsRegistry.register('hard-reload-shift-f5', () => WebviewManager.hardReload());
+    ShortcutsRegistry.register('focus-url-f6',         focusAddressBar);
+    ShortcutsRegistry.register('focus-url-alt-d',      focusAddressBar);
+    ShortcutsRegistry.register('next-tab-pagedown',    () => cycleTab(1));
+    ShortcutsRegistry.register('prev-tab-pageup',      () => cycleTab(-1));
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
     ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
     ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());
