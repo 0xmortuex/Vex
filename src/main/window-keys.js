@@ -53,7 +53,7 @@ function createBossKey({ globalShortcut, windows, contents, log }) {
   // cannot be had: hiding it with no way back is worse than not hiding.
   function hide() {
     if (hidden) return { ok: true };
-    let taken = false;
+    let taken;
     try { taken = globalShortcut.register(BOSS_ACCELERATOR, restore); }
     catch (err) { return { ok: false, error: 'Ctrl+Alt+H could not be set up to bring Vex back: ' + err.message }; }
     if (!taken) return { ok: false, error: 'Another program has Ctrl+Alt+H, so Vex was not hidden: it could not be brought back with it' };
