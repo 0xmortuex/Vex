@@ -68,7 +68,9 @@ function isVexUi(contents) {
   } catch { return false; }
 }
 
-function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
+// isLocked: whether Vex is locked (js/vex-lock.js); a site's notification is
+// not shown then, or its text would be on screen for anyone at the computer.
+function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive, isLocked }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie. Kept per partition: one map for
 // every window let "Allow this visit" in a private window allow the same site
@@ -356,6 +358,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
     requestingOrigin = originKey(requestingOrigin);
     if (opts.denyOverTor && ses.__vexTor) return false;
+    // Chromium asks this before it shows a site's notification: none while
+    // Vex is locked, whatever the site was allowed.
+    if (permission === 'notifications' && typeof isLocked === 'function' && isLocked()) return false;
     // WebHID: keep navigator.hid available, and mark this origin as having a
     // device request in flight — Chromium runs this 'hid' check at the start of
     // requestDevice(), which lets the device-permission handler permit the
