@@ -6255,6 +6255,14 @@ app.whenReady().then(() => {
     if (fs.existsSync(keyFile))  { fs.unlinkSync(keyFile); console.log('[Cleanup] Removed memory encryption key'); }
     if (fs.existsSync(whisperDir)) { fs.rmSync(whisperDir, { recursive: true, force: true }); console.log('[Cleanup] Removed whisper assets'); }
   } catch (err) { console.warn('[Cleanup] Memory data cleanup failed:', err.message); }
+  // Temp files a cut-off save left behind, in the folders Vex saves into
+  // (src/main/temp-cleanup.js).
+  require('./main/temp-cleanup').removeStaleTemps([userDataPath, storagePath])
+    .then(({ removed, failed }) => {
+      if (removed.length) console.log(`[Cleanup] Removed ${removed.length} leftover temp file(s):`, removed.map(f => path.basename(f)).join(', '));
+      for (const f of failed) console.error('[Cleanup] Could not remove leftover temp file', f.file, '-', f.error);
+    })
+    .catch(err => console.error('[Cleanup] Could not look for leftover temp files:', err.message));
 });
 
 // Custom protocol handler for vex://
