@@ -1,7 +1,7 @@
 # Every commit up to v2.38.1, ranked once with the point table (2026-10-10).
-# 759 commits, 1106 points from 2.0.0, so v2.38.1 counts as 2.110.6 (release-ranks.txt base line).
+# 759 commits, 13249 points from 0.0.0, so v2.38.1 counts as 13.24.9 (release-ranks.txt base line).
 # Kept as the record; scripts/version-points.js does not read this file.
-99d98a6 feature-critical-everyone  # v2.0.1 the whole browser, first public release
+99d98a6 feature-evo-everyone  # v2.0.1 the whole browser, first public release
 17cad59 none  # v2.0.1 README only
 8ba952b fix-small-some  # v2.0.1 intermittent Ctrl+Shift+R hard reload
 50d2ee7 none  # v2.0.1 release bump
@@ -9,7 +9,7 @@ ca12858 feature-small-some  # v2.0.2 start-page shortcut icons + AI service swit
 2eece42 none  # v2.0.2 release bump
 451211f fix-small-some  # v2.0.3 Ctrl+Shift+G fell back to Ollama
 43fff05 none  # v2.0.3 release bump
-af0ce2c feature-high-everyone  # v2.3.2 Peek, AI Skills, Boosts, Handoff, password manager
+af0ce2c feature-evo-everyone  # v2.3.2 Peek, AI Skills, Boosts, Handoff, password manager
 2428e1d feature-high-everyone  # v2.3.2 bookmarks, gestures, containers, focus/compact, RSS, read aloud
 11f66c4 feature-high-some  # v2.3.2 Read Later/Library, OTR tab, now playing, boss key, many extras
 7a682de performance-high-some  # v2.3.2 lazy session restore (big memory win at launch)
@@ -57,7 +57,7 @@ cc222d5 feature-small-some  # v2.25.0 customize left-sidebar buttons
 4b55e32 fix-mid-some  # v2.25.1 federated (Firebase) sign-in broken
 23c49e7 fix-small-some  # v2.25.2 Firebase auth popup as real window
 0beebf3 fix-small-some  # v2.25.3 consent blocker broke site layouts
-9180ffb feature-high-everyone  # v2.26.0 EasyList ad blocking, tab hibernation, per-site dark mode
+9180ffb feature-evo-everyone  # v2.26.0 EasyList ad blocking, tab hibernation, per-site dark mode
 5e22ee4 none  # v2.26.1 dead file removal
 99a9df2 fix-mid-some  # v2.26.1 resilient Widevine setup + Retry
 2bf1c0b fix-small-some  # v2.26.2 DRM Retry clears cached component
@@ -74,7 +74,7 @@ a9a2971 improvement-small-some  # v2.27.3 Copy Text from Doc gets real text
 7fce0b4 none  # v2.27.6 build tooling (VMP)
 b8a3f86 feature-mid-some  # v2.27.7 selection AI, Read Free, Media Grabber
 7147ae8 feature-mid-some  # v2.27.8 search shortcuts, Master Volume, image zoom
-754a740 feature-high-some  # v2.27.9 Discord panel with block bypass + Vencord
+754a740 feature-evo-some  # v2.27.9 Discord panel with block bypass + Vencord
 58b0e34 improvement-mid-some  # v2.27.10 stronger Discord bypass (ByeDPI)
 9f0302a fix-mid-some  # v2.27.11 Discord bypass auto-configure now works
 e6358c9 feature-small-rare  # v2.27.12 Roku Channel in streaming switcher
@@ -162,7 +162,7 @@ de27ff8 feature-small-rare  # v2.29.8 Claude panel auto Google login
 407fb11 fix-mid-some  # v2.29.8 Windows passkey prompt nag
 090a22d none  # v2.29.8 changelog
 a77432a none  # v2.29.8 release bump
-a5a7ce2 feature-mid-some  # v2.29.9 one-click Tor without Tor Browser
+a5a7ce2 feature-evo-some  # v2.29.9 one-click Tor without Tor Browser
 3819fb2 none  # v2.29.9 release bump
 8246a8f feature-mid-some  # v2.29.10 TOTP autofill on sign-in
 cad4735 improvement-small-some  # v2.29.10 Cloud AI setup in wizard
@@ -696,7 +696,7 @@ f3316c7 feature-high-some  # v2.36.0 browser import, privacy defaults, report a 
 133c974 fix-small-some  # v2.36.0 plain pages white base in dark mode
 269b2d6 none  # v2.36.0 CI audit tooling
 81e04b8 none  # v2.36.0 release bump
-1fdf2aa feature-high-some  # v2.36.1 install extensions from Chrome Web Store
+1fdf2aa feature-evo-some  # v2.36.1 install extensions from Chrome Web Store
 ebf9ab7 none  # v2.36.1 release bump
 250e24c fix-mid-some  # v2.36.2 extensions did not work on the page
 4a2bd24 none  # v2.36.2 release bump

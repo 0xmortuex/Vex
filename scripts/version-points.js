@@ -4,22 +4,26 @@
 // the version (agreed with the owner 2026-10-10):
 //
 //   points = size x kind x reach, rounded
-//     size:  small 1, mid 2, high 4, critical 7   (how much it matters, not lines)
+//     size:  small 10, mid 25, high 50, critical 75, evo 100
+//            (how much it matters, not lines; evo = evolutionary, a change that
+//            makes Vex a different kind of product: the ad blocker, Tor, ...)
 //     kind:  security 2, feature 2, improvement 1.5, performance 1.5, fix 1, polish 0.5
 //     reach: everyone 1.5, some 1, rare 0.5       (who actually notices)
 //   `none` scores 0: tests, changelog, refactors, reverts, and a bug made and
 //   fixed inside the same unreleased batch (users never saw it).
 //
-// The middle and last numbers are one counter: 2.39.0 is 390, and 47 points
-// make it 437, so v2.43.7. The first number moves only by hand.
+// The three numbers are one counter (scale raised 2026-10-10, the owner: big
+// releases must move the first number): every 10 points move the middle
+// number and every 1000 the first. 13.40.5 is 13405; 1250 points make it
+// 14655, so v14.65.5.
 //
 // A commit is ranked by a line in its message, `Rank: fix-mid-some`, or by a
 // line in release-ranks.txt, `<hash> <rank>`, which wins (so a rank can be
 // changed before a release without rewriting history).
 //
 // A line `base <tag> <version>` says what that release counts as. The owner
-// had every commit up to v2.38.1 ranked once (ranks-history.txt, 1106 points
-// from 2.0.0), so v2.38.1 counts as 2.110.6 and the next release jumps from
+// had every commit up to v2.38.1 ranked once (ranks-history.txt, 13249 points
+// from 0.0.0), so v2.38.1 counts as 13.24.9 and the next release jumps from
 // there; older releases and their tags keep their numbers.
 //
 // Usage: node scripts/version-points.js   prints the table and the version.
@@ -30,7 +34,7 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO = path.join(__dirname, '..');
-const SIZE = { small: 1, mid: 2, high: 4, critical: 7 };
+const SIZE = { small: 10, mid: 25, high: 50, critical: 75, evo: 100 };
 const KIND = { security: 2, feature: 2, improvement: 1.5, performance: 1.5, fix: 1, polish: 0.5 };
 const REACH = { everyone: 1.5, some: 1, rare: 0.5 };
 
@@ -48,9 +52,9 @@ function nextVersion(current, points) {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(current);
   if (!m) throw new Error(`not a version: ${current}`);
   if (!(points > 0)) throw new Error('no points since the last release: nothing ranked above none');
-  const counter = Number(m[2]) * 10 + Number(m[3]) + points;
-  // An old patch above 9 (v2.32.65) carries into the middle number, so it still goes up.
-  return `${m[1]}.${Math.floor(counter / 10)}.${counter % 10}`;
+  // An old middle above 99 or patch above 9 carries upward, so it still goes up.
+  const counter = Number(m[1]) * 1000 + Number(m[2]) * 10 + Number(m[3]) + points;
+  return `${Math.floor(counter / 1000)}.${Math.floor((counter % 1000) / 10)}.${counter % 10}`;
 }
 
 // Reads `<hash> <rank>` lines; # starts a comment; base lines are readBases'.
