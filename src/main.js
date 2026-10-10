@@ -1378,13 +1378,10 @@ ipcMain.handle('cookies:set', async (_e, opts) => {
 // Ranking, tokenizing and snippeting live in ./main/recall-index.js. ===
 const { RecallIndex } = require('./main/recall-index');
 const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
-// Writes are coalesced: the old code re-serialised and re-wrote the entire log
-// (plus a .bak copy) on every single page visit, so a full index meant tens of
-// megabytes of disk churn per page loaded, growing with the index.
-const RECALL_WRITE_DELAY = 1500;
+// Written at most once a minute and on close, quit, forget and clear, not on
+// every page read (./main/recall-writer.js).
+const { createRecallWriter } = require('./main/recall-writer');
 let _recall = null;
-let _recallDirty = false;
-let _recallTimer = null;
 function recallStore() {
   if (_recall) return _recall;
   let records = [];
@@ -1396,25 +1393,27 @@ function recallStore() {
   _recall = new RecallIndex(records);
   return _recall;
 }
-let recallWrites = Promise.resolve();
-function recallFlush(erase = false) {
-  if (_recallTimer) { clearTimeout(_recallTimer); _recallTimer = null; }
-  if (!_recallDirty && !erase) return recallWrites;
-  _recallDirty = false;
-  const bytes = JSON.stringify(_recall ? _recall.toJSON() : []);
-  recallWrites = recallWrites.catch(() => {}).then(async () => {
+const _recallWriter = createRecallWriter({
+  serialize: () => JSON.stringify(_recall ? _recall.toJSON() : []),
+  write: async (bytes, { erase }) => {
     await atomicWrite(RECALL_FILE(), bytes, { backup: !erase });
     if (erase) await fs.promises.rm(RECALL_FILE() + '.bak', { force: true });
-  });
-  return recallWrites;
-}
-function recallTouch() {
-  _recallDirty = true;
-  if (_recallTimer) return recallWrites;
-  _recallTimer = setTimeout(() => { _recallTimer = null; recallFlush(); }, RECALL_WRITE_DELAY);
-  if (typeof _recallTimer.unref === 'function') _recallTimer.unref();
-  return recallWrites;
-}
+  },
+  onError: (err) => console.error('[Recall] could not save the page index (tried again on the next save):', err && err.message),
+});
+function recallFlush(erase = false) { return _recallWriter.flush(erase); }
+function recallTouch() { _recallWriter.touch(); }
+// Quitting without the window's own save first (the tray, an update, the
+// system): what was read since the last write is written before Vex exits.
+let _recallQuitSaved = false;
+app.on('will-quit', (event) => {
+  if (_recallQuitSaved || !_recallWriter.dirty) return;
+  _recallQuitSaved = true;
+  event.preventDefault();
+  recallFlush()
+    .catch(err => console.error('[Recall] could not save the page index on quit:', err && err.message))
+    .finally(() => app.quit());
+});
 ipcMain.handle('recall:index', (_e, entry) => {
   try {
     const { url, title, text } = entry || {};
@@ -1444,7 +1443,7 @@ ipcMain.handle('recall:forget', async (_e, target) => {
     const { url, host } = target || {};
     if (!url && !host) return { ok: false, removed: 0 };
     const removed = recallStore().forget({ url, host });
-    if (removed) await recallTouch();
+    if (removed) { recallTouch(); await recallFlush(); }
     return { ok: true, removed };
   } catch (err) { return { ok: false, removed: 0, error: err.message }; }
 });
