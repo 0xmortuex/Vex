@@ -2145,11 +2145,18 @@ const AIPanel = {
     conv.push({ role: 'user', content: question, at: Date.now() });
     let line;
     try {
-      await doable.action();
-      // The command bar's label is a label — "Timer: 10:00" — which reads
-      // oddly as an answer. Its hint says what will happen and when, so the
-      // two together make a sentence: "Timer: 10:00 — Ends at 23:39".
-      line = [doable.label, doable.hint].filter(Boolean).join(' — ') || 'Done.';
+      // A question it can answer by itself ("what time is it in Sydney") is
+      // answered, and nothing is done.
+      if (typeof doable.answer === 'string' && doable.answer) line = doable.answer;
+      else {
+        // An action that says what happened ("Remembered.", a setting's new
+        // value) is the answer, in one line.
+        const said = await doable.action();
+        // The command bar's label is a label — "Timer: 10:00" — which reads
+        // oddly as an answer. Its hint says what will happen and when, so the
+        // two together make a sentence: "Timer: 10:00 — Ends at 23:39".
+        line = (typeof said === 'string' && said) ? said : ([doable.label, doable.hint].filter(Boolean).join(' — ') || 'Done.');
+      }
     } catch (err) {
       line = 'I could not: ' + ((err && err.message) || 'that did not work');
     }

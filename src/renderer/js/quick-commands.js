@@ -17,7 +17,7 @@ const VexQuickCommands = {
     const q = this.plainly(raw) || String(raw || '').trim();
     if (!q) return [];
     const out = [];
-    for (const fn of [this._remind, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting, this._guide]) {
+    for (const fn of [this._remind, this._remember, this._watch, this._timer, this._alarm, this._timeIn, this._stopwatch, this._freeMemory, this._setting, this._guide]) {
       try { const r = fn.call(this, q); if (r) out.push(r); } catch (err) { /* a parse that failed part-way says so as a result, below */ out.push(this._unreadable(q, err)); }
     }
     return out;
@@ -98,7 +98,7 @@ const VexQuickCommands = {
     if (!t) return '';
 
     // Already shorthand, or a sentence the other parsers read whole.
-    if (/^(timer|countdown|alarm|stopwatch|remind me|watch|tell me|let me know|notify me|alert me|ping me|what time)/i.test(t)) {
+    if (/^(timer|countdown|alarm|stopwatch|remind me|remember|keep in mind|watch|tell me|let me know|notify me|alert me|ping me|what time)/i.test(t)) {
       return /^countdown\b/i.test(t) ? t.replace(/^countdown/i, 'timer') : t;
     }
     if (this.QUESTION.test(t)) return t;
@@ -196,13 +196,15 @@ const VexQuickCommands = {
       id: 'quick-setting', icon: 'settings', isPrimary: true,
       label: plan.same ? plan.sentence : plan.sentence.replace(/\?$/, ''),
       hint: plan.same ? 'Nothing to change' : 'Asks before changing it · Settings',
+      // The line it returns is the answer in the AI panel: what happened, not
+      // the question it asked (found 2026-10-10).
       action: async () => {
-        if (plan.same) return;
-        try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); }
+        if (plan.same) return plan.sentence;
+        try { const r = await VexSettingsControl.apply(req); window.showToast?.(r.message); return r.message; }
         catch (err) {
           // Saying no to the question is not a failure (settings-control.js
           // marks it declined).
-          if (err && err.declined) { window.showToast?.('Left as it was', 'info'); return; }
+          if (err && err.declined) { window.showToast?.('Left as it was', 'info'); return '"' + plan.control.label + '" was left as it was.'; }
           window.showToast?.((err && err.message) || 'Could not change that setting', 'error'); throw err;
         }
       },
@@ -363,12 +365,36 @@ const VexQuickCommands = {
     return {
       id: 'quick-time', icon: 'globe', isPrimary: true,
       label: text,
+      // Asked in the AI panel, the time is the answer: the city is not added
+      // to the world clock (found 2026-10-10). Enter in Ctrl+K still adds it.
+      answer: text + ' (' + p.weekday + ', ' + VexClock.offsetLabel(z.zone, now) + ').',
       hint: p.weekday + ' · ' + VexClock.offsetLabel(z.zone, now) + ' · ' + z.zone + ' — Enter adds it to the world clock',
       action: () => {
         const cities = VexClock.cities();
         if (!cities.some(c => c.zone === z.zone)) { if (!VexClock.saveCities([...cities, z])) { window.showToast?.('Could not save the city', 'error'); return; } }
         VexClock._tab = 'world';
         if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel('clock');
+      },
+    };
+  },
+
+  // remember that I prefer short answers / keep in mind that my name is Dana
+  // — kept in AI memory (js/ai-memory.js), which every chat sends along.
+  // Said to the model it was answered "Got it, I will remember that" and
+  // nothing was stored (found 2026-10-10).
+  _remember(q) {
+    const m = q.match(/^(?:remember|keep in mind)(?:\s+that|\s*:)\s+(.+)$/i) || q.match(/^remember\s+((?:i|i'm|im|i am|my|me)\b.+)$/i);
+    if (!m || typeof AIMemory === 'undefined') return null;
+    const fact = m[1].replace(/[.!]+$/, '').trim();
+    if (!fact) return null;
+    return {
+      id: 'quick-remember', icon: 'sparkles', isPrimary: true,
+      label: 'Remember: ' + fact,
+      hint: 'Kept in AI memory · Settings › AI',
+      action: () => {
+        const added = AIMemory.add(fact);
+        if (AIMemory.data && AIMemory.data.enabled === false) return 'Remembered, but AI memory is switched off in Settings, so answers do not use it yet.';
+        return added ? 'Remembered.' : 'Already remembered.';
       },
     };
   },

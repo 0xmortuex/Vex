@@ -240,6 +240,47 @@ describe('an order Vex can carry out itself', () => {
     expect(AIPanel._conversations.tab1[1].content).toBe('I could not: the clock is not ready');
   });
 
+  // AI audit 2026-10-10: these answered with the question (or did more than asked).
+  it('"remember that …" is kept in AI memory and answered "Remembered."', async () => {
+    const facts = [];
+    globalThis.AIMemory = { data: { enabled: true }, add: vi.fn((t) => { facts.push(t); return true; }) };
+    document.getElementById('ai-input').value = 'remember that I prefer short answers';
+    await AIPanel._sendChat();
+    expect(facts).toEqual(['I prefer short answers']);
+    expect(AIPanel.sendMessage).not.toHaveBeenCalled();
+    expect(AIPanel._conversations.tab1[1].content).toBe('Remembered.');
+    delete globalThis.AIMemory;
+  });
+
+  it('"turn on <setting>" answers with what happened, also when you say no', async () => {
+    const plan = { same: false, sentence: 'Change "Streamer mode" from "Off" to "Always on"?', control: { label: 'Streamer mode' } };
+    globalThis.VexSettingsControl = {
+      parseRequest: (q) => (/^turn on streamer mode$/i.test(q) ? { q } : null),
+      plan: () => plan,
+      apply: vi.fn(async () => ({ changed: true, message: 'Change "Streamer mode" from "Off" to "Always on" — done' })),
+    };
+    document.getElementById('ai-input').value = 'turn on streamer mode';
+    await AIPanel._sendChat();
+    expect(AIPanel._conversations.tab1[1].content).toBe('Change "Streamer mode" from "Off" to "Always on" — done');
+    VexSettingsControl.apply = vi.fn(async () => { const e = new Error('The user said no'); e.declined = true; throw e; });
+    document.getElementById('ai-input').value = 'turn on streamer mode';
+    await AIPanel._sendChat();
+    expect(AIPanel._conversations.tab1[3].content).toBe('"Streamer mode" was left as it was.');
+    delete globalThis.VexSettingsControl;
+  });
+
+  it('"what time is it in Sydney" answers the time and does not add Sydney to the world clock', async () => {
+    VexClock.zoneFor = (n) => (/sydney/i.test(n) ? { name: 'Sydney', zone: 'Australia/Sydney' } : null);
+    VexClock.partsIn = () => ({ hour: 20, minute: 53, weekday: 'Sat' });
+    VexClock.offsetLabel = () => '+8h';
+    VexClock.cities = vi.fn(() => []);
+    VexClock.saveCities = vi.fn(() => true);
+    document.getElementById('ai-input').value = 'what time is it in Sydney';
+    await AIPanel._sendChat();
+    expect(AIPanel._conversations.tab1[1].content).toBe('20:53 in Sydney (Sat, +8h).');
+    expect(VexClock.saveCities).not.toHaveBeenCalled();
+  });
+
   it('a question is left to the model exactly as before', async () => {
     document.getElementById('ai-input').value = 'what is a timer';
     await AIPanel._sendChat();
