@@ -285,7 +285,8 @@ define('cloud:request', [shape({ feature: optional(string(80)) })]);
 // whether the person agreed to send a private or Tor tab's picture (main.js).
 define('image:for-ai', [integer, web, optional(boolean)]);
 // mcpServer: the id of an MCP server whose token main adds to the request.
-define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)) })]);
+// publicOnly: the AI agent's reads, refused for this machine and the local network.
+define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);
 define('privacy:set-config', [object]);

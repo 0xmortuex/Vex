@@ -120,6 +120,8 @@ const { registerSidebarConfigIpc } = require('./sidebar-config');
 const { createSessionSecurity } = require('./main/session-security');
 const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents });
 const boundedNetFetch = require('./main/network').createBoundedFetch(net.fetch.bind(net));
+// The AI agent's page reads: public internet only, every redirect re-checked (main/public-fetch.js).
+const boundedPublicFetch = require('./main/network').createBoundedFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }));
 require('./main/ipc-policy').installIpcPolicy(ipcMain, secureSessions);
 ipcMain.on('storage:flushed', event => {
   const host = secureSessions.owner(event.sender);
@@ -1637,7 +1639,7 @@ ipcMain.handle('calendar:fetch', async (_e, url) => {
 ipcMain.handle('api:request', async (_e, opts = {}) => {
   const t0 = Date.now();
   try {
-    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null } = opts || {};
+    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null, publicOnly = false } = opts || {};
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
     const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? { ...headers } : {} };
     // An MCP server's token, kept encrypted in main (mcp:auth-set).
@@ -1646,7 +1648,7 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
       if (token) init.headers.Authorization = /^bearer\s/i.test(token) ? token : 'Bearer ' + token;
     }
     if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
-    const res = await boundedNetFetch(url, init);
+    const res = await (publicOnly ? boundedPublicFetch : boundedNetFetch)(url, init);
     const buf = Buffer.from(await res.arrayBuffer());
     const capped = buf.length > 5 * 1024 * 1024;
     const text = capped ? buf.slice(0, 5 * 1024 * 1024).toString('utf8') : buf.toString('utf8');

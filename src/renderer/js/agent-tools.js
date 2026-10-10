@@ -21,15 +21,14 @@ const AgentTools = {
 
   // ------------------------------------------------------------- fetching --
   // The agent is steered by text it reads, so it must not be talked into
-  // fetching the user's router or a service on this machine.
+  // fetching the user's router or a service on this machine. This is the
+  // early, friendly refusal; main makes the real decision on every redirect
+  // and on the resolved address (api:request publicOnly, main/public-fetch.js).
   isPrivateHost(host) {
-    const h = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
-    if (!h || h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.lan')) return true;
-    if (/^(127\.|10\.|0\.|169\.254\.|192\.168\.)/.test(h)) return true;
-    const m = h.match(/^172\.(\d+)\./);
-    if (m && Number(m[1]) >= 16 && Number(m[1]) <= 31) return true;
-    if (h === '::1' || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe80:/.test(h)) return true;
-    return false;
+    const pa = typeof VexPrivateAddress !== 'undefined' ? VexPrivateAddress
+      : (typeof require === 'function' ? require('./private-address.js') : null);
+    if (!pa) throw new Error('private-address.js is not loaded');
+    return pa.isPrivateHost(host);
   },
 
   _checkUrl(url) {
@@ -42,7 +41,7 @@ const AgentTools = {
 
   async _get(url) {
     if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
+    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
     if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
     if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
     return r;
