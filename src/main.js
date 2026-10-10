@@ -1840,6 +1840,7 @@ ipcMain.handle('totp:codes', () => {
 });
 ipcMain.handle('totp:add', async (_e, input) => {
   try {
+    _refuseWhileLocked();
     let entry;
     if (typeof input === 'string') {
       entry = _parseOtpauth(input) || { label: 'Account', issuer: '', secret: input.replace(/\s/g, ''), algorithm: 'sha1', digits: 6, period: 30 };
@@ -1865,7 +1866,7 @@ ipcMain.handle('totp:add', async (_e, input) => {
   } catch (err) { return { ok: false, error: err.message || 'Invalid key' }; }
 });
 ipcMain.handle('totp:delete', async (_e, id) => {
-  try { await totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
+  try { _refuseWhileLocked(); await totpSave(totpLoad().filter(e => e.id !== id)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 // Passphrase-encrypted backup and restore, and Google Authenticator's

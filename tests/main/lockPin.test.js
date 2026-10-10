@@ -128,6 +128,13 @@ describe('main.js', () => {
     expect(block("ipcMain.handle('persist-apply'", 200)).toContain('for (const [key] of entries) _refuseLockPinChange(key);');
   });
 
+  // Audit SY4: totp:add and totp:delete worked while locked.
+  it('every authenticator call is refused while locked', () => {
+    const handlers = [...MAIN.matchAll(/ipcMain\.handle\('(totp:[a-z-]+)'/g)].map(m => m[1]);
+    expect(handlers).toEqual(expect.arrayContaining(['totp:list', 'totp:codes', 'totp:add', 'totp:delete']));
+    for (const ch of handlers) expect(block("ipcMain.handle('" + ch + "'", 120), ch).toContain('_refuseWhileLocked()');
+  });
+
   it("main keeps its wrong-PIN count in a file", () => {
     expect(block('const _lockGate =', 400)).toContain("fileStore(path.join(userDataPath, 'lock-tries.json')");
   });
