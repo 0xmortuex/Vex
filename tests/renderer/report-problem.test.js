@@ -43,6 +43,22 @@ describe('scrubbing', () => {
     const plain = 'Vex 2.35.2 · Electron 42.11.0 — the session could not be restored: helper process gone';
     expect(VexReport.scrub(plain)).toBe(plain);
   });
+
+  // Audit SET10 (2026-10-10): these went into the report as they were.
+  it('replaces your own worker, tunnel and private-network addresses, and a user folder with no drive letter', () => {
+    expect(VexReport.scrub('sync push failed: https://vex-sync.janedoe.workers.dev/sync 413'))
+      .toBe('sync push failed: https://[your-worker].workers.dev/sync 413');
+    expect(VexReport.scrub('ai: fetch vex-ai.janedoe.workers.dev refused')).toBe('ai: fetch [your-worker].workers.dev refused');
+    expect(VexReport.scrub('tunnel https://quiet-river-1234.trycloudflare.com/ down')).toBe('tunnel https://[your-tunnel].trycloudflare.com/ down');
+    expect(VexReport.scrub('Ollama at http://192.168.1.20:11434 and 10.0.0.5, nas 172.20.3.4, tailnet 100.101.2.3'))
+      .toBe('Ollama at http://[private-ip]:11434 and [private-ip], nas [private-ip], tailnet [private-ip]');
+    expect(VexReport.scrub('cannot open \\Users\\jane\\AppData\\Roaming\\Vex\\x.json')).toBe('cannot open %USERPROFILE%\\AppData\\Roaming\\Vex\\x.json');
+    expect(VexReport.scrub('\\\\pc\\c$\\Users\\Jane Doe\\Desktop')).toBe('\\\\pc\\c$%USERPROFILE%\\Desktop');
+    // Not over-reaching: public addresses, versions, localhost, web paths.
+    for (const plain of ['8.8.8.8 timed out', 'Chromium 148.0.7778.0', 'http://127.0.0.1:9222 refused', 'https://workers.dev.example.com/', 'GET /users/42 failed', '172.32.0.1 is public']) {
+      expect(VexReport.scrub(plain), plain).toBe(plain);
+    }
+  });
 });
 
 describe('the report', () => {
