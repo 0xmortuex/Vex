@@ -2393,6 +2393,30 @@ ipcMain.handle('downloads:set-rules', (_e, rules) => {
   try { fs.writeFileSync(_rulesFile, JSON.stringify(_downloadRules)); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Settings > Downloads: the folder downloads go to, and "Ask where to save
+// each file" (src/main/download-prefs.js). The folder is set only from the
+// system folder dialog shown here.
+const _downloadPrefs = require('./main/download-prefs').createDownloadPrefs({
+  fs, file: path.join(userDataPath, 'download-prefs.json'), defaultFolder: () => app.getPath('downloads'),
+});
+ipcMain.handle('downloads:prefs', () => ({ ok: true, ..._downloadPrefs.get() }));
+ipcMain.handle('downloads:choose-folder', async (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const opts = { title: 'Download location', defaultPath: _downloadPrefs.get().folder, buttonLabel: 'Select folder', properties: ['openDirectory', 'createDirectory'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true, ..._downloadPrefs.get() };
+    return { ok: true, ..._downloadPrefs.setFolder(r.filePaths[0]) };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:set-ask', (_e, on) => {
+  try { return { ok: true, ..._downloadPrefs.setAsk(on) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:reset-prefs', () => {
+  try { return { ok: true, ..._downloadPrefs.reset() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 // Per-site switches (src/main/site-rules.js): JavaScript, cookies and
 // third-party content, off for one site at a time. Kept in the profile so a
 // page that loads before the window is ready is already covered.
@@ -2535,6 +2559,7 @@ function _pageUrlOf(webContentsId) {
 }
 
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  prefs: () => _downloadPrefs.current(),
   // Read lazily, the first time a download finishes or is opened.
   knownBefore: () => {
     const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');
@@ -6974,7 +6999,7 @@ ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:open-folder', async () => {
-  try { await shell.openPath(app.getPath('downloads')); return { ok: true }; }
+  try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 

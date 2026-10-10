@@ -223,6 +223,34 @@ const DownloadsPanel = {
     if (r && !r.ok) window.showToast?.('The rules are set for now, but could not be saved for next time: ' + r.error, 'error');
     return list;
   },
+  // --- Settings > Downloads ------------------------------------------------
+  // The folder downloads go to and "Ask where to save each file", kept by main
+  // (src/main/download-prefs.js); the folder is picked in main's own dialog.
+  showPrefs(p) {
+    const label = document.getElementById('setting-download-folder');
+    const ask = document.getElementById('setting-download-ask');
+    if (label) { label.textContent = p.folder; label.title = p.folder; }
+    if (ask) ask.checked = !!p.ask;
+  },
+  async bindSettings() {
+    const change = document.getElementById('setting-download-folder-change');
+    const ask = document.getElementById('setting-download-ask');
+    if (!change || !ask) return;
+    const fail = (what, r) => window.showToast?.(what + ': ' + ((r && r.error) || 'Vex did not answer'), 'error');
+    change.addEventListener('click', async () => {
+      const r = await window.vex.downloadsChooseFolder();
+      if (r && r.ok) { this.showPrefs(r); window.showToast?.('Downloads now go to ' + r.folder); }
+      else if (!(r && r.canceled)) fail('Could not change the download folder', r);
+    });
+    ask.addEventListener('change', async () => {
+      const r = await window.vex.downloadsSetAsk(ask.checked);
+      if (r && r.ok) this.showPrefs(r);
+      else { ask.checked = !ask.checked; fail('Could not change it', r); }
+    });
+    const r = await window.vex.downloadsPrefs();
+    if (r && r.ok) this.showPrefs(r); else fail('Could not read where downloads go', r);
+  },
+
   // Sent at startup as well: main reads its own copy from the profile, and
   // this keeps the two from drifting after a settings restore or a sync.
   pushRules() { const list = this.rules(); if (list.length) window.vex.downloadsSetRules?.(list); },

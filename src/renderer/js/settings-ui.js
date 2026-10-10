@@ -17,6 +17,7 @@ const SettingsUI = {
     pencil: '<path d="M4 20h4L20 8l-4-4L4 16v4Z"/><path d="M14 6l4 4"/>',
     bolt: '<path d="M13 3L5 14h6l-1 7l8-11h-6l1-7Z"/>',
     save: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+    download: '<path d="M12 4v11"/><path d="M7 10l5 5l5-5"/><path d="M5 20h14"/>',
     folders: '<path d="M3 8V6a2 2 0 0 1 2-2h3l2 2h5a2 2 0 0 1 2 2v1"/><rect x="3" y="8" width="18" height="12" rx="2"/>',
     pin: '<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
     refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 3v6h-6"/>',
@@ -67,6 +68,7 @@ const SettingsUI = {
     { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill'] },
     { name: 'Performance',     icon: 'bolt',     color: '#f97316', match: ['performance', 'sleep'] },
     { name: 'Sessions',        icon: 'save',     color: '#f59e0b', match: ['session'] },
+    { name: 'Downloads',       icon: 'download', color: '#0284c7', match: ['downloads'] },
     { name: 'Workspaces',      icon: 'folders',  color: '#14b8a6', match: ['workspace'] },
     { name: 'Location',        icon: 'pin',      color: '#ef4444', match: ['location'] },
     { name: 'Sync',            icon: 'refresh',  color: '#06b6d4', match: ['sync'] },
@@ -124,7 +126,7 @@ const SettingsUI = {
   // advanced settings, and still found by the search.
   BASIC_SECTIONS: [
     'general', 'default browser', 'sidebar buttons', 'privacy & security',
-    'autofill', 'sessions', 'passwords', 'appearance', 'gui style', 'tab layout',
+    'autofill', 'sessions', 'downloads', 'passwords', 'appearance', 'gui style', 'tab layout',
     'reading & accessibility', 'personalization', 'data', 'about',
   ],
   tierOf(labelText) {

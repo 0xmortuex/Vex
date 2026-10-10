@@ -36,6 +36,10 @@ define('updates:backup-read', [string(120)]);
 define('file:inspect', [string(4096), optional(string(4096))]);
 define('archive:list', [string(4096)]);
 define('downloads:set-rules', [value => Array.isArray(value) && value.length <= 50 && value.every(object)]);
+// Settings > Downloads (src/main/download-prefs.js): the folder comes only
+// from main's own folder dialog, so choosing it takes no argument.
+define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);
+define('downloads:set-ask', [boolean]);
 define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

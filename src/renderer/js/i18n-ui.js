@@ -88,6 +88,9 @@ const VexI18nUI = {
       'Vertical (left sidebar)': 'Dikey (sol kenar çubuğu)',
       'Fill sign-in codes from your email': 'E-postanızdaki giriş kodlarını doldur',
       '· only a code the same site emailed you, read from your open webmail': '· yalnızca aynı sitenin size e-postayla gönderdiği kod, açık web postanızdan okunur',
+      // Settings > Downloads (js/downloads-panel.js); 'Location' is above.
+      'Change': 'Değiştir',
+      'Ask where to save each file before downloading': 'İndirmeden önce her dosyanın nereye kaydedileceğini sor',
 
       // --- states you see constantly ---
       'Loading...': 'Yükleniyor…', 'Loading…': 'Yükleniyor…',

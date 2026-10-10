@@ -520,6 +520,7 @@ function vexOwnTextFocused(doc) {
   // Settings buttons
   document.getElementById('setting-open-sessions')?.addEventListener('click', () => SessionManager.showOverlay());
   document.getElementById('setting-open-workspaces')?.addEventListener('click', () => WorkspaceManager.showModal());
+  DownloadsPanel.bindSettings();
   document.getElementById('setting-github-link')?.addEventListener('click', (e) => {
     e.preventDefault();
     TabManager.createTab('https://github.com/0xmortuex/Vex', true);
@@ -691,6 +692,10 @@ function vexOwnTextFocused(doc) {
       if (window.vex && typeof window.vex.privacySetConfig === 'function') {
         await window.vex.privacySetConfig({ farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false });
       }
+      // Where downloads go, and "Ask where to save each file", live in main too.
+      const dl = await window.vex.downloadsResetPrefs();
+      if (!dl || !dl.ok) throw new Error('the download folder was not reset: ' + ((dl && dl.error) || 'Vex did not answer'));
+      DownloadsPanel.showPrefs(dl);
       await PersistentStorage._flush();
       window.vexRestartNeeded?.();
       showToast('Settings reset — restart Vex to finish (the button is under Performance).');

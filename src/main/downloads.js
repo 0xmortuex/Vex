@@ -2,7 +2,9 @@ const path = require('path');
 // knownBefore: the paths of the finished downloads already in the panel's
 // saved list, read once (see _loadKnown).
 // webContents: Electron's, to find a live page in a session for a retry.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null }) {
+// prefs: where downloads go and whether each is asked about
+// (src/main/download-prefs.js current()); folder null = the Downloads folder.
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }) }) {
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
 // can pause/resume/cancel a transfer that is still running. An item is dropped
@@ -114,18 +116,30 @@ function wireDownloadsOnSession(ses, tag) {
     // A sorting rule can put this in a folder of its own and rename it
     // (src/main/download-rules.js). No rule matching leaves both alone.
     const placed = require('./download-rules').place(rules(), { filename: item.getFilename(), url: item.getURL() });
-    let dir = app.getPath('downloads');
+    // The folder chosen in Settings > Downloads, or the Downloads folder.
+    const where = prefs();
+    let dir = where.folder || app.getPath('downloads');
+    // The chosen folder is gone (a drive unplugged): asked where to save this
+    // one, starting in Downloads, rather than failing or picking silently.
+    const folderGone = !!where.folder && !require('fs').existsSync(where.folder);
+    if (folderGone) {
+      console.warn('[Downloads] the download folder ' + where.folder + ' is not there; asking where to save');
+      dir = app.getPath('downloads');
+    }
     if (placed.folder) {
       const wanted = path.join(dir, placed.folder);
       try { require('fs').mkdirSync(wanted, { recursive: true }); dir = wanted; }
-      catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using the Downloads folder:', err.message); }
+      catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using ' + dir + ':', err.message); }
     }
     const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
-    const ask = _takeAsk(chain);
+    const askImage = _takeAsk(chain);
+    const ask = askImage || where.ask || folderGone;
     let savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
     // Not setting a save path is what makes Electron show the Save dialog;
     // where the user puts it is read back from the item once it is chosen.
-    if (ask) item.setSaveDialogOptions({ title: 'Save image as', defaultPath: savePath, buttonLabel: 'Save' });
+    // Wherever it goes, Chromium still marks the file as downloaded from the
+    // internet (Windows' Zone.Identifier), and Open still takes only it.
+    if (ask) item.setSaveDialogOptions({ title: askImage ? 'Save image as' : 'Save as', defaultPath: savePath, buttonLabel: 'Save' });
     else item.setSavePath(savePath);
     const info = {
       id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
