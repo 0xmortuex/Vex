@@ -10,6 +10,8 @@
 
 const PasswordVault = {
   NEVER_KEY: 'vex.pwNever',
+  // How long a two-step login's username waits for its password step.
+  LOGIN_STEP_MS: 10 * 60 * 1000,
 
   async _copyPassword(password) {
     // One implementation for every secret Vex copies (js/vex-utils.js).
@@ -58,6 +60,15 @@ const PasswordVault = {
         if (this._host(d.host) === actualHost) this._rememberEmail(actualHost, d.email);
         return;
       }
+      // A two-step login's first step: the username, held for this tab only
+      // (never stored) so the password step can be offered for saving.
+      if (e.channel === 'vex-login-user') {
+        const d = (e.args && e.args[0]) || {};
+        if (this._host(d.host) === actualHost && typeof d.username === 'string' && d.username && d.username.length <= 200) {
+          webview._vexLoginUser = { host: actualHost, username: d.username, at: Date.now() };
+        }
+        return;
+      }
       if (e.channel === 'vex-login-want') {
         await this._onLoginWant(webview, (e.args && e.args[0]) || {}, actualHost);
         return;
@@ -74,6 +85,10 @@ const PasswordVault = {
       const raw = (e.args && e.args[0]) || {};
       if (this._host(raw.host) !== actualHost) return;
       const data = { ...raw, host: actualHost };
+      if (!data.username) {
+        const step = webview._vexLoginUser;
+        if (step && step.host === actualHost && Date.now() - step.at < this.LOGIN_STEP_MS) data.username = step.username;
+      }
       if (!data.host || !data.username || !data.password) return;
       // The password Vex suggested and the person used: submitting the form is
       // the go-ahead to keep it, so it is saved now (and said so) instead of

@@ -1529,7 +1529,9 @@ function _isVexStartPage(href) {
         const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
         for (const c of cands) { if (c.value && c !== pw) { user = c.value; break; } }
       }
-      if (!user) return;
+      // No username on this page is normal for a two-step login (email first,
+      // password on the next page): the host pairs it with the username sent
+      // from the first step ("vex-login-user"), so it is sent empty here.
       const now = Date.now();
       if (now - lastSent < 1500) return; // debounce repeated triggers
       lastSent = now;
@@ -1547,15 +1549,20 @@ function _isVexStartPage(href) {
   function rememberEmail() {
     try {
       if (location.protocol !== "https:") return;
+      // The username of a two-step login's first step, kept by the host for
+      // this tab only, so the password step can still be offered for saving.
+      if (lastUser && lastUser.length <= 200) ipcRenderer.sendToHost("vex-login-user", { host: location.hostname.replace(/^www\./, ""), username: lastUser });
       const em = lastUser;
       if (!em || em.indexOf("@") < 0 || em.length > 200) return;
       ipcRenderer.sendToHost("vex-login-email", { host: location.hostname.replace(/^www\./, ""), email: em });
     } catch {}
   }
 
-  document.addEventListener("submit", () => { tryCapture(); rememberEmail(); }, true);
+  // Only the person's own submit, Enter or click: a page's script could
+  // otherwise dispatch a fake one and pop the save card whenever it liked.
+  document.addEventListener("submit", (e) => { if (!e.isTrusted) return; tryCapture(); rememberEmail(); }, true);
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
+    if (!e.isTrusted || e.key !== "Enter") return;
     const el = e.target;
     // Capture NOW (before a React SPA clears the password on submit) AND after a
     // short delay (for sites that populate the field late). Debounce dedupes.
@@ -1563,6 +1570,7 @@ function _isVexStartPage(href) {
   }, true);
   document.addEventListener("click", (e) => {
     try {
+      if (!e.isTrusted) return;
       const el = e.target;
       if (!el || !el.closest) return;
       const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
