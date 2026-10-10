@@ -112,17 +112,20 @@ const AIPanel = {
     document.getElementById('ai-input')?.addEventListener('input', (e) => {
       if (typeof PersonasManager === 'undefined') return;
       const val = e.target.value;
-      // Only trigger after the @word is terminated (space or end of trailing word with more than 2 chars)
-      const m = val.match(/@([A-Za-z0-9_]{2,})(\s|$)/);
+      // Only a whole @word, at the start or after a space, and only once a
+      // space ends it. It used to fire while the word was still being typed
+      // and in the middle of an address: "bob@co" switched to "Code
+      // Reviewer" and "bob@company.com" became "bobmpany.com" (found
+      // 2026-10-10).
+      const m = this._takeMention(val);
       if (!m) return;
-      const mention = PersonasManager.findByMention('@' + m[1]);
+      const mention = PersonasManager.findByMention('@' + m.word);
       if (!mention) return;
       const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
       PersonasManager.setActiveForTab(tab?.id, mention.id);
       this.updatePersonaSwitcher();
       this._renderPersonaQuickPrompts();
-      // Strip the first @word from the input
-      e.target.value = val.replace(/@[A-Za-z0-9_]+\s*/, '').trim();
+      e.target.value = m.rest;
       if (typeof window.showToast === 'function') window.showToast(`Switched to ${mention.name}`, 'info');
     });
 
@@ -357,6 +360,14 @@ const AIPanel = {
   },
 
   // === Phase 15: Persona switcher ===
+  // "@word " typed in the box → { word, rest } (rest: the text without that
+  // @word and nothing else), or null.
+  _takeMention(val) {
+    const m = String(val || '').match(/(^|\s)@([A-Za-z0-9_]{2,})\s/);
+    if (!m) return null;
+    return { word: m[2], rest: (val.slice(0, m.index) + m[1] + val.slice(m.index + m[0].length)).trim() };
+  },
+
   getActivePersona() {
     if (typeof PersonasManager === 'undefined') return null;
     const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
@@ -629,12 +640,18 @@ const AIPanel = {
     this._onDocDown = (e) => {
       if (!this.isOpen()) return;
       if (panel && panel.contains(e.target)) return;
+      // Answering a question the panel asked (a setting change, the agent's
+      // Paused prompt) is not clicking away: it closed the panel (found
+      // 2026-10-10).
+      if (e.target?.closest?.('.vex-dialog-overlay')) return;
       // The buttons that open it must stay a toggle, not close-then-reopen.
       if (e.target?.closest?.('#btn-toggle-ai, .vex-job-btn, #ai-backdrop')) return;
       this.close();
     };
     this._onEsc = (e) => {
       if (e.key !== 'Escape' || !this.isOpen()) return;
+      // Escape in a dialog closes the dialog, not the panel behind it.
+      if (document.querySelector('.vex-dialog-overlay')) return;
       const dd = document.getElementById('persona-dropdown');
       const td = document.getElementById('tab-selector-dropdown');
       if (dd && !dd.hidden) { dd.hidden = true; return; }
