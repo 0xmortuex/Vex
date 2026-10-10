@@ -239,6 +239,11 @@ define('permissions:set-for-page', [integer, value => typeof value === 'string' 
 define('permissions:reset-for-page site:certificate', [integer]);
 // The pages of a tab just closed, whose saved back lists go (session-security.js).
 define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);
+// A tab's back list read by its page's id, and handed back for the page made
+// for it again (session-security.js, carryHistory, which checks each entry).
+define('tabs:history', [integer]);
+define('tabs:carry-history', [value => typeof value === 'string' && /^c\d{1,9}$/.test(value), string(160),
+  shape({ entries: value => Array.isArray(value) && value.length <= 50 && value.every(object), index: value => Number.isInteger(value) && value >= 0 })]);
 // A tab's icon fetched through the tab's own session, by its page's id
 // (src/main/favicon-fetch.js).
 define('tabs:favicon', [integer, web]);

@@ -83,6 +83,64 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     catch (error) { console.error('[Vex] could not keep the tab\'s back list:', error.message); return; }
     pending.catch(error => { if (!/ERR_ABORTED/.test(error.message)) console.error('[Vex] could not keep the tab\'s back list:', error.message); });
   }
+  // Every tab's back list, not only a JavaScript-off one's: sleeping a tab,
+  // reopening a closed one and restoring tabs at start build its page again
+  // from the address alone, and Back went nowhere (found 2026-10-10). The
+  // window keeps each tab's list with the tab (js/webview.js asks for it after
+  // every navigation, it is saved with the tab), and hands it back here before
+  // the new page is made (carryHistory); restoreHistory above puts it in.
+  // Kept small, it is saved with every tab: at most SAVED_ENTRIES around the
+  // current page, an address and a short title each, no page state. Only what
+  // a tab can go back to: web pages and the New Tab page. The saved file can be
+  // edited by hand, so a carried list is checked here as strictly as one read.
+  const SAVED_ENTRIES = 12, SAVED_FORWARD = 4, SAVED_URL = 2048, SAVED_TITLE = 120, CARRIED_MAX = 50;
+  const startPage = path.resolve(root, 'renderer/start.html');
+  function restorableEntry(url) {
+    if (typeof url !== 'string' || url.length > SAVED_URL) return false;
+    let parsed;
+    try { parsed = new URL(url); } catch { return false; }
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return true;
+    if (parsed.protocol === 'vex:') return parsed.hostname === 'start';
+    if (parsed.protocol !== 'file:') return false;
+    try { return path.resolve(fileURLToPath(parsed)) === startPage; } catch { return false; }
+  }
+  // { entries: [{ url, title }], index } or null when there is nothing to go
+  // back or forward to. A page that cannot be kept (a reading-mode data: page,
+  // an error page) is left out; the current one is then the last kept page
+  // before it, which is the address the tab itself keeps (js/webview.js).
+  function trimHistory(list) {
+    if (!list || typeof list !== 'object' || !Array.isArray(list.entries) || !Number.isInteger(list.index)) return null;
+    if (list.index < 0 || list.index >= list.entries.length || list.entries.length > 1000) return null;
+    const kept = [];
+    let index = -1;
+    list.entries.forEach((entry, at) => {
+      if (!entry || typeof entry !== 'object' || !restorableEntry(entry.url)) return;
+      kept.push({ url: entry.url, title: typeof entry.title === 'string' ? entry.title.slice(0, SAVED_TITLE) : '' });
+      if (at <= list.index) index = kept.length - 1;
+    });
+    if (index < 0 || kept.length < 2) return null;
+    const forward = Math.min(kept.length - 1 - index, SAVED_FORWARD);
+    const back = Math.min(index, SAVED_ENTRIES - 1 - forward);
+    return { entries: kept.slice(index - back, index + forward + 1), index: back };
+  }
+  function readHistory(guest) {
+    const nav = guest.navigationHistory;
+    return trimHistory({ entries: nav.getAllEntries(), index: nav.getActiveIndex() });
+  }
+  // A tab's saved list, for the page about to be made for it: the webview
+  // names it with vexHistoryFrom=<token>. Per window; taken once.
+  const carried = new Map();
+  function carryHistory(hostId, token, partition, list) {
+    if (typeof token !== 'string' || !/^c\d{1,9}$/.test(token)) throw new Error('Invalid history token');
+    const saved = trimHistory(list);
+    if (!saved) return false;
+    if (!carried.has(hostId)) carried.set(hostId, new Map());
+    const mine = carried.get(hostId);
+    mine.delete(token);
+    mine.set(token, { hostId, partition, ...saved });
+    while (mine.size > CARRIED_MAX) mine.delete(mine.keys().next().value);
+    return true;
+  }
   function owner(contents) {
     if (!contents || contents.isDestroyed?.()) return null;
     if (hosts.has(contents.id)) return hosts.get(contents.id);
@@ -145,10 +203,26 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         // built again (renderer/js/webview.js), and names the guest it
         // replaces. Only that guest's back list, from this window and this
         // partition, is taken.
-        const from = Number(prefs.vexHistoryFrom);
+        // Or names the list it carried itself (carryHistory above).
+        const named = prefs.vexHistoryFrom;
         delete prefs.vexHistoryFrom;
-        const saved = Number.isInteger(from) ? histories.get(from) : null;
-        if (saved) histories.delete(from);
+        let saved = null;
+        if (typeof named === 'string' && /^c\d{1,9}$/.test(named)) {
+          const mine = carried.get(hostId);
+          saved = mine?.get(named) || null;
+          mine?.delete(named);
+          // Built again at the page it was on: the restore loads that page
+          // itself. Electron would load the webview's src as well, once the
+          // guest attaches, and that load landed as a second copy of the page
+          // after the restored ones and cut off the forward list (measured
+          // 2026-10-10). Built for another address, its load still lands
+          // after them, as a JavaScript-off tab's does.
+          if (saved && saved.hostId === hostId && saved.partition === partition && params && params.src === saved.entries[saved.index].url) params.src = '';
+        } else {
+          const from = Number(named);
+          saved = Number.isInteger(from) ? histories.get(from) : null;
+          if (saved) histories.delete(from);
+        }
         if (saved && saved.hostId === hostId && saved.partition === partition) {
           const entry = expecting = { saved, before: Math.max(0, ...webContents.getAllWebContents().map(c => c.id)) };
           queueMicrotask(() => {
@@ -190,6 +264,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       hosts.delete(hostId);
       host.data = host.persist = null;
       for (const [id, saved] of histories) if (saved.hostId === hostId) histories.delete(id);
+      carried.delete(hostId);
       for (const [id, ownerId] of guestOwners) if (ownerId === hostId) {
         const guest = webContents.fromId(id);
         try { guest?.close(); } catch {}
@@ -246,6 +321,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     });
   }
   return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews, registerWebWindow,
+    readHistory, carryHistory, trimHistory,
     isAuxiliary(event, channel) {
       // Any frame of an Open as App / overlay window: the ad blocker runs in its iframes too.
       if (WEB_WINDOW_CHANNELS.has(channel) && webWindows.has(event.sender.id)) return true;

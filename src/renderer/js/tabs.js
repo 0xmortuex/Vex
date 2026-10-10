@@ -336,7 +336,9 @@ const TabManager = {
         note: t.note || '',
         // Keeps the Memory panel's "(was 219 MB)" across the restart; a
         // malformed saved figure is dropped rather than shown.
-        memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null
+        memBeforeSleep: window.VexTabPolicy?.sleepMemory(t) || null,
+        // Its back list, for the page made when it wakes (js/webview.js).
+        history: window.VexTabPolicy?.savedHistory(t) || null
       };
     }
     // Lazy restore: rebuild the tab record WITHOUT a webview. It
@@ -357,6 +359,7 @@ const TabManager = {
       stackId: t.stackId || null,
       keepAwakeUntil: t.keepAwakeUntil || 0,
       note: t.note || '',
+      history: window.VexTabPolicy?.savedHistory(t) || null,
       _lazy: true
     };
   },
@@ -384,6 +387,8 @@ const TabManager = {
       scrollPosition: opts?.scrollPosition || null,
       keepAwakeUntil: opts?.keepAwakeUntil || 0,
       note: opts?.note || '',
+      // A reopened tab's back list (reopenLastClosed), for its new page.
+      history: (opts && window.VexTabPolicy?.savedHistory(opts)) || null,
       unread: false,
       groupId: groupId,
       stackId: null,
@@ -537,7 +542,7 @@ const TabManager = {
       if (tab && !isStartPage(tab.url) && (window.VexTabPolicy ? window.VexTabPolicy.canPersist(tab) : (!tab.partition || String(tab.partition).startsWith('persist:')))) {
         const list = getRecentlyClosed();
         list.unshift({
-          ...(window.VexTabPolicy?.serialize(tab) || { url: tab.url, title: tab.title, favicon: tab.favicon, groupId: tab.groupId, partition: tab.partition || null }), closedAt: new Date().toISOString()
+          ...(window.VexTabPolicy?.serialize(tab, { history: true }) || { url: tab.url, title: tab.title, favicon: tab.favicon, groupId: tab.groupId, partition: tab.partition || null }), closedAt: new Date().toISOString()
         });
         saveRecentlyClosed(list);
       }
@@ -2066,6 +2071,7 @@ const TabManager = {
         WebviewManager.destroyWebview(current.id);
         current._lazy = true;
         current.sleeping = false;
+        current.history = null;   // its back list led to the old address
       }
       const tab = current || { id, _lazy: !saved.sleeping, loading: false, unread: false };
       const sleeping = current ? !!current.sleeping : !!saved.sleeping;
@@ -2862,7 +2868,7 @@ const TabManager = {
       activeTabId: this.activeTabId,
       tabs: closing.map(t => ({
         index: this.tabs.indexOf(t),
-        data: { ...policy.serialize(t), muted: !!t.muted },
+        data: { ...policy.serialize(t, { history: true }), muted: !!t.muted },
         restorable: policy.canRestore(t),
       })).sort((a, b) => a.index - b.index),
       groups: this.groups.map((g, index) => ({ group: { ...g }, index })),

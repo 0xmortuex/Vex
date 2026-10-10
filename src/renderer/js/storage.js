@@ -307,7 +307,7 @@ const VexStorage = {
   },
 
   async saveTabs(tabs) {
-    if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs));
+    if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs, { history: true }));
     const serialized = tabs
       // Ephemeral tabs (Tor , off-the-record) live in an in-memory partition
       // that's wiped on close — NEVER persist them. Restoring one would resurrect

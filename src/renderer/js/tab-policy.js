@@ -28,15 +28,27 @@
       return m && typeof m === 'object' && Number.isFinite(m.mb) && m.mb >= 0 && typeof m.shared === 'boolean'
         ? { mb: m.mb, shared: m.shared } : null;
     },
-    serialize(tab) {
+    // A tab's back list (js/webview.js, main/session-security.js): kept with
+    // the tab on this device only, so it is asked for ({ history: true }) by
+    // the saved session, the recently closed list and Undo, and left out of
+    // what is synced, a saved session or a workspace. Main checks every entry
+    // before using it; only its shape is checked here.
+    savedHistory(tab) {
+      const h = tab && tab.history;
+      return h && typeof h === 'object' && Array.isArray(h.entries) && h.entries.length >= 2 && h.entries.length <= 50
+        && Number.isInteger(h.index) && h.index >= 0 && h.index < h.entries.length ? h : null;
+    },
+    serialize(tab, opts) {
+      const history = opts && opts.history ? policy.savedHistory(tab) : null;
       return { id: tab.id, url: tab.url, title: tab.title || '', favicon: tab.favicon || null,
         partition: tab.partition || null, pinned: !!tab.pinned, groupId: tab.groupId || null,
         stackId: tab.stackId || null, sleeping: !!tab.sleeping, originalUrl: tab.originalUrl || null,
         scrollPosition: tab.scrollPosition || null, keepAwakeUntil: tab.keepAwakeUntil || 0, note: tab.note || '',
         // Only a sleeping tab's figure means anything: an awake tab's is stale.
-        memBeforeSleep: tab.sleeping ? policy.sleepMemory(tab) : null };
+        memBeforeSleep: tab.sleeping ? policy.sleepMemory(tab) : null,
+        ...(history ? { history } : {}) };
     },
-    snapshot(tabs) { return tabs.filter(t => policy.canPersist(t)).map(t => policy.serialize(t)); },
+    snapshot(tabs, opts) { return tabs.filter(t => policy.canPersist(t)).map(t => policy.serialize(t, opts)); },
     sourceOptions(webview) { return { partition: policy.partitionFor(webview?.getAttribute?.('partition')) }; },
   };
   window.VexTabPolicy = Object.freeze(policy);

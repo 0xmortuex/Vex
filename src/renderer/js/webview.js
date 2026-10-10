@@ -22,6 +22,21 @@ function _isTrustedStartPage(href) {
 
 const WebviewManager = {
   webviews: new Map(),
+  _historySeq: 0,
+
+  // The tab's back list as main reads it off its page, kept with the tab and
+  // saved with it (VexTabPolicy.serialize), so the page can be built again
+  // with it (createWebview above). Asked after every navigation of the page.
+  _noteHistory(tab, webview) {
+    if (typeof window.vex?.tabHistory !== 'function') return;
+    let pageId;
+    try { pageId = webview.getWebContentsId(); } catch { return; }   // not attached yet: its first navigation asks again
+    window.vex.tabHistory(pageId).then(list => {
+      if (this.webviews.get(tab.id) !== webview) return;   // slept or closed meanwhile: keep what it had
+      tab.history = list || null;
+      TabManager.persistTabs();
+    }).catch(err => console.warn('[Vex] could not read the tab\'s back list:', err && err.message));
+  },
 
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
@@ -61,10 +76,19 @@ const WebviewManager = {
     // and main gives the new one that guest's back list (session-security.js).
     const historyFrom = tab._historyFrom;
     delete tab._historyFrom;
+    // Any other tab built again (woken, reopened, restored at start) hands
+    // main the back list kept with it, and the new page starts with it
+    // (session-security.js, carryHistory); it went with the old page before.
+    let carried = null;
+    if (!Number.isInteger(historyFrom) && tab.history && typeof window.vex?.carryTabHistory === 'function') {
+      carried = 'c' + (++this._historySeq);
+      window.vex.carryTabHistory(carried, tab.partition || 'persist:main', tab.history);
+    }
     webview.setAttribute('webpreferences', 'contextIsolation=yes'
       + (keptAwake ? ',backgroundThrottling=no' : '')
       + (noScripts ? ',javascript=no' : '')
-      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : ''));
+      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : '')
+      + (carried ? ',vexHistoryFrom=' + carried : ''));
     webview.dataset.tabId = tab.id;
     // Browsing on to such a site from here is held to it by main, on the
     // page's own response (script-src 'none'). The other way round cannot be:
@@ -376,6 +400,7 @@ const WebviewManager = {
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
+      this._noteHistory(tab, webview);
       const url = e.url;
       // Arrived: the bar follows the page from here (navigate() above).
       const arriving = TabManager.tabs.find(t => t.id === tab.id);
@@ -448,6 +473,7 @@ const WebviewManager = {
 
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
+        this._noteHistory(tab, webview);
         TabManager.updateTab(tab.id, { url: e.url });
         window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
         document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));

@@ -320,6 +320,8 @@ contextBridge.exposeInMainWorld('vex', {
   siteCertificate: (id) => ipcRenderer.invoke('site:certificate', id),
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
+  tabHistory:           (pageId) => ipcRenderer.invoke('tabs:history', pageId),
+  carryTabHistory:      (token, partition, list) => ipcRenderer.send('tabs:carry-history', token, partition, list),
   // A tab's icon fetched through the tab's own session, as a data: URL.
   tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
   // Which sites the main window's Tor and proxy rules name (for a private window).

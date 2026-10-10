@@ -145,6 +145,18 @@ ipcMain.on('tabs:closed', (event, pageIds) => {
   if (!host) return;
   secureSessions.forgetHistories(host.win.webContents.id, pageIds);
 });
+// A tab's back list, kept with the tab so its page can be built again with
+// it after sleep, a reopen or a restart (session-security.js, carryHistory).
+// The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
+ipcMain.handle('tabs:history', (_event, pageId) => {
+  const guest = webContents.fromId(pageId);
+  return guest && !guest.isDestroyed() ? secureSessions.readHistory(guest) : null;
+});
+ipcMain.on('tabs:carry-history', (event, token, partition, list) => {
+  const host = secureSessions.owner(event.sender);
+  if (!host) return;
+  secureSessions.carryHistory(host.win.webContents.id, token, partition, list);
+});
 
 // === [Vex URL] DIAGNOSTIC: trace every layer of HTML/URL forwarding chain ===
 console.log('[Vex URL] ====== Vex process boot ======');
