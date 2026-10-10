@@ -233,7 +233,7 @@ const PasswordVault = {
     webview._vexLoginArm = { host, origin };
     try { webview.send('vex-login-arm', { origin }); }
     catch (err) { console.error('[Vault] could not offer the saved login to the page:', err.message); return; }
-    if (opts.now) await this._sendLogin(webview, { host, origin, id: 'now-' + Date.now(), now: true });
+    if (opts.now) await this._sendLogin(webview, { host, origin, id: vexId('now'), now: true });
   },
 
   // The page side asks after a real click in a login field.

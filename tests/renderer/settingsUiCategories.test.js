@@ -150,8 +150,8 @@ describe('the AI sections share one chip', () => {
     const names = navNames();
     expect(names.filter(n => n === 'AI')).toHaveLength(1);
     for (const gone of ['Personas', 'AI Memory', 'On-Device', 'MCP', 'Skills', 'History']) expect(names).not.toContain(gone);
-    expect(names.length).toBeLessThanOrEqual(31);
-    expect(names.slice(0, 15)).toEqual(['General', 'Browser', 'Sidebar', 'Privacy', 'Autofill', 'Sessions', 'Workspaces',
+    expect(names.length).toBeLessThanOrEqual(32); // 31 + Downloads (folder and ask-where-to-save, 2026-10-10)
+    expect(names.slice(0, 16)).toEqual(['General', 'Browser', 'Sidebar', 'Privacy', 'Autofill', 'Sessions', 'Downloads', 'Workspaces',
       'Performance', 'Profiles', 'Data', 'Location', 'Sync', 'AI', 'Appearance', 'Other']);
     expect(names).toContain('Recall');
     expect(names).toContain('Personalization');

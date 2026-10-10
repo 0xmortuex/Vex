@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import '../../src/renderer/js/vex-utils.js'; // index.html loads it first: vexId
 import { PasswordVault } from '../../src/renderer/js/passwords.js';
 
 const URL_ = 'https://shop.example/login';
