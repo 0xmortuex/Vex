@@ -1265,27 +1265,10 @@ ipcMain.handle('site:clear-data', async (_e, opts) => {
   const { partition, url } = opts || {};
   try {
     const ses = _siteSessionFor(_e, partition);
-    let origin = '';
-    try { origin = new URL(url).origin; } catch {}
-    if (origin) {
-      try {
-        await ses.clearStorageData({
-          origin,
-          storages: ['localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql', 'shadercache'],
-        });
-      } catch { /* best-effort */ }
-    }
-    // Remove every cookie that would be sent to this URL (host + parent domains).
-    try {
-      const cookies = await ses.cookies.get({ url });
-      for (const c of cookies) {
-        const dom = (c.domain || '').replace(/^\./, '');
-        if (!dom) continue;
-        const cu = `http${c.secure ? 's' : ''}://${dom}${c.path || '/'}`;
-        try { await ses.cookies.remove(cu, c.name); } catch { /* ignore one */ }
-      }
-    } catch { /* best-effort */ }
-    return { ok: true };
+    // Any part that fails is in the answer (src/main/site-data.js).
+    const r = await require('./main/site-data').clearSiteData(ses, url);
+    if (!r.ok) console.error('[SiteData] clearing failed:', r.error);
+    return r;
   } catch (err) {
     return { ok: false, error: err.message };
   }
