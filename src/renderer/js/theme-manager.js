@@ -313,8 +313,34 @@ const ThemeManager = {
   }
 };
 
+// A theme that arrived from another device, or with a restored backup, was
+// worn only from the next start (found 2026-10-10, TH12). It is worn at once
+// now, unless something else decides the theme: Light and dark (it picks the
+// theme for the hour, from its synced light and dark themes) or the theme
+// editor (its preview is on screen until it closes).
+ThemeManager.applySynced = async function (source) {
+  // After every other listener of this event: a theme of your own that came
+  // with the same sync is registered by js/theme-studio.js's.
+  await Promise.resolve();
+  if (typeof ThemeStudio !== 'undefined' && ThemeStudio.isEditing()) return null;
+  if (typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn()) { ThemeAuto.evaluate({ force: true }); return null; }
+  // A backup restores the copy in localStorage; sync writes the theme store.
+  const restored = source === 'backup';
+  let want = restored ? localStorage.getItem('vex.theme') : await VexStorage.load('theme');
+  if (typeof want !== 'string') return null;
+  want = this._migrate(want);
+  if (!this.availableThemes.includes(want) || want === this.currentTheme) return null;
+  // A restored theme is saved as the theme; a synced one already is.
+  this.applyTheme(want, { persist: restored });
+  return want;
+};
+
 if (typeof window !== 'undefined') {
   window.ThemeManager = ThemeManager;
+  window.addEventListener('vex-sync-data-applied', (e) => {
+    ThemeManager.applySynced(e && e.detail && e.detail.source)
+      .catch(err => console.error('[ThemeManager] could not wear the synced theme:', err));
+  });
 }
 
 if (typeof module !== 'undefined' && module.exports) {
