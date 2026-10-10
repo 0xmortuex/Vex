@@ -161,7 +161,19 @@ const SmartSearchbar = (() => {
         }
       }
     } catch {}
-    // 3) Bookmarks = start-page shortcuts ({ name, url }).
+    // 3) Bookmarks saved with Ctrl+D or the star ({ url, title, folder }).
+    // Only the New Tab tiles below were read, so a bookmark was never
+    // suggested (found 2026-10-10). rankSuggestions folds a page that is
+    // also a tile or in history into one row.
+    try {
+      const bm = JSON.parse(localStorage.getItem('vex.bookmarks') || '[]');
+      if (Array.isArray(bm)) {
+        for (const b of bm) {
+          if (b && b.url) out.push({ url: b.url, title: b.title || b.url, kind: 'bookmark' });
+        }
+      }
+    } catch {}
+    // 4) Start-page shortcuts (New Tab tiles, { name, url }), shown as bookmarks.
     try {
       const sc = JSON.parse(localStorage.getItem('vex.shortcuts') || 'null');
       if (Array.isArray(sc)) {
