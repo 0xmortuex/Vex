@@ -42,7 +42,7 @@ const USER_CONTENT_KEYS = [
 const PREFERENCE_KEYS = [
   'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors', 'vex.theme',
   'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
-  'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
+  'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
   'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
   'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
   'vex.autoArchiveDays', 'vex.locationMode', 'vex.userName', 'vex.githubUsername',

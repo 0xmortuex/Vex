@@ -594,7 +594,7 @@ function vexOwnTextFocused(doc) {
     'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
     'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette', 'vex.themeAuto',
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
-    'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
+    'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
     'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
     'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
@@ -844,6 +844,14 @@ function vexOwnTextFocused(doc) {
   // Email-code autofill: read verification codes from a hidden background Gmail
   // (no tab needed). Stored in localStorage so it's the same flag the autofill
   // and the Logins & Codes hub read.
+  // The master switch for the whole feature; on unless turned off.
+  const emailAutofillToggle = document.getElementById('setting-emailcode-autofill');
+  if (emailAutofillToggle) {
+    emailAutofillToggle.checked = localStorage.getItem('vex.emailCodeAutofill') !== '0';
+    emailAutofillToggle.addEventListener('change', () => {
+      localStorage.setItem('vex.emailCodeAutofill', emailAutofillToggle.checked ? '1' : '0');
+    });
+  }
   const emailHiddenToggle = document.getElementById('setting-emailcode-hidden');
   if (emailHiddenToggle) {
     try { emailHiddenToggle.checked = localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch {}

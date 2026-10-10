@@ -1462,7 +1462,7 @@ const WebviewManager = {
       items.push({ sep: true });
       items.push({
         label: 'Fill code from email',
-        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL()); window.showToast?.('Looking for your code…'); } catch {} }
+        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }
       });
     }
 

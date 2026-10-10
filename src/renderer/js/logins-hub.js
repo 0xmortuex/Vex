@@ -160,6 +160,8 @@ const LoginsHub = {
         'inbox-empty': 'inbox empty',
         'no-code-arrived': 'no code arrived',
         'no-new-code': 'no new code',
+        'sender-mismatch': 'code was from another site',
+        'busy': 'too many sign-ins at once',
       };
       html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('chart-bar', { size: 14 })}Recent autofill activity</div>` +
         recent.map(e => `<div style="display:flex;gap:8px;padding:4px 2px;font-size:12px">

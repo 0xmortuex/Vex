@@ -41,7 +41,9 @@ function scriptedReader(states) {
   return () => states[Math.min(i++, states.length - 1)];
 }
 
-const loaded = (code, unread, strong) => ({ loaded: true, code, unread, strong });
+// The pages below are Spotify's, and a code is only filled into the site whose
+// own email carried it, so the scripted mail comes from Spotify.
+const loaded = (code, unread, strong, from = ['no-reply@spotify.com']) => ({ loaded: true, code, unread, strong, from });
 
 describe('EmailCodeAutofill._extractCode', () => {
   it('pulls a code after verification wording', () => {
@@ -82,7 +84,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   const makeWv = (id) => ({
     id, getURL: () => 'https://mail.google.com/mail/u/0/#inbox',
     executeJavaScript: async (js) => {
-      if (js.includes('Back to Inbox')) return 'Hi — your Spotify verification code is 246810. It expires soon.';
+      if (js.includes('Back to Inbox')) return JSON.stringify({ text: 'Hi — your Spotify verification code is 246810. It expires soon.', from: 'no-reply@spotify.com' });
       return JSON.stringify({ loaded: true, rows: [{ t: 'Weekly newsletter — top stories', u: true }] });
     },
   });
@@ -90,7 +92,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   it('reads the code from the email BODY when the inbox rows have none (hidden reader)', async () => {
     const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
     const r = await A._readInbox(makeWv('vex-gmail-reader'));
-    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true });
+    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true, from: ['no-reply@spotify.com'], foreign: false });
   });
 
   it('does NOT open message bodies in the user\'s own visible Gmail', async () => {
@@ -296,8 +298,8 @@ describe('EmailCodeAutofill does not poll the mailbox itself', () => {
 
   it('still polls a normal site whose host merely contains a provider name', async () => {
     const { A, injected } = makeAutofill(scriptedReader([
-      loaded('111111', false, true),
-      loaded('654321', true, true),
+      loaded('111111', false, true, ['no-reply@evil.test']),
+      loaded('654321', true, true, ['no-reply@evil.test']),
     ]));
     const wv = { isConnected: true, getURL: () => 'https://mail.google.com.evil.test/login' };
     const p = A.tryFill(wv, 'https://mail.google.com.evil.test/login');
