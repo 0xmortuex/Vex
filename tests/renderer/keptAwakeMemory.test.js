@@ -128,8 +128,35 @@ describe('a panel kept awake that grows', () => {
     expect(SidebarManager.setKeepAwakeMode).toHaveBeenCalledWith('discord', 'off');
   });
 
-  it('says nothing for a panel only awake for calls', async () => {
+  // The owner's Discord sits in 'Awake during calls' at 1.5 GB: it counts.
+  it('counts a panel awake for calls, offering Reload only', async () => {
     keepModes.discord = 'call';
+    panelWebviews.discord = webview(21);
+    memByWc[21] = 1.6 * GB;
+    await KeptAwakeMemory.check();
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].message).toBe('Discord is using 1.6 GB and stays awake for calls.');
+    expect(toasts[0].opts.actions.map(a => a.label)).toEqual(['Reload']);
+    toasts[0].opts.actions[0].run();
+    expect(panelWebviews.discord.reload).toHaveBeenCalled();
+    expect(SidebarManager.setKeepAwakeMode).not.toHaveBeenCalled();
+  });
+
+  it('waits while the panel awake for calls is in one', async () => {
+    keepModes.discord = 'call';
+    panelWebviews.discord = webview(21);
+    memByWc[21] = 1.6 * GB;
+    let busy = 'In a call';
+    SidebarManager.panelBusy = () => busy;
+    await KeptAwakeMemory.check();
+    expect(toasts).toEqual([]);
+    busy = '';
+    await KeptAwakeMemory.check();
+    expect(toasts).toHaveLength(1);
+  });
+
+  it('says nothing for a panel set to sleep when idle', async () => {
+    keepModes.discord = 'off';
     panelWebviews.discord = webview(21);
     memByWc[21] = 1.6 * GB;
     await KeptAwakeMemory.check();

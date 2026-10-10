@@ -8,7 +8,7 @@
 // without anyone choosing that. So it speaks even with the notice off.
 //
 // A tab or web panel that is kept awake by choice (a keep-awake timer, a
-// never-sleep site, a panel kept awake) and whose process passes LIMIT_MB
+// never-sleep site, a panel kept awake or awake for calls) and whose process passes LIMIT_MB
 // gets ONE toast: "claude.ai is using 3.3 GB and never sleeps. [Reload]
 // [Let it sleep]". Once per process per session, never while it is on a call
 // or playing, and never while a game runs (the shared job timer holds it,
@@ -59,10 +59,14 @@ const KeptAwakeMemory = {
     }
     if (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) {
       for (const name of Object.keys(SidebarManager.panelWebviews)) {
-        if (!SidebarManager.keptAwakeNow(name)) continue;
+        // 'Awake during calls' counts too: it is not exempt from sleeping, but
+        // nothing sleeps it on its own by default (SleepConsent 'never'), so
+        // the owner's Discord in that mode sat at 1.5 GB with no word.
+        const mode = SidebarManager.keepAwakeFor(name).mode;
+        if (mode !== 'call' && !SidebarManager.keptAwakeNow(name)) continue;
         const wc = this._wcOf(SidebarManager.panelWebviews[name]);
         if (wc == null) continue;
-        const choice = SidebarManager.keepAwakeFor(name).mode === 'always' ? 'never' : 'timer';
+        const choice = mode === 'always' ? 'never' : mode === 'call' ? 'call' : 'timer';
         out.push({ key: 'panel:' + name, kind: 'panel', id: name, label: SidebarManager.panelLabel(name), choice, wc, busy: !!SidebarManager.panelBusy(name) });
       }
     }
@@ -75,6 +79,7 @@ const KeptAwakeMemory = {
   message(group) {
     const items = group.items;
     const never = items.every(t => t.choice === 'never');
+    const call = items.every(t => t.choice === 'call');
     const hosts = [...new Set(items.filter(t => t.kind === 'tab').map(t => t.host))];
     const panels = items.filter(t => t.kind === 'panel').map(t => t.label);
     let who;
@@ -82,8 +87,10 @@ const KeptAwakeMemory = {
     else if (!panels.length && hosts.length === 1) who = items.length + ' ' + hosts[0] + ' tabs';
     else who = [...panels, ...hosts].join(' and ');
     const one = items.length === 1;
-    return who + (one ? ' is' : ' are') + ' using ' + this._fmt(group.mb) + (one ? '' : ' together')
-      + (never ? (one ? ' and never sleeps.' : ' and never sleep.') : (one ? ' and is kept awake.' : ' and are kept awake.'));
+    const end = never ? (one ? ' and never sleeps.' : ' and never sleep.')
+      : call ? (one ? ' and stays awake for calls.' : ' and stay awake for calls.')
+      : (one ? ' and is kept awake.' : ' and are kept awake.');
+    return who + (one ? ' is' : ' are') + ' using ' + this._fmt(group.mb) + (one ? '' : ' together') + end;
   },
 
   // Measure, and say it once for each process past the limit.
@@ -117,12 +124,13 @@ const KeptAwakeMemory = {
   offer(group) {
     if (typeof window.showToast !== 'function') throw new Error('The toast system is not loaded');
     const items = group.items;
-    return window.showToast(this.message(group), 'warn', 20000, {
-      actions: [
-        { label: 'Reload', title: 'Reloading gives the memory back; you stay signed in', run: () => this.reload(items) },
-        { label: 'Let it sleep', title: 'Turn off keep-awake, so it sleeps when you are not using it', run: () => this.letSleep(items) },
-      ],
-    });
+    const actions = [{ label: 'Reload', title: 'Reloading gives the memory back; you stay signed in', run: () => this.reload(items) }];
+    // A panel awake only for calls already sleeps like any other: turning
+    // keep-awake 'off' would change nothing, so there is no Let it sleep.
+    if (!items.every(t => t.choice === 'call')) {
+      actions.push({ label: 'Let it sleep', title: 'Turn off keep-awake, so it sleeps when you are not using it', run: () => this.letSleep(items) });
+    }
+    return window.showToast(this.message(group), 'warn', 20000, { actions });
   },
 
   _guest(t) {
