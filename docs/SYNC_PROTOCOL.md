@@ -500,7 +500,7 @@ On the join pull (`restore: true`), the desktop does **not** call `merge`. Inste
 A device with no local data can just adopt the cloud document.
 
 ### 5.5 Deletes, concurrent edits and indexes
-- Delete on device A plus an edit of the same item on device B: the **delete wins**. The edit remains in `conflicts`, but no UI offers to recover it.
+- Delete on device A plus an edit of the same item on device B: the **delete wins**. The edit remains in `conflicts`. From the release after v14.72.3 the desktop lists such records under Settings › Vex Sync › Sync conflicts; putting a version back is an ordinary local edit (its own clock entry + 1, `conflicts: []`), which wins on every device.
 - Two concurrent edits: the newer `at` wins. Clock skew between devices therefore matters, and the device with the faster clock wins ties it should not.
 - Removing an item on A while B adds a different item: both stand (tested).
 - Inserting at the front re-indexes later items. If two devices do that concurrently, every shifted item becomes a "conflict" (same item, different `index`) and the desktop toasts "N sync conflicts retained in recovery data". The data is fine. A mobile client SHOULD append new list items **at the end** to keep this churn small. The desktop shows bookmarks grouped by folder and in stored order; notes and history are sorted by their timestamps, so the position barely matters there.
@@ -751,6 +751,6 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 ## Appendix B: UNSURE points
 1. **Cloudflare platform errors and CORS** (§1.5): responses generated outside `worker.js` probably lack CORS headers. This is general Cloudflare behaviour and cannot be checked in this repo.
 2. **Extra fields on New Tab tiles** (`preference:vex.startTiles`): `src/renderer/js/webview.js` `_startTilesValid` only checks `name` and `url`. What the start page actually stores beyond those was not traced. Carry unknown fields through.
-3. **Recovering conflict variants**: the desktop keeps them in `conflicts` and toasts about them, but no UI was found that lets the user restore a losing variant (`sync-engine.js` `applySyncData` only counts them). A client need not expose them, but MUST keep them on records it does not change.
+3. **Recovering conflict variants** (settled in the release after v14.72.3): the desktop lists records of sources it owns whose `conflicts` hold more than one version (`sync-engine.js` `conflicts`), and puts a chosen one back as a new local edit (`resolveConflict`). A client need not expose them, but MUST keep them on records it does not change.
 4. **`vex.reminders` items written by a non-desktop `owner`**: `reminders.js` `importList` accepts them, but sets `owner` to the value sent or `'unknown'`. What the desktop shows for a reminder whose `owner` is not a known machine was not checked (`src/main/reminders.js`).
 5. **Document growth** (settled in the release after v14.72.3): a 5,000-visit history was measured at about 3.8 MB of request body, and a busy week of browsing leaves about 1,000 tombstones. History is now limited to 1,000 visits (§8.1) and tombstones are cleared out while every device is at level 2 (§4.7). While a level-1 device stays on the account, tombstones still accumulate.

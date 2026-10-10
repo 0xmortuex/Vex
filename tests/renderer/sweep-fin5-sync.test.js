@@ -280,7 +280,7 @@ describe('S5: conflicts toast once, and the newer edit wins', () => {
     server.revision += 1;
     toasts = [];
     expect((await engine.pullNow()).ok).toBe(true);
-    expect(toasts.map(t => t.message)).toEqual(['1 sync conflict retained in recovery data']);
+    expect(toasts.map(t => t.message)).toEqual(['Another device changed the same thing: both versions are kept — Settings › Vex Sync › Sync conflicts']);
     // The same cloud document again: nothing new, so no toast.
     toasts = [];
     expect((await engine.pullNow()).ok).toBe(true);

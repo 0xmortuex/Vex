@@ -16,7 +16,7 @@ describe('Vex Sync without a Sync Worker URL', () => {
   function render(state, url) {
     vi.resetModules();
     window.VexConfig = { syncWorkerUrl: () => url };
-    global.SyncEngine = { getState: () => state, listDevices: vi.fn(async () => []), signOut: vi.fn(async () => {}), syncTypes: () => [], nameOf: d => d.deviceName, thisDeviceName: () => 'Windows-TEST' };
+    global.SyncEngine = { getState: () => state, listDevices: vi.fn(async () => []), signOut: vi.fn(async () => {}), syncTypes: () => [], conflicts: () => [], nameOf: d => d.deviceName, thisDeviceName: () => 'Windows-TEST' };
     require('../../src/renderer/js/sync-settings.js');
     const host = document.createElement('div');
     document.body.innerHTML = '';

@@ -277,6 +277,54 @@ const SyncSettings = (() => {
     overlay.querySelector('#close-recovery').addEventListener('click', () => overlay.remove());
   }
 
+  // Every conflict, each version with "Use this one".
+  function showConflictsDialog() {
+    const overlay = document.createElement('div');
+    overlay.className = 'sync-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Sync conflicts');
+    const draw = () => {
+      const conflicts = SyncEngine.conflicts();
+      const when = at => (at ? new Date(at).toLocaleString() : 'time unknown');
+      overlay.innerHTML = `
+        <div class="sync-modal-card" style="max-height:80vh;overflow:auto">
+          <h2 style="margin-top:0">Sync conflicts</h2>
+          ${conflicts.length ? conflicts.map((c, n) => `
+            <div class="sync-conflict" style="margin:12px 0">
+              <strong>${escapeHtml(c.what)}</strong>
+              ${c.versions.map((v, i) => `
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                  <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.text)}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(when(v.at))}${v.current ? ' &middot; in use' : ''}</div></div>
+                  <button class="btn-secondary" data-conflict="${n}" data-version="${i}">${v.current ? 'Keep this one' : 'Use this one'}</button>
+                </div>`).join('')}
+            </div>`).join('') : '<p>No conflicts left.</p>'}
+          <div style="display:flex;justify-content:flex-end"><button class="btn-primary" id="close-conflicts">Close</button></div>
+        </div>`;
+      overlay.querySelector('#close-conflicts').addEventListener('click', close);
+      overlay.querySelectorAll('[data-conflict]').forEach(btn => btn.addEventListener('click', async () => {
+        const c = conflicts[Number(btn.dataset.conflict)];
+        btn.disabled = true;
+        try {
+          const r = await SyncEngine.resolveConflict(c.key, Number(btn.dataset.version));
+          if (!r.ok) toast('Put back on this device. It reaches your other devices on the next sync: ' + human(r.reason), 'error');
+        } catch (err) { toast(human(err && err.message), 'error'); }
+        draw();
+      }));
+      overlay.querySelector('button')?.focus();
+    };
+    const close = async () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
+    };
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    draw();
+  }
+
   async function renderSignedIn(container) {
     const state = SyncEngine.getState();
     // A device list we could not load is NOT an empty device list. Keep the
@@ -328,6 +376,15 @@ const SyncSettings = (() => {
           <h3>Devices ${devicesError ? '(unavailable)' : `(${devices.length})`}</h3>
           <div class="device-list">${deviceBody}</div>
         </div>
+
+        ${(() => {
+          const conflicts = SyncEngine.conflicts();
+          return conflicts.length ? `<div class="sync-subsection" id="sync-conflicts">
+          <h3>Sync conflicts (${conflicts.length})</h3>
+          <p class="subsection-desc">Two devices changed the same thing before syncing. The newer change, or a deletion, is in use; the other version is kept here until you pick one.</p>
+          <button class="btn-secondary" id="btn-sync-conflicts">Review conflicts</button>
+        </div>` : '';
+        })()}
 
         <div class="sync-subsection" id="sync-choices">
           <h3>Choose what to sync</h3>
@@ -410,6 +467,8 @@ const SyncSettings = (() => {
         } finally { box.disabled = false; }
       });
     });
+
+    document.getElementById('btn-sync-conflicts')?.addEventListener('click', () => showConflictsDialog());
 
     // The device list failed to load; let the user ask again without leaving.
     document.getElementById('btn-retry-devices')?.addEventListener('click', async () => {

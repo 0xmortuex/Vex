@@ -966,7 +966,7 @@ const SyncEngine = (() => {
     // A restore copies records as they are and never creates one.
     const conflicts = restore ? 0 : Object.entries(merged.records).filter(([key, r]) => r.conflicts?.length > 1 && !rejoinsRecord(key, rejoin)
       && JSON.stringify(r.conflicts) !== JSON.stringify(local.records[key]?.conflicts || [])).length;
-    if (conflicts) window.showToast?.(conflicts === 1 ? '1 sync conflict retained in recovery data' : `${conflicts} sync conflicts retained in recovery data`);
+    if (conflicts) window.showToast?.((conflicts === 1 ? 'Another device changed the same thing: both versions are kept' : `Other devices changed the same things: both versions of ${conflicts} are kept`) + ' — Settings › Vex Sync › Sync conflicts');
     // Tell panels to re-read their state.
     window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
     return { markerMissing, cloud: data };
@@ -1183,6 +1183,75 @@ const SyncEngine = (() => {
     if (!on || !state.enabled) return { ok: true };
     const pulled = await pullNow();
     if (!pulled.ok) return { ok: false, reason: pulled.reason };
+    return pushNow();
+  }
+
+  // ===== CONFLICTS =====
+  // Two devices changing the same thing between syncs keep both versions in
+  // the record (sync-records.js merge); the newer one, or a deletion, wins.
+  // The others were only counted in a toast, and nothing could bring one back
+  // (found 2026-10-10, SYNC_PROTOCOL.md Appendix B). These list them and put
+  // a chosen one back.
+  const itemId = item => String(item?.id ?? (item?.url ? item.url + ':' + (item.time || '') : JSON.stringify(item)));
+  function describe(value, deleted) {
+    if (deleted) return 'Deleted';
+    const v = value && typeof value === 'object' && 'item' in value ? value.item : value;
+    if (v && typeof v === 'object') return String(v.title || v.name || v.label || v.url || v.message || JSON.stringify(v)).slice(0, 160);
+    return String(v).slice(0, 160);
+  }
+  // [{ key, what, versions: [{ deleted, text, at, current }] }], newest edit first.
+  function conflictList() {
+    if (!recordDocument) return [];
+    const gate = { open: tileGate.open, rejoin: false };
+    const out = [];
+    for (const [key, record] of Object.entries(recordDocument.records)) {
+      if (!(record.conflicts?.length > 1) || !ownsRecord(key, gate)) continue;
+      const [source, kind] = JSON.parse(key);
+      if (kind === 'type' || source.startsWith(DEVICE_SOURCE) || TILE_SOURCES.includes(source)) continue;
+      const type = SYNC_TYPES.find(t => t.id === typeOfSource(source));
+      const same = v => v.deleted === record.deleted && JSON.stringify(v.value) === JSON.stringify(record.value);
+      out.push({
+        key,
+        what: (type ? type.label : 'Settings') + ' › ' + (kind === 'item' ? describe(record.deleted ? record.conflicts.find(v => !v.deleted)?.value : record.value, false) : source.replace(/^preference:vex\.|^storage:/, '')),
+        at: record.at || 0,
+        versions: record.conflicts.map(v => ({ deleted: !!v.deleted, text: describe(v.value, v.deleted), at: v.at || 0, current: same(v) })),
+      });
+    }
+    return out.sort((a, b) => b.at - a.at);
+  }
+  // Puts back version `index` of the record `key` on this device and makes it
+  // the account's, ending the conflict.
+  async function resolveConflict(key, index) {
+    if (!recordDocument || !recordDocument.records[key]) throw new Error('That conflict is no longer there');
+    const record = recordDocument.records[key];
+    const version = record.conflicts?.[index];
+    if (!version) throw new Error('That version is no longer there');
+    if (!ownsRecord(key, { open: tileGate.open, rejoin: false })) throw new Error('This device does not sync that');
+    const [source, kind, id] = JSON.parse(key);
+    if (source.startsWith('preference:')) {
+      const name = source.slice(11);
+      if (kind === 'value') {
+        if (version.deleted) localStorage.removeItem(name);
+        else localStorage.setItem(name, typeof version.value === 'string' ? version.value : JSON.stringify(version.value));
+      } else if (kind === 'item') {
+        let list = [];
+        try { const saved = JSON.parse(localStorage.getItem(name) || '[]'); if (Array.isArray(saved)) list = saved; }
+        catch (err) { throw new Error('This device\'s ' + name.slice(4) + ' could not be read: ' + err.message); }
+        const at = list.findIndex(item => itemId(item) === id);
+        if (version.deleted) { if (at >= 0) list.splice(at, 1); }
+        else if (at >= 0) list[at] = version.value.item;
+        else list.splice(Math.min(version.value.index, list.length), 0, version.value.item);
+        localStorage.setItem(name, JSON.stringify(list));
+      } else throw new Error('That cannot be put back');
+    } else if (source.startsWith('storage:') && kind === 'value') {
+      await VexStorage.save(source.slice(8), version.deleted ? null : version.value);
+    } else throw new Error('That cannot be put back');
+    // A new edit by this device: it wins over every version, and carries none.
+    const clock = { ...record.clock, [state.deviceId]: (record.clock[state.deviceId] || 0) + 1 };
+    recordDocument = { schema: 2, records: { ...recordDocument.records, [key]: { clock, deleted: !!version.deleted, value: version.deleted ? null : version.value, at: Date.now(), conflicts: [] } } };
+    await VexStorage.save('sync-records', recordDocument);
+    window.dispatchEvent(new CustomEvent('vex-sync-data-applied', { detail: { source: 'conflict' } }));
+    if (!state.enabled) return { ok: true };
     return pushNow();
   }
 
@@ -1498,6 +1567,8 @@ const SyncEngine = (() => {
     otherDeviceTabs,
     pushBeforeClose,
     syncTypes: () => SYNC_TYPES.map(t => ({ id: t.id, label: t.label, on: typeOn(t.id) })),
+    conflicts: conflictList,
+    resolveConflict,
     setTypeSynced,
     renameDevice,
     thisDeviceName: () => thisDeviceName() || getDefaultDeviceName(),
