@@ -199,9 +199,11 @@ function wireDownloadsOnSession(ses, tag) {
     // memory anyway, but a Tor, off-the-record or burner tab in the main window
     // left its download's address and path in vex-persist.json (security scan S5-1).
     const ephemeral = !!partition && !partition.startsWith('persist:');
+    // A private window's download to that window alone; a normal one to the
+    // normal windows, never into an open private window (audit RD11).
     const emit = (channel, data) => {
       if (partition && !partition.startsWith('persist:')) { try { owner?.win.webContents.send(channel, data); } catch {} }
-      else _broadcastDownloadEvent(channel, data);
+      else _broadcastDownloadEvent(channel, data, { skipPrivate: true });
     };
     const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
     // A page's second download with no click: allowed, blocked, or asked

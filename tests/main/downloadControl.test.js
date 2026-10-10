@@ -118,3 +118,46 @@ describe('download control service', () => {
     expect(await h.invoke('downloads:control', 42, 'pause')).toEqual({ ok: false, error: 'Invalid download id' });
   });
 });
+
+// Audit RD11 (2026-10-10): a normal window's download was listed and toasted
+// in an open private window as well.
+describe('which windows hear of a download', () => {
+  it('a normal download goes to the normal windows only', () => {
+    const calls = [];
+    const service = createDownloadService({
+      app: { getPath: () => 'C:/downloads' },
+      secureSessions: { owner: () => null, partitionOf: () => 'persist:main', fromPartition: () => ({}), sessions: new Set() },
+      broadcast: (...args) => calls.push(args),
+      ipcMain: { handle: () => {} },
+      webContents: { getAllWebContents: () => [] },
+    });
+    const session = { on: (name, fn) => { session._will = fn; } };
+    service.wireDownloadsOnSession(session, 'test');
+    session._will({}, fakeItem(), null);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, , opts] of calls) expect(opts).toEqual({ skipPrivate: true });
+  });
+
+  it('a private window\'s download goes to that window alone', () => {
+    const calls = [], toPrivate = [];
+    const owner = { privatePartition: 'private-1', win: { webContents: { send: (ch, d) => toPrivate.push(ch) } } };
+    const service = createDownloadService({
+      app: { getPath: () => 'C:/downloads' },
+      secureSessions: { owner: () => owner, partitionOf: () => 'private-1', fromPartition: () => ({}), sessions: new Set() },
+      broadcast: (...args) => calls.push(args),
+      ipcMain: { handle: () => {} },
+      webContents: { getAllWebContents: () => [] },
+    });
+    const session = { on: (name, fn) => { session._will = fn; } };
+    service.wireDownloadsOnSession(session, 'test');
+    session._will({}, fakeItem(), { id: 5, isDestroyed: () => false, getURL: () => 'https://a.test/' });
+    expect(calls).toEqual([]);
+    expect(toPrivate).toContain('download-started');
+  });
+
+  it('main leaves private windows out when asked to', () => {
+    const MAIN = require('fs').readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    const fn = MAIN.slice(MAIN.indexOf('function _broadcastDownloadEvent('), MAIN.indexOf('function _broadcastDownloadEvent(') + 400);
+    expect(fn).toContain('if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;');
+  });
+});

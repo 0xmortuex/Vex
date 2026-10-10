@@ -753,9 +753,13 @@ const userDataPath = app.getPath('userData');
 registerSidebarConfigIpc(ipcMain, userDataPath);
 
 // === Download tracking helper (hoisted so private-window sessions can reuse it) ===
-function _broadcastDownloadEvent(channel, data) {
+// skipPrivate: not to private windows (a normal window's download was listed
+// and toasted in an open private window too; audit RD11, 2026-10-10).
+function _broadcastDownloadEvent(channel, data, { skipPrivate = false } = {}) {
   BrowserWindow.getAllWindows().forEach(w => {
-    if (!w.isDestroyed()) { try { w.webContents.send(channel, data); } catch {} }
+    if (w.isDestroyed()) return;
+    if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;
+    try { w.webContents.send(channel, data); } catch {}
   });
 }
 const { savedDecision } = require('./main/permissions');
