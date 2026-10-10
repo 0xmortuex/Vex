@@ -646,7 +646,7 @@ const CommandBar = {
       if (calc) {
         this.results.push({
           id: 'calc', isPrimary: !calc.unavailable, icon: 'calculator',
-          label: window.escapeHtml ? window.escapeHtml(calc.text) : calc.text,
+          label: calc.text,
           hint: calc.unavailable ? '' : 'Press Enter to copy the result',
           action: async () => { if (calc.unavailable) return; try { await navigator.clipboard.writeText(calc.value || calc.text); window.showToast?.('Copied ' + calc.text); } catch (err) { _commandFailed(err); } },
         });
@@ -656,7 +656,9 @@ const CommandBar = {
       // used for matching: "…watch?v=dQw4w9WgXcQ" opened "…v=dqw4w9wgxcq".
       const url = _typedAddress().addressFor(query);
       if (url) {
-        const shown = window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim();
+        // As text: renderResults sets labels with textContent, so escaping
+        // here showed "a&amp;b" (found 2026-10-10).
+        const shown = query.trim();
         this.results.push({
           id: 'url',
           label: `Go to ${shown}`,
@@ -697,7 +699,7 @@ const CommandBar = {
       // Search action
       this.results.push({
         id: 'search',
-        label: `Search "${window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim()}"`,
+        label: `Search "${query.trim()}"`,
         hint: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name + ' Search',
         icon: 'search',
         action: () => {
@@ -840,7 +842,6 @@ const CommandBar = {
   _clipResults(q) {
     if (!q || !window.ClipboardHistory || !window.ClipboardHistory.enabled()) return [];
     try {
-      const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
       const needle = q.toLowerCase();
       const out = [];
       for (const item of window.ClipboardHistory.list()) {
@@ -850,7 +851,7 @@ const CommandBar = {
         out.push({ score: (at === 0 ? 60 : 45) + (item.pinned ? 5 : 0), r: {
           id: 'clip:' + item.id,
           icon: this._icon(item.pinned ? 'pin' : 'clipboard'),
-          label: esc(window.ClipboardHistory.preview(item, 64)),
+          label: window.ClipboardHistory.preview(item, 64),
           hint: (item.pinned ? 'Kept · ' : 'Copied · ') + (item.host || 'a page') + ' · copies it again',
           action: () => { window.ClipboardHistory.use(item.id).catch(e => window.showToast?.(e.message, 'error')); },
         } });
