@@ -516,7 +516,7 @@ const NotesPanel = {
       const remove = e.target.closest('[data-remove-tag]');
       if (remove) { this.removeTag(remove.dataset.removeTag); return; }
       const src = e.target.closest('[data-source-url]');
-      if (src) { try { TabManager.createTab(src.dataset.sourceUrl, true); } catch {} }
+      if (src) { try { TabManager.createTabBesideActive(src.dataset.sourceUrl, true); } catch {} }
     });
 
     // Preview: checkbox toggles write back to the markdown; links open tabs
@@ -541,7 +541,7 @@ const NotesPanel = {
       if (!a) return;
       e.preventDefault();
       if (e.button !== 0 && e.button !== 1) return;
-      try { TabManager.createTab(a.href, true); } catch {}
+      try { TabManager.createTabBesideActive(a.href, true); } catch {}
     };
     preview?.addEventListener('click', openMdLink);
     preview?.addEventListener('auxclick', openMdLink);

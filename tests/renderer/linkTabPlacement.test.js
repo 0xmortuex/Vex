@@ -120,8 +120,8 @@ describe('wiring', () => {
   it('main names the page a link was in; the window finds its tab', () => {
     expect(read('main.js')).toMatch(/send\('tab:create-from-external', \{[\s\S]{0,600}opener: contents\.id,/);
     const app = read('renderer/js/app.js');
-    expect(app).toContain('TabManager.tabsByPageId([data.opener]).tabs[0]');
+    expect(app).toContain('TabManager.openerForPage(data.opener)');
     expect(app).toContain('openerTabId: linked ? linked.id : null');
-    expect(read('renderer/js/webview.js')).toMatch(/label: 'Open Link in New Tab',[\s\S]{0,400}openerTabId: from \? from\.id : null/);
+    expect(read('renderer/js/webview.js')).toMatch(/label: 'Open Link in New Tab',[\s\S]{0,600}openerTabId: from \? from\.id : null/);
   });
 });

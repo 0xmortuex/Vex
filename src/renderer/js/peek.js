@@ -69,9 +69,11 @@ const VexPeek = {
     }));
   },
 
-  open(url, partition) {
+  // opener: the page Peek was opened from (main.js names it), for promote.
+  open(url, partition, opener) {
     if (!url) return;
     clearTimeout(this._closeTimer);
+    this._openerPage = Number.isSafeInteger(opener) ? opener : null;
     window.removeEventListener('keydown', this._onKey, true);
     this._partition = window.VexTabPolicy?.partitionFor(partition) || partition || 'persist:main';
     this._build();
@@ -140,7 +142,7 @@ const VexPeek = {
       <div class="peek-error-detail"></div>
       <button class="peek-btn peek-error-retry" type="button">Try again</button>`;
     box.querySelector('.peek-error-detail').textContent = message;
-    box.querySelector('.peek-error-retry').addEventListener('click', () => this.open(this._url, this._partition));
+    box.querySelector('.peek-error-retry').addEventListener('click', () => this.open(this._url, this._partition, this._openerPage));
     E.body.appendChild(box);
   },
 
@@ -160,13 +162,19 @@ const VexPeek = {
     const url = this._url;
     this.close();
     if (url && typeof TabManager !== 'undefined') {
-      try { TabManager.createTab(url, true, null, { partition: this._partition }); } catch (err) { console.error('[Peek] promote failed:', err); }
+      // Next to the tab it was peeked from, in its group, as a clicked link
+      // opens; it went to the far end (found 2026-10-10). Peeked from a side
+      // panel or from Ctrl+K's Peek Current Page, next to the tab in front.
+      try {
+        const from = (this._openerPage != null && TabManager.openerForPage(this._openerPage)) || TabManager.getActiveTab();
+        TabManager.createTab(url, true, (from && from.groupId) || null, { partition: this._partition, openerTabId: from ? from.id : null });
+      } catch (err) { console.error('[Peek] promote failed:', err); }
     }
   },
 
   init() {
     window.vex?.onPeekOpen?.((data) => {
-      if (data && data.url) this.open(data.url, data.partition);
+      if (data && data.url) this.open(data.url, data.partition, data.opener);
     });
   },
 };

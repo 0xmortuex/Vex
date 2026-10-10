@@ -471,6 +471,28 @@ const TabManager = {
       { ...saved, allowDuplicate: true, openerTabId: source.id, rightAfterOpener: true });
   },
 
+  // The tab a page's link counts as opened from (js/app.js, js/peek.js): the
+  // tab whose page it is; for a side panel's page (Discord, a sidebar site,
+  // Peek), which is a webview of this window but no tab, the tab in front, as
+  // the panel's own links do (createTabBesideActive). A page of no webview
+  // here (another app, an extension) has none, and its tab goes at the end.
+  openerForPage(pageId) {
+    const own = this.tabsByPageId([pageId]).tabs[0];
+    if (own) return own;
+    const inWindow = [...document.querySelectorAll('webview')].some(wv => {
+      try { return wv.getWebContentsId() === pageId; } catch { return false; }   // not attached: no page yet
+    });
+    return inWindow ? this.getActiveTab() : null;
+  },
+
+  // A link in a side panel (the AI panel's answers, a note): it went to the
+  // far end (found 2026-10-10); it now opens next to the tab in front, in its
+  // group, and several in a row keep their order, as links from that tab do.
+  createTabBesideActive(url, activate = true, opts = null) {
+    const active = this.getActiveTab();
+    return this.createTab(url, activate, (active && active.groupId) || null, { ...opts, openerTabId: active ? active.id : null });
+  },
+
   // === Back and forth between two tabs ======================================
   //
   // Alt+Tab's useful half, and the half Ctrl+Tab in a browser does not do:

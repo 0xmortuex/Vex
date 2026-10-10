@@ -125,6 +125,82 @@ describe('Duplicate', () => {
   });
 });
 
+describe('a link in a side panel', () => {
+  const panelPage = () => {
+    const wv = document.createElement('webview');
+    wv.getWebContentsId = () => 900;
+    document.body.appendChild(wv);
+  };
+
+  it('a web panel\'s page (Discord, a sidebar site) counts the tab in front as its opener', () => {
+    panelPage();
+    TM.activeTabId = 'two';
+    expect(TM.openerForPage(900).id).toBe('two');
+    expect(TM.openerForPage(pageIdOf('three')).id).toBe('three');   // a tab's own page is itself
+    expect(TM.openerForPage(555)).toBeNull();                         // not a page of this window
+  });
+
+  it('opens next to the tab in front, in its group, in the order clicked', () => {
+    TM.groups = [{ id: 'g1', name: 'G', color: '#aaa' }];
+    TM.tabs[1].groupId = 'g1';
+    TM.activeTabId = 'two';
+    const a = TM.createTabBesideActive('https://a.example/', false);
+    TM.createTabBesideActive('https://b.example/', false);
+    expect(a.groupId).toBe('g1');
+    expect(order()).toEqual(['one', 'three', 'four', 'two', 'a*', 'b*']);
+  });
+
+  it('the window takes a panel page\'s link as next to the tab in front', () => {
+    const app = read('renderer/js/app.js');
+    expect(app).toContain('TabManager.openerForPage(data.opener)');
+    expect(app).toContain('openerTabId: linked ? linked.id : null');
+  });
+
+  it('the AI panel and notes open their links beside the tab in front', () => {
+    const ai = read('renderer/js/ai-panel.js');
+    expect(ai).toMatch(/a\.vex-md-link[\s\S]{0,200}TabManager\.createTabBesideActive\(a\.href, true\)/);
+    expect(ai).toMatch(/for \(const u of links\.slice\(0, 5\)\) TabManager\.createTabBesideActive\(u, false\)/);
+    const notes = read('renderer/js/notes-panel.js');
+    expect(notes).toMatch(/TabManager\.createTabBesideActive\(src\.dataset\.sourceUrl, true\)/);
+    expect(notes).toMatch(/TabManager\.createTabBesideActive\(a\.href, true\)/);
+  });
+
+  it('"Open Link in New Tab" in a panel\'s page counts the tab in front', () => {
+    expect(read('renderer/js/webview.js')).toMatch(/label: 'Open Link in New Tab',[\s\S]{0,400}const from = isTab \? TabManager\.tabs\.find\(t => t\.id === webview\.dataset\.tabId\) : TabManager\.getActiveTab\(\);/);
+  });
+});
+
+describe('Peek "Open as tab"', () => {
+  async function loadPeek() { return (await import('../../src/renderer/js/peek.js')).VexPeek; }
+
+  it('goes next to the tab the link was peeked from, in its group', async () => {
+    const VexPeek = await loadPeek();
+    TM.groups = [{ id: 'g1', name: 'G', color: '#aaa' }];
+    TM.tabs[2].groupId = 'g1';
+    TM.activeTabId = 'one';
+    VexPeek.open('https://peeked.example/', 'persist:main', pageIdOf('three'));
+    VexPeek.promote();
+    const made = TM.tabs.find(t => t.url === 'https://peeked.example/');
+    expect(made.groupId).toBe('g1');
+    expect(order()).toEqual(['one', 'two', 'four', 'three', 'peeked*']);
+  });
+
+  it('peeked from a panel or the command (no tab of its own), next to the tab in front', async () => {
+    const VexPeek = await loadPeek();
+    TM.activeTabId = 'two';
+    VexPeek.open('https://peeked.example/');
+    VexPeek.promote();
+    expect(order()).toEqual(['one', 'two', 'peeked*', 'three', 'four']);
+  });
+
+  it('main names the page Peek was opened from, for the overlay and the sign-in popup\'s bar', () => {
+    const main = read('main.js');
+    expect(main).toMatch(/send\('peek:open', \{ url, partition: openerPartition, opener: contents\.id \}\)/);
+    expect(main).toMatch(/action === 'open-as-tab'[\s\S]{0,700}opener: win\._vexOpenerPageId/);
+    expect(read('renderer/js/peek.js')).toContain('this.open(data.url, data.partition, data.opener)');
+  });
+});
+
 describe('a tab from nowhere still goes at the end', () => {
   it('+ / Ctrl+T, another app\'s link', () => {
     TM.createTab('https://new.example/', false);

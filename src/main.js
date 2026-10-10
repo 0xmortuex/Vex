@@ -5037,6 +5037,9 @@ app.on('web-contents-created', (_event, contents) => {
     pendingPeekPopup = false;
     if (isPeek) {
       _activePeekOAuthPopup = win;
+      // The page that opened it, so its bar's "Open as tab" goes next to
+      // that tab (popup-chrome:action below).
+      win._vexOpenerPageId = contents.id;
       try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('oauth-popup:open'); } catch {}
       try {
         win.webContents.on('before-input-event', (_e, input) => {
@@ -5282,7 +5285,9 @@ app.on('web-contents-created', (_event, contents) => {
         // arrive as 'new-window' — open those in the Peek overlay instead of a
         // full tab. Plain target=_blank / middle-click stay tabs.
         if (disposition === 'new-window') {
-          win.webContents.send('peek:open', { url, partition: openerPartition });
+          // With the page it came from, so "Open as tab" goes next to that
+          // tab (js/peek.js); it went to the far end (found 2026-10-10).
+          win.webContents.send('peek:open', { url, partition: openerPartition, opener: contents.id });
         } else {
           win.webContents.send('tab:create-from-external', {
             url,
@@ -6602,8 +6607,11 @@ ipcMain.on('popup-chrome:action', (e, payload) => {
         // The popup has its opener tab's session; a Tor tab's popup opened as
         // a persist:main tab (found 2026-09-29).
         const partition = secureSessions.partitionOf(wc);
+        // Next to the tab it was opened from (js/app.js); it went to the far end
+        // (found 2026-10-10).
         mainWindow.webContents.send('tab:create-from-external', { url, background: false,
-          partition: require('./main/routing').keepsOpenerSession(partition) ? partition : undefined });
+          partition: require('./main/routing').keepsOpenerSession(partition) ? partition : undefined,
+          opener: win._vexOpenerPageId });
       }
       win.close();
     }

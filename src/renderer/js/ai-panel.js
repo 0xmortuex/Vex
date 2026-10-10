@@ -47,7 +47,7 @@ const AIPanel = {
         if (!a) return;
         e.preventDefault();
         if (e.button !== 0 && e.button !== 1) return;
-        if (typeof TabManager !== 'undefined') TabManager.createTab(a.href, true);
+        if (typeof TabManager !== 'undefined') TabManager.createTabBesideActive(a.href, true);
       };
       msgsEl.addEventListener('click', openMdLink);
       msgsEl.addEventListener('auxclick', openMdLink);
@@ -1048,7 +1048,7 @@ const AIPanel = {
     const links = this._linksIn(m.content);
     if (links.length) {
       chip(links.length === 1 ? 'Open the source' : 'Open the ' + Math.min(links.length, 5) + ' sources', () => {
-        for (const u of links.slice(0, 5)) TabManager.createTab(u, false);
+        for (const u of links.slice(0, 5)) TabManager.createTabBesideActive(u, false);
         window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + (links.length === 1 ? '' : 's') + ' in the background');
       });
     }
@@ -2855,7 +2855,7 @@ const AIPanel = {
     msgEl.querySelectorAll('.chat-history-item').forEach(item => {
       item.addEventListener('click', () => {
         const url = item.dataset.url;
-        if (url && typeof TabManager !== 'undefined') TabManager.createTab(url, true);
+        if (url && typeof TabManager !== 'undefined') TabManager.createTabBesideActive(url, true);
       });
     });
     container.appendChild(msgEl);

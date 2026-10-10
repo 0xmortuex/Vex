@@ -1634,9 +1634,10 @@ const WebviewManager = {
       linkItems.push({ sep: true });
       linkItems.push({
         label: 'Open Link in New Tab',
-        // Next to this tab, in its group, as a clicked link opens (js/app.js).
+        // Next to this tab, in its group, as a clicked link opens (js/app.js);
+        // from a side panel's page (Discord, a sidebar site), next to the tab in front.
         action: () => {
-          const from = TabManager.tabs.find(t => t.id === webview.dataset.tabId);
+          const from = isTab ? TabManager.tabs.find(t => t.id === webview.dataset.tabId) : TabManager.getActiveTab();
           TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
         }
       });

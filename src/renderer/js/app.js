@@ -1303,8 +1303,9 @@ function vexOwnTextFocused(doc) {
     // joins that tab's group automatically.
     // A link or window.open in a tab names that tab's page (main.js), and the
     // new tab goes next to it (TabManager._insertIndexFor). From anywhere else
-    // (another app, an extension) it goes at the end.
-    const linked = Number.isSafeInteger(data.opener) ? TabManager.tabsByPageId([data.opener]).tabs[0] : null;
+    // (another app, an extension) it goes at the end. One in a side panel's
+    // page (Discord, a sidebar site) goes next to the tab in front.
+    const linked = Number.isSafeInteger(data.opener) ? TabManager.openerForPage(data.opener) : null;
     const opener = linked || TabManager.getActiveTab();
     const inheritGroup = (opener && opener.groupId) || null;
     let created;

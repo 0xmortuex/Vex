@@ -19,7 +19,7 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="ai-panel"><div id="ai-messages"></div><div class="ai-input-row"><textarea id="ai-input"></textarea></div><div id="ai-history-list"></div></div>';
   window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   window.showToast = vi.fn();
-  globalThis.TabManager = { activeTabId: 't1', tabs: [{ id: 't1', title: 'Phones' }], createTab: vi.fn() };
+  globalThis.TabManager = { activeTabId: 't1', tabs: [{ id: 't1', title: 'Phones' }], createTabBesideActive: vi.fn() };
   globalThis.AgentTools = { saveNote: vi.fn(), youtubeId: () => null };
   AIPanel._conversations = { t1: CONV.map(m => ({ ...m })) };
   AIPanel._viewingId = null;
@@ -40,7 +40,7 @@ describe('answers', () => {
     const chips = [...document.querySelectorAll('.ai-next-chips .follow-up-btn')];
     expect(chips.map(c => c.textContent)).toEqual(['Dig deeper', 'Open the 2 sources']);
     chips[1].click();
-    expect(TabManager.createTab.mock.calls.map(c => c[0])).toEqual(['https://a.example/review', 'https://b.example/specs']);
+    expect(TabManager.createTabBesideActive.mock.calls.map(c => c[0])).toEqual(['https://a.example/review', 'https://b.example/specs']);
     chips[0].click();
     expect(send).toHaveBeenCalledWith('chat', { message: expect.stringMatching(/Go deeper/) });
     send.mockRestore();
