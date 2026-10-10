@@ -169,7 +169,7 @@ describe('Clear History clears the closed-tab list and the backups', () => {
 
 describe('the wrong-PIN wait survives a restart', () => {
   const { VexLock: L } = require('../../src/renderer/js/vex-lock.js');
-  beforeEach(() => { L.unlock(); L._waitUntil = 0; });
+  beforeEach(() => { L._open(); L._waitUntil = 0; });
 
   it('keeps the wrong-try count and the wait in storage', () => {
     L._fails = 3;
@@ -180,7 +180,7 @@ describe('the wrong-PIN wait survives a restart', () => {
     // A restart: nothing in memory, only what was stored.
     expect(L._fails).toBe(3);
     expect(L._waitUntil).toBe(until);
-    L.unlock();
+    L._open();
     expect(localStorage.getItem(L.FAILS_KEY)).toBe(null);
   });
 
@@ -199,6 +199,6 @@ describe('the wrong-PIN wait survives a restart', () => {
     await tick();
     expect(L.locked()).toBe(true);
     expect(document.querySelector('.vex-lock-msg').textContent).toMatch(/Too many tries — wait \d+ s/);
-    L.unlock();
+    L._open();
   });
 });

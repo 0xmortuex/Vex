@@ -370,8 +370,8 @@ const SidebarManager = {
       }
     } catch {}
 
-    // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
-    // openDevTools on webContents.getFocusedWebContents(). The previous
+    // Ctrl+Shift+J is now handled in main.js (before-input-event on the page
+    // with the focus, src/main/window-keys.js), which opens its DevTools. The previous
     // renderer-side `document.addEventListener('keydown', ...)` listener
     // never fired for normal tabs because keydown events inside a guest
     // <webview> (OOPIF) don't bubble to the host doc. Moving to main fixes

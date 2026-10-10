@@ -32,7 +32,15 @@ const submit = async (pin, { blocked = false } = {}) => {
   await settled(() => !document.querySelector('.vex-lock-screen') || L._fails !== fails || L._waitUntil !== waited);
 };
 
-beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; L.unlock(); L._waitUntil = 0; window.showToast = vi.fn(); });
+// Main's side of an unlock (src/main/lock-pin.js), checking the same stored
+// hash the window wrote.
+const { createLockGate } = require('../../src/main/lock-pin.js');
+const mainUnlock = () => {
+  const gate = createLockGate({ readRecord: () => localStorage.getItem(L.PIN_KEY) });
+  return vi.fn((pin) => gate.tryUnlock(pin));
+};
+
+beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; L._open(); L._waitUntil = 0; window.showToast = vi.fn(); window.vex = { setLockState: vi.fn(), unlockLock: mainUnlock() }; });
 
 describe('VexLock', () => {
   it('will not lock without a PIN, and says where to set one', () => {
@@ -68,5 +76,31 @@ describe('VexLock', () => {
     expect(document.querySelector('.vex-lock-msg').textContent).toMatch(/wait 30 s/);
     await submit('4821', { blocked: true });
     expect(L.locked()).toBe(true);
+  });
+
+  // Audit B1: VexLock.unlock() typed into DevTools' console opened Vex.
+  it('VexLock.unlock() without the PIN leaves Vex locked; main is asked and says no', async () => {
+    await L.setPin('4821');
+    L.lock();
+    await expect(L.unlock()).rejects.toThrow('Wrong PIN');
+    await expect(L.unlock('0000')).rejects.toThrow('Wrong PIN');
+    expect(L.locked()).toBe(true);
+    expect(document.querySelector('.vex-lock-screen')).not.toBeNull();
+    expect(window.vex.setLockState).not.toHaveBeenCalledWith(false);
+    await L.unlock('4821');
+    expect(L.locked()).toBe(false);
+  });
+
+  it('a PIN the window accepts but main refuses keeps the lock screen, and says why', async () => {
+    await L.setPin('4821');
+    L.lock();
+    window.vex.unlockLock = vi.fn(async () => ({ ok: false, error: 'No PIN is saved, so Vex cannot check it. Restart Vex to open it.' }));
+    const form = document.querySelector('.vex-lock-screen form');
+    form.querySelector('input').value = '4821';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settled(() => window.vex.unlockLock.mock.calls.length > 0 && /No PIN is saved/.test(document.querySelector('.vex-lock-msg').textContent));
+    expect(window.vex.unlockLock).toHaveBeenCalledWith('4821');
+    expect(L.locked()).toBe(true);
+    expect(document.querySelector('.vex-lock-msg').textContent).toMatch(/No PIN is saved/);
   });
 });

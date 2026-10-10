@@ -23,12 +23,12 @@ beforeEach(() => {
 
 describe('Lock Vex cannot be walked round', () => {
   const { VexLock: L } = require('../../src/renderer/js/vex-lock.js');
-  beforeEach(() => { L.unlock(); L._waitUntil = 0; });
+  beforeEach(() => { L._open(); L._waitUntil = 0; });
 
   it('makes everything but the PIN screen inert, including what opens later, and undoes it', async () => {
     await L.setPin('4821');
     document.body.innerHTML = '<button id="behind">Settings</button><div id="already" inert></div>';
-    window.vex = { setLockState: vi.fn() };
+    window.vex = { setLockState: vi.fn(), unlockLock: vi.fn(async () => ({ ok: true })) };
     L.lock();
     expect(document.getElementById('behind').hasAttribute('inert')).toBe(true);
     expect(document.querySelector('.vex-lock-screen').hasAttribute('inert')).toBe(false);
@@ -37,11 +37,12 @@ describe('Lock Vex cannot be walked round', () => {
     document.body.appendChild(panel);           // e.g. History opened by a shortcut
     await tick();
     expect(panel.hasAttribute('inert')).toBe(true);
-    L.unlock();
+    await L.unlock('4821');
     expect(document.getElementById('behind').hasAttribute('inert')).toBe(false);
     expect(panel.hasAttribute('inert')).toBe(false);
     expect(document.getElementById('already').hasAttribute('inert')).toBe(true);   // was not ours to undo
-    expect(window.vex.setLockState).toHaveBeenLastCalledWith(false);
+    expect(window.vex.unlockLock).toHaveBeenCalledWith('4821');
+    expect(window.vex.setLockState).not.toHaveBeenCalledWith(false);   // only main unlocks, on the PIN
   });
 
   it('remembers being locked, so a restart starts locked', async () => {
@@ -55,7 +56,7 @@ describe('Lock Vex cannot be walked round', () => {
     L.init();
     expect(L.locked()).toBe(true);
     expect(document.querySelector('.vex-lock-screen')).not.toBeNull();
-    L.unlock();
+    L._open();
     expect(localStorage.getItem(L.LOCKED_KEY)).toBe(null);
   });
 

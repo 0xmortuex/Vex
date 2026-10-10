@@ -395,23 +395,89 @@ function handleFullscreenShortcut(event, input) {
   return _mainHelpers.handleFullscreenShortcut(event, input, { mainWindow, isFullscreenTracked });
 }
 
-// F12 / Ctrl+Shift+I — toggle Chromium DevTools on the currently active webview.
+// Ctrl+Shift+I — toggle Chromium DevTools on the currently active webview.
 // Attached to both the main window and every guest webContents for the same
 // reason as the fullscreen handler: before-input-event only fires where focus
-// lives, so without the guest hook F12 dies as soon as a page is clicked into.
+// lives, so without the guest hook it dies as soon as a page is clicked into.
 // The renderer owns the "which tab is active" mapping, so we bounce through IPC
-// rather than trying to guess from main.
+// rather than trying to guess from main. (F12 is handleWindowKeys's.)
 function handleDevToolsShortcut(event, input) {
   if (!mainWindow || input.type !== 'keyDown') return false;
 
-  const isDevToolsKey = input.key === 'F12' ||
-    (input.control && input.shift && (input.key === 'I' || input.key === 'i'));
+  const isDevToolsKey = input.control && input.shift && (input.key === 'I' || input.key === 'i');
   if (!isDevToolsKey) return false;
 
   event.preventDefault();
+  // No DevTools while Vex is locked: its console could open the lock.
+  if (_vexLocked) return true;
   mainWindow.webContents.send('devtools:toggle-request');
   return true;
 }
+
+// F12, Ctrl+Shift+F12, Ctrl+Shift+J and the boss key, in Vex's own windows
+// and the pages in them only (src/main/window-keys.js says why they stopped
+// being Windows-wide). Attached to every window and page below.
+const _windowKeys = require('./main/window-keys');
+const _bossKey = _windowKeys.createBossKey({
+  globalShortcut,
+  windows: () => BrowserWindow.getAllWindows(),
+  contents: () => webContents.getAllWebContents(),
+  log: (m) => console.error(m),
+});
+function _windowOfContents(contents) {
+  if (contents.getType() === 'webview') {
+    const host = secureSessions.owner(contents);
+    if (host && host.win && !host.win.isDestroyed()) return host.win;
+    const embedder = contents.hostWebContents;
+    return embedder ? BrowserWindow.fromWebContents(embedder) : null;
+  }
+  return BrowserWindow.fromWebContents(contents);
+}
+function handleWindowKeys(event, input, contents) {
+  // The shortcut editor is recording in the main window: the key is its.
+  if (_shortcutCapturing && mainWindow && !mainWindow.isDestroyed() && contents === mainWindow.webContents) return false;
+  if (_windowKeys.isBossKey(input)) {
+    event.preventDefault();
+    const r = _bossKey.hide();
+    if (!r.ok) {
+      console.error('[BossKey] ' + r.error);
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vex:toast', r.error);
+    }
+    return true;
+  }
+  const action = _windowKeys.devToolsKeyFor(input);
+  if (!action) return false;
+  event.preventDefault();
+  // No DevTools while Vex is locked: its console could open the lock.
+  if (_vexLocked) return true;
+  const win = _windowOfContents(contents);
+  if (!win || win.isDestroyed()) return true;
+  try {
+    if (action === 'window-docked') {
+      if (win.webContents.isDevToolsOpened()) win.webContents.closeDevTools();
+      else win.webContents.openDevTools({ mode: 'bottom' });
+    } else if (action === 'window-detached') {
+      win.webContents.openDevTools({ mode: 'detach' });
+    } else if (win === mainWindow) {
+      // Ctrl+Shift+J: the page or panel with the focus, in the main window.
+      if (contents.isDevToolsOpened()) contents.closeDevTools();
+      else contents.openDevTools({ mode: 'detach' });
+    }
+  } catch (err) {
+    console.error('[Vex DT] ' + action + ' could not open DevTools:', err.message);
+  }
+  return true;
+}
+app.on('web-contents-created', (_e, contents) => {
+  const type = contents.getType();
+  if (type !== 'window' && type !== 'webview') return;
+  contents.on('before-input-event', (event, input) => { handleWindowKeys(event, input, contents); });
+  // Whatever opened DevTools (right-click Inspect, a panel's own button, a
+  // key), it does not stay open while Vex is locked.
+  contents.on('devtools-opened', () => {
+    if (_vexLocked && !contents.isDestroyed()) contents.closeDevTools();
+  });
+});
 
 // Ctrl+Shift+R — hard reload (clear cache + reload). Like F11/F12, this must
 // work even when a <webview> guest has focus: keydown inside a guest does NOT
@@ -1591,19 +1657,39 @@ let _vexLocked = false;
 // They are hidden while locked and come back on unlock. The video pop-out
 // stays: it shows only the video you were watching.
 let _hiddenByLock = [];
+function _lockVex() {
+  _vexLocked = true;
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
+    w.hide();
+    _hiddenByLock.push(w);
+  }
+  // DevTools left open would keep a console that can read and change
+  // everything behind the lock.
+  for (const wc of webContents.getAllWebContents()) {
+    try { if (!wc.isDestroyed() && wc.isDevToolsOpened()) wc.closeDevTools(); }
+    catch (err) { console.error('[Lock] could not close DevTools:', err.message); }
+  }
+}
+// The window says when it locks. It cannot say it unlocked: only the PIN,
+// checked here, opens Vex again (vex-lock:unlock, src/main/lock-pin.js).
 ipcMain.on('vex-lock:state', (e, locked) => {
   if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
-  _vexLocked = locked === true;
-  if (_vexLocked) {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (w === mainWindow || w.isDestroyed() || !w.isVisible() || isPipContents(w.webContents)) continue;
-      w.hide();
-      _hiddenByLock.push(w);
-    }
-  } else {
-    for (const w of _hiddenByLock) if (!w.isDestroyed()) w.show();
-    _hiddenByLock = [];
+  if (locked !== true) { console.error('[Lock] refused: the window cannot unlock Vex without the PIN'); return; }
+  _lockVex();
+});
+const _lockGate = require('./main/lock-pin').createLockGate({ readRecord: () => _persistLoad()['vex.lockPin'] });
+ipcMain.handle('vex-lock:unlock', async (e, pin) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents || e.senderFrame !== mainWindow.webContents.mainFrame) {
+    throw new Error('Only the main Vex window unlocks Vex');
   }
+  if (!_vexLocked) return { ok: true };
+  const r = await _lockGate.tryUnlock(pin);
+  if (!r.ok) return r;
+  _vexLocked = false;
+  for (const w of _hiddenByLock) if (!w.isDestroyed()) w.show();
+  _hiddenByLock = [];
+  return { ok: true };
 });
 const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked });
 // A copied password or one-time code, cleared after 30 s by the main process
@@ -5353,6 +5439,13 @@ const _historyFolded = require('./main/history-fold').foldHistoryFile({ dataStor
   .then(r => { if (r.removed) console.log('[History] folded history.json into vex.history: ' + r.added + ' visit(s) added'); })
   .catch(err => console.error('[History] history.json could not be folded into vex.history; it is kept for the next start:', err));
 ipcMain.handle('persist-get-all', async () => { await _historyFolded; return _persistLoad(); });
+// Locked when Vex was closed: locked from the first moment, not from when the
+// window has loaded and says so, so there is no gap to open DevTools in. The
+// window starts locked in the same case (js/vex-lock.js, init).
+try {
+  const saved = _persistLoad();
+  if (saved['vex.locked'] === '1' && require('./main/lock-pin').parseRecord(saved['vex.lockPin'])) _vexLocked = true;
+} catch (err) { console.error('[Lock] could not read whether Vex was locked:', err.message); }
 
 // === Geolocation preference exposed to webview preloads ===
 // The preload polyfill (preload-webview.js) runs in guest processes and can't
@@ -5462,10 +5555,16 @@ ipcMain.handle('geolocation:check-permission', async (_e) => {
     }, 60000);
   });
 });
+// The PIN main checks an unlock against cannot be swapped while locked.
+function _refuseLockPinChange(key) {
+  if (_vexLocked && key === 'vex.lockPin') throw new Error('Vex is locked — the PIN cannot be changed');
+}
 ipcMain.handle('persist-set', async (_e, key, value) => {
+  _refuseLockPinChange(key);
   return preferences.set(key, value);
 });
 ipcMain.handle('persist-delete', async (_e, key) => {
+  _refuseLockPinChange(key);
   return preferences.delete(key);
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
@@ -6085,7 +6184,6 @@ app.whenReady().then(() => {
 
 // Custom protocol handler for vex://
 app.whenReady().then(async () => {
-  // F12: toggle DevTools for the focused window (bottom panel)
   // The user's own game hotkeys, from the settings file (main/game-hotkeys.js).
   // Registered after the preference store exists, and only what registers is kept.
   try {
@@ -6093,56 +6191,9 @@ app.whenReady().then(async () => {
     for (const e of r.errors) console.error('[Hotkeys] ' + e.accel + ' for ' + e.action + ': ' + e.error);
   } catch (err) { console.error('[Hotkeys] could not register:', err.message); }
 
-  globalShortcut.register('F12', () => {
-    const w = BrowserWindow.getFocusedWindow();
-    if (!w) return;
-    if (w.webContents.isDevToolsOpened()) w.webContents.closeDevTools();
-    else w.webContents.openDevTools({ mode: 'bottom' });
-  });
-  // Boss key (Ctrl+Alt+H): instantly hide + mute every Vex window; again to restore.
-  let bossHidden = false;
-  globalShortcut.register('CommandOrControl+Alt+H', () => {
-    bossHidden = !bossHidden;
-    for (const w of BrowserWindow.getAllWindows()) {
-      try {
-        if (bossHidden) { w.hide(); } else { w.show(); w.focus(); }
-      } catch {}
-    }
-    try { for (const wc of webContents.getAllWebContents()) wc.setAudioMuted(bossHidden); } catch {}
-  });
-  // Ctrl+Shift+F12: detached DevTools (backup when F12 is stolen by a webview)
-  globalShortcut.register('CommandOrControl+Shift+F12', () => {
-    const w = BrowserWindow.getFocusedWindow();
-    if (!w) return;
-    w.webContents.openDevTools({ mode: 'detach' });
-  });
-
-  // Ctrl+Shift+J: toggle DevTools (detached) for whatever webContents is
-  // currently focused. Lives in main as a globalShortcut because the previous
-  // renderer-side `document.addEventListener('keydown', ...)` listener never
-  // fired when the user was browsing inside a tab — keydown events inside a
-  // <webview> guest renderer don't bubble to the host doc's listener (same
-  // OOPIF-event-isolation reason F12 lives here too, see line 643). Gating
-  // on `getFocusedWindow() === mainWindow` keeps this from firing when Vex
-  // isn't focused; getFocusedWebContents walks the focus chain across guest
-  // views and gives us the panel-or-tab webContents the user expects.
-  globalShortcut.register('CommandOrControl+Shift+J', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (!win || win !== mainWindow) {
-      console.log('[Vex DT] Ctrl+Shift+J ignored (Vex window not focused)');
-      return;
-    }
-    let target = null;
-    try { target = webContents.getFocusedWebContents?.(); } catch {}
-    if (!target || target.isDestroyed()) target = win.webContents;
-    console.log('[Vex DT] Ctrl+Shift+J — target id:', target.id, 'url:', (() => { try { return target.getURL(); } catch { return '?'; } })());
-    try {
-      if (target.isDevToolsOpened()) target.closeDevTools();
-      else target.openDevTools({ mode: 'detach' });
-    } catch (err) {
-      console.error('[Vex DT] Ctrl+Shift+J openDevTools error:', err);
-    }
-  });
+  // F12, Ctrl+Shift+F12, Ctrl+Shift+J and the boss key are no longer
+  // Windows-wide: handleWindowKeys answers them in Vex's own windows and pages
+  // (src/main/window-keys.js).
 
   protocol.handle('vex', (request) => {
     const reqUrl = request.url;
@@ -6730,6 +6781,7 @@ ipcMain.handle('is-fullscreen', () => {
 // page in a tab. Docked at the bottom, the way F12 does it. What the developer
 // dashboard's button calls.
 ipcMain.handle('devtools:toggle-host', async (_e) => {
+  if (_vexLocked) return { ok: false, error: 'Vex is locked' };
   const wc = _e.sender;
   if (!wc || wc.isDestroyed()) return { ok: false, error: 'The window is gone' };
   try {
@@ -6740,6 +6792,7 @@ ipcMain.handle('devtools:toggle-host', async (_e) => {
 });
 
 ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
+  if (_vexLocked) return { ok: false, error: 'Vex is locked' };
   try {
     const wc = typeof webContentsId === 'number' ? webContents.fromId(webContentsId) : null;
     if (!wc || wc.isDestroyed()) {
@@ -6775,6 +6828,7 @@ ipcMain.handle('devtools:toggle-webview', async (_e, webContentsId) => {
 //      The `fallbackUrl` argument lets the caller hand in webview.getURL()
 //      so we can find the right guest by URL when the ID lookup fails.
 ipcMain.handle('devtools:open-for-webcontents', async (_e, webContentsId, fallbackUrl) => {
+  if (_vexLocked) return { ok: false, error: 'Vex is locked' };
   console.log('[Vex DT] open-for-webcontents id:', webContentsId, 'fallbackUrl:', fallbackUrl);
   let wc = null;
   try {

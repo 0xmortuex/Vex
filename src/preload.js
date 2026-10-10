@@ -353,6 +353,8 @@ contextBridge.exposeInMainWorld('vex', {
   onSleepCurrentTab: (callback) => subscribe('sleep-current-tab', callback),
   onPrintPage: (callback) => subscribe('print-page', callback),
   setLockState: (locked) => ipcRenderer.send('vex-lock:state', !!locked),
+  // Main checks the PIN itself; only then is Vex unlocked (src/main/lock-pin.js).
+  unlockLock: (pin) => ipcRenderer.invoke('vex-lock:unlock', pin),
   cancelTor: () => ipcRenderer.invoke('tor:cancel'),
   onViewSource: (callback) => subscribe('view-source', callback),
   onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),

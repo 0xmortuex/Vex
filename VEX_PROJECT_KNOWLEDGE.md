@@ -244,8 +244,10 @@ reads stay synchronous against the hydrated store → survives reinstalls and Ch
 
 ## 6. MAIN-PROCESS FEATURES (beyond the bridge)
 
-- **Global shortcuts:** F12 (DevTools focused window), Ctrl+Alt+H (Boss key: hide+mute all),
-  Ctrl+Shift+F12 (detached DevTools), Ctrl+Shift+J (DevTools for focused webContents).
+- **Window keys (src/main/window-keys.js):** F12 (DevTools focused window), Ctrl+Alt+H (Boss key: hide+mute all),
+  Ctrl+Shift+F12 (detached DevTools), Ctrl+Shift+J (DevTools for focused webContents). Answered in
+  Vex's own windows and pages only, never Windows-wide; the boss key holds Ctrl+Alt+H system-wide only
+  while Vex is hidden, to bring it back. No DevTools while Vex is locked.
   `before-input-event` on main window + every guest routes ~30 Ctrl/Alt combos to renderer IPC and
   handles F11/Esc (fullscreen), F12/Ctrl+Shift+I (DevTools), Ctrl+Shift+R (guest hard reload).
 - **DRM/Widevine:** castLabs `components.whenReady()` before any EME; fire-and-forget init, 30 s

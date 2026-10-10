@@ -44,6 +44,9 @@ const VexLock = {
     if (!/^\d{4,12}$/.test(String(pin))) throw new Error('A PIN is 4 to 12 digits');
     const salt = crypto.getRandomValues(new Uint8Array(16));
     localStorage.setItem(this.PIN_KEY, JSON.stringify({ salt: btoa(String.fromCharCode(...salt)), hash: await this._hash(pin, salt) }));
+    // Main checks the PIN when Vex is unlocked (src/main/lock-pin.js), so it
+    // is saved there before "PIN saved" is said.
+    if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
   },
 
   clearPin() { localStorage.removeItem(this.PIN_KEY); },
@@ -102,7 +105,11 @@ const VexLock = {
     el.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + Math.ceil((this._waitUntil - Date.now()) / 1000) + ' s'; return; }
-      if (await this.check(input.value)) { this.unlock(); return; }
+      if (await this.check(input.value)) {
+        try { await this.unlock(input.value); }
+        catch (err) { input.value = ''; msg.textContent = err.message; }
+        return;
+      }
       this._fails++;
       input.value = '';
       // Five wrong in a row: thirty seconds before the next try.
@@ -114,11 +121,20 @@ const VexLock = {
     return true;
   },
 
-  unlock() {
+  // Only main opens Vex, and only for the right PIN: the window saying so
+  // was enough before, and DevTools' console could say it (audit B1).
+  async unlock(pin) {
+    if (!window.vex?.unlockLock) throw new Error('Vex could not ask to be unlocked');
+    const r = await window.vex.unlockLock(String(pin ?? ''));
+    if (!r || r.ok !== true) throw new Error((r && r.error) || 'Vex stayed locked');
+    this._open();
+  },
+
+  // Take the lock screen away, once main has unlocked.
+  _open() {
     this._locked = false;
     this._fails = 0;
     localStorage.removeItem(this.LOCKED_KEY);
-    window.vex?.setLockState?.(false);
     this._watch?.disconnect();
     this._watch = null;
     for (const node of this._inerted || []) node.removeAttribute('inert');
