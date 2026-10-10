@@ -8488,7 +8488,8 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
 // The seed is for the page's own session and the site in its address bar
 // (a frame's top page), worked out here from the sender, never told by it.
 ipcMain.on('privacy:config-sync', (e) => {
-  e.returnValue = { farble: !!privacyCfg.farble, seed: _mainHelpers.farbleSeed(FARBLE_KEY, secureSessions.partitionOf(e.sender), e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '') };
+  const partition = secureSessions.partitionOf(e.sender);
+  e.returnValue = { farble: _mainHelpers.farbleOn(privacyCfg.farble, partition, e.sender.session), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '') };
 });
 ipcMain.on('compatibility:get', e => {
   try { e.returnValue = { suppressPasskeys: _passkeySuppressed(new URL(e.senderFrame.url).hostname) }; }

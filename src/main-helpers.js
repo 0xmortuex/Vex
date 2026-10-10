@@ -96,6 +96,12 @@ function farbleSeed(key, partition, topUrl) {
   const crypto = require('crypto');
   return crypto.createHmac('sha256', key).update(String(partition || '') + '\n' + farbleSite(topUrl)).digest().readUInt32LE(0);
 }
+// Whether a page gets the noise. A Tor page always does: there the canvas and
+// audio hash was the same on every visit unless the global switch was on,
+// the one thing linking one Tor session to the next (security finding SE10).
+function farbleOn(globalOn, partition, ses) {
+  return !!globalOn || partition === 'persist:route-tor' || !!(ses && ses.__vexTor);
+}
 
 // === URL/path normalisation for argv from Windows shell ===
 function normalizeLaunchArg(arg) {
@@ -541,6 +547,7 @@ module.exports = {
   EXTERNAL_PROTOCOLS,
   farbleSite,
   farbleSeed,
+  farbleOn,
   externalScheme,
   externalAppName,
   opensRemoteDocument,
