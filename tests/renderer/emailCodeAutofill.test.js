@@ -13,6 +13,8 @@ function makeAutofill(readsFn) {
   const injected = [];
   const logs = [];
   const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill, {
+    _watching: new Set(),
+    _active: new Set(),
     _hasEmptyCodeField: async () => true,
     _looksLikeCodePage: async () => true,
     _findMailWebview: () => ({ wv: {}, provider: { id: 'gmail' } }), // non-null mail webview
@@ -373,10 +375,12 @@ describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
     expect(injected).toContain('654321');
   });
 
-  it('records a miss instead of vanishing when too many polls are already running', async () => {
+  it('records a miss instead of vanishing when the reading slots stay full the whole time', async () => {
     const { A, logs } = makeAutofill(scriptedReader([loaded('111111', true, true)]));
-    A._active = new Set([{}, {}, {}]);                      // at the cap
-    await A.tryFill({ isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' }, 'https://accounts.spotify.com/en/login/otp');
+    A._active = new Set([{}, {}, {}]);                      // at the cap, and never freed
+    const p = A.tryFill({ isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' }, 'https://accounts.spotify.com/en/login/otp');
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
     expect(logs).toEqual([{ ok: false, reason: 'busy' }]);
   });
 
@@ -385,12 +389,76 @@ describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
     A._looksLikeAuthFlow = async () => true;
     A._hasEmptyCodeField = async () => false;
     const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login' };
+    let probes = 0;
+    A._looksLikeCodePage = async () => { probes++; return false; };
     A.tryFill(wv, 'https://accounts.spotify.com/en/login');
     await vi.advanceTimersByTimeAsync(100);
-    expect(A._active.size).toBe(1);
+    expect(A._watching.size).toBe(1);
     A.tryFill(wv, 'https://accounts.spotify.com/en/login');
     await vi.advanceTimersByTimeAsync(100);
-    expect(A._active.size).toBe(1);
+    expect(A._watching.size).toBe(1);
+    expect(probes).toBe(1);
+  });
+});
+
+describe('EmailCodeAutofill only takes a mailbox slot when a code is really asked for', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // The owner's log: 180 attempts, 0 fills, 112 refused as "busy". Every page
+  // load took one of the three slots on entry and held it for up to three
+  // minutes while it waited for a code field, so three ordinary sign-in pages
+  // locked out the page that actually asked for a code.
+  it('three sign-in pages still waiting for a code step do not lock out the page showing a code field', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    A._looksLikeAuthFlow = async () => true;
+    A._looksLikeCodePage = async () => false;
+    const waiting = ['https://discord.com/login', 'https://www.roblox.com/login', 'https://store.steampowered.com/login']
+      .map(u => ({ isConnected: true, getURL: () => u }));
+    const spotify = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    A._hasEmptyCodeField = async (wv) => wv === spotify;
+    waiting.forEach(wv => A.tryFill(wv, wv.getURL()));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(A._active.size).toBe(0);                         // watching is not reading
+    const p = A.tryFill(spotify, spotify.getURL());
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toEqual(['654321']);
+    expect(logs.filter(l => l.reason === 'busy')).toEqual([]);
+  });
+
+  it('a page asking for a code while every slot is taken is served as soon as one frees', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    const holders = [{}, {}, {}];
+    A._active = new Set(holders);                           // three pages already reading
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    const p = A.tryFill(wv, wv.getURL());
+    for (let k = 0; k < 5; k++) await vi.advanceTimersByTimeAsync(3100);
+    expect(injected).toEqual([]);
+    A._exit(holders[0]);                                    // one of them finishes
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toEqual(['654321']);
+  });
+
+  it('gives its slot back the moment it is done', async () => {
+    const { A } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    const p = A.tryFill(wv, wv.getURL());
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(A._active.size).toBe(0);
+    expect(A._watching.size).toBe(0);
+    expect(A._running).toBe(false);
   });
 });
 

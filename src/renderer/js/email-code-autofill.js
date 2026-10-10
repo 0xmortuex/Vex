@@ -378,16 +378,29 @@ const EmailCodeAutofill = {
   //
   // Concurrency is still bounded, and the inbox-refresh throttle below is still
   // global, so several polls cannot hammer the mailbox.
-  _active: new Set(),
+  //
+  // The bound is on READING THE MAILBOX, not on watching a page. Every page load
+  // used to take one of the three slots on entry and hold it for up to three
+  // minutes while it waited to see whether a code field would ever appear, so
+  // any three sign-in-looking pages filled them and the page that really asked
+  // for a code was turned away as "busy" (the owner's log: 180 attempts, 0
+  // fills, 112 busy). Now a page only watches - a cheap DOM check every few
+  // seconds - and takes a slot when it actually shows an empty code field. If
+  // all slots are taken at that moment it keeps watching and takes one as soon
+  // as it frees, instead of giving up.
+  _watching: new Set(),   // pages being watched (one watch per page)
+  _active: new Set(),     // pages holding a mailbox-reading slot
   MAX_POLLS: 3,
 
-  // _running stays as a plain flag meaning "some poll is in flight", because the
-  // hidden-reader cleanup uses it to avoid tearing the reader down mid-poll.
-  _enter(webview) { this._active.add(webview); this._running = true; },
+  // _running stays as a plain flag meaning "some poll is reading mail", because
+  // the hidden-reader cleanup uses it to avoid tearing the reader down mid-poll.
+  _enter(webview) {
+    if (this._active.size >= this.MAX_POLLS) return false;
+    this._active.add(webview); this._running = true; return true;
+  },
   _exit(webview) { this._active.delete(webview); this._running = this._active.size > 0; },
   async tryFill(loginWv, url) {
-    if (!loginWv || this._active.has(loginWv)) return;
-    if (this._active.size >= this.MAX_POLLS) { this._log(url, false, 'busy'); return; }
+    if (!loginWv || this._watching.has(loginWv)) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       // Never poll the mailbox itself. Opening Gmail fires this like any other
@@ -419,95 +432,111 @@ const EmailCodeAutofill = {
         try { return new URL(this._webviewUrl(loginWv) || url).origin === origin; } catch { return false; }
       };
       if (!current()) return;
-      if (this._active.has(loginWv)) return;                     // one poll per page
-      this._enter(loginWv);
-      this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
-      let sawField = false, plausible = false;
-      let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
-      let filled = false, sawMail = false, sawLoaded = false, authFlow = null;
-      // Up to ~3 minutes on a sign-in page: requesting a code, waiting for the
-      // mail to arrive and the code step to render routinely takes longer than
-      // the old 90s, and the clock starts at page load — before the user has even
-      // typed their address. An ordinary page still leaves after ~15s below.
-      for (let i = 0; i < 60; i++) {
-        if (!current()) break;
-        const hasField = await this._hasEmptyCodeField(loginWv);
-        if (hasField) { sawField = true; plausible = true; }
-        else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
-        if (!hasField && sawField) break;                        // field came and went
-        if (!plausible && i >= 4) {
-          // Not a code page (yet). Keep going only while this still looks like a
-          // sign-in that could produce one; probed once, not every tick.
-          if (authFlow === null) authFlow = await this._looksLikeAuthFlow(loginWv);
-          if (!authFlow) break;
-        }
-        if (hasField) {
-          const found = this._findMailWebview();
-          if (found && found.wv) {
-            sawMail = true;
-            const { loaded, code, unread, strong } = await this._readInbox(found.wv, found.provider);
-            if (!current()) break;
-            if (loaded) {
-              sawLoaded = true;
-              if (!baselineSet) {
-                // Snapshot the newest code the first time we see a loaded inbox.
-                baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
-              } else if (code && code !== baseline) {
-                // A DIFFERENT (newer) code arrived after we started — this is the
-                // one THIS attempt triggered. Fill it (the fast, reliable path).
-                const ok = await this._injectCode(loginWv, code, url);
-                this._log(url, ok, 'new-code'); filled = true;
-                if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
-              } else if (code && code === baseline && baselineStrong) {
-                // The code was already in the inbox when the page opened (so it
-                // became the baseline) — e.g. the mail synced a beat late, or the
-                // email landed as the page loaded. It's still the newest and
-                // clearly a verification code, with nothing newer superseding it.
-                // Fill it instead of skipping forever, after a grace so a genuine
-                // retry code can arrive first and win via the path above:
-                //  • ~15s if it's still flagged unread (strong signal it's fresh)
-                //  • ~30s even if unread detection is unreliable (Gmail's markup
-                //    varies, and the email may have been auto-marked read) — a
-                //    strong code sitting at the top this long is the one wanted.
-                unreadStable++;
-                const readyUnread = baselineUnread && unread && unreadStable >= 5;
-                const readyStrong = unreadStable >= 10;
-                if (readyUnread || readyStrong) {
+      if (this._watching.has(loginWv)) return;                   // one watch per page
+      this._watching.add(loginWv);
+      let slot = false, refusedBusy = false;
+      try {
+        let sawField = false, plausible = false;
+        let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
+        let filled = false, sawMail = false, sawLoaded = false, authFlow = null;
+        // Up to ~3 minutes on a sign-in page: requesting a code, waiting for the
+        // mail to arrive and the code step to render routinely takes longer than
+        // the old 90s, and the clock starts at page load — before the user has even
+        // typed their address. An ordinary page still leaves after ~15s below.
+        for (let i = 0; i < 60; i++) {
+          if (!current()) break;
+          const hasField = await this._hasEmptyCodeField(loginWv);
+          if (hasField) { sawField = true; plausible = true; }
+          else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
+          if (!hasField && sawField) break;                        // field came and went
+          if (!plausible && i >= 4) {
+            // Not a code page (yet). Keep going only while this still looks like a
+            // sign-in that could produce one; probed once, not every tick.
+            if (authFlow === null) authFlow = await this._looksLikeAuthFlow(loginWv);
+            if (!authFlow) break;
+          }
+          // Take a mailbox-reading slot only now that a code is really asked for.
+          // All taken: keep watching and try again next tick.
+          if (hasField && !slot) {
+            slot = this._enter(loginWv);
+            if (slot) this._lastInboxRefresh = 0;                  // refresh throttle, per attempt
+            else refusedBusy = true;
+          }
+          if (hasField && slot) {
+            const found = this._findMailWebview();
+            if (found && found.wv) {
+              sawMail = true;
+              const { loaded, code, unread, strong } = await this._readInbox(found.wv, found.provider);
+              if (!current()) break;
+              if (loaded) {
+                sawLoaded = true;
+                if (!baselineSet) {
+                  // Snapshot the newest code the first time we see a loaded inbox.
+                  baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
+                } else if (code && code !== baseline) {
+                  // A DIFFERENT (newer) code arrived after we started — this is the
+                  // one THIS attempt triggered. Fill it (the fast, reliable path).
                   const ok = await this._injectCode(loginWv, code, url);
-                  this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
+                  this._log(url, ok, 'new-code'); filled = true;
                   if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                } else if (code && code === baseline && baselineStrong) {
+                  // The code was already in the inbox when the page opened (so it
+                  // became the baseline) — e.g. the mail synced a beat late, or the
+                  // email landed as the page loaded. It's still the newest and
+                  // clearly a verification code, with nothing newer superseding it.
+                  // Fill it instead of skipping forever, after a grace so a genuine
+                  // retry code can arrive first and win via the path above:
+                  //  • ~15s if it's still flagged unread (strong signal it's fresh)
+                  //  • ~30s even if unread detection is unreliable (Gmail's markup
+                  //    varies, and the email may have been auto-marked read) — a
+                  //    strong code sitting at the top this long is the one wanted.
+                  unreadStable++;
+                  const readyUnread = baselineUnread && unread && unreadStable >= 5;
+                  const readyStrong = unreadStable >= 10;
+                  if (readyUnread || readyStrong) {
+                    const ok = await this._injectCode(loginWv, code, url);
+                    this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
+                    if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                  }
                 }
-              }
-              // Keep the inbox syncing so a freshly-sent code appears without the
-              // user refreshing Gmail. Whenever we've read a loaded inbox but
-              // nothing new has filled yet, prod it to fetch new mail (throttled,
-              // fire-and-forget — the next read a few seconds later sees the
-              // result). This is the core of "keep refreshing until the code
-              // arrives."
-              if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
-                this._lastInboxRefresh = Date.now();
-                this._refreshInbox(found.wv, found.provider);
+                // Keep the inbox syncing so a freshly-sent code appears without the
+                // user refreshing Gmail. Whenever we've read a loaded inbox but
+                // nothing new has filled yet, prod it to fetch new mail (throttled,
+                // fire-and-forget — the next read a few seconds later sees the
+                // result). This is the core of "keep refreshing until the code
+                // arrives."
+                if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
+                  this._lastInboxRefresh = Date.now();
+                  this._refreshInbox(found.wv, found.provider);
+                }
               }
             }
           }
+          await new Promise(r => setTimeout(r, 3000));
         }
-        await new Promise(r => setTimeout(r, 3000));
+        // Record a miss (with a reason) so a failure is diagnosable, not silent —
+        // and, when there really was an empty code field waiting, nudge the user
+        // toward the fix instead of failing silently.
+        if (!filled && (sawField || plausible)) {
+          const reason = (refusedBusy && !slot) ? 'busy'
+            : !sawMail ? 'no-mail'
+            : !sawLoaded ? 'mail-not-loaded'
+            : !baselineSet ? 'inbox-empty'
+            : baseline === null ? 'no-code-arrived'
+            : 'no-new-code';
+          this._log(url, false, reason);
+          this._maybeMissToast(reason, sawField);
+        }
+      } finally {
+        this._watching.delete(loginWv);
+        if (slot) {
+          this._exit(loginWv);
+          // The mail tab is shared by every reading poll: put it back only when
+          // the last one is done, not under another page that is still reading.
+          if (this._active.size === 0) this._restoreAutoWoken();
+        }
       }
-      // Record a miss (with a reason) so a failure is diagnosable, not silent —
-      // and, when there really was an empty code field waiting, nudge the user
-      // toward the fix instead of failing silently.
-      if (!filled && (sawField || plausible)) {
-        const reason = !sawMail ? 'no-mail'
-          : !sawLoaded ? 'mail-not-loaded'
-          : !baselineSet ? 'inbox-empty'
-          : baseline === null ? 'no-code-arrived'
-          : 'no-new-code';
-        this._log(url, false, reason);
-        this._maybeMissToast(reason, sawField);
-      }
-      this._exit(loginWv);
-      this._restoreAutoWoken();
-    } catch (e) { this._exit(loginWv); this._restoreAutoWoken(); }
+    } catch (e) { console.error('[email-code] autofill poll failed:', e); }
   },
 
   // If this poll woke a sleeping Gmail just to read a code, put it back to sleep
