@@ -16,9 +16,12 @@ const THUMB_WIDTH = 280;
 // Both layouts emit the same data-tab-id attribute, so we delegate from each
 // container with the matching item selector. Keeping these as a table makes
 // adding a third layout (e.g. mini-tabs) a one-line change.
+// The side list is the whole sidebar: a group's tabs (#tab-groups-container)
+// and the pinned row sit beside #tabs-list, not in it, and had no preview
+// (found 2026-10-10). A stack's header is no tab (it has no data-tab-id).
 const TAB_LISTS = [
-  { containerId: 'tabs-list',     itemSelector: '.tab-item' },
-  { containerId: 'top-tabs-list', itemSelector: '.top-tab' },
+  { containerId: 'tabs-sidebar',  itemSelector: '.tab-item[data-tab-id], .pinned-tab[data-tab-id]' },
+  { containerId: 'top-tabs-list', itemSelector: '.top-tab[data-tab-id]' },
 ];
 
 const TabPreview = {
@@ -79,7 +82,11 @@ const TabPreview = {
       const tabId = tabEl.dataset.tabId;
       if (typeof TabManager === 'undefined') return;
       const tab = TabManager.tabs.find(t => t.id === tabId);
-      if (!tab || tab.sleeping || tab._lazy) return;
+      if (!tab) return;
+      // A sleeping or not yet loaded tab has no page to take a picture of; it
+      // gets its title and address, as Chrome's hover card does. It got no
+      // preview at all (found 2026-10-10).
+      if (tab.sleeping || tab._lazy) { this._show(tabEl, tab, null); return; }
 
       const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews)
         ? WebviewManager.webviews.get(tabId)
