@@ -136,9 +136,10 @@ const GuideTemplates = {
       ask: ['save my password', 'password manager', 'where are my passwords', 'autofill login', '2fa codes', 'authenticator'],
       headline: 'Vex keeps logins in an OS-encrypted vault, fills them for you, and holds your 2FA codes too.',
       steps: [
-        'Sign in once and say yes when Vex offers to keep it; after that the form fills itself.',
-        'Settings › Passwords lists them, checks them for reuse and breaches, and lets you edit one.',
-        'Two-factor codes: the Authenticator panel on the sidebar — add an account by scanning its QR screenshot.',
+        'Sign in once and say yes when Vex offers to keep it; after that a click in the sign-in field fills it.',
+        'Settings › Passwords lists them: search, add, edit, show or copy one (Vex asks for your PIN first), or export them all.',
+        'Ctrl+K › Password Health finds reused and weak passwords, and breached ones once you turn that check on there.',
+        'Two-factor codes: the Authenticator panel on the sidebar — scan a QR screenshot, import Google Authenticator\'s export, or Back up every account with a passphrase.',
       ],
       feature: 'passwords',
     },
