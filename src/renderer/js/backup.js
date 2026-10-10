@@ -206,16 +206,36 @@ const VexBackup = {
   // the rest and needs no new privilege.
   async save(include = []) {
     const data = await this.snapshot(include);
-    const text = JSON.stringify(data, null, 2);
+    this._download(JSON.stringify(data, null, 2), this.fileName());
+    return data;
+  },
+
+  // The link's blob is let go of only after the download had time to start:
+  // revoked straight after click() the download can find nothing to save.
+  _download(text, name) {
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = this.fileName();
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    return data;
+  },
+
+  // Settings › Data › Export All Data: every vex.* key as it is, history and
+  // chats included, but through the same secret filter as a backup. It wrote
+  // the Lock PIN's hash and the MCP servers' tokens into Downloads (audit
+  // SET5, 2026-10-10). -> the number of keys left out.
+  exportAll() {
+    const data = {};
+    let skipped = 0;
+    for (const key of this._keys()) {
+      if (this._blocked(key)) { skipped++; continue; }
+      data[key] = localStorage.getItem(key);
+    }
+    this._download(JSON.stringify(data, null, 2), 'vex-data-export.json');
+    return skipped;
   },
 
   read(file) {

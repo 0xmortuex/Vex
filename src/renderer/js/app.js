@@ -624,20 +624,10 @@ function vexOwnTextFocused(doc) {
   })();
 
   // Export all data
+  // Secrets (the Lock PIN hash, MCP tokens ...) are left out, as in a backup
+  // (VexBackup.exportAll, js/backup.js).
   document.getElementById('setting-export')?.addEventListener('click', () => {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('vex.')) data[key] = localStorage.getItem(key);
-    }
-    // Notes, chats and history are kept on disk rather than in browser storage.
-    for (const [key, value] of PersistentStorage.fileOnlyEntries()) data[key] = value;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'vex-data-export.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    VexBackup.exportAll();
     showToast('Data exported');
   });
 
