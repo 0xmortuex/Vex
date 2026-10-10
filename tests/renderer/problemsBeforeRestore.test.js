@@ -27,7 +27,11 @@ async function start() {
 }
 
 beforeEach(() => {
-  localStorage.clear();
+  // Each test loads its own storage.js, whose clear() mirrors to the file: the
+  // previous test's copy would queue deletes that land in this test's file
+  // before it is read. Clear browser storage only.
+  const originals = Storage.prototype[Symbol.for('vex.storage.originals')];
+  (originals ? originals.clear : Storage.prototype.clear).call(localStorage);
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });

@@ -135,5 +135,5 @@ describe('the History panel reads the folded list', () => {
       const H = require(MODULE).HistoryPanel;
       expect(H.list().map(e => [e.url, e.title])).toEqual([['https://a.example/', 'A'], ['https://c.example/', 'C']]);
     } finally { Object.assign(g, saved); }
-  });
+  }, 30000); // loading jsdom here takes ~3.4s alone, past the 5s default on a busy machine
 });
