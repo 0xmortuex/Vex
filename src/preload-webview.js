@@ -1124,13 +1124,17 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     // keeps it awake, and can say which page holds the capture services.
     capture: (kind, active) => { try { ipcRenderer.sendToHost('vex-media-capture', { kind: String(kind), active: !!active }); } catch {} },
   };
-  try {
-    if (contextBridge && contextBridge.exposeInMainWorld) contextBridge.exposeInMainWorld('__vexShareBridge', bridge);
-    else window.__vexShareBridge = bridge;
-  } catch { return; }
+  // The bridge is handed to the shim alone, as an argument of
+  // executeInMainWorld: it was a property of the page's window, and any page could
+  // call capture('mic', true) and be shown, kept awake and listed as using
+  // the microphone (audit PA9, 2026-10-10).
+  if (!contextBridge || typeof contextBridge.executeInMainWorld !== 'function') {
+    console.error('[Vex] screen-share quality and capture badges need contextBridge.executeInMainWorld');
+    return;
+  }
   const shimSrc = `(function(){try{
     if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return;
-    var bridge = window.__vexShareBridge; if(!bridge) return;
+    if(!bridge) return;
     var orig = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getDisplayMedia = function(constraints){
       // The page gets the stream only after the user's choice is applied to
@@ -1202,7 +1206,10 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
       };
     }
   }catch(e){}})();`;
-  function inject() { runInMainWorld(shimSrc); }
+  function inject() {
+    try { contextBridge.executeInMainWorld({ func: new Function('bridge', shimSrc), args: [bridge] }); }
+    catch (err) { console.error('[Vex] screen-share shim could not reach this page:', err && err.message); }
+  }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
