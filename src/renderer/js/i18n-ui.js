@@ -125,6 +125,10 @@ const VexI18nUI = {
       // Settings > Downloads (js/downloads-panel.js); 'Location' is above.
       'Change': 'Değiştir',
       'Ask where to save each file before downloading': 'İndirmeden önce her dosyanın nereye kaydedileceğini sor',
+      // Settings > Appearance (js/appearance-prefs.js).
+      'Website appearance': 'Web sitesi görünümü', 'Follow Vex': 'Vex’i izle',
+      'Follow Windows': 'Windows’u izle', 'Light': 'Açık', 'Dark': 'Koyu',
+      'Reduce motion': 'Hareketi azalt',
 
       // --- states you see constantly ---
       'Loading...': 'Yükleniyor…', 'Loading…': 'Yükleniyor…',

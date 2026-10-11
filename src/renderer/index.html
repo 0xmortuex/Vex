@@ -920,6 +920,20 @@
                 </div>
                 <div id="theme-auto-status" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:6px"></div>
               </div>
+              <!-- Website appearance and Reduce motion (js/appearance-prefs.js). -->
+              <div class="setting-toggle-row">
+                <span>Website appearance<br><span style="font-size:11.5px;color:var(--text-muted)">Whether websites show their light or dark design. Following Vex, a dark theme gets the dark version of a site that has one.</span></span>
+                <select id="setting-website-appearance" aria-label="Website appearance" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="vex">Follow Vex</option>
+                  <option value="windows">Follow Windows</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Reduce motion<br><span style="font-size:11.5px;color:var(--text-muted)">Nothing in Vex slides, spins or zooms. Off, Vex follows Windows’ own “Animation effects”.</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-reduce-motion" aria-label="Reduce motion"><span class="toggle-slider"></span></label>
+              </div>
               <div class="setting-toggle-row">
                 <span>Skin<br><span style="font-size:11.5px;color:var(--text-muted)">A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light — on top of any theme.</span></span>
                 <button id="setting-open-skin" class="btn-secondary">Choose a skin…</button>
@@ -1500,6 +1514,7 @@
   <script src="js/theme-custom.js"></script>
   <script src="js/theme-manager.js"></script>
   <script src="js/theme-auto.js"></script>
+  <script src="js/appearance-prefs.js"></script>
   <script src="js/theme-picker.js"></script>
   <script src="js/theme-from-image.js"></script>
   <script src="js/theme-studio.js"></script>

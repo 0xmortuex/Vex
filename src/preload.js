@@ -506,6 +506,8 @@ contextBridge.exposeInMainWorld('vex', {
   readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
   // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
   getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
+  // Website appearance (js/website-appearance.js): 'system', 'light' or 'dark'.
+  setWebsiteAppearance: (source) => ipcRenderer.invoke('theme:set-website-appearance', source),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),

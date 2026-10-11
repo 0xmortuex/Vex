@@ -670,6 +670,8 @@ function vexOwnTextFocused(doc) {
     'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
     'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',
     'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
+    // Settings > Appearance (js/appearance-prefs.js).
+    'vex.websiteAppearance', 'vex.reduceMotion',
     // The sleep model (js/sleep-consent.js) and Discord's memory rows.
     'vex.sleepConsent', 'vex.sleepAlways', 'vex.panelAutoSleep', 'vex.panelSleepMinutes',
     'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',

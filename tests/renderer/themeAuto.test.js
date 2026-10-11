@@ -449,18 +449,42 @@ describe('main process: Windows light/dark mode', () => {
   it('answers the question and tells only real changes to every Vex window', async () => {
     const { wireSystemTheme } = await import('../../src/main/system-theme.js');
     const { EventEmitter } = await import('node:events');
-    const nativeTheme = Object.assign(new EventEmitter(), { shouldUseDarkColors: false });
+    const nativeTheme = Object.assign(new EventEmitter(), { shouldUseDarkColors: false, themeSource: 'system' });
     const handlers = {};
     const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; } };
     const send = vi.fn();
     const win = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send } };
+    const tick = () => new Promise(r => setTimeout(r, 0));
     wireSystemTheme({ ipcMain, nativeTheme, windows: () => [win] });
-    expect(handlers['system-theme:get']()).toEqual({ dark: false });
+    expect(await handlers['system-theme:get']()).toEqual({ dark: false });
+    await tick();
     nativeTheme.emit('updated');                   // high contrast etc.: no change
+    await tick();
     expect(send).not.toHaveBeenCalled();
     nativeTheme.shouldUseDarkColors = true;
     nativeTheme.emit('updated');
+    await tick();
     expect(send).toHaveBeenCalledWith('system-theme:changed', { dark: true });
-    expect(handlers['system-theme:get']()).toEqual({ dark: true });
+    expect(await handlers['system-theme:get']()).toEqual({ dark: true });
+  });
+
+  // Website appearance sets themeSource; shouldUseDarkColors then answers with
+  // Vex's own choice, and Light and dark would follow itself. Windows' own app
+  // mode is read instead.
+  it('with Website appearance set, still reads Windows\' own app mode', async () => {
+    const { wireSystemTheme } = await import('../../src/main/system-theme.js');
+    const { EventEmitter } = await import('node:events');
+    const nativeTheme = Object.assign(new EventEmitter(), { shouldUseDarkColors: true, themeSource: 'dark' });
+    const handlers = {};
+    const ipcMain = { handle: (ch, fn) => { handlers[ch] = fn; } };
+    let windowsDark = false;
+    wireSystemTheme({ ipcMain, nativeTheme, windows: () => [], platform: 'win32', readAppsDark: async () => windowsDark });
+    expect(await handlers['system-theme:get']()).toEqual({ dark: false });
+    windowsDark = true;
+    expect(await handlers['system-theme:get']()).toEqual({ dark: true });
+    // A failed read is an error, not a guess.
+    const h2 = {};
+    wireSystemTheme({ ipcMain: { handle: (ch, fn) => { h2[ch] = fn; } }, nativeTheme, windows: () => [], platform: 'win32', readAppsDark: async () => { throw new Error('no registry'); } });
+    await expect(h2['system-theme:get']()).rejects.toThrow(/no registry/);
   });
 });

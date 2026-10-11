@@ -106,6 +106,23 @@ webview:focus-visible {
   }
 }
 
+/* The same, when Settings > Appearance > Reduce motion is on, whatever
+ * Windows says (js/appearance-prefs.js sets the attribute). */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+html[data-reduce-motion] :is(.ai-spinner, .ws-spinner, .agent-spinner, .ai-msg.streaming .ai-msg-content::after) {
+  animation-name: vex-a11y-working !important;
+  animation-duration: 1.4s !important;
+  animation-iteration-count: infinite !important;
+  animation-timing-function: ease-in-out !important;
+}
+
 @keyframes vex-a11y-working {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }

@@ -8044,6 +8044,8 @@ app.whenReady().then(() => {
     nativeTheme: require('electron').nativeTheme,
     windows: () => BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && secureSessions.owner(w.webContents)?.win === w),
   });
+  // Website appearance: light or dark for web pages (src/main/website-appearance.js).
+  require('./main/website-appearance').wireWebsiteAppearance({ ipcMain, nativeTheme: require('electron').nativeTheme });
 });
 // Your own themes (js/theme-studio.js) each keep their New Tab background
 // image here, one file per theme id (theme-images/<id>.txt). Without an id
