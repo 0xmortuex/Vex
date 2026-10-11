@@ -17,7 +17,7 @@ const dir = path.join(root, 'renderer', 'js');
 // Real browser globals that are feature-tested the same way.
 const BROWSER = new Set(['CSS', 'MediaRecorder', 'ResizeObserver', 'Storage', 'IntersectionObserver', 'EyeDropper', 'ClipboardItem', 'Notification', 'BroadcastChannel', 'OffscreenCanvas', 'Intl', 'WebSocket', 'Worker', 'MutationObserver', 'SpeechSynthesisUtterance',
   // Not Vex's: read by code Vex runs inside Discord's page, where Vencord lives.
-  'Vencord']);
+  'Vencord', 'VencordNative']);
 
 describe('guarded reads of other modules', () => {
   it('only name modules that exist', () => {

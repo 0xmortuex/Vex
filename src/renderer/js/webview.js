@@ -284,6 +284,8 @@ const WebviewManager = {
         if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
         // Re-apply persistent highlights for this page
         if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
+        // Discord as a tab in the Vex theme (js/discord-theme.js).
+        if (window.DiscordTheme && t && t.partition === 'persist:discord') DiscordTheme.onPageReady(webview);
       } catch {}
     });
 

@@ -547,6 +547,9 @@ const SidebarManager = {
     if (panelName === 'settings' && window.DiscordBypass) {
       DiscordBypass.renderSetting(document.getElementById('discord-bypass-setting'));
     }
+    if (panelName === 'settings' && window.DiscordTheme) {
+      DiscordTheme.renderSetting(document.getElementById('discord-theme-setting'));
+    }
     if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
       AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
     }
@@ -642,6 +645,7 @@ const SidebarManager = {
       if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
       if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
+      if (window.DiscordTheme) DiscordTheme.onPageReady(wv);
     });
     // ---- brought back when Windows kills it --------------------------------
     // A game wants the memory, Windows takes it from the biggest processes,
@@ -1981,6 +1985,30 @@ const SidebarManager = {
     }
   },
 
+  // One-click Vencord: the official build into the Discord panel, then
+  // Discord reloaded so it runs. Resolves true when it is installed (also
+  // when it loads only after a restart), false when it failed — said in a toast.
+  async installVencord() {
+    window.showToast?.('Downloading Vencord…');
+    try {
+      const r = await window.vex?.installVencord?.();
+      if (r && r.ok) {
+        // In safe mode it is put in place, not loaded (found 2026-09-29).
+        if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return true; }
+        window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
+        if (this._reopenDiscordTab()) return true;
+        const wv = this.panelWebviews['discord'];
+        if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
+        return true;
+      }
+      window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
+      return false;
+    } catch (e) {
+      window.showToast?.('Vencord install failed', 'error');
+      return false;
+    }
+  },
+
   // Discord set to open as a tab (js/discord-memory.js): a just-installed
   // Vencord build only runs in a fresh page, and showPanel('discord') merely
   // switched to the old tab, still on the previous build. The tab is closed
@@ -2191,23 +2219,20 @@ const SidebarManager = {
         // One-click Vencord (plugins/themes) install into the Discord panel.
         items.push({
           label: 'Install / Update Vencord',
-          action: async () => {
-            window.showToast?.('Downloading Vencord…');
-            try {
-              const r = await window.vex?.installVencord?.();
-              if (r && r.ok) {
-                // In safe mode it is put in place, not loaded (found 2026-09-29).
-                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
-                window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
-                if (this._reopenDiscordTab()) return;
-                const wv = this.panelWebviews['discord'];
-                if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
-              } else {
-                window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
-              }
-            } catch (e) { window.showToast?.('Vencord install failed', 'error'); }
-          }
+          action: () => { this.installVencord(); }
         });
+        // Discord in the Vex colour theme, through Vencord (js/discord-theme.js).
+        if (window.DiscordTheme) {
+          const matchOn = DiscordTheme.isOn();
+          items.push({
+            label: matchOn ? 'Match my Vex theme: On' : 'Match my Vex theme: Off',
+            action: () => {
+              DiscordTheme.setOn(!matchOn).then((now) => {
+                if (now !== matchOn) window.showToast?.(now ? 'Discord now follows your Vex theme' : 'Discord keeps its own look');
+              }, (err) => window.showToast?.('Discord theme not changed — ' + err.message, 'error'));
+            }
+          });
+        }
         // Install YOUR local Vencord build (custom userplugins that aren't in the
         // official devbuild). Point Vex at the extension-chrome.zip from `pnpm buildWeb`.
         items.push({
