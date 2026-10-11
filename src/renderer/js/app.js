@@ -183,6 +183,8 @@ function vexOwnTextFocused(doc) {
   if (typeof SmartSearchbar !== 'undefined') {
     SmartSearchbar.init(urlInput, { onSubmit: (url, newTab) => submitUrlBar(url, newTab) });
   }
+  // Cut, Copy, Paste, Paste and go, Select all (js/url-bar-menu.js).
+  UrlBarMenu.init(urlInput, { onPasteAndGo: (text) => submitUrlBar(text, false) });
 
   urlInput.addEventListener('keydown', (e) => {
     // Let the Smart Searchbar consume arrow-nav / Enter-on-highlight / Esc-
