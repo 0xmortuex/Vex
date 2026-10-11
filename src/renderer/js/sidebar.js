@@ -2278,8 +2278,9 @@ const SidebarManager = {
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret). js/discord-bypass.js
-        // is loaded in the main window only.
-        const bypass = window.DiscordBypass;
+        // is loaded in every window, but main refuses the bypass from a
+        // private one, so the items are left out there.
+        const bypass = window.VexTabPolicy?.isPrivateWindow ? null : window.DiscordBypass;
         if (bypass) items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
         if (bypass && bypass.choice().mode !== 'off') {
           items.push({
