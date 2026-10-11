@@ -591,7 +591,14 @@ contextBridge.exposeInMainWorld('vex', {
   syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),
   syncSaveMeta: (meta) => ipcRenderer.invoke('sync-save-meta', meta),
   syncLoadMeta: () => ipcRenderer.invoke('sync-load-meta'),
-  syncClearState: () => ipcRenderer.invoke('sync-clear-state')
+  syncClearState: () => ipcRenderer.invoke('sync-clear-state'),
+  // Saved passwords and authenticator accounts in Vex Sync: sealed and opened
+  // by main (main/sync-secrets.js); this window carries only sealed items.
+  syncSecretsSeal: (kinds) => ipcRenderer.invoke('sync-secrets-seal', kinds),
+  syncSecretsApply: (lists) => ipcRenderer.invoke('sync-secrets-apply', lists),
+  syncSecretsDescribe: (items) => ipcRenderer.invoke('sync-secrets-describe', items),
+  syncSecretsPutBack: (request) => ipcRenderer.invoke('sync-secrets-put-back', request),
+  onSyncSecretsChanged: (callback) => subscribe('sync-secrets-changed', callback)
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

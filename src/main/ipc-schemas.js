@@ -133,6 +133,15 @@ define('adblocker-set-state discord:set-bypass roblox:set-bypass', [boolean]);
 define('gui-style:set', [oneOf(['classic','glass'])]);
 define('cloud:token-save', [string(4096)]);
 define('sync-save-key', [value => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)]);
+// Saved passwords and authenticator accounts in Vex Sync (main/sync-secrets.js):
+// sealed items { id, t, s } only, never a password or a secret.
+const secretKind = oneOf(['passwords', 'authenticator']);
+const sealedItem = shape({ id: value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value), t: value => Number.isSafeInteger(value) && value >= 0, s: string(65536) });
+const sealedList = value => Array.isArray(value) && value.length <= 20000 && value.every(sealedItem);
+define('sync-secrets-seal', [value => Array.isArray(value) && value.length >= 1 && value.length <= 2 && value.every(secretKind)]);
+define('sync-secrets-apply', [value => object(value) && Object.keys(value).length <= 2 && Object.entries(value).every(([kind, list]) => secretKind(kind) && sealedList(list))]);
+define('sync-secrets-describe', [value => Array.isArray(value) && value.length <= 5000 && value.every(item => object(item) && secretKind(item.kind) && typeof item.id === 'string' && item.id.length <= 64 && string(65536)(item.s))]);
+define('sync-secrets-put-back', [shape({ kind: secretKind, id: string(64), item: optional(sealedItem) })]);
 define('persist-set', [string(170), string(12 * 1024 * 1024)]);
 define('persist-delete storage-load', [string(170)]);
 // Many preference keys in one write: [[key, value or null to delete], ...].

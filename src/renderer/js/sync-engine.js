@@ -108,6 +108,10 @@ const SyncEngine = (() => {
     // syncs (HISTORY_SYNC_*), so a clear on one device reaches the older
     // visits other devices keep only through this.
     'vex.historyClearedAt',
+    // Sites never offered a password save (js/passwords.js), and the sites an
+    // authenticator code is or is not filled on (js/totp-autofill.js). They
+    // travel with the passwords and the authenticator accounts (SYNC_TYPES).
+    'vex.pwNever', 'vex.totpSites',
   ];
 
   // Lists synced item by item, so two devices' entries merge instead of one
@@ -123,7 +127,9 @@ const SyncEngine = (() => {
     // The site panel's other per-site lists, merged the same way.
     'vex.neverSleepHosts', 'vex.translateAlwaysHosts',
     // Colour themes the user made (js/theme-custom.js), merged theme by theme.
-    'vex.customThemes'];
+    'vex.customThemes',
+    // Sites never offered a password save: host names, like vex.forceDarkHosts.
+    'vex.pwNever'];
 
   // Settings › Vex Sync › Choose what to sync. Each kind of data can be left
   // out on this device; there was no way to keep, say, history or AI memory
@@ -141,9 +147,23 @@ const SyncEngine = (() => {
     { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
     { id: 'look', label: 'Themes, look and fonts', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout',
       'vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono'] },
+    // Saved passwords and authenticator (2FA) accounts. Off until the person
+    // turns them on, on each device (OFF_UNLESS_CHOSEN), after Vex asks again
+    // (the Vex PIN if set). The main process seals each one with a key
+    // derived from the sync key, so this window carries only sealed items
+    // (SECRET_SOURCES, main/sync-secrets.js).
+    { id: 'passwords', label: 'Passwords', keys: ['vex.pwNever'], secret: true },
+    { id: 'authenticator', label: 'Authenticator (2FA codes)', keys: ['vex.totpSites'], secret: true },
     // Everything else: site lists, zoom, auto-sleep, keyboard shortcuts...
     { id: 'settings', label: 'Other settings', keys: [] },
   ];
+  const OFF_UNLESS_CHOSEN = SYNC_TYPES.filter(t => t.secret).map(t => t.id);
+  // The sealed lists: { id, t, s } per saved login or authenticator account
+  // (SYNC_PROTOCOL.md §4.9).
+  const SECRET_SOURCES = { 'secret:passwords': 'passwords', 'secret:authenticator': 'authenticator' };
+  const secretSource = source => Object.hasOwn(SECRET_SOURCES, source);
+  // How every record key of a sealed list begins (JSON.stringify of the key).
+  const SECRET_KEY_START = '["secret:';
   const CHOICES_KEY = 'vex.syncChoices';
   // Kinds turned back on whose first pull has not happened yet (CHOICES_KEY).
   const REJOIN_KEY = 'vex.syncRejoin';
@@ -155,6 +175,7 @@ const SyncEngine = (() => {
     catch (err) { console.error('[Sync] ' + key + ' is not readable; using the default:', err.message); return fallback; }
   }
   function typeOfSource(source) {
+    if (secretSource(source)) return SECRET_SOURCES[source];
     if (source.startsWith('sync:tabs:')) return 'tabs';
     if (source === 'storage:theme') return 'look';
     const key = source.startsWith('preference:') ? source.slice(11) : null;
@@ -163,8 +184,15 @@ const SyncEngine = (() => {
   }
   function typeOn(id) {
     const choices = readJson(CHOICES_KEY, {});
-    return !(choices && typeof choices === 'object' && choices[id] === false);
+    const choice = choices && typeof choices === 'object' ? choices[id] : undefined;
+    return OFF_UNLESS_CHOSEN.includes(id) ? choice === true : choice !== false;
   }
+  const secretsOn = () => OFF_UNLESS_CHOSEN.some(typeOn);
+  // While Vex is locked, nothing syncs on a device that syncs passwords or
+  // the authenticator: main refuses them then, and the rest waits with them,
+  // so the account never gets half a round. What changed goes up on unlock.
+  const LOCKED_WAIT = 'Vex is locked — syncing resumes when you unlock it';
+  const waitForUnlock = () => secretsOn() && !!(typeof window !== 'undefined' && window.VexLock && window.VexLock.locked && window.VexLock.locked());
   function rejoining() {
     const list = readJson(REJOIN_KEY, []);
     return Array.isArray(list) ? list.filter(id => typeof id === 'string') : [];
@@ -674,6 +702,7 @@ const SyncEngine = (() => {
     || ((source === TABS_SOURCE + state.deviceId
       || preferenceKeys().some(key => source === 'preference:' + key)
       || STORE_KEYS.some(key => source === 'storage:' + key)
+      || secretSource(source)
       || (gate.open && TILE_SOURCES.includes(source)))
       && chosen(source, gate));
   // Whether this device sends and applies `source` now (Choose what to sync).
@@ -859,6 +888,13 @@ const SyncEngine = (() => {
       } else data['preference:' + key] = raw;
     }
     for (const key of STORE_KEYS) if (ownsSource('storage:' + key, gate)) data['storage:' + key] = await VexStorage.load(key);
+    // Saved passwords and authenticator accounts, sealed by main.
+    const secretKinds = Object.entries(SECRET_SOURCES).filter(([source]) => ownsSource(source, gate)).map(([, kind]) => kind);
+    if (secretKinds.length) {
+      if (!window.vex || typeof window.vex.syncSecretsSeal !== 'function') throw new Error('This window cannot reach saved passwords to sync them');
+      const sealed = await window.vex.syncSecretsSeal(secretKinds);
+      for (const [source, kind] of Object.entries(SECRET_SOURCES)) if (secretKinds.includes(kind)) data[source] = sealedItems(sealed && sealed[kind], kind);
+    }
     if (ownsSource(TABS_SOURCE + state.deviceId, gate)) data[TABS_SOURCE + state.deviceId] = { tabs: await openTabsToSync() };
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
@@ -904,7 +940,14 @@ const SyncEngine = (() => {
       }
     }
     const build = () => {
-      const doc = records.capture(before, records.flatten(data), state.deviceId);
+      const doc = records.capture(before, secretFlat(records.flatten(data)), state.deviceId);
+      // A sealed item changed here carries the time it was changed (its own
+      // updatedAt), so of two devices' changes to one login the newer wins.
+      for (const [key, record] of Object.entries(doc.records)) {
+        if (record === before.records[key] || record.deleted || !key.startsWith(SECRET_KEY_START) || !secretSource(sourceOf(key))) continue;
+        const t = record.value && record.value.item && record.value.item.t;
+        if (Number.isSafeInteger(t) && t > 0) doc.records[key] = { ...record, at: t };
+      }
       // Records this device leaves exactly as it found them: everything it does
       // not own (ownsRecord), including the tiles while they wait for every
       // device to understand them. capture() marked them deleted, as it does
@@ -927,6 +970,43 @@ const SyncEngine = (() => {
     await VexStorage.save('sync-records', recordDocument);
     if (gate.join && tilesSync(gate)) await VexStorage.save('sync-tiles-joined', state.deviceId);
     return recordDocument;
+  }
+
+  // A sealed list as main hands it over or a merge yields it: [{ id, t, s }].
+  function sealedItems(list, kind) {
+    const ok = item => item && typeof item === 'object' && typeof item.id === 'string' && /^[a-f0-9]{32}$/.test(item.id)
+      && Number.isSafeInteger(item.t) && item.t >= 0 && typeof item.s === 'string' && item.s.length > 0 && item.s.length <= 65536;
+    if (!Array.isArray(list) || !list.every(ok)) throw new Error('Invalid synced ' + kind);
+    return list.map(({ id, t, s }) => ({ id, t, s }));
+  }
+  // Sealed items keep index 0: they are kept sorted by id, and a position
+  // would make every later item change when one is added.
+  function secretFlat(flat) {
+    for (const key of Object.keys(flat)) {
+      if (!key.startsWith(SECRET_KEY_START)) continue;
+      const [source, kind] = JSON.parse(key);
+      if (kind === 'item' && secretSource(source)) flat[key] = { index: 0, item: flat[key].item };
+    }
+    return flat;
+  }
+  // Joining (a recovery code, or the kind just turned on): a saved login or
+  // authenticator account both sides hold is merged, the newer change winning
+  // and the other kept for Sync conflicts, instead of the account's copy
+  // replacing this device's newer password. One this device holds that the
+  // account deleted is kept: a join never removes a saved password.
+  function joinSecrets(merged, local, cloud, pick) {
+    const records = window.VexSyncRecords;
+    for (const [key, mine] of Object.entries(local.records)) {
+      if (!pick(key) || !secretSource(sourceOf(key)) || JSON.parse(key)[1] !== 'item' || mine.deleted) continue;
+      const theirs = cloud.records[key];
+      if (!theirs) continue;
+      if (theirs.deleted) {
+        const clock = { ...theirs.clock };
+        for (const [device, n] of Object.entries(mine.clock)) clock[device] = Math.max(clock[device] || 0, n);
+        clock[state.deviceId] = (clock[state.deviceId] || 0) + 1;
+        merged.records[key] = { ...mine, clock, conflicts: [] };
+      } else merged.records[key] = records.merge({ schema: 2, records: { [key]: mine } }, { schema: 2, records: { [key]: theirs } }).records[key];
+    }
   }
 
   async function applySyncData(data, restore = false) {
@@ -982,6 +1062,7 @@ const SyncEngine = (() => {
         if (bookmarkItem(key) && accountBookmarks.has(record.value?.item?.url)) continue;
         merged.records[key] = record;
       }
+      joinSecrets(merged, local, data, () => true);
       // This device's tiles were just added on top of the account's (see
       // collectSyncData), so its tile records are the newer ones.
       if (tilesSync(gate)) Object.assign(merged.records, records.merge(tileRecords(local), tileRecords(data)).records);
@@ -1006,6 +1087,7 @@ const SyncEngine = (() => {
           if (shape(data) && !shape(data).deleted && shape(data).value !== shape(local)?.value) continue;
           merged.records[key] = record;
         }
+        joinSecrets(merged, local, data, key => rejoinsRecord(key, rejoin));
       }
     }
     // Only what this device applies is read and checked. A source it does not
@@ -1020,6 +1102,14 @@ const SyncEngine = (() => {
       if (!Array.isArray(value)) throw new Error('Invalid synced list: ' + key);
       sources[name] = value;
     }
+    // Saved passwords and authenticator accounts first: main opens and writes
+    // them, and refuses while Vex is locked. Nothing else is written until
+    // they are.
+    const secretLists = {};
+    for (const [source, kind] of Object.entries(SECRET_SOURCES)) {
+      if (ownsSource(source, gate)) secretLists[kind] = sealedItems(Object.hasOwn(sources, source) ? sources[source] : [], kind);
+    }
+    if (Object.keys(secretLists).length) await window.vex.syncSecretsApply(secretLists);
     if (preferenceKeys().includes('vex.history') && ownsSource('preference:vex.history', gate)) {
       const synced = sources['preference:vex.history'];
       sources['preference:vex.history'] = withOlderHistory(Array.isArray(synced) ? synced : [], localHistory, sources['preference:vex.historyClearedAt']);
@@ -1099,6 +1189,7 @@ const SyncEngine = (() => {
 
   async function pushRound() {
     if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
+    if (waitForUnlock()) return { ok: false, locked: true, reason: LOCKED_WAIT };
     const first = await pushOnce();
     if (!first.conflict) return first;
     const pulled = await pullRound();
@@ -1179,6 +1270,7 @@ const SyncEngine = (() => {
 
   async function pullRound({ restore = false } = {}) {
     if (privateWindow()) return { ok: false, reason: PRIVATE_OFF };
+    if (waitForUnlock()) return { ok: false, locked: true, reason: LOCKED_WAIT };
     if (!syncWorkerUrl()) {
       console.log('[Sync] not configured — skipping pull');
       return { ok: false, reason: 'sync-not-configured' };
@@ -1255,6 +1347,9 @@ const SyncEngine = (() => {
       server = { revision, text: canonical(decrypted) };
       if (applied?.cloud) await noteTombstones(applied.cloud, revision, recordDocument);
       pullBlocked = false;
+      // Only names for Sync conflicts: the pull stands without them.
+      try { await nameSecretConflicts(); }
+      catch (err) { console.error('[Sync] Could not name the saved logins in Sync conflicts:', err); }
       state.lastPullAt = new Date().toISOString();
       state.lastError = null;
       await saveMetaToDisk();
@@ -1282,10 +1377,19 @@ const SyncEngine = (() => {
   // Turns one kind of data on or off for this device. Turning one on joins
   // it on a pull straight away (or the next one, offline).
   async function setTypeSynced(id, on) {
-    if (!SYNC_TYPES.some(t => t.id === id)) throw new Error('Unknown kind of sync data: ' + id);
+    const type = SYNC_TYPES.find(t => t.id === id);
+    if (!type) throw new Error('Unknown kind of sync data: ' + id);
+    // Passwords and authenticator codes leave this device only after Vex asks
+    // again, as before showing a saved password (the Vex PIN if set).
+    if (on && type.secret && !typeOn(id)) {
+      if (!window.VexLock || typeof window.VexLock.recheck !== 'function') throw new Error('The PIN check did not load');
+      const what = id === 'passwords' ? 'your saved passwords' : 'your authenticator (2FA) accounts';
+      const asked = await window.VexLock.recheck({ title: 'Sync ' + type.label.toLowerCase(), message: 'Vex asks again before it syncs ' + what + ' to your other devices. They travel end-to-end encrypted with your sync key.', okLabel: 'Turn on' });
+      if (!asked) return { ok: false, canceled: true };
+    }
     const choices = readJson(CHOICES_KEY, {});
     const next = choices && typeof choices === 'object' && !Array.isArray(choices) ? { ...choices } : {};
-    if (on) delete next[id]; else next[id] = false;
+    if (on) { if (type.secret) next[id] = true; else delete next[id]; } else next[id] = false;
     localStorage.setItem(CHOICES_KEY, JSON.stringify(next));
     const rejoin = rejoining().filter(type => type !== id);
     if (on) {
@@ -1338,6 +1442,29 @@ const SyncEngine = (() => {
     if (v && typeof v === 'object') return String(v.title || v.name || v.label || v.url || v.message || JSON.stringify(v)).slice(0, 160);
     return String(v).slice(0, 160);
   }
+  // What a sealed version is (its site and username, or its issuer and
+  // name), opened by main after each pull that leaves a conflict on one.
+  // Never its password or secret. sealed text -> label.
+  const secretLabels = new Map();
+  async function nameSecretConflicts() {
+    const asks = [];
+    for (const [key, record] of Object.entries(recordDocument ? recordDocument.records : {})) {
+      const [source, kind, id] = JSON.parse(key);
+      if (kind !== 'item' || !secretSource(source) || !(record.conflicts?.length > 1)) continue;
+      for (const v of record.conflicts) {
+        const s = v.value && v.value.item && v.value.item.s;
+        if (typeof s === 'string' && !secretLabels.has(s)) asks.push({ kind: SECRET_SOURCES[source], id, s });
+      }
+    }
+    if (!asks.length) return;
+    const named = await window.vex.syncSecretsDescribe(asks);
+    asks.forEach((ask, i) => {
+      if (named[i] && typeof named[i].label === 'string') secretLabels.set(ask.s, named[i].label);
+      else console.error('[Sync] A version in Sync conflicts could not be named:', named[i] && named[i].error);
+    });
+  }
+  const secretLabel = value => secretLabels.get(value && value.item && value.item.s) || 'A saved item this device cannot name yet';
+
   // [{ key, what, versions: [{ deleted, text, at, current }] }], newest edit first.
   function conflictList() {
     if (!recordDocument) return [];
@@ -1349,6 +1476,16 @@ const SyncEngine = (() => {
       if (kind === 'type' || source.startsWith(DEVICE_SOURCE) || TILE_SOURCES.includes(source)) continue;
       const type = SYNC_TYPES.find(t => t.id === typeOfSource(source));
       const same = v => v.deleted === record.deleted && JSON.stringify(v.value) === JSON.stringify(record.value);
+      if (secretSource(source)) {
+        if (kind !== 'item') continue;
+        out.push({
+          key,
+          what: type.label + ' › ' + secretLabel(record.deleted ? record.conflicts.find(v => !v.deleted)?.value : record.value),
+          at: record.at || 0,
+          versions: record.conflicts.map(v => ({ deleted: !!v.deleted, text: v.deleted ? 'Deleted' : secretLabel(v.value), at: v.at || 0, current: same(v) })),
+        });
+        continue;
+      }
       out.push({
         key,
         what: (type ? type.label : 'Settings') + ' › ' + (kind === 'item' ? describe(record.deleted ? record.conflicts.find(v => !v.deleted)?.value : record.value, false) : source.replace(/^preference:vex\.|^storage:/, '')),
@@ -1367,7 +1504,10 @@ const SyncEngine = (() => {
     if (!version) throw new Error('That version is no longer there');
     if (!ownsRecord(key, { open: tileGate.open, rejoin: false })) throw new Error('This device does not sync that');
     const [source, kind, id] = JSON.parse(key);
-    if (source.startsWith('preference:')) {
+    if (secretSource(source)) {
+      if (kind !== 'item') throw new Error('That cannot be put back');
+      await window.vex.syncSecretsPutBack({ kind: SECRET_SOURCES[source], id, item: version.deleted ? null : sealedItems([version.value && version.value.item], SECRET_SOURCES[source])[0] });
+    } else if (source.startsWith('preference:')) {
       const name = source.slice(11);
       if (kind === 'value') {
         if (version.deleted) localStorage.removeItem(name);
@@ -1411,14 +1551,32 @@ const SyncEngine = (() => {
     changeTimer = setTimeout(() => {
       changeTimer = null;
       pushNow().then((r) => {
-        if (!r.ok && r.reason !== 'not-ready') console.error('[Sync] Could not upload a change: ' + r.reason);
+        if (!r.ok && r.reason !== 'not-ready' && !r.locked) console.error('[Sync] Could not upload a change: ' + r.reason);
       });
     }, CHANGE_PUSH_MS);
   }
+  // Saved passwords and authenticator accounts live in main, which says
+  // when one changed (main/sync-secrets.js).
+  let secretsWatched = false;
+  // Unlocked: what waited goes now (waitForUnlock).
+  let unlockWatched = false;
   const syncedPreference = key => (preferenceKeys().includes(key) || TILE_LISTS.includes(key)) && typeOn(typeOfSource('preference:' + key));
   function watchChanges() {
     if (typeof PersistentStorage !== 'undefined') PersistentStorage.onChange = key => changed(syncedPreference(String(key)));
     if (typeof VexStorage !== 'undefined') VexStorage.onChange = key => changed(STORE_KEYS.includes(String(key)) && typeOn(typeOfSource('storage:' + key)));
+    if (!secretsWatched && window.vex && typeof window.vex.onSyncSecretsChanged === 'function') {
+      secretsWatched = true;
+      window.vex.onSyncSecretsChanged(() => changed(secretsOn()));
+    }
+    if (!unlockWatched) {
+      unlockWatched = true;
+      window.addEventListener('vex-unlocked', () => {
+        if (!state.enabled || privateWindow() || !syncWorkerUrl() || !secretsOn()) return;
+        pullNow().then(() => pushNow()).then((r) => {
+          if (!r.ok && r.reason !== 'not-ready') console.error('[Sync] Could not sync after Vex was unlocked: ' + r.reason);
+        });
+      });
+    }
   }
   // The window is closing (js/storage.js): one last upload, so the change made
   // a moment ago and this device's open tabs reach the other devices. At most

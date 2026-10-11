@@ -522,7 +522,7 @@ const VexFeatures = {
         { sel: '#icon-sidebar', title: 'Open Settings', html: 'The gear at the bottom of the sidebar, then <b>Sync</b>.' },
         { sel: '#btn-command', title: 'Or from the command bar', html: '<kbd>Ctrl</kbd>+<kbd>K</kbd> → “Sync”. Set a passphrase on this computer, then enter the same one on the other: everything is encrypted with it before it leaves, so only your devices can read it.' },
       ],
-      what: 'Tabs, bookmarks, history and settings on every machine you use, encrypted on your device before it leaves. Your server, your key.' },
+      what: 'Tabs, bookmarks, history and settings on every machine you use, encrypted on your device before it leaves. Your server, your key. Saved passwords and 2FA codes too, once you turn them on in Choose what to sync.' },
     { id: 'export', phrases: 'export my data backup everything', cat: 'data', cmd: 'export-data',
       what: 'Everything Vex has stored about you, as one JSON file you can read.' },
     { id: 'whatsnew', cat: 'data', cmd: 'whatsnew',

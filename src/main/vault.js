@@ -3,8 +3,9 @@ const { atomicWrite } = require('./file-store');
 // dialog / windowFor: the CSV export's save dialog. breachCheckOn: whether the
 // person turned on the breach check ('vex.breachCheck'); nothing is sent to
 // Have I Been Pwned unless it is. fetchRange(prefix) -> the range API's text
-// (a stand-in in tests; never called live there).
-function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null, breachCheckOn = () => false, fetchRange = null }) {
+// (a stand-in in tests; never called live there). onChange() runs after every
+// save, so Vex Sync sends the change (main/sync-secrets.js).
+function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null, breachCheckOn = () => false, fetchRange = null, onChange = () => {} }) {
 let vaultCache = null;
 let writes = Promise.resolve();
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
@@ -37,6 +38,7 @@ async function vaultSave(arr) {
   vaultCache = structuredClone(arr);
   writes = writes.catch(() => {}).then(() => atomicWrite(VAULT_FILE(), bytes));
   try { await writes; } catch (error) { vaultCache = null; throw error; }
+  onChange();
 }
 ipcMain.handle('vault:list', () => {
   // Metadata only — no passwords cross this channel.
@@ -273,6 +275,6 @@ async function addMissing(entries) {
   return { added, duplicates };
 }
 
-return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes, addMissing, toChromeCsv };
+return { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault: () => writes, addMissing, toChromeCsv, load: vaultLoad, save: vaultSave };
 }
 module.exports = { createVaultService };

@@ -1767,8 +1767,8 @@ ipcMain.handle('vex-lock:verify', async (e, pin) => {
   }
   return _lockGate.tryUnlock(pin);
 });
-const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
-  dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true });
+const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddMissing, load: _vaultLoad, save: _vaultSave } = require('./main/vault').createVaultService({ app, safeStorage, ipcMain, isLocked: () => _vexLocked,
+  dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), breachCheckOn: () => _readPersistString('vex.breachCheck', false) === true, onChange: () => _syncSecretsChanged() });
 // A copied password or one-time code, cleared after 30 s by the main process
 // even when Vex no longer has the focus (main/secret-clipboard.js).
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
@@ -1800,7 +1800,8 @@ function totpSave(arr) {
   const bytes = safeStorage.encryptString(JSON.stringify(arr));
   totpCache = structuredClone(arr);
   totpWrites = totpWrites.catch(() => {}).then(() => atomicWrite(TOTP_FILE(), bytes));
-  return totpWrites;
+  // Vex Sync sends the change (main/sync-secrets.js).
+  return totpWrites.then(() => _syncSecretsChanged());
 }
 function _b32decode(s) {
   const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -5972,6 +5973,24 @@ ipcMain.handle('sync-clear-state', async () => {
   await Promise.all([secretStore.clear(syncKeyFile), secretStore.clear(syncMetaFile)]);
   return true;
 });
+// Saved passwords and authenticator accounts in Vex Sync, when turned on in
+// Settings › Vex Sync › Choose what to sync: sealed and opened here, never
+// readable in the window (main/sync-secrets.js).
+require('./main/sync-secrets').createSyncSecrets({
+  readKeyHex: () => secretStore.read(syncKeyFile),
+  isLocked: () => _vexLocked,
+  stores: {
+    passwords: { load: () => _vaultLoad(), save: (list) => _vaultSave(list) },
+    authenticator: { load: () => totpLoad(), save: (list) => totpSave(list), validate: (entry) => _totpCode(entry.secret, entry) },
+  },
+}).register(ipcMain);
+// A saved password or authenticator account changed: the windows' sync
+// engines send it about five seconds later (js/sync-engine.js).
+function _syncSecretsChanged() {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed() && secureSessions.owner(w.webContents)?.win === w) w.webContents.send('sync-secrets-changed');
+  }
+}
 // Windows close only after the acknowledged renderer/main storage flush.
 app.on('before-quit', () => {
   closePipWindow();

@@ -213,7 +213,7 @@ const FeatureDetails = {
   pinsite2: 'Any site at all can become a panel, with its own session and its own unread badge. This is how a web app you use all day stops being a lost tab.',
 
   // ---- Logins & autofill ---------------------------------------------------
-  passwords: 'A vault encrypted by Windows itself, that offers to save a login and fills it in when you click the sign-in field. Nothing is stored in a file you could read, and nothing leaves the machine unless you turn Sync on.',
+  passwords: 'A vault encrypted by Windows itself, that offers to save a login and fills it in when you click the sign-in field. Nothing is stored in a file you could read, and nothing leaves the machine unless you turn on Passwords in Vex Sync, which carries them end-to-end encrypted to your other devices.',
   totp: 'Vex generates your six-digit code and types it into the 2FA screen. The secret lives in the same encrypted vault as the password.',
   emailcode: 'Reads the verification code out of your Gmail and fills it, with no Gmail tab open. It reads only the message that has just arrived and only the code in it.',
   formfill: 'One saved profile fills any signup or checkout form. Card numbers are never stored, by design.',

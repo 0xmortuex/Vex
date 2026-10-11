@@ -171,6 +171,9 @@ const VexLock = {
     document.body.classList.remove('vex-locked');
     this._el?.remove();
     this._el = null;
+    // Vex Sync waits for this to send saved passwords and authenticator
+    // accounts again (js/sync-engine.js).
+    window.dispatchEvent(new CustomEvent('vex-unlocked'));
   },
 
   async _idleCheck() {

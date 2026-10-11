@@ -24,7 +24,10 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
 // system clipboard (main/secret-clipboard.js). theme:read-wallpaper hands
 // back the owner's desktop picture (main/wallpaper.js).
-const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup']);
+// The sync-secrets-* channels read and write saved passwords and authenticator
+// accounts for Vex Sync (main/sync-secrets.js).
+const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
+  'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
