@@ -1831,6 +1831,11 @@ const SidebarManager = {
     if (!host) return;
     const ov = loadPanelOverrides();
     const btns = this._topButtons();
+    // Every action re-renders the list. The button that had the focus gets it
+    // back afterwards (Move up/down used to drop it on the page), in its row's
+    // new place.
+    const focused = host.contains(document.activeElement) ? document.activeElement.closest('[data-panel-row]') : null;
+    const refocus = focused ? { panel: focused.dataset.panelRow, act: document.activeElement.dataset.act } : null;
     host.innerHTML = '';
     const hint = document.createElement('p');
     hint.className = 'sidebar-manager-hint';
@@ -1851,18 +1856,44 @@ const SidebarManager = {
       const name = o.name || btn.title || panel;
       const isUrl = this._isUrlPanel(panel);
       const row = document.createElement('div');
+      row.dataset.panelRow = panel;
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', name);
       row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid var(--border)';
       const btnCss = 'background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;width:26px;height:26px;display:grid;place-items:center;font-size:12px;padding:0';
+      // Each button says which row it acts on ("Move Notes up"), not just "Move up".
+      const n = this._esc(name);
+      const mk = (act, title, label, icon, size) => '<button data-act="' + act + '" title="' + title + '" aria-label="' + label + '" style="' + btnCss + '">' + VexIcons.svg(icon, { size }) + '</button>';
       row.innerHTML =
         '<span style="width:22px;height:22px;display:grid;place-items:center;opacity:' + (hidden ? '0.4' : '1') + '">' + btn.innerHTML + '</span>' +
-        '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + this._esc(name) + '</span>' +
-        '<button data-act="up"     title="Move up"     aria-label="Move up"   style="' + btnCss + '">' + VexIcons.svg('chevron-up', { size: 12 }) + '</button>' +
-        '<button data-act="down"   title="Move down"   aria-label="Move down" style="' + btnCss + '">' + VexIcons.svg('chevron-down', { size: 12 }) + '</button>' +
-        '<button data-act="rename" title="Rename"      style="' + btnCss + '">' + VexIcons.svg('edit', { size: 13 }) + '</button>' +
-        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">' + VexIcons.svg('star', { size: 13 }) + '</button>' +
-        (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">' + VexIcons.svg('link', { size: 13 }) + '</button>' : '') +
-        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" aria-label="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + VexIcons.svg(hidden ? 'plus' : 'minus', { size: 12 }) + '</button>' +
-        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" aria-label="Reset to default" style="' + btnCss + '">' + VexIcons.svg('undo', { size: 12 }) + '</button>');
+        '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + n + '</span>' +
+        mk('up', 'Move up', 'Move ' + n + ' up', 'chevron-up', 12) +
+        mk('down', 'Move down', 'Move ' + n + ' down', 'chevron-down', 12) +
+        mk('rename', 'Rename', 'Rename ' + n, 'edit', 13) +
+        mk('icon', 'Change icon', 'Change the icon of ' + n, 'star', 13) +
+        (isUrl ? mk('link', 'Change link', 'Change the link of ' + n, 'link', 13) : '') +
+        mk('toggle', hidden ? 'Show' : 'Hide', (hidden ? 'Show ' : 'Hide ') + n, hidden ? 'plus' : 'minus', 12) +
+        (panel.startsWith('site_') ? '' : mk('reset', 'Reset to default', 'Reset ' + n + ' to default', 'undo', 12));
+      // One Tab stop per row (there were 150 in the list): Left/Right, Home and
+      // End move inside the row, Up/Down to the same button in the next row.
+      const rowBtns = [...row.querySelectorAll('button[data-act]')];
+      rowBtns.forEach((x, i) => { x.tabIndex = i === 0 ? 0 : -1; });
+      row.addEventListener('keydown', (ev) => {
+        const i = rowBtns.indexOf(document.activeElement);
+        if (i < 0) return;
+        let to = null;
+        if (ev.key === 'ArrowRight') to = rowBtns[Math.min(rowBtns.length - 1, i + 1)];
+        else if (ev.key === 'ArrowLeft') to = rowBtns[Math.max(0, i - 1)];
+        else if (ev.key === 'Home') to = rowBtns[0];
+        else if (ev.key === 'End') to = rowBtns[rowBtns.length - 1];
+        else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          const other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          if (other && other.dataset.panelRow) to = other.querySelector('button[data-act="' + rowBtns[i].dataset.act + '"]') || other.querySelector('button[data-act]');
+        }
+        if (!to) return;
+        ev.preventDefault();
+        this._rowFocus(to);
+      });
       row.querySelectorAll('button[data-act]').forEach(b => {
         b.addEventListener('click', (ev) => {
           const act = b.dataset.act;
@@ -1879,6 +1910,19 @@ const SidebarManager = {
       });
       host.appendChild(row);
     });
+    if (refocus) {
+      const row = [...host.querySelectorAll('[data-panel-row]')].find(r => r.dataset.panelRow === refocus.panel);
+      const to = row && (row.querySelector('button[data-act="' + refocus.act + '"]') || row.querySelector('button[data-act]'));
+      if (to) this._rowFocus(to);
+    }
+  },
+
+  // Roving focus inside a Sidebar Buttons row: the focused button is the
+  // row's one Tab stop.
+  _rowFocus(btn) {
+    const row = btn.closest('[data-panel-row]');
+    row.querySelectorAll('button[data-act]').forEach(x => { x.tabIndex = x === btn ? 0 : -1; });
+    btn.focus();
   },
 
   switchPanelService(panel, key) {

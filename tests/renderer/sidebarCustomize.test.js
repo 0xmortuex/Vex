@@ -112,3 +112,46 @@ describe('Settings sidebar manager', () => {
     expect(notesRow.querySelector('button[data-act="link"]')).toBeFalsy();
   });
 });
+
+describe('Settings sidebar manager from the keyboard', () => {
+  const row = (p) => document.querySelector('#sidebar-manager-list [data-panel-row="' + p + '"]');
+  const key = (k) => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+
+  it('names each row button after its row', () => {
+    SidebarManager.renderSidebarManager();
+    const notes = row('notes');
+    expect(notes.querySelector('[data-act="up"]').getAttribute('aria-label')).toBe('Move Notes up');
+    expect(notes.querySelector('[data-act="down"]').getAttribute('aria-label')).toBe('Move Notes down');
+    expect(notes.querySelector('[data-act="rename"]').getAttribute('aria-label')).toBe('Rename Notes');
+    expect(notes.querySelector('[data-act="toggle"]').getAttribute('aria-label')).toBe('Hide Notes');
+    expect(notes.getAttribute('role')).toBe('group');
+  });
+
+  it('has one Tab stop per row, with the arrows moving inside it', () => {
+    SidebarManager.renderSidebarManager();
+    const stops = [...document.querySelectorAll('#sidebar-manager-list button')].filter(b => b.tabIndex >= 0);
+    expect(stops.length).toBe(4);
+    const notes = row('notes');
+    notes.querySelector('[data-act="up"]').focus();
+    key('ArrowRight');
+    expect(document.activeElement).toBe(notes.querySelector('[data-act="down"]'));
+    expect(notes.querySelector('[data-act="down"]').tabIndex).toBe(0);
+    expect(notes.querySelector('[data-act="up"]').tabIndex).toBe(-1);
+    key('ArrowDown');
+    expect(document.activeElement).toBe(row('downloads').querySelector('[data-act="down"]'));
+    key('Home');
+    expect(document.activeElement).toBe(row('downloads').querySelector('[data-act="up"]'));
+  });
+
+  it('keeps the focus on Move up after the row moves', () => {
+    SidebarManager.renderSidebarManager();
+    const up = row('notes').querySelector('[data-act="up"]');
+    up.focus();
+    up.click();
+    expect(SidebarManager._topButtons().map(b => b.dataset.panel)).toEqual(['start', 'notes', 'claude', 'downloads']);
+    expect(document.activeElement).toBe(row('notes').querySelector('[data-act="up"]'));
+    document.activeElement.click();
+    expect(SidebarManager._topButtons().map(b => b.dataset.panel)[0]).toBe('notes');
+    expect(document.activeElement.getAttribute('aria-label')).toBe('Move Notes up');
+  });
+});
