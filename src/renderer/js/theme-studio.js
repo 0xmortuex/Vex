@@ -758,16 +758,41 @@ const ThemeStudio = {
   async importFile(file) {
     if (!file) throw new Error('No file');
     if (file.size > CustomThemes.FILE_MAX) throw new Error('That file is too big to be a theme');
-    const parsed = CustomThemes.parseFile(await file.text());
-    const rec = await this.addTheme(parsed);
-    window.showToast?.(`Imported “${rec.name}” and switched to it`, 'info', 2500);
+    let parsed = CustomThemes.parseFile(await file.text());
+    // A theme from a file was worn as it came, text at 1.3:1 and all
+    // (cat-themes TH6). One that fails the editor's own checks is offered
+    // fixed, or kept in the list without being put on.
+    const failing = CustomThemes.checks(parsed.colors).filter(x => !x.ok);
+    let wear = true;
+    if (failing.length) {
+      let keepOnly = false;
+      const fix = await window.vexConfirm({
+        title: 'Hard to read',
+        message: `“${CustomThemes.cleanName(parsed.name)}” has text that is hard to read: ` +
+          failing.map(f => `${f.label.toLowerCase()} at ${f.ratio}:1 on ${f.againstName}`).join(', ') +
+          '. Vex can fix it, moving only those colours lighter or darker until each reads at 4.5:1.',
+        okLabel: 'Fix contrast',
+        extra: { label: 'Import without wearing it', run: () => { keepOnly = true; } },
+      });
+      if (fix) {
+        const fixed = CustomThemes.fixContrast(parsed.colors);
+        if (fixed.unresolved.length) throw new Error('Could not make ' + fixed.unresolved.map(f => f.label.toLowerCase()).join(', ') + ' readable');
+        parsed = { ...parsed, colors: fixed.colors };
+      } else if (keepOnly) {
+        wear = false;
+      } else {
+        return null;
+      }
+    }
+    const rec = await this.addTheme(parsed, { wear });
+    window.showToast?.(wear ? `Imported “${rec.name}” and switched to it` : `Imported “${rec.name}”; it is in your themes, not worn`, 'info', 2500);
     return rec;
   },
 
   // A finished theme from outside the editor (a .vextheme file, a Chrome
   // theme from js/chrome-theme.js): a new id, a name no other theme of yours
-  // has (" 2", " 3"…), its picture kept first, then worn.
-  async addTheme({ name, colors, image = null }) {
+  // has (" 2", " 3"…), its picture kept first, then worn (unless wear: false).
+  async addTheme({ name, colors, image = null }, { wear = true } = {}) {
     if (image) {
       CustomThemes.checkImage(image);
       await this._decode(image, 'The picture in that theme is broken');
@@ -787,7 +812,7 @@ const ThemeStudio = {
     list.push(rec);
     CustomThemes.saveList(list);
     this._changed();
-    ThemeManager.applyTheme(id);
+    if (wear) ThemeManager.applyTheme(id);
     return rec;
   },
 

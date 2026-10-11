@@ -336,7 +336,9 @@ describe('export and import', () => {
   const file = (text, name = 'harbour.vextheme') => new File([text], name, { type: 'application/json' });
 
   it('export writes a file that imports back to the same theme, picture included', async () => {
-    const { TM, TS } = await load({ list: [{ id: 'user-harbour', name: 'Harbour', colors: DARK }], theme: 'nord' });
+    // Readable everywhere, so the import does not stop to offer a fix.
+    const HARBOUR = { ...DARK, muted: '#9a9aae' };
+    const { TM, TS } = await load({ list: [{ id: 'user-harbour', name: 'Harbour', colors: HARBOUR }], theme: 'nord' });
     images.set('user-harbour', 'data:image/png;base64,iVBORw0KGgo=');
     URL.createObjectURL = vi.fn(() => 'blob:x');
     URL.revokeObjectURL = vi.fn();
@@ -348,7 +350,7 @@ describe('export and import', () => {
     TS._decode = vi.fn(async () => ({}));
     const rec = await TS.importFile(file(text));
     expect(rec.name).toBe('Harbour 2');
-    expect(rec.colors).toEqual(DARK);
+    expect(rec.colors).toEqual(HARBOUR);
     expect(rec.id).not.toBe('user-harbour');
     expect(images.get(rec.id)).toBe('data:image/png;base64,iVBORw0KGgo=');
     expect(TM.getCurrentTheme()).toBe(rec.id);
@@ -369,6 +371,51 @@ describe('export and import', () => {
     await expect(TS.importFile({ size: 3 * 1024 * 1024, text: vi.fn() })).rejects.toThrow(/too big/);
     expect(TS.records()).toEqual([]);
     expect(images.size).toBe(0);
+  });
+
+  // A .vextheme with text at 2.2:1 and muted text at 1.4:1 was imported and
+  // worn as it came (cat-themes TH6).
+  describe('a file whose text is hard to read', () => {
+    const DIM = { background: '#101014', surface: '#1a1a20', text: '#5a5a66', muted: '#40404a', primary: '#8b8bff', success: '#34d399', warning: '#fbbf24', danger: '#f87171', border: '#2a2a35' };
+    const greyFile = () => file(JSON.stringify({ format: 'vex-theme', version: 1, name: 'Dim', colors: DIM }));
+
+    it('asks first, and Fix contrast imports it readable and wears it', async () => {
+      const { TM, TS } = await load({ theme: 'nord' });
+      const CT = globalThis.CustomThemes || window.CustomThemes;
+      const rec = await TS.importFile(greyFile());
+      expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+      const ask = window.vexConfirm.mock.calls[0][0];
+      expect(ask.okLabel).toBe('Fix contrast');
+      expect(ask.extra.label).toBe('Import without wearing it');
+      expect(ask.message).toMatch(/text at 2\.16:1 on the /);
+      expect(CT.checks(rec.colors).filter(x => !x.ok)).toEqual([]);
+      expect(rec.colors.background).toBe(DIM.background);
+      expect(TM.getCurrentTheme()).toBe(rec.id);
+    });
+
+    it('Import without wearing it keeps it as it is, and the window keeps its theme', async () => {
+      const { TM, TS } = await load({ theme: 'nord' });
+      // the real dialog resolves as a cancel and then runs the extra choice
+      window.vexConfirm = vi.fn((o) => Promise.resolve(false).finally(() => o.extra.run()));
+      const rec = await TS.importFile(greyFile());
+      expect(rec.colors.text).toBe(DIM.text);
+      expect(TS.records().map(r => r.id)).toContain(rec.id);
+      expect(TM.getCurrentTheme()).toBe('nord');
+    });
+
+    it('Cancel imports nothing', async () => {
+      const { TM, TS } = await load({ theme: 'nord' });
+      confirmAnswer = false;
+      expect(await TS.importFile(greyFile())).toBeNull();
+      expect(TS.records()).toEqual([]);
+      expect(TM.getCurrentTheme()).toBe('nord');
+    });
+
+    it('a readable file is imported without asking', async () => {
+      const { TS } = await load({ theme: 'nord' });
+      await TS.importFile(file(JSON.stringify({ format: 'vex-theme', version: 1, name: 'Fine', colors: { ...DARK, muted: '#9a9aae' } })));
+      expect(window.vexConfirm).not.toHaveBeenCalled();
+    });
   });
 
   it('a .vextheme dropped on Settings is imported', async () => {
