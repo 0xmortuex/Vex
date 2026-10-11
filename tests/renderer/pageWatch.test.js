@@ -185,3 +185,44 @@ describe('one watcher, not two (RD6)', () => {
     delete globalThis.TabManager;
   });
 });
+
+// Found in the v19.1.7 check: "Watch This Page" compared only the first 4000
+// characters of a page, so "Out of stock" turning into "In stock" at the
+// bottom of a long product page was never seen.
+describe('a whole-page watch sees all of the page', () => {
+  const filler = Array.from({ length: 80 }, (_, i) => 'Paragraph ' + (i + 1) + ': the quick brown fox jumps over the lazy dog again.').join('\n');
+  beforeEach(() => {
+    // As the real one: the text is cut at maxText (12000 unless asked).
+    globalThis.AgentTools.readUrl = vi.fn(async (url, { maxText = 12000 } = {}) => ({ url, title: 'Shop', text: page.text.slice(0, maxText) }));
+  });
+
+  it('a change after the first 4000 characters is a change', async () => {
+    page.text = 'Widget\nUpdated 3 minutes ago at 10:03\n' + filler + '\nOut of stock';
+    expect(page.text.length).toBeGreaterThan(4000);
+    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'Widget' });
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ ok: true, changed: false });
+    page.text = page.text.replace('Out of stock', 'In stock — order now');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ ok: true, changed: true });
+    expect(window.showToast).toHaveBeenCalledWith('Widget changed', 'info', 8000);
+  });
+
+  it('a change past 12000 characters is seen too, and only the steady words count', async () => {
+    page.text = 'Updated 3 minutes ago at 10:03\n' + filler + filler + filler + '\nOut of stock';
+    expect(page.text.length).toBeGreaterThan(12000);
+    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'Widget' });
+    await PageWatch.checkOne(watch.id);
+    page.text = page.text.replace('Updated 3 minutes ago at 10:03', 'Updated 9 minutes ago at 10:09');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ changed: false });
+    page.text = page.text.replace('Out of stock', 'In stock');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ changed: true });
+    expect(String(PageWatch.list()[0].lastValue).length).toBeLessThan(300);   // not the whole page in localStorage
+  });
+
+  it('a watch saved before (plain text) takes a new baseline once, without a false alarm', async () => {
+    page.text = 'Widget\n' + filler;
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w_old', url: 'https://shop.example/item', title: 'Widget', selector: '', kind: 'text', direction: 'any', every: 900000, lastValue: page.text.slice(0, 4000), lastCheckedAt: 1 }]));
+    expect(await PageWatch.checkOne('w_old')).toMatchObject({ ok: true, changed: false, why: 'first look' });
+    expect(await PageWatch.checkOne('w_old')).toMatchObject({ ok: true, changed: false, why: 'no change' });
+    expect(window.showToast).not.toHaveBeenCalled();
+  });
+});

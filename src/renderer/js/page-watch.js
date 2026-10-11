@@ -152,6 +152,9 @@ const PageWatch = {
       }
       return { changed: true, from: a, to: b, why: `went ${dir} from ${a} to ${b}` };
     }
+    // A watch saved before whole pages were fingerprinted holds plain text:
+    // the first look in the new form is a new baseline, not a change.
+    if (this._isPageValue(value) !== this._isPageValue(before)) return { changed: false, from: before, to: value, why: 'first look' };
     const same = this._steady(before) === this._steady(value);
     return same ? { changed: false, from: before, to: value, why: 'no change' } : { changed: true, from: before, to: value, why: 'changed' };
   },
@@ -166,6 +169,25 @@ const PageWatch = {
       .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?(?=\W|$)/gi, '')
       .replace(/\s+/g, ' ').trim();
   },
+
+  // What a whole-page watch keeps: the page's opening words (Ctrl+K "Watched
+  // Pages (what changed)" shows them) and a fingerprint of ALL its words.
+  // Only the first 4000 characters used to be kept and compared, so a change
+  // further down — "In stock" at the bottom of a long product page — was
+  // never seen. The fingerprint is of the steady text, so "5 minutes ago"
+  // and clock times still do not count.
+  PAGE_MARK: ' ⁣#',
+  _pageValue(text) {
+    const steady = this._steady(text);
+    let h = 0x811c9dc5, g = 0x01000193;
+    for (let i = 0; i < steady.length; i++) {
+      const c = steady.charCodeAt(i);
+      h = Math.imul(h ^ c, 0x01000193);
+      g = Math.imul(g ^ c, 0x5bd1e995);
+    }
+    return steady.slice(0, 200) + this.PAGE_MARK + (h >>> 0).toString(16) + (g >>> 0).toString(16) + '-' + steady.length;
+  },
+  _isPageValue(v) { return typeof v === 'string' && v.includes(this.PAGE_MARK); },
 
   // Read the watched value out of a page, without disturbing the user's tabs:
   // the page is fetched, not opened.
@@ -185,7 +207,7 @@ const PageWatch = {
       const type = String((raw.headers && (raw.headers['content-type'] || raw.headers['Content-Type'])) || '').toLowerCase();
       text = /html|xml/.test(type) || /^\s*</.test(body) ? AgentTools.htmlToText(body).text : body;
     } else {
-      text = String((await AgentTools.readUrl(watch.url)).text || '');
+      text = String((await AgentTools.readUrl(watch.url, { maxText: Infinity })).text || '');
     }
     if (watch.selector) {
       // A selector needs the real document, so this path uses the page's
@@ -196,7 +218,8 @@ const PageWatch = {
       if (!el) throw new Error('Nothing on that page matches "' + watch.selector + '" any more');
       text = (el.textContent || '').replace(/\s+/g, ' ').trim();
     }
-    return watch.kind === 'number' ? this.firstNumber(text) : text.slice(0, 4000);
+    if (watch.kind === 'number') return this.firstNumber(text);
+    return watch.selector ? text.slice(0, 4000) : this._pageValue(text);
   },
 
   // A home-network page, fetched by main from this computer (api:request

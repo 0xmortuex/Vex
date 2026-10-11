@@ -160,7 +160,9 @@ const AgentTools = {
     return { url: 'https://www.youtube.com/watch?v=' + id, title: title.replace(/ - YouTube$/, ''), kind: 'video transcript', text: out.trim().slice(0, this.MAX_TEXT), truncated: out.length > this.MAX_TEXT };
   },
 
-  async readUrl(url) {
+  // maxText: how much of a page's text comes back (a page watch needs all of
+  // it to see a change at the bottom of a long page).
+  async readUrl(url, { maxText = this.MAX_TEXT } = {}) {
     // A video: read what was said in it, not the page around it.
     if (this.youtubeId(url)) return this.youtubeTranscript(url);
     const u = this._checkUrl(url);
@@ -173,9 +175,9 @@ const AgentTools = {
     if (/html|xml/.test(type) || /^\s*</.test(body)) {
       const { title, text } = this.htmlToText(body);
       if (text.length < 200) return { url: u.href, title, text, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
-      return { url: u.href, title, text: text.slice(0, this.MAX_TEXT), truncated: text.length > this.MAX_TEXT };
+      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText };
     }
-    return { url: u.href, title: '', text: body.slice(0, this.MAX_TEXT), truncated: body.length > this.MAX_TEXT };
+    return { url: u.href, title: '', text: body.slice(0, maxText), truncated: body.length > maxText };
   },
 
   // The words out of a PDF, without opening it.
