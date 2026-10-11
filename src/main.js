@@ -8467,6 +8467,9 @@ ipcMain.handle('app:focus', () => {
   catch (e) { return { ok: false, error: e && e.message }; }
 });
 
+// The privacy policy and terms shown inside Vex, and the agreement's "Quit Vex".
+require('./main/legal-docs').registerLegalDocs({ ipcMain, app, root: path.join(__dirname, '..') });
+
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.

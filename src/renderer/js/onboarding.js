@@ -147,6 +147,10 @@ const Onboarding = {
     this._render();
   },
 
+  // The privacy policy and terms not yet accepted in this profile (js/legal.js,
+  // loaded before this file). A private window never asks.
+  _legalNeeded() { return typeof VexLegal !== 'undefined' && !window.VexTabPolicy?.isPrivateWindow && VexLegal.needed(); },
+
   _has(k) { try { const v = localStorage.getItem(k); return v != null && v !== ''; } catch { return false; } },
   // Steps have recorded "done" as 'true' in some places and '1' in others
   // (the look and performance steps wrote '1'), so a check for 'true' alone
@@ -157,6 +161,7 @@ const Onboarding = {
   // setting up cloud AI doesn't mark the Ollama / on-device steps as done.
   _isStepDone(key) {
     switch (key) {
+      case 'legal':          return !this._legalNeeded();
       case 'setupstyle':     return this._has('vex.setupProfile');
       case 'language':       return this._has('vex.lang');
       case 'wisdom':         return this._has('vex.wisdomSource');
@@ -249,7 +254,10 @@ const Onboarding = {
 
   STEPS() {
     return [
-      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
+      // The agreement comes first and cannot be skipped (js/legal.js). It is
+      // left out once this version of the documents is accepted.
+      ...(this._legalNeeded() ? [{ key: 'legal', title: 'Before you start', sub: 'Vex does some things by itself. Read what they are, then agree to the privacy policy and terms to use Vex.', quick: true, secs: 30 }] : []),
+      { key: 'welcome',       title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
       { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
@@ -334,7 +342,24 @@ const Onboarding = {
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
       `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
-    overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
+    // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
+    const legal = s.key === 'legal';
+    if (legal) {
+      overlay.querySelector('#ob-skip')?.remove();
+      overlay.querySelector('#ob-back')?.remove();
+      const quit = overlay.querySelector('#ob-skipall');
+      quit.id = 'ob-quit';
+      quit.textContent = window.VexI18n?.t('legalQuit', 'Quit Vex') || 'Quit Vex';
+      quit.addEventListener('click', () => {
+        VexLegal.quit().catch(err => {
+          console.error('[setup] could not quit:', err);
+          window.showToast?.('Vex could not quit: ' + (err && err.message), 'error');
+        });
+      });
+      overlay.querySelector('#ob-next').textContent = window.VexI18n?.t('legalAgree', 'I agree') || 'I agree';
+      overlay.firstElementChild.setAttribute('aria-describedby', 'vex-legal-intro');
+    }
+    else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
@@ -343,7 +368,8 @@ const Onboarding = {
     // whole setup at once — also when it was pressed to close a drop-down.
     this._keyHandler = (e) => {
       if (e.defaultPrevented) return;
-      if (e.key === 'Escape') { e.preventDefault(); this._onEscape(e, overlay); }
+      // On the agreement Escape does nothing: it must not skip past it.
+      if (e.key === 'Escape') { e.preventDefault(); if (!legal) this._onEscape(e, overlay); }
       if (e.key === 'Tab') {
         const nodes = [...overlay.querySelectorAll('button,input,select,a[href]')].filter(node => !node.disabled && !node.hidden);
         const first = nodes[0], last = nodes[nodes.length - 1];
@@ -720,7 +746,9 @@ const Onboarding = {
 
   _renderBody(key, body) {
     const input = (id, ph, val) => this._input(id, ph, val);
-    if (key === 'welcome') {
+    if (key === 'legal') {
+      VexLegal.renderInto(body);
+    } else if (key === 'welcome') {
       this._renderPace(body);
     } else if (key === 'setupstyle') {
       this._renderSetupStyle(body);
@@ -1619,7 +1647,16 @@ const Onboarding = {
   },
 
   async _commitAndNext(key, overlay) {
-    this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
+    if (key === 'legal') {
+      // Agreed: the step leaves the walk, so Back from the next one cannot
+      // land on it, and the rest starts at the welcome.
+      VexLegal.accept();
+      this.activeSteps = (this.activeSteps || this.STEPS()).filter(step => step.key !== 'legal');
+      this.step = 0;
+      this._render();
+      return;
+    }
+    this._stash(key, overlay);  // so Back onto this step re-shows exactly what was typed
     const problem = this._validate(key, overlay);
     if (problem) { this._showError(overlay, problem); return; }
     if (key === 'setupstyle') {

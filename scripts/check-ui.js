@@ -842,6 +842,9 @@ const SEEDED_PREFERENCES = {
   'vex.onboardingDone': 'true',   // Onboarding.KEY
   'vex.tourSeen': '1',            // what finish() also sets: no tour offer either
   'vex.privacyDefaults': '1',     // Onboarding.PRIVACY_DEFAULTS_KEY: nothing to migrate or announce
+  // The privacy policy and terms, accepted as a profile past first run would
+  // have them (js/legal.js): otherwise their dialog covers the toolbar.
+  'vex.legalAcceptedVersion': String(require('../src/renderer/js/legal.js').VexLegal.VERSION),
   // A profile that finished the wizard but never ran gets app.js's older
   // "Welcome to Vex" card instead (.welcome-overlay, z-index 100000) — the
   // cause of "judged 0 foreground colours at classic/oxford".

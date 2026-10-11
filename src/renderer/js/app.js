@@ -1286,6 +1286,9 @@ function vexOwnTextFocused(doc) {
 
   // First-run setup wizard (shows once on a fresh install only)
   if (typeof Onboarding !== 'undefined') Onboarding.maybeStart();
+  // The privacy policy and terms, for a profile past first run that has not
+  // accepted this version (a new profile is asked by the wizard's first step).
+  if (typeof VexLegal !== 'undefined') VexLegal.maybeAsk();
 
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
@@ -1636,9 +1639,19 @@ function vexOwnTextFocused(doc) {
   document.getElementById('setting-issues-link')?.addEventListener('click', (e) => {
     e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
   });
+  // The privacy policy and terms open inside Vex, from the copies it ships
+  // (js/legal.js); the licence and notices still open on GitHub.
   document.querySelectorAll('#setting-legal-links [data-legal-doc]').forEach((link) => link.addEventListener('click', (e) => {
-    e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/blob/main/' + link.dataset.legalDoc, true); SidebarManager.hideActivePanel();
+    e.preventDefault();
+    const doc = link.dataset.legalDoc;
+    if (doc === 'PRIVACY.md' || doc === 'TERMS.md') {
+      VexLegal.openDoc(doc).catch(err => { console.error('[legal] could not open ' + doc + ':', err); window.showToast?.('Could not open ' + doc + ': ' + (err && err.message), 'error'); });
+      return;
+    }
+    TabManager.createTab('https://github.com/0xmortuex/Vex/blob/main/' + doc, true); SidebarManager.hideActivePanel();
   }));
+  VexLegal.renderAbout();
+  window.addEventListener('vex-legal-accepted', () => VexLegal.renderAbout());
 
   // === Default browser: handle incoming URLs from external apps ===
   console.log('[Vex URL] renderer: registering onOpenUrl handler. window.vex present?', !!window.vex, 'onOpenUrl present?', !!window.vex?.onOpenUrl);

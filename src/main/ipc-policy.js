@@ -27,7 +27,9 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // The sync-secrets-* channels read and write saved passwords and authenticator
 // accounts for Vex Sync (main/sync-secrets.js).
 const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
-  'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back']);
+  'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
+  // The agreement at start (js/legal.js): its documents and its "Quit Vex".
+  'legal:read', 'app:quit']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('vex', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
+  // The agreement at start (js/legal.js): a shipped document's text, and quitting Vex.
+  legalRead: (name) => ipcRenderer.invoke('legal:read', name),
+  quitApp: () => ipcRenderer.invoke('app:quit'),
 
   // Toggle background throttling on a live webContents (kept-awake tabs).
   setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),
