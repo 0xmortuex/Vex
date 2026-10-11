@@ -71,6 +71,9 @@ const ScreenshotTool = {
       overlay = document.createElement('div');
       overlay.id = 'screenshot-overlay';
       document.body.appendChild(overlay);
+      // Once, with the overlay: the overlay is kept between screenshots, and
+      // adding this on every preview stacked one more listener each time.
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) this.hidePreview(); });
     }
 
     overlay.innerHTML = `
@@ -86,7 +89,6 @@ const ScreenshotTool = {
       </div>
     `;
     overlay.classList.add('visible');
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.hidePreview(); });
     // Escape closes it like every other panel (found 2026-09-29: it did nothing).
     if (this._previewKey) document.removeEventListener('keydown', this._previewKey);
     this._previewKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); this.hidePreview(); } };
