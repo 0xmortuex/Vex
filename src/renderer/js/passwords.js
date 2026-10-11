@@ -86,6 +86,10 @@ const PasswordVault = {
         return;
       }
       if (e.channel !== 'vex-cred-submit') return;
+      // A site routed through Tor by a site rule keeps its cookies
+      // (persist:route-tor), but what is typed there never goes into the
+      // vault, as in a Tor tab; sign-in popups refuse it too (main/vault.js).
+      if (webview.getAttribute?.('partition') === 'persist:route-tor') return;
       const raw = (e.args && e.args[0]) || {};
       if (this._host(raw.host) !== actualHost) return;
       const data = { ...raw, host: actualHost };
