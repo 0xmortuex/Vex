@@ -33,6 +33,9 @@ describe('the address bar menu', () => {
     input.setSelectionRange(3, 3);
     rightClick();
     expect(labels()).toEqual(['Paste', 'Paste and go', 'Select all']);
+    // At the pointer, not the window's corner (seen live, Firefox look).
+    const menu = document.querySelector('.url-bar-menu');
+    expect([menu.style.left, menu.style.top]).toEqual(['10px', '10px']);
   });
 
   it('with a selection: Cut and Copy too, acting on it', async () => {

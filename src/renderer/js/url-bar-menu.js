@@ -48,6 +48,8 @@ const UrlBarMenu = {
       });
       menu.appendChild(el);
     }
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
     document.body.appendChild(menu);
     TabManager._clampMenuToViewport(menu, e.clientX, e.clientY);
     TabManager._attachMenuDismissal(menu);
