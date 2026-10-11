@@ -142,6 +142,15 @@ describe('what has a Turkish translation now', () => {
   });
 });
 
+describe('tooltips Vex sets again later', () => {
+  it('the site button and the sidebar button translate the title they set', () => {
+    for (const f of ['site-panel.js', 'look-sidebar.js']) {
+      const src = readFileSync(path.join(__dirname, '../../src/renderer/js', f), 'utf8');
+      expect(src, f).toMatch(/btn\.setAttribute\('aria-label', (look\.)?label\);\s*(\/\/[^\n]*\s*)*if \(typeof VexI18nUI !== 'undefined'\) VexI18nUI\.translateEl\(btn\);/);
+    }
+  });
+});
+
 describe('the Stop / Reload tooltip follows the language', () => {
   it('is Turkish while loading in Turkish, and English again in English', async () => {
     vi.resetModules();

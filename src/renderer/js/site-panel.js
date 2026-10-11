@@ -130,6 +130,9 @@ const SitePanel = {
     }
     btn.title = look.label;
     btn.setAttribute('aria-label', look.label);
+    // Set on every page change, after the window was translated: it stayed
+    // English in Turkish (found 2026-10-10).
+    if (typeof VexI18nUI !== 'undefined') VexI18nUI.translateEl(btn);
     return look.state;
   },
 

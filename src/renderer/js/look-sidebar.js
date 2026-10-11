@@ -250,6 +250,7 @@
     const label = railLook() ? (railHidden() ? 'Show the sidebar (Ctrl+B)' : 'Hide the sidebar (Ctrl+B)') : 'Show sidebar';
     btn.title = label;
     btn.setAttribute('aria-label', label);
+    if (typeof VexI18nUI !== 'undefined') VexI18nUI.translateEl(btn);
     if (railLook()) btn.classList.toggle('active', !railHidden());
   }
 
