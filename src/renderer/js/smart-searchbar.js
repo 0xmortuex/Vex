@@ -45,6 +45,17 @@ function _normalizeUrl(url) {
   return u;
 }
 
+// The key one page is kept under: the site in any case, the path as written.
+// /Docs/API and /docs/api are two pages and were folded into one row
+// (found 2026-10-10).
+function _urlKey(url) {
+  let u = (url == null ? '' : String(url)).trim().replace(/^[a-z]+:\/\//i, '');
+  const cut = u.search(/[/?#]/);
+  const host = (cut < 0 ? u : u.slice(0, cut)).toLowerCase().replace(/^www\./, '');
+  u = host + (cut < 0 ? '' : u.slice(cut));
+  return u.replace(/\/+$/, '');
+}
+
 // Score how well `item` matches `query`. Higher = better. 0 = no match.
 // Ordering intent: exact prefix (host then title) > word-boundary prefix >
 // plain substring. Case-insensitive throughout.
@@ -99,7 +110,7 @@ function rankSuggestions(query, items, cap = 8, now = Date.now()) {
     if (!it || !it.url) continue;
     const s = _scoreMatch(q, it);
     if (s <= 0) continue;
-    const key = _normalizeUrl(it.url);
+    const key = _urlKey(it.url);
     const prev = byUrl.get(key);
     const frecency = (prev ? prev.frecency : 0) + (it.kind === 'history' ? _visitWeight(it.time, now) : 0);
     const better = !prev
@@ -202,14 +213,20 @@ const SmartSearchbar = (() => {
         for (const t of TabManager.tabs) {
           if (!t || !t.url) continue;
           if (typeof isStartPage === 'function' && isStartPage(t.url)) continue;
+          // Not the tab you are typing in: "Switch to tab" to itself did
+          // nothing (found 2026-10-10).
+          if (t.id === TabManager.activeTabId) continue;
           out.push({ url: t.url, title: t.title || t.url, kind: 'tab', tabId: t.id });
         }
       }
     } catch {}
     // 2) Browsing history (newest-first array of { url, title, visitedAt },
     // or an epoch `time` from older writers). The time feeds frecency.
+    // History's own list: its saved copy gets new titles only every 30 s,
+    // so a row showed the old one (found 2026-10-10).
     try {
-      const hist = JSON.parse(localStorage.getItem('vex.history') || '[]');
+      const hist = typeof HistoryPanel !== 'undefined' && typeof HistoryPanel.list === 'function'
+        ? HistoryPanel.list() : JSON.parse(localStorage.getItem('vex.history') || '[]');
       if (Array.isArray(hist)) {
         for (const h of hist) {
           if (!h || !h.url) continue;
@@ -456,8 +473,8 @@ const SmartSearchbar = (() => {
     if (typeof HistoryPanel === 'undefined' || typeof HistoryPanel.deleteUrls !== 'function') {
       throw new Error('History is not loaded, so the suggestion cannot be removed');
     }
-    const key = _normalizeUrl(r.url);
-    const urls = [...new Set(_gather().filter(it => it.kind === 'history' && _normalizeUrl(it.url) === key).map(it => it.url))];
+    const key = _urlKey(r.url);
+    const urls = [...new Set(_gather().filter(it => it.kind === 'history' && _urlKey(it.url) === key).map(it => it.url))];
     HistoryPanel.deleteUrls(urls);
     const index = _selectedIndex;
     const c = _liveCompletion();
@@ -495,6 +512,14 @@ const SmartSearchbar = (() => {
     // to the completed site, Esc takes the completion away.
     const completion = _liveCompletion();
     if (completion && !(_open && _selectedIndex >= 0)) {
+      // Ctrl+Enter makes www.<typed>.com of what was typed (app.js), not of
+      // the completion.
+      if (e.key === 'Enter' && e.ctrlKey && !e.altKey) {
+        _completion = null;
+        _input.value = completion.typed;
+        _close();
+        return false;
+      }
       if (e.key === 'Enter') {
         e.preventDefault();
         _close();

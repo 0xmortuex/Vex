@@ -165,6 +165,14 @@ function vexOwnTextFocused(doc) {
 
     urlInput.blur();
   }
+  // Ctrl+Enter makes "example" www.example.com, as in every browser; it
+  // opened a new tab instead (found 2026-10-10). Alt+Enter is the new tab.
+  function completeWithCtrlEnter(val, e) {
+    const word = String(val || '').trim();
+    if (!e.ctrlKey || e.altKey || !/^[a-z0-9][a-z0-9-]*$/i.test(word)) return val;
+    return 'www.' + word + '.com';
+  }
+
   // The New Tab box hands what was typed here (webview.js, 'typed'), so it
   // goes where the address bar would send it.
   window.VexSubmitTyped = submitUrlBar;
@@ -186,7 +194,7 @@ function vexOwnTextFocused(doc) {
     }
 
     if (e.key === 'Enter') {
-      submitUrlBar(urlInput.value, e.ctrlKey || e.altKey);
+      submitUrlBar(completeWithCtrlEnter(urlInput.value, e), e.altKey);
     } else if (e.key === 'Escape') {
       // As in Chrome: the first Esc undoes what you typed and keeps the bar;
       // with nothing to undo it stops a page still loading; after that it

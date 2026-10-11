@@ -471,7 +471,10 @@ const WebviewManager = {
       // file:// one threw "Invalid payload for storage:history-add" on every
       // visit (found 2026-09-29).
       const t = TabManager.tabs.find(t => t.id === tab.id);
-      const visit = this.historyVisit(url, t?.title);
+      // Without a title yet: the tab's is still the page it came from, and the
+      // visit was saved under it (found 2026-10-10). page-title-updated names
+      // it (HistoryPanel.updateTitle); a page seen before keeps its old name.
+      const visit = this.historyVisit(url, null);
       if (visit && !isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
         if (typeof HistoryPanel !== 'undefined') {
           // A visit from a tab in its own session (a container, a Tor or proxy
