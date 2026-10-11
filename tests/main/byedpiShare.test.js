@@ -126,3 +126,37 @@ describe('construction', () => {
     expect(() => bare.stop()).not.toThrow();
   });
 });
+
+// Turning Discord's bypass off (or to light) used to stop the shared process
+// for Roblox too, while Roblox's menu still said "On".
+describe('Discord letting go while Roblox rides the shared process', () => {
+  it('keeps the process and Roblox on its bypass', async () => {
+    const { share, byedpi, proxySet, told } = harness();
+    share.attachRoblox(true);
+    await share.start('ud', null, 0);
+    const before = proxySet.length;
+    expect(share.releaseDiscord()).toBe(false);
+    expect(byedpi.stop).not.toHaveBeenCalled();
+    expect(share.isRobloxAttached()).toBe(true);
+    expect(proxySet.length).toBe(before);
+    expect(told).toEqual([]);
+  });
+
+  it('stops it when Discord was the only one using it', async () => {
+    const { share, byedpi } = harness();
+    await share.start('ud', null, 0);
+    expect(share.releaseDiscord()).toBe(true);
+    expect(byedpi.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('main.js lets Discord go through releaseDiscord, never a bare stop', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    const start = src.indexOf('async function _applyDiscordBypass(');
+    const end = src.indexOf('// Start the built-in JS proxy', start);
+    expect(end).toBeGreaterThan(start);
+    const body = src.slice(start, end);
+    expect(body).not.toMatch(/_share\.stop\(|_byedpi\.stop\(/);
+    expect(src).toMatch(/const _byedpiStop = \(\) => _share\.releaseDiscord\(\);/);
+  });
+});

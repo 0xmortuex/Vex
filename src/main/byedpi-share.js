@@ -54,6 +54,17 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
       setProxy(null);
       tell('Roblox bypass is off — the shared bypass it was using has stopped');
     },
+
+    // Discord no longer needs the process (its bypass turned off or to light,
+    // or a sweep that found nothing). Roblox may still be riding it: then it
+    // keeps running and Roblox keeps its bypass. Turning Discord's bypass off
+    // used to stop it for both, and Roblox's menu still said "On".
+    // Returns true when the process was stopped.
+    releaseDiscord() {
+      if (robloxAttached && byedpi.isRunning && byedpi.isRunning()) return false;
+      this.stop();
+      return true;
+    },
   };
 }
 

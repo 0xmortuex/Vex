@@ -5918,7 +5918,8 @@ function createWindow() {
     },
   });
   const _byedpiStart = (ud, buf, preset, custom) => _share.start(ud, buf, preset, custom);
-  const _byedpiStop = () => _share.stop();
+  // Every caller is Discord's bypass: Roblox, if it rides the process, keeps it.
+  const _byedpiStop = () => _share.releaseDiscord();
 
   function _testRoblox(url) {
     return new Promise((resolve) => {
