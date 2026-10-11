@@ -1400,7 +1400,11 @@ const SidebarManager = {
         b.title = c.camera && c.mic ? 'Using the camera and microphone' : c.camera ? 'Using the camera' : 'Using the microphone';
       }
     }
-    if (name === 'discord') this.checkDiscordThrottle().catch(() => {});
+    if (name === 'discord') {
+      this.checkDiscordThrottle().catch(() => {});
+      // A call starting or ending shows on the icon at once.
+      this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
+    }
   },
 
   // Is this panel doing something that sleeping would interrupt — a voice
@@ -1481,17 +1485,26 @@ const SidebarManager = {
     return { visible, inCall, throttled: !inCall };
   },
 
+  // Both on the shared job timer (js/jobs.js). Resting Discord matters most
+  // while Vex is minimised, so it runs then too ('background'); the call
+  // badge is for the eye only ('ui'), and is not read while the Discord
+  // panel is on screen, where its own buttons say the same.
   startDiscordRest() {
-    if (this._discordRestTimer) clearInterval(this._discordRestTimer);
-    this._discordRestTimer = setInterval(() => {
-      this.checkDiscordThrottle().catch(err => console.error('[Sidebar] Discord rest check failed:', err.message));
-    }, 30000);
-    // The call, on the Discord icon: muted or live, and sharing — without
-    // opening the panel. A cheap look at Discord's own buttons every 10 s.
-    if (this._discordStateTimer) clearInterval(this._discordStateTimer);
-    this._discordStateTimer = setInterval(() => {
-      this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
-    }, 10000);
+    if (this._discordRestJob) this._discordRestJob.stop();
+    this._discordRestJob = VexJobs.every('Discord rest', 30000, () => this.checkDiscordThrottle(), { when: 'background' });
+    if (this._discordStateJob) this._discordStateJob.stop();
+    this._discordStateJob = VexJobs.every('Discord call badge', 10000, () => {
+      if (this.activePanel === 'discord' || this.sidePanel === 'discord') return null;
+      return this.updateDiscordBadge();
+    });
+    // Leaving the panel: the badge is read now, not up to 10 s later.
+    if (!this._discordBadgeWired) {
+      this._discordBadgeWired = true;
+      document.addEventListener('vex:panel-changed', () => {
+        if (this.activePanel === 'discord' || this.sidePanel === 'discord') return;
+        this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
+      });
+    }
   },
 
   // ---- Discord call state on its icon --------------------------------------------
@@ -1523,12 +1536,19 @@ const SidebarManager = {
     };
   },
 
+  // Discord's page is only looked into when something says a call may be on
+  // (it holds the microphone, camera or screen, or it is making a sound):
+  // this ran a script in the hidden page every 10 s all day for nothing.
   async updateDiscordBadge() {
     const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
     const btn = document.querySelector('.sidebar-icon[data-panel="discord"]');
     if (!btn) return null;
     let state = null;
-    if (wv && typeof wv.executeJavaScript === 'function') {
+    let maybeCall = this.isPanelCapturing('discord');
+    if (!maybeCall && wv && typeof wv.isCurrentlyAudible === 'function') {
+      try { maybeCall = wv.isCurrentlyAudible(); } catch { maybeCall = false; }   // still attaching: nothing playing yet
+    }
+    if (maybeCall && wv && typeof wv.executeJavaScript === 'function') {
       try { state = await wv.executeJavaScript(this.DISCORD_STATE_SCRIPT, true); } catch { state = null; }   // still loading
     }
     const badge = this.discordBadgeFor(state);
