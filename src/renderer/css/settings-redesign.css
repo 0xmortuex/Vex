@@ -3,10 +3,14 @@
    building on the --primary / --surface / --border / --text tokens, with a
    per-category accent (--cat-color, set by settings-ui.js). */
 
+/* The scroll area is the whole panel, so the wheel scrolls Settings over the
+   empty sides too (it was a 780px box in the middle, and the wheel did nothing
+   beside it — the owner, 2026-10-11). The side padding keeps the same centred
+   column it had. */
 .settings-content {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 26px 26px 90px;
+  max-width: none;
+  margin: 0;
+  padding: 26px max(26px, calc((100% - 780px) / 2 + 26px)) 90px;
 }
 
 .settings-content > h2 {

@@ -326,6 +326,7 @@ const SettingsUI = {
       toolbar.appendChild(inner);
       panel.insertBefore(toolbar, root);                 // pinned over the scroll area
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
+      toolbar.addEventListener('wheel', (e) => SettingsUI._wheelToArea(e, root), { passive: false });
       // Keep the scroll area's top padding matched to the (variable-height) toolbar.
       window.addEventListener('resize', () => SettingsUI._syncPad(root));
       // The toolbar is usually built while the panel is hidden, so it measured
@@ -448,6 +449,29 @@ const SettingsUI = {
     // Push the scroll content below the absolute toolbar (and let anchored jumps
     // clear it too). Measured after the chips are in, so wrapping is accounted for.
     this._syncPad(root);
+  },
+
+  // The wheel anywhere over Settings scrolls it: the search box and the chips
+  // sit in a pinned toolbar outside the scroll area, so the wheel there scrolled
+  // nothing (the owner, 2026-10-11). A scroll box inside the toolbar that can
+  // still scroll that way (the one-row chip nav in a short window) keeps it.
+  _wheelToArea(e, area) {
+    if (e.defaultPrevented || e.ctrlKey || !area) return false;   // Ctrl+wheel zooms
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * area.clientHeight : e.deltaY;
+    if (!dy) return false;
+    for (let el = e.target; el && el !== e.currentTarget && el.nodeType === 1; el = el.parentElement) {
+      if (this._keepsWheel(el, dy)) return false;
+    }
+    area.scrollTop += dy;
+    e.preventDefault();
+    return true;
+  },
+  _keepsWheel(el, dy) {
+    const cs = getComputedStyle(el);
+    if (!/(auto|scroll)/.test(cs.overflowY) || el.scrollHeight <= el.clientHeight) return false;
+    // A box that does not hand the wheel on keeps it even at its end.
+    if (cs.overscrollBehaviorY === 'contain' || cs.overscrollBehaviorY === 'none') return true;
+    return dy < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1;
   },
 
   // Match the scroll area's top padding + scroll-padding to the toolbar height.
