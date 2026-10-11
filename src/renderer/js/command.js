@@ -339,6 +339,16 @@ const CommandBar = {
       btn.click();
     } },
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: 'save', action: () => { document.getElementById('setting-export')?.click(); } },
+    // The documents you agreed to, to read again at any time (js/legal.js).
+    ...[
+      ['legal-privacy', 'Privacy Policy', 'Legal: what Vex sends, where and when, and the switch that turns each thing off', 'PRIVACY.md'],
+      ['legal-terms', 'Terms of Use', 'Legal: the terms you agreed to when you started Vex', 'TERMS.md'],
+      ['legal-license', 'License (MIT)', 'Legal: the open-source license Vex is released under', 'LICENSE'],
+      ['legal-notices', 'Third-party Notices', 'Legal: licenses of the open-source parts Vex is built with', 'THIRD_PARTY_NOTICES.md'],
+    ].map(([id, label, hint, doc]) => ({ id, label, hint, icon: 'file', action: () => {
+      if (typeof VexLegal === 'undefined') throw new Error('Vex’s documents are not available in this window');
+      return VexLegal.openDoc(doc);
+    } })),
     // Phase 7A: AI commands
     { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: 'sidebar', action: () => window.toggleTabsSidebar?.() },
     { id: 'dev-mode', label: 'Developer mode', hint: 'Show the developer dashboard and its shortcuts', icon: 'terminal', action: () => {

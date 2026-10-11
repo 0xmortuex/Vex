@@ -62,7 +62,15 @@ const VexLegal = {
     ],
   },
 
-  DOCS: { privacy: 'PRIVACY.md', terms: 'TERMS.md' },
+  // The licence and the notices are not part of the agreement; they are here so
+  // Ctrl+K can show every shipped document in the same reader.
+  DOCS: { privacy: 'PRIVACY.md', terms: 'TERMS.md', license: 'LICENSE', notices: 'THIRD_PARTY_NOTICES.md' },
+  TITLES: {
+    'PRIVACY.md': ['legalPrivacyTitle', 'Privacy policy'],
+    'TERMS.md': ['legalTermsTitle', 'Terms of use'],
+    'LICENSE': ['legalLicenseTitle', 'License (MIT)'],
+    'THIRD_PARTY_NOTICES.md': ['legalNoticesTitle', 'Third-party notices'],
+  },
 
   _lang() { return window.VexI18n?.locale?.() === 'tr' ? 'tr' : 'en'; },
   _t(key, fallback) { return window.VexI18n?.t(key, fallback) || fallback; },
@@ -181,7 +189,7 @@ const VexLegal = {
     const text = await window.vex.legalRead(name);
     document.getElementById('vex-legal-doc')?.remove();
     const returnFocus = document.activeElement;
-    const title = name === 'PRIVACY.md' ? this._t('legalPrivacyTitle', 'Privacy policy') : this._t('legalTermsTitle', 'Terms of use');
+    const title = this._t(...this.TITLES[name]);
     const sheet = document.createElement('div');
     sheet.id = 'vex-legal-doc';
     sheet.className = 'vex-legal-overlay vex-legal-doc-overlay';

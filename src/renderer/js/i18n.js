@@ -46,6 +46,7 @@
     legalReadPrivacy: 'Read the privacy policy', legalReadTerms: 'Read the terms of use', legalVersion: 'Document version {v}, last updated {d}',
     legalOpenFailed: 'Could not open the document', legalUpdatedTitle: 'Vex’s privacy policy and terms have changed',
     legalPrivacyTitle: 'Privacy policy', legalTermsTitle: 'Terms of use', legalClose: 'Close',
+    legalLicenseTitle: 'License (MIT)', legalNoticesTitle: 'Third-party notices',
     legalLinkLater: 'Links open once you have agreed or closed setup.',
     legalAcceptedOn: 'Privacy policy and terms (version {v}) accepted on {d}', legalNotAccepted: 'Privacy policy and terms not accepted yet in this profile' });
   Object.assign(strings.tr, { legal: 'Başlamadan önce', 'legal.sub': 'Vex bazı şeyleri kendiliğinden yapar. Bunların neler olduğunu okuyun, ardından Vex’i kullanmak için gizlilik politikasını ve kullanım koşullarını kabul edin.',
@@ -55,6 +56,7 @@
     legalReadPrivacy: 'Gizlilik politikasını oku', legalReadTerms: 'Kullanım koşullarını oku', legalVersion: 'Belge sürümü {v}, son güncelleme {d}',
     legalOpenFailed: 'Belge açılamadı', legalUpdatedTitle: 'Vex’in gizlilik politikası ve kullanım koşulları değişti',
     legalPrivacyTitle: 'Gizlilik politikası', legalTermsTitle: 'Kullanım koşulları', legalClose: 'Kapat',
+    legalLicenseTitle: 'Lisans (MIT)', legalNoticesTitle: 'Üçüncü taraf bildirimleri',
     legalLinkLater: 'Bağlantılar, kabul ettikten veya kurulumu kapattıktan sonra açılır.',
     legalAcceptedOn: 'Gizlilik politikası ve kullanım koşulları (sürüm {v}) {d} tarihinde kabul edildi', legalNotAccepted: 'Gizlilik politikası ve kullanım koşulları bu profilde henüz kabul edilmedi' });
   function locale() { let value; try { value = localStorage.getItem('vex.lang') || 'en'; try { value = JSON.parse(value); } catch {} } catch {} return value === 'tr' ? 'tr' : 'en'; }

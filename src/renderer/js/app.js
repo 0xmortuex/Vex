@@ -1640,16 +1640,12 @@ function vexOwnTextFocused(doc) {
   document.getElementById('setting-issues-link')?.addEventListener('click', (e) => {
     e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
   });
-  // The privacy policy and terms open inside Vex, from the copies it ships
-  // (js/legal.js); the licence and notices still open on GitHub.
+  // Every shipped document (privacy, terms, licence, notices) opens inside
+  // Vex from the copy it ships (js/legal.js), also offline.
   document.querySelectorAll('#setting-legal-links [data-legal-doc]').forEach((link) => link.addEventListener('click', (e) => {
     e.preventDefault();
     const doc = link.dataset.legalDoc;
-    if (doc === 'PRIVACY.md' || doc === 'TERMS.md') {
-      VexLegal.openDoc(doc).catch(err => { console.error('[legal] could not open ' + doc + ':', err); window.showToast?.('Could not open ' + doc + ': ' + (err && err.message), 'error'); });
-      return;
-    }
-    TabManager.createTab('https://github.com/0xmortuex/Vex/blob/main/' + doc, true); SidebarManager.hideActivePanel();
+    VexLegal.openDoc(doc).catch(err => { console.error('[legal] could not open ' + doc + ':', err); window.showToast?.('Could not open ' + doc + ': ' + (err && err.message), 'error'); });
   }));
   VexLegal.renderAbout();
   window.addEventListener('vex-legal-accepted', () => VexLegal.renderAbout());
