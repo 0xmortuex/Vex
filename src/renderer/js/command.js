@@ -323,6 +323,20 @@ const CommandBar = {
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },
+    // Ctrl+S, as in every browser: one file or a PDF (found missing
+    // 2026-10-10). A page with a save of its own keeps Ctrl+S (page first).
+    { id: 'save-as', label: 'Save Page As…', hint: 'The whole page in one file that opens offline, or a PDF', icon: 'save', action: async () => {
+      if (!window.PageExport) throw new Error('Saving pages is not available in this window');
+      const pdf = () => window.PageExport.savePage('pdf').catch(e => window.showToast?.(e.message, 'error'));
+      const one = await window.vexConfirm({ title: 'Save this page', message: 'As one file (.mhtml) with its pictures and styles, which opens offline, or as a PDF.', okLabel: 'One file', extra: { label: 'PDF', run: pdf } });
+      if (one) await window.PageExport.savePage('mhtml');
+    } },
+    // Settings had the only way in (found 2026-10-10); Ctrl+Shift+Delete too.
+    { id: 'clear-data', label: 'Clear Browsing Data', hint: 'Cookies, cache, history, Recall and saved sessions — asks first', icon: 'trash', action: () => {
+      const btn = document.getElementById('setting-clear-data');
+      if (!btn) throw new Error('Clearing browsing data is not available in this window');
+      btn.click();
+    } },
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: 'save', action: () => { document.getElementById('setting-export')?.click(); } },
     // Phase 7A: AI commands
     { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: 'sidebar', action: () => window.toggleTabsSidebar?.() },

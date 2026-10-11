@@ -92,6 +92,10 @@ const ShortcutsRegistry = (() => {
     'toolbox':        { default: 'Ctrl+Alt+X',   label: 'Toolbox',                    category: 'Tools',      cmd: 'toolbox' },
     'read-later':     { default: 'Ctrl+Alt+K',   label: 'Save this page to Read Later', category: 'Tools',    cmd: 'readlater' },
     'translate-page': { default: 'Ctrl+Alt+G',   label: 'Translate this page',        category: 'Tools',      cmd: 'translate' },
+    // As in Chrome and Firefox (found missing 2026-10-10). Ctrl+S reaches
+    // Vex from a page only when the page left it alone (main/guest-shortcuts.js).
+    'save-page':      { default: 'Ctrl+S',       label: 'Save page as…',              category: 'Tools',      cmd: 'save-as' },
+    'clear-data':     { default: 'Ctrl+Shift+Delete', label: 'Clear browsing data',  category: 'Tools',      cmd: 'clear-data' },
     // Alt+Tab's useful half, for tabs: one press and you are back on the tab
     // you were on before this one. Alt+Q because Alt+Tab itself belongs to
     // Windows and can never be taken from it.
