@@ -988,6 +988,33 @@ html[data-theme="contrast-light"] :focus-visible:not(webview) {
   outline-offset: 2px;
 }
 
+/* HIGH CONTRAST DARK - white on black, High Contrast Light's night partner.
+   Every text colour reads at 7:1 or more on every surface (body text 21:1,
+   muted 9:1 on the lightest panel), the accent is a light blue at 9:1, and
+   every border is a line you can see. The same thick focus ring, in the
+   accent. */
+[data-theme="contrast-dark"] {
+  --vex-bg-base: #000000; --vex-bg-elevated: #121212; --vex-bg-deep: #0a0a0a;
+  --vex-glass-strong: #0a0a0a; --vex-glass-medium: #0a0a0a; --vex-glass-light: #121212;
+  --vex-glass-tab-active: #262626; --vex-glass-tab-inactive: #0a0a0a; --vex-glass-input: #000000;
+  --vex-border-subtle: #8a8a8a; --vex-border-medium: #b0b0b0; --vex-border-strong: #ffffff;
+  --vex-border-accent: #8ec5ff; --vex-border-accent-strong: #8ec5ff;
+  --vex-accent: #8ec5ff; --vex-accent-dim: #8ec5ff2e; --vex-accent-glow: #8ec5ff26;
+  --vex-text-primary: #ffffff; --vex-text-secondary: #ebebeb; --vex-text-muted: #c8c8c8;
+  --vex-text-accent: #8ec5ff; --vex-success: #6fe08a; --vex-danger: #ff9c94; --vex-danger-hover: #ffbdb6; --vex-warning: #ffd166;
+  --bg: #000000; --bg-2: #0a0a0a; --sidebar: #0a0a0a; --surface: #121212;
+  --border: #b0b0b0; --text: #ffffff; --text-muted: #c8c8c8;
+  --primary: #8ec5ff; --primary-hover: #b8dbff; --accent: #8ec5ff;
+  --on-primary: #000000;
+  --tab-active: #262626; --tab-hover: #1c1c1c;
+  --danger: #ff9c94; --success: #6fe08a; --warning: #ffd166;
+  --vex-hover-fill: rgba(255, 255, 255, 0.14); --vex-shadow-color: rgba(0, 0, 0, 0.6);
+}
+html[data-theme="contrast-dark"] :focus-visible:not(webview) {
+  outline: 3px solid #8ec5ff !important;
+  outline-offset: 2px;
+}
+
 /* EVENING - for reading at night: warm, dim and low in blue light. Every
    colour is an amber, a brown or an olive with little blue in it, the page is
    a dark warm brown rather than black (less glare from the jump to a white

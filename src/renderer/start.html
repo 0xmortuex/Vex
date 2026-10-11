@@ -805,19 +805,31 @@
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
     [data-theme="contrast-light"] :focus-visible { outline: 3px solid #0037a6; outline-offset: 2px; }
+    [data-theme="contrast-dark"] {
+      --vex-bg-base: #000000; --vex-glass-strong: #121212; --vex-glass-medium: #0a0a0a;
+      --vex-glass-light: #121212; --vex-glass-input: #000000;
+      --vex-border-subtle: #8a8a8a; --vex-border-medium: #b0b0b0; --vex-border-strong: #ffffff;
+      --vex-border-accent: #8ec5ff; --vex-border-accent-strong: #8ec5ff;
+      --vex-accent: #8ec5ff; --vex-accent-dim: #8ec5ff2e; --vex-accent-glow: #8ec5ff26;
+      --on-primary: #000000;
+      --vex-text-primary: #ffffff; --vex-text-secondary: #ebebeb; --vex-text-muted: #c8c8c8;
+      --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
+      --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
+    }
+    [data-theme="contrast-dark"] :focus-visible { outline: 3px solid #8ec5ff; outline-offset: 2px; }
     /* No accent glow behind the page: AMOLED stays true black (an OLED pixel
        off), High Contrast Light stays plain white under its black text. */
-    html:is([data-theme="amoled"], [data-theme="contrast-light"]) body { background-image: none; }
+    html:is([data-theme="amoled"], [data-theme="contrast-light"], [data-theme="contrast-dark"]) body { background-image: none; }
     /* Every text on the New Tab measured against what it is drawn on (item #5
        review, 2026-10-08): in these five the wordmark, a pale gradient at 85%
        opacity, read 2.0:1 (Mica Light) to 4.1:1 (Evening) - 3.2:1 in High
        Contrast Light - so here it is the solid accent. The search engine's
        white letter on its brand colour (Google's blue 3.6:1) sits on that colour
        deepened, still recognisably the engine's. */
-    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .vex-wordmark {
+    html:is([data-theme="contrast-light"], [data-theme="contrast-dark"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .vex-wordmark {
       background: none; -webkit-text-fill-color: var(--vex-accent); color: var(--vex-accent); opacity: 1;
     }
-    html:is([data-theme="contrast-light"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .engine-glyph {
+    html:is([data-theme="contrast-light"], [data-theme="contrast-dark"], [data-theme="amoled"], [data-theme="evening"], [data-theme="mica-light"], [data-theme="mica-dark"]) .engine-glyph {
       background: color-mix(in srgb, var(--engine-color, #4285F4) 60%, #000000);
     }
     [data-theme="evening"] {
@@ -2197,7 +2209,7 @@
     // start.html?theme=<active> and we read that query param. Live theme
     // switches reload this page with a fresh ?theme= (see ThemeManager
     // .applyTheme). Falls back to oxford only when the param is missing/unknown.
-    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight'];
+    const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'contrast-dark', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight'];
     // The light ones (ThemeManager.isLight; a test keeps the two lists equal).
     const VEX_LIGHT_THEMES = ['oxford', 'firefox-light', 'contrast-light', 'mica-light', 'androidbeige', 'paperred', 'ezlight'];
     // A theme of your own (js/theme-studio.js in the window) comes as its id

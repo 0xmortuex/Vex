@@ -204,8 +204,8 @@ describe('themes for a need', () => {
     });
   });
 
-  it('the New Tab drops its accent glow under AMOLED and High Contrast Light', () => {
-    expect(START).toMatch(/html:is\(\[data-theme="amoled"\], \[data-theme="contrast-light"\]\) body \{ background-image: none; \}/);
+  it('the New Tab drops its accent glow under AMOLED and both High Contrast themes', () => {
+    expect(START).toMatch(/html:is\(\[data-theme="amoled"\], \[data-theme="contrast-light"\], \[data-theme="contrast-dark"\]\) body \{ background-image: none; \}/);
   });
 
   it('under Glass the New Tab lifts a dark accent so its text reads on the dark glass', () => {
@@ -222,7 +222,7 @@ describe('themes for a need', () => {
     expect(TA.defaultSlots('mica-light', TM.THEMES)).toEqual({ light: 'mica-light', dark: 'mica-dark' });
     expect(TA.defaultSlots('mica-dark', TM.THEMES)).toEqual({ light: 'mica-light', dark: 'mica-dark' });
     // The others start from Vex's defaults for the other side.
-    expect(TA.defaultSlots('contrast-light', TM.THEMES)).toEqual({ light: 'contrast-light', dark: 'firefox-dark' });
+    expect(TA.defaultSlots('contrast-light', TM.THEMES)).toEqual({ light: 'contrast-light', dark: 'contrast-dark' });
     expect(TA.defaultSlots('evening', TM.THEMES)).toEqual({ light: 'oxford', dark: 'evening' });
   });
 });

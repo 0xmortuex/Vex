@@ -67,6 +67,7 @@ const ThemeManager = {
     // light/dark pair (theme-auto.js pairs them). The true-black OLED theme is
     // AMOLED, below.
     { id: 'contrast-light', label: 'High Contrast Light', accent: '#0037a6', mock: { bg: '#ffffff', side: '#f0f0f0', surf: '#ffffff', txt: '#000000', acc: '#0037a6' } },
+    { id: 'contrast-dark',  label: 'High Contrast Dark',  accent: '#8ec5ff', mock: { bg: '#000000', side: '#0a0a0a', surf: '#121212', txt: '#ffffff', acc: '#8ec5ff' } },
     { id: 'evening',        label: 'Evening',             accent: '#d48a3a', mock: { bg: '#18120c', side: '#120d08', surf: '#221a12', txt: '#dfc9a3', acc: '#d48a3a' } },
     { id: 'mica-light',     label: 'Mica Light',          accent: '#005fb8', mock: { bg: '#f3f3f3', side: '#eaeef4', surf: '#fbfbfb', txt: '#1a1a1a', acc: '#005fb8' } },
     { id: 'mica-dark',      label: 'Mica Dark',           accent: '#60cdff', mock: { bg: '#202020', side: '#1b1d22', surf: '#2b2b2b', txt: '#ffffff', acc: '#60cdff' } },

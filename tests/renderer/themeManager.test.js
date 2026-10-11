@@ -40,7 +40,7 @@ describe('ThemeManager', () => {
       'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
       'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark',
       // For a need: high contrast, night reading, Windows 11 (2026-10-08).
-      'contrast-light', 'evening', 'mica-light', 'mica-dark',
+      'contrast-light', 'contrast-dark', 'evening', 'mica-light', 'mica-dark',
       // After the popular BetterDiscord themes (2026-09-29).
       'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen',
       'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material',
