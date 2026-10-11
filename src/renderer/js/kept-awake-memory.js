@@ -59,9 +59,11 @@ const KeptAwakeMemory = {
     }
     if (typeof SidebarManager !== 'undefined' && SidebarManager.panelWebviews) {
       for (const name of Object.keys(SidebarManager.panelWebviews)) {
+        // Discord has its one memory watch of its own (js/discord-memory.js),
+        // which carries on what this said for it: one limit, one notice.
+        if (name === 'discord') continue;
         // 'Awake during calls' counts too: it is not exempt from sleeping, but
-        // nothing sleeps it on its own by default (SleepConsent 'never'), so
-        // the owner's Discord in that mode sat at 1.5 GB with no word.
+        // nothing sleeps it on its own by default (SleepConsent 'never').
         const mode = SidebarManager.keepAwakeFor(name).mode;
         if (mode !== 'call' && !SidebarManager.keptAwakeNow(name)) continue;
         const wc = this._wcOf(SidebarManager.panelWebviews[name]);

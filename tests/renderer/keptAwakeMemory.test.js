@@ -117,34 +117,34 @@ describe('a tab kept awake that grows', () => {
 
 describe('a panel kept awake that grows', () => {
   it('offers Reload and Let it sleep for the panel', async () => {
-    keepModes.discord = 'always';
-    panelWebviews.discord = webview(21);
+    keepModes.whatsapp = 'always';
+    panelWebviews.whatsapp = webview(21);
     memByWc[21] = 1.6 * GB;
     await KeptAwakeMemory.check();
-    expect(toasts[0].message).toBe('Discord is using 1.6 GB and never sleeps.');
+    expect(toasts[0].message).toBe('Whatsapp is using 1.6 GB and never sleeps.');
     toasts[0].opts.actions[0].run();
-    expect(panelWebviews.discord.reload).toHaveBeenCalled();
+    expect(panelWebviews.whatsapp.reload).toHaveBeenCalled();
     toasts[0].opts.actions[1].run();
-    expect(SidebarManager.setKeepAwakeMode).toHaveBeenCalledWith('discord', 'off');
+    expect(SidebarManager.setKeepAwakeMode).toHaveBeenCalledWith('whatsapp', 'off');
   });
 
-  // The owner's Discord sits in 'Awake during calls' at 1.5 GB: it counts.
+  // A panel set to 'Awake during calls' counts too.
   it('counts a panel awake for calls, offering Reload only', async () => {
-    keepModes.discord = 'call';
-    panelWebviews.discord = webview(21);
+    keepModes.whatsapp = 'call';
+    panelWebviews.whatsapp = webview(21);
     memByWc[21] = 1.6 * GB;
     await KeptAwakeMemory.check();
     expect(toasts).toHaveLength(1);
-    expect(toasts[0].message).toBe('Discord is using 1.6 GB and stays awake for calls.');
+    expect(toasts[0].message).toBe('Whatsapp is using 1.6 GB and stays awake for calls.');
     expect(toasts[0].opts.actions.map(a => a.label)).toEqual(['Reload']);
     toasts[0].opts.actions[0].run();
-    expect(panelWebviews.discord.reload).toHaveBeenCalled();
+    expect(panelWebviews.whatsapp.reload).toHaveBeenCalled();
     expect(SidebarManager.setKeepAwakeMode).not.toHaveBeenCalled();
   });
 
   it('waits while the panel awake for calls is in one', async () => {
-    keepModes.discord = 'call';
-    panelWebviews.discord = webview(21);
+    keepModes.whatsapp = 'call';
+    panelWebviews.whatsapp = webview(21);
     memByWc[21] = 1.6 * GB;
     let busy = 'In a call';
     SidebarManager.panelBusy = () => busy;
@@ -156,10 +156,19 @@ describe('a panel kept awake that grows', () => {
   });
 
   it('says nothing for a panel set to sleep when idle', async () => {
-    keepModes.discord = 'off';
-    panelWebviews.discord = webview(21);
+    keepModes.whatsapp = 'off';
+    panelWebviews.whatsapp = webview(21);
     memByWc[21] = 1.6 * GB;
     await KeptAwakeMemory.check();
+    expect(toasts).toEqual([]);
+  });
+
+  // Discord has its own one watch (js/discord-memory.js): one limit, one notice.
+  it('leaves Discord to its own memory watch', async () => {
+    keepModes.discord = 'call';
+    panelWebviews.discord = webview(21);
+    memByWc[21] = 3 * GB;
+    expect(await KeptAwakeMemory.check()).toEqual([]);
     expect(toasts).toEqual([]);
   });
 });

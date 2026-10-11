@@ -15,6 +15,14 @@
 // A limit below what a FRESH Discord needs would refresh it for ever. Three
 // minutes after each refresh the fresh size is measured; if that is already
 // near the limit, the limit is raised above it, once, and the user is told.
+//
+// This is the ONE Discord memory watch. There used to be three: a strip in
+// the Discord panel at vex.discordMemoryWarnMB / the shared notice ceiling
+// (1 GB), this one (1 GB), and the kept-awake toast (1.5 GB) — three numbers,
+// three notices, three settings. Now one limit (vex.discordMemoryLimitMB),
+// one notice (Refresh / During calls / Later), one setting. Saying so is not
+// sleeping anything, so the notice comes whatever "Before Vex puts anything
+// to sleep on its own" says; only refreshing by itself waits for "auto".
 
 const DiscordMemory = {
   KEY: 'vex.discordMemoryLimitMB',
@@ -23,6 +31,11 @@ const DiscordMemory = {
   // Lowered from 1.5 GB to 1 GB (2026-09-19, asked for). A limit left at the
   // old default is moved down once; any choice made after that is kept.
   LOWERED_KEY: 'vex.discordLimitLowered',
+  // The three watches merged into this one (2026-10-11), once per profile.
+  MERGED_KEY: 'vex.discordMemoryMerged',
+  // Told once per growth: again only when it has grown this much more.
+  GROWTH_MB: 512,
+  _toldMB: 0,
 
   // ---- asleep when idle ------------------------------------------------------------
   // A hidden Discord, not in a call, for this long, is put to sleep: it frees
@@ -230,10 +243,9 @@ const DiscordMemory = {
   // for it to be automatic. Returns what it did.
   async check(now = Date.now()) {
     const consent = this.consent();
-    if (consent === 'never') return { action: 'off' };
     const idle = this.idleMinutes();
     const sb = this._sidebar();
-    if (idle && !this._keptAwake() && sb && sb.panelWebviews && sb.panelWebviews.discord && this.hiddenFor(now) > idle * 60000) {
+    if (consent !== 'never' && idle && !this._keptAwake() && sb && sb.panelWebviews && sb.panelWebviews.discord && this.hiddenFor(now) > idle * 60000) {
       const wait = await this.reasonToWait(now, { ignoreGap: true });
       if (!wait) {
         if (consent !== 'auto') return this._ask('sleep', { idle }, now);
@@ -242,15 +254,25 @@ const DiscordMemory = {
       }
     }
     const limit = this.effectiveLimitMB();
-    if (!limit) return { action: 'off' };
+    if (!limit) { this._closeNotice('refresh'); return { action: 'off' }; }
     const mb = await this.sizeMB();
     if (mb == null) return { action: 'unknown' };
-    if (mb <= limit) return { action: 'fine', mb, limit };
+    if (mb <= limit) { this._toldMB = 0; this._closeNotice('refresh'); return { action: 'fine', mb, limit }; }
     const wait = await this.reasonToWait(now);
     if (wait) return { action: 'waiting', mb, limit, why: wait };
-    if (consent !== 'auto') return this._ask('refresh', { mb, limit }, now);
+    if (consent !== 'auto') {
+      // Once per growth past the limit: an unanswered notice is a no, and
+      // the same size is not brought up again.
+      if (this._toldMB && mb < this._toldMB + this.GROWTH_MB && !document.getElementById('vex-discord-ask')) return { action: 'told', mb, limit };
+      return this._ask('refresh', { mb, limit }, now);
+    }
     this.refresh(mb);
     return { action: 'refreshed', mb, limit };
+  },
+
+  _closeNotice(what) {
+    const bar = document.getElementById('vex-discord-ask');
+    if (bar && (!what || bar.dataset.what === what)) bar.remove();
   },
 
   // Put it to sleep, and say what that cost. Separated from check() so the
@@ -274,12 +296,13 @@ const DiscordMemory = {
     const bar = document.createElement('div');
     bar.id = 'vex-discord-ask';
     bar.className = 'vexslow-notice';
+    bar.dataset.what = what;
     const line = what === 'sleep'
       ? 'Discord has been hidden for ' + info.idle + ' minutes. Let it sleep and hand its memory back?'
-      : 'Discord has grown to ' + esc(size) + '. Refresh it to free that?';
+      : 'Discord is using ' + esc(size) + '. Refresh it to free that?';
     const cost = what === 'sleep'
       ? 'Asleep it uses nothing and wakes when you open it — but it cannot notify you until then.'
-      : 'It stays signed in; whatever is on screen in it is reloaded.';
+      : 'It stays signed in; whatever is on screen in it is reloaded, and a voice call would drop.';
     bar.innerHTML = '<span>' + esc(line) + '<br><small style="opacity:.75">' + esc(cost) + '</small></span>';
 
     const done = () => bar.remove();
@@ -291,12 +314,35 @@ const DiscordMemory = {
       bar.appendChild(b);
       return b;
     };
-    act(what === 'sleep' ? 'Let it sleep' : 'Refresh it', 'Free the memory now', () => {
+    act(what === 'sleep' ? 'Let it sleep' : 'Refresh', 'Free the memory now', () => {
       done();
       try {
         if (what === 'sleep') this.sleepNow(info.idle); else this.refresh(info.mb);
       } catch (err) { window.showToast?.(err.message, 'error'); }
     });
+    if (what === 'refresh') {
+      this._toldMB = info.mb;
+      // Kept awake all the time: sleeping when idle and waking for calls is
+      // the setting that gives this back for good.
+      const sb = this._sidebar();
+      const mode = sb && typeof sb.keepAwakeFor === 'function' ? sb.keepAwakeFor('discord').mode : '';
+      if (mode === 'always' || mode === 'until') {
+        act('During calls', 'Keep Discord awake only during calls — it sleeps when you have not used it for a while, and a call in progress is never slept', () => {
+          done();
+          if (!sb.setKeepAwakeMode('discord', 'call')) { window.showToast?.('The setting could not be saved', 'error'); return; }
+          window.showToast?.('Discord stays awake for calls only — Settings › Performance changes it back');
+        });
+      }
+      act('Later', 'Leave Discord alone — Vex will not bring this up again for four hours', () => {
+        done();
+        this._quietUntil = Date.now() + this.ASK_QUIET_MS;
+        this._toldMB = 0;
+        window.showToast?.('Discord left alone — Vex will not bring this up for four hours');
+      });
+      document.body.appendChild(bar);
+      this._askTimer = setTimeout(() => { if (bar.isConnected) bar.remove(); }, 30000);
+      return { action: 'asked', what, ...info };
+    }
     act('Not now', 'Leave Discord alone — Vex will not ask again for four hours', () => {
       done();
       this._quietUntil = Date.now() + this.ASK_QUIET_MS;
@@ -327,7 +373,7 @@ const DiscordMemory = {
     try { old.remove(); } catch {}
     delete sb.panelWebviews.discord;
     document.querySelectorAll('.panel-navbar[data-panel="discord"]').forEach(n => n.remove());
-    panelEl.querySelector('.discord-mem-banner')?.remove();     // its number is out of date now
+    this._closeNotice('refresh');                                // its number is out of date now
     sb._createPanelWebview('discord', panelEl);
     this._lastRefresh = Date.now();
     const entry = { at: this._lastRefresh, beforeMB: beforeMB || null, afterMB: null };
@@ -352,12 +398,41 @@ const DiscordMemory = {
     }
   },
 
+  // The three Discord memory watches became one (see the top). A profile that
+  // saved nothing here keeps the number it was actually being told at:
+  //   vex.discordMemoryWarnMB (the panel strip's own number), else
+  //   vex.memoryNoticeMB 0 (strip off) -> 1.5 GB, the kept-awake toast that
+  //   still spoke — the owner's case, else
+  //   vex.memoryNoticeMB N -> N, the strip's number,
+  // each to the nearest choice. A saved limit is kept as it is.
+  mergeOnce() {
+    if (localStorage.getItem(this.MERGED_KEY) === '1') return null;
+    let to = null;
+    const saved = localStorage.getItem(this.KEY);
+    if (saved == null || saved === '') {
+      const warn = Number(localStorage.getItem('vex.discordMemoryWarnMB'));
+      const notice = localStorage.getItem('vex.memoryNoticeMB');
+      let want = null;
+      if (warn > 0) want = warn;
+      else if (notice === '0') want = 1536;
+      else if (notice != null && notice !== '' && Number(notice) > 0) want = Number(notice);
+      if (want != null) {
+        to = this.CHOICES.filter(c => c > 0).reduce((a, b) => Math.abs(b - want) < Math.abs(a - want) ? b : a);
+        localStorage.setItem(this.KEY, String(to));
+      }
+    }
+    localStorage.removeItem('vex.discordMemoryWarnMB');
+    localStorage.setItem(this.MERGED_KEY, '1');
+    return to;
+  },
+
   start() {
     // The limit, lowered once from the old 1.5 GB default.
     if (localStorage.getItem(this.LOWERED_KEY) !== '1') {
       if (localStorage.getItem(this.KEY) === '1500') localStorage.setItem(this.KEY, '1000');
       localStorage.setItem(this.LOWERED_KEY, '1');
     }
+    this.mergeOnce();
     // Lighter Discord is one switch in main, set by the main window; a private
     // window is refused discord: channels and only logged the refusal.
     if (window.vex && typeof window.vex.setDiscordLite === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
@@ -378,9 +453,9 @@ const DiscordMemory = {
       <div data-sleep-dependent>
       <div class="setting-toggle-row"><span>Put Discord to sleep when it has been hidden, and not in a call, for</span><select data-idle aria-label="Put Discord to sleep after"></select></div>
       <p class="setting-info muted" style="margin:2px 0 10px">Asleep it uses no memory and wakes when you open it — no Discord notifications while it sleeps. Never while Discord is kept awake (above), and only as the choice “Before Vex puts anything to sleep on its own” allows.</p>
-      <div class="setting-toggle-row"><span>Refresh Discord when it grows past</span><select data-limit aria-label="Refresh Discord when it grows past"></select></div>
-      <p class="setting-info muted" style="margin:2px 0 10px">A refresh keeps it signed in and notifying, so it can happen even while Discord is kept awake — but only as that same choice allows.</p>
       </div>
+      <div class="setting-toggle-row"><span>Tell me when Discord grows past</span><select data-limit aria-label="Tell me when Discord grows past"></select></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">A notice with Refresh — it stays signed in and notifying. Never while you are in a call. Vex refreshes it by itself only when “Before Vex puts anything to sleep on its own” is set to just do it.</p>
       <div class="setting-toggle-row"><span>Lighter Discord — avatars, emoji, stickers and server icons stay still (anything people post still loads)</span><label class="toggle"><input type="checkbox" data-lite aria-label="Lighter Discord"><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px"><button type="button" class="btn-secondary" data-plugins>Turn off the heaviest Vencord plugins</button></div>
       <p class="setting-info muted" style="margin:2px 0 0">MessageLoggerEnhanced, MessageLogger, ShowHiddenChannels, PlatformIndicators and WhoReacted — the biggest memory users in the plugin review. Discord reloads after.</p>
@@ -423,7 +498,8 @@ const DiscordMemory = {
     }
     sel.addEventListener('change', () => {
       const v = this.setLimitMB(sel.value);
-      window.showToast?.(v ? 'Discord will be refreshed past ' + sel.options[sel.selectedIndex].textContent + ' — only while hidden and not in a call' : 'Discord will not be refreshed automatically');
+      this._toldMB = 0;
+      window.showToast?.(v ? 'Vex will tell you when Discord grows past ' + sel.options[sel.selectedIndex].textContent + ' — never during a call' : 'No more Discord memory notices');
     });
     if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState(host);
   },

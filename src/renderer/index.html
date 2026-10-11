@@ -605,9 +605,9 @@
                 <div id="setting-panel-keepawake" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:4px"></div>
               </div>
               <div style="margin-top:8px">
-                <div class="setting-row-label">Memory notices — a strip at the top of a tab or the Discord panel using more than</div>
+                <div class="setting-row-label">Memory notices — a strip at the top of a tab using more than</div>
                 <select id="setting-memory-notice" aria-label="Memory notices">
-                  <option value="">Default (tabs 800 MB, Discord 1 GB)</option>
+                  <option value="">Default (800 MB)</option>
                   <option value="0">Off</option>
                   <option value="800">800 MB</option>
                   <option value="1024">1 GB</option>
@@ -616,7 +616,7 @@
                 </select>
               </div>
               <div style="margin-top:8px">
-                <div class="setting-row-label" style="color:var(--text-muted);font-size:11px;font-weight:normal">Discord kept awake all day grows. Past this size Vex swaps in a fresh one — only while it is hidden, not in a call and silent. It stays signed in and keeps notifying.</div>
+                <div class="setting-row-label" style="color:var(--text-muted);font-size:11px;font-weight:normal">Discord kept awake all day grows. Past its limit below, Vex tells you once, with Refresh — never during a call. It stays signed in and keeps notifying.</div>
                 <div id="discord-memory-setting"></div>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
