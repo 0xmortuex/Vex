@@ -111,6 +111,8 @@ function vexOwnTextFocused(doc) {
 
   // Horizontal tab bar (wraps TabManager methods to auto-refresh)
   if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.init();
+  // A link or a file dropped on either tab strip opens there (js/tab-strip-drop.js).
+  if (typeof TabStripDrop !== 'undefined') TabStripDrop.install();
 
   // Init tab preview (deferred to avoid slowing startup)
   setTimeout(() => TabPreview.init(), 1000);

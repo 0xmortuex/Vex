@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 function subscribe(channel, callback) {
   const listener = (_event, ...args) => callback(...args);
   ipcRenderer.on(channel, listener);
@@ -350,6 +350,9 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
   downloadsExist:        (paths) => ipcRenderer.invoke('downloads:exist', paths),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
+  // Where a File dropped on the window lives on disk (js/tab-strip-drop.js);
+  // File.path is gone from Electron.
+  pathForFile:           (file) => webUtils.getPathForFile(file),
   // A file Vex downloaded: to the Recycle Bin, or dragged out of the panel.
   downloadsDeleteFile:   (p) => ipcRenderer.invoke('downloads:delete-file', p),
   downloadsStartDrag:    (p) => ipcRenderer.invoke('downloads:start-drag', p),
