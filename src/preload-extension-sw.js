@@ -353,6 +353,74 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
   }
 
+  // chrome.windows, chrome.notifications and chrome.downloads: Electron has
+  // none (found 2026-10-10). Main answers from Vex's own windows, its
+  // Windows notifications and its downloads; what it cannot do fails and
+  // says so. A new window is a tab in the window in front.
+  function mainCall(op, args) {
+    return function () {
+      var a = Array.prototype.slice.call(arguments);
+      var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+      return settle(api(op, args.apply(null, a) || {}), cb, op);
+    };
+  }
+  function refuse(what) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      return settle(Promise.reject(new Error('Vex does not let an extension ' + what)), typeof cb === 'function' ? cb : null, what);
+    };
+  }
+  if (api && !c.windows) {
+    var withTabs = function (p, getInfo) {
+      return p.then(function (w) {
+        if (!getInfo || !getInfo.populate || !c.tabs) return w;
+        var one = function (win) { return c.tabs.query({ windowId: win.id }).then(function (tabs) { return Object.assign({}, win, { tabs: tabs }); }); };
+        return Array.isArray(w) ? Promise.all(w.map(one)) : one(w);
+      });
+    };
+    var winGet = function (op, hasId) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        var id = hasId ? a.shift() : undefined;
+        return settle(withTabs(api(op, { id: id }), a[0]), cb, op);
+      };
+    };
+    c.windows = {
+      WINDOW_ID_NONE: -1, WINDOW_ID_CURRENT: -2,
+      get: winGet('windows.get', true), getCurrent: winGet('windows.getCurrent'), getLastFocused: winGet('windows.getLastFocused'), getAll: winGet('windows.getAll'),
+      create: mainCall('windows.create', function (data) { return { data: data || {} }; }),
+      update: mainCall('windows.update', function (id, info) { return { id: id, info: info || {} }; }),
+      remove: refuse('close a window'),
+      onCreated: noEvent(), onRemoved: noEvent(), onFocusChanged: noEvent(), onBoundsChanged: noEvent(),
+    };
+  }
+  if (api && !c.notifications && perms.indexOf('notifications') !== -1) {
+    c.notifications = {
+      create: function (id, options, cb) {
+        if (typeof id === 'object' && id !== null) { cb = options; options = id; id = ''; }
+        return settle(api('notifications.create', { id: id || '', options: options || {} }), cb, 'notifications.create');
+      },
+      update: done(false), clear: done(false), getAll: done({}),
+      getPermissionLevel: mainCall('notifications.getPermissionLevel', function () { return {}; }),
+      onClicked: mainHubEvent('notifications.onClicked'),
+      onClosed: noEvent(), onButtonClicked: noEvent(), onPermissionLevelChanged: noEvent(), onShowSettings: noEvent(),
+    };
+  }
+  if (api && !c.downloads && perms.indexOf('downloads') !== -1) {
+    c.downloads = {
+      download: mainCall('downloads.download', function (options) { return { options: options || {} }; }),
+      search: mainCall('downloads.search', function (query) { return { query: query || {} }; }),
+      pause: mainCall('downloads.pause', function (id) { return { id: id }; }),
+      resume: mainCall('downloads.resume', function (id) { return { id: id }; }),
+      cancel: mainCall('downloads.cancel', function (id) { return { id: id }; }),
+      open: refuse('open a downloaded file'), show: refuse('show a downloaded file'), showDefaultFolder: refuse('open the downloads folder'),
+      erase: refuse('erase downloads from the list'), removeFile: refuse('delete a downloaded file'),
+      onCreated: mainHubEvent('downloads.onCreated'), onChanged: mainHubEvent('downloads.onChanged'),
+      onErased: noEvent(), onDeterminingFilename: noEvent(),
+    };
+  }
+
   // chrome.alarms: Electron's takes alarms and never fires onAlarm (found
   // 2026-10-10). Main keeps them and fires them (src/main/extension-alarms.js).
   if (api && perms.indexOf('alarms') !== -1) {

@@ -13,8 +13,7 @@ const EVENTS = new Set([
   'tabs.onUpdated', 'tabs.onActivated', 'tabs.onCreated', 'tabs.onRemoved',
   'webRequest.onCompleted',
   'downloads.onCreated', 'downloads.onChanged',
-  'windows.onFocusChanged', 'windows.onCreated', 'windows.onRemoved',
-  'notifications.onClicked', 'notifications.onClosed', 'notifications.onButtonClicked',
+  'notifications.onClicked',
 ]);
 const MAX_TYPES = 200;
 

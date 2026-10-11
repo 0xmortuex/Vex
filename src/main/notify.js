@@ -61,7 +61,9 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // Resolves when the OS has actually shown the toast. Rejects with the OS's
   // reason when it refused, and after a timeout when it said nothing at all —
   // both are failures the caller must be able to report.
-  function show({ title, body, silent = false, tag, actions = false } = {}) {
+  // onClick, where given, is this toast's own click (an extension's
+  // chrome.notifications.onClicked) in place of the one for every toast.
+  function show({ title, body, silent = false, tag, actions = false, onClick: ownClick } = {}) {
     const heading = String(title || '').trim();
     if (!heading) return Promise.reject(new Error('A notification needs a title'));
     if (!isSupported()) return Promise.reject(new Error('This system does not support desktop notifications'));
@@ -93,7 +95,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
         note(`[Notify] FAILED: ${heading} — ${error}`);
         settle(reject, new Error(`Windows refused the notification: ${error || 'no reason given'}`));
       });
-      n.on('click', () => { try { if (typeof onClick === 'function') onClick({ tag: tag || null }); } catch (err) { note(`[Notify] click handler threw: ${err.message}`); } });
+      n.on('click', () => { try { if (typeof ownClick === 'function') ownClick(); else if (typeof onClick === 'function') onClick({ tag: tag || null }); } catch (err) { note(`[Notify] click handler threw: ${err.message}`); } });
 
       try { n.show(); } catch (err) { settle(reject, err); }
     });

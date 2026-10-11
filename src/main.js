@@ -757,6 +757,7 @@ registerSidebarConfigIpc(ipcMain, userDataPath);
 // skipPrivate: not to private windows (a normal window's download was listed
 // and toasted in an open private window too; audit RD11, 2026-10-10).
 function _broadcastDownloadEvent(channel, data, { skipPrivate = false } = {}) {
+  _extDownloadEvent(channel, data);
   BrowserWindow.getAllWindows().forEach(w => {
     if (w.isDestroyed()) return;
     if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;
@@ -4416,6 +4417,74 @@ function _extRequestCompleted(ses, details) {
   });
 }
 
+// chrome.downloads (src/main/extension-downloads.js), from the downloads
+// panel's own events: normal and container tabs only.
+const _extDownloads = require('./main/extension-downloads').createExtensionDownloads();
+function _extDownloadEvent(channel, data) {
+  const told = _extDownloads.note(channel, data);
+  if (!told) return;
+  const src = _downloadService._sources.get(told.vexId);
+  const ses = src ? src.session : null;
+  if (!ses) return;
+  _extEmit(ses, told.event, (ext) => (((ext.manifest && ext.manifest.permissions) || []).includes('downloads') ? told.args : null));
+}
+// chrome.windows: Vex's windows an extension runs in (never a private one),
+// by their BrowserWindow id, the windowId chrome.tabs gives.
+function _extWindowList() {
+  return [...secureSessions.hosts.values()].filter(h => !h.privatePartition && h.win && !h.win.isDestroyed()).map(h => h.win);
+}
+function _extCurrentWindow() {
+  const w = _lastFocusedHostWin && !_lastFocusedHostWin.isDestroyed() && _extWindowList().includes(_lastFocusedHostWin) ? _lastFocusedHostWin : mainWindow;
+  if (!w || w.isDestroyed()) throw new Error('There is no Vex window');
+  return w;
+}
+function _extWindowInfo(win) {
+  const b = win.getBounds();
+  const full = win === mainWindow ? isFullscreenTracked : win.isFullScreen();
+  const state = win.isMinimized() ? 'minimized' : full ? 'fullscreen' : win.isMaximized() ? 'maximized' : 'normal';
+  return { id: win.id, focused: win.isFocused(), top: b.y, left: b.x, width: b.width, height: b.height,
+    incognito: false, type: 'normal', state, alwaysOnTop: win.isAlwaysOnTop() };
+}
+function _extWindowById(id) {
+  if (id === -2) return _extCurrentWindow();
+  const w = _extWindowList().find(x => x.id === id);
+  if (!w) throw new Error(`No window with id: ${id}.`);
+  return w;
+}
+async function _extWindowsApi(op, args, senderUrl, ses) {
+  switch (op) {
+    case 'windows.get': return _extWindowInfo(_extWindowById(args.id));
+    case 'windows.getCurrent': case 'windows.getLastFocused': return _extWindowInfo(_extCurrentWindow());
+    case 'windows.getAll': return _extWindowList().map(_extWindowInfo);
+    case 'windows.update': {
+      const win = _extWindowById(args.id);
+      const info = args.info || {};
+      const known = ['focused', 'state', 'drawAttention'];
+      const other = Object.keys(info).filter(k => !known.includes(k));
+      if (other.length) throw new Error(`Vex does not let an extension change a window's ${other.join(', ')}`);
+      if (info.state !== undefined) {
+        if (info.state === 'minimized') win.minimize();
+        else if (info.state === 'maximized') win.maximize();
+        else if (info.state === 'normal') { if (win.isMinimized()) win.restore(); if (win.isMaximized()) win.unmaximize(); }
+        else throw new Error(`Vex does not let an extension make a window ${info.state}`);
+      }
+      if (info.focused === true) { if (win.isMinimized()) win.restore(); win.focus(); }
+      if (info.drawAttention === true) win.flashFrame(true);
+      return _extWindowInfo(win);
+    }
+    // A new window is a tab (or tabs) in the window in front: Vex opens no
+    // other window with extensions in it.
+    case 'windows.create': {
+      const data = args.data || {};
+      const urls = [].concat(data.url || []).slice(0, 20);
+      for (const url of urls) await _openTabForExtension(senderUrl, ses, { url, active: data.focused !== false });
+      return _extWindowInfo(_extCurrentWindow());
+    }
+    case 'windows.remove': throw new Error('Vex does not let an extension close a window');
+    default: throw new Error('Vex does not know ' + op);
+  }
+}
+
 // Tell an extension something, in every context of it in that session that
 // listens: its pages (background page, popup, options) and its service
 // worker, which is started for it if it was asleep (as Chrome wakes it).
@@ -4544,6 +4613,40 @@ async function _extApi(senderUrl, ses, request) {
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
+    case 'windows.get': case 'windows.getCurrent': case 'windows.getLastFocused': case 'windows.getAll':
+    case 'windows.update': case 'windows.create': case 'windows.remove':
+      return _extWindowsApi(r.op, args, senderUrl, ses);
+    // A Windows notification through Vex's own (src/main/notify.js), saying
+    // which extension sent it.
+    case 'notifications.create': {
+      needPerm('notifications');
+      const o = args.options || {};
+      const id = args.id ? String(args.id).slice(0, 200) : 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const name = (_extMeta().get(extId) || {}).name || ext.name;
+      const body = [o.message, o.contextMessage].filter(x => typeof x === 'string' && x).join('\n');
+      await notifier.show({ title: String(o.title || name), body: `${body}${body ? '\n' : ''}From the extension ${name}`.slice(0, 1000),
+        onClick: () => { focusMainWindow(); _extEmit(ses, 'notifications.onClicked', (e) => (e.id === extId ? [id] : null)); } });
+      return id;
+    }
+    case 'notifications.getPermissionLevel': needPerm('notifications'); return 'granted';
+    case 'downloads.download': {
+      needPerm('downloads');
+      const o = args.options || {};
+      let u;
+      try { u = new URL(String(o.url || '')); } catch { throw new Error('Invalid URL'); }
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`Vex downloads only web addresses for an extension, not ${u.protocol}`);
+      if (o.saveAs === true) _downloadService.askWhere(u.href);
+      const started = _extDownloads.waitFor(u.href, 15000);
+      ses.downloadURL(u.href);
+      return started;
+    }
+    case 'downloads.search': needPerm('downloads'); return _extDownloads.search(args.query);
+    case 'downloads.pause': case 'downloads.resume': case 'downloads.cancel': {
+      needPerm('downloads');
+      const res = _downloadService.control(_extDownloads.vexIdOf(args.id), r.op.slice('downloads.'.length));
+      if (!res.ok) throw new Error(res.error);
+      return undefined;
+    }
     case 'events.listen': {
       const type = String(args.type || '');
       if (/^webRequest\./.test(type)) needPerm('webRequest');
