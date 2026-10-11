@@ -1559,7 +1559,7 @@ const AgentLoop = {
       }
 
       if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
-      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true });
+      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true, startUrl: opts.startUrl });
       if (lastResult && lastResult.image) { pendingImage = lastResult.image; delete lastResult.image; }
       // One search that found nothing, or one site that refused to be read, is
       // something to work around: the model is told, and tries another. A

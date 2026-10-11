@@ -613,6 +613,7 @@ const Scheduler = {
           () => AgentLoop.startHeadless(action.prompt, 'auto', {
             maxIterations: action.maxIterations || 15,
             webview: taskWebview,
+            startUrl: startingUrl,
             signal: ctx.controller.signal,
           }),
           { signal: ctx.controller.signal, timeout: 10 * 60 * 1000 }
