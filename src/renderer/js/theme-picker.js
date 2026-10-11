@@ -197,7 +197,7 @@ const ThemePicker = {
     card.innerHTML = `
       <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}
         <span class="vtp-edit" role="button" tabindex="0" title="${editTip}" aria-label="${editTip}">${VexIcons.svg('edit', { size: 14 })}</span>
-        <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
+        <span class="vtp-star${fav ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${fav}" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
       </div>
       <div class="vtp-label">
         <span class="vtp-label-text"></span>${slotTag}
@@ -206,11 +206,19 @@ const ThemePicker = {
     `;
     // A name you typed yourself goes in as text, never as markup.
     card.querySelector('.vtp-label-text').textContent = t.label;
-    card.querySelector('.vtp-star').addEventListener('click', (e) => {
+    // The star could only be clicked: it took no focus and no key (cat-themes
+    // hunch). From the keyboard, Enter or Space stars it, and focus stays on
+    // that theme's star once the sections are drawn again.
+    const star = card.querySelector('.vtp-star');
+    const toggleStar = (e) => {
       e.stopPropagation();
+      e.preventDefault();
       ThemeManager.toggleFavorite(t.id);
       this._renderSections();
-    });
+      if (e.type === 'keydown') this._modal?.querySelector(`.vtp-card[data-theme="${t.id}"] .vtp-star`)?.focus();
+    };
+    star.addEventListener('click', toggleStar);
+    star.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') toggleStar(e); });
     const edit = (e) => {
       e.stopPropagation();
       e.preventDefault();
