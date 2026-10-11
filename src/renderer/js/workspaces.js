@@ -207,6 +207,7 @@ const WorkspaceManager = {
       okLabel: t('wsPrivate.close', 'Close them this time'),
       cancelLabel: t('wsPrivate.keep', 'Keep them open'),
       danger: true,
+      wide: true,   // the three choices in one row
       extra: { label: t('wsPrivate.always', 'Always close them'), run: () => { always = true; } },
     });
     if (always) {
