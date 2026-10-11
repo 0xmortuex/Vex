@@ -33,10 +33,42 @@ const DiscordTheme = {
 
   // Vex theme id -> the real BetterDiscord theme it is named after. url is the
   // theme's own published CSS (checked: 200, text/css), loaded by Discord.
-  REAL: {},
-  // Of the 28, the ones coloured by Vex instead, and why (no stable official
-  // link, or a licence that does not allow it).
-  GENERATED_INSTEAD: {},
+  // Only the link is used: Vex never copies or ships the CSS. Checked
+  // 2026-10-11; none is raw.githubusercontent.com (served as text/plain,
+  // which Chromium refuses as a stylesheet, and Vex does not rewrite it).
+  REAL: {
+    clearvision:  { name: 'ClearVision', url: 'https://clearvision.github.io/ClearVision-v7/main.css', license: 'Apache-2.0', repo: 'https://github.com/ClearVision/ClearVision-v7' },
+    darkmatter:   { name: 'Dark Matter', url: 'https://discordstyles.github.io/DarkMatter/DarkMatter.theme.css', license: 'MIT', repo: 'https://github.com/DiscordStyles/DarkMatter' },
+    duskplus:     { name: 'Discord+', url: 'https://plusinsta.github.io/discord-plus/DiscordPlus.theme.css', license: 'MIT', repo: 'https://github.com/PlusInsta/discord-plus' },
+    terminal:     { name: 'Fallout 4 Terminal', url: 'https://cdn.jsdelivr.net/gh/B4T3S/Fallout4TerminalTheme@main/Fallout4Terminal.theme.css', license: 'ISC (package.json)', repo: 'https://github.com/B4T3S/Fallout4TerminalTheme' },
+    recordgreen:  { name: 'Spotify Discord', url: 'https://capnkitten.github.io/BetterDiscord/Themes/Spotify-Discord/css/source.css', license: 'none stated', repo: 'https://github.com/CapnKitten/Spotify-Discord' },
+    darkneon:     { name: 'Dark Neon', url: 'https://cdn.jsdelivr.net/gh/B4T3S/DiscordDarkNeon@master/DarkNeon.theme.css', license: 'ISC (package.json)', repo: 'https://github.com/B4T3S/DiscordDarkNeon' },
+    deepmidnight: { name: 'midnight', url: 'https://refact0r.github.io/midnight-discord/themes/midnight.theme.css', license: 'MIT', repo: 'https://github.com/refact0r/midnight-discord' },
+    softx:        { name: 'SoftX', url: 'https://discordstyles.github.io/SoftX/SoftX.theme.css', license: 'MIT', repo: 'https://github.com/DiscordStyles/SoftX' },
+    tokyonight:   { name: 'Tokyo Night', url: 'https://ashtrath.github.io/Tokyo-Night/src/main.css', license: 'MIT', repo: 'https://github.com/ashtrath/Tokyo-Night' },
+    material:     { name: 'Material Discord', url: 'https://capnkitten.github.io/Material-Discord/Material-Discord.theme.css', license: 'none stated', repo: 'https://github.com/CapnKitten/Material-Discord' },
+    androidbeige: { name: 'NieR: Automata YoRHa', url: 'https://accrazed.github.io/YoRHA-UI-BetterDiscord/NieR-Light-Source.theme.css', license: 'none stated', repo: 'https://github.com/AccraZed/YoRHA-UI-BetterDiscord' },
+    kaleidoscope: { name: 'kaleidoscope', url: 'https://spinfish.github.io/kaleidoscope/source/support/kaleidoscope.compiled.css', license: 'MIT', repo: 'https://github.com/spinfish/kaleidoscope' },
+    codedark:     { name: 'Discord Dark', url: 'https://syndishanx.github.io/Discord-Dark/discorddark.theme.css', license: 'none stated', repo: 'https://github.com/SyndiShanX/Discord-Dark' },
+    synthesis:    { name: 'Synthesis', url: 'https://saltssaumure.github.io/synthesis-discord-theme/Synthesis.theme.css', license: 'AGPL-3.0-or-later', repo: 'https://github.com/Saltssaumure/synthesis-discord-theme' },
+    virtualred:   { name: 'Virtual Boy', url: 'https://nexus-themes.github.io/Virtual-Boy/virtual-boy.theme.css', license: 'none stated', repo: 'https://github.com/Nexus-Themes/Virtual-Boy' },
+    paperred:     { name: 'piOS', url: 'https://saltssaumure.github.io/pios-discord-theme/piOS.theme.css', license: 'AGPL-3.0-or-later', repo: 'https://github.com/Saltssaumure/pios-discord-theme' },
+    noctisviola:  { name: 'Noctis Viola', url: 'https://chaseingebritson.github.io/noctis-viola-discord-theme/noctis-viola.css', license: 'ISC (package.json)', repo: 'https://github.com/ChaseIngebritson/noctis-viola-discord-theme' },
+    wildberry:    { name: 'Wildberry', url: 'https://dagcord.github.io/Wildberry/wildberry.css', license: 'MIT', repo: 'https://github.com/DagCord/Wildberry' },
+    gxred:        { name: 'OperaGX', url: 'https://hawkratio.github.io/OperaGXTheme/release/OperaGX.theme.css', license: 'MIT', repo: 'https://github.com/L-Ratio/OperaGXTheme' },
+    gruvbox:      { name: 'Gruvbox Sharp', url: 'https://cdn.jsdelivr.net/gh/round-panda/gruvbox-sharp@main/GruvboxSharp.theme.css', license: 'MIT', repo: 'https://github.com/round-panda/gruvbox-sharp' },
+    ezlight:      { name: 'EzLight', url: 'https://cdn.jsdelivr.net/gh/Inve1951/BetterDiscordStuff@master/themes/EzLight.theme.css', license: 'Design Science License', repo: 'https://github.com/Inve1951/BetterDiscordStuff' },
+  },
+  // Of the 28, the ones coloured by Vex instead, and why.
+  GENERATED_INSTEAD: {
+    darkplus: 'Dark+ is under a "Private Use License" that forbids making it available on a public platform',
+    rosynight: 'RosyNight is under a "Private Use License" that forbids making it available on a public platform',
+    azurite: 'Azurite is under a "Private Use License" that forbids making it available on a public platform',
+    neptune: 'Neptune is under a "Private Use License" that forbids making it available on a public platform',
+    neutron: 'Neutron\'s licence forbids redistributing it without the author\'s permission',
+    nocturnal: 'Nocturnal\'s licence forbids redistributing it without the author\'s permission',
+    amoled: 'AMOLED-Cord changes only Discord\'s Onyx mode, so in Discord\'s usual dark mode it would do nothing',
+  },
 
   isOn() {
     try { return localStorage.getItem(this.KEY) === 'on'; } catch { return false; }
@@ -371,7 +403,7 @@ const DiscordTheme = {
     if (!host) return;
     host.innerHTML = `
       <div class="setting-toggle-row">
-        <span>Match Discord to my Vex theme<br><span style="font-size:11.5px;color:var(--text-muted)">Discord in Vex (the panel or a tab) takes on your colour theme through Vencord, and changes with it. A theme named after a BetterDiscord theme loads that real theme: Discord downloads its CSS from the theme's own site (GitHub Pages or its author's site) — a request you did not click. Any other theme is coloured by Vex, nothing downloaded. Your own Vencord themes and QuickCSS are kept; off removes only what Vex added. Needs Vencord.</span></span>
+        <span>Match Discord to my Vex theme<br><span style="font-size:11.5px;color:var(--text-muted)">Discord in Vex (the panel or a tab) takes on your colour theme through Vencord, and changes with it. A theme named after a BetterDiscord theme loads that real theme: Discord downloads its CSS from the theme's own site (GitHub Pages, or jsDelivr for a few) — a request you did not click. Any other theme is coloured by Vex, nothing downloaded. Your own Vencord themes and QuickCSS are kept; off removes only what Vex added. Needs Vencord.</span></span>
         <label class="toggle" style="flex-shrink:0"><input type="checkbox" id="setting-discord-theme" aria-label="Match Discord to my Vex theme"><span class="toggle-slider"></span></label>
       </div>
       <div id="discord-theme-state" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:4px"></div>`;
