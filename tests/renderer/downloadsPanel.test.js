@@ -71,9 +71,9 @@ describe('downloads panel', () => {
   it('offers pause while running and resume once paused', async () => {
     start();
     const actions = () => [...document.querySelectorAll('.download-item .dl-btn')].map(b => b.dataset.action);
-    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'copy-link', 'remove']);
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 100, totalBytes: 1000, state: 'progressing', paused: true, canResume: true });
-    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'copy-link', 'remove']);
     expect(document.querySelector('.download-meta').textContent).toContain('paused');
     document.querySelector('[data-action="resume"]').click();
     await Promise.resolve();
@@ -83,7 +83,7 @@ describe('downloads panel', () => {
   it('offers retry on a failed download and passes its source URL back', async () => {
     start();
     DownloadsPanel._onComplete({ id: 'd1', state: 'interrupted', receivedBytes: 10, totalBytes: 1000 });
-    expect([...document.querySelectorAll('.dl-btn')].map(b => b.dataset.action)).toEqual(['retry', 'remove']);
+    expect([...document.querySelectorAll('.dl-btn')].map(b => b.dataset.action)).toEqual(['retry', 'copy-link', 'remove']);
     document.querySelector('[data-action="retry"]').click();
     await Promise.resolve();
     // With its id, so main retries it through the session the first try used.
@@ -297,7 +297,7 @@ describe('a download whose connection dropped', () => {
     start();
     expect(actions()).toContain('pause');
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: true, state: 'interrupted' });
-    expect(actions()).toEqual(['resume', 'cancel', 'remove']);
+    expect(actions()).toEqual(['resume', 'cancel', 'copy-link', 'remove']);
     document.querySelector('.download-item[data-id="d1"] [data-action="resume"]').click();
     await vi.waitFor(() => expect(window.vex.downloadsControl).toHaveBeenCalledWith('d1', 'resume'));
     await vi.waitFor(() => expect(actions()).toContain('pause'));
@@ -305,7 +305,69 @@ describe('a download whose connection dropped', () => {
   it('without resume support offers only Cancel', () => {
     start();
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: false, state: 'interrupted' });
-    expect(actions()).toEqual(['cancel', 'remove']);
+    expect(actions()).toEqual(['cancel', 'copy-link', 'remove']);
+  });
+});
+
+describe('search, copy link, delete file, drag out', () => {
+  const finished = (id, name, url) => {
+    DownloadsPanel._onStart({ id, fileName: name, url, totalBytes: 10, path: 'C:/dl/' + name, startedAt: '2026-01-01T00:00:00.000Z' });
+    DownloadsPanel._onComplete({ id, fileName: name, state: 'completed', path: 'C:/dl/' + name, url, receivedBytes: 10, totalBytes: 10 });
+  };
+  const rowOf = (id) => [...document.querySelectorAll('.download-item')].find(r => r.dataset.id === id);
+
+  it('search shows only the downloads whose name or address matches', () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    finished('b', 'photo.png', 'https://pics.example/y');
+    const box = document.getElementById('downloads-search');
+    box.value = 'pics';
+    box.dispatchEvent(new Event('input'));
+    expect(rowOf('a').hidden).toBe(true);
+    expect(rowOf('b').hidden).toBe(false);
+    // A row redrawn while searching keeps the search.
+    finished('c', 'invoice2.pdf', 'https://billing.example/z');
+    expect(rowOf('c').hidden).toBe(true);
+    box.value = 'nothing like it';
+    box.dispatchEvent(new Event('input'));
+    expect(document.querySelector('.downloads-no-match').textContent).toContain('No downloads match');
+    box.value = '';
+    box.dispatchEvent(new Event('input'));
+    expect(document.querySelectorAll('.download-item[hidden]')).toHaveLength(0);
+    expect(document.querySelector('.downloads-no-match')).toBeNull();
+  });
+
+  it('Copy download link puts the address on the clipboard', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    rowOf('a').querySelector('[data-action="copy-link"]').click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('https://billing.example/x'));
+    expect(window.showToast).toHaveBeenCalledWith('Download link copied');
+  });
+
+  it('Delete file asks first, and the row then says deleted', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    window.vex.downloadsDeleteFile = vi.fn(async () => ({ ok: true }));
+    globalThis.vexConfirm = vi.fn(async () => false);
+    rowOf('a').querySelector('[data-action="delete-file"]').click();
+    await vi.waitFor(() => expect(globalThis.vexConfirm).toHaveBeenCalled());
+    expect(window.vex.downloadsDeleteFile).not.toHaveBeenCalled();
+    globalThis.vexConfirm = vi.fn(async () => true);
+    rowOf('a').querySelector('[data-action="delete-file"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsDeleteFile).toHaveBeenCalledWith('C:/dl/invoice.pdf'));
+    await vi.waitFor(() => expect(rowOf('a').querySelector('.download-meta').textContent).toContain('deleted'));
+    expect(rowOf('a').querySelector('[data-action="open-file"]')).toBeNull();
+  });
+
+  it('a finished download can be dragged out; main starts the drag of its file', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    window.vex.downloadsStartDrag = vi.fn(async () => ({ ok: true }));
+    const row = rowOf('a');
+    expect(row.getAttribute('draggable')).toBe('true');
+    const ev = new Event('dragstart', { bubbles: true, cancelable: true });
+    row.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(window.vex.downloadsStartDrag).toHaveBeenCalledWith('C:/dl/invoice.pdf');
   });
 });
 

@@ -350,6 +350,9 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
   downloadsExist:        (paths) => ipcRenderer.invoke('downloads:exist', paths),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
+  // A file Vex downloaded: to the Recycle Bin, or dragged out of the panel.
+  downloadsDeleteFile:   (p) => ipcRenderer.invoke('downloads:delete-file', p),
+  downloadsStartDrag:    (p) => ipcRenderer.invoke('downloads:start-drag', p),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),

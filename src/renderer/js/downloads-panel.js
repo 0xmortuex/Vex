@@ -22,7 +22,9 @@ const DownloadsPanel = {
     close: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     pause: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
     resume: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
-    retry: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+    retry: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+    link: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
   },
 
   // Called once, as early as possible (app.js on DOMContentLoaded)
@@ -229,6 +231,7 @@ const DownloadsPanel = {
       <div class="downloads-container">
         <div class="downloads-header">
           <h2>Downloads</h2>
+          <input type="search" class="downloads-search" id="downloads-search" placeholder="Search downloads" aria-label="Search downloads" autocomplete="off" spellcheck="false">
           <div class="downloads-actions">
             <button class="btn-link" id="btn-open-dl-folder">Open downloads folder</button>
             <button class="btn-link" id="btn-dl-rules">Sorting rules</button>
@@ -238,6 +241,9 @@ const DownloadsPanel = {
         <div class="downloads-list" id="downloads-list"></div>
       </div>
     `;
+    const search = panel.querySelector('#downloads-search');
+    search.value = this._query || '';
+    search.addEventListener('input', () => { this._query = search.value; this._applyFilter(); });
     panel.querySelector('#btn-open-dl-folder')?.addEventListener('click', () => window.vex.downloadsOpenFolder?.());
     panel.querySelector('#btn-dl-rules')?.addEventListener('click', () => this.editRules());
     panel.querySelector('#downloads-clear-btn')?.addEventListener('click', () => {
@@ -347,6 +353,59 @@ const DownloadsPanel = {
     }
     list.innerHTML = this.downloads.map(dl => this._rowHtml(dl)).join('');
     list.querySelectorAll('.download-item').forEach(row => this._bindRowActions(row));
+    this._applyFilter();
+  },
+
+  // Search: by file name or by the address it came from. Rows that do not
+  // match are hidden rather than removed, so a download finishing while you
+  // search still updates its own row.
+  _query: '',
+  _matches(dl, q) {
+    if (!q) return true;
+    return String(dl.filename || '').toLowerCase().includes(q) || String(dl.url || '').toLowerCase().includes(q);
+  },
+  _applyFilter() {
+    const list = document.getElementById('downloads-list');
+    if (!list) return;
+    const q = String(this._query || '').trim().toLowerCase();
+    let shown = 0;
+    for (const row of list.querySelectorAll('.download-item')) {
+      const dl = this.downloads.find(d => d.id === row.dataset.id);
+      const on = !dl || this._matches(dl, q);
+      row.hidden = !on;
+      if (on) shown++;
+    }
+    let none = list.querySelector('.downloads-no-match');
+    if (q && !shown && this.downloads.length) {
+      if (!none) { none = document.createElement('div'); none.className = 'downloads-no-match downloads-empty'; list.appendChild(none); }
+      none.textContent = 'No downloads match “' + this._query.trim() + '”';
+    } else none?.remove();
+  },
+
+  async _copyLink(id) {
+    const dl = this.downloads.find(d => d.id === id);
+    if (!dl || !dl.url) { window.showToast?.('No address saved for that download', 'error'); return; }
+    try { await navigator.clipboard.writeText(dl.url); window.showToast?.('Download link copied'); }
+    catch (err) { window.showToast?.('Could not copy the link: ' + ((err && err.message) || 'the clipboard refused'), 'error'); }
+  },
+
+  // Delete the file itself (to the Recycle Bin), after asking. The row stays,
+  // saying "deleted", with Retry, as for a file deleted outside Vex.
+  async _deleteFile(id) {
+    const dl = this.downloads.find(d => d.id === id);
+    if (!dl || !dl.path) return;
+    const ok = await vexConfirm({
+      title: 'Delete ' + (dl.filename || 'this file') + '?',
+      message: 'It goes to the Recycle Bin, where you can still get it back.',
+      okLabel: 'Delete', cancelLabel: 'Keep it', danger: true,
+    });
+    if (!ok) return;
+    const r = await window.vex.downloadsDeleteFile(dl.path);
+    if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not delete that file', 'error'); return; }
+    dl.missing = true;
+    this.save();
+    this._replaceRow(dl);
+    window.showToast?.('Moved ' + (dl.filename || 'the file') + ' to the Recycle Bin');
   },
 
   // Ask main to pause/resume/cancel. Main owns the only handle to the live
@@ -522,6 +581,18 @@ const DownloadsPanel = {
     rowEl.querySelectorAll('[data-action="resume"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'resume')));
     rowEl.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'cancel')));
     rowEl.querySelectorAll('[data-action="retry"]').forEach(b => b.addEventListener('click', () => this._retry(b.dataset.id)));
+    rowEl.querySelectorAll('[data-action="copy-link"]').forEach(b => b.addEventListener('click', () => this._copyLink(b.dataset.id)));
+    rowEl.querySelectorAll('[data-action="delete-file"]').forEach(b => b.addEventListener('click', () => this._deleteFile(b.dataset.id)));
+    if (rowEl.getAttribute('draggable') === 'true') {
+      rowEl.addEventListener('dragstart', (e) => {
+        const dl = this.downloads.find(d => d.id === rowEl.dataset.id);
+        e.preventDefault();          // the drag the system sees is the file's, started by main
+        if (!dl || !dl.path) return;
+        Promise.resolve(window.vex.downloadsStartDrag(dl.path))
+          .then(r => { if (r && !r.ok) window.showToast?.(r.error || 'Could not drag that file', 'error'); })
+          .catch(err => window.showToast?.('Could not drag that file: ' + ((err && err.message) || ''), 'error'));
+      });
+    }
     rowEl.querySelectorAll('[data-action="remove"]').forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.id;
       // Removing a row that is still downloading should stop the transfer too,
@@ -557,6 +628,7 @@ const DownloadsPanel = {
     const row = this._buildRow(dl);
     list.prepend(row);
     this._bindRowActions(row);
+    this._applyFilter();
   },
 
   // Swap a finished download's row in place (buttons differ between states).
@@ -566,6 +638,7 @@ const DownloadsPanel = {
     const newRow = this._buildRow(dl);
     row.replaceWith(newRow);
     this._bindRowActions(newRow);
+    this._applyFilter();
   },
 
   // Update a single row's progress bar without full re-render (smoother).
@@ -620,7 +693,8 @@ const DownloadsPanel = {
       actions = `<button class="dl-btn${wants ? ' on' : ''}" data-action="open-when-done" data-id="${id}" aria-pressed="${wants}" title="${wants ? 'Vex will open this the moment it finishes \u2014 press again to stop' : 'Open this the moment it finishes'}">${wants ? 'Will open' : 'Open when done'}</button>` + actions;
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
-            <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>`;
+            <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
+            <button class="dl-btn" data-action="delete-file" data-id="${id}" title="Delete the file" aria-label="Delete the file">${this.ICONS.trash}</button>`;
     } else if (dl.state === 'interrupted' && this.activeDownloads.has(dl.id)) {
       // The connection dropped but the download is still open in Vex: it can
       // be picked up where it stopped (when the server allows) or cancelled.
@@ -631,8 +705,12 @@ const DownloadsPanel = {
       actions = `<button class="dl-btn" data-action="retry" data-id="${id}" title="Try this download again" aria-label="Retry download">${this.ICONS.retry}</button>`;
     }
 
+    // Every row that has an address can hand it over; Chrome's "Copy link".
+    const copy = dl.url ? `<button class="dl-btn" data-action="copy-link" data-id="${id}" title="Copy download link" aria-label="Copy download link">${this.ICONS.link}</button>` : '';
+    // A finished file can be dragged out of the panel into a folder, a mail
+    // or a chat, as from Explorer (main starts the drag: webContents.startDrag).
     return `
-      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}">
+      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}"${isComplete ? ' draggable="true"' : ''}>
         <div class="download-icon${isComplete ? ' complete' : ''}${isFailed ? ' failed' : ''}">${icon}</div>
         <div class="download-info">
           <div class="download-filename">${this._esc(dl.filename)}</div>
@@ -641,6 +719,7 @@ const DownloadsPanel = {
         </div>
         <div class="download-actions">
           ${actions}
+          ${copy}
           <button class="dl-btn" data-action="remove" data-id="${id}" title="Remove from list" aria-label="Remove from list">${this.ICONS.close}</button>
         </div>
       </div>

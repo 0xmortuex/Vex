@@ -3,7 +3,7 @@
   height: 100%; overflow-y: auto; padding: 24px; background: transparent;
 }
 .downloads-header {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
 }
 .downloads-header h2 {
   font-family: Georgia, 'Times New Roman', serif;
@@ -22,7 +22,19 @@
   border-color: var(--vex-border-accent);
 }
 
+.downloads-search {
+  width: 180px; min-width: 0; padding: 6px 10px;
+  background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-sm); color: var(--vex-text-primary);
+  font-family: 'Outfit', sans-serif; font-size: 12px; outline: none;
+}
+.downloads-search:focus { border-color: var(--vex-border-accent); }
+
 .downloads-list { display: flex; flex-direction: column; gap: 6px; }
+/* Search hides rows that do not match; .download-item's own display:flex
+   would otherwise win over the hidden attribute. */
+.download-item[hidden] { display: none; }
+.download-item[draggable="true"] { cursor: grab; }
 
 .download-item {
   display: flex; align-items: center; gap: 12px;

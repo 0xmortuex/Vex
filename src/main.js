@@ -7024,6 +7024,19 @@ ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
   try { shell.showItemInFolder(filePath); return { ok: true }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Delete a finished download to the Recycle Bin, or drag it out of the panel
+// (src/main/download-files.js); only a file Vex downloaded, as Open.
+const _downloadFiles = require('./main/download-files').createDownloadFiles({
+  fs, shell, getFileIcon: (p, o) => app.getFileIcon(p, o), isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+});
+ipcMain.handle('downloads:delete-file', async (_e, filePath) => {
+  try { return await _downloadFiles.deleteFile(filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('downloads:start-drag', async (e, filePath) => {
+  try { return await _downloadFiles.startDrag(e.sender, filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:open-folder', async () => {
   try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }
