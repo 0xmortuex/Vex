@@ -13,18 +13,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { SettingsUI } = await import('../../src/renderer/js/settings-ui.js');
 
-// The labels the Settings panel actually renders, in document order.
-const PANEL_LABELS = [
-  'General', 'Default Browser', 'Sidebar Buttons', 'Privacy & Security',
-  'Privacy Hardening', 'Autofill', 'Sessions', 'Workspaces', 'Performance',
-  'Data', 'Location', 'Vex Sync', 'AI Backend', 'AI Personas', 'AI Memory',
-  'On-Device AI (WebGPU)', 'MCP Servers', 'AI Skills', 'AI History Indexing',
-  'GUI Style', 'Tab Layout', 'Layout', 'Site Permissions', 'Chrome Extensions',
-  'Keyboard Shortcuts', 'Smart Tab Grouping', 'Boosts', 'Passwords', 'Focus',
-  'Command Chains', 'Library', 'Reading & Accessibility',
-  'Recall (full-text history)', 'Browsing extras', 'Personalization',
-  'Cloud Services (self-hosted)', 'About',
-];
+// The labels the Settings panel actually renders, in document order: read
+// from index.html, so a section added later is checked too (a hand-kept list
+// went stale while five sections fell into "Other", found 2026-10-10).
+const { readFileSync: readHtml } = require('node:fs');
+const PANEL_HTML = readHtml(require('node:path').join(__dirname, '../../src/renderer/index.html'), 'utf8');
+const PANEL_LABELS = (() => {
+  const doc = new DOMParser().parseFromString(PANEL_HTML, 'text/html');
+  return [...doc.querySelectorAll('#panel-settings .setting-group > .setting-label')]
+    .map(l => (l.querySelector('strong') || l).textContent.replace(/\s+/g, ' ').trim());
+})();
 
 const catFor = (label) => SettingsUI._matchCat(label.toLowerCase()).name;
 
@@ -43,6 +41,15 @@ describe('SettingsUI category matching', () => {
   it('gives every group in the panel a real category', () => {
     const unmatched = PANEL_LABELS.filter(l => catFor(l) === 'Other');
     expect(unmatched).toEqual([]);
+  });
+
+  it('files the sections that fell into Other where they belong', () => {
+    expect(PANEL_LABELS.length).toBeGreaterThan(40);
+    expect(catFor('Private routing')).toBe('Privacy');
+    expect(catFor('Site Settings')).toBe('Permissions');
+    expect(catFor('Gaming and streaming')).toBe('Performance');
+    expect(catFor('Discord hotkeys')).toBe('Performance');
+    expect(catFor('Your local models')).toBe('AI');
   });
 
   it('maps the groups that used to fall through to their own categories', () => {
@@ -152,7 +159,8 @@ describe('the AI sections share one chip', () => {
     for (const gone of ['Personas', 'AI Memory', 'On-Device', 'MCP', 'Skills', 'History']) expect(names).not.toContain(gone);
     expect(names.length).toBeLessThanOrEqual(32); // 31 + Downloads (folder and ask-where-to-save, 2026-10-10)
     expect(names.slice(0, 16)).toEqual(['General', 'Browser', 'Sidebar', 'Privacy', 'Autofill', 'Sessions', 'Downloads', 'Workspaces',
-      'Performance', 'Profiles', 'Data', 'Location', 'Sync', 'AI', 'Appearance', 'Other']);
+      'Performance', 'Profiles', 'Data', 'Location', 'Sync', 'AI', 'Appearance', 'Layout']);
+    expect(names).not.toContain('Other');
     expect(names).toContain('Recall');
     expect(names).toContain('Personalization');
   });
