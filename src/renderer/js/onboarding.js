@@ -203,6 +203,26 @@ const Onboarding = {
       }
     }
   },
+  async _onEscape(e, overlay) {
+    const t = e.target instanceof Element ? e.target : null;
+    // A drop-down that has the focus: Escape is for it (Chromium closes an
+    // open one itself), not for the whole setup.
+    if (t && t.tagName === 'SELECT') return;
+    const open = overlay.querySelector('[aria-expanded="true"]');
+    if (open) { open.click(); open.focus(); return; }
+    if (this._askingSkip) return;
+    this._askingSkip = true;
+    let skip;
+    try {
+      skip = await vexConfirm({
+        title: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
+        message: 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.',
+        okLabel: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
+      });
+    } finally { this._askingSkip = false; }
+    if (skip && document.getElementById('vex-onboarding')) this.finish();
+  },
+
   // The language step, and Settings › General › Language (js/settings-ui.js).
   // Mirrored into start-page storage; the toolbar, sidebar and Settings follow
   // at once (js/i18n-ui.js listens to vex-lang-changed), and the open start
@@ -318,10 +338,12 @@ const Onboarding = {
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
-    // Escape = the same bail-out as the "Skip setup" button.
+    // Escape closes what is open first (a drop-down, an opened list), and
+    // only then asks whether to skip the rest of setup. It used to finish the
+    // whole setup at once — also when it was pressed to close a drop-down.
     this._keyHandler = (e) => {
       if (e.defaultPrevented) return;
-      if (e.key === 'Escape') { e.preventDefault(); this.finish(); }
+      if (e.key === 'Escape') { e.preventDefault(); this._onEscape(e, overlay); }
       if (e.key === 'Tab') {
         const nodes = [...overlay.querySelectorAll('button,input,select,a[href]')].filter(node => !node.disabled && !node.hidden);
         const first = nodes[0], last = nodes[nodes.length - 1];
