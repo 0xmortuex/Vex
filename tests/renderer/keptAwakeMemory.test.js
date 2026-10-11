@@ -45,6 +45,9 @@ beforeEach(() => {
   };
   globalThis.SiteProfiles = { setNeverSleep: vi.fn((h, on) => { const s = TabManager._neverSleepHosts(); if (on) s.add(h); else s.delete(h); localStorage.setItem('vex.neverSleepHosts', JSON.stringify([...s])); }) };
   delete globalThis.GameMode;
+  // Most of these are about a Vex that may sleep things by itself ('ask' or
+  // 'auto'); the default 'never' has its own tests at the end.
+  globalThis.SleepConsent = { never: () => false };
 });
 afterEach(() => { KeptAwakeMemory._job?.stop(); KeptAwakeMemory._job = null; vi.useRealTimers(); });
 
@@ -185,5 +188,66 @@ describe('on the shared job timer', () => {
     VexJobs.resume();
     await vi.advanceTimersByTimeAsync(10);
     expect(toasts).toHaveLength(1);
+  });
+});
+
+// Under the default sleep choice ("never") nothing sleeps by itself, so "Let
+// it sleep" (keep-awake off) changed nothing at all.
+describe('under the default sleep choice, never', () => {
+  beforeEach(() => {
+    globalThis.SleepConsent = { never: () => true };
+    TabManager.activeTabId = 'front';
+    TabManager.sleepTab = vi.fn(async () => {});
+    SidebarManager.sleepPanel = vi.fn();
+  });
+
+  it('offers Sleep it now, which turns keep-awake off and sleeps it', async () => {
+    const t = tab('t1', 'https://claude.ai/chat/1', { keepAwakeUntil: NEVER });
+    addTab(t, 11, 3.3 * GB);
+    await KeptAwakeMemory.check();
+    expect(toasts[0].opts.actions.map(a => a.label)).toEqual(['Reload', 'Sleep it now']);
+    await toasts[0].opts.actions[1].run();
+    expect(t.keepAwakeUntil).toBe(0);
+    expect(TabManager.sleepTab).toHaveBeenCalledWith('t1', true);
+    expect(toasts[1].message).toBe('claude.ai is asleep');
+  });
+
+  it('a panel kept awake is slept too', async () => {
+    keepModes.whatsapp = 'always';
+    panelWebviews.whatsapp = webview(21);
+    memByWc[21] = 1.6 * GB;
+    await KeptAwakeMemory.check();
+    await toasts[0].opts.actions[1].run();
+    expect(SidebarManager.setKeepAwakeMode).toHaveBeenCalledWith('whatsapp', 'off');
+    expect(SidebarManager.sleepPanel).toHaveBeenCalledWith('whatsapp');
+  });
+
+  it('the tab in front stays awake, and says so', async () => {
+    const t = tab('front', 'https://claude.ai/chat/1', { keepAwakeUntil: NEVER });
+    addTab(t, 11, 3.3 * GB);
+    await KeptAwakeMemory.check();
+    await toasts[0].opts.actions[1].run();
+    expect(TabManager.sleepTab).not.toHaveBeenCalled();
+    expect(toasts[1].message).toMatch(/stays awake until you leave it/);
+  });
+});
+
+// It was once per tab for the whole session: after the first toast, a tab that
+// went on from 1.6 GB to 5 GB was never mentioned again.
+describe('once per growth', () => {
+  it('is said again only after it has grown a good deal more, or dropped under and come back', async () => {
+    addTab(tab('t1', 'https://claude.ai/chat/1', { keepAwakeUntil: NEVER }), 11, 1.6 * GB);
+    await KeptAwakeMemory.check();
+    memByWc[11] = 1.9 * GB;
+    await KeptAwakeMemory.check();
+    expect(toasts).toHaveLength(1);
+    memByWc[11] = 2.2 * GB;
+    await KeptAwakeMemory.check();
+    expect(toasts).toHaveLength(2);
+    memByWc[11] = 0.5 * GB;
+    await KeptAwakeMemory.check();
+    memByWc[11] = 1.6 * GB;
+    await KeptAwakeMemory.check();
+    expect(toasts).toHaveLength(3);
   });
 });

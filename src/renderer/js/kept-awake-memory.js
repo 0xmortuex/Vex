@@ -10,15 +10,25 @@
 // A tab or web panel that is kept awake by choice (a keep-awake timer, a
 // never-sleep site, a panel kept awake or awake for calls) and whose process passes LIMIT_MB
 // gets ONE toast: "claude.ai is using 3.3 GB and never sleeps. [Reload]
-// [Let it sleep]". Once per process per session, never while it is on a call
-// or playing, and never while a game runs (the shared job timer holds it,
-// js/jobs.js). Memory is per process (main's app:tab-memory): same-site tabs
-// share one, so they are named together and reloaded together.
+// [Let it sleep]". Once per growth: said when it passes the limit, and again
+// only when it has grown GROWTH_MB more (or dropped under and passed it
+// again) — not once per tab for the whole session, which went quiet for good
+// after the first time. Never while it is on a call or playing, and never
+// while a game runs (the shared job timer holds it, js/jobs.js). Memory is
+// per process (main's app:tab-memory): same-site tabs share one, so they are
+// named together and reloaded together.
+//
+// "Let it sleep" turns keep-awake off so it sleeps when you are not using it
+// — but under the default sleep choice ("never", js/sleep-consent.js)
+// nothing sleeps by itself, so that button did nothing. Then it is "Sleep it
+// now": keep-awake off, and asleep at once.
 const KeptAwakeMemory = {
   JOB: 'Kept-awake memory',
   EVERY_MS: 5 * 60 * 1000,
   LIMIT_MB: 1536,
-  _told: new Set(),
+  GROWTH_MB: 512,
+  // key -> the size (MB) it was last told at
+  _told: new Map(),
   _job: null,
 
   init() {
@@ -106,17 +116,17 @@ const KeptAwakeMemory = {
       const row = mem && mem.byId && mem.byId[t.wc];
       if (!row) continue;
       const mb = Math.round(row.memKB / 1024);
-      if (mb < this.LIMIT_MB) continue;
+      if (mb < this.LIMIT_MB) { this._told.delete(t.key); continue; }
       const g = groups.get(row.pid) || { pid: row.pid, mb, items: [] };
       g.items.push(t);
       groups.set(row.pid, g);
     }
     const shown = [];
     for (const g of groups.values()) {
-      if (g.items.some(t => this._told.has(t.key))) continue;
+      if (g.items.some(t => this._told.has(t.key) && g.mb < this._told.get(t.key) + this.GROWTH_MB)) continue;
       // Reloading would end the call or the sound; ask again next time.
       if (g.items.some(t => t.busy)) continue;
-      for (const t of g.items) this._told.add(t.key);
+      for (const t of g.items) this._told.set(t.key, g.mb);
       this.offer(g);
       shown.push(g);
     }
@@ -130,9 +140,39 @@ const KeptAwakeMemory = {
     // A panel awake only for calls already sleeps like any other: turning
     // keep-awake 'off' would change nothing, so there is no Let it sleep.
     if (!items.every(t => t.choice === 'call')) {
-      actions.push({ label: 'Let it sleep', title: 'Turn off keep-awake, so it sleeps when you are not using it', run: () => this.letSleep(items) });
+      if (this._nothingSleepsByItself()) {
+        actions.push({ label: 'Sleep it now', title: 'Turn off keep-awake and put it to sleep now — it wakes when you open it', run: () => this.sleepNow(items) });
+      } else {
+        actions.push({ label: 'Let it sleep', title: 'Turn off keep-awake, so it sleeps when you are not using it', run: () => this.letSleep(items) });
+      }
     }
     return window.showToast(this.message(group), 'warn', 20000, { actions });
+  },
+
+  // "Before Vex puts anything to sleep on its own: never" (the default).
+  // Unknown counts as never, as it does everywhere else.
+  _nothingSleepsByItself() {
+    return typeof SleepConsent === 'undefined' || SleepConsent.never();
+  },
+
+  // Keep-awake off, and asleep now. The tab in front cannot sleep (it is the
+  // page you are looking at): it is said, not skipped in silence.
+  async sleepNow(items) {
+    this.letSleep(items, { quiet: true });
+    const front = [];
+    for (const t of items) {
+      if (t.kind === 'panel') {
+        if (t.id === SidebarManager.activePanel || t.id === SidebarManager.sidePanel) { front.push(t.label); continue; }
+        SidebarManager.sleepPanel(t.id);
+        continue;
+      }
+      if (t.id === TabManager.activeTabId) { front.push(t.host); continue; }
+      await TabManager.sleepTab(t.id, true);
+    }
+    const who = items[0].kind === 'panel' ? items[0].label : items[0].host;
+    window.showToast(front.length
+      ? who + ' can sleep again — what is on screen stays awake until you leave it'
+      : who + ' is asleep');
   },
 
   _guest(t) {
@@ -152,7 +192,7 @@ const KeptAwakeMemory = {
     return items.length - gone.length;
   },
 
-  letSleep(items) {
+  letSleep(items, { quiet = false } = {}) {
     for (const t of items) {
       if (t.kind === 'panel') {
         if (!SidebarManager.setKeepAwakeMode(t.id, 'off')) throw new Error('The setting could not be saved');
@@ -169,6 +209,7 @@ const KeptAwakeMemory = {
       TabManager._refreshKeepAwakeIndicator(tab);
     }
     if (items.some(t => t.kind === 'tab')) TabManager.persistTabs();
+    if (quiet) return;
     const who = items[0].kind === 'panel' ? items[0].label : items[0].host;
     window.showToast(who + ' can sleep again');
   },
