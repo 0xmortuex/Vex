@@ -44,5 +44,9 @@ assets/cia-seal.png
 # to set it up. The bare name matches the file at any depth (incl. repo root).
 sidebar-config.json
 
+# The packaged window's script chunks: written by scripts/window-bundle.js
+# (electron-builder's beforePack) and mapped over src/ in the package.
+build/window-bundle/
+
 # Generated at publish time from the CHANGELOG entry for the version being released.
 build/release-notes.md

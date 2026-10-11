@@ -41,6 +41,13 @@ describe('lazy packs', () => {
     expect(Toolbox.PACK_SCRIPTS).toHaveLength(7);
   });
 
+  it('in the packaged window, where toolbox.js is inside a bundle chunk, still fetches the packs', () => {
+    document.head.innerHTML = '<script src="bundle/window-4.js" data-vex-window-bundle></script>';
+    expect(Toolbox._canLoadPacks()).toBe(true);
+    Toolbox.ensurePacks();
+    expect(document.querySelector(`script[src="${Toolbox.PACK_SCRIPTS[0]}"]`)).not.toBeNull();
+  });
+
   it('is ready once the last pack script is in the page — a few registered specs prove nothing', async () => {
     document.head.innerHTML = '<script src="js/toolbox.js"></script>';
     // Some specs are registered by scripts that still load at launch.

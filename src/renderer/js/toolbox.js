@@ -402,7 +402,8 @@ const Toolbox = {
   // registered by scripts that still load at launch, so a non-empty
   // ToolboxPacks.specs proves nothing.
   _packsReady() { return this._packsLoaded || !!document.querySelector(`script[src="${this.PACK_SCRIPTS[this.PACK_SCRIPTS.length - 1]}"]`); },
-  _canLoadPacks() { return !!document.querySelector('script[src="js/toolbox.js"]'); },
+  // The packaged window loads toolbox.js inside a bundle chunk (scripts/window-bundle.js).
+  _canLoadPacks() { return !!document.querySelector('script[src="js/toolbox.js"], script[data-vex-window-bundle]'); },
   ensurePacks() {
     if (this._packsReady() || !this._canLoadPacks()) return Promise.resolve(this._packsReady());
     if (this._packsLoading) return this._packsLoading;

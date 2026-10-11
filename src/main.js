@@ -6703,8 +6703,12 @@ app.whenReady().then(async () => {
           wvm: typeof WebviewManager!=='undefined',
           wv: document.querySelectorAll('webview').length,
           sb: typeof SidebarManager!=='undefined',
-          cb: typeof CommandBar!=='undefined'
+          cb: typeof CommandBar!=='undefined',
+          bundle: (function(){var m=document.querySelector('meta[name="vex-window-bundle"]');return m&&document.readyState!=='loading'?{ran:(typeof VexWindowBundle!=='undefined'?VexWindowBundle.length:0),of:+m.content}:null;})()
         };}catch(e){return {err:String(e)};}})()`, true);
+        // The packaged window's scripts come in chunks (scripts/window-bundle.js);
+        // a chunk that threw while loading took the files after it with it.
+        if (s && s.bundle && s.bundle.ran !== s.bundle.of) { finish(false, `window bundle: ${s.bundle.ran} of ${s.bundle.of} chunks finished loading`); return; }
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
           if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE) {
             if (securityVerifying) return;
@@ -6719,7 +6723,7 @@ app.whenReady().then(async () => {
             catch (error) { finish(false, error.message); }
             return;
           }
-          finish(true, `tabs=${s.tabs} webviews=${s.wv}`); return;
+          finish(true, `tabs=${s.tabs} webviews=${s.wv}${s.bundle ? ` window-bundle=${s.bundle.of} chunks` : ''}`); return;
         }
         if (Date.now() > deadline) { finish(false, 'timeout state=' + JSON.stringify(s)); return; }
       } catch (e) {

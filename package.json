@@ -66,6 +66,7 @@
     "npmRebuild": false,
     "buildDependenciesFromSource": false,
     "afterSign": "scripts/vmp-sign.js",
+    "beforePack": "scripts/window-bundle.js",
     "electronDownload": {
       "version": "42.11.0+wvcus",
       "mirror": "https://github.com/castlabs/electron-releases/releases/download/"
@@ -76,6 +77,14 @@
     },
     "files": [
       "src/**/*",
+      "!src/renderer/index.html",
+      {
+        "from": "build/window-bundle/src",
+        "to": "src",
+        "filter": [
+          "**/*"
+        ]
+      },
       "CHANGELOG.md",
       "LICENSE",
       "PRIVACY.md",
