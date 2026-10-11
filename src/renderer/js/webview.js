@@ -375,6 +375,18 @@ const WebviewManager = {
         } catch {}
         return;
       }
+      // A Discord or WhatsApp desktop notification from this tab was clicked
+      // (preload-webview.js): Vex to the front, on this tab, as a panel does
+      // (sidebar.js openFromNotification). With Discord set to open as a tab
+      // the click used to do nothing at all.
+      if (e.channel === 'vex-notification-click') {
+        const id = webview.dataset.tabId;
+        if (window.vex && typeof window.vex.focusWindow === 'function') {
+          Promise.resolve(window.vex.focusWindow()).catch(err => window.VexProblems?.note('Tabs', 'Vex could not come to the front for a notification', err));
+        }
+        if (id && typeof TabManager !== 'undefined' && TabManager.activeTabId !== id) TabManager.switchTab(id);
+        return;
+      }
       // Microphone / camera in use (preload-webview.js getUserMedia wrapper).
       if (e.channel === 'vex-media-capture') {
         const d = (e.args && e.args[0]) || {};
