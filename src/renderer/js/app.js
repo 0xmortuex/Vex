@@ -1247,9 +1247,6 @@ function vexOwnTextFocused(doc) {
   // Privacy hardening (fingerprint farbling / DoH / tracker report)
   if (typeof PrivacyPack !== 'undefined') PrivacyPack.init();
 
-  // Page-change monitor (polls watched pages on their own intervals)
-  if (typeof PageMonitor !== 'undefined') PageMonitor.init();
-
   // Persistent AI memory (facts injected into chat system context)
   if (typeof AIMemory !== 'undefined') AIMemory.init();
 

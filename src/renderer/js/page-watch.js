@@ -124,8 +124,19 @@ const PageWatch = {
       }
       return { changed: true, from: a, to: b, why: `went ${dir} from ${a} to ${b}` };
     }
-    const same = String(before).replace(/\s+/g, ' ').trim() === String(value).replace(/\s+/g, ' ').trim();
+    const same = this._steady(before) === this._steady(value);
     return same ? { changed: false, from: before, to: value, why: 'no change' } : { changed: true, from: before, to: value, why: 'changed' };
+  },
+
+  // The words of a page without what changes on every load by itself: "5
+  // minutes ago", a clock time. A page whose only change was its "updated 3
+  // minutes ago" line is not news.
+  _steady(text) {
+    return String(text == null ? '' : text)
+      .replace(/\b(?:\d+|an?|one)\s+(?:sec(?:ond)?s?|min(?:ute)?s?|hours?|hrs?|days?)\s+ago\b/gi, '')
+      .replace(/\bjust now\b/gi, '')
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?(?=\W|$)/gi, '')
+      .replace(/\s+/g, ' ').trim();
   },
 
   // Read the watched value out of a page, without disturbing the user's tabs:
@@ -207,8 +218,117 @@ const PageWatch = {
     return out;
   },
 
+  // "Watch This Page" in Ctrl+K: the whole page, any change, the default pace.
+  // The first look sets the baseline.
+  async watchPage(url, title) {
+    let watch;
+    try { watch = this.add({ url, title: title || url }); }
+    catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); return null; }
+    window.showToast?.('Watching — Vex will say when it changes');
+    const first = await this.checkOne(watch.id);
+    if (!first.ok) window.showToast?.('Watching, but the first look failed: ' + first.error, 'error');
+    return watch;
+  },
+
+  // A change you have looked at is no longer news in the list.
+  isUnseen(w) { return !!(w.lastChangedAt && w.lastChangedAt > (w.seenAt || 0)); },
+  markSeen(id) {
+    const list = this.list();
+    const w = list.find(x => x.id === id);
+    if (!w) return;
+    w.seenAt = Date.now();
+    this._save(list);
+  },
+
+  // Vex used to have two watchers: this one, and an older "Watch This Page"
+  // (PageMonitor, 'vex.watches') that kept its own list, fetched pages around
+  // Tor/proxy/container routing and compared the raw markup, so adverts and
+  // timestamps read as changes. Its watches move here once; the old key goes.
+  LEGACY_KEY: 'vex.watches',
+  migrateLegacy() {
+    const raw = localStorage.getItem(this.LEGACY_KEY);
+    if (raw == null) return 0;
+    let old;
+    try { old = JSON.parse(raw); }
+    catch (err) { VexProblems?.note('Page watch', 'The old watched pages could not be read, so they were left as they are', err); return 0; }
+    const list = this.list();
+    let moved = 0;
+    for (const w of Array.isArray(old) ? old : []) {
+      if (!w || !/^https?:/i.test(String(w.url || ''))) continue;
+      if (list.some(x => x.url === w.url && !(x.selector || ''))) continue;
+      list.push({
+        id: 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        url: String(w.url), title: String(w.title || w.url), selector: '',
+        kind: 'text', direction: 'any', target: null,
+        every: Math.max(5, Number(w.intervalMin) || 30) * 60000,
+        addedAt: Date.now(), lastCheckedAt: 0, lastValue: null,
+        lastChangedAt: w.changed ? (Number(w.changedAt) || Date.now()) : 0, failures: 0,
+      });
+      moved++;
+    }
+    if (!this._save(list)) throw new Error('The old watched pages could not be moved');
+    localStorage.removeItem(this.LEGACY_KEY);
+    return moved;
+  },
+
+  _everyLabel(ms) {
+    const known = this.EVERY.find(e => e.ms === ms);
+    if (known) return known.label;
+    const min = Math.round(ms / 60000);
+    return min < 120 ? 'every ' + min + ' minutes' : 'every ' + Math.round(min / 60) + ' hours';
+  },
+
+  // "Watched Pages": every watch, what it last saw, Open and Stop watching.
+  showManager() {
+    const esc = (s) => window.escapeHtml(s);
+    document.getElementById('vex-watches')?.remove();
+    const list = this.list();
+    const m = document.createElement('div');
+    m.id = 'vex-watches';
+    m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
+    const rows = list.length ? list.map(w => {
+      let host = w.url; try { host = new URL(w.url).hostname.replace(/^www\./, ''); } catch {}
+      const when = w.lastCheckedAt ? new Date(w.lastCheckedAt).toLocaleString() : 'not yet';
+      const fresh = this.isUnseen(w);
+      const what = w.selector ? ' · ' + w.selector : '';
+      return `<div data-id="${esc(w.id)}" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border)">
+        <span style="width:8px;height:8px;border-radius:50%;background:${fresh ? '#22c55e' : 'var(--text-muted)'};flex:none"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${fresh ? ' <span style="color:var(--success);font-size:11px">changed</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))} · checked ${esc(when)}${w.lastError ? ' · ' + esc(w.lastError) : ''}</div>
+        </div>
+        <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>
+        <button data-x title="Stop watching" aria-label="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
+      </div>`;
+    }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Ctrl+K → “Watch This Page”.</div>';
+    m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
+        <div style="padding:16px 18px 10px;display:flex;align-items:center;gap:10px"><strong style="font-size:16px;color:var(--text)">Watched pages</strong><span style="flex:1"></span><button id="wt-close" style="padding:7px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Done</button></div>
+        <div style="overflow-y:auto;padding:0 18px 16px">${rows}</div>
+      </div>`;
+    document.body.appendChild(m);
+    // Escape closes it the way Done does. Capture phase, so nothing underneath
+    // takes the same key; an Escape meant for a Vex dialog on top is left to it.
+    const onKey = (e) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      e.preventDefault(); e.stopPropagation(); close();
+    };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    m.querySelector('#wt-close').addEventListener('click', close);
+    m.querySelector('#wt-close').focus({ preventScroll: true });
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    m.querySelectorAll('[data-id]').forEach(row => {
+      const w = list.find(x => x.id === row.dataset.id);
+      row.querySelector('[data-open]').addEventListener('click', () => { this.markSeen(w.id); TabManager.createTab(w.url, true); close(); });
+      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); close(); this.showManager(); });
+    });
+  },
+
   start() {
     if (this._timer) return;
+    try { this.migrateLegacy(); }
+    catch (err) { window.showToast?.((err && err.message) || 'The old watched pages could not be moved', 'error'); }
     // The first look sets the baseline; nothing is announced from it.
     setTimeout(() => this.checkDue(), 20000);
     this._timer = VexJobs.every('Page watches', 60000, () => this.checkDue(), { when: 'background' });

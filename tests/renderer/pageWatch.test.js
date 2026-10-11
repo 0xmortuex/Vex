@@ -139,3 +139,49 @@ describe('in plain words', () => {
     expect(() => PageWatch.parseWhen('whenever')).toThrow(/Say what to watch for/);
   });
 });
+
+describe('one watcher, not two (RD6)', () => {
+  it('moves the old "Watch This Page" list into this one, once, and drops the old key', () => {
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w_have', url: 'https://have.example/', title: 'Have', selector: '', every: 900000 }]));
+    localStorage.setItem('vex.watches', JSON.stringify([
+      { id: 'w1', url: 'https://stock.example/item', title: 'Stock', intervalMin: 60, lastHash: 1, changed: true, changedAt: 1234 },
+      { id: 'w2', url: 'https://have.example/', title: 'Have (old)', intervalMin: 30 },
+      { id: 'w3', url: 'file:///c:/x', title: 'Not a site' },
+    ]));
+    expect(PageWatch.migrateLegacy()).toBe(1);
+    const list = PageWatch.list();
+    expect(list.map(w => w.url)).toEqual(['https://have.example/', 'https://stock.example/item']);
+    expect(list[1]).toMatchObject({ title: 'Stock', kind: 'text', every: 3600000, lastChangedAt: 1234, lastValue: null });
+    expect(localStorage.getItem('vex.watches')).toBeNull();
+    expect(PageWatch.migrateLegacy()).toBe(0);
+    expect(PageWatch.list()).toHaveLength(2);
+  });
+
+  it('"Watch This Page" in Ctrl+K adds a PageWatch watch and takes its first look through the routing check', async () => {
+    globalThis.TabManager = { mayAskSiteForIcon: () => false, getActiveTab: () => ({ url: 'https://tor-routed.example/', title: 'Routed' }), tabs: [], activeTabId: null };
+    const w = await PageWatch.watchPage('https://tor-routed.example/', 'Routed');
+    expect(PageWatch.list().map(x => x.id)).toEqual([w.id]);
+    expect(AgentTools.readUrl).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/first look failed: .*Tor, a proxy or a container/), 'error');
+    delete globalThis.TabManager;
+  });
+
+  it('a page whose only change is "updated 3 minutes ago" or a clock time is not news', () => {
+    const w = { kind: 'text', lastValue: 'Status: all good. Updated 2 minutes ago at 10:41 AM' };
+    expect(PageWatch.judge(w, 'Status: all good. Updated 7 minutes ago at 10:46 AM').changed).toBe(false);
+    expect(PageWatch.judge(w, 'Status: outage. Updated 7 minutes ago at 10:46 AM').changed).toBe(true);
+  });
+
+  it('the Watched Pages list shows a change until it is opened', () => {
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w1', url: 'https://a.example/', title: 'A', every: 900000, lastChangedAt: 5 }]));
+    window.escapeHtml = (s) => String(s);
+    globalThis.TabManager = { createTab: vi.fn() };
+    PageWatch.showManager();
+    expect(document.querySelector('#vex-watches [data-id="w1"]').textContent).toContain('changed');
+    document.querySelector('#vex-watches [data-open]').click();
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://a.example/', true);
+    expect(PageWatch.isUnseen(PageWatch.list()[0])).toBe(false);
+    expect(document.getElementById('vex-watches')).toBeNull();
+    delete globalThis.TabManager;
+  });
+});

@@ -133,10 +133,9 @@ describe('modal overlays close on Escape', () => {
   });
 
   it('watches list, also after a watch is removed and the list redrawn', async () => {
-    const { PageMonitor } = require('../../src/renderer/js/web-monitor.js');
-    PageMonitor.watches = [{ id: 'w1', url: 'https://example.com/', title: 'Ex', intervalMin: 30 }];
-    vi.spyOn(PageMonitor, 'remove').mockImplementation(function (id) { this.watches = this.watches.filter(w => w.id !== id); });
-    PageMonitor.showManager();
+    const { PageWatch } = require('../../src/renderer/js/page-watch.js');
+    localStorage.setItem('vex.pageWatches', JSON.stringify([{ id: 'w1', url: 'https://example.com/', title: 'Ex', every: 900000 }]));
+    PageWatch.showManager();
     document.querySelector('#vex-watches [data-x]').click();
     expect(live.size).toBe(1); // the old list's listener went with it
     escape();
