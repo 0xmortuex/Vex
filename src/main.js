@@ -6057,19 +6057,24 @@ function createWindow() {
   // makes the block idempotent so that can never happen.
   if (!ipcMain.__vexBypassWired) {
     ipcMain.__vexBypassWired = true;
+    // The window replays its saved choice at start (js/discord-bypass.js) and
+    // may do so before the built-in proxy is listening; putting 'light' on
+    // then would undo a saved Strong preset or Off. Light goes on by itself
+    // only when nothing else was asked for (or light was, before its port existed).
+    let _discordModeAsked = null;
     try {
       require('./main-dpi-bypass.js').startDpiBypassProxy().then((port) => {
         _dpiBypassPort = port || 0;
-        _applyDiscordBypass('light');
+        if (!_discordModeAsked || _discordModeAsked === 'light') _applyDiscordBypass('light');
       }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
     } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
-    ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => _applyDiscordBypass(mode, opts || {}));
+    ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => { _discordModeAsked = mode; return _applyDiscordBypass(mode, opts || {}); });
     ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
     ipcMain.handle('gui-style:set', async (_e, style) => {
       await dataStore.write('gui-style', style === 'glass' ? 'glass' : 'classic');
       return { ok: true };
     });
-    ipcMain.on('discord:set-bypass', (_e, on) => _applyDiscordBypass(on ? 'light' : 'off')); // back-compat
+    ipcMain.on('discord:set-bypass', (_e, on) => { _discordModeAsked = on ? 'light' : 'off'; _applyDiscordBypass(_discordModeAsked); }); // back-compat
     app.on('before-quit', () => { try { _byedpi.stop(); } catch {} });
   }
 

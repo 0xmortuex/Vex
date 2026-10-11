@@ -347,18 +347,16 @@ const SidebarManager = {
     this.applySidebarOrder();
     this.renderSidebarManager();
 
-    // Discord block-bypass: main defaults to 'light'; re-apply the user's saved
-    // On ('auto') / Off choice on startup.
-    try {
-      const m = localStorage.getItem('vex.discordBypassMode');
-      if (window.vex?.setDiscordBypassMode && (m === 'auto' || m === 'off')) {
-        // Re-run the sweep on startup; when it lands on a working mode, reload the
-        // Discord panel (if already open) so it picks up the proxy — no blank flash.
-        Promise.resolve(window.vex.setDiscordBypassMode(m, {})).then((r) => {
-          if (r && r.ok) { const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} } }
-        }).catch(() => {});
-      }
-    } catch {}
+    // Discord block-bypass: main starts on 'light'; replay the user's saved
+    // choice (js/discord-bypass.js) — a preset, custom flags or off. A sweep
+    // is never re-run at start: its result was saved when it ran. Once it is
+    // in effect, reload Discord (if already open) so it picks up the proxy.
+    if (window.DiscordBypass && window.vex?.setDiscordBypassMode && !window.VexTabPolicy?.isPrivateWindow) {
+      DiscordBypass.replay().then((r) => {
+        if (r && r.ok) this.reloadDiscordForBypass();
+        else if (r) window.showToast?.('Discord bypass (' + DiscordBypass.label() + ') did not start: ' + (r.error || 'unknown') + ' — Settings › Privacy changes it', 'error', 9000);
+      }).catch((err) => window.VexProblems?.note('Discord bypass', 'The saved bypass could not be put back', err));
+    }
     // Live progress for the auto-configure sweep → update the progress card.
     try { window.vex?.onDiscordBypassProgress?.((p) => { if (p && p.phase === 'testing') this._updateDiscordProgress(`Testing ${p.label}… (${p.i}/${p.total})`); }); } catch {}
     // Re-apply the saved Roblox bypass (shares Discord's ByeDPI) on startup.
@@ -545,6 +543,9 @@ const SidebarManager = {
     }
     if (panelName === 'settings' && typeof PrivacyPack !== 'undefined') {
       PrivacyPack.renderSettings(document.getElementById('privacy-panel-content'));
+    }
+    if (panelName === 'settings' && window.DiscordBypass) {
+      DiscordBypass.renderSetting(document.getElementById('discord-bypass-setting'));
     }
     if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
       AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
@@ -2001,16 +2002,35 @@ const SidebarManager = {
 
   // Auto-configure: run the main-side sweep (built-in + every ByeDPI desync mode,
   // each rigorously tested) with a live progress card, keeping the first that works.
+  // The result is saved (js/discord-bypass.js): the preset that got through,
+  // or light when nothing did — so the next launch replays it rather than
+  // sweeping again.
   async _enableBypassAuto() {
     try { this.showPanel('discord'); } catch {}   // ensure the panel (and its progress card) is visible
     const wv = this.panelWebviews['discord'];
-    try { localStorage.setItem('vex.discordBypassMode', 'auto'); } catch {}
     this._showDiscordProgress('Setting up bypass…', 'Trying connection methods…');
     try {
-      const r = await window.vex?.setDiscordBypassMode?.('auto', {});
+      const { result: r } = await DiscordBypass.sweep();
       if (r && r.ok) { this._hideDiscordBlockedPrompt(); if (wv) { try { wv.reload(); } catch {} } else this.showPanel('discord'); }
       else this._showDiscordFailCard();
-    } catch { this._showDiscordFailCard(); }
+    } catch (err) {
+      window.VexProblems?.note('Discord bypass', 'Auto-configure failed', err);
+      this._showDiscordFailCard();
+    }
+  },
+
+  // Turn the bypass off (for Zapret or a VPN), saved.
+  async _bypassOff() {
+    DiscordBypass.save({ mode: 'off' });
+    const r = await DiscordBypass.apply({ mode: 'off' });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The bypass could not be turned off');
+  },
+
+  // Discord picks up a changed proxy only on a fresh load — the panel, or the
+  // tab when Discord opens as a tab.
+  reloadDiscordForBypass() {
+    const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
+    if (wv && typeof wv.reload === 'function') wv.reload();
   },
 
   _showDiscordProgress(title, sub) {
@@ -2053,7 +2073,11 @@ const SidebarManager = {
     ov.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
       const a = b.dataset.act;
       if (a === 'retry') this._enableBypassAuto();
-      else if (a === 'off') { try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {} try { window.vex?.setDiscordBypassMode?.('off', {}); } catch {} this._hideDiscordBlockedPrompt(); window.showToast?.('Bypass off — start Zapret, then reload Discord'); }
+      else if (a === 'off') {
+        this._hideDiscordBlockedPrompt();
+        this._bypassOff().then(() => window.showToast?.('Bypass off — start Zapret, then reload Discord'),
+          (err) => window.showToast?.(err.message, 'error'));
+      }
       else { this._discordPromptDismissed = true; this._hideDiscordBlockedPrompt(); }
     }));
   },
@@ -2238,19 +2262,20 @@ const SidebarManager = {
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret).
-        const bypassOn = ((localStorage.getItem('vex.discordBypassMode') || 'light') !== 'off');
+        const bypassOn = DiscordBypass.choice().mode !== 'off';
         items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
         if (bypassOn) {
           items.push({
             label: 'Turn bypass off (use Zapret)',
             action: async () => {
-              try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {}
-              try { await window.vex?.setDiscordBypassMode?.('off', {}); } catch {}
-              const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} }
+              try { await this._bypassOff(); }
+              catch (err) { window.showToast?.(err.message, 'error'); return; }
+              this.reloadDiscordForBypass();
               window.showToast?.('Bypass off');
             }
           });
         }
+        items.push({ label: 'Bypass settings…', action: () => SettingsUI.openSection('discord-bypass-setting') });
       } else if (panelName === 'roblox') {
         // Roblox is blocked by the same ISP/DPI as Discord — share the bypass.
         const robloxOn = (localStorage.getItem('vex.robloxBypass') === 'on');

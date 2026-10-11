@@ -165,7 +165,7 @@ const VexFeatures = {
       what: 'One route for every tab and every container at once, put back after a restart — and a check that asks what address the internet sees with it and without it.' },
     { id: 'site-routes', phrases: 'always open this site through tor per site vpn rule route one site only hide my ip for one site just this site anonymous for one site always open this site in a container second account work personal', cat: 'privacy', cmd: 'site-routes', name: 'Sites that always go through a route',
       what: 'Name a site and it opens in a routed session of its own every time — without routing the rest of your browsing.' },
-    { id: 'dpi', cat: 'privacy', name: 'Censorship bypass', setting: { section: 'privacy-panel-content' },
+    { id: 'dpi', cat: 'privacy', name: 'Censorship bypass', setting: { section: 'discord-bypass-setting' },
       what: 'A local proxy that defeats DNS and SNI blocking without a VPN or admin rights, plus a stronger desync mode for stubborn blocks.' },
     { id: 'otr', cat: 'privacy', cmd: 'otr',
       what: 'A tab that keeps no history and throws its cookies away the moment you close it.' },
