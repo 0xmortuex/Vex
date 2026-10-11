@@ -125,6 +125,10 @@ const VexI18nUI = {
       // Settings > Downloads (js/downloads-panel.js); 'Location' is above.
       'Change': 'Değiştir',
       'Ask where to save each file before downloading': 'İndirmeden önce her dosyanın nereye kaydedileceğini sor',
+      // Settings > General > Workspaces (js/workspaces.js).
+      'Manage Workspaces': 'Çalışma alanlarını yönet',
+      'Private and Tor tabs when you switch workspace': 'Çalışma alanı değiştirirken gizli ve Tor sekmeleri',
+      'Ask each time': 'Her seferinde sor', 'Always close them': 'Her zaman kapat',
       // Settings > Appearance (js/appearance-prefs.js).
       'Website appearance': 'Web sitesi görünümü', 'Follow Vex': 'Vex’i izle',
       'Follow Windows': 'Windows’u izle', 'Light': 'Açık', 'Dark': 'Koyu',

@@ -177,6 +177,8 @@ describe('a workspace switch keeps each tab as it was', () => {
   });
 
   it('private and Tor tabs stay open', async () => {
+    // "Keep them open" (tests/renderer/workspacePrivateTabs.test.js has the rest).
+    window.vexConfirm = vi.fn(async () => false);
     TM.tabs = [tab(uid(1)), tab('tor', { partition: 'tor-1' })];
     TM.activeTabId = uid(1);
     WebviewManager.createWebview(TM.tabs[1]);

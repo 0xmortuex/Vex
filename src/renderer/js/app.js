@@ -542,6 +542,17 @@ function vexOwnTextFocused(doc) {
   // Settings buttons
   document.getElementById('setting-open-sessions')?.addEventListener('click', () => SessionManager.showOverlay());
   document.getElementById('setting-open-workspaces')?.addEventListener('click', () => WorkspaceManager.showModal());
+  // What a workspace switch does with private and Tor tabs (js/workspaces.js).
+  const wsPrivateSelect = document.getElementById('setting-ws-private-tabs');
+  if (wsPrivateSelect) {
+    wsPrivateSelect.value = WorkspaceManager.ephemeralChoice();
+    wsPrivateSelect.addEventListener('change', () => {
+      try { WorkspaceManager.setEphemeralChoice(wsPrivateSelect.value); }
+      catch (err) { showToast(err.message, 'error'); wsPrivateSelect.value = WorkspaceManager.ephemeralChoice(); }
+    });
+    // "Always close them" picked in the question while Settings is open.
+    document.addEventListener('vex:ws-private-choice', () => { wsPrivateSelect.value = WorkspaceManager.ephemeralChoice(); });
+  }
   DownloadsPanel.bindSettings();
   document.getElementById('setting-github-link')?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -681,6 +692,8 @@ function vexOwnTextFocused(doc) {
     'vex.readingDigest.newTab',
     // Settings › General › Simple mode (js/simple-mode.js); a reset is Full.
     'vex.uiMode',
+    // Settings › General › Workspaces: private and Tor tabs on a switch.
+    'vex.workspacePrivateTabs',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {

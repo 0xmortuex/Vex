@@ -82,6 +82,10 @@ const WorkspaceManager = {
     this._switching = true;
 
     try {
+      // 0. Private and Tor tabs belong to no workspace: ask whether they go
+      //    (or do what "Always close them" chose).
+      const closeEphemeral = await this._closeEphemeralOnSwitch();
+
       // 1. Show loading overlay
       this._showLoading();
       this.hideDropdown();
@@ -98,8 +102,12 @@ const WorkspaceManager = {
 
       // 4. Bulk-close all tabs (no per-tab persist, no auto-create). A
       //    private or Tor tab is never saved in a workspace, so closing it
-      //    lost it for good (found 2026-10-10): it stays open instead.
-      TabManager.closeAllTabs({ keep: (t) => !!t.partition && !String(t.partition).startsWith('persist:') });
+      //    lost it for good (found 2026-10-10): it stays open unless the
+      //    user chose to close it (step 0). Then each is closed as closing
+      //    it by hand does, so its session (cookies, cache, Tor circuit)
+      //    ends with it.
+      if (closeEphemeral) this._closeEphemeralTabs();
+      TabManager.closeAllTabs({ keep: (t) => this._isEphemeral(t) });
       await new Promise(r => setTimeout(r, 0));
 
       // 5. Update theme immediately
@@ -164,6 +172,57 @@ const WorkspaceManager = {
     } finally {
       this._switching = false;
     }
+  },
+
+  // Settings › General › Workspaces: what a switch does with private and Tor
+  // tabs. 'ask' (the default) or 'close' ("Always close them").
+  EPHEMERAL_KEY: 'vex.workspacePrivateTabs',
+
+  _isEphemeral(tab) { return !!tab.partition && !String(tab.partition).startsWith('persist:'); },
+
+  ephemeralChoice() {
+    return localStorage.getItem(this.EPHEMERAL_KEY) === 'close' ? 'close' : 'ask';
+  },
+
+  setEphemeralChoice(value) {
+    if (value !== 'ask' && value !== 'close') throw new Error('Unknown choice for private and Tor tabs: ' + value);
+    if (value === 'ask') localStorage.removeItem(this.EPHEMERAL_KEY);
+    else localStorage.setItem(this.EPHEMERAL_KEY, value);
+    document.dispatchEvent(new CustomEvent('vex:ws-private-choice'));
+  },
+
+  // True when the private and Tor tabs open now are to be closed by this
+  // switch. Escape or a click outside the question keeps them (nothing lost).
+  async _closeEphemeralOnSwitch() {
+    const open = TabManager.tabs.filter(t => this._isEphemeral(t));
+    if (!open.length) return false;
+    if (this.ephemeralChoice() === 'close') return true;
+    const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    let always = false;
+    const close = await window.vexConfirm({
+      title: t('wsPrivate.title', 'Private and Tor tabs are open'),
+      message: open.length === 1
+        ? t('wsPrivate.one', 'One private or Tor tab is open. It belongs to no workspace, so it can stay open in the next one or be closed now. A closed private or Tor tab cannot be brought back.')
+        : t('wsPrivate.many', '{n} private or Tor tabs are open. They belong to no workspace, so they can stay open in the next one or be closed now. A closed private or Tor tab cannot be brought back.').replace('{n}', open.length),
+      okLabel: t('wsPrivate.close', 'Close them this time'),
+      cancelLabel: t('wsPrivate.keep', 'Keep them open'),
+      danger: true,
+      extra: { label: t('wsPrivate.always', 'Always close them'), run: () => { always = true; } },
+    });
+    if (always) {
+      this.setEphemeralChoice('close');
+      window.showToast?.(t('wsPrivate.saved', 'Private and Tor tabs will close when you switch workspace. Settings › General › Workspaces changes it back.'));
+      return true;
+    }
+    return close;
+  },
+
+  // Each private and Tor tab closed as the close button does it.
+  _closeEphemeralTabs() {
+    const ids = TabManager.tabs.filter(t => this._isEphemeral(t)).map(t => t.id);
+    TabManager._bulkClosing = true;
+    try { for (const id of ids) TabManager.closeTab(id); }
+    finally { TabManager._bulkClosing = false; }
   },
 
   _showLoading() {

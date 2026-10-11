@@ -32,6 +32,12 @@
     privacy: 'Gizlilik seçimleri',
     'privacy.sub': 'İnternetteki bir hizmete soran üç özellik. Her biri sizin seçiminizdir ve her biri daha sonra Ayarlar’da bir anahtardır.',
     'notifications.sub': 'Hatırlatıcılar, alarmlar, sayfa değişikliği uyarıları ve izin verdiğiniz siteler Windows bildirimi olarak gelir. Size ulaştığından emin olmak için şimdi bir tane gönderin; görünmezse düzeltme Windows’tadır ve bu sayfa nerede olduğunu söyler.' });
+  // Switching workspace with private or Tor tabs open (js/workspaces.js).
+  Object.assign(strings.tr, { 'wsPrivate.title': 'Gizli ve Tor sekmeleri açık',
+    'wsPrivate.one': 'Bir gizli veya Tor sekmesi açık. Hiçbir çalışma alanına ait değil; bir sonrakinde açık kalabilir ya da şimdi kapatılabilir. Kapatılan bir gizli veya Tor sekmesi geri getirilemez.',
+    'wsPrivate.many': '{n} gizli veya Tor sekmesi açık. Hiçbir çalışma alanına ait değiller; bir sonrakinde açık kalabilir ya da şimdi kapatılabilirler. Kapatılan bir gizli veya Tor sekmesi geri getirilemez.',
+    'wsPrivate.close': 'Bu sefer kapat', 'wsPrivate.keep': 'Açık kalsın', 'wsPrivate.always': 'Her zaman kapat',
+    'wsPrivate.saved': 'Çalışma alanı değiştirdiğinizde gizli ve Tor sekmeleri kapanacak. Ayarlar › Genel › Çalışma alanları bunu geri değiştirir.' });
   function locale() { let value; try { value = localStorage.getItem('vex.lang') || 'en'; try { value = JSON.parse(value); } catch {} } catch {} return value === 'tr' ? 'tr' : 'en'; }
   function t(key, fallback) { return strings[locale()][key] || strings.en[key] || fallback || key; }
   window.VexI18n = { t, locale, strings };
