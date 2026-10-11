@@ -22,6 +22,25 @@ describe('backup secret filter', () => {
     expect(secrets.filter(k => !VexBackup._blocked(k))).toEqual([]);
   });
 
+  it('says what a restore does: it writes the file over Vex and leaves the rest (it said "replaces")', async () => {
+    localStorage.clear();
+    localStorage.setItem('vex.notInFile', 'kept');
+    localStorage.setItem('vex.theme', 'old');
+    globalThis.VexIcons = { svg: () => '' };
+    let asked = null;
+    globalThis.vexConfirm = async (o) => { asked = o.message; return true; };
+    const m = VexBackup.open();
+    expect(m.textContent).not.toMatch(/replaces/);
+    expect(m.textContent).toMatch(/left as it is/);
+    await VexBackup._restore({ v: 1, at: new Date().toISOString(), items: { 'vex.theme': 'new' } }, m, () => {});
+    expect(asked).not.toMatch(/replaces/);
+    expect(asked).toMatch(/left as it is/);
+    expect(localStorage.getItem('vex.theme')).toBe('new');
+    expect(localStorage.getItem('vex.notInFile')).toBe('kept');
+    m.remove();
+    delete globalThis.vexConfirm;
+  });
+
   it('a backup keeps the bypass mode and drops the token', () => {
     localStorage.clear();
     localStorage.setItem('vex.discordBypassMode', 'strong');

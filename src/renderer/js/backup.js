@@ -293,7 +293,7 @@ const VexBackup = {
       + '<div id="bk-update-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
-      + 'Restoring replaces what is in Vex now; it can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
+      + 'Restoring writes everything in the file over what Vex has now; what the file does not have is left as it is. It can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
       + '</div>';
     document.body.appendChild(m);
 
@@ -395,7 +395,7 @@ const VexBackup = {
       title: 'Restore this backup?',
       message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
         + (seen.chats ? '\n\nIt includes AI conversations.' : '')
-        + '\n\nThis replaces what is in Vex now. You can undo it until you close Vex.',
+        + '\n\nEverything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.',
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;
     if (!ok) return;
