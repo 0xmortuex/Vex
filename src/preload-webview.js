@@ -147,15 +147,15 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   }
 
   if (!c.permissions) {
-    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
-    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    var grantedPerms = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = grantedPerms.filter(function (p) { return /[:/*<]/.test(p); });
     // Permissions that never come with a chrome.<name> namespace of their own.
     var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
     // Asked when called, not now: the stand-ins below (contextMenus,
     // commands, cookies, webNavigation, …) are not made yet, and a
     // permission they provide was answered false (found 2026-10-10, EX12).
     var apis = function () {
-      return granted.filter(function (p) {
+      return grantedPerms.filter(function (p) {
         return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
       });
     };
@@ -397,11 +397,21 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
     };
   }
+  // Cookies come from main, from this extension's session, for the sites it
+  // has host permission for (src/main/extension-cookies.js); every get used
+  // to answer null and every getAll [] (found 2026-10-10). Changes are not
+  // announced here.
   if (perms.indexOf('cookies') !== -1 && !c.cookies) {
-    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    var cookieCall = function (op) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        if (!api) return settle(Promise.reject(new Error('chrome.cookies is not available here')), cb, op);
+        return settle(api(op, { details: details || {} }), cb, op);
+      };
+    };
     c.cookies = {
-      get: done(null), getAll: done([]), getAllCookieStores: done([]),
-      set: noCookies, remove: noCookies,
+      get: cookieCall('cookies.get'), getAll: cookieCall('cookies.getAll'), getAllCookieStores: cookieCall('cookies.getAllCookieStores'),
+      set: cookieCall('cookies.set'), remove: cookieCall('cookies.remove'),
       onChanged: noEvent(),
     };
   }

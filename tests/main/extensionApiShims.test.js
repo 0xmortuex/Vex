@@ -377,7 +377,9 @@ describe('what Dark Reader needs to fill its popup', () => {
   // ones they provide were said to be missing. EX4: file:// origins likewise.
   it('permissions include the namespaces the stand-ins provide, and file:// only when allowed', async () => {
     const manifest = { permissions: ['contextMenus', 'cookies', 'webNavigation', 'storage'], host_permissions: ['<all_urls>'], commands: {} };
-    const c = page(extension().chrome({ manifest }), { ipcRenderer: fakeMain().ipcRenderer });
+    // With chrome.tabs, as in a real extension: its popup-tab stand-in once reused the same name (granted).
+    const tabs = { query: async () => [], get: async () => null };
+    const c = page(extension().chrome({ manifest, extra: { tabs } }), { ipcRenderer: fakeMain().ipcRenderer });
     expect(await c.permissions.contains({ permissions: ['contextMenus', 'cookies', 'webNavigation'] })).toBe(true);
     expect((await c.permissions.getAll()).permissions).toEqual(expect.arrayContaining(['contextMenus', 'cookies', 'webNavigation']));
     expect(await c.permissions.contains({ origins: ['file:///*'] })).toBe(false);

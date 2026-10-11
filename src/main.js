@@ -4319,6 +4319,8 @@ function _restoreExtensionMenus() {
   catch (err) { console.error('[Extensions] the saved menu items could not be read, so extensions start without them:', err.message); }
 }
 
+// chrome.cookies (src/main/extension-cookies.js): Electron has none.
+const _extCookies = require('./main/extension-cookies');
 // chrome.alarms (src/main/extension-alarms.js): Electron's never fired.
 // Keyed '<partition>|<extension id>'.
 const EXT_ALARMS_FILE = path.join(userDataPath, 'extension-alarms.json');
@@ -4467,6 +4469,8 @@ async function _extApi(senderUrl, ses, request) {
       return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
     }
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
+    case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
+      return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
     case 'alarms.create': needPerm('alarms'); _extAlarms.create(`${partition}|${extId}`, args.name, args.info); return undefined;
     case 'alarms.get': needPerm('alarms'); return _extAlarms.get(`${partition}|${extId}`, args.name);
     case 'alarms.getAll': needPerm('alarms'); return _extAlarms.getAll(`${partition}|${extId}`);
