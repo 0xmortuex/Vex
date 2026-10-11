@@ -4459,7 +4459,9 @@ function _extRequestCompleted(ses, details) {
 // panel's own events: normal and container tabs only.
 const _extDownloads = require('./main/extension-downloads').createExtensionDownloads();
 function _extDownloadEvent(channel, data) {
-  const told = _extDownloads.note(channel, data);
+  // Every address it went through, so a redirected one is matched too.
+  const live = channel === 'download-started' && data ? _downloadService._liveDownloads.get(data.id) : null;
+  const told = _extDownloads.note(channel, data, live ? live.getURLChain() : []);
   if (!told) return;
   const src = _downloadService._sources.get(told.vexId);
   const ses = src ? src.session : null;

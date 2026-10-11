@@ -94,6 +94,17 @@ describe('chrome.downloads', () => {
     expect(await id).toBe(1);
     await expect(d.waitFor('https://never.example/', 10)).rejects.toThrow(/did not start/);
   });
+  it('download() answers for an address that redirects, and url/finalUrl say both ends (found 2026-10-11)', async () => {
+    const d = createExtensionDownloads();
+    const id = d.waitFor('https://a.example/get?file=1', 1000);
+    // The panel hears the address the file came from in the end; the item
+    // knows every address it went through.
+    const made = d.note('download-started', { id: 'dl_r', url: 'https://cdn.example/f.zip', path: 'f.zip' },
+      ['https://a.example/get?file=1', 'https://cdn.example/f.zip']);
+    expect(await id).toBe(1);
+    expect(made.args[0]).toMatchObject({ url: 'https://a.example/get?file=1', finalUrl: 'https://cdn.example/f.zip' });
+    expect(MAIN).toMatch(/_extDownloads\.note\(channel, data, /);
+  });
   it('the stand-in offers what main does and refuses the rest', async () => {
     const w = worker({ permissions: ['downloads'] }, (r) => (r.op === 'downloads.search' ? [] : 7));
     expect(await w.c.downloads.download({ url: 'https://a.example/x' })).toBe(7);

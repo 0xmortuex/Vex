@@ -19,18 +19,24 @@ function createExtensionDownloads({ now = Date.now } = {}) {
   const copy = (item) => { const out = { ...item }; delete out._vex; return out; };
 
   // A download-panel event; answers what extensions are to be told, or null.
-  function note(channel, data) {
+  // urlChain: every address the download went through (DownloadItem
+  // getURLChain), first to last. The panel names only the last, so a download
+  // an extension asked for at an address that redirects (most "download"
+  // links) was never matched: download() failed after 15 s while the file
+  // was saved (found 2026-10-11).
+  function note(channel, data, urlChain = []) {
     if (!data || typeof data.id !== 'string') return null;
     if (channel === 'download-started') {
+      const chain = (Array.isArray(urlChain) ? urlChain : []).filter(u => typeof u === 'string' && u);
       const item = {
-        id: ++seq, _vex: data.id, url: data.url || '', finalUrl: data.url || '', referrer: '', filename: data.path || '',
+        id: ++seq, _vex: data.id, url: chain[0] || data.url || '', finalUrl: data.url || chain[chain.length - 1] || '', referrer: '', filename: data.path || '',
         incognito: false, danger: 'safe', mime: '', startTime: new Date(now()).toISOString(), state: 'in_progress',
         paused: false, canResume: false, bytesReceived: 0, totalBytes: data.totalBytes > 0 ? data.totalBytes : -1,
         fileSize: data.totalBytes > 0 ? data.totalBytes : -1, exists: true,
       };
       byVex.set(data.id, item); byId.set(item.id, data.id);
       while (byVex.size > MAX_ITEMS) { const [v, it] = byVex.entries().next().value; byVex.delete(v); byId.delete(it.id); }
-      const w = waiting.findIndex(x => x.url === item.url);
+      const w = waiting.findIndex(x => x.url === item.url || x.url === item.finalUrl || chain.includes(x.url));
       if (w !== -1) { const [x] = waiting.splice(w, 1); clearTimeout(x.timer); x.resolve(item.id); }
       return { event: 'downloads.onCreated', args: [copy(item)], vexId: data.id };
     }
