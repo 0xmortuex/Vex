@@ -20,7 +20,8 @@ describe('Settings switches under forced colours', () => {
   });
 
   it('on is a Highlight track with a HighlightText knob, so it differs from off', () => {
-    expect(block).toMatch(/\.toggle input:checked \+ \.toggle-slider \{ background: Highlight;/);
+    // !important: Settings' own on-track is a gradient that would win otherwise.
+    expect(block).toMatch(/\.toggle input:checked \+ \.toggle-slider \{ background: Highlight !important;[^}]*box-shadow: none !important; \}/);
     expect(block).toMatch(/\.toggle input:checked \+ \.toggle-slider::before \{ background: HighlightText; \}/);
   });
 });

@@ -695,7 +695,8 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
 @media (forced-colors: active) {
   .toggle-slider { forced-color-adjust: none; background: Canvas; border: 1px solid ButtonText; }
   .toggle-slider::before { background: ButtonText; }
-  .toggle input:checked + .toggle-slider { background: Highlight; border-color: Highlight; }
+  /* !important: Settings paints its on-track as a gradient (settings-redesign.css). */
+  .toggle input:checked + .toggle-slider { background: Highlight !important; border-color: Highlight; box-shadow: none !important; }
   .toggle input:checked + .toggle-slider::before { background: HighlightText; }
   .toggle input:focus-visible + .toggle-slider { outline: 2px solid Highlight; outline-offset: 2px; }
 }
