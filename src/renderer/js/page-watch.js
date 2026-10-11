@@ -29,8 +29,16 @@ const PageWatch = {
   // bar rotated its advert".
   //   kind 'text'   — the words changed at all
   //   kind 'number' — the first number in it went up, down, or past a figure
-  add({ url, title, selector, kind = 'text', every = 15 * 60000, direction = 'any', target = null }) {
+  //
+  // A page on this computer or your home network (a router, a NAS, a dev
+  // server: VexPrivateAddress) is watched only when you add the watch
+  // yourself (byUser): the AI agent is steered by text it reads, and must not
+  // be talked into polling the router. Such a watch is checked straight from
+  // this computer (_getLocal), not through the public-only fetch.
+  add({ url, title, selector, kind = 'text', every = 15 * 60000, direction = 'any', target = null, byUser = false }) {
     if (!/^https?:/i.test(String(url || ''))) throw new Error('Only a web page can be watched');
+    const local = this.isLocal(url);
+    if (local && !byUser) throw new Error(this.LOCAL_REFUSED);
     const list = this.list();
     if (list.some(w => w.url === url && (w.selector || '') === (selector || ''))) throw new Error('That is already being watched');
     const watch = {
@@ -41,6 +49,7 @@ const PageWatch = {
       target: target == null ? null : Number(target),
       every: Number(every) || 15 * 60000,
       addedAt: Date.now(), lastCheckedAt: 0, lastValue: null, lastChangedAt: 0, failures: 0,
+      ...(local ? { local: true, byUser: true } : {}),
     };
     list.push(watch);
     if (!this._save(list)) throw new Error('The watch could not be saved');
@@ -48,6 +57,24 @@ const PageWatch = {
   },
 
   remove(id) { this._save(this.list().filter(w => w.id !== id)); },
+
+  LOCAL_REFUSED: 'Pages on this computer or your home network are watched only when you add the watch yourself',
+
+  // Is this address this computer or the home network (router, NAS,
+  // localhost, 192.168.x, .local)?
+  isLocal(url) {
+    let host;
+    try { host = new URL(String(url)).hostname; } catch { return false; }
+    const pa = typeof VexPrivateAddress !== 'undefined' ? VexPrivateAddress
+      : (typeof require === 'function' ? require('./private-address.js') : null);
+    if (!pa) throw new Error('private-address.js is not loaded');
+    return pa.isPrivateHost(host);
+  },
+
+  // The one line a home-network watch shows: what Vex will do, and from where.
+  localNote(watch) {
+    return 'Vex will check this device on your network ' + this._everyLabel(watch.every) + ' from this computer';
+  },
 
   // "when it drops under $300", "goes above 50", "goes down", "changes" →
   // what add() needs. Throws, naming what it could not read, rather than
@@ -71,15 +98,16 @@ const PageWatch = {
   },
 
   // What the agent and Ctrl+K call: watch the page open now for `when`.
-  watchCurrent(when, { url, title } = {}) {
+  // Ctrl+K passes byUser (the person typed it); the agent does not.
+  watchCurrent(when, { url, title, byUser = false } = {}) {
     const rule = this.parseWhen(when);
     let u = url, t = title;
     if (!u && typeof TabManager !== 'undefined') {
       const tab = TabManager.tabs.find(x => x.id === TabManager.activeTabId);
       if (tab) { u = tab.url; t = t || tab.title; }
     }
-    const watch = this.add({ url: u, title: t, ...rule });
-    return { watch, said: (t || u) + ' — ' + this.describeRule(rule) };
+    const watch = this.add({ url: u, title: t, ...rule, byUser });
+    return { watch, said: (t || u) + ' — ' + this.describeRule(rule) + (watch.local ? '. ' + this.localNote(watch) : '') };
   },
   describeRule(r) {
     if (r.kind === 'text') return 'tells you when the page changes';
@@ -147,18 +175,38 @@ const PageWatch = {
     // you route through Tor, a proxy or a container would see your real
     // address (found 2026-09-30).
     if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(watch.url)) throw new Error('This site goes through Tor, a proxy or a container, and a watch would check it from your real connection — so it is not checked');
-    const page = await AgentTools.readUrl(watch.url);
-    let text = String(page.text || '');
+    let text, raw = null;
+    if (this.isLocal(watch.url)) {
+      // Only a watch the user added on a home-network address (add) is read
+      // from here; anything else, a hand-edited list included, is refused.
+      if (!(watch.local === true && watch.byUser === true)) throw new Error(this.LOCAL_REFUSED);
+      raw = await this._getLocal(watch.url);
+      const body = String(raw.body || '');
+      const type = String((raw.headers && (raw.headers['content-type'] || raw.headers['Content-Type'])) || '').toLowerCase();
+      text = /html|xml/.test(type) || /^\s*</.test(body) ? AgentTools.htmlToText(body).text : body;
+    } else {
+      text = String((await AgentTools.readUrl(watch.url)).text || '');
+    }
     if (watch.selector) {
       // A selector needs the real document, so this path uses the page's
       // markup rather than the readable text.
-      const raw = await AgentTools._get(watch.url);
+      raw = raw || await AgentTools._get(watch.url);
       const doc = new DOMParser().parseFromString(String(raw.body || ''), 'text/html');
       const el = doc.querySelector(watch.selector);
       if (!el) throw new Error('Nothing on that page matches "' + watch.selector + '" any more');
       text = (el.textContent || '').replace(/\s+/g, ' ').trim();
     }
     return watch.kind === 'number' ? this.firstNumber(text) : text.slice(0, 4000);
+  },
+
+  // A home-network page, fetched by main from this computer (api:request
+  // without publicOnly, which refuses private addresses on every hop).
+  async _getLocal(url) {
+    if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
+    const r = await window.vex.apiRequest({ url, headers: { 'User-Agent': AgentTools.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
+    if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
+    return r;
   },
 
   async checkOne(id, now = Date.now()) {
@@ -222,9 +270,9 @@ const PageWatch = {
   // The first look sets the baseline.
   async watchPage(url, title) {
     let watch;
-    try { watch = this.add({ url, title: title || url }); }
+    try { watch = this.add({ url, title: title || url, byUser: true }); }
     catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); return null; }
-    window.showToast?.('Watching — Vex will say when it changes');
+    window.showToast?.('Watching — Vex will say when it changes' + (watch.local ? '. ' + this.localNote(watch) : ''));
     const first = await this.checkOne(watch.id);
     if (!first.ok) window.showToast?.('Watching, but the first look failed: ' + first.error, 'error');
     return watch;
@@ -296,6 +344,7 @@ const PageWatch = {
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${fresh ? ' <span style="color:var(--success);font-size:11px">changed</span>' : ''}</div>
           <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))} · checked ${esc(when)}${w.lastError ? ' · ' + esc(w.lastError) : ''}</div>
+          ${w.local ? `<div class="pw-local-note" style="font-size:11px;color:var(--text-muted)">${esc(this.localNote(w))}</div>` : ''}
         </div>
         <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>
         <button data-x title="Stop watching" aria-label="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>

@@ -402,8 +402,8 @@ const CommandBar = {
       if (!choice) { window.showToast?.(`Choose a number from 1 to ${PageWatch.EVERY.length}`, 'error'); return; }
       const every = choice.ms;
       try {
-        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target });
-        window.showToast?.('Watching — Vex will say when it changes');
+        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target, byUser: true });
+        window.showToast?.('Watching — Vex will say when it changes' + (w.local ? '. ' + PageWatch.localNote(w) : ''));
         PageWatch.checkOne(w.id);                 // the first look sets the baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },

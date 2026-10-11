@@ -173,7 +173,7 @@ const VexQuickCommands = {
       label: 'Watch this page: ' + PageWatch.describeRule(rule),
       hint: 'Checks every 15 minutes in the background and tells you',
       action: () => {
-        try { const r = PageWatch.watchCurrent(m[1] || 'changes'); window.showToast?.('Watching ' + r.said); }
+        try { const r = PageWatch.watchCurrent(m[1] || 'changes', { byUser: true }); window.showToast?.('Watching ' + r.said); }
         catch (err) { window.showToast?.((err && err.message) || 'Could not watch this page', 'error'); throw err; }
       },
     };
