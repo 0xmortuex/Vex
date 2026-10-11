@@ -246,5 +246,10 @@ const VexLegal = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexLegal = VexLegal;
+if (typeof window !== 'undefined') {
+  window.VexLegal = VexLegal;
+  // Settings › Language switches at once; the About line went with it only
+  // after a restart (found 2026-10-11).
+  window.addEventListener('vex-lang-changed', () => VexLegal.renderAbout());
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexLegal };

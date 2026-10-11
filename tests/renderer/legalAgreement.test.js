@@ -218,4 +218,13 @@ describe('reading the documents inside Vex', () => {
     VexLegal.renderAbout();
     expect(document.getElementById('setting-legal-accepted').textContent).toMatch(new RegExp('version ' + VexLegal.VERSION + '\\) accepted on '));
   });
+
+  it('the About line follows a language change at once (it stayed in the old language, found 2026-10-11)', () => {
+    document.body.innerHTML = '<p id="setting-legal-accepted"></p>';
+    VexLegal.accept();
+    VexLegal.renderAbout();
+    localStorage.setItem('vex.lang', 'tr');
+    window.dispatchEvent(new CustomEvent('vex-lang-changed'));
+    expect(document.getElementById('setting-legal-accepted').textContent).toMatch(/kabul edildi/);
+  });
 });
