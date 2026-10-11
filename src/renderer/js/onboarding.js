@@ -203,6 +203,18 @@ const Onboarding = {
       }
     }
   },
+  // The language step, and Settings › General › Language (js/settings-ui.js).
+  // Mirrored into start-page storage; the toolbar, sidebar and Settings follow
+  // at once (js/i18n-ui.js listens to vex-lang-changed), and the open start
+  // pages reload to redraw their greeting, labels and verse.
+  LANGS: ['en', 'tr'],
+  setLanguage(lang, { reloadStartPages = true } = {}) {
+    if (!this.LANGS.includes(lang)) throw new Error('Vex has no "' + lang + '" translation');
+    this._setStart('vex.lang', lang);
+    window.dispatchEvent(new CustomEvent('vex-lang-changed'));
+    if (reloadStartPages) this._reloadStartPages();
+  },
+
   _reloadStartPages() {
     if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
     for (const wv of WebviewManager.webviews.values()) {
@@ -1603,12 +1615,8 @@ const Onboarding = {
         this._applySetupProfile(sel);
       }
     } else if (key === 'language') {
-      // Mirrored into start-page storage; the greeting/labels/verse re-read it
-      // on the reload that finish() triggers.
-      this._setStart('vex.lang', this._pendingLang || 'en');
-      // The toolbar, sidebar and Settings follow at once (js/i18n-ui.js
-      // listens; nothing used to send it, so it waited for a restart).
-      window.dispatchEvent(new CustomEvent('vex-lang-changed'));
+      // The start pages re-read it on the reload that finish() triggers.
+      this.setLanguage(this._pendingLang || 'en', { reloadStartPages: false });
     } else if (key === 'wisdom') {
       this._setStart('vex.wisdomSource', this._pendingWisdom || 'quran');
       // The Qur'an cache is per-edition; drop it so a language/source change

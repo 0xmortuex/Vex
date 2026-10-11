@@ -233,10 +233,27 @@ const SettingsUI = {
     root.querySelectorAll('[data-count]').forEach(el => { const v = n[el.dataset.count]; if (v != null) el.textContent = String(v); });
   },
 
+  // Settings › General › Language: the setup's language step, without the
+  // whole setup (it was the only way to change it, and Simple mode hid it).
+  _wireLanguage() {
+    const sel = document.getElementById('setting-language');
+    if (!sel) return;
+    sel.value = (typeof VexI18nUI !== 'undefined' ? VexI18nUI.locale() : null) || window.VexI18n?.locale() || 'en';
+    if (sel.dataset.wired) return;
+    sel.dataset.wired = '1';
+    sel.addEventListener('change', () => {
+      try {
+        if (!window.Onboarding || typeof window.Onboarding.setLanguage !== 'function') throw new Error('the language setting is not loaded');
+        window.Onboarding.setLanguage(sel.value);
+      } catch (err) { window.showToast?.('The language could not be changed: ' + ((err && err.message) || err), 'error'); }
+    });
+  },
+
   enhance() {
     const root = document.querySelector('#panel-settings .settings-content');
     if (!root) return;
     this._wirePickers();
+    this._wireLanguage();
     this._fillCounts(root);
     const groups = Array.from(root.children).filter(el => el.classList && el.classList.contains('setting-group'));
     if (!groups.length) return;
