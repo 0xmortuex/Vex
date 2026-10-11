@@ -186,6 +186,20 @@ describe('one watcher, not two (RD6)', () => {
   });
 });
 
+// Found in the v19.1.7 check: an old "Watch This Page" on the router moved
+// over without the mark a home-network watch needs, so every check was refused.
+describe('an old watch on the home network, moved over', () => {
+  it('is still checked from this computer', async () => {
+    localStorage.setItem('vex.watches', JSON.stringify([{ id: 'w1', url: 'http://192.168.1.1/status', title: 'Router', intervalMin: 30 }]));
+    expect(PageWatch.migrateLegacy()).toBe(1);
+    const w = PageWatch.list()[0];
+    expect(w).toMatchObject({ url: 'http://192.168.1.1/status', local: true, byUser: true });
+    window.vex.apiRequest = vi.fn(async () => ({ ok: true, status: 200, headers: { 'content-type': 'text/plain' }, body: 'WAN up' }));
+    expect(await PageWatch.checkOne(w.id)).toMatchObject({ ok: true });
+    expect(window.vex.apiRequest).toHaveBeenCalled();
+  });
+});
+
 // Found in the v19.1.7 check: a page open in a Tor or container tab is not a
 // site rule, so the check at each look let it through and Vex polled it from
 // your real connection.

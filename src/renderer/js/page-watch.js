@@ -341,6 +341,9 @@ const PageWatch = {
         every: Math.max(5, Number(w.intervalMin) || 30) * 60000,
         addedAt: Date.now(), lastCheckedAt: 0, lastValue: null,
         lastChangedAt: w.changed ? (Number(w.changedAt) || Date.now()) : 0, failures: 0,
+        // The old list only ever held watches the user added in Ctrl+K: one
+        // on the router or a NAS stays checkable from this computer (add).
+        ...(this.isLocal(w.url) ? { local: true, byUser: true } : {}),
       });
       moved++;
     }
