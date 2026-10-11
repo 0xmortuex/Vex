@@ -88,12 +88,16 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
   transition: all .14s ease;
   white-space: nowrap;
 }
+/* A category's mark is its colour mixed toward the theme's text: the fixed
+   colours alone were 1.1-2.5:1 on light themes (Cyan on EzLight). Mixed, every
+   mark reads at 3:1 in every theme, darker on light ones and lighter on dark
+   ones, and the hovered chip's name is the text colour (cat-themes TH8). */
 .set-nav-chip .set-cat-icon {
   flex: 0 0 auto;
-  color: var(--chip-color, var(--primary));
+  color: color-mix(in srgb, var(--chip-color, var(--primary)) 40%, var(--text));
 }
 .set-nav-chip:hover {
-  color: var(--chip-color, var(--primary));
+  color: var(--text);
   border-color: var(--chip-color, var(--primary));
   background: color-mix(in srgb, var(--chip-color, var(--primary)) 12%, var(--surface));
   transform: translateY(-1px);
@@ -164,7 +168,7 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
   flex: 0 0 auto;
   /* The mark is an inline SVG stroked with currentColor, so the category colour
      is set here rather than baked into the markup. */
-  color: var(--cat-color, var(--primary));
+  color: color-mix(in srgb, var(--cat-color, var(--primary)) 40%, var(--text));
   background: color-mix(in srgb, var(--cat-color, var(--primary)) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--cat-color, var(--primary)) 35%, transparent);
 }
