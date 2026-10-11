@@ -362,7 +362,7 @@ const SyncSettings = (() => {
   function keyLockNote() {
     const lock = SyncEngine.keyCheckState ? SyncEngine.keyCheckState() : { state: null };
     const note = (icon, text) => `<div class="sync-key-lock" id="sync-key-lock" data-lock="${escapeHtml(lock.state)}" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:10px 0;color:var(--text-muted)">${VexIcons.svg(icon, { size: 14 })}<span>${text}</span></div>`;
-    if (lock.state === 'on') return note('lock', 'Locked to your sync key' + (lock.since ? ' since ' + escapeHtml(new Date(lock.since).toLocaleDateString()) : '') + ': a sign-in code alone cannot change or erase your synced data. A device on an older Vex can still download it, but must be updated to upload.');
+    if (lock.state === 'on') return note('lock', 'Locked to your sync key' + (lock.since ? ' since ' + escapeHtml(new Date(lock.since).toLocaleDateString()) : '') + ': a sign-in code alone cannot change your synced data. It can still erase all of it to start over without the recovery code, which signs every device out and emails this address. A device on an older Vex can still download it, but must be updated to upload.');
     if (lock.state === 'off') return note('warning', 'Not locked to your sync key yet; this device locks it on its next upload. Until then, anyone who can read your sign-in email could overwrite or erase the synced copy (not read it).');
     if (lock.state === 'unsupported') return note('warning', 'Your sync server is from before the sync key check, so anyone who can read your sign-in email could overwrite or erase the synced copy (not read it). Redeploy the sync worker (SELF_HOSTING.md) to lock your account to your sync key.');
     return '';

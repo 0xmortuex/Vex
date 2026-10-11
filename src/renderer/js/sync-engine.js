@@ -347,7 +347,7 @@ const SyncEngine = (() => {
   // The server set the lock from this device's proof.
   function lockedByThisDevice() {
     setKeyLock('on', new Date().toISOString());
-    window.showToast?.('Your sync account is now locked to your sync key: a sign-in code alone can no longer change or erase it. Devices on an older Vex can still download your data, but must be updated to upload.', 'info', 15000);
+    window.showToast?.('Your sync account is now locked to your sync key: a sign-in code alone can no longer change it. It can still erase it to start over, which signs every device out and emails you. Devices on an older Vex can still download your data, but must be updated to upload.', 'info', 15000);
   }
 
   let pushTimer = null;
