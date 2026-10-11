@@ -39,7 +39,7 @@ const CustomSearchEngineUI = {
     sel.value = TA.currentEngine();
     const row = document.getElementById('setting-search-own');
     if (!row) throw new Error('[CustomSearchEngineUI] #setting-search-own missing');
-    row.hidden = !own;
+    row.hidden = !own; row.style.display = own ? '' : 'none';   // the row class's display: flex beats [hidden]
     if (own) {
       row.querySelector('[data-own-name]').textContent = own.name;
       row.querySelector('[data-own-url]').textContent = own.q;
