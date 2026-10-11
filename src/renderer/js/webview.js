@@ -210,7 +210,7 @@ const WebviewManager = {
         if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
           const host = new URL(url).hostname;
           const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
-          if (zooms[host]) webview.setZoomFactor(zooms[host]);
+          if (zooms[host]) { webview.setZoomFactor(zooms[host]); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); }
         }
       } catch {}
 
@@ -1147,6 +1147,8 @@ const WebviewManager = {
   },
 
   _saveZoom(wv, zoom) {
+    // The address bar's zoom pill (js/zoom-indicator.js) follows this.
+    document.dispatchEvent(new CustomEvent('vex:zoom-changed'));
     // A private, off-the-record or Tor page's zoom is for that tab alone: it
     // was written into the profile's list of sites, naming the site visited.
     if (!this.keepsSiteData(wv)) return;

@@ -236,7 +236,7 @@ const SiteProfiles = {
         if (!(TabManager.tabs || []).some(x => x.id === t.id)) continue;
         const wv = WebviewManager.webviews?.get(t.id);
         if (!wv) continue;
-        if (t.zoom != null && typeof wv.setZoomFactor === 'function') wv.setZoomFactor(t.zoom);
+        if (t.zoom != null && typeof wv.setZoomFactor === 'function') { wv.setZoomFactor(t.zoom); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); }
         if (t.dark && WebviewManager._applyForceDark) WebviewManager._applyForceDark(wv);
       }
     }
@@ -285,7 +285,7 @@ const SiteProfiles = {
       (TabManager.tabs || []).forEach(t => {
         if (this._hostFromUrl(t.url) !== bare) return;
         const wv = WebviewManager.webviews?.get(t.id);
-        if (wv) { wv.setZoomFactor(1); if (WebviewManager._removeForceDark) WebviewManager._removeForceDark(wv); }
+        if (wv) { wv.setZoomFactor(1); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); if (WebviewManager._removeForceDark) WebviewManager._removeForceDark(wv); }
       });
     } catch {}
     if (!toast) return failed;

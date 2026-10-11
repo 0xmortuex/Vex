@@ -3,8 +3,12 @@
 // A small "120%" pill sits in the address bar whenever the page in front is
 // not at 100%; clicking it puts the page back to 100%. Zoom changes from
 // several places (Ctrl+= / Ctrl+wheel, the command bar, a site profile, the
-// saved zoom of a site), so the pill reads the page's zoom on a light timer
-// rather than trusting any one of them to say so.
+// saved zoom of a site), and Chromium keeps one zoom per site, so a tab
+// switch or a navigation changes it too. Each of those says so with an event
+// (vex:zoom-changed from every place Vex sets a zoom; vex:tab-activated,
+// vex:tab-navigated, vex:tab-settled) and the pill reads the page's zoom
+// then. It polled every second before, which woke Vex all day for a pill
+// that is almost always hidden.
 (function () {
   'use strict';
 
@@ -53,7 +57,14 @@
     const before = document.getElementById('btn-copy-url');
     if (before && before.parentElement === bar) bar.insertBefore(pill, before);
     else bar.appendChild(pill);
-    VexJobs.every('Zoom indicator', 1000, update);
+    // Read now and once more a moment later: a zoom set while the page is
+    // still attaching is readable only after it settles.
+    const soon = () => { update(); clearTimeout(soonTimer); soonTimer = setTimeout(update, 150); };
+    let soonTimer = null;
+    document.addEventListener('vex:zoom-changed', soon);
+    document.addEventListener('vex:tab-navigated', soon);
+    document.addEventListener('vex:tab-settled', soon);
+    window.addEventListener('vex:tab-activated', soon);
     update();
   }
 
