@@ -251,7 +251,8 @@ describe('main: which tab is in front, for an extension', () => {
     const hosts = new Map();
     const focus = [];
     windows.forEach((w, i) => {
-      w.webContents = { id: 100 + i, executeJavaScript: vi.fn(async () => w.front) };
+      w.id = 1 + i;
+      w.webContents = { id: 100 + i, executeJavaScript: vi.fn(async () => ({ id: w.front, layout: w.front ? [{ page: w.front, index: 2, groupId: -1, pinned: false }] : [] })) };
       w.isDestroyed = () => false;
       hosts.set(w.webContents.id, { win: w });
     });
@@ -270,14 +271,15 @@ describe('main: which tab is in front, for an extension', () => {
   it('the tab in front of each window, and of the window used last', async () => {
     const a = { front: 7 }, b = { front: 9 };
     const m = mainSide([a, b], { 7: page(), 9: page() });
-    expect(await m.active(OWN, extSession)).toEqual({ ids: [7, 9], current: 7 });   // none focused yet: the main window
+    const layout = { 7: { index: 2, windowId: 1, groupId: -1, pinned: false }, 9: { index: 2, windowId: 2, groupId: -1, pinned: false } };
+    expect(await m.active(OWN, extSession)).toEqual({ ids: [7, 9], current: 7, layout, currentWindow: 1 });   // none focused yet: the main window
     m.focus(b);
-    expect(await m.active(OWN, extSession)).toEqual({ ids: [7, 9], current: 9 });
+    expect(await m.active(OWN, extSession)).toEqual({ ids: [7, 9], current: 9, layout, currentWindow: 2 });
   });
 
   it('names no page of another session, and none for a tab not made yet', async () => {
     const m = mainSide([{ front: 7 }, { front: null }], { 7: page({ name: 'private' }) });
-    expect(await m.active(OWN, extSession)).toEqual({ ids: [], current: null });
+    expect(await m.active(OWN, extSession)).toMatchObject({ ids: [], current: null });
   });
 
   it('only an extension asks; the channel is wired, schema\'d and allowed for extension pages', async () => {

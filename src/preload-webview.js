@@ -426,16 +426,20 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
   // answer with that, and {active: true} with currentWindow or
   // lastFocusedWindow is the one tab in front of the Vex window used last.
-  // Electron puts every tab in one window, so currentWindow alone narrows
-  // nothing.
-  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  // Main also says where each tab is (its place, its Vex window and its
+  // group); Electron said index 0, window 0 and group 0 for every tab, and a
+  // tab it updated was never the active one (found 2026-10-10).
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow', 'windowId', 'index', 'groupId', 'pinned'];
   if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
     var nativeQuery = c.tabs.query.bind(c.tabs);
     var nativeGet = c.tabs.get.bind(c.tabs);
+    var nativeUpdate = typeof c.tabs.update === 'function' ? c.tabs.update.bind(c.tabs) : null;
     var inFront = function (tab, front) {
       if (!tab) return tab;
       var on = front.ids.indexOf(tab.id) !== -1;
-      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+      var at = (front.layout && front.layout[tab.id]) || null;
+      var place = at ? { index: at.index, windowId: at.windowId, groupId: at.groupId, pinned: at.pinned } : { groupId: -1 };
+      return Object.assign({}, tab, place, { active: on, highlighted: on, selected: on });
     };
     c.tabs.query = function (q, cb) {
       q = q || {};
@@ -444,15 +448,30 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
       var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
       var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
         var front = r[1];
+        var wantWindow = q.windowId === -2 ? front.currentWindow : q.windowId;
         return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
           if (typeof q.active === 'boolean' && t.active !== q.active) return false;
           if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
           if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          if (oneWindow && front.currentWindow != null && t.windowId !== front.currentWindow) return false;
+          if (typeof wantWindow === 'number' && t.windowId !== wantWindow) return false;
+          if (typeof q.index === 'number' && t.index !== q.index) return false;
+          if (typeof q.groupId === 'number' && t.groupId !== q.groupId) return false;
+          if (typeof q.pinned === 'boolean' && !!t.pinned !== q.pinned) return false;
           return true;
-        });
+        }).sort(function (a, b) { return (a.windowId - b.windowId) || (a.index - b.index); });
       });
       return answerWith(p, cb);
     };
+    if (nativeUpdate) {
+      c.tabs.update = function (id, props, cb) {
+        if (typeof id === 'object' && id !== null) { cb = props; props = id; id = undefined; }
+        var p = Promise.resolve(id === undefined ? nativeUpdate(props) : nativeUpdate(id, props)).then(function (tab) {
+          return tab ? askActiveTabs().then(function (front) { return inFront(tab, front); }) : tab;
+        });
+        return answerWith(p, cb);
+      };
+    }
     // A tab that is not there fails in Electron's own words (with the
     // callback, through chrome.runtime.lastError), as before.
     c.tabs.get = function (id, cb) {

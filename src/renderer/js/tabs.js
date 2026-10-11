@@ -3255,6 +3255,22 @@ const TabManager = {
     return { tabs, missing: at < 0 ? null : ids[at] };
   },
 
+  // Where each tab with a page is, as an extension's chrome.tabs describes it
+  // (main.js, _activeTabsFor): its place on screen, and its group as a
+  // number (-1 for none). Electron said index 0 and group 0 for every tab.
+  extensionTabLayout() {
+    const out = [];
+    this.displayOrder().forEach((t, index) => {
+      const wv = WebviewManager.webviews.get(t.id);
+      let page = null;
+      try { page = wv ? wv.getWebContentsId() : null; } catch { page = null; }
+      if (!Number.isInteger(page)) return;
+      const g = t.groupId ? this.groups.findIndex(x => x.id === t.groupId) : -1;
+      out.push({ page, index, groupId: g >= 0 ? g + 1 : -1, pinned: !!t.pinned });
+    });
+    return out;
+  },
+
   closeTabsByPageId(ids) {
     const { tabs, missing } = this.tabsByPageId(ids);
     if (missing != null) throw new Error(`No tab with id: ${missing}.`);

@@ -4067,19 +4067,25 @@ async function _activeTabsFor(senderUrl, ses) {
   if (!/^chrome-extension:\/\/[a-p]{32}\//.test(String(senderUrl || ''))) throw new Error('Only an extension page can ask which tab is in front');
   const ids = [];
   let current = null;
+  // Where each tab is: its place, its window (the Vex window's id, as
+  // chrome.windows names it) and its group. Electron said index 0, window 0
+  // and group 0 for every tab (found 2026-10-10).
+  const layout = {};
   // No Vex window focused yet (or that one closed): the main window.
   const used = _lastFocusedHostWin && !_lastFocusedHostWin.isDestroyed() ? _lastFocusedHostWin : mainWindow;
   for (const host of secureSessions.hosts.values()) {
     const win = host.win;
     if (!win || win.isDestroyed()) continue;
     // A tab whose page is not made yet (not attached) has no page id.
-    const id = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); try { return wv ? wv.getWebContentsId() : null; } catch { return null; } })()');
+    const r = await win.webContents.executeJavaScript('(() => { const wv = WebviewManager.webviews.get(TabManager.activeTabId); let id = null; try { id = wv ? wv.getWebContentsId() : null; } catch { id = null; } return { id, layout: TabManager.extensionTabLayout() }; })()');
+    for (const t of (r && r.layout) || []) layout[t.page] = { index: t.index, windowId: win.id, groupId: t.groupId, pinned: t.pinned };
+    const id = r && r.id;
     const page = Number.isInteger(id) ? webContents.fromId(id) : null;
     if (!page || page.isDestroyed() || page.session !== ses) continue;
     ids.push(id);
     if (win === used) current = id;
   }
-  return { ids, current };
+  return { ids, current, layout, currentWindow: used && !used.isDestroyed() ? used.id : null };
 }
 ipcMain.handle('extensions:active-tabs', (event) => _activeTabsFor(event.senderFrame?.url, event.sender.session));
 

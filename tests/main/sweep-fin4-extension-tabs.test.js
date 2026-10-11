@@ -180,7 +180,7 @@ describe('stand-in: tabs.create resolves a Tab', () => {
   it('Electron’s view of the page, with the address it is going to and whether it is in front', async () => {
     const { c } = worker(fakeChrome({ 4: { id: 4, windowId: 0, index: 0, url: '', active: false, title: '' } }), made);
     const tab = await c.tabs.create({ url: 'https://example.com/', active: false });
-    expect(tab).toEqual({ id: 4, windowId: 0, index: 0, url: 'https://example.com/', pendingUrl: 'https://example.com/', active: false, highlighted: false, selected: false, title: '' });
+    expect(tab).toEqual({ id: 4, windowId: 0, index: 0, groupId: -1, url: 'https://example.com/', pendingUrl: 'https://example.com/', active: false, highlighted: false, selected: false, title: '' });
   });
 
   it('the callback form gets the same Tab', async () => {
