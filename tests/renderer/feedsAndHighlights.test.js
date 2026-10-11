@@ -71,6 +71,19 @@ describe('fetching feeds', () => {
     expect(errors).toEqual([{ url: 'https://dead.test/feed', title: 'Dead', error: 'could not be reached' }]);
   });
 
+  // Found in the v19.1.7 check: the routing check ran only when subscribing;
+  // a site given a Tor rule afterwards was still read on every refresh.
+  it('does not read the feed of a site routed through Tor since it was added', async () => {
+    VexFeeds.feeds = [{ url: 'https://ok.test/feed', title: 'Good' }, { url: 'https://routed.test/feed', title: 'Routed' }];
+    window.vex.rssFetch = vi.fn(async () => RSS);
+    globalThis.TabManager = { mayAskSiteForIcon: (url) => !url.includes('routed') };
+    const { errors } = await VexFeeds.fetchAll();
+    expect(window.vex.rssFetch).toHaveBeenCalledTimes(1);
+    expect(window.vex.rssFetch).toHaveBeenCalledWith('https://ok.test/feed');
+    expect(errors).toEqual([{ url: 'https://routed.test/feed', title: 'Routed', error: expect.stringMatching(/Tor, a proxy or a container/) }]);
+    delete globalThis.TabManager;
+  });
+
   it('surfaces a malformed feed as an error, not as zero items', async () => {
     VexFeeds.feeds = [{ url: 'https://bad.test/feed', title: 'Bad' }];
     window.vex.rssFetch = vi.fn(async () => '<not xml');

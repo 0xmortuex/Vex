@@ -161,6 +161,11 @@ const VexFeeds = {
   // a dead feed used to look exactly like a feed with no new posts.
   async fetchAll() {
     const results = await Promise.all(this.feeds.map(async f => {
+      // A site given a Tor, proxy or container rule after it was subscribed
+      // to: its feed is not read from your real connection either.
+      if (typeof TabManager !== 'undefined' && typeof TabManager.mayAskSiteForIcon === 'function' && !TabManager.mayAskSiteForIcon(f.url)) {
+        return { feed: f, items: [], error: 'not read — the site goes through Tor, a proxy or a container' };
+      }
       try {
         const xml = await window.vex.rssFetch(f.url);
         // main returns null for a non-200, an oversized body, or a network error.
