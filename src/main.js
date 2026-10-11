@@ -6236,7 +6236,8 @@ function createWindow() {
       } catch (e) { console.warn('[DPI-bypass] could not report the Roblox bypass stopping:', e && e.message); }
     },
   });
-  const _byedpiStart = (ud, buf, preset, custom) => _share.start(ud, buf, preset, custom);
+  // Discord's bypass starting it; Roblox's calls _share.start itself.
+  const _byedpiStart = (ud, buf, preset, custom) => _share.startForDiscord(ud, buf, preset, custom);
   // Every caller is Discord's bypass: Roblox, if it rides the process, keeps it.
   const _byedpiStop = () => _share.releaseDiscord();
 
@@ -6257,7 +6258,7 @@ function createWindow() {
     return await _testRoblox('https://www.roblox.com/home');
   }
   async function _applyRobloxBypass(on) {
-    if (!on) { _share.attachRoblox(false); _setRobloxProxy(null); return { ok: true, off: true }; }
+    if (!on) { _share.releaseRoblox(); return { ok: true, off: true }; }
     try {
       // Reuse a ByeDPI that's already up (e.g. Discord bypass) — never restart it.
       const reused = _share.reuseExisting();
@@ -6267,19 +6268,18 @@ function createWindow() {
       // Otherwise start the known-good preset and route Roblox through it.
       const ud = app.getPath('userData');
       _share.attachRoblox(true);
-      const port = await _byedpiStart(ud, _downloadBuffer, 0);
+      const port = await _share.start(ud, _downloadBuffer, 0);
       _setRobloxProxy('socks5://127.0.0.1:' + port);
       if (await _testRobloxRobust()) return { ok: true, port, preset: 0 };
       // Preset 0 didn't pass — sweep the rest (safe: no other consumer yet).
       for (let i = 1; i < _byedpi.PRESETS.length; i++) {
         try {
-          const p = await _byedpiStart(ud, _downloadBuffer, i);
+          const p = await _share.start(ud, _downloadBuffer, i);
           _setRobloxProxy('socks5://127.0.0.1:' + p);
           if (await _testRobloxRobust()) return { ok: true, port: p, preset: i };
         } catch {}
       }
-      _share.attachRoblox(false);
-      _byedpi.stop(); _setRobloxProxy(null);
+      _share.releaseRoblox();
       return { ok: false, error: 'no mode got through' };
     } catch (e) { _share.attachRoblox(false); _setRobloxProxy(null); return { ok: false, error: (e && e.message) || 'failed' }; }
   }

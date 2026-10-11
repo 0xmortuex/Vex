@@ -19,6 +19,8 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
 
   // Is Roblox currently riding the shared process?
   let robloxAttached = false;
+  // Is Discord's bypass (Strong, or a sweep) using it?
+  let discordUsing = false;
 
   const socks = (port) => 'socks5://127.0.0.1:' + port;
 
@@ -61,8 +63,27 @@ function createByedpiShare({ byedpi, setRobloxProxy, notify }) {
     // used to stop it for both, and Roblox's menu still said "On".
     // Returns true when the process was stopped.
     releaseDiscord() {
+      discordUsing = false;
       if (robloxAttached && byedpi.isRunning && byedpi.isRunning()) return false;
       this.stop();
+      return true;
+    },
+
+    // Discord's bypass starting (or restarting) the process for itself.
+    startForDiscord(userData, buffer, preset, custom) {
+      discordUsing = true;
+      return this.start(userData, buffer, preset, custom);
+    },
+
+    // Roblox's bypass turned off (or its sweep found nothing). The process
+    // stops too unless Discord is using it: after Discord went to Light or
+    // Off with Roblox riding it, turning Roblox off used to leave ciadpi.exe
+    // running with nobody on it until Vex quit. Returns true when stopped.
+    releaseRoblox() {
+      robloxAttached = false;
+      setProxy(null);
+      if (discordUsing && byedpi.isRunning && byedpi.isRunning()) return false;
+      byedpi.stop();
       return true;
     },
   };

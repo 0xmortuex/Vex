@@ -160,3 +160,41 @@ describe('Discord letting go while Roblox rides the shared process', () => {
     expect(src).toMatch(/const _byedpiStop = \(\) => _share\.releaseDiscord\(\);/);
   });
 });
+
+// Found in the v19.1.7 check: Discord to Light with Roblox riding the process
+// (it rightly stays), then Roblox's bypass off — and ciadpi.exe kept running
+// with nobody on it until Vex quit.
+describe('Roblox letting go', () => {
+  it('stops the process when Discord had already let go of it', async () => {
+    const { share, byedpi, proxySet } = harness();
+    await share.startForDiscord('ud', null, 2);    // Discord: Strong
+    share.reuseExisting();                         // Roblox rides it
+    expect(share.releaseDiscord()).toBe(false);    // Discord: Light — kept for Roblox
+    expect(share.releaseRoblox()).toBe(true);      // Roblox: off
+    expect(byedpi.stop).toHaveBeenCalledTimes(1);
+    expect(byedpi.isRunning()).toBe(false);
+    expect(proxySet[proxySet.length - 1]).toBe(null);
+    expect(share.isRobloxAttached()).toBe(false);
+  });
+
+  it('keeps the process while Discord is still using it', async () => {
+    const { share, byedpi, proxySet } = harness();
+    await share.startForDiscord('ud', null, 2);
+    share.reuseExisting();
+    expect(share.releaseRoblox()).toBe(false);
+    expect(byedpi.stop).not.toHaveBeenCalled();
+    expect(byedpi.isRunning()).toBe(true);
+    expect(proxySet[proxySet.length - 1]).toBe(null);   // Roblox itself goes direct
+  });
+
+  it('main.js starts it for Discord through startForDiscord and turns Roblox off through releaseRoblox', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    expect(src).toMatch(/const _byedpiStart = \([^)]*\) => _share\.startForDiscord\(/);
+    const start = src.indexOf('async function _applyRobloxBypass(');
+    const end = src.indexOf('async function _applyDiscordBypass(', start);
+    const body = src.slice(start, end);
+    expect(body).not.toMatch(/_byedpiStart\(|_byedpi\.stop\(/);
+    expect(body).toMatch(/if \(!on\) \{ _share\.releaseRoblox\(\);/);
+  });
+});
