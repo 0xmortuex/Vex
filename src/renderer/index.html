@@ -381,6 +381,10 @@
                 <span>Search suggestions <span style="color:var(--text-muted);font-size:11px">· as you type in the address bar or the New Tab search box, the text goes to your search engine for suggestions — only that engine, and never from a private window, Tor tab or burner tab</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-search-suggest" aria-label="Search suggestions" checked><span class="toggle-slider"></span></label>
               </div>
+              <div class="setting-row-label" style="margin-top:12px">Search keywords</div>
+              <div style="color:var(--text-muted);font-size:11px">A keyword, a space and your words search that site: "@w hotels", or the keyword and Tab in the address bar. Your own keywords work without the @.</div>
+              <div id="setting-search-keywords"></div>
+              <button id="setting-search-keyword-add" class="btn-secondary" type="button" style="margin-top:6px">Add a keyword…</button>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Simple mode <span style="color:var(--text-muted);font-size:11px">· a calm Vex: the everyday buttons, panels and settings only. Nothing is removed — Ctrl+K and the settings search still reach everything, and All features in the toolbar brings the rest back</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-simple-mode" aria-label="Simple mode"><span class="toggle-slider"></span></label>
@@ -1634,6 +1638,7 @@
   <script src="js/smart-searchbar.js"></script>
   <script src="js/url-bar-menu.js"></script>
   <script src="js/search-shortcuts.js"></script>
+  <script src="js/search-keywords-ui.js"></script>
   <script src="js/tour.js"></script>
   <script src="js/feature-catalog.js"></script>
   <script src="js/discover.js"></script>

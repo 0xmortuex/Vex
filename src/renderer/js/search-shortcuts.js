@@ -99,12 +99,46 @@ function resolveKeywordSearch(raw) {
   return { url: k.url.replace('%s', encodeURIComponent(rest)), name: k.name, query: rest };
 }
 
+// Your keywords as saved, for changing them: an unreadable list is an error
+// here, so a change can never write an empty list over it.
+function _userKeywordsStrict() {
+  const raw = localStorage.getItem(USER_KEYWORDS_KEY);
+  if (!raw) return {};
+  const obj = JSON.parse(raw);
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Your search keywords are not readable, so they were not changed');
+  return obj;
+}
+
+// Settings › General › Search keywords. A keyword is one short word; the
+// address is a web address with %s where the words go.
+function setUserKeyword(keyword, url) {
+  const kw = String(keyword == null ? '' : keyword).trim().toLowerCase().replace(/^@/, '');
+  if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(kw)) throw new Error('A keyword is one word of letters or digits, without spaces');
+  const addr = String(url == null ? '' : url).trim();
+  if (!/^https?:\/\/[^\s]+$/i.test(addr)) throw new Error('The address must start with https:// (or http://)');
+  if (!addr.includes('%s')) throw new Error('Put %s in the address where the words you type go');
+  const all = _userKeywordsStrict();
+  all[kw] = addr;
+  localStorage.setItem(USER_KEYWORDS_KEY, JSON.stringify(all));
+  return kw;
+}
+
+function removeUserKeyword(keyword) {
+  const all = _userKeywordsStrict();
+  delete all[String(keyword || '').toLowerCase()];
+  localStorage.setItem(USER_KEYWORDS_KEY, JSON.stringify(all));
+}
+
 function resolveSearchShortcut(raw) {
   const hit = resolveKeywordSearch(raw);
   return hit ? hit.url : null;
 }
 
-const SearchShortcuts = { resolve: resolveSearchShortcut, resolveKeywordSearch, keyword: searchKeyword, BUILTINS: SEARCH_SHORTCUT_BUILTINS, NAMES: SEARCH_SHORTCUT_NAMES, USER_KEYWORDS_KEY };
+const SearchShortcuts = {
+  resolve: resolveSearchShortcut, resolveKeywordSearch, keyword: searchKeyword,
+  userKeywords: () => ({ ..._userKeywords() }), setUserKeyword, removeUserKeyword,
+  BUILTINS: SEARCH_SHORTCUT_BUILTINS, NAMES: SEARCH_SHORTCUT_NAMES, BARE: SEARCH_SHORTCUT_BARE, USER_KEYWORDS_KEY,
+};
 
 if (typeof window !== 'undefined') window.SearchShortcuts = SearchShortcuts;
 if (typeof module !== 'undefined' && module.exports) {

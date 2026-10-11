@@ -79,6 +79,7 @@ const VexI18nUI = {
 
       // --- settings controls people actually change ---
       'Default search engine': 'Varsayılan arama motoru',
+      'Search keywords': 'Arama anahtar kelimeleri', 'Add a keyword…': 'Anahtar kelime ekle…',
       'Auto-sleep inactive tabs': 'Etkin olmayan sekmeleri uyut',
       'Sleep after (minutes)': 'Şu kadar dakika sonra uyut',
       'Memory Saver': 'Bellek tasarrufu',

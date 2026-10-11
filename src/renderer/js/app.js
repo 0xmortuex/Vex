@@ -448,6 +448,9 @@ function vexOwnTextFocused(doc) {
       .catch(err => console.error('[AdBlocker] could not read the state:', err));
   } else window.vex.setAdBlockerState(adBlockerToggle.checked);
 
+  // Settings › General › Search keywords (js/search-keywords-ui.js).
+  SearchKeywordsUI.init();
+
   // An engine chosen anywhere else (setup wizard, New Tab page) reaches the
   // Settings list too (Onboarding._setStart announces it).
   window.addEventListener('vex-search-engine-changed', (e) => {
@@ -660,6 +663,8 @@ function vexOwnTextFocused(doc) {
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
+    // Settings › General › Search keywords (js/search-keywords-ui.js).
+    'vex.searchKeywords',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
     'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.agentShowCursor',
     'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
