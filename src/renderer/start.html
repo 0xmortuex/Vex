@@ -1039,8 +1039,10 @@
       width: 20px; height: 20px; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center;
       font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 12px;
-      /* The engine's own colour, set by the script as --engine-color. */
-      color: #fff; background: var(--engine-color, #4285F4);
+      /* The engine's own colour, set by the script as --engine-color, a fifth
+         darker so the white letter reads at 4.5:1 on every engine's colour
+         (Google's blue was 3.6:1, Brave's orange 3.3:1 — cat-themes TH11). */
+      color: #fff; background: color-mix(in srgb, var(--engine-color, #4285F4) 80%, #000000);
     }
     .engine-menu {
       position: absolute; z-index: 60; margin-top: 6px;
