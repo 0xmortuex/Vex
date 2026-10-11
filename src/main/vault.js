@@ -160,7 +160,8 @@ ipcMain.handle('vault:save', async (_e, entry) => {
 // and the note ('' removes it) of one saved login.
 ipcMain.handle('vault:update', async (_e, { host, username, newUsername, password, note } = {}) => {
   try {
-    if (!host || !username || !newUsername) return { ok: false, error: 'Missing fields' };
+    // A login may have no username (one imported from a CSV, as Chrome saves them).
+    if (!host || typeof username !== 'string' || typeof newUsername !== 'string') return { ok: false, error: 'Missing fields' };
     const arr = vaultLoad();
     const entry = arr.find(e => e.host === host && e.username === username);
     if (!entry) return { ok: false, error: 'That saved login is no longer in the vault' };

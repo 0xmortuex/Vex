@@ -266,7 +266,7 @@ const BrowserImport = {
     m.innerHTML = '<div class="vexsr-card" role="dialog" aria-modal="true" aria-labelledby="bi-title"><div class="vexsr-head">'
       + '<span class="vexsr-title" id="bi-title">Import from another browser</span>'
       + '<button class="vexsr-x" id="bi-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
-      + '<div class="vexsr-sub">Bookmarks with their folders, and your recent history, from Chrome, Edge, Brave or Firefox on this PC. The browser can stay open — Vex reads a copy.</div>'
+      + '<div class="vexsr-sub">Bookmarks with their folders, and your recent history, from Chrome, Edge, Brave, Opera, Vivaldi, Firefox, LibreWolf or another Chromium or Firefox browser on this PC. The browser can stay open — Vex reads a copy.</div>'
       + '<div class="vexsr-row" style="margin-top:12px">'
       + '<select id="bi-browser" class="vexsr-input" aria-label="Browser"></select>'
       + '<select id="bi-profile" class="vexsr-input" aria-label="Profile"></select>'
@@ -390,7 +390,7 @@ const BrowserImport = {
     for (const s of sources) $('#bi-browser').appendChild(new Option(s.name, s.id));
     if (!sources.length) {
       $('#bi-browser').disabled = $('#bi-profile').disabled = $('#bi-look').disabled = true;
-      if (!$('#bi-msg').textContent) msg('No Chrome, Edge, Brave or Firefox profile was found on this PC.');
+      if (!$('#bi-msg').textContent) msg('No profile of a browser Vex can import from (Chrome, Edge, Brave, Opera, Vivaldi, Chromium, Firefox or LibreWolf) was found on this PC.');
     } else fillProfiles();
 
     $('#bi-look').addEventListener('click', async () => {
