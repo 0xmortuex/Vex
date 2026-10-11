@@ -55,7 +55,8 @@ describe('main wiring', () => {
     const open = main.slice(main.indexOf('function openPrivateWindow'), main.indexOf('const privWin = new BrowserWindow'));
     expect(open).toMatch(/_wireEphemeralBrowsing\(privSession, 'private'\)/);
     const fn = main.slice(main.indexOf('function _wireEphemeralBrowsing'), main.indexOf('function openPrivateWindow'));
-    expect(fn).toMatch(/SiteRules\.blocksThirdParty\(/);
+    // The third-party switch is asked through the shared verdict (src/main/ad-verdict.js), which honours it unless told not to.
+    expect(fn).toMatch(/_adVerdict\.judge\(details, ses\);/);
     expect(fn).toMatch(/SiteRules\.blocksCookies\(/);
   });
   it('Clear History has a channel that erases the backup copies', () => {

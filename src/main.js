@@ -2235,6 +2235,7 @@ function wireMediaSnifferOnSession(ses) {
   if (!ses || ses.__vexMediaWired) return;
   ses.__vexMediaWired = true;
   ses.webRequest.onCompleted({ urls: ['http://*/*', 'https://*/*'] }, (details) => {
+    _extRequestCompleted(ses, details);
     try {
       const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
       if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
@@ -4349,6 +4350,72 @@ const _extAlarms = require('./main/extension-alarms').createExtensionAlarms({
   },
 });
 
+// Events Electron never fires for an extension: tabs, webRequest.onCompleted
+// (src/main/extension-events.js). Told only to an extension that listens.
+const _extEventsMod = require('./main/extension-events');
+const _extEvents = _extEventsMod.createExtensionEvents();
+// Whether the extension may read that address (a host permission for it).
+function _extHostAllowed(ext, url) {
+  const m = (ext && ext.manifest) || {};
+  return [].concat(m.permissions || [], m.host_permissions || [])
+    .some(p => typeof p === 'string' && /[:/*<]/.test(p) && (() => { try { return _extMenuModel.matchPattern(p, url); } catch { return false; } })());
+}
+// argsFor(ext, listener) → the event's arguments for that extension, or null
+// for none.
+function _extEmit(ses, base, argsFor) {
+  const found = _extEvents.listeners(_partitionKey(ses), base);
+  if (!found.length) return;
+  for (const l of found) {
+    const ext = _exts(ses).getExtension(l.extId);
+    if (!ext) continue;
+    let args;
+    try { args = argsFor(ext, l); } catch (err) { console.error(`[Extensions] ${base} for ${l.extId}:`, err.message); continue; }
+    if (!args) continue;
+    _extDispatch(ses, l.extId, l.type, args).catch(err => console.error(`[Extensions] ${base} did not reach ${l.extId}:`, err.message));
+  }
+}
+// A tab's page: created, loading, its address, title and icon, done, closed.
+app.on('web-contents-created', (_event, contents) => {
+  if (contents.getType() !== 'webview') return;
+  const ses = contents.session;
+  const id = contents.id;
+  let windowId = null;
+  const winOf = () => { const h = secureSessions.owner(contents); if (h && h.win && !h.win.isDestroyed()) windowId = h.win.id; return windowId; };
+  const place = (tab) => (tab ? { ...tab, windowId: winOf() ?? tab.windowId } : tab);
+  const updated = (change) => _extEmit(ses, 'tabs.onUpdated', (ext) => {
+    const tab = place(_extTabFor(ext, contents));
+    if (!tab) return null;
+    const c = { ...change };
+    if (!tab.url) { delete c.url; delete c.title; delete c.favIconUrl; }
+    return Object.keys(c).length ? [id, c, tab] : null;
+  });
+  setImmediate(() => { if (!contents.isDestroyed()) _extEmit(ses, 'tabs.onCreated', (ext) => { const t = place(_extTabFor(ext, contents)); return t ? [t] : null; }); });
+  contents.on('did-start-loading', () => updated({ status: 'loading' }));
+  contents.on('did-navigate', (_e, url) => updated({ url }));
+  contents.on('did-navigate-in-page', (_e, url, isMainFrame) => { if (isMainFrame) updated({ url }); });
+  contents.on('page-title-updated', (_e, title) => updated({ title }));
+  contents.on('page-favicon-updated', (_e, icons) => { if (icons && icons[0]) updated({ favIconUrl: icons[0] }); });
+  contents.on('did-stop-loading', () => updated({ status: 'complete' }));
+  contents.once('destroyed', () => _extEmit(ses, 'tabs.onRemoved', () => [id, { windowId: windowId ?? -1, isWindowClosing: false }]));
+});
+// The tab in front changed in a Vex window (js/tabs.js, switchTab).
+ipcMain.on('tabs:activated', (event, pageId) => {
+  const host = secureSessions.owner(event.sender);
+  const page = Number.isSafeInteger(pageId) ? webContents.fromId(pageId) : null;
+  if (!host || !page || page.isDestroyed() || secureSessions.owner(page) !== host) return;
+  _extEmit(page.session, 'tabs.onActivated', () => [{ tabId: pageId, windowId: host.win.id }]);
+});
+// webRequest.onCompleted, from the one onCompleted each session has
+// (wireMediaSnifferOnSession).
+function _extRequestCompleted(ses, details) {
+  _extEmit(ses, 'webRequest.onCompleted', (ext, l) => {
+    const perms = (ext.manifest && ext.manifest.permissions) || [];
+    if (!perms.includes('webRequest') || !_extHostAllowed(ext, details.url)) return null;
+    if (!_extEventsMod.filterTakes(l.filter, details, _extMenuModel.matchPattern)) return null;
+    return [_extEventsMod.requestDetails(details)];
+  });
+}
+
 // Tell an extension something, in every context of it in that session that
 // listens: its pages (background page, popup, options) and its service
 // worker, which is started for it if it was asleep (as Chrome wakes it).
@@ -4477,6 +4544,14 @@ async function _extApi(senderUrl, ses, request) {
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
     case 'cookies.get': case 'cookies.getAll': case 'cookies.set': case 'cookies.remove': case 'cookies.getAllCookieStores':
       return _extCookies.cookiesApi(r.op, args, { manifest, cookies: ses.cookies, matchPattern: _extMenuModel.matchPattern });
+    case 'events.listen': {
+      const type = String(args.type || '');
+      if (/^webRequest\./.test(type)) needPerm('webRequest');
+      if (/^downloads\./.test(type)) needPerm('downloads');
+      if (/^notifications\./.test(type)) needPerm('notifications');
+      _extEvents.listen(`${partition}|${extId}`, type, args.filter);
+      return undefined;
+    }
     case 'alarms.create': needPerm('alarms'); _extAlarms.create(`${partition}|${extId}`, args.name, args.info); return undefined;
     case 'alarms.get': needPerm('alarms'); return _extAlarms.get(`${partition}|${extId}`, args.name);
     case 'alarms.getAll': needPerm('alarms'); return _extAlarms.getAll(`${partition}|${extId}`);

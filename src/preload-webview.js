@@ -344,6 +344,47 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     else takeOver(c.commands, commandsApi, 'commands');
   }
 
+  // Events Electron never fires: tabs.onUpdated/onActivated/onCreated/
+  // onRemoved and webRequest.onCompleted (found 2026-10-10). A listener
+  // added here tells main, which then tells this extension
+  // (src/main/extension-events.js); a webRequest listener's filter goes with
+  // it, as its own numbered event.
+  var listenerSeq = 0;
+  function tellMain(type, filter) {
+    if (!api) return;
+    api('events.listen', { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
+  }
+  function mainHubEvent(type) {
+    var h = hubEvent(type);
+    var add = h.addListener;
+    h.addListener = function (fn) { add(fn); if (typeof fn === 'function') tellMain(type); };
+    return h;
+  }
+  function requestEvent(type) {
+    var mine = [];
+    return {
+      addListener: function (fn, filter) {
+        if (typeof fn !== 'function') return;
+        var sub = type + '#' + (++listenerSeq);
+        mine.push([fn, sub]);
+        hubEvent(sub).addListener(fn);
+        tellMain(sub, filter || {});
+      },
+      removeListener: function (fn) {
+        mine = mine.filter(function (p) { if (p[0] !== fn) return true; hubEvent(p[1]).removeListener(fn); return false; });
+      },
+      hasListener: function (fn) { return mine.some(function (p) { return p[0] === fn; }); },
+      hasListeners: function () { return mine.length > 0; },
+    };
+  }
+  if (api && c.tabs) {
+    takeOver(c.tabs, { onUpdated: mainHubEvent('tabs.onUpdated'), onActivated: mainHubEvent('tabs.onActivated'),
+      onCreated: mainHubEvent('tabs.onCreated'), onRemoved: mainHubEvent('tabs.onRemoved') }, 'tabs');
+  }
+  if (api && c.webRequest && perms.indexOf('webRequest') !== -1) {
+    takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
+  }
+
   // chrome.alarms: Electron's takes alarms and never fires onAlarm (found
   // 2026-10-10). Main keeps them and fires them (src/main/extension-alarms.js).
   if (api && perms.indexOf('alarms') !== -1) {

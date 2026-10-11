@@ -584,6 +584,13 @@ const TabManager = {
     if (urlInput && document.activeElement === urlInput) urlInput.blur();
     this.updateUrlBar(tab);
     window.dispatchEvent(new CustomEvent('vex:tab-activated', { detail: { tabId: id, url: tab.url } }));
+    // Extensions' chrome.tabs.onActivated (main.js, 'tabs:activated'). A
+    // tab whose page is not made yet has no id to name.
+    try {
+      const wv = WebviewManager.webviews.get(id);
+      const page = wv ? wv.getWebContentsId() : null;
+      if (Number.isInteger(page) && typeof window.vex?.tabActivated === 'function') window.vex.tabActivated(page);
+    } catch { /* not attached yet: no page */ }
 
     // Match Chrome/Edge: when the active tab is a start page, put the caret in
     // the URL bar so Ctrl+T → type/paste lands there instead of being lost.
