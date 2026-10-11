@@ -6677,8 +6677,12 @@ const _typedAddress = require('./renderer/js/typed-address');
 function _suggestAllowedFrom(sender) {
   if (!sender || sender.isDestroyed()) return false;
   if (sender.getType() !== 'webview') return true;          // the address bar
-  // A burner's session is kept in memory only; Tor as for geolocation.
-  return sender.session.isPersistent() && !_locationRefused(sender);
+  // A burner's session is kept in memory only; Tor as for geolocation. And
+  // only from the sessions whose traffic goes the way this fetch does: from
+  // a tab routed through a proxy or Tor what you typed went out directly
+  // (found 2026-10-10).
+  return sender.session.isPersistent() && !_locationRefused(sender) &&
+    BROWSING_SESSIONS.some(p => secureSessions.fromPartition(p) === sender.session);
 }
 // LRU + TTL cache so repeat/backspaced queries return instantly without a
 // network hit (the renderer caches too; this also helps the start-page bridge).

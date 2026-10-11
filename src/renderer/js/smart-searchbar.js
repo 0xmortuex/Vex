@@ -412,7 +412,10 @@ const SmartSearchbar = (() => {
     if (!TA.suggestionsOn(pref)) return false;
     const tab = typeof TabManager !== 'undefined' && typeof TabManager.getActiveTab === 'function' ? TabManager.getActiveTab() : null;
     const partition = tab && tab.partition;
-    if (partition && (!String(partition).startsWith('persist:') || String(partition).startsWith('persist:route-tor'))) return false;
+    // Main fetches them over Vex's own route, so not while the tab goes
+    // another way (a proxy or Tor route): what you typed left directly
+    // (found 2026-10-10).
+    if (partition && (!String(partition).startsWith('persist:') || String(partition).startsWith('persist:route-'))) return false;
     return true;
   }
 
