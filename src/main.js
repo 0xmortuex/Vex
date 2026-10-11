@@ -2955,12 +2955,30 @@ function _removeSupersededCopies(keepPath, name) {
   }
 }
 
-// The installed copy a freshly-placed folder updates: same (localized) name,
-// another folder. The one loaded in persist:main wins when there are several.
-function _installedCopyOf(newFolder) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(newFolder, 'manifest.json'), 'utf-8'));
-  const name = extHelpers.localize(manifest.name, extHelpers.readMessages(newFolder, manifest.default_locale));
-  return _installedCopyNamed(name, newFolder);
+// The installed copy a new package IS (and so updates in place, keeping its
+// folder, id and storage): the same key in its manifest (the same id), or
+// the same source record (its Web Store id, its catalogue entry). A name
+// alone is not enough: a different extension with the same name went into
+// the installed one's folder and read its private storage (found
+// 2026-10-10, EX1). Such a copy is replaced instead, after the person said
+// yes to "Replace X?" (_installedPreview), and nothing of it is passed on.
+function _sameExtensionAs({ key, webstoreId, catalogId, exceptFolder } = {}) {
+  const sources = _readSources();
+  const entries = _installedEntries().filter(e => e.manifest && (!exceptFolder || path.resolve(e.path) !== path.resolve(exceptFolder)));
+  return (webstoreId && entries.find(e => sources[e.folder] && sources[e.folder].webstore === webstoreId))
+    || (catalogId && entries.find(e => sources[e.folder] && sources[e.folder].catalog === catalogId))
+    || (typeof key === 'string' && key && entries.find(e => e.manifest.key === key))
+    || null;
+}
+// What the install dialog says about a copy already there: the same
+// extension (updated in place; an older version is a downgrade it warns
+// about), or only one with the same name (replaced, "Replace X?").
+function _installedPreview(same, name, newVersion) {
+  const have = same || _installedCopyNamed(name);
+  if (!have) return null;
+  const version = (have.manifest && have.manifest.version) || '';
+  const downgrade = !!(same && newVersion && version && _extUpdates.compareVersions(String(newVersion), version) < 0);
+  return { folder: have.folder, version, sameNameOnly: !same, downgrade };
 }
 
 function _installedCopyNamed(name, exceptFolder) {
@@ -3049,9 +3067,17 @@ async function _replaceInPlace(previous, staged) {
 // Load a freshly-placed install folder. If it can't load, the folder is REMOVED:
 // leaving it behind made it retry-and-fail on every boot and show up in the
 // manager as a nameless "v—" entry the user couldn't explain.
-async function _activateInstalledFolder(destFolder, copyToUpdate) {
+// copyToUpdate: the copy it updates (null: none); left out, it is the same
+// extension by key or by `match` ({ webstoreId, catalogId }), never by name.
+async function _activateInstalledFolder(destFolder, copyToUpdate, match = {}) {
   let previous;
-  try { previous = copyToUpdate || _installedCopyOf(destFolder); }
+  try {
+    if (copyToUpdate !== undefined) previous = copyToUpdate;
+    else {
+      const manifest = JSON.parse(fs.readFileSync(path.join(destFolder, 'manifest.json'), 'utf-8').replace(/^\uFEFF/, ''));
+      previous = _sameExtensionAs({ ...match, key: manifest.key, exceptFolder: destFolder });
+    }
+  }
   catch (err) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: err.message };
@@ -3228,9 +3254,6 @@ function _stagePickedExt(item) {
   _pickedExt.set(token, { ...item, at: now });
   return token;
 }
-function _installedSummary(have) {
-  return have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null;
-}
 
 // A picked folder: its manifest and what it asks for. The folder is copied at
 // install time, and refused then if its manifest changed in between.
@@ -3242,7 +3265,7 @@ function _previewPickedFolder(sourceFolder) {
   const messages = extHelpers.readMessages(sourceFolder, manifest.default_locale);
   const info = require('./main/webstore').describe(manifest, messages);
   const token = _stagePickedExt({ kind: 'folder', folder: sourceFolder, manifestText, refuse: info.refuse });
-  return { ok: true, token, ...info, source: 'folder', file: path.basename(sourceFolder), installed: _installedSummary(_installedCopyNamed(info.name)), safeMode: !!_boot.safeMode };
+  return { ok: true, token, ...info, source: 'folder', file: path.basename(sourceFolder), installed: _installedPreview(_sameExtensionAs({ key: manifest.key }), info.name, manifest.version), safeMode: !!_boot.safeMode };
 }
 
 // A picked .crx goes through the Web Store's checks (webstore.js
@@ -3259,13 +3282,12 @@ function _previewPickedFile(sourcePath) {
   if (buf.subarray(0, 4).toString('latin1') === 'Cr24') {
     const crx = ws.inspectLocalCrx(buf, { AdmZip, validateZip });
     const keyB64 = crx.publicKey.toString('base64');
-    const have = crx.fromWebStore ? _webStoreCopyOf(crx.id, crx.info.name, keyB64)
-      : (_installedEntries().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(crx.info.name));
+    const have = _installedPreview(crx.fromWebStore ? _webStoreCopyOf(crx.id, crx.info.name, keyB64) : _sameExtensionAs({ key: keyB64 }), crx.info.name, crx.info.version);
     const token = _stagePickedExt({ kind: 'crx', id: crx.id, archive: crx.archive, publicKey: crx.publicKey, fromWebStore: crx.fromWebStore, name: crx.info.name, refuse: crx.info.refuse });
     // A Chrome theme: its colours and pictures for the window, which makes it
     // one of the user's themes (main/chrome-theme.js, js/chrome-theme.js).
     const theme = crx.info.isTheme ? require('./main/chrome-theme').themePreview(crx.archive, { AdmZip, validateZip }) : {};
-    return { ok: true, token, id: crx.id, ...crx.info, ...theme, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: _installedSummary(have), safeMode: !!_boot.safeMode };
+    return { ok: true, token, id: crx.id, ...crx.info, ...theme, source: crx.fromWebStore ? 'webstore-file' : 'developer', file, installed: have, safeMode: !!_boot.safeMode };
   }
   const zip = new AdmZip(buf);
   // Diagnose a Windows-separator archive BEFORE the validator rejects it, so
@@ -3295,7 +3317,7 @@ function _previewPickedFile(sourcePath) {
   }
   const info = ws.describe(manifest, messages);
   const token = _stagePickedExt({ kind: 'zip', buffer: buf, refuse: info.refuse });
-  return { ok: true, token, ...info, source: 'zip', file, installed: _installedSummary(_installedCopyNamed(info.name)), safeMode: !!_boot.safeMode };
+  return { ok: true, token, ...info, source: 'zip', file, installed: _installedPreview(_sameExtensionAs({ key: manifest.key }), info.name, manifest.version), safeMode: !!_boot.safeMode };
 }
 
 ipcMain.handle('extensions:install-folder', async () => {
@@ -3331,7 +3353,7 @@ ipcMain.handle('extensions:install-picked', async (_e, token) => {
       // and it is kept up to date from the store from now on.
       if (item.fromWebStore) return await _installWebStorePackage({ id: item.id, archive: item.archive, publicKey: item.publicKey, info: { name: item.name } });
       const keyB64 = item.publicKey.toString('base64');
-      const previous = _installedEntries().find(e => e.manifest && e.manifest.key === keyB64) || _installedCopyNamed(item.name);
+      const previous = _sameExtensionAs({ key: keyB64 });
       // Its own key in the manifest gives it the id it was signed for, except
       // when it updates a copy installed without one (that copy's storage
       // belongs to the id its folder gave it).
@@ -3439,7 +3461,7 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
       return { ok: false, error: 'Could not write the extension\'s key into its manifest: ' + err.message };
     }
   }
-  return await _activateInstalledFolder(destFolder, copyToUpdate);
+  return await _activateInstalledFolder(destFolder, copyToUpdate, opts.match);
 }
 
 // One-click install for the catalogue (main/extension-sources.js): the latest
@@ -3472,7 +3494,7 @@ ipcMain.handle('extensions:install-catalog', async (_e, id) => {
 // Installs a catalogue release and records where it came from
 // (sources.json), so it is kept up to date from the same releases.
 async function _installCatalogPackage(id, { buffer, tag, file, digest }, previous) {
-  const done = await _installExtFromZipBuffer(buffer, id, previous || undefined);
+  const done = await _installExtFromZipBuffer(buffer, id, previous || undefined, { match: { catalogId: id } });
   if (!done.ok) return done;
   const sources = _readSources();
   sources[done.folder] = { catalog: id, tag, file, digest: digest && digest.checked ? 'sha256:' + digest.sha256 : null };
@@ -3489,7 +3511,7 @@ async function _installWebStorePackage(pkg, previousOverride) {
   // when it updates a copy installed without one: that copy's id comes from
   // its folder, and changing it would empty its storage.
   const manifestKey = previous && !previous.manifest.key ? null : keyB64;
-  const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey });
+  const done = await _installExtFromZipBuffer(pkg.archive, null, previous || undefined, { skipPrefixes: ['_metadata/'], manifestKey, match: { webstoreId: pkg.id } });
   if (!done.ok) return done;
   const sources = _readSources();
   sources[done.folder] = { webstore: pkg.id };
@@ -3657,12 +3679,10 @@ function _webStoreInstaller() {
 
 // The installed copy a Web Store install updates: the folder recorded for that
 // id, else one carrying the same key, else one of the same name.
-function _webStoreCopyOf(id, name, keyB64) {
-  const sources = _readSources();
-  const entries = _installedEntries().filter(e => e.manifest);
-  return entries.find(e => sources[e.folder] && sources[e.folder].webstore === id)
-    || entries.find(e => keyB64 && e.manifest.key === keyB64)
-    || _installedCopyNamed(name);
+// The installed copy a store package is: its store id or its key, never its
+// name alone (EX1, _sameExtensionAs).
+function _webStoreCopyOf(id, _name, keyB64) {
+  return _sameExtensionAs({ webstoreId: id, key: keyB64 });
 }
 
 ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
@@ -3671,8 +3691,7 @@ ipcMain.handle('extensions:webstore-preview', async (_e, input) => {
     // A Chrome theme is not installed as an extension: the window makes it
     // one of the user's themes from the colours and pictures read here.
     const theme = p.isTheme ? await _webStoreInstaller().theme(p.id) : {};
-    const have = _webStoreCopyOf(p.id, p.name, null);
-    return { ok: true, ...p, ...theme, installed: have ? { folder: have.folder, version: (have.manifest && have.manifest.version) || '' } : null, safeMode: !!_boot.safeMode };
+    return { ok: true, ...p, ...theme, installed: _installedPreview(_webStoreCopyOf(p.id, p.name, null), p.name, p.version), safeMode: !!_boot.safeMode };
   } catch (err) {
     return { ok: false, error: err.message, code: err.code || null };
   }

@@ -492,11 +492,7 @@ const ExtensionsSettings = (() => {
       if (p.isTheme && typeof ChromeTheme !== 'undefined' && await ChromeTheme.offer(p) !== 'extension') return;
       if (p.refuse) { await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse }); return; }
       if (typeof VexWebStore === 'undefined') { _toast('The install dialog is not available in this window', 'error'); return; }
-      const yes = await vexConfirm({
-        title: `${p.installed ? 'Update' : 'Add'} "${p.name}"?`,
-        html: VexWebStore.dialogHtml(p),
-        okLabel: p.installed ? 'Update' : 'Add to Vex',
-      });
+      const yes = await vexConfirm({ ...VexWebStore.confirmWords(p), html: VexWebStore.dialogHtml(p) });
       if (!yes) return;
       const r = await window.vex.extensionsInstallPicked(p.token);
       if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); }

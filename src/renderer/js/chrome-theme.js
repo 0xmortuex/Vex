@@ -322,7 +322,7 @@ const ChromeTheme = (function (root) {
     // extension (what it can read and do), then main installs that package.
     async installPickedAsExtension(p) {
       if (p.refuse) { await root.vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse }); return 'refused'; }
-      const yes = await root.vexConfirm({ title: `${p.installed ? 'Update' : 'Add'} "${p.name}"?`, html: VexWebStore.dialogHtml(p), okLabel: p.installed ? 'Update' : 'Add to Vex' });
+      const yes = await root.vexConfirm({ ...VexWebStore.confirmWords(p), html: VexWebStore.dialogHtml(p) });
       if (!yes) return 'cancelled';
       const r = await root.vex.extensionsInstallPicked(p.token);
       if (!r || !r.ok) { root.showToast?.('Install failed: ' + ((r && r.error) || 'unknown'), 'error'); return 'failed'; }

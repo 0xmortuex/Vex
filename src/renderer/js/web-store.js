@@ -75,7 +75,11 @@ const VexWebStore = (() => {
     const lines = [];
     const [unchecked, says] = sourceLine(p);
     lines.push(`<div class="vex-ws-source${unchecked ? ' vex-ws-heavy' : ''}">${icon(unchecked ? 'warning' : 'shield', 14)}<span>${says}</span></div>`);
-    if (p.installed) {
+    if (p.installed && p.installed.sameNameOnly) {
+      lines.push(`<div class="vex-ws-line vex-ws-heavy">${icon('warning', 14)}<span>You already have a different extension called "${esc(p.name)}" (version ${esc(p.installed.version || '?')}). Adding this one replaces it, and none of its settings or data are passed on to this one.</span></div>`);
+    } else if (p.installed && p.installed.downgrade) {
+      lines.push(`<div class="vex-ws-line vex-ws-heavy">${icon('warning', 14)}<span>This is an older version (${esc(p.version || '?')}) than the one installed (${esc(p.installed.version || '?')}). Its settings are kept, but an older version may not read what the newer one saved.</span></div>`);
+    } else if (p.installed) {
       lines.push(`<div class="vex-ws-line">${icon('refresh', 14)}<span>Installed now: version ${esc(p.installed.version || '?')}. It is updated in place, and keeps its settings.</span></div>`);
     }
     if (p.safeMode) lines.push(`<div class="vex-ws-line">${icon('info', 14)}<span>Vex is in safe mode: it loads when Vex next starts normally.</span></div>`);
@@ -99,6 +103,16 @@ const VexWebStore = (() => {
     for (const c of (p.cautions || [])) lines.push(`<div class="vex-ws-line vex-ws-caution">${icon('warning', 14)}<span>${esc(c)}</span></div>`);
     lines.push(`<div class="vex-ws-line vex-ws-dim">${icon('incognito', 14)}<span>It never runs in Private, Off-the-Record or Tor tabs.</span></div>`);
     return lines.join('');
+  }
+
+  // The question's title and button: a different extension of the same name
+  // is replaced, not updated (EX1), and an older version says so.
+  function confirmWords(p) {
+    const i = p && p.installed;
+    if (i && i.sameNameOnly) return { title: `Replace "${p.name}"?`, okLabel: 'Replace' };
+    if (i && i.downgrade) return { title: `Install an older "${p.name}"?`, okLabel: 'Install older version' };
+    if (i) return { title: `Update "${p.name}"?`, okLabel: 'Update' };
+    return { title: `Add "${p.name}"?`, okLabel: 'Add to Vex' };
   }
 
   function _doneText(r) {
@@ -142,11 +156,7 @@ const VexWebStore = (() => {
         await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse });
         return { ok: false, error: p.refuse };
       }
-      const yes = await vexConfirm({
-        title: `${p.installed ? 'Update' : 'Add'} "${p.name}"?`,
-        html: dialogHtml(p),
-        okLabel: p.installed ? 'Update' : 'Add to Vex',
-      });
+      const yes = await vexConfirm({ ...confirmWords(p), html: dialogHtml(p) });
       if (!yes) return { ok: false, cancelled: true };
       const r = await window.vex.extensionsInstallWebStore(p.id);
       if (r && r.ok) {
@@ -189,7 +199,7 @@ const VexWebStore = (() => {
     _mark();
   }
 
-  return { install, installActive, activeStorePage, refusedHere, dialogHtml, init, _mark };
+  return { install, installActive, activeStorePage, refusedHere, dialogHtml, confirmWords, init, _mark };
 })();
 
 window.VexWebStore = VexWebStore;
