@@ -416,6 +416,9 @@ const SmartSearchbar = (() => {
     // another way (a proxy or Tor route): what you typed left directly
     // (found 2026-10-10).
     if (partition && (!String(partition).startsWith('persist:') || String(partition).startsWith('persist:route-'))) return false;
+    // Nor from a container with a route of its own, a Tor container
+    // included (js/tab-policy.js isRouted; found 2026-10-11).
+    if (/^persist:container-/.test(String(partition || '')) && (!window.VexTabPolicy || window.VexTabPolicy.isRouted(partition))) return false;
     return true;
   }
 

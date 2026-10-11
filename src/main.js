@@ -7018,8 +7018,12 @@ function _suggestAllowedFrom(sender) {
   // only from the sessions whose traffic goes the way this fetch does: from
   // a tab routed through a proxy or Tor what you typed went out directly
   // (found 2026-10-10).
-  return sender.session.isPersistent() && !_locationRefused(sender) &&
-    BROWSING_SESSIONS.some(p => secureSessions.fromPartition(p) === sender.session);
+  if (!sender.session.isPersistent() || _locationRefused(sender)) return false;
+  const partition = BROWSING_SESSIONS.find(p => secureSessions.fromPartition(p) === sender.session);
+  // Nor from one of them given a route of its own (a container through Tor
+  // or a proxy): what was typed on its New Tab page left directly (found
+  // 2026-10-11). The route for all of Vex covers this fetch too.
+  return !!partition && !require('./main/routing').hasOwnRoute(readRouting(), partition);
 }
 // LRU + TTL cache so repeat/backspaced queries return instantly without a
 // network hit (the renderer caches too; this also helps the start-page bridge).

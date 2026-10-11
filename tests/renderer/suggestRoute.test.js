@@ -50,6 +50,6 @@ describe('web suggestions follow the tab’s route', () => {
   it('main refuses a page in any session but the ordinary browsing ones', () => {
     const src = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
     const fn = src.slice(src.indexOf('function _suggestAllowedFrom'), src.indexOf('const _suggestCache'));
-    expect(fn).toMatch(/BROWSING_SESSIONS\.some\(p => secureSessions\.fromPartition\(p\) === sender\.session\)/);
+    expect(fn).toMatch(/BROWSING_SESSIONS\.find\(p => secureSessions\.fromPartition\(p\) === sender\.session\)/);
   });
 });

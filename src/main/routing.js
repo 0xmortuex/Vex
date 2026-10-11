@@ -164,4 +164,16 @@ function torInUse(allContents, routes) {
   return Object.values(routes).some(config => !!config && typeof config === 'object' && /** @type {any} */ (config).mode === 'tor');
 }
 
-module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, REFUSED_PROXY, isSiteRoutePartition, staleSiteRoutes, keepsOpenerSession, markRoutedSession, torInUse };
+/**
+ * Whether a session was given a Tor or proxy route of its own (a container
+ * routed from Ctrl+K › Route Through Tor / Proxy), as against the route for
+ * all of Vex, which is saved under its own key.
+ * @param {Record<string, unknown>} routes
+ * @param {string} partition
+ */
+function hasOwnRoute(routes, partition) {
+  const own = routes[partition];
+  return !!own && typeof own === 'object' && ['tor', 'proxy'].includes(/** @type {any} */ (own).mode);
+}
+
+module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, REFUSED_PROXY, isSiteRoutePartition, staleSiteRoutes, keepsOpenerSession, markRoutedSession, torInUse, hasOwnRoute };
