@@ -152,6 +152,48 @@ const SettingsUI = {
     }
   },
 
+  // What people type when they look for a section, by the start of its
+  // heading. The search only read the words on screen, so "dark mode", "font
+  // size", "homepage", "startup", "download folder" and "dil" found nothing,
+  // and a section still "Loading…" could not be found at all (found
+  // 2026-10-10). Turkish words are here too, for a Turkish Settings.
+  KEYWORDS: {
+    'general': 'search engine default search google duckduckgo bing language dil türkçe turkish english simple mode suggestions arama motoru',
+    'default browser': 'default app open links make default varsayılan tarayıcı',
+    'sidebar buttons': 'sidebar icons panels reorder hide buttons kenar çubuğu',
+    'privacy & security': 'lock pin lock screen tracking cookies do not track https security gizlilik güvenlik kilit',
+    'privacy hardening': 'fingerprint webrtc third-party cookies trackers streamer mode gaming game mode discord hotkeys',
+    'autofill': 'email codes one-time codes 2fa verification codes otp sign-in codes otomatik doldurma',
+    'sessions': 'startup on startup start up restore tabs reopen tabs session restore autosave continue where you left off oturum açılış',
+    'downloads': 'download folder download location downloads folder save files save to ask where to save indirme klasörü indirilenler',
+    'performance': 'memory ram sleeping tabs tab sleep memory saver auto sleep cpu speed battery bellek uyku hız',
+    'profiles': 'profile accounts separate users profil',
+    'data': 'export import reset clear data backup restore factory reset veriler yedek sıfırla',
+    'location': 'gps geolocation weather konum',
+    'vex sync': 'sync devices account eşitleme',
+    'ai backend': 'ai claude ollama local model llm assistant yapay zeka yapay zekâ',
+    'gui style': 'look skin firefox chrome safari classic glass interface style görünüm',
+    'appearance': 'dark mode light mode dark theme night mode colours colors theme font font size text size ui scale bigger text zoom skin karanlık mod koyu tema yazı tipi yazı boyutu',
+    'private routing': 'proxy tor vpn socks route yönlendirme',
+    'tab layout': 'vertical tabs horizontal tabs tabs on the side dikey sekmeler',
+    'layout': 'toolbar buttons customize toolbar hide buttons araç çubuğu',
+    'site settings': 'camera microphone notifications pop-ups popups javascript per site izinler bildirim',
+    'site permissions': 'camera microphone notifications location pop-ups popups permissions izinler bildirim kamera mikrofon',
+    'chrome extensions': 'add-ons addons plugins extensions web store eklenti',
+    'keyboard shortcuts': 'hotkeys keybindings keys kısayol tuşları',
+    'passwords': 'logins password manager saved passwords vault parola şifre',
+    'reading & accessibility': 'a11y font size text size dyslexia reading font colour blind color blind contrast ruler erişilebilirlik yazı boyutu',
+    'browsing extras': 'mouse gestures clipboard cookie banners consent copy right-click',
+    'personalization': 'name greeting homepage home page start page new tab page weather github başlangıç sayfası ana sayfa',
+    'cloud services': 'worker cloudflare self-hosted token api key bulut',
+    'about': 'update updates version check for updates changelog release notes whats new stable channel güncelleme sürüm hakkında',
+  },
+  keywordsFor(heading) {
+    const t = String(heading || '').trim().toLowerCase();
+    const hit = Object.keys(this.KEYWORDS).find(k => t.startsWith(k));
+    return hit ? this.KEYWORDS[hit] : '';
+  },
+
   _matchCat(text) {
     for (const c of this.CATS) {
       if (c.match.some(m => text.includes(m))) return c;
@@ -166,7 +208,7 @@ const SettingsUI = {
     const groups = Array.from(root.querySelectorAll('.setting-group'));
     let any = false;
     groups.forEach(g => {
-      const match = !q || (g.textContent || '').toLowerCase().includes(q);
+      const match = !q || ((g.textContent || '') + ' ' + (g.dataset.keywords || '')).toLowerCase().includes(q);
       g.style.display = match ? '' : 'none';
       if (match) any = true;
     });
@@ -315,6 +357,9 @@ const SettingsUI = {
       const cat = this._matchCat(text);
       const tier = this.tierOf(text);
       g.dataset.tier = tier;
+      // The English heading goes in too, so an English word still finds a
+      // section whose heading is shown in Turkish.
+      if (labelEl) g.dataset.keywords = text.trim().split('\n')[0] + ' ' + this.keywordsFor(text);
       g.style.setProperty('--cat-color', cat.color);
       if (!g.id) g.id = 'setcat-' + i;
 

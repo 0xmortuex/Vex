@@ -218,6 +218,26 @@ describe('the AI sections share one chip', () => {
     expect(root.querySelector('.set-subnav').style.display).toBe('');
   });
 
+  it('the search knows the words people type for a section (found nothing before, 2026-10-10)', () => {
+    const find = (q) => { SettingsUI._filter(root, q); return sections().filter(g => g.style.display !== 'none').map(labelOf); };
+    expect(find('dark mode')).toContain('Appearance');
+    expect(find('font size')).toContain('Appearance');
+    expect(find('font size')).toContain('Reading & Accessibility');
+    expect(find('homepage')).toContain('Personalization');
+    expect(find('startup')).toContain('Sessions');
+    expect(find('download folder')).toContain('Downloads');
+    expect(find('dil')).toContain('General');
+    expect(find('proxy')).toContain('Private routing');
+    expect(find('notifications')).toContain('Site Permissions');
+    // A section still "Loading…" is found by its name's words.
+    expect(find('password manager')).toContain('Passwords');
+    SettingsUI._filter(root, '');
+  });
+
+  it('every section has search words', () => {
+    expect(sections().filter(g => !SettingsUI.keywordsFor(labelOf(g)) && !/^(AI |On-Device|MCP|Workspaces|Boosts|Focus|Command|Library|Recall|Smart Tab)/.test(labelOf(g))).map(labelOf)).toEqual([]);
+  });
+
   it('reopening Settings does not add a second row or chip', () => {
     SettingsUI.enhance();
     expect(root.querySelectorAll('.set-subnav')).toHaveLength(1);
