@@ -281,3 +281,14 @@ describe('the click that closes the drop is not lost', () => {
     expect(clicked).not.toHaveBeenCalled();
   });
 });
+
+describe('Pause, Resume and Cancel on the drop', () => {
+  it('say so when main refuses (RD5)', async () => {
+    window.showToast = vi.fn();
+    window.vex.downloadsControl = vi.fn(async () => ({ ok: false, error: 'This download cannot be resumed' }));
+    const row = DownloadsButton._liveRow({ id: 'd1', filename: 'a.zip', state: 'progressing', paused: true, receivedBytes: 1, totalBytes: 10 });
+    document.body.appendChild(row);
+    row.querySelector('[data-do="resume"]').click();
+    await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith('This download cannot be resumed', 'error'));
+  });
+});

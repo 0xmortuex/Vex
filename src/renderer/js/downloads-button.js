@@ -252,8 +252,13 @@ const DownloadsButton = {
       e.stopPropagation();
       const action = b.dataset.do;
       if (!window.vex || typeof window.vex.downloadsControl !== 'function') { window.showToast?.('Vex cannot reach that download', 'error'); return; }
-      try { await window.vex.downloadsControl(dl.id, action); }
-      catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+      // Main answers a refusal ("cannot be resumed", already finished) with
+      // { ok: false } rather than throwing; it used to vanish here and the
+      // button simply looked broken (audit RD5).
+      try {
+        const result = await window.vex.downloadsControl(dl.id, action);
+        if (!result || !result.ok) window.showToast?.((result && result.error) || 'Could not ' + action + ' that download', 'error');
+      } catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
       this.refresh();
     }));
     return row;
