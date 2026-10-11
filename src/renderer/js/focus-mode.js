@@ -116,7 +116,7 @@ const FocusMode = {
     const btn = (bg, color) => `padding:8px 16px;background:${bg};color:${color};border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px`;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">Sites blocked while a focus session is running (<kbd>Ctrl</kbd>+<kbd>K</kbd> → "Focus 25"). One per line.</p>
-      <textarea id="focus-blocklist" rows="5" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none;resize:vertical;font-family:'JetBrains Mono',monospace">${esc(current.join('\n'))}</textarea>
+      <textarea id="focus-blocklist" aria-label="Sites blocked during a focus session, one per line" rows="5" spellcheck="false" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none;resize:vertical;font-family:'JetBrains Mono',monospace">${esc(current.join('\n'))}</textarea>
       <div id="focus-state" class="setting-info muted" style="margin-top:8px;display:flex;align-items:center;gap:6px"></div>
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
         <button id="focus-save" style="${btn('var(--primary)', '#fff')};border-color:transparent">Save blocklist</button>

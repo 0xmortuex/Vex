@@ -308,7 +308,7 @@ const TabArchiver = {
     if (!container) return;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Close tabs untouched for this many days into the Library's archive (0 = off). Pinned tabs are never archived.</p>
-      <select id="arch-days" style="min-width:160px">
+      <select id="arch-days" aria-label="Archive tabs untouched for" style="min-width:160px">
         ${[0, 3, 7, 14, 30].map(d => `<option value="${d}" ${this.days() === d ? 'selected' : ''}>${d === 0 ? 'Off' : 'After ' + d + ' days'}</option>`).join('')}
       </select>`;
     container.querySelector('#arch-days').addEventListener('change', (e) => { this.setDays(parseInt(e.target.value, 10) || 0); window.showToast?.('Auto-archive updated'); });

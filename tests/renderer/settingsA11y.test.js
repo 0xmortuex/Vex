@@ -57,6 +57,28 @@ describe('Settings controls have names', () => {
     expect(unnamed).toEqual([]);
   });
 
+  it('the switches and menus other files draw into Settings are named too', () => {
+    // A switch's <label class="toggle"> holds only the slider, so its box needs
+    // an aria-label of its own (game-mode.js sets it in code).
+    const { readdirSync } = require('node:fs');
+    const offenders = [];
+    for (const f of readdirSync(path.join(R, 'js')).filter(n => n.endsWith('.js'))) {
+      const src = readFileSync(path.join(R, 'js', f), 'utf8');
+      for (const m of src.matchAll(/<label class="toggle">\s*<input [^>]*>/g)) {
+        if (!/aria-label/.test(m[0]) && !(f === 'game-mode.js' && /box\.setAttribute\('aria-label'/.test(src))) offenders.push(f + ': ' + m[0].slice(0, 80));
+      }
+    }
+    expect(offenders).toEqual([]);
+    // Found unnamed by Chromium's accessibility tree in the Firefox look (2026-10-10).
+    const named = { 'privacy-pack.js': ['priv-farble', 'priv-https-only', 'priv-doh', 'priv-doh-provider'], 'ai-memory.js': ['mem-enabled'],
+      'webllm.js': ['wl-model', 'wl-prefer'], 'focus-mode.js': ['focus-blocklist'], 'compose-chains.js': ['chain-pick'],
+      'readlater.js': ['arch-days'], 'recall.js': ['recall-enabled'] };
+    for (const [f, ids] of Object.entries(named)) {
+      const src = readFileSync(path.join(R, 'js', f), 'utf8');
+      for (const id of ids) expect(src, id).toMatch(new RegExp('id="' + id + '" aria-label="[^"]+"'));
+    }
+  });
+
   it('a switch draws a focus ring on its track (a11y.css, which stays last)', () => {
     const css = readFileSync(path.join(R, 'css/a11y.css'), 'utf8');
     expect(css).toMatch(/\.toggle input:focus-visible \+ \.toggle-slider\s*\{[^}]*outline:\s*2px solid/);

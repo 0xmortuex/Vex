@@ -456,7 +456,7 @@ const Recall = {
     const esc = window.escapeHtml;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Index the full text of pages you read so you can find them later by content. Stored locally only (userData/recall.json) — never uploaded. Private, Tor and identity tabs are never indexed.</p>
-      <div class="setting-toggle-row"><span>Index pages for full-text recall</span><label class="toggle"><input type="checkbox" id="recall-enabled" ${this.enabled() ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
+      <div class="setting-toggle-row"><span>Index pages for full-text recall</span><label class="toggle"><input type="checkbox" id="recall-enabled" aria-label="Index pages for full-text recall" ${this.enabled() ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted recall-settings-stat" id="recall-settings-stat">Checking the index…</p>
       <div class="recall-settings-excluded" id="recall-excluded"></div>
       <div class="recall-settings-actions">
