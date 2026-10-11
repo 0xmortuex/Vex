@@ -285,23 +285,43 @@ const strings = (v) => (Array.isArray(v) ? v.filter(s => typeof s === 'string') 
 
 // What may not work here, in words, from the manifest. Checked against what
 // Vex's stand-ins really provide (src/preload-webview.js,
-// src/preload-extension-sw.js): tabs.create/remove, storage.sync and
-// permissions work; these do not.
+// src/preload-extension-sw.js) and what Electron has: tabs, storage (sync
+// too), permissions, alarms, cookies, contextMenus, commands, the toolbar
+// button, windows, notifications and downloads work, some in part (said
+// below); the namespaces in ABSENT are not there at all (measured
+// 2026-10-10: the list missed most of them, EX7).
+const ABSENT = [
+  ['history', 'your browsing history'], ['bookmarks', 'your bookmarks'], ['tabGroups', 'tab groups'],
+  ['topSites', 'your most visited sites'], ['sessions', 'recently closed tabs'], ['tts', 'reading text aloud'],
+  ['ttsEngine', 'being a text-to-speech voice'], ['fontSettings', 'font settings'], ['privacy', 'privacy settings'],
+  ['proxy', 'proxy settings'], ['browsingData', 'clearing browsing data'], ['search', 'searching'],
+  ['contentSettings', 'site settings'], ['pageCapture', 'saving pages'], ['tabCapture', 'capturing a tab'],
+  ['desktopCapture', 'capturing the screen'], ['debugger', 'the debugger'], ['readingList', 'the reading list'],
+  ['declarativeContent', 'showing its button by page'], ['gcm', 'push messages'], ['printerProvider', 'printers'],
+  ['webAuthenticationProxy', 'passkey requests'], ['dns', 'DNS lookups'], ['processes', 'the task list'],
+  ['sidePanel', 'its side panel'], ['identity', 'signing in through it'], ['nativeMessaging', 'talking to programs on this computer'],
+  ['userScripts', 'its user scripts'],
+];
 function cautions(manifest) {
   const m = manifest || {};
   const perms = new Set([...strings(m.permissions), ...strings(m.optional_permissions)]);
   const has = (...names) => names.some(n => perms.has(n));
   const out = [];
-  if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback', 'webRequestBlocking')) {
-    out.push('It cannot block or redirect requests here (declarativeNetRequest, blocking webRequest): Electron gives extensions no request blocking. Vex\'s own blocker does that.');
+  if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback')) {
+    out.push('Its blocking rules (declarativeNetRequest) are accepted but block nothing here: Electron gives extensions no request blocking. Vex\'s own blocker does that.');
   }
+  if (has('webRequestBlocking')) out.push('It cannot block or redirect requests here (blocking webRequest). Vex\'s own blocker does that.');
+  else if (has('webRequest')) out.push('It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.');
   if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
-  if (has('userScripts')) out.push('Its user scripts will not run: Electron has no chrome.userScripts.');
-  if (has('cookies')) out.push('It cannot read or change cookies here (cookies).');
+  if (has('cookies')) out.push('It can read and change cookies, but is not told when one changes (cookies.onChanged).');
   if (has('webNavigation')) out.push('It is not told when pages navigate (webNavigation).');
-  if (has('sidePanel') || m.side_panel) out.push('Its side panel will not open (sidePanel).');
-  if (has('nativeMessaging')) out.push('It cannot talk to programs on this machine (nativeMessaging).');
-  if (has('identity')) out.push('Signing in through it (identity) will not work.');
+  if (has('notifications')) out.push('Its notifications show as Windows notifications without buttons or pictures, and it cannot take one back.');
+  if (has('downloads')) out.push('It can start, list, pause and cancel downloads, but cannot name the file, open it, show it or delete it.');
+  if (m.side_panel) perms.add('sidePanel');
+  const missing = ABSENT.filter(([name]) => perms.has(name));
+  if (missing.length) {
+    out.push(`It cannot use ${missing.map(([name, what]) => `${what} (${name})`).join(', ')}: Vex does not have ${missing.length === 1 ? 'that' : 'those'} for extensions.`);
+  }
   return out;
 }
 

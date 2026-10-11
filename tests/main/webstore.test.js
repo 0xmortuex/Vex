@@ -169,7 +169,7 @@ describe('what the dialog says', () => {
     expect(d.reach.level).toBe('some');
     expect(d.powers.map(p => p.id)).toContain('cookies');
     const all = d.cautions.join(' ');
-    expect(all).toMatch(/cannot block/);
+    expect(all).toMatch(/block nothing here/);
     // Right-click menu items and shortcuts work now; only global ones do not.
     expect(all).not.toMatch(/right-click menu|keyboard shortcuts are not bound/);
     expect(all).toMatch(/cookies/);

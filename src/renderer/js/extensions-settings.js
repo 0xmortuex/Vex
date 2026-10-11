@@ -137,6 +137,15 @@ const ExtensionsSettings = (() => {
       </div>`;
   }
 
+  // What will not work here: the install dialog said it once, and the card
+  // never did again (EX7).
+  function _cautionsHtml(e) {
+    const list = (e && Array.isArray(e.cautions)) ? e.cautions : [];
+    if (!list.length) return '';
+    return `<details class="ext-cautions"><summary>What will not work in Vex (${list.length})</summary>
+      <ul class="ext-powers">${list.map(c => `<li>${_esc(c)}</li>`).join('')}</ul></details>`;
+  }
+
   // Where it came from, and so whether Vex can update it.
   function _sourceHtml(e) {
     const s = e.source;
@@ -398,7 +407,8 @@ const ExtensionsSettings = (() => {
                   ${_auditHtml(e)}
                   ${_fileAccessHtml(e)}
                   ${_commandsHtml(e, commands)}
-                  ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements — and its background page costs about 85 MB for that.</div>` : ''}
+                  ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements${e.persistentBackground ? ' — and its background page stays loaded for that, about 85 MB' : ''}.</div>` : ''}
+                  ${_cautionsHtml(e)}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>
                 <div class="ext-card-actions">

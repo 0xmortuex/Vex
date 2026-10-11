@@ -3171,7 +3171,12 @@ ipcMain.handle('extensions:list', () => {
       generic: where.generic,
       where: where.partitions,
       // Asks for request blocking, which Electron does not give extensions.
-      blocker: (Array.isArray(manifest.permissions) ? manifest.permissions : []).some(p => /^(webRequest|webRequestBlocking|declarativeNetRequest)/.test(String(p))),
+      // Plain webRequest only watches requests (EX8): not a blocker.
+      blocker: (Array.isArray(manifest.permissions) ? manifest.permissions : []).some(p => /^(webRequestBlocking|declarativeNetRequest)/.test(String(p))),
+      // A background page that stays loaded (Manifest V2, not an event page).
+      persistentBackground: !!(manifest.background && (manifest.background.page || manifest.background.scripts) && manifest.background.persistent !== false),
+      // What will not work here, as the install dialog said (src/main/webstore.js).
+      cautions: e.manifest ? require('./main/webstore').cautions(manifest) : [],
       name: extHelpers.localize(manifest.name, e.messages) || e.folder,
       version: manifest.version || '—',
       description: extHelpers.localize(manifest.description, e.messages) || '',
