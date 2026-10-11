@@ -27,12 +27,15 @@ async function start() {
   ({ PersistentStorage } = await import('../../src/renderer/js/storage.js?' + Math.random()));
 }
 
-beforeEach(() => {
-  // Each test loads its own storage.js, whose clear() mirrors to the file: the
-  // previous test's copy would queue deletes that land in this test's file
-  // before it is read. Clear browser storage only.
-  const originals = Storage.prototype[Symbol.for('vex.storage.originals')];
-  (originals ? originals.clear : Storage.prototype.clear).call(localStorage);
+const originals = () => Storage.prototype[Symbol.for('vex.storage.originals')];
+
+beforeEach(async () => {
+  // Each test loads its own storage.js. The previous test's copy still holds
+  // writes waiting on its 300 ms timer; on a busy machine they landed in this
+  // test's file. Let it finish them into its own file first.
+  if (PersistentStorage) await PersistentStorage._flush();
+  // Its clear() mirrors to the file too: clear browser storage only.
+  (originals() ? originals().clear : Storage.prototype.clear).call(localStorage);
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'log').mockImplementation(() => {});
 });
@@ -71,7 +74,9 @@ describe('a problem noted before the saved list is restored', () => {
 
   it('does not count twice when browser storage already held the list', async () => {
     file = { 'vex.problems': JSON.stringify(saved(2, { n: 5 })) };
-    localStorage.setItem('vex.problems', file['vex.problems']);
+    // Straight into browser storage: the previous test's storage.js would
+    // otherwise queue it for a file.
+    (originals() ? originals().setItem : Storage.prototype.setItem).call(localStorage, 'vex.problems', file['vex.problems']);
     await start();
     const ready = PersistentStorage.init();
     VexProblems.note('Sync', 'Old problem 0');
