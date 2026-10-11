@@ -197,6 +197,11 @@
    dark look whatever the theme. */
 :root { color-scheme: light; }
 html[data-scheme="dark"], html:has(> body[data-gui-style="glass"]) { color-scheme: dark; }
+/* A browser look in its own colours is light or dark whatever the theme: the
+   Firefox dark look over Oxford had light dropdowns, Firefox over Nord dark
+   ones on a white window (release check, 2026-10-11). The look decides. */
+html:has(> body[data-gui-family="browser"]:not([data-gui-colors="theme"])) { color-scheme: light; }
+html:has(> body[data-gui-family="browser"]:not([data-gui-colors="theme"]):is([data-gui-style="chrome-dark"], [data-gui-style="firefox-dark"], [data-gui-style="fluent-dark"], [data-gui-style="terminal"])) { color-scheme: dark; }
 
 /* Shared hover/elevation tokens for every dark theme (Oxford is the only
    light theme — it keeps the navy/warm values from :root above). */

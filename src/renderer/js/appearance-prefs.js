@@ -56,6 +56,8 @@ const WebsiteAppearance = {
     const report = (err) => console.error('[website-appearance]', err && err.message);
     document.addEventListener('theme-changed', () => { this.apply().catch(report); });
     window.addEventListener('vex:gui-style', () => { this.apply().catch(report); });
+    // A browser look in its own colours is its own light or dark.
+    window.addEventListener('vex:gui-colors', () => { this.apply().catch(report); });
   },
 
   wire() {

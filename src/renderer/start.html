@@ -893,6 +893,10 @@
        scrollbar is tinted from the theme as well. */
     html { color-scheme: light; scrollbar-color: color-mix(in srgb, var(--vex-text-muted) 60%, transparent) transparent; }
     html:is([data-scheme="dark"], [data-gui-style="glass"]) { color-scheme: dark; }
+    /* Handed a browser look's own palette (js/gui-style.js), the page is that
+       look's light or dark, not the theme's (css/theme-tokens.css). */
+    html[data-look-palette] { color-scheme: light; }
+    html[data-look-palette]:is([data-look="chrome-dark"], [data-look="firefox-dark"], [data-look="fluent-dark"], [data-look="terminal"]) { color-scheme: dark; }
     /* Vex's own size (Larger, Largest) — every block of the page grows with it. */
     html[data-vex-scale] body > * { zoom: var(--vex-ui-scale, 1); }
 
