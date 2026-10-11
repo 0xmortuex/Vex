@@ -325,6 +325,8 @@ const WebviewManager = {
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
           // And the font Vex is wearing (js/fonts.js), for the same reason.
           try { window.VexFonts?.paintStartPages(); } catch (err) { console.error('[fonts] start page failed:', err); }
+          // And Settings › Appearance › Reduce motion (js/appearance-prefs.js).
+          window.ReduceMotion?.paintStartPage(webview);
           // The search engine chosen now, a search engine of your own too
           // (js/search-engine-custom.js): the page's own copy can be stale.
           webview.executeJavaScript(VexTypedAddress.startPageEngineJs())

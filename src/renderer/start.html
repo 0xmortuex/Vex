@@ -49,6 +49,12 @@
         document.documentElement.setAttribute('data-vex-scale', '');
       } catch (e) { console.error('[start] size:', e); }
     })();
+    // Settings › Appearance › Reduce motion (js/appearance-prefs.js), before first paint.
+    (function () {
+      try {
+        if (localStorage.getItem('vex.reduceMotion') === '1') document.documentElement.setAttribute('data-reduce-motion', '');
+      } catch (e) { console.error('[start] reduce motion:', e); }
+    })();
   </script>
   <style>
     /* Accessibility baseline (mirrors css/a11y.css — this page is a separate
@@ -65,6 +71,15 @@
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
       }
+    }
+    /* The same under Vex's own Reduce motion switch, whatever Windows says. */
+    html[data-reduce-motion] *,
+    html[data-reduce-motion] *::before,
+    html[data-reduce-motion] *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
 
     /* Inlined theme tokens — start.html is served standalone via vex://start

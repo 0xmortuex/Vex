@@ -88,6 +88,33 @@ const ReduceMotion = {
   set(on) {
     if (on) localStorage.setItem(this.KEY, '1'); else localStorage.removeItem(this.KEY);
     this.apply();
+    this.paintStartPages();
+  },
+
+  // The New Tab page is a document of its own (and its own storage): it was
+  // left moving (release check, 2026-10-11). It is handed the switch when it
+  // loads (js/webview.js) and when it changes, and keeps a copy that
+  // start.html reads before first paint.
+  startPageJs() {
+    const on = this.on();
+    return `(() => { const h = document.documentElement;
+      if (${on}) { h.setAttribute('data-reduce-motion', ''); localStorage.setItem('vex.reduceMotion', '1'); }
+      else { h.removeAttribute('data-reduce-motion'); localStorage.removeItem('vex.reduceMotion'); }
+      return true; })()`;
+  },
+
+  paintStartPage(webview) {
+    return webview.executeJavaScript(this.startPageJs())
+      .catch(err => console.error('[reduce-motion] could not reach a New Tab page:', err && err.message));
+  },
+
+  paintStartPages() {
+    if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
+    for (const wv of WebviewManager.webviews.values()) {
+      let url = '';
+      try { url = wv.getURL(); } catch { continue; }   // not attached yet: handed it when it loads
+      if (_isTrustedStartPage(url)) this.paintStartPage(wv);
+    }
   },
 
   wire() {
