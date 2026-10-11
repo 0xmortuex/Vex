@@ -4441,6 +4441,7 @@ async function _extApi(senderUrl, ses, request) {
       const own = (manifest.action || manifest.browser_action || {}).default_title;
       return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
     }
+    case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
     case 'commands.getAll': {
       const rows = _extCommands().byFolder[path.basename(ext.path)] || [];
       return rows.map(row => ({ name: row.name, description: row.description, shortcut: row.shortcut }));

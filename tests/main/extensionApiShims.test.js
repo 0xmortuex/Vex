@@ -93,7 +93,7 @@ function worker(chrome, { ipcRenderer = null } = {}) {
 // real keeper of menu items and badges (src/main/extension-ui.js), and its
 // events back (extensions:event). A failure comes back the way Electron
 // wraps one.
-function fakeMain({ commands = [] } = {}) {
+function fakeMain({ commands = [], fileAccess = false } = {}) {
   const ui = createExtensionUi();
   const asked = [];
   const listeners = [];
@@ -108,6 +108,7 @@ function fakeMain({ commands = [] } = {}) {
       case 'action.set': return ui.actionSet('persist:main', 'ext', a.prop, a.prop === 'icon' ? 'data:image/png;base64,AAAA' : a.value, a.tabId == null ? null : a.tabId);
       case 'action.get': return ui.actionGet('persist:main', 'ext', a.prop, a.tabId == null ? null : a.tabId, { title: 'Own title' });
       case 'commands.getAll': return commands;
+      case 'extension.fileAccess': return fileAccess;
       default: throw new Error('Vex does not know ' + req.op);
     }
   };
@@ -356,7 +357,7 @@ describe('what Dark Reader needs to fill its popup', () => {
     expect(heard).toEqual(['install']);
   });
 
-  it('commands lists the shortcuts as main has bound them, onCommand hears them, and file access is allowed', async () => {
+  it('commands lists the shortcuts as main has bound them, onCommand hears them, and file access is what the person allowed', async () => {
     const rows = [{ name: 'addSite', description: 'Toggle current site', shortcut: 'Alt+Shift+A' }, { name: 'toggle', description: '', shortcut: '' }];
     const main = fakeMain({ commands: rows });
     const c = page(extension().chrome({ manifest: { commands: { addSite: { description: 'Toggle current site' }, toggle: {} } } }), { ipcRenderer: main.ipcRenderer });
@@ -366,7 +367,23 @@ describe('what Dark Reader needs to fill its popup', () => {
     main.emit({ type: 'commands.onCommand', args: ['addSite', { id: 4 }] });
     expect(heard).toEqual([['addSite', 4]]);
     // Dark Reader asks with a callback.
-    await new Promise((resolve) => c.extension.isAllowedFileSchemeAccess((v) => { expect(v).toBe(true); resolve(); }));
+    // Not allowed on its card (the default): false. It was always true (EX4).
+    await new Promise((resolve) => c.extension.isAllowedFileSchemeAccess((v) => { expect(v).toBe(false); resolve(); }));
+    const allowed = page(extension().chrome({ manifest: {} }), { ipcRenderer: fakeMain({ fileAccess: true }).ipcRenderer });
+    expect(await allowed.extension.isAllowedFileSchemeAccess()).toBe(true);
+  });
+
+  // EX12: permissions were worked out before the stand-ins existed, so the
+  // ones they provide were said to be missing. EX4: file:// origins likewise.
+  it('permissions include the namespaces the stand-ins provide, and file:// only when allowed', async () => {
+    const manifest = { permissions: ['contextMenus', 'cookies', 'webNavigation', 'storage'], host_permissions: ['<all_urls>'], commands: {} };
+    const c = page(extension().chrome({ manifest }), { ipcRenderer: fakeMain().ipcRenderer });
+    expect(await c.permissions.contains({ permissions: ['contextMenus', 'cookies', 'webNavigation'] })).toBe(true);
+    expect((await c.permissions.getAll()).permissions).toEqual(expect.arrayContaining(['contextMenus', 'cookies', 'webNavigation']));
+    expect(await c.permissions.contains({ origins: ['file:///*'] })).toBe(false);
+    expect(await c.permissions.contains({ origins: ['https://example.com/*'] })).toBe(true);
+    const allowed = page(extension().chrome({ manifest }), { ipcRenderer: fakeMain({ fileAccess: true }).ipcRenderer });
+    expect(await allowed.permissions.contains({ origins: ['file:///*'] })).toBe(true);
   });
 
   it('keeps a real chrome.extension and its other members', () => {

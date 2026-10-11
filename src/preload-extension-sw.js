@@ -25,8 +25,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 //     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
 //     them "On" (2026-09-29).
 // Each gets an honest stand-in: permissions reports what the manifest granted
-// and Vex provides and grants nothing new; file access is allowed (Vex loads
-// extensions with allowFileAccess) and there is no incognito here.
+// and Vex provides and grants nothing new; there is no file access (an
+// extension's scripts never reach a file:// page here, measured 2026-10-10)
+// and no incognito.
 //
 // Right-click menu items, the toolbar button's badge and title, and keyboard
 // shortcuts are real (since 2026-10-08): extApi, where given, takes them to
@@ -85,6 +86,9 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     p.then(function (v) { cb(v); }, function (err) { console.error('Unchecked runtime.lastError (' + what + '): ' + err.message); cb(); });
     return undefined;
   }
+  // Whether the person allowed this extension file:// pages (its card in the
+  // manager). With no main to ask, it is not.
+  function fileAccess() { return api ? api('extension.fileAccess').then(function (v) { return v === true; }) : Promise.resolve(false); }
   var hubs = {};
   var heard = false;
   var ownClicks = {};
@@ -115,19 +119,34 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
     // Permissions that never come with a chrome.<name> namespace of their own.
     var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
-    var apis = granted.filter(function (p) {
-      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
-    });
-    var has = function (q) {
+    // Asked when called, not now: the stand-ins below (contextMenus,
+    // commands, cookies, webNavigation, …) are not made yet, and a
+    // permission they provide was answered false (found 2026-10-10, EX12).
+    var apis = function () {
+      return granted.filter(function (p) {
+        return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+      });
+    };
+    // A file:// page only for an extension the person allowed on its card
+    // (main.js _fileAccessState); it was always said to be allowed (EX4).
+    var has = function (q, fileOk) {
       q = q || {};
-      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
-        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+      var own = apis();
+      return (q.permissions || []).every(function (p) { return own.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) {
+          if (/^file:/i.test(o) && !fileOk) return false;
+          return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1;
+        });
+    };
+    var askHas = function (q) {
+      var wantsFile = ((q || {}).origins || []).some(function (o) { return /^file:/i.test(o); });
+      return wantsFile ? fileAccess().then(function (ok) { return has(q, ok); }) : Promise.resolve(has(q, false));
     };
     c.permissions = {
-      contains: function (q, cb) { return done(has(q))(cb); },
-      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      contains: function (q, cb) { return settle(askHas(q), cb, 'permissions.contains'); },
+      getAll: function (cb) { return done({ permissions: apis(), origins: origins.slice() })(cb); },
       // Already granted: true. Anything more cannot be granted here: false.
-      request: function (q, cb) { return done(has(q))(cb); },
+      request: function (q, cb) { return settle(askHas(q), cb, 'permissions.request'); },
       remove: function (q, cb) { return done(false)(cb); },
       onAdded: noEvent(),
       onRemoved: noEvent(),
@@ -294,7 +313,9 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
   }
 
   if (!c.extension) c.extension = {};
-  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') {
+    c.extension.isAllowedFileSchemeAccess = function (cb) { return settle(fileAccess(), cb, 'extension.isAllowedFileSchemeAccess'); };
+  }
   if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
   if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
 
