@@ -1,13 +1,9 @@
 // === Vex Theme Picker ===
 //
 // Visual theme chooser opened by Ctrl+Shift+Y (wired in app.js). Renders a grid
-// of cards — one per ThemeManager.THEMES entry — each showing a PNG preview
-// (assets/theme-previews/<id>.png) and the theme's label. Clicking a card
+// of cards — one per ThemeManager.THEMES entry — each showing a live mini
+// window in the theme's own colours and the theme's label. Clicking a card
 // applies the theme immediately and closes. Esc / backdrop click also closes.
-//
-// Previews are static screenshots captured by scripts/capture-theme-previews.js.
-// If a preview file is missing the card falls back to a labelled color chip so
-// the picker is still usable.
 
 const ThemePicker = {
   _overlay: null,

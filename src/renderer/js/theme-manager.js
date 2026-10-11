@@ -18,50 +18,50 @@
 const ThemeManager = {
   DEFAULT_THEME: 'oxford',
 
-  // Registry — order is the picker's display order. `preview` is the PNG under
-  // assets/theme-previews/ shown on each picker card.
+  // Registry — order is the picker's display order. Each picker card is a live
+  // mini window drawn in the theme's own colours (theme-picker.js); `mock` is
+  // the page/side/surface/text/accent palette for those that need it.
   THEMES: [
-    { id: 'oxford',     label: 'Oxford Editorial', preview: 'oxford.png',     accent: '#1e3a5f' },
-    { id: 'default',    label: 'Graphite',         preview: 'default.png',    accent: '#d4a574' },
-    { id: 'midnight',   label: 'Midnight',         preview: 'midnight.png',   accent: '#6366f1' },
-    { id: 'forest',     label: 'Forest',           preview: 'forest.png',     accent: '#4ade80' },
-    { id: 'ocean',      label: 'Ocean',            preview: 'ocean.png',      accent: '#0ea5e9' },
-    { id: 'dracula',    label: 'Dracula',          preview: 'dracula.png',    accent: '#bd93f9' },
-    { id: 'nord',       label: 'Nord',             preview: 'nord.png',       accent: '#88c0d0' },
-    { id: 'catppuccin', label: 'Catppuccin',       preview: 'catppuccin.png', accent: '#c9cbff' },
-    // New themes — captured PNG previews (scripts/capture-theme-previews.js); the
-    // `mock` palette is the live CSS fallback if a PNG ever fails to load.
-    { id: 'sunset',     label: 'Sunset',      preview: 'sunset.png',     accent: '#ff7a59', mock: { bg: '#1b1115', side: '#221318', surf: '#2a1a20', txt: '#f3d9cf', acc: '#ff7a59' } },
-    { id: 'rose',       label: 'Rosé',        preview: 'rose.png',       accent: '#ea9a97', mock: { bg: '#1f1d2e', side: '#232136', surf: '#2a273f', txt: '#e0def4', acc: '#ea9a97' } },
-    { id: 'matrix',     label: 'Matrix',      preview: 'matrix.png',     accent: '#22c55e', mock: { bg: '#050807', side: '#081009', surf: '#0c130d', txt: '#b8f0c0', acc: '#22c55e' } },
-    { id: 'mocha',      label: 'Mocha',       preview: 'mocha.png',      accent: '#d2956a', mock: { bg: '#1c1714', side: '#221c19', surf: '#2a2320', txt: '#ecdfd6', acc: '#d2956a' } },
-    { id: 'solarized',  label: 'Solarized',   preview: 'solarized.png',  accent: '#3a9be0', mock: { bg: '#00252e', side: '#002b36', surf: '#073642', txt: '#b3bfbf', acc: '#3a9be0' } },
-    { id: 'vaporwave',  label: 'Vaporwave',   preview: 'vaporwave.png',  accent: '#ff71ce', mock: { bg: '#1a0f2e', side: '#1f1233', surf: '#271640', txt: '#f0e6ff', acc: '#ff71ce' } },
-    { id: 'aurora',     label: 'Aurora',      preview: 'aurora.png',     accent: '#34d399', mock: { bg: '#0a1612', side: '#0d1f18', surf: '#102a22', txt: '#c8f0e0', acc: '#34d399' } },
-    { id: 'crimson',    label: 'Crimson',     preview: 'crimson.png',    accent: '#ef4444', mock: { bg: '#160a0c', side: '#1e0d10', surf: '#2a1015', txt: '#f0d0d4', acc: '#ef4444' } },
-    { id: 'gold',       label: 'Gold',        preview: 'gold.png',       accent: '#d4af37', mock: { bg: '#12100a', side: '#1a160e', surf: '#221d12', txt: '#ecdfb8', acc: '#d4af37' } },
-    { id: 'sakura',     label: 'Sakura',      preview: 'sakura.png',     accent: '#f9a8d4', mock: { bg: '#1a0f14', side: '#22131a', surf: '#2a1820', txt: '#f0d8e4', acc: '#f9a8d4' } },
-    { id: 'cyberpunk',  label: 'Cyberpunk',   preview: 'cyberpunk.png',  accent: '#fde047', mock: { bg: '#0a0a12', side: '#0f0f18', surf: '#15151f', txt: '#e8e8f0', acc: '#fde047' } },
-    { id: 'monochrome', label: 'Monochrome',  preview: 'monochrome.png', accent: '#d4d4d4', mock: { bg: '#0d0d0d', side: '#141414', surf: '#1f1f1f', txt: '#e5e5e5', acc: '#d4d4d4' } },
-    { id: 'slate',      label: 'Slate',       preview: 'slate.png',      accent: '#94a3b8', mock: { bg: '#0f141a', side: '#141a22', surf: '#1a222c', txt: '#cbd5e1', acc: '#94a3b8' } },
-    { id: 'emerald',    label: 'Emerald',     preview: 'emerald.png',    accent: '#10b981', mock: { bg: '#07150f', side: '#0a1c13', surf: '#0e2419', txt: '#c0f0d8', acc: '#10b981' } },
-    { id: 'amethyst',   label: 'Amethyst',    preview: 'amethyst.png',   accent: '#a855f7', mock: { bg: '#140e1f', side: '#1a1228', surf: '#211733', txt: '#e2d4f5', acc: '#a855f7' } },
-    { id: 'volcano',    label: 'Volcano',     preview: 'volcano.png',    accent: '#f97316', mock: { bg: '#160c08', side: '#1d1009', surf: '#261610', txt: '#f0d8c8', acc: '#f97316' } },
-    { id: 'sapphire',   label: 'Sapphire',    preview: 'sapphire.png',   accent: '#3b82f6', mock: { bg: '#0a0f1f', side: '#0e1528', surf: '#131c33', txt: '#cdd9f0', acc: '#3b82f6' } },
-    { id: 'honey',      label: 'Honey',       preview: 'honey.png',      accent: '#f59e0b', mock: { bg: '#161106', side: '#1d1609', surf: '#261d0c', txt: '#f0e2c0', acc: '#f59e0b' } },
-    { id: 'mint',       label: 'Mint',        preview: 'mint.png',       accent: '#2dd4bf', mock: { bg: '#0a1614', side: '#0d1d1a', surf: '#122624', txt: '#c8f0ea', acc: '#2dd4bf' } },
-    { id: 'obsidian',   label: 'Obsidian',    preview: 'obsidian.png',   accent: '#94a3b8', mock: { bg: '#08090b', side: '#0e1013', surf: '#141619', txt: '#d8dde5', acc: '#94a3b8' } },
-    { id: 'ruby',       label: 'Ruby',        preview: 'ruby.png',       accent: '#e11d48', mock: { bg: '#170a0f', side: '#1f0d13', surf: '#2a1018', txt: '#f0cdd6', acc: '#e11d48' } },
-    { id: 'lime',       label: 'Lime',        preview: 'lime.png',       accent: '#84cc16', mock: { bg: '#0f1505', side: '#14200a', surf: '#1c2610', txt: '#dcecc0', acc: '#84cc16' } },
-    { id: 'bronze',     label: 'Bronze',      preview: 'bronze.png',     accent: '#c0824a', mock: { bg: '#15100a', side: '#1c1509', surf: '#251c10', txt: '#ecdcc8', acc: '#c0824a' } },
-    { id: 'plum',       label: 'Plum',        preview: 'plum.png',       accent: '#c026d3', mock: { bg: '#150a17', side: '#1d0d20', surf: '#261029', txt: '#f0d4f5', acc: '#c026d3' } },
-    { id: 'arctic',     label: 'Arctic',      preview: 'arctic.png',     accent: '#38bdf8', mock: { bg: '#0a1118', side: '#0d1822', surf: '#122230', txt: '#d0e4f0', acc: '#38bdf8' } },
-    { id: 'wine',       label: 'Wine',        preview: 'wine.png',       accent: '#be123c', mock: { bg: '#14080c', side: '#1d0a11', surf: '#260e16', txt: '#f0cdd4', acc: '#be123c' } },
+    { id: 'oxford',     label: 'Oxford Editorial', accent: '#1e3a5f' },
+    { id: 'default',    label: 'Graphite',         accent: '#d4a574' },
+    { id: 'midnight',   label: 'Midnight',         accent: '#6366f1' },
+    { id: 'forest',     label: 'Forest',           accent: '#4ade80' },
+    { id: 'ocean',      label: 'Ocean',            accent: '#0ea5e9' },
+    { id: 'dracula',    label: 'Dracula',          accent: '#bd93f9' },
+    { id: 'nord',       label: 'Nord',             accent: '#88c0d0' },
+    { id: 'catppuccin', label: 'Catppuccin',       accent: '#c9cbff' },
+    // New themes.
+    { id: 'sunset',     label: 'Sunset',      accent: '#ff7a59', mock: { bg: '#1b1115', side: '#221318', surf: '#2a1a20', txt: '#f3d9cf', acc: '#ff7a59' } },
+    { id: 'rose',       label: 'Rosé',        accent: '#ea9a97', mock: { bg: '#1f1d2e', side: '#232136', surf: '#2a273f', txt: '#e0def4', acc: '#ea9a97' } },
+    { id: 'matrix',     label: 'Matrix',      accent: '#22c55e', mock: { bg: '#050807', side: '#081009', surf: '#0c130d', txt: '#b8f0c0', acc: '#22c55e' } },
+    { id: 'mocha',      label: 'Mocha',       accent: '#d2956a', mock: { bg: '#1c1714', side: '#221c19', surf: '#2a2320', txt: '#ecdfd6', acc: '#d2956a' } },
+    { id: 'solarized',  label: 'Solarized',   accent: '#3a9be0', mock: { bg: '#00252e', side: '#002b36', surf: '#073642', txt: '#b3bfbf', acc: '#3a9be0' } },
+    { id: 'vaporwave',  label: 'Vaporwave',   accent: '#ff71ce', mock: { bg: '#1a0f2e', side: '#1f1233', surf: '#271640', txt: '#f0e6ff', acc: '#ff71ce' } },
+    { id: 'aurora',     label: 'Aurora',      accent: '#34d399', mock: { bg: '#0a1612', side: '#0d1f18', surf: '#102a22', txt: '#c8f0e0', acc: '#34d399' } },
+    { id: 'crimson',    label: 'Crimson',     accent: '#ef4444', mock: { bg: '#160a0c', side: '#1e0d10', surf: '#2a1015', txt: '#f0d0d4', acc: '#ef4444' } },
+    { id: 'gold',       label: 'Gold',        accent: '#d4af37', mock: { bg: '#12100a', side: '#1a160e', surf: '#221d12', txt: '#ecdfb8', acc: '#d4af37' } },
+    { id: 'sakura',     label: 'Sakura',      accent: '#f9a8d4', mock: { bg: '#1a0f14', side: '#22131a', surf: '#2a1820', txt: '#f0d8e4', acc: '#f9a8d4' } },
+    { id: 'cyberpunk',  label: 'Cyberpunk',   accent: '#fde047', mock: { bg: '#0a0a12', side: '#0f0f18', surf: '#15151f', txt: '#e8e8f0', acc: '#fde047' } },
+    { id: 'monochrome', label: 'Monochrome',  accent: '#d4d4d4', mock: { bg: '#0d0d0d', side: '#141414', surf: '#1f1f1f', txt: '#e5e5e5', acc: '#d4d4d4' } },
+    { id: 'slate',      label: 'Slate',       accent: '#94a3b8', mock: { bg: '#0f141a', side: '#141a22', surf: '#1a222c', txt: '#cbd5e1', acc: '#94a3b8' } },
+    { id: 'emerald',    label: 'Emerald',     accent: '#10b981', mock: { bg: '#07150f', side: '#0a1c13', surf: '#0e2419', txt: '#c0f0d8', acc: '#10b981' } },
+    { id: 'amethyst',   label: 'Amethyst',    accent: '#a855f7', mock: { bg: '#140e1f', side: '#1a1228', surf: '#211733', txt: '#e2d4f5', acc: '#a855f7' } },
+    { id: 'volcano',    label: 'Volcano',     accent: '#f97316', mock: { bg: '#160c08', side: '#1d1009', surf: '#261610', txt: '#f0d8c8', acc: '#f97316' } },
+    { id: 'sapphire',   label: 'Sapphire',    accent: '#3b82f6', mock: { bg: '#0a0f1f', side: '#0e1528', surf: '#131c33', txt: '#cdd9f0', acc: '#3b82f6' } },
+    { id: 'honey',      label: 'Honey',       accent: '#f59e0b', mock: { bg: '#161106', side: '#1d1609', surf: '#261d0c', txt: '#f0e2c0', acc: '#f59e0b' } },
+    { id: 'mint',       label: 'Mint',        accent: '#2dd4bf', mock: { bg: '#0a1614', side: '#0d1d1a', surf: '#122624', txt: '#c8f0ea', acc: '#2dd4bf' } },
+    { id: 'obsidian',   label: 'Obsidian',    accent: '#94a3b8', mock: { bg: '#08090b', side: '#0e1013', surf: '#141619', txt: '#d8dde5', acc: '#94a3b8' } },
+    { id: 'ruby',       label: 'Ruby',        accent: '#e11d48', mock: { bg: '#170a0f', side: '#1f0d13', surf: '#2a1018', txt: '#f0cdd6', acc: '#e11d48' } },
+    { id: 'lime',       label: 'Lime',        accent: '#84cc16', mock: { bg: '#0f1505', side: '#14200a', surf: '#1c2610', txt: '#dcecc0', acc: '#84cc16' } },
+    { id: 'bronze',     label: 'Bronze',      accent: '#c0824a', mock: { bg: '#15100a', side: '#1c1509', surf: '#251c10', txt: '#ecdcc8', acc: '#c0824a' } },
+    { id: 'plum',       label: 'Plum',        accent: '#c026d3', mock: { bg: '#150a17', side: '#1d0d20', surf: '#261029', txt: '#f0d4f5', acc: '#c026d3' } },
+    { id: 'arctic',     label: 'Arctic',      accent: '#38bdf8', mock: { bg: '#0a1118', side: '#0d1822', surf: '#122230', txt: '#d0e4f0', acc: '#38bdf8' } },
+    { id: 'wine',       label: 'Wine',        accent: '#be123c', mock: { bg: '#14080c', side: '#1d0a11', surf: '#260e16', txt: '#f0cdd4', acc: '#be123c' } },
     // The colours the Firefox look paints the chrome with, as themes, so the
     // rest of Vex can match it instead of pulling in a different palette.
     // Light is the first light theme here.
-    { id: 'firefox-light', label: 'Firefox Light', preview: 'firefox-light.png', accent: '#0061e0', mock: { bg: '#f9f9fb', side: '#f0f0f4', surf: '#ffffff', txt: '#15141a', acc: '#0061e0' } },
-    { id: 'firefox-dark',  label: 'Firefox Dark',  preview: 'firefox-dark.png',  accent: '#00ddff', mock: { bg: '#1c1b22', side: '#18171e', surf: '#2b2a33', txt: '#fbfbfe', acc: '#00ddff' } },
+    { id: 'firefox-light', label: 'Firefox Light', accent: '#0061e0', mock: { bg: '#f9f9fb', side: '#f0f0f4', surf: '#ffffff', txt: '#15141a', acc: '#0061e0' } },
+    { id: 'firefox-dark',  label: 'Firefox Dark',  accent: '#00ddff', mock: { bg: '#1c1b22', side: '#18171e', surf: '#2b2a33', txt: '#fbfbfe', acc: '#00ddff' } },
     // Themes for a need rather than a mood (item #5): black on white for low
     // vision, a warm dim one for reading at night, and Windows 11's Mica as a
     // light/dark pair (theme-auto.js pairs them). The true-black OLED theme is

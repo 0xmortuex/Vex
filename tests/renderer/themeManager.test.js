@@ -173,11 +173,17 @@ describe('ThemeManager', () => {
     expect(localStorage.getItem('vex.theme')).toBe('oxford');
   });
 
-  it('getThemeMeta returns the registry entry with a label and preview', async () => {
+  it('getThemeMeta returns the registry entry with a label', async () => {
     const TM = await loadThemeManager();
     const meta = TM.getThemeMeta('oxford');
     expect(meta.label).toBe('Oxford Editorial');
-    expect(meta.preview).toBe('oxford.png');
+  });
+
+  // The PNG previews (assets/theme-previews/, a capture script) are long gone;
+  // the picker draws every card live. The dead file names went with them.
+  it('no theme names a preview picture that does not exist', async () => {
+    const TM = await loadThemeManager();
+    expect(TM.THEMES.filter(t => 'preview' in t).map(t => t.id)).toEqual([]);
   });
 
   it('applyTheme broadcasts the active theme to vex://start webviews via executeJavaScript', async () => {
