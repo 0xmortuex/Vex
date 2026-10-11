@@ -221,7 +221,7 @@ const Onboarding = {
     try {
       skip = await vexConfirm({
         title: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
-        message: 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.',
+        message: window.VexI18n?.t('skipSetupAsk', '') || 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.',
         okLabel: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
       });
     } finally { this._askingSkip = false; }

@@ -41,6 +41,21 @@ describe('Escape in the setup', () => {
     finish.mockRestore();
   });
 
+  it('asks in Turkish when Vex is in Turkish (its body was English, found 2026-10-11)', async () => {
+    require('../../src/renderer/js/i18n.js');
+    localStorage.setItem('vex.lang', 'tr');
+    const finish = vi.spyOn(Onboarding, 'finish').mockImplementation(() => {});
+    globalThis.vexConfirm = vi.fn(async () => false);
+    Onboarding._render();
+    esc(document.querySelector('#vex-onboarding button'));
+    await flush();
+    const asked = globalThis.vexConfirm.mock.calls[0][0];
+    expect(asked.title).toBe('Kurulumu atla');
+    expect(asked.message).toBe(window.VexI18n.t('skipSetupAsk', ''));
+    expect(asked.message).toMatch(/Kurulumun geri kalanı/);
+    finish.mockRestore();
+  });
+
   it('on a drop-down, Escape is for the drop-down', async () => {
     const finish = vi.spyOn(Onboarding, 'finish').mockImplementation(() => {});
     globalThis.vexConfirm = vi.fn(async () => true);
