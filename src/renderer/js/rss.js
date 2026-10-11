@@ -182,7 +182,7 @@ const VexFeeds = {
       <div class="panel-header"><h2>Feeds</h2></div>
       <div style="padding:0 16px 10px;display:flex;gap:6px">
         <input id="feed-url" type="text" placeholder="Add feed URL (RSS/Atom)…" style="flex:1;min-width:0;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none;font-family:'Outfit',sans-serif">
-        <button id="feed-add" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px">Add</button>
+        <button id="feed-add" style="padding:8px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px">Add</button>
         <button id="feed-refresh" title="Refresh all feeds" aria-label="Refresh all feeds" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>

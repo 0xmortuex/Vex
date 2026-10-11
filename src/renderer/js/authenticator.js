@@ -304,7 +304,7 @@ const Authenticator = {
       .auth-panel{padding:12px 14px;font-family:inherit;color:var(--text);display:flex;flex-direction:column;height:100%;min-height:0;box-sizing:border-box}
       .auth-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex:none}
       .auth-head h3{margin:0;font-size:15px}
-      .auth-add-btn{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
+      .auth-add-btn{background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-add-form{background:rgba(127,127,127,.08);border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:12px;flex:none}
       .auth-hint{font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5}
       .auth-qr-drop{display:flex;align-items:center;gap:9px;padding:12px 12px;margin-bottom:8px;border:1.5px dashed var(--vex-border-medium,var(--border));border-radius:10px;background:rgba(127,127,127,.05);color:var(--text-muted);font-size:11.5px;line-height:1.4;cursor:pointer;text-align:left;transition:border-color .12s,background .12s,color .12s}
@@ -316,7 +316,7 @@ const Authenticator = {
       .auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border)}
       .auth-add-form input[type=text]{width:100%;box-sizing:border-box;padding:8px 10px;margin-bottom:7px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:12.5px}
       .auth-actions{display:flex;align-items:center;gap:10px}
-      .auth-save{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
+      .auth-save{background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600}
       .auth-status{font-size:11.5px;color:var(--text-muted)}
       .auth-list{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;overflow-y:auto}
       .auth-empty{color:var(--text-muted);font-size:12.5px;text-align:center;padding:24px 8px;line-height:1.6}

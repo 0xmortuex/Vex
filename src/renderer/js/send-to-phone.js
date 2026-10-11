@@ -21,7 +21,7 @@ const SendToPhone = {
       <div id="sp-qr" style="width:280px;height:280px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;color:#333;font-size:12px">Generating…</div>
       <div style="font-size:12px;color:var(--text-muted);word-break:break-all;margin-bottom:12px">${esc(url)}</div>
       <div style="display:flex;gap:8px;justify-content:center">
-        <button id="sp-copy" style="padding:8px 14px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Copy link</button>
+        <button id="sp-copy" style="padding:8px 14px;background:var(--primary,var(--accent));color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Copy link</button>
       </div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:12px">Scan with your phone's camera to open it there.</div>
     </div>`;

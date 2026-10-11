@@ -129,7 +129,7 @@ const PasswordVault = {
       </div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${esc(data.username)} on <strong style="color:var(--text)">${esc(data.host)}</strong></div>
       <div style="display:flex;gap:6px">
-        <button data-save style="flex:1;padding:8px 0;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">${isUpdate ? 'Update' : 'Save'}</button>
+        <button data-save style="flex:1;padding:8px 0;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">${isUpdate ? 'Update' : 'Save'}</button>
         <button data-not style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Not now</button>
         <button data-never style="padding:8px 12px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Never</button>
       </div>`;

@@ -144,7 +144,7 @@ const TorSession = {
         This usually means the one-time Tor download couldn’t reach the network. Check your connection and click Retry. If you already run <b>Tor Browser</b> (port 9150) or the <b>tor</b> service (9050), Vex will use that instead.
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button id="tor-retry" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12.5px">Retry</button>
+        <button id="tor-retry" style="padding:8px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-size:12.5px">Retry</button>
         <button id="tor-cancel" style="padding:8px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12.5px">Close</button>
       </div></div>`;
     document.body.appendChild(m);

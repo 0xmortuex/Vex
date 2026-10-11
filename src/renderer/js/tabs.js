@@ -2462,7 +2462,7 @@ const TabManager = {
       .ka-sub{font-size:12px;color:var(--text-muted,#9a9aa5);margin-bottom:12px;}
       .ka-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
       .ka-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:var(--bg,#0e0e16);color:var(--text,#e9e9ee);border-radius:9px;padding:9px;font-size:12.5px;cursor:pointer;font-family:inherit;}
-      .ka-btn:hover{background:var(--primary,#6366f1);border-color:transparent;color:#fff;}
+      .ka-btn:hover{background:var(--primary,#6366f1);border-color:transparent;color:var(--on-primary,#fff);}
       .ka-wide{width:100%;margin-top:8px;}
       .ka-note{margin:6px 0 0;font-size:11.5px;line-height:1.45;}
       .ka-stop{width:100%;margin-top:8px;color:#ff6b81;border-color:rgba(224,85,106,0.4);}

@@ -161,7 +161,7 @@ const WorkspaceSnapshots = {
           <div style="font-size:12.5px;color:var(--text);font-weight:600">${this._rel(s.ts)} · ${s.tabs.length} tab${s.tabs.length > 1 ? 's' : ''}${s.split ? ' · split ' + s.split.urls.length + ' ways' : ''}</div>
           <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titles}${more}</div>
         </div>
-        <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>
+        <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>
         <button data-del="${s.ts}" title="Delete" style="padding:5px 8px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11.5px"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>`;
     }).join('');

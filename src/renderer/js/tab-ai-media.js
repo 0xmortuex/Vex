@@ -23,7 +23,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       <div id="tai-out" style="font-size:12px;color:var(--text-muted);margin-top:10px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
         <button id="tai-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="tai-go" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Plan</button>
+        <button id="tai-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Plan</button>
       </div></div>`;
     document.body.appendChild(m);
     const q = m.querySelector('#tai-q'); q.focus();

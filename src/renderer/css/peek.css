@@ -79,10 +79,10 @@
 #vex-peek .peek-btn:hover { background: var(--bg-2, #0f1218); color: var(--text, #e5e9f0); }
 #vex-peek .peek-promote {
   background: var(--primary, #6366f1);
-  color: #fff;
+  color: var(--on-primary, #fff);
   font-weight: 600;
 }
-#vex-peek .peek-promote:hover { background: var(--primary-hover, #5558e6); color: #fff; }
+#vex-peek .peek-promote:hover { background: var(--primary-hover, #5558e6); color: var(--on-primary, #fff); }
 #vex-peek .peek-close:hover { color: var(--danger, #ef4444); }
 
 #vex-peek .peek-body { flex: 1; min-height: 0; background: #fff; }

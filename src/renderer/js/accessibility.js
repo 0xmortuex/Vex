@@ -107,7 +107,7 @@ const AccessibilityPack = {
     m.innerHTML = `
       <div id="rsvp-word" style="font:600 56px 'Outfit',sans-serif;color:#fff;min-height:70px;letter-spacing:-0.01em"></div>
       <div style="display:flex;align-items:center;gap:14px;color:#bbb;font:14px 'Outfit',sans-serif">
-        <button id="rsvp-play" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:inherit">Pause</button>
+        <button id="rsvp-play" style="background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:inherit">Pause</button>
         <label>WPM <input id="rsvp-wpm" type="range" min="150" max="900" step="50" value="400" style="vertical-align:middle"></label>
         <span id="rsvp-wpmval">400</span>
         <span id="rsvp-prog"></span>

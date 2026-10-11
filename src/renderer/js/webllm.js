@@ -149,7 +149,7 @@ const WebLLM = (() => {
       <p class="setting-info muted" style="margin-bottom:8px">Run a small model <strong>entirely on your machine</strong> — private, offline, no server. The model downloads once (cached) and runs on your GPU. Nothing downloads until you press the button.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <select id="wl-model" aria-label="On-device model" style="min-width:230px">${opts}</select>
-        <button id="wl-load" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Download &amp; load</button>
+        <button id="wl-load" style="padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Download &amp; load</button>
         <button id="wl-unload" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:${isLoaded() ? 'inline-block' : 'none'}">Unload</button>
       </div>
       <div id="wl-progress" style="display:none;margin:8px 0">

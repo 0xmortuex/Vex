@@ -1199,7 +1199,7 @@ body.private-mode #vex-logo::after {
   padding: 4px 10px; border-radius: var(--vex-radius-sm); cursor: pointer; font: inherit;
   border: 1px solid var(--vex-border-medium); background: transparent; color: inherit;
 }
-.tab-mem-banner .tmb-reload { background: var(--vex-accent); color: #fff; border-color: transparent; }
+.tab-mem-banner .tmb-reload { background: var(--vex-accent); color: var(--on-primary, #fff); border-color: transparent; }
 
 /* Safe mode — why this launch left things out */
 .safe-mode-banner {
@@ -1329,5 +1329,5 @@ body.vex-locked webview { visibility: hidden !important; }
 .vex-lock-icon { color: var(--primary, #4c8dff); }
 .vex-lock-title { font-size: 16px; font-weight: 650; color: var(--text, #eee); }
 .vex-lock-card input { width: 180px; text-align: center; font-size: 18px; letter-spacing: 0.3em; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border, #444); background: var(--bg, #111); color: var(--text, #eee); }
-.vex-lock-card button { padding: 8px 22px; border-radius: 8px; border: none; background: var(--primary, #4c8dff); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.vex-lock-card button { padding: 8px 22px; border-radius: 8px; border: none; background: var(--primary, #4c8dff); color: var(--on-primary, #fff); font: inherit; font-weight: 600; cursor: pointer; }
 .vex-lock-msg { min-height: 16px; font-size: 12px; color: var(--danger, #e5484d); }

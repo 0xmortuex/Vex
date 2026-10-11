@@ -2082,7 +2082,7 @@ const SidebarManager = {
       .dbo-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
       .dbo-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 13px;font-size:12.5px;font-family:inherit;cursor:pointer;}
       .dbo-btn:hover{background:color-mix(in srgb,var(--primary,#6366f1) 16%,transparent);}
-      .dbo-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:#fff;font-weight:600;}
+      .dbo-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:var(--on-primary,#fff);font-weight:600;}
       .dbo-btn.ghost{border-color:transparent;color:var(--text-muted,#9a9aa5);}
     `;
     document.head.appendChild(st);
@@ -2108,7 +2108,7 @@ const SidebarManager = {
         border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.16));
         background:transparent; color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:15px; line-height:1;
         display:grid; place-items:center; padding:0; }
-      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:#fff; }
+      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:var(--on-primary, #fff); }
       .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
     `;
     document.head.appendChild(st);

@@ -130,7 +130,7 @@ const ReadLater = {
     if (!dot) {
       dot = document.createElement('span');
       dot.className = 'rl-dot';
-      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
+      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:var(--on-primary,#fff);font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
       btn.style.position = 'relative';
       btn.appendChild(dot);
     }

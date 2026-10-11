@@ -234,7 +234,7 @@ const Snippets = {
           <div data-err role="alert" style="display:none;font-size:11.5px;color:var(--danger,#e5534b)"></div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:2px">
             <button data-cancel type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Cancel</button>
-            <button data-save type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Save</button>
+            <button data-save type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Save</button>
           </div>
         </div>`;
 

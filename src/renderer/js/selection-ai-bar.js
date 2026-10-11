@@ -75,7 +75,7 @@ const SelectionAIBar = {
         color: var(--text, #e5e9f0); font: inherit; font-size: 12.5px; cursor: pointer;
         white-space: nowrap;
       }
-      #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: #fff; }
+      #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: var(--on-primary, #fff); }
       #vex-selection-ai button:disabled { cursor: default; }
       #vex-selection-ai .vex-sel-div { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border, #1f2530); }
     `;

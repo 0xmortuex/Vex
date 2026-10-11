@@ -148,7 +148,7 @@ const Habits = {
         <form data-add style="display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">
           <input data-new type="text" maxlength="${this.MAX_NAME}" placeholder="A new habit — read 20 pages, walk, no phone after 11" aria-label="New habit"
                  style="flex:1;font:inherit;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
-          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add</button>
+          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add</button>
         </form>
         ${habits.length ? `
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;color:var(--text)">

@@ -87,7 +87,7 @@ const VexSkills = {
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:10px">Reusable AI commands you can run on any page from the command bar (<kbd>Ctrl</kbd>+<kbd>K</kbd> → type the skill's name).</p>
       <div class="skills-list"></div>
-      <button class="skill-add" style="margin-top:10px;padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ New Skill</button>`;
+      <button class="skill-add" style="margin-top:10px;padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ New Skill</button>`;
     const list = container.querySelector('.skills-list');
 
     this.skills.forEach(sk => {
@@ -99,7 +99,7 @@ const VexSkills = {
           <div style="font-size:13.5px;font-weight:600;color:var(--text)">${esc(sk.name)}</div>
           <div style="font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sk.prompt)}">${esc(sk.prompt)}</div>
         </div>
-        <button data-run style="padding:5px 12px;background:var(--primary);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Run</button>
+        <button data-run style="padding:5px 12px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Run</button>
         <button data-edit style="padding:5px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif">Edit</button>
         <button data-del aria-label="Delete skill ${esc(sk.name)}" title="Delete this skill" style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center">${VexIcons.svg('trash', { size: 13 })}</button>`;
       row.querySelector('[data-run]').addEventListener('click', () => { SidebarManager.hideActivePanel?.(); this.run(sk.id); });
@@ -149,7 +149,7 @@ const VexSkills = {
       <textarea id="skm-prompt" rows="4" placeholder="What should the AI do?" style="width:100%;box-sizing:border-box;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:'Outfit',sans-serif">${esc(sk?.prompt || '')}</textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         <button id="skm-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="skm-save" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save</button>
+        <button id="skm-save" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save</button>
       </div></div>`;
     document.body.appendChild(m);
     m.querySelector('#skm-name').focus();

@@ -28,7 +28,7 @@ const AICompose = {
       <textarea id="cmp-instr" rows="3" placeholder="e.g. reply politely declining · make this friendlier · write a short intro about X" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:'Outfit',sans-serif"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
         <button id="cmp-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="cmp-go" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Write</button>
+        <button id="cmp-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Write</button>
       </div></div>`;
     document.body.appendChild(m);
     const instr = m.querySelector('#cmp-instr');
@@ -153,7 +153,7 @@ const CommandChains = {
       <input id="chain-name" type="text" placeholder="Chain name (e.g. Read it to me)" style="padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
       <select id="chain-pick" aria-label="Commands in the chain" multiple size="6" style="padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">${baseCmds.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select>
       <div style="font-size:11px;color:var(--text-muted)">Ctrl+click to pick steps in the order you want them to run.</div>
-      <button id="chain-add" style="align-self:flex-start;padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ Create chain</button>`;
+      <button id="chain-add" style="align-self:flex-start;padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ Create chain</button>`;
     container.appendChild(add);
     const picked = [];
     add.querySelector('#chain-pick').addEventListener('change', (e) => {

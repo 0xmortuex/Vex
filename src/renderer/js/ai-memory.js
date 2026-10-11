@@ -57,7 +57,7 @@ const AIMemory = {
       <div class="setting-toggle-row"><span>Use my memory in AI chats</span><label class="toggle"><input type="checkbox" id="mem-enabled" aria-label="Use my memory in AI chats" ${this.data.enabled ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;margin:10px 0">
         <input id="mem-input" type="text" placeholder="e.g. I prefer concise answers with code examples" spellcheck="false" style="flex:1;padding:8px 11px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
-        <button id="mem-add" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
+        <button id="mem-add" style="padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
       </div>
       <div id="mem-list"></div>`;
     const listEl = container.querySelector('#mem-list');

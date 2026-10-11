@@ -91,7 +91,7 @@
 .update-cover-btn:hover { border-color: var(--primary, var(--vex-accent)); }
 .update-cover-btn.primary {
   background: var(--primary, var(--vex-accent)); border-color: var(--primary, var(--vex-accent));
-  color: #fff; font-weight: 600;
+  color: var(--on-primary, #fff); font-weight: 600;
 }
 .update-cover-btn.primary:hover { filter: brightness(1.08); }
 .update-cover-btn.quiet { margin-left: auto; background: transparent; border-color: transparent; color: var(--text-muted, var(--vex-text-muted)); }

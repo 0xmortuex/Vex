@@ -155,7 +155,7 @@ const Flashcards = {
       b.type = 'button';
       b.textContent = label;
       b.style.cssText = 'font-size:12px;border-radius:7px;padding:6px 12px;cursor:pointer;border:1px solid var(--border);'
-        + (primary ? 'background:var(--primary);color:#fff;border-color:var(--primary)' : 'background:none;color:var(--text)');
+        + (primary ? 'background:var(--primary);color:var(--on-primary,#fff);border-color:var(--primary)' : 'background:none;color:var(--text)');
       return b;
     };
 

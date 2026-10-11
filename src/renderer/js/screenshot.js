@@ -204,7 +204,7 @@ const ScreenshotTool = {
         <input type="color" id="an-color" value="${board ? '#1f2937' : '#ef4444'}" aria-label="Colour" style="width:30px;height:30px;border:none;background:none;cursor:pointer">
         <span style="width:1px;height:20px;background:var(--border)"></span>
         <button id="an-undo" type="button" style="${btn}">${icon('undo')}Undo</button>
-        <button id="an-save" type="button" style="${btn};background:var(--primary);color:#fff;border-color:var(--primary)">${icon('save')}Save</button>
+        <button id="an-save" type="button" style="${btn};background:var(--primary);color:var(--on-primary,#fff);border-color:var(--primary)">${icon('save')}Save</button>
         <button id="an-copy" type="button" style="${btn}">${icon('copy')}Copy</button>
         <button id="an-close" type="button" aria-label="Close" style="${btn}">${icon('x')}</button>
       </div>

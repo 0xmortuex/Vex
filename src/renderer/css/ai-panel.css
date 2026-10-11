@@ -271,7 +271,7 @@
 }
 .ai-msg-act:hover { color: var(--text); border-color: var(--primary); }
 .ai-msg-act.done { color: var(--success, #22c55e); border-color: var(--success, #22c55e); }
-.ai-msg.user .ai-msg-act { background: var(--primary-hover, var(--primary)); border-color: rgba(255,255,255,0.35); color: #fff; }
+.ai-msg.user .ai-msg-act { background: var(--primary-hover, var(--primary)); border-color: rgba(255,255,255,0.35); color: var(--on-primary, #fff); }
 
 /* The old single copy button, kept for anything still rendering it. */
 .ai-copy-btn {

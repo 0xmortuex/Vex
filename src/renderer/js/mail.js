@@ -102,7 +102,7 @@ const VexMail = {
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Security<select data-security style="${field}"><option value="tls" selected>TLS</option><option value="starttls">STARTTLS</option></select></label>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button type="submit" style="font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Sign in</button>
+          <button type="submit" style="font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Sign in</button>
           ${canCancel ? '<button data-back type="button" style="font:inherit;font-size:12.5px;padding:7px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back</button>' : ''}
           <span data-status style="font-size:12px;color:var(--text-muted)"></span>
         </div>
@@ -255,7 +255,7 @@ const VexMail = {
     reader.innerHTML = `
       <div style="font-size:15px;font-weight:650;color:var(--text);margin-bottom:6px">${esc(msg.subject || '(no subject)')}</div>
       <div style="font-size:11.5px;color:var(--text-muted);line-height:1.5">From ${esc(msg.from)}<br>To ${esc(msg.to)}${msg.cc ? '<br>Cc ' + esc(msg.cc) : ''}<br>${esc(msg.date ? new Date(msg.date).toLocaleString() : '')}</div>
-      ${msg.webmail ? `<div style="margin:10px 0"><button data-reply type="button" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Reply in ${esc(name)}</button></div>` : ''}
+      ${msg.webmail ? `<div style="margin:10px 0"><button data-reply type="button" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Reply in ${esc(name)}</button></div>` : ''}
       ${msg.attachments.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin:8px 0">Attached: ${msg.attachments.map(a => esc(a.filename) + ' (' + esc(this.size(a.size)) + ')').join(', ')} — ${msg.webmail ? 'download them from ' + esc(name) : 'download them in your mail program'}.</div>` : ''}
       <div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:var(--text);border-top:1px solid var(--border);padding-top:10px;margin-top:6px">${text ? this.linkify(text) : '<span style="color:var(--text-muted)">This message has no text.</span>'}</div>
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:12px">Shown as text: pictures and other remote content are not loaded, so nothing reports that you opened it. Reading here did not mark it read.</div>`;
@@ -282,7 +282,7 @@ const VexMail = {
       });
       list.appendChild(row);
     }
-    list.insertAdjacentHTML('beforeend', `<div style="display:flex;gap:8px;margin-top:6px"><button data-add type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add an account</button><button data-back type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back to the inbox</button></div>`);
+    list.insertAdjacentHTML('beforeend', `<div style="display:flex;gap:8px;margin-top:6px"><button data-add type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add an account</button><button data-back type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back to the inbox</button></div>`);
     list.querySelector('[data-add]').addEventListener('click', () => this._drawSetup(true));
     list.querySelector('[data-back]').addEventListener('click', () => this.open());
   },

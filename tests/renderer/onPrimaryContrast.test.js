@@ -30,13 +30,41 @@ describe('text on a primary fill', () => {
     expect(tokens).toMatch(/:root \{[^}]*--on-primary: #ffffff;/);
   });
 
-  it('no stylesheet paints a fixed white on var(--primary) any more', () => {
+  // A fill of the theme's accent: --primary, --primary-hover, --vex-accent or
+  // --accent, with or without a fallback (var(--primary, #6366f1)).
+  const ACCENT_FILL = /background(?:-color)?\s*:\s*var\(--(?:primary|primary-hover|vex-accent|accent)\b/i;
+  const FIXED_WHITE = /(?:^|[;{\s"'`])color\s*:\s*(?:#fff\b|#ffffff\b|white\b)/i;
+
+  it('no stylesheet paints a fixed white on the accent any more', () => {
+    // Firefox Dark's accent is #00ddff: white on it is 1.64:1 (cat-themes TH2).
+    expect(ACCENT_FILL.test('background: var(--primary, #4c8dff)')).toBe(true);
+    expect(ACCENT_FILL.test('background:var(--vex-accent)')).toBe(true);
     const offenders = [];
-    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.css') && f !== 'vex-dialog.css')) {
-      const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.css'))) {
+      const src = fs.readFileSync(path.join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
       for (const m of src.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
-        if (/background(-color)?:\s*var\(--primary\)/.test(m[2]) && /(^|[;{\s])color:\s*(#fff\b|#ffffff\b|white\b)/i.test(m[2])) offenders.push(f + ': ' + m[1].trim().slice(-60));
+        if (ACCENT_FILL.test(m[2]) && FIXED_WHITE.test(m[2])) offenders.push(f + ': ' + m[1].trim().slice(-60));
       }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('no script builds a fixed white on the accent (a <style> rule, a style="" or a cssText)', () => {
+    const root = path.resolve(__dirname, '../../src/renderer');
+    const files = [];
+    const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!['vendor', 'lib', 'node_modules'].includes(e.name)) walk(p); } else if (/\.(js|html)$/.test(e.name)) files.push(p); } };
+    walk(root);
+    // One run of declarations: inside a {...} rule or a quoted style string.
+    const runs = (line) => line.split(/[{}'"`]/);
+    const bad = (run) => ACCENT_FILL.test(run) && FIXED_WHITE.test(' ' + run);
+    expect(bad('background:var(--primary,var(--accent));color:#fff;border:none')).toBe(true);
+    expect(bad('background: var(--vex-accent, #6366f1); color: #fff; ')).toBe(true);
+    expect(bad('background:var(--primary);color:var(--on-primary,#fff)')).toBe(false);
+    const offenders = [];
+    for (const f of files) {
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (runs(line).some(bad)) offenders.push(path.relative(root, f) + ':' + (i + 1));
+      });
     }
     expect(offenders).toEqual([]);
   });

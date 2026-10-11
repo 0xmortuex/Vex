@@ -182,7 +182,7 @@ const McpClient = (() => {
         <input id="mcp-name" placeholder="Name" style="width:120px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">
         <input id="mcp-url" placeholder="https://my-mcp-server/mcp" spellcheck="false" style="flex:1;min-width:180px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
         <input id="mcp-auth" placeholder="Token (optional)" spellcheck="false" style="width:140px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">
-        <button id="mcp-add" style="padding:7px 15px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
+        <button id="mcp-add" style="padding:7px 15px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
       </div>
       <div id="mcp-list"></div>`;
     const listEl = container.querySelector('#mcp-list');
@@ -235,7 +235,7 @@ const McpClient = (() => {
         <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
           <div style="display:flex;gap:8px;align-items:center">
             <select id="mcp-tool" style="flex:1">${toolOpts || '<option>No tools</option>'}</select>
-            <button id="mcp-run" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Run</button>
+            <button id="mcp-run" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Run</button>
           </div>
           <div id="mcp-tool-desc" style="font-size:11.5px;color:var(--text-muted);margin:7px 0 4px"></div>
           <textarea id="mcp-args" spellcheck="false" placeholder='Arguments (JSON), e.g. {"query":"hello"}' style="width:100%;box-sizing:border-box;height:70px;resize:vertical;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none"></textarea>

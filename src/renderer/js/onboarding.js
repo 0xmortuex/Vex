@@ -323,7 +323,7 @@ const Onboarding = {
           <span style="flex:1"></span>
           ${this.step > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
           ${!isLast ? `<button id="ob-skip" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Skip</button>` : ''}
-          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
+          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -748,7 +748,7 @@ const Onboarding = {
       body.innerHTML = `
         <div style="font-size:13px;color:var(--text);line-height:1.6">Vex can reshape itself around what you do — a fitting theme, the built-in tools your job uses daily (regex, JSON, color, word count…), and quick buttons next to the Tor button. You choose exactly which tools you want, and can change or remove this anytime.</div>
         <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button id="ob-job-open" style="padding:11px 18px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${curName ? 'Change job…' : 'Choose my job →'}</button>
+          <button id="ob-job-open" style="padding:11px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${curName ? 'Change job…' : 'Choose my job →'}</button>
           ${curName ? `<span style="font-size:12.5px;color:var(--text-muted)">Current: <b style="color:var(--text)">${this._esc(curName)}</b></span>` : '<span style="font-size:12px;color:var(--text-muted)">Optional — Skip to keep the default Vex.</span>'}
         </div>`;
       body.querySelector('#ob-job-open')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
@@ -820,7 +820,7 @@ const Onboarding = {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
           <div id="ob-db-status" style="font-size:13px;color:var(--text-muted)">Checking current default…</div>
-          <button id="ob-db-btn" style="padding:11px 18px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Make Vex my default browser</button>
+          <button id="ob-db-btn" style="padding:11px 18px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Make Vex my default browser</button>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">Windows opens its Default Apps screen — choose Vex under “Web browser”, then come back here.</p>
         </div>`;
       const st = body.querySelector('#ob-db-status');
@@ -858,7 +858,7 @@ const Onboarding = {
     } else if (key === 'ollama') {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button id="ob-ollama" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Detect running Ollama</button>
+          <button id="ob-ollama" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Detect running Ollama</button>
           <span id="ob-ollama-status" style="font-size:12.5px;color:var(--text-muted)"></span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">No Ollama yet? The button opens the install guide. After installing, run a model (e.g. <code>ollama run llama3.2</code>) and click Detect again.</p>
         </div>`;
@@ -901,7 +901,7 @@ const Onboarding = {
           ${input('ob-pw-host', 'Website (e.g. github.com)')}
           ${input('ob-pw-user', 'Username or email')}
           <div style="position:relative">${input('ob-pw-pass', 'Password')}</div>
-          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
+          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
           <span id="ob-pw-status" style="font-size:12.5px;color:var(--text-muted)"></span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">Stored encrypted with your OS keychain. Optional — you can also let Vex offer to save logins as you sign in.</p>
         </div>`;
@@ -952,7 +952,7 @@ const Onboarding = {
       // nothing ever checked. This is the check, on day one.
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button id="ob-notify-test" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Send a test notification</button>
+          <button id="ob-notify-test" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Send a test notification</button>
           <span id="ob-notify-status" role="status" style="font-size:12.5px;line-height:1.5;color:var(--text-muted)">Nothing sent yet.</span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0;line-height:1.5">If nothing appears: Windows Settings › System › Notifications — make sure notifications are on, Vex is allowed, and Focus assist / Do not disturb is off. Alarm sound and volume live in the Clock panel.</p>
         </div>`;
@@ -1401,7 +1401,7 @@ const Onboarding = {
       + '<label for="ob-city" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">City, district or postcode</label>'
       + '<div style="display:flex;gap:8px">'
       + '<div style="flex:1">' + this._input('ob-city', 'e.g. Ataşehir · Manchester · 34750', this._session.weatherText || '') + '</div>'
-      + '<button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>'
+      + '<button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>'
       + '</div>'
       + '<div id="ob-city-results-wrap" style="display:none;margin-top:10px">'
       + '<label for="ob-city-results" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">Pick the exact place</label>'
@@ -1506,7 +1506,7 @@ const Onboarding = {
       <div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="ob-wl-model" style="min-width:180px">${opts}</select>
-          <button id="ob-wl-dl" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Download now</button>
+          <button id="ob-wl-dl" style="padding:8px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Download now</button>
         </div>
         <div id="ob-wl-prog" style="display:none;margin-top:8px"><div style="height:7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;overflow:hidden"><div id="ob-wl-bar" style="height:100%;width:0%;background:var(--primary)"></div></div><div id="ob-wl-ptext" style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'JetBrains Mono',monospace"></div></div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:6px">First download is a few minutes (cached after). You can skip and do this later.</p>

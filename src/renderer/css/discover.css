@@ -232,7 +232,7 @@
 .vexd-btn.primary {
   background: var(--vex-accent, var(--primary));
   border-color: var(--vex-accent, var(--primary));
-  color: #fff;
+  color: var(--on-primary, #fff);
   font-weight: 600;
 }
 .vexd-btn.primary:hover { filter: brightness(1.08); }

@@ -200,7 +200,7 @@
       .gsc-ed-clearcolor{background:transparent;border:1px solid var(--border,rgba(255,255,255,0.18));color:var(--text-muted,#9a9aa5);border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;font-family:inherit;}
       .gsc-ed-row{display:flex;align-items:center;gap:8px;margin-top:18px;}
       .gsc-ed-row button{border:1px solid var(--border,rgba(255,255,255,0.18));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit;}
-      .gsc-ed-save{background:var(--primary,#6366f1)!important;border-color:transparent!important;color:#fff!important;font-weight:600;}
+      .gsc-ed-save{background:var(--primary,#6366f1)!important;border-color:transparent!important;color:var(--on-primary,#fff)!important;font-weight:600;}
       .gsc-ed-del{color:#e0556a!important;border-color:rgba(224,85,106,0.4)!important;}
     `;
     document.head.appendChild(st);

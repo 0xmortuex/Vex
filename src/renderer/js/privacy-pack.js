@@ -113,7 +113,7 @@ const PrivacyPack = {
         <div style="padding:0 20px;overflow-y:auto;flex:1">${rows}</div>
         <div style="padding:14px 20px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border)">
           <button id="pr-reset" style="padding:8px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Reset counters</button>
-          <button id="pr-close" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Done</button>
+          <button id="pr-close" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Done</button>
         </div>
       </div>`;
     document.body.appendChild(m);

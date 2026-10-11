@@ -134,7 +134,7 @@ const Parcels = {
           <input data-number type="text" placeholder="Tracking number" aria-label="Tracking number" autocomplete="off" spellcheck="false" style="${field};flex:1;min-width:170px;font-family:ui-monospace,monospace">
           <input data-label type="text" maxlength="80" placeholder="What is it? (optional)" aria-label="What is in it" style="${field};flex:1;min-width:120px">
           <select data-carrier aria-label="Carrier" style="${field}"><option value="">Carrier: detect</option>${carrierOptions('')}</select>
-          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add</button>
+          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add</button>
           <div data-hint style="flex-basis:100%;font-size:11px;color:var(--text-muted);min-height:14px"></div>
         </form>
         <div data-rows style="padding:4px 6px 8px">${items.length ? '' : `<div style="padding:22px 12px;text-align:center;font-size:12.5px;color:var(--text-muted)">No parcels yet. Paste a tracking number above.</div>`}</div>

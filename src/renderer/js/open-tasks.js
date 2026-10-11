@@ -256,7 +256,7 @@ const OpenTasks = {
       <form data-add style="display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)">
         <input data-new type="text" maxlength="500" placeholder="Add a task — end with @tomorrow or @2026-10-03 to give it a date" aria-label="New task"
                style="flex:1;font:inherit;font-size:13px;padding:7px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
-        <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add</button>
+        <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add</button>
       </form>
       <div data-rows style="padding:6px"></div>`;
     const input = body.querySelector('[data-new]');

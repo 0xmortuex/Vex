@@ -231,7 +231,7 @@ const Dictation = {
       <span style="display:inline-flex;color:var(--danger,#e5534b)">${VexIcons.svg('mic', { size: 15 })}</span>
       <span data-bar style="width:46px;height:6px;border-radius:3px;background:var(--border);overflow:hidden"><span style="display:block;height:100%;width:0;background:var(--primary)"></span></span>
       <span data-text>Opening the microphone…</span>
-      <button data-stop type="button" style="font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;border:none;background:var(--primary);color:#fff;cursor:pointer">Stop</button>
+      <button data-stop type="button" style="font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Stop</button>
       <button data-cancel type="button" aria-label="Throw it away" title="Throw it away (Esc)" style="display:inline-flex;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px">${VexIcons.svg('x', { size: 13 })}</button>`;
     // Keep the cursor where it was: clicking the pill must not take focus.
     el.addEventListener('mousedown', (e) => e.preventDefault());

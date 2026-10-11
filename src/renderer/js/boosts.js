@@ -172,7 +172,7 @@ const VexBoosts = {
         <button id="bm-clear-zaps" style="padding:8px 14px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px"${(b.zaps || []).length ? '' : ' disabled'}>Un-zap all (${(b.zaps || []).length})</button>
         <span style="flex:1"></span>
         <button id="bm-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="bm-save" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save &amp; apply</button>
+        <button id="bm-save" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save &amp; apply</button>
       </div></div>`;
     document.body.appendChild(m);
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });

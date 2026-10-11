@@ -167,6 +167,10 @@ const ThemeManager = {
     }
 
     document.documentElement.setAttribute('data-theme', themeName);
+    // Light or dark, for what CSS cannot tell from the theme's name: the
+    // native controls' color-scheme, and Glass (a dark look) lifting a light
+    // theme's dark accent and danger colours so they read on it.
+    document.documentElement.setAttribute('data-scheme', this.isLight(themeName) ? 'light' : 'dark');
     this.currentTheme = themeName;
 
     if (opts.persist !== false) {
@@ -306,6 +310,20 @@ const ThemeManager = {
 
   getCurrentTheme() {
     return this.currentTheme;
+  },
+
+  // A light theme: Oxford, or one whose page colour is light (the rule Light
+  // and dark, js/theme-auto.js, sorts themes by; your own themes carry a mock
+  // palette too). An unknown id throws: guessing would paint the wrong scheme.
+  isLight(id) {
+    const meta = this.THEMES.find(t => t.id === id);
+    if (!meta) throw new Error('isLight: unknown theme ' + id);
+    if (meta.id === 'oxford') return true;
+    const m = meta.mock && /^#([0-9a-f]{6})$/i.exec(meta.mock.bg || '');
+    if (!m) return false;
+    const v = parseInt(m[1], 16);
+    const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * lin((v >> 16) & 255) + 0.7152 * lin((v >> 8) & 255) + 0.0722 * lin(v & 255) > 0.4;
   },
 
   getThemeMeta(id) {

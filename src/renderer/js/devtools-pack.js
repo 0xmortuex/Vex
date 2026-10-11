@@ -55,7 +55,7 @@ const JsonApiViewer = {
             ${['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].map(x => `<option>${x}</option>`).join('')}
           </select>
           <input id="api-url" type="text" placeholder="https://api.example.com/v1/…" value="${this.esc(url)}" spellcheck="false" style="flex:1;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
-          <button id="api-send" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Send</button>
+          <button id="api-send" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Send</button>
           <button id="api-close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
         </div>
         <div style="display:flex;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border)">
@@ -154,7 +154,7 @@ const ResponsivePreview = {
         <strong style="font-size:14px;color:var(--text)">Responsive Preview</strong>
         <span style="flex:1;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this.esc(url)}</span>
         <button id="rp-reload" style="padding:7px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px">Reload all</button>
-        <button id="rp-close" style="padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600">Close</button>
+        <button id="rp-close" style="padding:7px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600">Close</button>
       </div>
       <div style="flex:1;overflow:auto;display:flex;gap:26px;padding:24px;align-items:flex-start">${frames}</div>`;
     document.body.appendChild(m);

@@ -417,7 +417,7 @@ const PageExport = {
         <pre data-cite style="margin:8px 12px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;font:13px/1.55 var(--font-ui, inherit);background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);user-select:text">${esc(text)}</pre>
         <div style="display:flex;align-items:center;gap:8px;padding:0 12px 12px">
           <div style="flex:1;font-size:11px;color:var(--text-muted)">${(meta.authors || []).length ? '' : 'The page names no author, so none is given — check before you hand it in.'}</div>
-          <button data-copy type="button" style="font-size:12px;padding:5px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Copy</button>
+          <button data-copy type="button" style="font-size:12px;padding:5px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Copy</button>
         </div>`;
       body.querySelectorAll('[data-style]').forEach(b => b.addEventListener('click', () => {
         style = b.dataset.style;

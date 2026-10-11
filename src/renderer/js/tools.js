@@ -210,7 +210,7 @@ const VexTools = {
         <input type="text" id="tool-modal-desc" value="${tool ? this._esc(tool.desc) : ''}" placeholder="Short description..." style="width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;margin-bottom:18px;box-sizing:border-box;font-family:'Outfit',sans-serif">
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button id="tool-modal-cancel" style="padding:8px 18px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-          <button id="tool-modal-save" style="padding:8px 18px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500">Save</button>
+          <button id="tool-modal-save" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500">Save</button>
         </div>
       </div>
     `;
