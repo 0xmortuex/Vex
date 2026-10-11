@@ -357,7 +357,9 @@ function control(id, action) {
     return { ok: true, paused: true };
   }
   if (action === 'resume') {
-    if (!item.isPaused()) return { ok: true, paused: false };
+    // An interrupted download (the connection dropped) is not "paused", but
+    // Resume is exactly what it needs; it used to be answered "fine" and left.
+    if (!item.isPaused() && safeCall(item, 'getState', '') !== 'interrupted') return { ok: true, paused: false };
     if (!item.canResume()) return { ok: false, error: 'This download cannot be resumed' };
     item.resume();
     return { ok: true, paused: false };

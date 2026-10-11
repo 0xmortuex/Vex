@@ -291,6 +291,24 @@ describe('a finished download whose file has been deleted', () => {
   });
 });
 
+describe('a download whose connection dropped', () => {
+  const actions = () => [...document.querySelector('.download-item[data-id="d1"]').querySelectorAll('[data-action]')].map(b => b.dataset.action);
+  it('loses Pause, offers Resume and Cancel, and gets Pause back once it runs again', async () => {
+    start();
+    expect(actions()).toContain('pause');
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: true, state: 'interrupted' });
+    expect(actions()).toEqual(['resume', 'cancel', 'remove']);
+    document.querySelector('.download-item[data-id="d1"] [data-action="resume"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsControl).toHaveBeenCalledWith('d1', 'resume'));
+    await vi.waitFor(() => expect(actions()).toContain('pause'));
+  });
+  it('without resume support offers only Cancel', () => {
+    start();
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: false, state: 'interrupted' });
+    expect(actions()).toEqual(['cancel', 'remove']);
+  });
+});
+
 describe('the sorting-rule editor (RD8)', () => {
   it('accepts ".pdf from https://github.com/" as pdf files from github.com', async () => {
     const answers = ['add', '.pdf from https://github.com/', 'Invoices', ''];

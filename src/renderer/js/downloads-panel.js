@@ -133,10 +133,12 @@ const DownloadsPanel = {
     const wasPaused = dl.paused;
     dl.paused = !!data.paused;
     dl.canResume = !!data.canResume;
+    const wasState = dl.state;
     if (data.state) dl.state = data.state === 'interrupted' ? 'interrupted' : 'progressing';
-    // Pausing swaps which buttons the row needs, so rebuild it; otherwise just
-    // move the bar, which is far cheaper and doesn't fight the CSS transition.
-    if (wasPaused !== dl.paused) this._replaceRow(dl);
+    // Pausing, or the connection dropping, swaps which buttons the row needs,
+    // so rebuild it; otherwise just move the bar, which is far cheaper and
+    // doesn't fight the CSS transition. An interrupted row used to keep Pause.
+    if (wasPaused !== dl.paused || wasState !== dl.state) this._replaceRow(dl);
     else this._patchRow(dl);
     // And the toolbar button, which is where most people watch a download.
     // This was missing: only start and finish told it anything, so its bar and
@@ -364,7 +366,11 @@ const DownloadsPanel = {
       return;
     }
     const dl = this.activeDownloads.get(id);
-    if (dl && (action === 'pause' || action === 'resume')) { dl.paused = action === 'pause'; this._replaceRow(dl); }
+    if (dl && (action === 'pause' || action === 'resume')) {
+      dl.paused = action === 'pause';
+      if (action === 'resume' && dl.state === 'interrupted') dl.state = 'progressing';
+      this._replaceRow(dl);
+    }
   },
 
   async _retry(id) {
@@ -615,6 +621,12 @@ const DownloadsPanel = {
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>`;
+    } else if (dl.state === 'interrupted' && this.activeDownloads.has(dl.id)) {
+      // The connection dropped but the download is still open in Vex: it can
+      // be picked up where it stopped (when the server allows) or cancelled.
+      // Pause means nothing now, and Retry would start a second copy.
+      actions = (dl.canResume ? `<button class="dl-btn" data-action="resume" data-id="${id}" title="Resume" aria-label="Resume download">${this.ICONS.resume}</button>` : '')
+        + `<button class="dl-btn" data-action="cancel" data-id="${id}" title="Cancel" aria-label="Cancel download">${this.ICONS.close}</button>`;
     } else if (isFailed && dl.url) {
       actions = `<button class="dl-btn" data-action="retry" data-id="${id}" title="Try this download again" aria-label="Retry download">${this.ICONS.retry}</button>`;
     }

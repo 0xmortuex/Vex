@@ -66,6 +66,17 @@ describe('download control service', () => {
     expect(h.service.control(id, 'resume')).toEqual({ ok: false, error: 'This download cannot be resumed' });
   });
 
+  it('resumes a download whose connection dropped (interrupted, not paused)', () => {
+    const h = harness();
+    const item = fakeItem();
+    item.getState = () => 'interrupted';
+    item.resume = vi.fn();
+    h.session._will({}, item, null);
+    const id = h.sent[0].data.id;
+    expect(h.service.control(id, 'resume')).toEqual({ ok: true, paused: false });
+    expect(item.resume).toHaveBeenCalled();
+  });
+
   it('drops the handle once the download is done and says so', () => {
     const h = harness();
     const item = fakeItem();
