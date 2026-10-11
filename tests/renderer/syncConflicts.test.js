@@ -39,7 +39,7 @@ async function conflictSetUp(email) {
   const values = Records.unflatten(Records.values(doc));
   values['preference:vex.notes'] = [note('n1', 'Shopping: milk, eggs', 2)];
   values['sync:device:' + other.deviceId] = { level: 2, revision: r.body.revision };
-  await system.push(other.sessionToken, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
+  await system.provenPush(other, keyHex, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
   await new Promise(res => setTimeout(res, 5));
   localStorage.setItem('vex.notes', JSON.stringify([note('n1', 'Shopping: bread', 3)]));
   expect((await engine.pullNow()).ok).toBe(true);

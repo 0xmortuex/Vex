@@ -8,6 +8,18 @@ import * as previous from './fixtures/vex-sync-worker-global.js';
 
 export const SECRET = 'test-email-hash-secret-0123456789abcdef';
 
+const toHex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+const fromHex = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+async function authKeyOf(syncKeyHex) {
+  const ikm = await crypto.subtle.importKey('raw', fromHex(syncKeyHex), 'HKDF', false, ['deriveBits']);
+  return toHex(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode('vex-sync auth key v1') }, ikm, 256));
+}
+async function hmacHex(keyHex, message) {
+  const key = await crypto.subtle.importKey('raw', fromHex(keyHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return toHex(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message)));
+}
+const sha256Hex = async text => toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+
 export function memoryStorage(records = new Map(), hooks = {}) {
   const clone = v => (v === undefined ? undefined : structuredClone(v));
   const one = (k, v) => { if (hooks.beforePut) hooks.beforePut(k, v); records.set(k, clone(v)); };
@@ -82,7 +94,16 @@ export function syncSystem({ module = current, global = new Map(), accounts = ne
     return res.body;
   };
   const push = (token, baseRevision, blob = 'BLOB' + baseRevision) => call('POST', '/sync/push', { encryptedBlob: blob, baseRevision }, token);
-  return { env: fullEnv, global, accounts, calls, call, signIn, push };
+  // A push by another device that has the sync key (SYNC_PROTOCOL.md §2.7):
+  // asks for a nonce and proves the key. `session` is a signIn() result.
+  const provenPush = async (session, syncKeyHex, baseRevision, blob) => {
+    const c = (await call('GET', '/sync/challenge', undefined, session.sessionToken)).body;
+    const auth = await authKeyOf(syncKeyHex);
+    const headers = { 'X-Vex-Proof': c.nonce + '.' + await hmacHex(auth, `vex-sync-proof/1\n${c.nonce}\n${session.deviceId}\npush\n${baseRevision}\n${await sha256Hex(blob)}`) };
+    if (!c.keyCheck) headers['X-Vex-Auth-Key'] = auth;
+    return call('POST', '/sync/push', { encryptedBlob: blob, baseRevision }, session.sessionToken, headers);
+  };
+  return { env: fullEnv, global, accounts, calls, call, signIn, push, provenPush };
 }
 
 export const previousWorker = previous;

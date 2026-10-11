@@ -128,7 +128,9 @@ describe('signing in with the AI worker in the Sync field', () => {
     expect((await E.pullNow()).ok).toBe(true);
     localStorage.setItem('vex.syncWorkerUrl', AI_URL);
     expect(await E.pushNow()).toEqual({ ok: false, reason: SAID_SYNC });
-    expect(asked).toContain('POST ' + AI_URL + '/sync/push');
+    // A push first asks for a key-proof nonce (SYNC_PROTOCOL.md §2.7); the AI
+    // worker's answer to that is what tells.
+    expect(asked).toContain('GET ' + AI_URL + '/sync/challenge');
     expect(E.isEnabled()).toBe(true);
     expect(window.vex.syncClearState).not.toHaveBeenCalled();
     expect(window.showToast.mock.calls.filter(c => c[1] === 'error')).toEqual([]);

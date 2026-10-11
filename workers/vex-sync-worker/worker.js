@@ -7,7 +7,16 @@ import { boundedJson, durableKV, isDevelopment, expireRecords, parseCounter } fr
 //   GET    /sync/pull                                                     (Bearer token)
 //   GET    /sync/devices                                                  (Bearer token)
 //   DELETE /sync/devices/:id                                              (Bearer token)
-//   DELETE /sync/all                                                      (Bearer token)
+//   DELETE /sync/all                                                      (Bearer token, key proof)
+//   GET    /sync/challenge                                                (Bearer token)
+//   POST   /sync/prove                                                    (Bearer token, key proof)
+//   POST   /sync/reset              { confirm }                           (fresh sign-in, no key)
+//
+// Key proof (SYNC_PROTOCOL.md §2.7): an email code alone used to be enough to
+// overwrite or wipe the encrypted account (audit SY3, 2026-10-10). A push or
+// wipe now carries an HMAC, with a key derived from the sync key, over a
+// one-time nonce from /sync/challenge. The account keeps that derived key
+// (never the sync key) from the first proof it sees.
 //
 // Where things live (from the release after v2.37.0):
 //   VEX_STATE (one object, 'vex-sync')  — what has to be global: sign-in codes,
@@ -24,7 +33,7 @@ import { boundedJson, durableKV, isDevelopment, expireRecords, parseCounter } fr
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vex-Proof, X-Vex-Auth-Key",
   "Access-Control-Max-Age": "86400"
 };
 
@@ -326,7 +335,7 @@ function withAccount(request, account) {
 }
 
 // The keys one account has in storage. Sessions are keyed by token.
-const accountKeys = account => [`sync:blob:${account}`, `sync:devices:${account}`, `sync:drop:${account}`, `auth:sessions:${account}`];
+const accountKeys = account => [`sync:blob:${account}`, `sync:devices:${account}`, `sync:drop:${account}`, `auth:sessions:${account}`, `sync:keycheck:${account}`];
 
 function live(record) {
   return !!record && !record.deleted && typeof record.value === 'string' && !(record.expires && record.expires <= Date.now());
@@ -468,6 +477,99 @@ function accountKV(storage, prefix, importSession) {
   };
 }
 
+// ====== Proof of the sync key (SYNC_PROTOCOL.md §2.7) ======
+// The account's key check: { key: <hex of the auth key>, setAt, setBy }. The
+// auth key is HKDF(sync key, info "vex-sync auth key v1"); it opens nothing,
+// so the server may hold it. A nonce is good for one request by the device
+// that asked for it, within CHALLENGE_TTL.
+const CHALLENGE_TTL = 5 * 60;
+const CHALLENGES_MAX = 20;
+// A sign-in at most this old may start the account over without the key.
+const RESET_WINDOW_MS = 10 * 60 * 1000;
+const RESET_CONFIRM = 'erase my synced data';
+const HEX64 = /^[0-9a-f]{64}$/;
+
+const KEY_REQUIRED = 'This sync account is locked to its sync key, and this device did not prove it has the key. Update Vex on this device, or sign in again with your recovery code.';
+const KEY_MISMATCH = 'This device’s sync key does not match the key this account is locked to. Sign out, then sign in again with the recovery code from a device that still syncs.';
+const PROOF_STALE = 'The sync key check expired or was already used — try again.';
+
+const refuse = (error, code, status = 403) => ({ refused: json({ error, code }, status) });
+
+async function sha256Hex(text) {
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+
+async function proofValid(keyHex, mac, message) {
+  const bytes = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const key = await crypto.subtle.importKey('raw', bytes(keyHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  return crypto.subtle.verify('HMAC', key, bytes(mac), new TextEncoder().encode(message));
+}
+
+async function readKeyCheck(env, account) {
+  const raw = await env.VEX_SYNC_KV.get(`keycheck:${account}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+// One nonce for this session's device. The list is pruned of expired ones
+// and never holds more than CHALLENGES_MAX.
+async function issueChallenge(env, deviceId) {
+  const raw = await env.VEX_AUTH_KV.get('challenges');
+  const now = Date.now();
+  const list = (raw ? JSON.parse(raw) : []).filter(c => c.exp > now).slice(-(CHALLENGES_MAX - 1));
+  const nonce = randomId(16);
+  list.push({ nonce, deviceId, exp: now + CHALLENGE_TTL * 1000 });
+  await env.VEX_AUTH_KV.put('challenges', JSON.stringify(list), { expirationTtl: CHALLENGE_TTL + 60 });
+  return nonce;
+}
+
+// Removes the nonce whatever the outcome, so it is never accepted twice.
+async function takeChallenge(env, nonce, deviceId) {
+  const raw = await env.VEX_AUTH_KV.get('challenges');
+  if (!raw) return false;
+  const list = JSON.parse(raw);
+  const found = list.find(c => c.nonce === nonce);
+  if (!found) return false;
+  const rest = list.filter(c => c !== found);
+  if (rest.length) await env.VEX_AUTH_KV.put('challenges', JSON.stringify(rest), { expirationTtl: CHALLENGE_TTL + 60 });
+  else await env.VEX_AUTH_KV.delete('challenges');
+  return found.deviceId === deviceId && found.exp > Date.now();
+}
+
+// Checks the X-Vex-Proof header for `action`. No header: allowed only while
+// the account has no key check (older clients), as { legacy: true }. A valid
+// proof on an account without one sets it from X-Vex-Auth-Key (trust on
+// first use) and marks the session proven. -> { ok, legacy?, set? } or { refused }.
+async function checkProof(request, env, account, session, token, action, details) {
+  const keyCheck = await readKeyCheck(env, account);
+  const header = request.headers.get('X-Vex-Proof');
+  if (!header) return keyCheck ? refuse(KEY_REQUIRED, 'key-required') : { ok: true, legacy: true };
+  const [nonce, mac] = header.split('.');
+  if (!/^[0-9a-f]{32}$/.test(nonce || '') || !HEX64.test(mac || '')) return refuse('Malformed X-Vex-Proof header', 'proof-malformed', 400);
+  if (!(await takeChallenge(env, nonce, session.deviceId))) return refuse(PROOF_STALE, 'proof-stale');
+  let key = keyCheck && keyCheck.key;
+  if (!key) {
+    key = request.headers.get('X-Vex-Auth-Key') || '';
+    if (!HEX64.test(key)) return refuse('This account has no key check yet: send X-Vex-Auth-Key with the first proof', 'auth-key-missing', 400);
+  }
+  const message = `vex-sync-proof/1\n${nonce}\n${session.deviceId}\n${action}\n${details}`;
+  if (!(await proofValid(key, mac, message))) return refuse(KEY_MISMATCH, 'key-mismatch');
+  let set = false;
+  if (!keyCheck) {
+    await env.VEX_SYNC_KV.put(`keycheck:${account}`, JSON.stringify({ key, setAt: new Date().toISOString(), setBy: session.deviceId }));
+    console.log('[vex-sync] account locked to its sync key (first proof)');
+    set = true;
+  }
+  if (!session.proven) {
+    session.proven = true;
+    await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(session), { expirationTtl: sessionTtl(session) });
+  }
+  return { ok: true, set };
+}
+
+const keyCheckInfo = keyCheck => (keyCheck ? { setAt: keyCheck.setAt } : null);
+// A pull names the key check only when there is one (the reply stays as it was).
+const lockedSince = keyCheck => (keyCheck ? { keyCheck: keyCheckInfo(keyCheck) } : {});
+
 // /sync/* for one account. `env` holds this account's own stores.
 async function handleSync(request, env, account, path) {
   const auth = request.headers.get('Authorization') || '';
@@ -486,7 +588,16 @@ async function handleSync(request, env, account, path) {
   // Not yet in the device list (see verify-code): it may push or pull,
   // which registers it, or remove itself when the app gives up on the
   // sign-in. Nothing else until then.
-  const pendingOk = (request.method === 'POST' && path === '/sync/push') || (request.method === 'GET' && path === '/sync/pull');
+  const pendingOk = (request.method === 'POST' && path === '/sync/push') || (request.method === 'GET' && path === '/sync/pull')
+    || (request.method === 'GET' && path === '/sync/challenge') || (request.method === 'POST' && path === '/sync/prove')
+    || (request.method === 'POST' && path === '/sync/reset') || (request.method === 'DELETE' && path === '/sync/all');
+  // An account locked to its sync key: a session that has not proven the key
+  // may read (the data is encrypted), list the devices, ask for a nonce, prove,
+  // push or wipe with a proof, and remove itself. Nothing else.
+  const keyCheck = await readKeyCheck(env, account);
+  const unprovenOk = pendingOk || (request.method === 'GET' && path === '/sync/devices')
+    || (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`);
+  if (keyCheck && !session.proven && !unprovenOk) return json({ error: KEY_REQUIRED, code: 'key-required' }, 403);
   if (session.pending) {
     if (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`) {
       await env.VEX_AUTH_KV.delete(`sess:${token}`);
@@ -508,9 +619,11 @@ async function handleSync(request, env, account, path) {
     await rememberSession(env, account, token, session.deviceId);
   }
 
-  // A pending device's first successful push or pull puts it in the list.
+  // A pending device's first successful push or pull puts it in the list. On
+  // an account locked to its sync key, only once it has proven the key.
   const registerPending = async () => {
     if (!session.pending) return;
+    if (!session.proven && await readKeyCheck(env, account)) return;
     const devices = existingDevices ? JSON.parse(existingDevices) : [];
     devices.push({ deviceId: session.deviceId, deviceName: session.deviceName, createdAt: session.createdAt, lastSeenAt: new Date().toISOString() });
     await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
@@ -527,10 +640,14 @@ async function handleSync(request, env, account, path) {
     if (encryptedBlob.length > 5 * 1024 * 1024) {
       return json({ error: 'Blob too large (max 5 MB)' }, 413);
     }
+    // The proof comes before the revision check: the 409 below used to hand
+    // a key-less session the revision it needed to overwrite the account.
+    const proof = await checkProof(request, env, account, session, token, 'push', `${baseRevision}\n${await sha256Hex(encryptedBlob)}`);
+    if (proof.refused) return proof.refused;
     const blobKey = `blob:${account}`;
     const previous = await env.VEX_SYNC_KV.get(blobKey);
     const revision = previous ? (JSON.parse(previous).revision || 0) : 0;
-    if (!Number.isSafeInteger(baseRevision) || baseRevision !== revision) return json({ error: 'Sync conflict: pull and merge before pushing', revision }, 409);
+    if (!Number.isSafeInteger(baseRevision) || baseRevision !== revision) return json({ error: 'Sync conflict: pull and merge before pushing', revision, ...(proof.set ? { keyCheckSet: true } : {}) }, 409);
     const data = {
       revision: revision + 1,
       encryptedBlob,
@@ -540,15 +657,46 @@ async function handleSync(request, env, account, path) {
     };
     await env.VEX_SYNC_KV.put(blobKey, JSON.stringify(data));
     await registerPending();
-    return json({ ok: true, savedAt: data.pushedAt, revision: data.revision });
+    return json({ ok: true, savedAt: data.pushedAt, revision: data.revision, ...(proof.set ? { keyCheckSet: true } : {}) });
   }
 
   if (path === '/sync/pull' && request.method === 'GET') {
     const existing = await env.VEX_SYNC_KV.get(`blob:${account}`);
     await registerPending();
-    if (!existing) return json({ ok: true, blob: null });
+    if (!existing) return json({ ok: true, blob: null, ...lockedSince(keyCheck) });
     const data = JSON.parse(existing);
-    return json({ ok: true, ...data });
+    return json({ ok: true, ...data, ...lockedSince(keyCheck) });
+  }
+
+  if (path === '/sync/challenge' && request.method === 'GET') {
+    const nonce = await issueChallenge(env, session.deviceId);
+    return json({ ok: true, nonce, expiresIn: CHALLENGE_TTL, keyCheck: keyCheckInfo(keyCheck) });
+  }
+
+  // Proves the key without uploading: enrols a pending device, and sets the
+  // account's key check if it has none.
+  if (path === '/sync/prove' && request.method === 'POST') {
+    if (!request.headers.get('X-Vex-Proof')) return json({ error: 'X-Vex-Proof header required', code: 'proof-malformed' }, 400);
+    const proof = await checkProof(request, env, account, session, token, 'prove', '');
+    if (proof.refused) return proof.refused;
+    await registerPending();
+    return json({ ok: true, ...(proof.set ? { keyCheckSet: true } : {}) });
+  }
+
+  // Starting over without the key (it is lost on every device): only from a
+  // sign-in at most RESET_WINDOW_MS old that has not synced, with the words
+  // RESET_CONFIRM. Everything goes, as for DELETE /sync/all, except this
+  // session, which then pushes a new account. Every other device is signed
+  // out (401), so nothing is replaced unseen.
+  if (path === '/sync/reset' && request.method === 'POST') {
+    const { confirm } = await boundedJson(request);
+    if (confirm !== RESET_CONFIRM) return json({ error: `Send {"confirm":"${RESET_CONFIRM}"} to erase the account`, code: 'confirm-required' }, 400);
+    const age = Date.now() - Date.parse(session.createdAt);
+    if (!session.pending || !(age >= 0 && age <= RESET_WINDOW_MS)) return json({ error: 'Starting over needs a sign-in code from the last 10 minutes: send a new code and try again', code: 'fresh-sign-in-required' }, 403);
+    await env.forgetElsewhere();
+    await wipeAccount(env, account, token);
+    console.log('[vex-sync] account erased by a fresh sign-in without the key');
+    return json({ ok: true });
   }
 
   if (path === '/sync/devices' && request.method === 'GET') {
@@ -571,6 +719,10 @@ async function handleSync(request, env, account, path) {
   }
 
   if (path === '/sync/all' && request.method === 'DELETE') {
+    const proof = await checkProof(request, env, account, session, token, 'wipe', '');
+    if (proof.refused) return proof.refused;
+    // A pending session may wipe only with a proof.
+    if (proof.legacy && session.pending) return json({ error: 'This device has not synced yet' }, 403);
     // The copy the previous worker kept goes first, so a failure leaves the
     // account as it was rather than half wiped.
     await env.forgetElsewhere();
@@ -622,11 +774,14 @@ async function handleSync(request, env, account, path) {
   return json({ error: 'Not found' }, 404);
 }
 
-async function wipeAccount(env, account) {
+// `keepToken`: the one session that stays (POST /sync/reset).
+async function wipeAccount(env, account, keepToken = null) {
   await env.VEX_SYNC_KV.delete(`blob:${account}`);
   await env.VEX_SYNC_KV.delete(`devices:${account}`);
   await env.VEX_SYNC_KV.delete(`drop:${account}`);
-  await forgetSessions(env, account, () => false);
+  await env.VEX_SYNC_KV.delete(`keycheck:${account}`);
+  await env.VEX_AUTH_KV.delete('challenges');
+  await forgetSessions(env, account, s => s.token === keepToken);
 }
 
 export class VexSyncAccount {

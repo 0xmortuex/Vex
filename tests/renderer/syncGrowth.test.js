@@ -42,7 +42,7 @@ async function otherDevice(system, email, name) {
       values['sync:device:' + session.deviceId] = level >= 2 ? { level, revision } : { level };
       change?.(values, doc);
       const next = Records.capture(doc, Records.flatten(values), session.deviceId);
-      const r = await system.push(session.sessionToken, revision, await window.SyncCrypto.encrypt(next, await key()));
+      const r = await system.provenPush(session, keyHex, revision, await window.SyncCrypto.encrypt(next, await key()));
       if (r.status !== 200) throw new Error('push ' + r.status);
       return next;
     },

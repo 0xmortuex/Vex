@@ -1,4 +1,6 @@
-# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3)
+# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3; key proof, protocol version 1 of §2.7, from the release after v14.72.3)
+
+> **Release after v14.72.3 — key proof (server and client change, §2.7, §2.8).** Up to now one sign-in email code was enough to overwrite or erase an account without its sync key (push with `baseRevision: 0`, read the revision from the 409, push again; or `DELETE /sync/all`). A worker from this release keeps, per account, a key check derived from the sync key, and from then on refuses a push or wipe that does not prove the key with an HMAC over a one-time nonce (`GET /sync/challenge`, header `X-Vex-Proof`). New: `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`; status **403** with a `code` field on refusals; `keyCheck` in the pull and challenge replies; `keyCheckSet` in the push reply. An account without a key check (every account until a current client syncs) works exactly as before, so **older clients keep working until the first current client locks the account**; after that they can still pull (and list devices), but their pushes and wipes get 403 (§2.7.5). A current client talking to an older worker sees `/sync/challenge` answer 404 (or 403 "This device has not synced yet") and syncs without proofs.
 
 > **Release after v14.72.3 — document contents only, no server change.** Each desktop sends its own open tabs as `sync:tabs:<deviceId>` and no longer writes or applies the shared `storage:tabs`, `storage:groups` and `storage:stacks` (§4.8). The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
 
@@ -98,20 +100,23 @@ Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. Th
 | 200, account has data | `{"ok":true,"revision":int,"encryptedBlob":string,"updatedAt":string,"pushedBy":"<deviceId>","pushedAt":"<ISO>"}` |
 | 401 | see §2.6 |
 
-A pull by a pending session **registers the device** in the device list. This happens even if the client then fails to decrypt the blob (§2.3).
+From the release after v14.72.3 both 200 replies also carry `"keyCheck":{"setAt":"<ISO>"}` when the account is locked to its sync key (§2.7); the field is absent otherwise, and absent on older workers.
 
-#### `POST /sync/push`  (Bearer)
-Request: `{ "encryptedBlob": string, "updatedAt"?: string (ISO), "baseRevision": int }`.
+A pull by a pending session **registers the device** in the device list. This happens even if the client then fails to decrypt the blob (§2.3). On an account locked to its sync key it does **not** (from the release after v14.72.3): the device is registered by its first proof (§2.7.4).
+
+#### `POST /sync/push`  (Bearer; key proof, §2.7)
+Request: `{ "encryptedBlob": string, "updatedAt"?: string (ISO), "baseRevision": int }`, plus the headers `X-Vex-Proof` (and, on the first proof, `X-Vex-Auth-Key`) from §2.7.
 
 | Status | Body |
 |---|---|
-| 200 | `{"ok":true,"savedAt":"<ISO>","revision":int}`. The new revision is `baseRevision + 1`. |
-| 400 | `{"error":"Missing encryptedBlob"}` |
-| 409 | `{"error":"Sync conflict: pull and merge before pushing","revision":int}`. `baseRevision` is missing, is not a safe integer, or does not equal the server's current revision. **An omitted `baseRevision` always gets 409.** |
+| 200 | `{"ok":true,"savedAt":"<ISO>","revision":int}`. The new revision is `baseRevision + 1`. With `"keyCheckSet":true` when this proof locked the account (§2.7.3). |
+| 400 | `{"error":"Missing encryptedBlob"}`; or a malformed proof (§2.7.6) |
+| 403 | a refused proof: `{"error":"<sentence for the user>","code":"key-required"|"key-mismatch"|"proof-stale"}` (§2.7.6). The proof is checked **before** the revision, so a refused push learns no revision. |
+| 409 | `{"error":"Sync conflict: pull and merge before pushing","revision":int}` (plus `"keyCheckSet":true` as for 200). `baseRevision` is missing, is not a safe integer, or does not equal the server's current revision. **An omitted `baseRevision` always gets 409.** |
 | 413 | `{"error":"Request too large"}` |
 | 401 | see §2.6 |
 
-A successful push replaces the account's blob **entirely**, and it registers a pending device. `updatedAt` is stored and returned by pull, but no client reads it.
+A successful push replaces the account's blob **entirely**, and it registers a pending device (on a locked account, through its proof). `updatedAt` is stored and returned by pull, but no client reads it.
 
 #### `GET /sync/devices`  (Bearer, registered devices only)
 200: `{"ok":true,"devices":[{"deviceId","deviceName","createdAt","lastSeenAt"}...],"currentDeviceId":"<yours>"}`. A pending session gets **403** `{"error":"This device has not synced yet"}`. Every authenticated non-pending request updates the caller's `lastSeenAt`.
@@ -121,8 +126,11 @@ A successful push replaces the account's blob **entirely**, and it registers a p
 - A registered device may remove **any** device, itself included. The server deletes the target from the list and deletes every session of the target. It returns 200 `{"ok":true}` even when the id is unknown.
 - A **pending** session may remove **only itself** (`/sync/devices/<its own deviceId>`), which deletes its session. Anything else gets 403.
 
-#### `DELETE /sync/all`  (Bearer, registered)
-Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, and **every session of the account, including the caller's**. Returns 200 `{"ok":true}`. The caller's next request gets 401.
+#### `DELETE /sync/all`  (Bearer, registered; key proof, §2.7)
+Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, the key check (§2.7), and **every session of the account, including the caller's**. Returns 200 `{"ok":true}`. The caller's next request gets 401. On a locked account it needs a proof for the action `wipe` (403 as for push without one); a pending session may wipe only with a valid proof.
+
+#### `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`  (Bearer; from the release after v14.72.3)
+See §2.7 and §2.8. Older workers answer 404 (or 403 "This device has not synced yet" to a pending session).
 
 #### `POST /sync/drop`, `GET /sync/drop`  (Bearer, registered)
 The "Send to My Devices" mailbox. See §7.
@@ -134,9 +142,10 @@ What the worker sends, exactly (constant `CORS_HEADERS`). These are on **every**
 ```
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Vex-Proof, X-Vex-Auth-Key
 Access-Control-Max-Age: 86400
 ```
+(`X-Vex-Proof` and `X-Vex-Auth-Key` from the release after v14.72.3, §2.7. Up to then: `Content-Type, Authorization`.)
 
 `OPTIONS` (on any path) returns **204** with those headers. It is answered before the secret check and before the Durable Object, so preflight works even on a misconfigured worker. Verified:
 
@@ -149,7 +158,7 @@ OPTIONS /sync/push  (Origin: https://pwa.example, ACR-Method: POST, ACR-Headers:
 **Conclusion: a browser-based or PWA client works without any worker change.**
 - The token goes in the `Authorization` header and no cookies are used, so the request is not a "credentialed" CORS request in the cookie sense, and `Allow-Origin: *` is accepted. Do **not** set `credentials: 'include'`. With credentials, `*` would be rejected.
 - The client only reads JSON bodies, so no `Access-Control-Expose-Headers` is needed.
-- Every method used (GET, POST, DELETE) and every request header used (Content-Type, Authorization) is allowed.
+- Every method used (GET, POST, DELETE) and every request header used (Content-Type, Authorization, and the §2.7 proof headers) is allowed.
 
 Caveats (not worker bugs):
 1. A PWA served over HTTPS needs an `https://` worker URL, or the browser blocks it as mixed content. `*.workers.dev` is HTTPS.
@@ -178,8 +187,9 @@ Accounts are keyed by `hex(HMAC-SHA256(key = UTF-8(EMAIL_HASH_SECRET), msg = UTF
   - `GET /sync/pull`
   - `POST /sync/push`
   - `DELETE /sync/devices/<own deviceId>` (to abandon the sign-in)
+  - from the release after v14.72.3: `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`, and `DELETE /sync/all` with a valid proof (§2.7, §2.8)
   
-  Anything else gets **403** `{"error":"This device has not synced yet"}`. That includes `/sync/devices`, `/sync/drop` and `/sync/all`.
+  Anything else gets **403** `{"error":"This device has not synced yet"}`. That includes `/sync/devices` and `/sync/drop`, and `/sync/all` without a proof.
 - The **first successful pull or push** adds `{deviceId, deviceName, createdAt, lastSeenAt}` to the list and clears `pending`. A pull registers the device **before** the client has decrypted anything. A sign-in that then fails (wrong recovery code) therefore leaves a registered device behind, which the client MUST delete (§2.5).
 
 ### 2.4 Creating an account versus joining one
@@ -210,12 +220,90 @@ On any `/sync/*` call:
 
 The desktop treats every 401 from push, pull or the device list the same way: it signs out locally **without** a server call and shows "This device was signed out of Vex Sync — the server no longer recognises it … Sign in again". A client MUST NOT retry with the same token, MUST NOT delete local user data, and SHOULD discard its record document and revision. The next sign-in is a join (§5.4).
 
+### 2.7 Proof of the sync key (key proof version 1, from the release after v14.72.3)
+
+The email code says who you are; it says nothing about whether you hold the sync key. Up to v14.72.3 a session made from one email code could replace the account's blob (push with `baseRevision: 0`, take the `revision` from the 409, push again) or erase it (`DELETE /sync/all`), without ever having the key. It could not read anything, but it could destroy everything. From this release a worker locks each account to its sync key and asks for a proof before it changes the account.
+
+#### 2.7.1 The auth key
+```
+authKey = HKDF-SHA256(ikm = the 32 raw sync-key bytes (§3.1), salt = empty (zero bytes), info = UTF-8 "vex-sync auth key v1", length = 32 bytes)
+```
+Written as 64 lowercase hex characters. HKDF is one-way: the auth key does not decrypt anything and does not give the sync key back, so the server may keep it. **The sync key itself is never sent.** (Desktop: `SyncCrypto.authKeyHex`.)
+
+#### 2.7.2 A proof
+1. `GET /sync/challenge` (Bearer; any session, pending included) → `200 {"ok":true,"nonce":"<32 hex>","expiresIn":300,"keyCheck":{"setAt":"<ISO>"}|null}`. The nonce belongs to the caller's device, is good for **5 minutes** and **one** request, accepted or not. The server keeps at most 20 unused nonces per account (the oldest go first).
+2. Compute
+   ```
+   message = "vex-sync-proof/1\n" + nonce + "\n" + deviceId + "\n" + action + "\n" + details
+   mac     = hex( HMAC-SHA256(key = authKey bytes, message = UTF-8(message)) )
+   ```
+   `deviceId` is the caller's own (§2.3). `action` and `details`:
+
+   | Request | `action` | `details` |
+   |---|---|---|
+   | `POST /sync/push` | `push` | `<baseRevision as sent, decimal>` + `"\n"` + `hex(SHA-256(UTF-8(encryptedBlob)))` |
+   | `DELETE /sync/all` | `wipe` | empty string |
+   | `POST /sync/prove` | `prove` | empty string |
+3. Send header `X-Vex-Proof: <nonce>.<mac>`. When the challenge said `"keyCheck": null` (the account is not locked yet), also send `X-Vex-Auth-Key: <authKey hex>` (§2.7.3).
+
+A proof covers one action on one body by one device, once. It cannot be replayed (the nonce is spent), moved to another session (the nonce is the device's), or reused for another blob, revision or action (they are in the MAC).
+
+Vector (sync key of §3.6, `000102…1f`; nonce `00112233445566778899aabbccddeeff`; device `0123456789abcdef0123456789abcdef`; checked with WebCrypto and with Node's `crypto.hkdfSync`/`createHmac`):
+```
+authKey                 : 189392652584556749599e10df7683b887f593b65e96d70400072158154c72cc
+push, baseRevision 41, encryptedBlob "oKGio6Sl"
+  SHA-256(blob)         : b771b6fcbe1fb3c659f047d2417a51272b02932fec1faaf011567117ac7e5479
+  mac                   : 7212737d795bd6b54ded5b01ce84eb570e6e1efddd98a017d911b26ec49baae5
+wipe  mac               : 3b37c704c266d8bc3fb2a8e9229844c0e3d72a4c5edef19c16522a14be928c72
+prove mac               : b0cf29d8d2ca3be6bd099bd947e0494b8b9a107a038275ceb14231dec3efda38
+```
+
+#### 2.7.3 Locking an account (trust on first use)
+The account's **key check** is `{key: <authKey hex>, setAt, setBy: <deviceId>}`, kept in the account's storage. A new account gets it from its first push. **An account from before this release has none**; the first valid proof that carries `X-Vex-Auth-Key` sets it, and the reply says `"keyCheckSet": true`. From then on every proof is checked against it, and `X-Vex-Auth-Key` is ignored. A key check is removed only with the account (`DELETE /sync/all`, `POST /sync/reset`).
+
+**The window that stays open:** until a current client has proved the key once, the account is as open as before: whoever has an email code can replace or erase it, and could even lock it to a key of their own (the real devices' proofs then fail with `key-mismatch`, and the user has to start over, §2.8). The window closes the first time a current desktop pushes (it pushes within seconds of a change and at least every two minutes while open). The desktop says in Settings › Vex Sync whether the account is locked (`keyCheck` in pull and challenge), and shows "Your sync account is now locked to your sync key …" once, on the device that locked it.
+
+#### 2.7.4 What a session may do on a locked account
+A session that has not made a valid proof (a new sign-in, or a device on an older client) may only: `GET /sync/pull`, `GET /sync/challenge`, `POST /sync/prove`, `GET /sync/devices` (if it is already listed), `DELETE /sync/devices/<own id>`, and push or wipe **with** a proof. It is not registered by a pull; its first valid proof (a push, or `POST /sync/prove` for a client that only reads) registers it and marks the session proven. Anything else gets **403** `{"error":"<KEY_REQUIRED sentence>","code":"key-required"}`, including `/sync/drop` and removing another device.
+
+`POST /sync/prove` (Bearer, `X-Vex-Proof` for the action `prove`) → `200 {"ok":true}` (`"keyCheckSet":true` if it locked the account).
+
+#### 2.7.5 Older clients
+- **Before the account is locked:** nothing changes. Pushes and wipes without `X-Vex-Proof` are accepted as before.
+- **After:** an older client can still sign in, pull and decrypt (it has the key), and list devices if it was already listed. Its pushes and wipes get **403** with `code: "key-required"` and the sentence "This sync account is locked to its sync key, and this device did not prove it has the key. Update Vex on this device, or sign in again with your recovery code." Desktops up to v14.72.3 do not read that body: they show "Push returned 403" (Settings › Vex Sync: "Not syncing — the last sync failed"), keep pulling, and keep their own unsent changes locally until they are updated; nothing is lost and nothing is signed out. A new sign-in by an older desktop joins and pulls, but is never registered.
+- Why refuse rather than keep older devices writing: letting every session that existed before the lock keep writing without a proof would keep the hole open for any session an attacker had made before it, for a year (the session lifetime). Old devices lose uploads, not data, until they are updated.
+
+#### 2.7.6 Refusals
+
+| Status | `code` | When |
+|---|---|---|
+| 403 | `key-required` | The account is locked and the request has no `X-Vex-Proof`, or the session has not proved the key and asked for something else (§2.7.4). |
+| 403 | `key-mismatch` | The MAC does not verify with the account's key check: this device's key is not the account's, or the MAC covers another action, body or revision. |
+| 403 | `proof-stale` | The nonce is unknown, already used, older than 5 minutes, or was asked for by another device. Ask for a new one. |
+| 400 | `proof-malformed` | `X-Vex-Proof` is not `<32 hex>.<64 hex>` (or `/sync/prove` without it). |
+| 400 | `auth-key-missing` | The account is not locked and the first proof has no valid `X-Vex-Auth-Key`. |
+
+A client SHOULD show `error` to the user as it is. On `key-mismatch` it MUST NOT retry with another key or "repair" anything (§6 rule 12 applies in spirit): sign out, and join again with a recovery code that works (§5.4), or start over (§2.8).
+
+#### 2.7.7 Talking to an older worker
+A worker from before this release answers `GET /sync/challenge` with 404 (a registered session) or 403 "This device has not synced yet" (a pending one). A client then sends its requests without proof headers, and SHOULD tell the user the account is not protected until the worker is redeployed. The desktop does both (Settings › Vex Sync).
+
+### 2.8 Starting over without the key (from the release after v14.72.3)
+A user who has lost the recovery code on every device cannot read the account, and with §2.7 cannot erase it with a proof either. `POST /sync/reset` erases it on purpose:
+
+- Request: `{"confirm":"erase my synced data"}` exactly, else **400** `code: "confirm-required"`.
+- Only from a **pending** session made **at most 10 minutes ago**, i.e. straight after a fresh email code; anything else gets **403** `code: "fresh-sign-in-required"`.
+- It deletes what `DELETE /sync/all` deletes (blob, devices, mailbox, key check, sessions), except the caller's own session, which stays pending. Every other device's next request gets 401 and it signs out with "… the cloud data was wiped". **Data on the devices is not touched.**
+- The caller then creates a new account as in §2.4 (new key, push with `baseRevision: 0`), which locks it to the new key.
+
+The desktop offers this only on the sign-in that just found the account has data ("I lost my recovery code: start over"), after a confirmation that says what is erased; it then shows the new recovery code. It cannot replace the account's data unseen: the old data is erased (not overwritten with something the other devices would try to decrypt), and every other device is signed out with a message. **What stays possible:** someone who can read the user's email can still erase the synced copy this way (never read it, never change it while keeping it). The devices keep their data and can sign in again.
+
 ---
 
 ## 3. Encryption
 
 ### 3.1 Recovery code = the raw key
-There is **no key derivation**: no PBKDF2, no salt, no iterations, and the email is not involved. The AES key *is* the recovery code.
+There is **no key derivation**: no PBKDF2, no salt, no iterations, and the email is not involved. The AES key *is* the recovery code. (The only derived key is the auth key of §2.7.1, used for proofs, never for encryption.)
 
 - Key: 32 random bytes (`crypto.subtle.generateKey({name:'AES-GCM', length:256})`, exported raw).
 - Canonical form: 64 lowercase hex characters (`keyToHex`).
@@ -238,6 +326,7 @@ GCM tag verification fails, and WebCrypto rejects with `DOMException` name **`Op
 ### 3.4 What is encrypted, and what is not
 - Encrypted: the record document (`encryptedBlob` on push and pull) and each handoff item (§7).
 - Not encrypted (the server can see it): the email (at request time), `deviceName`, device timestamps, `updatedAt`, revision numbers, blob sizes, the sender of each handoff item and when it was sent.
+- The server also keeps each account's auth key (§2.7.1), derived one-way from the sync key. It decrypts nothing; anyone who could read the server's storage could forge proofs with it, but could already rewrite that storage directly.
 
 ### 3.5 Key storage
 The desktop keeps the key hex through `window.vex.syncSaveKey` in the main process, and the session metadata (`email, sessionToken, deviceId, emailHash, lastPushAt, lastPullAt, revision`) through `syncSaveMeta`. A mobile client SHOULD use the platform keystore (Keychain or Android Keystore) for the key and the token.
@@ -553,13 +642,17 @@ A device with no local data can just adopt the cloud document.
 15. On **401**: stop using the token, sign out locally, keep the user's data, and do not call DELETE (the session is already gone). Prompt the user to sign in again.
 16. On **403** "This device has not synced yet": the session is pending. Pull or push first, after which device list and handoff calls work.
 17. On **503**: the server is misconfigured. Show that, and keep the session.
-18. A client MUST `DELETE /sync/devices/<own id>` when it abandons a sign-in, including after a failed decrypt, because the pull already registered the device. It SHOULD also do this on user sign-out.
+18. A client MUST `DELETE /sync/devices/<own id>` when it abandons a sign-in, including after a failed decrypt, because the pull already registered the device. It SHOULD also do this on user sign-out.
 
 **Sources the phone must not write**
 
 19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. Desktops up to v14.72.3 apply them live to their open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers. Newer desktops neither write nor apply them (§4.8).
 20. A client MUST NOT write tile sources (`preference:vex.shortcuts`, `preference:vex.startTiles`) while the tile gate is shut. That is, unless every listed device, the client included, has a marker with level ≥ 1. When writing tiles, it MUST give them the §4.6 ids and must not keep those ids in its local copy.
 21. A client SHOULD keep its document well under the size limit (§1.2). The desktop sends at most 1,000 history visits (§8.1), and clears out tombstones while every device is at level 2 (§4.7).
+
+**Key proof**
+
+22. From the release after v14.72.3 a client MUST prove the key (§2.7) on every push and wipe when the worker offers `/sync/challenge`, with a fresh nonce for each request (a 409 or a refusal spends it). On **403** with a `code`, it shows `error` and stops; it never retries a `key-mismatch` with anything but the user's recovery code.
 
 ---
 
@@ -702,11 +795,12 @@ This first pull has now registered the device.
    - validate `next` (§4.1) and `unflatten(values(next))` (§8.4).
 
    Done this way, the only records that change are the new bookmark's item record and the marker's two records. This was verified with the real code.
-3. Encrypt `next` with a fresh IV, then push:
+3. Encrypt `next` with a fresh IV. Ask for a nonce (`GET /sync/challenge`) and compute the proof for `push` over `41` and the blob's SHA-256 (§2.7.2); add `X-Vex-Auth-Key` if the challenge said `"keyCheck": null`. Then push:
 ```http
 POST /sync/push
 Authorization: Bearer ab69c147…72bf8
 Content-Type: application/json
+X-Vex-Proof: <nonce>.<mac>
 
 {"encryptedBlob":"<base64>","updatedAt":"2026-10-01T20:52:00.000Z","baseRevision":41}
 ```
@@ -739,6 +833,7 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 | 400 | bad body or missing field; handoff too large | fix the request; do not retry unchanged |
 | 401 | wrong or expired code (auth); invalid, expired or revoked session (sync) | auth: re-enter the code; sync: sign out locally (§2.6) |
 | 403 | pending session used for anything other than pull, push or delete-self | pull or push first |
+| 403 + `code` | key proof refused or needed (§2.7.6), or `/sync/reset` from a sign-in that is not fresh (§2.8) | show `error`; `proof-stale`: ask for a new nonce |
 | 404 | unknown path, or a non-hex device id in DELETE | — |
 | 408 | body not received within 10 s | retry |
 | 409 | `baseRevision` missing or stale (`revision` in the body) | pull, merge or rebase, push again |

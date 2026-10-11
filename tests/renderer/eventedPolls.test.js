@@ -140,7 +140,7 @@ describe('the sync indicator', () => {
       syncLoadKey: async () => 'ab'.repeat(32),
       syncClearState: vi.fn(async () => {}),
     };
-    vi.stubGlobal('SyncCrypto', { hexToKey: x => x, importKey: async () => ({}) });
+    vi.stubGlobal('SyncCrypto', { hexToKey: x => x, importKey: async () => ({}), authKeyHex: async () => 'ab'.repeat(32) });
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     const seen = [];
     const on = (e) => seen.push({ enabled: e.detail.enabled, syncing: e.detail.syncing, key: e.detail.encryptionKey });

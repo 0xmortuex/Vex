@@ -276,6 +276,52 @@ const SyncEngine = (() => {
   // it without asking once a second (js/app.js).
   const stateChanged = () => window.dispatchEvent(new CustomEvent('vex-sync-state', { detail: getState() }));
 
+  // ===== PROOF OF THE SYNC KEY (SYNC_PROTOCOL.md §2.7) =====
+  // One sync email code was enough to overwrite or erase the encrypted
+  // account (audit SY3, 2026-10-10). A push or wipe now carries an HMAC over
+  // a one-time nonce, keyed by `authKey` (derived from the sync key; the sync
+  // key itself never leaves this device). The first proof locks the account
+  // to that key.
+  let authKey = null;
+  // What this device last heard: 'on' (locked since `since`), 'off' (not yet:
+  // the next upload locks it), 'unsupported' (a server from before the check).
+  let keyLock = { state: null, since: null };
+  function setKeyLock(next, since = null) {
+    if (keyLock.state === next && keyLock.since === since) return;
+    keyLock = { state: next, since };
+    stateChanged();
+  }
+  // -> { headers } to add to the request, or { refused: <the 401 response> }.
+  async function proofHeaders(action, details) {
+    if (!authKey) throw new Error('This device has no sync key loaded — sign in again');
+    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/challenge`, {
+      headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+    });
+    if (r.status === 401) return { refused: r };
+    const body = await r.json().catch(() => null);
+    // A server from before the key check has no /sync/challenge: 404, or this
+    // 403 for a session that has not synced yet. It takes requests without a
+    // proof, and Settings › Vex Sync says the account is not protected.
+    if (r.status === 404 || (r.status === 403 && body && body.error === 'This device has not synced yet')) {
+      setKeyLock('unsupported');
+      return { headers: {} };
+    }
+    // The AI worker's address in the Sync field answers a GET with 405.
+    const why = r.ok ? null : await wrongWorker(r.status, body && body.error);
+    if (why) throw new Error(why);
+    if (!r.ok || !body || typeof body.nonce !== 'string') throw new Error((body && body.error) || 'Could not start the sync key check (server returned ' + r.status + ')');
+    const headers = { 'X-Vex-Proof': body.nonce + '.' + await SyncCrypto.proof(authKey, body.nonce, state.deviceId, action, details) };
+    // No lock yet: this proof sets it (trust on first use).
+    if (!body.keyCheck) headers['X-Vex-Auth-Key'] = authKey;
+    else setKeyLock('on', body.keyCheck.setAt || null);
+    return { headers };
+  }
+  // The server set the lock from this device's proof.
+  function lockedByThisDevice() {
+    setKeyLock('on', new Date().toISOString());
+    window.showToast?.('Your sync account is now locked to your sync key: a sign-in code alone can no longer change or erase it. Devices on an older Vex can still download your data, but must be updated to upload.', 'info', 15000);
+  }
+
   let pushTimer = null;
   let pullTimer = null;
   let markerTimer = null;   // the push that puts this device's marker back (pullNow)
@@ -407,9 +453,16 @@ const SyncEngine = (() => {
       setPendingJoin(email, data);
       return { ok: false, needsRecoveryCode: true };
     }
+    return createAccount(email, data);
+  }
+
+  // A new account on this session: a new key, and the first push, which also
+  // locks the account to that key (SYNC_PROTOCOL.md §2.7).
+  async function createAccount(email, data) {
     const cryptoKey = await SyncCrypto.generateKey();
     const keyBytes = await SyncCrypto.exportKey(cryptoKey);
     const keyHex = SyncCrypto.keyToHex(keyBytes);
+    authKey = await SyncCrypto.authKeyHex(keyBytes);
 
     state = {
       ...state,
@@ -458,6 +511,34 @@ const SyncEngine = (() => {
   }
   const pendingJoinFor = email => !!pendingJoin && pendingJoin.email === email;
 
+  // The recovery code is lost on every device: erase the account on the
+  // server and start a new one here, on the sign-in verifyCode just made (the
+  // server takes it only from a sign-in at most ten minutes old). The caller
+  // asks the user to confirm first. Every other device is signed out; data on
+  // the devices stays.
+  const RESET_CONFIRM = 'erase my synced data';
+  async function startOver() {
+    refuseInPrivate();
+    requireSyncUrl();
+    if (!pendingJoin) throw new Error('This sign-in has expired — send a new code.');
+    const { email, data } = pendingJoin;
+    clearPendingJoin();
+    const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.sessionToken}` },
+      body: JSON.stringify({ confirm: RESET_CONFIRM })
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      await forgetDevice(data.sessionToken, data.deviceId);
+      // A server from before the key check has no /sync/reset (a session that
+      // has not synced gets this 403 for any path it does not know).
+      if (r.status === 403 && err.error === 'This device has not synced yet') throw new Error('Your sync server is too old to start over. Redeploy the sync worker (SELF_HOSTING.md), then try again.');
+      throw new Error(err.error || 'Could not start over (server returned ' + r.status + ')');
+    }
+    return createAccount(email, data);
+  }
+
   // Finishes the sign-in verifyCode started, with the recovery code, without
   // asking the server for the email code again.
   async function joinPending(recoveryCode) {
@@ -489,6 +570,7 @@ const SyncEngine = (() => {
   }
 
   async function joinWithSession(email, data, cleanHex, cryptoKey) {
+    authKey = await SyncCrypto.authKeyHex(SyncCrypto.hexToKey(cleanHex));
     state = {
       ...state,
       enabled: true,
@@ -563,6 +645,8 @@ const SyncEngine = (() => {
     compactGate = { open: false, waitingOn: [], floor: 0 };
     knownDevices = [];
     tombstones = null;
+    authKey = null;
+    keyLock = { state: null, since: null };
     localStorage.removeItem(REJOIN_KEY);
     if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); }
     try { await window.vex.syncClearState(); } catch {}
@@ -1046,11 +1130,13 @@ const SyncEngine = (() => {
       // Nothing changed since the server got this document: nothing to send.
       if (server && server.revision === revision && server.text === text) return { ok: true, unchanged: true };
       const encryptedBlob = await SyncCrypto.encrypt(data, state.encryptionKey);
-      const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/push`, {
+      const proofed = await proofHeaders('push', `${revision}\n${await SyncCrypto.sha256Hex(encryptedBlob)}`);
+      const r = proofed.refused || await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/push`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${state.sessionToken}`
+          'Authorization': `Bearer ${state.sessionToken}`,
+          ...proofed.headers
         },
         body: JSON.stringify({ encryptedBlob, updatedAt: new Date().toISOString(), baseRevision: revision })
       });
@@ -1061,11 +1147,18 @@ const SyncEngine = (() => {
         if (why) throw new Error(why);
         await signedOutByServer(); return { ok: false, reason: 'unauthorized' };
       }
-      if (r.status === 409) return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
+      if (r.status === 409) {
+        if ((await r.json().catch(() => ({}))).keyCheckSet) lockedByThisDevice();
+        return { ok: false, conflict: true, reason: 'Another device synced at the same moment — try again' };
+      }
+      // Refused by the key check: the server's own words say what to do.
+      if (r.status === 403) throw new Error((await r.json().catch(() => ({}))).error || 'Push returned 403');
       // The server takes at most 4 MiB in one upload (SYNC_PROTOCOL.md §1.2).
       if (r.status === 413) throw new Error('Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded. Leave something large out in Settings › Vex Sync › Choose what to sync, such as notes, or delete what you no longer need.');
       if (!r.ok) throw new Error('Push returned ' + r.status);
-      revision = (await r.json()).revision;
+      const saved = await r.json();
+      revision = saved.revision;
+      if (saved.keyCheckSet) lockedByThisDevice();
       server = { revision, text };
       await noteTombstones(data, revision, data);
       state.lastPushAt = new Date().toISOString();
@@ -1104,6 +1197,9 @@ const SyncEngine = (() => {
       if (!r.ok) throw new Error('Pull returned ' + r.status);
 
       const result = await r.json();
+      // A pull names the lock only when the account has one.
+      if (result.keyCheck) setKeyLock('on', result.keyCheck.setAt || null);
+      else if (keyLock.state === 'on') setKeyLock('off');
       const receivedRevision = result.revision || 0;
       if (!Number.isSafeInteger(receivedRevision) || receivedRevision < 0) throw new Error('Invalid sync revision');
       const blob = result.encryptedBlob;
@@ -1406,12 +1502,17 @@ const SyncEngine = (() => {
     if (!syncWorkerUrl()) return { ok: false, reason: 'sync-not-configured' };
     let r;
     try {
-      r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/all`, {
+      const proofed = await proofHeaders('wipe', '');
+      r = proofed.refused || await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/all`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${state.sessionToken}` }
+        headers: { 'Authorization': `Bearer ${state.sessionToken}`, ...proofed.headers }
       });
     } catch (err) { return { ok: false, reason: err.message || String(err) }; }
-    if (!r.ok) return { ok: false, reason: 'Server returned ' + r.status };
+    if (!r.ok) {
+      // Refused by the key check: the server's own words say what to do.
+      const refusal = r.status === 403 ? (await r.json().catch(() => ({}))).error : null;
+      return { ok: false, reason: refusal || 'Server returned ' + r.status };
+    }
     revision = 0;
     recordDocument = null;
     server = null;
@@ -1480,6 +1581,7 @@ const SyncEngine = (() => {
     try {
       const keyBytes = SyncCrypto.hexToKey(keyHex);
       const cryptoKey = await SyncCrypto.importKey(keyBytes);
+      authKey = await SyncCrypto.authKeyHex(keyBytes);
 
       state = {
         enabled: true,
@@ -1588,6 +1690,9 @@ const SyncEngine = (() => {
     verifyCode,
     enrollWithRecoveryCode,
     joinPending,
+    startOver,
+    // Whether the account is locked to its sync key (SYNC_PROTOCOL.md §2.7).
+    keyCheckState: () => ({ ...keyLock }),
     cancelPendingJoin,
     pendingJoinFor,
     signOut,

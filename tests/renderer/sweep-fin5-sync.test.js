@@ -178,7 +178,8 @@ describe('S2: a push that 409s pulls, merges and retries once', () => {
     expect(server.revision).toBe(4);
     // Each push and pull also reads the device list, to decide whether
     // shortcut tiles may sync (sync-engine.js checkTileGate).
-    const paths = server.calls.map(c => c.path).filter(p => p !== '/sync/devices').slice(-3);
+    // A push first asks for a key-proof nonce (/sync/challenge, SYNC_PROTOCOL.md §2.7).
+    const paths = server.calls.map(c => c.path).filter(p => p !== '/sync/devices' && p !== '/sync/challenge').slice(-3);
     expect(paths).toEqual(['/sync/push', '/sync/pull', '/sync/push']);
     engine.signOut();
   });

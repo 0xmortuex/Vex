@@ -33,7 +33,7 @@ it('failed recovery never starts auto-push and clears the failed enrollment', as
   window.VexConfig = { syncWorkerUrl: () => 'https://sync.test' };
   window.vex = { syncSaveKey: vi.fn(), syncSaveMeta: vi.fn(), syncClearState: vi.fn() };
   vi.stubGlobal('SyncCrypto', {
-    parseRecoveryCode: x => x, hexToKey: x => x, importKey: async () => ({}),
+    parseRecoveryCode: x => x, hexToKey: x => x, importKey: async () => ({}), authKeyHex: async () => 'ab'.repeat(32),
     decrypt: async () => { throw new Error('Wrong recovery key'); },
   });
   const fetchMock = vi.fn()
@@ -68,7 +68,7 @@ it('blocks uploads after restoring a wrong key, even at the current cloud revisi
     syncLoadKey: async () => 'a'.repeat(64),
   };
   vi.stubGlobal('SyncCrypto', {
-    hexToKey: x => x, importKey: async () => ({}),
+    hexToKey: x => x, importKey: async () => ({}), authKeyHex: async () => 'ab'.repeat(32),
     decrypt: async () => { throw new Error('Wrong key'); },
   });
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ revision: 8, pushedBy: 'same-device', encryptedBlob: 'encrypted' }) });

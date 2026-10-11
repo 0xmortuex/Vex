@@ -37,7 +37,7 @@ async function otherDeviceSets(system, email, change) {
   const values = Records.unflatten(Records.values(doc));
   values['sync:device:' + other.deviceId] = { level: 2, revision: r.body.revision };
   change(values);
-  await system.push(other.sessionToken, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
+  await system.provenPush(other, keyHex, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
 }
 
 beforeEach(() => { localStorage.clear(); document.body.removeAttribute('data-gui-style'); delete globalThis.ThemeAuto; window.showToast = vi.fn(); });

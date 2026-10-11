@@ -56,7 +56,7 @@ describe('naming this device', () => {
     const doc = await window.SyncCrypto.decrypt(pulled.body.encryptedBlob, await key());
     const values = Records.unflatten(Records.values(doc));
     values['sync:device:' + other.deviceId] = { level: 2, revision: pulled.body.revision, name: 'Pixel 9' };
-    await system.push(other.sessionToken, pulled.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
+    await system.provenPush(other, keyHex, pulled.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), other.deviceId), await key()));
     expect((await engine.pullNow()).ok).toBe(true);
     expect(engine.nameOf({ deviceId: other.deviceId, deviceName: 'Windows-7K2Q' })).toBe('Pixel 9');
   });

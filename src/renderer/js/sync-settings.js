@@ -133,6 +133,9 @@ const SyncSettings = (() => {
               </label>
               <input type="text" id="recovery-code-input" placeholder="AAAA-BBBB-CCCC-DDDD-..." hidden style="margin-top: 8px; font-family: 'JetBrains Mono', monospace;">
             </div>
+            <div id="sync-start-over" hidden style="margin-top:10px">
+              <button class="btn-secondary" id="btn-sync-start-over">I lost my recovery code: start over</button>
+            </div>
           </div>
 
           <div class="sync-features">
@@ -234,6 +237,7 @@ const SyncSettings = (() => {
             input.hidden = false;
             errorEl.textContent = 'This account already has synced data. Enter the recovery code from one of your other devices, then press Join.';
             errorEl.hidden = false;
+            document.getElementById('sync-start-over').hidden = false;
             btn.textContent = 'Join'; btn.disabled = false;
             input.focus();
             return;
@@ -246,6 +250,32 @@ const SyncSettings = (() => {
         errorEl.textContent = human(err.message) + (usedPending && !SyncEngine.pendingJoinFor(email) ? ' Send a new code to try again.' : '');
         errorEl.hidden = false;
         btn.textContent = 'Verify'; btn.disabled = false;
+      }
+    });
+
+    // The recovery code is lost on every device. Only on the sign-in that just
+    // found the account has data (a code from the last ten minutes), and only
+    // after saying what it erases: nothing replaces the account unseen, and
+    // every other device is signed out (SYNC_PROTOCOL.md §2.8).
+    document.getElementById('btn-sync-start-over')?.addEventListener('click', async () => {
+      const email = document.getElementById('sync-email-input').value.trim();
+      const errorEl = document.getElementById('code-error');
+      if (!SyncEngine.pendingJoinFor(email)) { errorEl.textContent = 'Send a new code first, then press Verify.'; errorEl.hidden = false; return; }
+      if (!await vexConfirm({
+        title: 'Start over without the recovery code',
+        message: 'This erases everything synced to ' + email + ' on the sync server and signs every other device out of sync. What is on each device stays there. This device then starts a new account with a new recovery code, and your other devices can join it with that code. Without the old recovery code, the old synced data cannot be read by anyone, so it cannot be brought back.',
+        okLabel: 'Erase and start over', danger: true,
+      })) return;
+      const btn = document.getElementById('btn-sync-start-over');
+      btn.disabled = true;
+      try {
+        const result = await SyncEngine.startOver();
+        showRecoveryCodeDialog(result.recoveryCode);
+        await renderSyncPanel(document.getElementById('sync-panel-content'));
+      } catch (err) {
+        errorEl.textContent = human(err.message) + (SyncEngine.pendingJoinFor(email) ? '' : ' Send a new code to try again.');
+        errorEl.hidden = false;
+        btn.disabled = false;
       }
     });
 
@@ -326,6 +356,18 @@ const SyncSettings = (() => {
     draw();
   }
 
+  // Whether the account is locked to the sync key (sync-engine.js keyCheckState):
+  // a sign-in code alone could overwrite or erase an account that is not
+  // (audit SY3, 2026-10-10). Nothing is said before this device has heard.
+  function keyLockNote() {
+    const lock = SyncEngine.keyCheckState ? SyncEngine.keyCheckState() : { state: null };
+    const note = (icon, text) => `<div class="sync-key-lock" id="sync-key-lock" data-lock="${escapeHtml(lock.state)}" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:10px 0;color:var(--text-muted)">${VexIcons.svg(icon, { size: 14 })}<span>${text}</span></div>`;
+    if (lock.state === 'on') return note('lock', 'Locked to your sync key' + (lock.since ? ' since ' + escapeHtml(new Date(lock.since).toLocaleDateString()) : '') + ': a sign-in code alone cannot change or erase your synced data. A device on an older Vex can still download it, but must be updated to upload.');
+    if (lock.state === 'off') return note('warning', 'Not locked to your sync key yet; this device locks it on its next upload. Until then, anyone who can read your sign-in email could overwrite or erase the synced copy (not read it).');
+    if (lock.state === 'unsupported') return note('warning', 'Your sync server is from before the sync key check, so anyone who can read your sign-in email could overwrite or erase the synced copy (not read it). Redeploy the sync worker (SELF_HOSTING.md) to lock your account to your sync key.');
+    return '';
+  }
+
   async function renderSignedIn(container) {
     const state = SyncEngine.getState();
     // A device list we could not load is NOT an empty device list. Keep the
@@ -372,6 +414,8 @@ const SyncSettings = (() => {
           </div>
           <button class="btn-primary" id="btn-sync-now">Sync Now</button>
         </div>
+
+        ${keyLockNote()}
 
         <div class="sync-subsection">
           <h3>Devices ${devicesError ? '(unavailable)' : `(${devices.length})`}</h3>

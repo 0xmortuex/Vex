@@ -36,7 +36,7 @@ async function otherDevice(system, email) {
     const values = Records.unflatten(Records.values(doc));
     values['sync:device:' + session.deviceId] = { level: 2, revision: r.body.revision };
     change(values);
-    const p = await system.push(session.sessionToken, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), session.deviceId), await key()));
+    const p = await system.provenPush(session, keyHex, r.body.revision, await window.SyncCrypto.encrypt(Records.capture(doc, Records.flatten(values), session.deviceId), await key()));
     if (p.status !== 200) throw new Error('push ' + p.status);
     return Records.unflatten(Records.values(Records.capture(doc, Records.flatten(values), session.deviceId)));
   };
