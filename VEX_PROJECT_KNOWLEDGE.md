@@ -56,7 +56,7 @@ bar that does everything.
 - **In-app updates** (v2.35.0): a full-screen update cover; `src/main/updates.js` downloads `Vex-Setup.exe`
   itself, keeps it only if size + sha512 match `latest.yml`, and installs it silently. `src/main/differential.js`
   downloads only the blocks that changed (block maps; `differentialPackage: true`). A profile backup is saved
-  before each install (`src/main/update-backups.js`, newest three kept).
+  before each install (`src/main/update-backups.js`, newest five kept; also at the first start of a version installed another way).
 - **Profiles** (v2.36.0, `src/main/profiles.js`): each profile is its own userData folder and process; extra
   ones live in `%APPDATA%Vex Profiles<id>`.
 - **Import from other browsers** (v2.36.0, `src/main/browser-import.js`): bookmarks + history from Chrome, Edge,

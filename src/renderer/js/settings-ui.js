@@ -246,6 +246,8 @@ const SettingsUI = {
     ['setting-open-routing', () => (typeof PrivateRouting !== 'undefined' ? PrivateRouting.open() : null)],
     ['setting-open-site-routes', () => (typeof SiteRoutes !== 'undefined' ? SiteRoutes.open() : null)],
     ['setting-open-backup', () => (typeof VexBackup !== 'undefined' ? VexBackup.open() : null)],
+    // Settings › Data: the same screen, which lists the backups made around updates.
+    ['setting-open-update-backups', () => (typeof VexBackup !== 'undefined' ? VexBackup.open() : null)],
     ['setting-open-browser-import', () => (typeof BrowserImport !== 'undefined' ? BrowserImport.open() : null)],
     ['setting-open-library', () => {
       try { if (typeof ReadLater !== 'undefined') ReadLater.showTab('features'); } catch { /* the panel opens either way */ }

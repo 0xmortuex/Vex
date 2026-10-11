@@ -288,8 +288,8 @@ const VexBackup = {
       + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input" aria-label="Backup file to restore">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
       + '</div>'
-      // Made by Vex itself right before each update installed (update-notifier.js).
-      + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one, and keeps the last three.</div>'
+      // Made by Vex itself around each update (src/main/update-backups.js).
+      + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one (or when a new version first starts, if it was installed another way), and keeps the last five.</div>'
       + '<div id="bk-update-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
@@ -362,14 +362,15 @@ const VexBackup = {
       row.dataset.backup = item.name;
       const label = document.createElement('span');
       label.className = 'vexsr-host';
-      label.textContent = 'Before updating to ' + item.version;
+      const what = this.updateBackupName(item);
+      label.textContent = what;
       const when = document.createElement('span');
       when.className = 'vexsr-mode';
       when.textContent = new Date(item.at).toLocaleString() + ' · ' + Math.max(1, Math.round(item.bytes / 1024)) + ' KB';
       const btn = document.createElement('button');
       btn.className = 'vexsr-x';
       btn.textContent = 'Restore';
-      btn.setAttribute('aria-label', 'Restore the backup made before updating to ' + item.version);
+      btn.setAttribute('aria-label', 'Restore ' + (item.kind === 'settings' ? 'the copy: ' + what : 'the backup made before updating to ' + item.version));
       btn.addEventListener('click', async () => {
         let got;
         try { got = await api.readBackup(item.name); }
@@ -385,8 +386,17 @@ const VexBackup = {
     }
   },
 
+  // What a row in that list is. 'settings' rows are the copies the older
+  // first-start system kept (settings-backups), moved here once.
+  updateBackupName(item) {
+    if (item.kind !== 'settings') return 'Before updating to ' + item.version;
+    if (item.version === 'first-run') return 'Settings from the first start';
+    if (item.version === 'before-restore') return 'Settings from just before a restore';
+    return 'Settings as they were in ' + item.version;
+  },
+
   // Restore a backup's contents after asking, with Undo — from a chosen file
-  // or from one of the backups made before an update.
+  // or from one of the backups made around an update.
   async _restore(data, m, msg) {
     const seen = this.describe(data);
     if (!seen) { msg('That is not a Vex backup file', true); return; }

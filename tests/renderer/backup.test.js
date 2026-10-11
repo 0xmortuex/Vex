@@ -160,6 +160,19 @@ describe('saved before updates', () => {
     expect(rows[0].querySelector('button').getAttribute('aria-label')).toBe('Restore the backup made before updating to 2.35.1');
   });
 
+  it('the older settings copies moved in from settings-backups are in the same list', async () => {
+    window.vex.updates.listBackups = vi.fn(async () => ({ ok: true, items: [
+      { name: 'before-2.35.1-2026-10-01-140509.json', kind: 'before', version: '2.35.1', at: 3, bytes: 4096 },
+      { name: 'settings-2.31.89-2026-09-01-080000.json', kind: 'settings', version: '2.31.89', at: 2, bytes: 4096 },
+      { name: 'settings-first-run-2026-08-01-080000.json', kind: 'settings', version: 'first-run', at: 1, bytes: 4096 },
+    ] }));
+    VexBackup.open();
+    await flush();
+    const rows = [...document.querySelectorAll('#bk-update-list [data-backup]')];
+    expect(rows.map(r => r.querySelector('.vexsr-host').textContent)).toEqual(['Before updating to 2.35.1', 'Settings as they were in 2.31.89', 'Settings from the first start']);
+    expect(rows[1].querySelector('button').getAttribute('aria-label')).toBe('Restore the copy: Settings as they were in 2.31.89');
+  });
+
   it('Restore asks first, puts it back, and can be undone', async () => {
     VexBackup.open();
     await flush();

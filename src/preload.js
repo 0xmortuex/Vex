@@ -172,11 +172,10 @@ contextBridge.exposeInMainWorld('vex', {
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),
   captureOpen: () => ipcRenderer.invoke('capture:open'),
-  // Safe mode: why this launch is stripped down, and the settings backups.
+  // Safe mode: why this launch is stripped down, and a backup at this first start that failed.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
   started: () => ipcRenderer.send('app:started'),
-  restoreSettings: (name) => ipcRenderer.invoke('app:restore-settings', name),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // One cookie at a time, in the tab's own partition.

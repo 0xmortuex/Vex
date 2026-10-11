@@ -44,7 +44,7 @@ define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);
 define('downloads:set-ask', [boolean]);
 // Delete or drag out a finished download (src/main/download-files.js).
 define('downloads:delete-file downloads:start-drag', [string(4096)]);
-define('app:restore-settings web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
+define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);

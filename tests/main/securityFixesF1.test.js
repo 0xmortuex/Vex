@@ -281,7 +281,7 @@ describe('IPC policy and smaller items', () => {
     const m = /const PRIVATE_DISABLED = (\/.*\/);/.exec(TARGET_CHANNELS_SOURCE);
     const re = eval(m[1]);
     expect(re.test('site:clear-data')).toBe(false);
-    for (const ch of ['app:restore-settings', 'reminders:create', 'reminders:import', 'reminders:delete', 'mail:add', 'mail:remove', 'app:open-as-app', 'overlay:open', 'mcp:auth-set']) expect(re.test(ch), ch).toBe(true);
+    for (const ch of ['reminders:create', 'reminders:import', 'reminders:delete', 'mail:add', 'mail:remove', 'app:open-as-app', 'overlay:open', 'mcp:auth-set']) expect(re.test(ch), ch).toBe(true);
     expect(main).toMatch(/function _siteSessionFor\(event, partition\)/);
     expect(main).toMatch(/_cookieSession = \(event, partition\) => _siteSessionFor\(event, partition\)/);
   });

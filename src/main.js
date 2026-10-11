@@ -985,14 +985,22 @@ ipcMain.handle('app:processes', () => {
 // updater's last word, and how long startup took. Bounded, newest last.
 // Getting back in when a launch fails (main/safe-mode.js): two launches that
 // never finish starting put the third into safe mode — no extensions, no
-// panels, no session restore — and the first launch of a new version keeps a
-// copy of the settings as they were under the old one.
+// panels, no session restore — and the first launch of a new version backs
+// the settings up as the old one left them, unless the update cover already
+// did (main/update-backups.js: the one backup around updates, in userData/backups).
+const _updateBackups = require('./main/update-backups').createUpdateBackups({ fs, dir: path.join(userDataPath, 'backups') });
+try {
+  // The copies the old second system kept (settings-backups), once, into backups.
+  const moved = _updateBackups.migrateLegacy(path.join(userDataPath, 'settings-backups'));
+  if (moved.moved.length) console.log('[Updates] older settings copies moved into the backups folder:', moved.moved.join(', '));
+  for (const f of moved.failed) console.error('[Updates] an older settings copy could not be moved; it stays in settings-backups:', f.name, f.error);
+} catch (err) { console.error('[Updates] the older settings copies could not be read; they stay in settings-backups:', err.message); }
 const _bootGuard = require('./main/safe-mode').createBootGuard({
   dir: userDataPath,
   fs,
   argv: process.argv,
   version: app.getVersion(),
-  settingsFile: path.join(userDataPath, 'vex-persist.json'),
+  backupFirstStart: (o) => _updateBackups.saveAtFirstStart({ ...o, persistFile: path.join(userDataPath, 'vex-persist.json') }),
   log: (m) => console.log(m),
 });
 const _boot = _bootGuard.begin();
@@ -1246,10 +1254,12 @@ ipcMain.handle('capture:submit', async (_e, entry) => {
 ipcMain.handle('hotkeys:set', (_e, config) => _gameHotkeys.set(config));
 
 ipcMain.on('app:started', () => _bootGuard.started());
-ipcMain.handle('app:safe-mode', () => ({ ..._boot, snapshots: _bootGuard.snapshots().map(x => ({ name: x.name, label: x.label, at: x.at })) }));
-ipcMain.handle('app:restore-settings', (_e, name) => {
-  try { const r = _bootGuard.restoreSettings(String(name || '')); return { ok: true, name: r.name }; }
-  catch (err) { return { ok: false, error: err.message }; }
+// A failed backup at this first start is told once, to the first window that asks.
+let _bootBackupToTell = _boot.updateBackup && !_boot.updateBackup.ok ? _boot.updateBackup : null;
+ipcMain.handle('app:safe-mode', () => {
+  const updateBackupFailed = _bootBackupToTell;
+  _bootBackupToTell = null;
+  return { ..._boot, updateBackup: undefined, updateBackupFailed };
 });
 
 ipcMain.handle('app:diagnostics', () => {
@@ -8120,10 +8130,10 @@ ipcMain.handle('updates:install', async (event, version) => {
   win.close();
   return { ok: true };
 });
-// The backup made right before an update installs (src/main/update-backups.js):
-// the same file Settings › Backup saves, kept in userData/backups (newest 3),
-// and listed there with a Restore button (js/backup.js).
-const _updateBackups = require('./main/update-backups').createUpdateBackups({ fs, dir: path.join(app.getPath('userData'), 'backups') });
+// The backup made right before an update installs (src/main/update-backups.js,
+// _updateBackups, made next to the boot guard): the same file Settings › Backup
+// saves, kept in userData/backups (newest 5), and listed there with a Restore
+// button (js/backup.js).
 ipcMain.handle('updates:backup-save', (event, version, text) => {
   _updatesFromMainWindow(event);
   try {

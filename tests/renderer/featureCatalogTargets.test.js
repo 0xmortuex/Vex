@@ -16,7 +16,7 @@ const classes = new Set([...html.matchAll(/\sclass="([^"]+)"/g)].flatMap(m => m[
 // A selector the guide can point at: an id or class that is in the page, or
 // one the code creates at runtime (those are listed here on purpose, so a
 // typo still fails).
-const RUNTIME = new Set(['.tab-item', '.top-tab', '#gui-shortcuts-bar', '#settings-backups', '.vts-card']);
+const RUNTIME = new Set(['.tab-item', '.top-tab', '#gui-shortcuts-bar', '.vts-card']);
 function selectorExists(sel) {
   if (RUNTIME.has(sel)) return true;
   const first = sel.split(/[\s>,:[]/)[0];

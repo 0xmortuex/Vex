@@ -42,20 +42,25 @@ describe('going back to the version before', () => {
   });
 });
 
-describe('Settings › Data: the copies kept before each update', () => {
-  it('lists each with a Restore button, outside safe mode too', async () => {
-    document.body.innerHTML = '<div id="settings-backups"></div>';
-    window.vex = {
-      safeMode: async () => ({ safeMode: false, snapshots: [{ name: 'vex-persist-2.32.36.json', label: '2.32.36', at: Date.now() }, { name: 'vex-persist-first-run.json', label: 'first-run', at: Date.now() - 1e9 }] }),
-      restoreSettings: vi.fn(async () => ({ ok: true })),
-      restartApp: vi.fn(),
-    };
-    expect(await SafeModeBanner.init()).toBe(false);                   // no banner
-    const rows = [...document.querySelectorAll('#settings-backups .setting-toggle-row')];
-    expect(rows.map(r => r.querySelector('span').textContent.split(' — ')[0])).toEqual(['As they were in 2.32.36', 'From the first start']);
-    rows[0].querySelector('button').click();
-    await new Promise(r => setTimeout(r, 0));
-    expect(window.vex.restoreSettings).toHaveBeenCalledWith('vex-persist-2.32.36.json');
-    expect(window.vex.restartApp).toHaveBeenCalled();
+// Earlier settings are the backups Vex keeps around updates: one list, in
+// Settings › Backup (js/backup.js). The banner opens it.
+describe('one way back to earlier settings', () => {
+  it('Restore earlier settings opens the backup screen, which lists the backups made around updates', async () => {
+    globalThis.VexBackup = { open: vi.fn() };
+    SafeModeBanner.show({ safeMode: true, fails: 2, brokenSinceUpdateFrom: null });
+    document.querySelector('[data-act="restore"]').click();
+    expect(VexBackup.open).toHaveBeenCalledTimes(1);
+    delete globalThis.VexBackup;
+  });
+
+  it('a backup at this first start that failed is said, outside safe mode too', async () => {
+    window.showToast = vi.fn();
+    window.vex = { safeMode: async () => ({ safeMode: false, updateBackupFailed: { ok: false, version: '2.35.2', error: 'Vex could not save the backup in its backups folder (ENOSPC)' } }) };
+    expect(await SafeModeBanner.init()).toBe(false);
+    expect(window.showToast).toHaveBeenCalledWith('Vex could not back up your settings when 2.35.2 first started: Vex could not save the backup in its backups folder (ENOSPC). Settings › Back up or restore… can save one now.', 'error', 12000);
+    window.showToast.mockClear();
+    window.vex = { safeMode: async () => ({ safeMode: false, updateBackupFailed: null }) };
+    await SafeModeBanner.init();
+    expect(window.showToast).not.toHaveBeenCalled();
   });
 });

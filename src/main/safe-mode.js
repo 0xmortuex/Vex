@@ -13,21 +13,21 @@
 //   those in a row, Vex starts in SAFE MODE — no extensions, no panels, no
 //   session restore — and says so, instead of failing a third time.
 //
-//   The settings snapshot. The first launch of a new version copies
-//   vex-persist.json aside first, so an update that breaks a setting can be
-//   undone: the copy is the settings as they were under the version before.
-//   Five are kept.
+//   The backup at the first start of a new version. The first launch of a
+//   new version asks `backupFirstStart` (update-backups.js, saveAtFirstStart)
+//   to back the settings up as the version before left them, unless the
+//   update cover already did. What happened, or why it failed, is in what
+//   begin() returns (updateBackup) so the interface can say it: Vex has been
+//   updated by then, so a failed backup cannot stop the update, but it is
+//   never only a line in a log.
 const path = require('path');
 
 const STATE = 'boot-state.json';
-const SNAPSHOT_DIR = 'settings-backups';
-const MAX_SNAPSHOTS = 5;
 const FAILS_BEFORE_SAFE = 2;
 
-function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, now = () => Date.now(), log }) {
+function createBootGuard({ dir, fs, argv = [], version = '0.0.0', backupFirstStart = null, now = () => Date.now(), log }) {
   const note = typeof log === 'function' ? log : () => {};
   const stateFile = path.join(dir, STATE);
-  const snapshotDir = path.join(dir, SNAPSHOT_DIR);
 
   function read() {
     try {
@@ -56,10 +56,24 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
     // follow an update, so safe mode can offer to go back to it.
     const from = upgraded ? prev.version : (crashed ? prev.from : '');
     write({ phase: 'starting', fails, version, at: now(), from });
-    if (upgraded || !prev.version) snapshotSettings(prev.version || 'first-run');
+    const updateBackup = (upgraded || !prev.version) ? backUp(prev) : null;
     if (crashed) note(`[SafeMode] the previous launch did not finish starting (${fails} in a row)`);
     if (safeMode) note('[SafeMode] starting in safe mode: no extensions' + (asked ? ' (asked for with --safe-mode)' : ''));
-    return { safeMode, fails, crashed, asked, upgradedFrom: upgraded ? prev.version : null, brokenSinceUpdateFrom: fails >= FAILS_BEFORE_SAFE && from ? from : null };
+    return { safeMode, fails, crashed, asked, upgradedFrom: upgraded ? prev.version : null, brokenSinceUpdateFrom: fails >= FAILS_BEFORE_SAFE && from ? from : null, updateBackup };
+  }
+
+  // -> null (nothing to do), { ok: true, name, version } or { ok: false, error, version }.
+  function backUp(prev) {
+    if (typeof backupFirstStart !== 'function') return null;
+    try {
+      const saved = backupFirstStart({ version, from: prev.version || '', since: prev.at || 0 });
+      if (!saved) return null;
+      note('[SafeMode] backup at the first start of ' + version + ' kept: ' + saved.name);
+      return { ok: true, name: saved.name, version };
+    } catch (err) {
+      note('[SafeMode] could not back up the settings at the first start of ' + version + ': ' + err.message);
+      return { ok: false, error: err.message, version };
+    }
   }
 
   // Called when the interface is really up. Until this, the launch counts as
@@ -68,47 +82,7 @@ function createBootGuard({ dir, fs, argv = [], version = '0.0.0', settingsFile, 
     return write({ phase: 'started', fails: 0, version, at: now() });
   }
 
-  // The settings as they are now, kept under the version that wrote them.
-  function snapshotSettings(label) {
-    if (!settingsFile) return null;
-    try {
-      if (!fs.existsSync(settingsFile)) return null;
-      try { fs.mkdirSync(snapshotDir, { recursive: true }); } catch { /* already there */ }
-      const name = 'vex-persist-' + String(label || 'unknown').replace(/[^\w.-]/g, '_') + '.json';
-      const to = path.join(snapshotDir, name);
-      fs.copyFileSync(settingsFile, to);
-      prune();
-      note('[SafeMode] settings snapshot kept: ' + name);
-      return to;
-    } catch (err) { note('[SafeMode] could not snapshot the settings: ' + err.message); return null; }
-  }
-
-  function snapshots() {
-    try {
-      return fs.readdirSync(snapshotDir)
-        .filter(n => /^vex-persist-.*\.json$/.test(n))
-        .map(n => ({ name: n, label: n.replace(/^vex-persist-|\.json$/g, ''), path: path.join(snapshotDir, n), at: (() => { try { return fs.statSync(path.join(snapshotDir, n)).mtimeMs; } catch { return 0; } })() }))
-        .sort((a, b) => b.at - a.at);
-    } catch { return []; }
-  }
-
-  function prune() {
-    const extra = snapshots().slice(MAX_SNAPSHOTS);
-    for (const s of extra) { try { fs.unlinkSync(s.path); } catch { /* gone already */ } }
-  }
-
-  // Put a snapshot back. The current settings are snapshotted first, so a
-  // restore is itself undoable.
-  function restoreSettings(name) {
-    const found = snapshots().find(s => s.name === name || s.label === name);
-    if (!found) throw new Error('No settings backup called "' + name + '"');
-    snapshotSettings('before-restore');
-    fs.copyFileSync(found.path, settingsFile);
-    note('[SafeMode] settings restored from ' + found.name);
-    return found;
-  }
-
-  return { begin, started, snapshotSettings, snapshots, restoreSettings, stateFile, snapshotDir };
+  return { begin, started, stateFile };
 }
 
-module.exports = { createBootGuard, STATE, SNAPSHOT_DIR, MAX_SNAPSHOTS, FAILS_BEFORE_SAFE };
+module.exports = { createBootGuard, STATE, FAILS_BEFORE_SAFE };

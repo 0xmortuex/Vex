@@ -28,7 +28,7 @@ Vex keeps your profile in `%APPDATA%\Vex`. Nothing in this folder is sent anywhe
 
 **Stored as ordinary files (not encrypted):** browsing history (up to the newest 5,000 visits), the full-text page index called Recall (off until you turn it on in Settings › Recall; profiles set up before v2.37.1 keep the choice they had), bookmarks, notes, tabs and sessions, reading list, AI memory (facts the assistant remembers about you), AI chat history, settings, the downloads list, the local crash log (`crash-log.json`, last 100 errors), and Tor and ByeDPI log files. The crash log names only the site a crashed or frozen page was on (never its full address), and says only "a private page" for a private window, an off-the-record, burner or Tor tab. Downloads from a private window or an off-the-record, burner or Tor tab are listed until Vex closes and never written to disk.
 
-**Backups.** Before installing an update, Vex saves a backup of your settings and data in `%APPDATA%\Vex\backups` and keeps the newest 3. Backups leave out passwords, tokens, keys, 2FA secrets, the lock PIN and your list of MCP servers. AI chats are only included if you tick that box.
+**Backups.** Before installing an update (or, for a version installed another way, when it first starts), Vex saves a backup of your settings and data in `%APPDATA%\Vex\backups` and keeps the newest 5. Backups leave out passwords, tokens, keys, 2FA secrets, the lock PIN and your list of MCP servers. AI chats are only included if you tick that box.
 
 **Downloaded installers** for updates are kept in `%APPDATA%\Vex\updates`.
 

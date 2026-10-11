@@ -387,7 +387,7 @@ const UpdateNotifier = {
   },
 
   // Before Vex closes to install: the same backup Settings › Backup saves
-  // (js/backup.js), kept in userData/backups by Vex itself (newest three) and
+  // (js/backup.js), kept in userData/backups by Vex itself (newest five) and
   // listed in Settings › Backup with a Restore button. If it cannot be made,
   // nothing installs until the person chooses.
   async _backup(info) {
