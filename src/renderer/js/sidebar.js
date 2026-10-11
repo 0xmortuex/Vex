@@ -1974,6 +1974,18 @@ const SidebarManager = {
     }
   },
 
+  // Discord set to open as a tab (js/discord-memory.js): a just-installed
+  // Vencord build only runs in a fresh page, and showPanel('discord') merely
+  // switched to the old tab, still on the previous build. The tab is closed
+  // and opened again. Returns false when Discord is a panel.
+  _reopenDiscordTab() {
+    if (!window.DiscordMemory || DiscordMemory.mode() !== 'tab') return false;
+    const t = DiscordMemory.discordTab();
+    if (t) TabManager.closeTab(t.id);
+    DiscordMemory.openTab();
+    return true;
+  },
+
   // Turn the bypass off (for Zapret or a VPN), saved.
   async _bypassOff() {
     DiscordBypass.save({ mode: 'off' });
@@ -2169,6 +2181,7 @@ const SidebarManager = {
                 // In safe mode it is put in place, not loaded (found 2026-09-29).
                 if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
                 window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
+                if (this._reopenDiscordTab()) return;
                 const wv = this.panelWebviews['discord'];
                 if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
               } else {
@@ -2193,6 +2206,11 @@ const SidebarManager = {
                 // Vencord build, so an updated plugin wouldn't show up. A brand-new
                 // webview binds the freshly-installed extension. Then switch to it
                 // so the result is unmissable, and say where the feature lives.
+                // Discord opening as a tab: that tab is the one made fresh.
+                if (this._reopenDiscordTab()) {
+                  window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Bulk Export Servers”.`, 'success');
+                  return;
+                }
                 try {
                   const old = this.panelWebviews['discord'];
                   if (old) { try { old.remove(); } catch {} }
