@@ -68,6 +68,55 @@ function engineBlocks(details) {
 
 function isReady() { return !!_engine; }
 
+// --- Keeping the lists fresh (PE3) -------------------------------------------
+// The library builds the engine once and then only ever reads its cache, so
+// the lists were never downloaded again after the first start (the owner's
+// were from 2026-08-28 on 2026-10-10). A cache older than a week is built
+// again in the background: the engine in use keeps blocking meanwhile, and
+// stays if the download or the build fails. Never on the way to a page.
+const LISTS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+let _refreshing = null;
+
+// deps (for tests): build() → a new blocker, now(), stat(), write(path, buf).
+async function refreshIfStale(cachePath, deps = {}) {
+  if (!_engine) return 'not-ready';
+  if (_refreshing) return _refreshing;
+  const now = deps.now || Date.now;
+  const stat = deps.stat || ((p) => fsp.stat(p));
+  let age;
+  try { age = now() - (await stat(cachePath)).mtimeMs; }
+  catch (e) { if (e && e.code === 'ENOENT') age = Infinity; else throw e; }
+  if (age < LISTS_MAX_AGE_MS) return 'fresh';
+  _refreshing = (async () => {
+    try {
+      const build = deps.build || (() => {
+        const { ElectronBlocker } = require('@ghostery/adblocker-electron');
+        return ElectronBlocker.fromPrebuiltFull(fetch);   // no cache: downloads the lists
+      });
+      const blocker = await build();
+      const write = deps.write || (async (p, buf) => { await fsp.writeFile(p + '.new', buf); await fsp.rename(p + '.new', p); });
+      await write(cachePath, blocker.serialize());
+      _engine = { ..._engine, blocker };
+      console.log('[Vex adblock-engine] filter lists updated');
+      return 'updated';
+    } catch (e) {
+      console.error('[Vex adblock-engine] could not update the filter lists; the ones in use stay:', e && e.message);
+      return 'failed';
+    } finally { _refreshing = null; }
+  })();
+  return _refreshing;
+}
+
+// The cache an older Vex wrote under another name (6.6 MB), read by nothing
+// since the full lists took over (PE4). Deleted once at start.
+async function removeOrphanCache(file) {
+  try { await fsp.unlink(file); return true; }
+  catch (e) { if (e && e.code === 'ENOENT') return false; throw e; }
+}
+
+// Tests only: the engine in use.
+function _setEngineForTests(e) { _engine = e; }
+
 // --- Cosmetic filtering (element hiding + scriptlets) --------------------------
 // The @ghostery cosmetic preload (added to Vex's GUEST_PRELOADS so it loads in
 // every webview) asks main, per page, for the element-hiding rules to apply.
@@ -157,4 +206,5 @@ function enableCosmeticFiltering(isEnabled) {
   }
 }
 
-module.exports = { initEngine, engineBlocks, isReady, enableCosmeticFiltering, wrapScriptlet, _cosmeticEvent };
+module.exports = { initEngine, engineBlocks, isReady, enableCosmeticFiltering, wrapScriptlet, _cosmeticEvent,
+  refreshIfStale, removeOrphanCache, LISTS_MAX_AGE_MS, _setEngineForTests };

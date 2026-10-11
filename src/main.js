@@ -111,7 +111,8 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { shouldBlock, repairAllows } = require('./adblocker');
-const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = require('./adblocker-engine');
+const _adblockEngine = require('./adblocker-engine');
+const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = _adblockEngine;
 const _torLauncher = require('./tor-launcher');
 const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
 const _mainHelpers = require('./main-helpers');
@@ -6148,11 +6149,23 @@ function createWindow() {
   enableCosmeticFiltering((event) => adBlockerEnabled
     && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)));
 
-  initAdblockEngine(path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin'))
+  const adblockCache = path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin');
+  initAdblockEngine(adblockCache)
     .then(ok => {
       console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
+      if (!ok) return;
+      // Lists older than a week are fetched again in the background, now and
+      // once a day while Vex runs; the engine in use stays meanwhile (PE3).
+      const refresh = () => _adblockEngine.refreshIfStale(adblockCache)
+        .catch(e => console.error('[Vex] adblock list update check failed:', e && e.message));
+      setTimeout(refresh, 60 * 1000).unref();
+      setInterval(refresh, 24 * 60 * 60 * 1000).unref();
     })
     .catch(e => console.error('[Vex] adblock engine start failed:', e && e.message));
+  // The cache an older Vex kept under another name, read by nothing (PE4).
+  _adblockEngine.removeOrphanCache(path.join(app.getPath('userData'), 'vex-adblock-engine.bin'))
+    .then(gone => { if (gone) console.log('[Vex] removed the old ad-block cache vex-adblock-engine.bin'); })
+    .catch(e => console.error('[Vex] could not remove the old ad-block cache:', e && e.message));
 
   // Privacy hardening: load saved config and apply DNS-over-HTTPS (no-op when off).
   privacyLoad();
