@@ -677,7 +677,7 @@ const SyncEngine = (() => {
     authKey = null;
     keyLock = { state: null, since: null };
     localStorage.removeItem(REJOIN_KEY);
-    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); }
+    if (typeof VexStorage !== 'undefined') { await VexStorage.save('sync-records', null); await VexStorage.save('sync-tiles-joined', null); await VexStorage.save('sync-known-devices', null); await VexStorage.save('sync-tombstones', null); await VexStorage.save(OFF_BASE, null); }
     try { await window.vex.syncClearState(); } catch {}
     state = {
       enabled: false, email: null, sessionToken: null, deviceId: null,
@@ -869,6 +869,32 @@ const SyncEngine = (() => {
     return !TILE_SOURCES.includes(source) && rejoin.includes(typeOfSource(source));
   };
 
+  // What a kind held on this device when it was turned off, per kind:
+  // { id: { recordKey: value } } (setTypeSynced, keepEditsMadeWhileOff).
+  const OFF_BASE = 'sync-off-base';
+  // A kind turned back on: for each record `joins(key)`, this device's copy
+  // (`local`) that differs from what it held when the kind was turned off
+  // (`before`, { key: value }) was changed here meanwhile. Where the account
+  // (`data`) holds another version, the account's stays in use in `merged`
+  // and this device's is kept as a conflict to pick in Settings › Vex Sync.
+  // The clock moves past the account's, so every device takes the record as
+  // it is. -> how many.
+  const itemOf = (key, value) => (JSON.parse(key)[1] === 'item' && value && typeof value === 'object' ? value.item : value);
+  function keepEditsMadeWhileOff(merged, local, data, before, joins) {
+    let kept = 0;
+    for (const [key, mine] of Object.entries(local.records)) {
+      if (!joins(key) || JSON.parse(key)[1] === 'type' || mine.deleted || !Object.hasOwn(before, key)) continue;
+      const account = data.records[key];
+      if (!account) continue;
+      const same = (a, b) => JSON.stringify(itemOf(key, a)) === JSON.stringify(itemOf(key, b));
+      if (same(mine.value, before[key]) || (!account.deleted && same(mine.value, account.value))) continue;
+      const clock = { ...account.clock, [state.deviceId]: (account.clock[state.deviceId] || 0) + 1 };
+      merged.records[key] = { ...account, clock, conflicts: [{ deleted: account.deleted, value: account.value, at: account.at }, { deleted: false, value: mine.value, at: mine.at }] };
+      kept++;
+    }
+    return kept;
+  }
+
   async function collectSyncData(gate = { open: false }) {
     if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
     if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
@@ -1034,8 +1060,13 @@ const SyncEngine = (() => {
     let localHistory = [];
     try { const saved = JSON.parse(localStorage.getItem('vex.history') || '[]'); if (Array.isArray(saved)) localHistory = saved; }
     catch (err) { console.error('[Sync] This device’s history could not be read; only the synced history is kept:', err.message); }
+    // What this device had of each kind being joined again when it was turned
+    // off (setTypeSynced): what differs from it was changed here meanwhile.
+    const offBase = rejoin.length ? ((await VexStorage.load(OFF_BASE)) || {}) : {};
+    const before = Object.assign({}, ...rejoin.map(id => offBase[id] || {}));
     const local = await collectSyncData(gate);
     let merged;
+    let rejoinConflicts = 0;
     if (restore) {
       // Joining used to start from an empty local side, so every bookmark,
       // note and setting this device already had was overwritten or removed
@@ -1087,6 +1118,11 @@ const SyncEngine = (() => {
           if (shape(data) && !shape(data).deleted && shape(data).value !== shape(local)?.value) continue;
           merged.records[key] = record;
         }
+        // Changed on this device while it was off: the account's version stays
+        // in use and this one is kept beside it in Sync conflicts. It was
+        // dropped without a trace (found 2026-10-11). A copy that only fell
+        // behind (as it was when turned off) is not a change.
+        rejoinConflicts = keepEditsMadeWhileOff(merged, local, data, before, key => rejoinsRecord(key, rejoin));
         joinSecrets(merged, local, data, key => rejoinsRecord(key, rejoin));
       }
     }
@@ -1145,7 +1181,11 @@ const SyncEngine = (() => {
     }
     recordDocument = merged;
     await VexStorage.save('sync-records', merged);
-    if (rejoin.length) localStorage.removeItem(REJOIN_KEY);
+    if (rejoin.length) {
+      localStorage.removeItem(REJOIN_KEY);
+      for (const id of rejoin) delete offBase[id];
+      await VexStorage.save(OFF_BASE, Object.keys(offBase).length ? offBase : null);
+    }
     if (lookSnapshot() !== lookBefore) applyLook();
     // An older Vex marks this device's marker deleted on its push. This device
     // put it back only on its own next push, up to two minutes later, and
@@ -1158,7 +1198,7 @@ const SyncEngine = (() => {
     // carried old variants repeated the toast on every sync (found 2026-09-29).
     // A restore copies records as they are and never creates one.
     const conflicts = restore ? 0 : Object.entries(merged.records).filter(([key, r]) => r.conflicts?.length > 1 && !rejoinsRecord(key, rejoin)
-      && JSON.stringify(r.conflicts) !== JSON.stringify(local.records[key]?.conflicts || [])).length;
+      && JSON.stringify(r.conflicts) !== JSON.stringify(local.records[key]?.conflicts || [])).length + rejoinConflicts;
     if (conflicts) window.showToast?.((conflicts === 1 ? 'Another device changed the same thing: both versions are kept' : `Other devices changed the same things: both versions of ${conflicts} are kept`) + ' — Settings › Vex Sync › Sync conflicts');
     // Tell panels to re-read their state.
     window.dispatchEvent(new CustomEvent('vex-sync-data-applied'));
@@ -1386,6 +1426,16 @@ const SyncEngine = (() => {
       const what = id === 'passwords' ? 'your saved passwords' : 'your authenticator (2FA) accounts';
       const asked = await window.VexLock.recheck({ title: 'Sync ' + type.label.toLowerCase(), message: 'Vex asks again before it syncs ' + what + ' to your other devices. They travel end-to-end encrypted with your sync key.', okLabel: 'Turn on' });
       if (!asked) return { ok: false, canceled: true };
+    }
+    // What this device had of the kind as it is turned off: on turning it back
+    // on, what differs from this was changed here meanwhile (keepEditsMadeWhileOff).
+    if (!on && !type.secret && typeOn(id) && typeof VexStorage !== 'undefined') {
+      const doc = recordDocument || await VexStorage.load('sync-records');
+      const base = { ...((await VexStorage.load(OFF_BASE)) || {}) };
+      base[id] = doc ? Object.fromEntries(Object.entries(doc.records)
+        .filter(([key, record]) => !record.deleted && JSON.parse(key)[1] !== 'type' && rejoinsRecord(key, [id]))
+        .map(([key, record]) => [key, record.value])) : {};
+      await VexStorage.save(OFF_BASE, base);
     }
     const choices = readJson(CHOICES_KEY, {});
     const next = choices && typeof choices === 'object' && !Array.isArray(choices) ? { ...choices } : {};
