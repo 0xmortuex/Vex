@@ -4966,8 +4966,15 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return;
   _trackSessionUse(contents);
-  _coverNewSession(contents.session)
-    .catch(err => console.error('[Extensions] new-session coverage failed:', err.message));
+  const covered = _coverNewSession(contents.session);
+  covered.catch(err => console.error('[Extensions] new-session coverage failed:', err.message));
+  // A container's first tab stayed blank with a request-watching extension
+  // installed (src/main/first-load-watch.js, EX3).
+  require('./main/first-load-watch').watchFirstLoad(contents, {
+    covered,
+    sessionExtensions: () => _exts(contents.session).getAllExtensions(),
+    log: (m) => console.warn(m),
+  });
   // A badge set for this tab alone goes with it (as in Chrome).
   const tabId = contents.id;
   contents.once('destroyed', () => _extUi.forgetTab(tabId));
