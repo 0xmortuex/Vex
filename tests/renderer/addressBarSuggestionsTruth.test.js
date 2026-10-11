@@ -63,6 +63,18 @@ describe('suggestion rows', () => {
     expect(rankSuggestions('example', [{ url: 'https://EXAMPLE.com/a', title: 'x', kind: 'history' }, { url: 'https://example.com/a', title: 'y', kind: 'history' }]).length).toBe(1);
   });
 
+  // The two rows were kept apart but both read "example.com/docs": the
+  // address under each title was lowercased whole (found 2026-10-11).
+  it('each row shows its own address as written, path case kept', () => {
+    globalThis.HistoryPanel = { list: () => [
+      { url: 'https://Example.com/Docs/API', title: 'Upper', visitedAt: new Date().toISOString() },
+      { url: 'https://example.com/docs/api', title: 'Lower', visitedAt: new Date().toISOString() },
+    ] };
+    type('docs');
+    const urls = [...document.querySelectorAll('.sb-suggestion .sb-url')].map(e => e.textContent).sort();
+    expect(urls).toEqual(['example.com/Docs/API', 'example.com/docs/api']);
+  });
+
   it('the tab you are in is not offered as Switch to tab', () => {
     globalThis.TabManager = { tabs: [{ id: 't1', url: 'https://gamma.example/', title: 'Gamma here' }, { id: 't2', url: 'https://gamma.example/two', title: 'Gamma two' }], activeTabId: 't1' };
     type('gamma');

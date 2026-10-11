@@ -199,8 +199,11 @@ const SmartSearchbar = (() => {
 
   function _esc(s) { return window.escapeHtml(s); }
 
+  // The address under a row's title: the site in lower case, the path as
+  // written. Lowercasing it whole showed /Docs and /docs, two rows, both as
+  // "/docs" (found 2026-10-11).
   function _displayUrl(url) {
-    const n = _normalizeUrl(url);
+    const n = _urlKey(url);
     return n || (url == null ? '' : String(url));
   }
 
