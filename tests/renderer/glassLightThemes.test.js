@@ -79,7 +79,7 @@ describe('Glass with a light theme', () => {
     for (const id of LIGHT) {
       const A = accentOf(id); if (!A) continue;
       const lift = toHex(mix(rgb(A), [255, 255, 255], Number(pct[1]) / 100));
-      const inks = { '--vex-text-accent': lift, '--vex-danger': tok(light, '--vex-danger'), '--danger': tok(light, '--danger'), '--success': tok(light, '--success'), '--vex-success': tok(light, '--vex-success'), '--warning': tok(light, '--warning') };
+      const inks = { '--vex-text-accent': lift, '--vex-danger': tok(base, '--vex-danger'), '--danger': tok(base, '--danger'), '--success': tok(light, '--success'), '--vex-success': tok(light, '--vex-success'), '--warning': tok(light, '--warning') };
       for (const s of surfaces(A).filter((_, i) => i % 4 !== 3)) for (const [k, ink] of Object.entries(inks)) {
         const r = T.ratio(ink, s);
         if (r < 4.5) low.push(`${id}: ${k} ${ink} on ${s} = ${r.toFixed(2)}`);
@@ -97,7 +97,25 @@ describe('Glass with a light theme', () => {
   });
 });
 
-describe('Glass muted text', () => {
+describe('Glass text on every theme', () => {
+  // A dark theme's accent text and danger text were made for its own darker
+  // page: on the accent-tinted glass they fell to 3.3-4.4:1 in 20 themes
+  // (check:ui surfaces, Close in the tab menu, Clear History).
+  it('accent text and danger text read at 4.5:1 on every Glass surface', () => {
+    const pct = /color-mix\(in srgb, var\(--g-src-accent\) (\d+)%, #ffffff\)/.exec(tok(base, '--vex-text-accent'));
+    expect(pct).not.toBeNull();
+    const low = [];
+    for (const id of T.IDS) {
+      const A = accentOf(id); if (!A) continue;
+      const inks = { '--vex-text-accent': toHex(mix(rgb(A), [255, 255, 255], Number(pct[1]) / 100)), '--danger': tok(base, '--danger') };
+      for (const s of surfaces(A).filter((_, i) => i % 4 !== 3)) for (const [k, ink] of Object.entries(inks)) {
+        const r = T.ratio(ink, s);
+        if (r < 4.5) low.push(`${id}: ${k} ${ink} on ${s} = ${r.toFixed(2)}`);
+      }
+    }
+    expect(low).toEqual([]);
+  });
+
   it('reads at 4.5:1 on every Glass surface of every theme', () => {
     const muted = tok(base, '--vex-text-muted');
     const low = [];

@@ -43,8 +43,15 @@ body[data-gui-style="glass"] {
   /* Muted 4.5:1 on every Glass surface of every theme (was #9499c4, 3.0:1 over
      Cyberpunk's yellow-tinted glass). */
   --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #b4b8e0;
-  /* The ACCENT tokens (--vex-accent, --vex-accent-dim/glow, --vex-border-accent*,
-     --vex-text-accent, --primary, --accent) are intentionally NOT overridden —
+  /* Text in the accent, and danger text (Close in the tab menu, Clear
+     History), on the accent-tinted glass: a theme's own ones were made for its
+     darker page and fell to 3.3-4.4:1 here in 20 themes (check:ui surfaces).
+     The accent text is the accent lifted toward white (5.3:1 or more in every
+     theme); danger is one light red. */
+  --vex-text-accent: color-mix(in srgb, var(--g-src-accent) 45%, #ffffff);
+  --vex-danger: #fca5a5; --vex-danger-hover: #fecaca; --danger: #fca5a5;
+  /* The other ACCENT tokens (--vex-accent, --vex-accent-dim/glow,
+     --vex-border-accent*, --primary, --accent) are intentionally NOT overridden —
      they inherit from the active theme, so Glass takes on the theme's color.
      Except in a light theme, below. */
 }
@@ -57,9 +64,10 @@ html[data-scheme="light"] body[data-gui-style="glass"] {
   --g-lift: color-mix(in srgb, var(--g-src-accent) 30%, #ffffff);
   --vex-accent: var(--g-lift); --vex-text-accent: var(--g-lift);
   --vex-border-accent: var(--g-lift); --vex-border-accent-strong: var(--g-lift);
+  /* Oxford's chip fill is an opaque pale blue: under Glass it is a tint of the lift. */
+  --vex-accent-dim: color-mix(in srgb, var(--g-lift) 22%, transparent); --vex-accent-glow: color-mix(in srgb, var(--g-lift) 18%, transparent);
   --primary: var(--g-lift); --primary-hover: color-mix(in srgb, var(--g-src-accent) 18%, #ffffff); --accent: var(--g-lift);
   --on-primary: #0b0c15;
-  --vex-danger: #fa8c8c; --vex-danger-hover: #fcb4b4; --danger: #fa8c8c;
   --vex-success: #34d399; --success: #34d399;
   --vex-warning: #fbbf24; --warning: #fbbf24;
   --vex-hover-fill: rgba(255, 255, 255, 0.06); --vex-shadow-color: rgba(0, 0, 0, 0.5);

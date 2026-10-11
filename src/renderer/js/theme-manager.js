@@ -91,7 +91,7 @@ const ThemeManager = {
     { id: 'kaleidoscope', label: 'Kaleidoscope',   accent: '#d129ff', inspiredBy: 'kaleidoscope (BetterDiscord)', mock: { bg: '#010b1e', side: '#00050f', surf: '#031028', txt: '#dcddde', acc: '#d129ff' } },
     { id: 'codedark',     label: 'Code Dark',      accent: '#4a86c5', inspiredBy: 'Discord Dark (BetterDiscord)', mock: { bg: '#1a1a1a', side: '#141414', surf: '#222222', txt: '#e0e0e0', acc: '#4a86c5' } },
     { id: 'synthesis',    label: 'Synthesis',      accent: '#ffa500', inspiredBy: 'Synthesis (BetterDiscord)', mock: { bg: '#140624', side: '#0e041a', surf: '#1f0c36', txt: '#ffffff', acc: '#ffa500' } },
-    { id: 'virtualred',   label: 'Virtual Red',    accent: '#ff0000', inspiredBy: 'Virtual Boy (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#120000', txt: '#ff1a1a', acc: '#ff0000' } },
+    { id: 'virtualred',   label: 'Virtual Red',    accent: '#ff0000', inspiredBy: 'Virtual Boy (BetterDiscord)', mock: { bg: '#000000', side: '#000000', surf: '#120000', txt: '#ff4d4d', acc: '#ff0000' } },
     { id: 'paperred',     label: 'Paper Red',      accent: '#d40000', inspiredBy: 'piOS, light mode (BetterDiscord)', mock: { bg: '#ffffff', side: '#f2f2f2', surf: '#ffffff', txt: '#000000', acc: '#d40000' } },
     { id: 'noctisviola',  label: 'Noctis Viola',   accent: '#bf8ef1', inspiredBy: 'Noctis Viola (BetterDiscord)', mock: { bg: '#30243d', side: '#2b2136', surf: '#3d2e4d', txt: '#ccbfd9', acc: '#bf8ef1' } },
     { id: 'wildberry',    label: 'Wildberry',      accent: '#f40174', inspiredBy: 'Wildberry (BetterDiscord)', mock: { bg: '#170027', side: '#10001c', surf: '#25003f', txt: '#f3e6ff', acc: '#f40174' } },

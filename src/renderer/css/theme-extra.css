@@ -798,10 +798,10 @@
   --vex-border-subtle: #3a0000; --vex-border-medium: #3a0000; --vex-border-strong: #5a0000;
   --vex-border-accent: #ff0000; --vex-border-accent-strong: #ff0000;
   --vex-accent: #ff0000; --vex-accent-dim: #ff000038; --vex-accent-glow: #ff00002e;
-  --vex-text-primary: #ff1a1a; --vex-text-secondary: #ff1515; --vex-text-muted: #ee0000;
+  --vex-text-primary: #ff4d4d; --vex-text-secondary: #ff1515; --vex-text-muted: #ee0000;
   --vex-text-accent: #ff4d4d; --vex-success: #ff4d4d; --vex-danger: #ff0000; --vex-danger-hover: #ff4d4d; --vex-warning: #ff4d4d;
   --bg: #000000; --bg-2: #000000; --sidebar: #000000; --surface: #120000;
-  --border: #3a0000; --text: #ff2c2c; --text-muted: #ee0000;
+  --border: #3a0000; --text: #ff4d4d; --text-muted: #ee0000;
   --primary: #ff0000; --primary-hover: #ff4d4d; --accent: #ff4d4d;
   --on-primary: #000000;
   --tab-active: #2a0000; --tab-hover: #120000;

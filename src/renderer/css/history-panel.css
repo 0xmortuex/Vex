@@ -41,7 +41,10 @@
 .history-filter.active {
   background: var(--vex-accent-dim);
   border-color: var(--vex-border-accent-strong);
-  color: var(--vex-accent);
+  /* The text colour on the accent wash: the raw accent was 3.1:1 in
+     Solarized, 3.5:1 in Midnight (check:ui surfaces); the fill and the
+     border say it is the chosen one. */
+  color: var(--vex-text-primary);
 }
 
 .history-list { flex: 1; overflow-y: auto; padding: 12px 20px 16px; }
@@ -125,7 +128,7 @@
 .search-mode:hover { border-color: var(--vex-border-accent); color: var(--vex-text-primary); }
 .search-mode.active {
   background: var(--vex-accent-dim);
-  color: var(--vex-accent);
+  color: var(--vex-text-primary);
   border-color: var(--vex-border-accent-strong);
 }
 

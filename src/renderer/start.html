@@ -692,7 +692,7 @@
       --vex-border-accent: #ff0000; --vex-border-accent-strong: #ff0000;
       --vex-accent: #ff0000; --vex-accent-dim: #ff000038; --vex-accent-glow: #ff00002e;
       --on-primary: #000000;
-      --vex-text-primary: #ff1a1a; --vex-text-secondary: #ff1515; --vex-text-muted: #ee0000;
+      --vex-text-primary: #ff4d4d; --vex-text-secondary: #ff1515; --vex-text-muted: #ee0000;
       --vex-blur-medium: blur(0px); --vex-blur-light: blur(0px);
       --vex-radius-sm: 6px; --vex-radius-md: 8px; --vex-radius-lg: 12px;
     }
@@ -961,7 +961,9 @@
       font-size: 11px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--vex-accent);
+      /* The accent mixed toward the text: the raw accent was 3.1:1 in Wine,
+         3.9:1 in EzLight (check:ui surfaces). */
+      color: color-mix(in srgb, var(--vex-accent) 60%, var(--vex-text-primary));
       margin-top: 10px;
     }
 
