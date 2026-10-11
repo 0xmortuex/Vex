@@ -1,6 +1,11 @@
 # Changelog
 
-## v18.59.3 (2026-10-11) — Pop-ups blocked like Chrome, a password manager you can manage, sync that stays small, and extensions that work
+## v19.1.7 (2026-10-11) — Passwords that sync, pop-ups blocked like Chrome, sync that stays small, and extensions that work
+
+### Read this first
+- **Vex now asks you to agree to its privacy policy and terms before it is used.** They were rewritten to list everything Vex does by itself (update checks, block lists, page watches, reading sign-in codes from your email, Recall, Clipboard History, sync and more): what is sent, where, when, and the switch that turns it off. You can read both inside Vex, then choose "I agree" or "Quit Vex". Settings › About shows when you agreed. You are asked again only when the documents change.
+- **Your passwords and 2FA codes can sync between your devices.** Turn on Passwords or Authenticator in Settings › Vex Sync › Choose what to sync (off until you do, and Vex asks for your PIN first). Each one is sealed on its own inside the end-to-end encrypted sync, so neither the server nor Vex's synced copy on your PC holds one in readable form. If a login changed on two devices, the newer one wins and the other waits in Sync conflicts.
+- **Tabs that go through Tor or a proxy of their own** (a site you route that way, a Tor container, a container you routed) are kept from the AI, email-code filling, Clipboard History, price history and Recall, as a Tor tab always was, and get no search suggestions. Saved passwords and 2FA codes still fill there.
 
 ### Privacy and security
 - **Pop-ups are blocked like in Chrome.** A window a page opens without your click is blocked, "Pop-up blocked" shows in the address bar, and the site panel has "Allow for this site". Print windows, sign-in pop-ups and links you click still open.
@@ -16,7 +21,9 @@
 - More risky file kinds are stopped before opening (shortcuts, disk images, OneNote files, installer patches and the rest Chrome warns about), and an ordinary file like a film opens at once.
 - The lock is stronger: its PIN cannot be swapped while locked, wrong PINs are counted across restarts with a growing wait, and site notifications and authenticator changes wait until you unlock.
 - The address bar shows the real host of an address with a name before an @, and the padlock no longer says a failed page is secure.
-- Vex tells you by name when a device you have not seen before signs in to your sync account.
+- Vex tells you by name when a device you have not seen before signs in to your sync account, and the account's address gets an email if its sync data is ever erased.
+- The ad and tracker block lists are not downloaded while the blocker is off, and go through Tor or your proxy when all of Vex does.
+- A site you route through Tor no longer offers to save the password you type there.
 - Export All Data no longer writes the lock PIN's hash or MCP tokens, problem reports leave out your worker names and home addresses, and a page can no longer fill Clipboard History with fake copies.
 
 ### Passwords and sign-in
@@ -31,7 +38,7 @@
 - **The address bar completes sites you visit** ("gith" goes to github.com) and ranks them by how often and how recently you went there. Shift+Delete removes a suggestion.
 - **A sentence typed in the address bar is searched** instead of being taken by a one-letter keyword ("a good book" no longer searches Amazon). Built-in site searches use "@w hotels" or the keyword and Tab, and Settings › General lists them and lets you add your own.
 - The address bar knows the real domain endings, so "lodash.debounce" is searched and "router/" opens. Addresses in other alphabets show as written.
-- **Opening a saved session adds its tabs beside yours** instead of closing them all, and a workspace switch keeps sleeping tabs asleep and no longer closes private and Tor tabs for good.
+- **Opening a saved session adds its tabs beside yours** instead of closing them all, and a workspace switch keeps sleeping tabs asleep. With private or Tor tabs open, it asks: "Close them this time", "Keep them open" or "Always close them" (Settings › General › Workspaces puts it back to Ask).
 - Split screen works on the pane you clicked into and comes back after a restart.
 - A "List all tabs" button at the end of the strip, Ctrl+S to save a page, Ctrl+Shift+Delete for Clear Browsing Data, a right-click menu on the address bar, and links or files dropped on the tab strip open there.
 - Duplicate, Reopen Closed Tab and links from panels put the tab next to where it belongs. Muted tabs stay muted.
@@ -49,6 +56,8 @@
 - The Settings search knows "dark mode", "homepage", "proxy" and more. The "Other" chip is gone, its sections moved where you would look.
 - The Stable update channel offers an update once you have been behind for two days. Before, it almost never did.
 - Import from another browser finds Opera, Vivaldi, Chromium, LibreWolf and more.
+- **Add your own search engine** in Settings › General ("Add your own…": a name and an address with %s). It becomes the default for the address bar, Ctrl+K and the New Tab box, and is asked for no suggestions.
+- **One list of backups from before updates**, in Settings › Backup: the settings copy each new version used to keep elsewhere now goes into the same list, without passwords or keys, the last five kept. Older copies were moved in, not lost, and a backup that fails is said on screen.
 
 ### Themes
 - **Websites follow Vex's light or dark**, or Windows, or always light or dark (Settings › Appearance › Website appearance). A Reduce motion switch is there too.
@@ -59,7 +68,7 @@
 ### Downloads, reading and pages
 - **The Downloads panel can be searched**, a link copied, a finished file deleted or dragged out. A dropped connection shows Resume that really resumes.
 - **Feeds know what you have read**, and Ctrl+K can subscribe to a page's feed.
-- One list of watched pages, never checked from your real connection for Tor or proxy sites.
+- One list of watched pages, never checked from your real connection for Tor or proxy sites. **A watch you add on your router, NAS or another device at home now works**, with a note saying how often this computer checks it.
 - Highlights come back across bold text and links, and show in reading mode.
 - **The ad blocker's lists update weekly**, and clicking a blocked ad says so instead of a blank tab.
 
