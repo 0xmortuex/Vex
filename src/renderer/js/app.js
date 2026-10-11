@@ -1281,7 +1281,8 @@ function vexOwnTextFocused(doc) {
   // On-device AI (WebLLM/WebGPU) — reads prefs only; never downloads on launch
   if (typeof WebLLM !== 'undefined') WebLLM.init();
 
-  // MCP client (loads configured servers; connects on demand only)
+  // MCP client: loads the saved servers and connects to each one again in the
+  // background at every start (McpClient.connectSaved)
   if (typeof McpClient !== 'undefined') McpClient.init();
 
   // First-run setup wizard (shows once on a fresh install only)
