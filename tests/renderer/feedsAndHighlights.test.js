@@ -158,6 +158,20 @@ describe("subscribing to a page's own feed", () => {
     expect(window.vex.rssFetch).not.toHaveBeenCalled();
     delete globalThis.TabManager;
   });
+
+  // Found in the v19.1.7 check: the page open in a Tor or container tab is
+  // not a site rule, so its feed was read straight from your real connection.
+  it('will not read the feed of a page open in a Tor or container tab from your real connection', async () => {
+    globalThis.TabManager = {
+      getActiveTab: () => ({ id: 't', url: 'https://ex.test/', partition: 'persist:container-work' }),
+      mayAskSiteForIcon: (url, { partition = null } = {}) => !partition || partition === 'persist:main',
+    };
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('<link rel="alternate" type="application/rss+xml" href="https://ex.test/rss">') };
+    expect(await VexFeeds.subscribeToPage()).toBeNull();
+    expect(window.vex.rssFetch).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/real connection/), 'error');
+    delete globalThis.TabManager;
+  });
 });
 
 describe('highlight page keys', () => {

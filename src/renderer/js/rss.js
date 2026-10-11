@@ -95,13 +95,15 @@ const VexFeeds = {
   // --- Subscribing ---
   // Checks the address really is a feed before keeping it. → { ok, feed } or
   // { ok: false, error } in words the person can act on.
-  async subscribe(input) {
+  // partition: the session of the tab the feed was found in (Ctrl+K), so a
+  // page open in a Tor, private or container tab is not read directly either.
+  async subscribe(input, { partition = null } = {}) {
     const url = this._normalizeUrl(input);
     if (!url) return { ok: false, error: 'That is not a valid http(s) feed URL' };
     if (this.feeds.some(f => this._normalizeUrl(f.url) === url)) return { ok: false, error: 'That feed is already in your list' };
     // Feeds are fetched by Vex directly; a site sent through Tor, a proxy or a
     // container would see your real address (as page watches, page-watch.js).
-    if (typeof TabManager !== 'undefined' && typeof TabManager.mayAskSiteForIcon === 'function' && !TabManager.mayAskSiteForIcon(url)) {
+    if (typeof TabManager !== 'undefined' && typeof TabManager.mayAskSiteForIcon === 'function' && !TabManager.mayAskSiteForIcon(url, { partition })) {
       return { ok: false, error: 'This site goes through Tor, a proxy or a container, and its feed would be read from your real connection — so it was not added' };
     }
     const xml = await window.vex.rssFetch(url);
@@ -148,7 +150,8 @@ const VexFeeds = {
       pick = found[parseInt(answer, 10) - 1];
       if (!pick) { window.showToast?.('Choose a number from 1 to ' + found.length, 'error'); return null; }
     }
-    const r = await this.subscribe(pick.url);
+    const tab = typeof TabManager !== 'undefined' && typeof TabManager.getActiveTab === 'function' ? TabManager.getActiveTab() : null;
+    const r = await this.subscribe(pick.url, { partition: (tab && tab.partition) || null });
     if (!r.ok) { window.showToast?.(r.error, 'error'); return null; }
     window.showToast?.('Subscribed to ' + (r.feed.title || r.feed.url) + ' — it is in the Feeds panel');
     return r.feed;

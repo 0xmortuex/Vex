@@ -5,7 +5,7 @@
 // remembering to check. A watch reads the page quietly, compares it with what
 // was there before, and speaks only when it is different.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const { PageWatch } = require('../../src/renderer/js/page-watch.js');
 
 let page;
@@ -183,6 +183,40 @@ describe('one watcher, not two (RD6)', () => {
     expect(PageWatch.isUnseen(PageWatch.list()[0])).toBe(false);
     expect(document.getElementById('vex-watches')).toBeNull();
     delete globalThis.TabManager;
+  });
+});
+
+// Found in the v19.1.7 check: a page open in a Tor or container tab is not a
+// site rule, so the check at each look let it through and Vex polled it from
+// your real connection.
+describe('a page open in a tab of its own session', () => {
+  const tabs = (partition) => {
+    globalThis.TabManager = {
+      tabs: [{ id: 't1', url: 'https://news.example/', title: 'News', partition }], activeTabId: 't1',
+      windowMayAsk: (p) => !p || p === 'persist:main',
+      mayAskSiteForIcon: () => true,
+    };
+  };
+  afterEach(() => { delete globalThis.TabManager; });
+
+  it('"Watch This Page" in a Tor tab is refused and nothing is fetched', async () => {
+    tabs('tor:abc');
+    expect(await PageWatch.watchPage('https://news.example/', 'News', { partition: 'tor:abc' })).toBeNull();
+    expect(PageWatch.list()).toEqual([]);
+    expect(AgentTools.readUrl).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/real connection/), 'error');
+  });
+
+  it('"Tell me when this page changes" in a container tab is refused', () => {
+    tabs('persist:container-work');
+    expect(() => PageWatch.watchCurrent('changes', { byUser: true })).toThrow(/real connection/);
+    expect(PageWatch.list()).toEqual([]);
+  });
+
+  it('an ordinary tab is watched as before', async () => {
+    tabs('persist:main');
+    const r = PageWatch.watchCurrent('changes', { byUser: true });
+    expect(r.watch.url).toBe('https://news.example/');
   });
 });
 

@@ -35,8 +35,14 @@ const PageWatch = {
   // yourself (byUser): the AI agent is steered by text it reads, and must not
   // be talked into polling the router. Such a watch is checked straight from
   // this computer (_getLocal), not through the public-only fetch.
-  add({ url, title, selector, kind = 'text', every = 15 * 60000, direction = 'any', target = null, byUser = false }) {
+  //
+  // partition: the session of the tab the page was watched from. A page open
+  // in a Tor, private or container tab is refused: a watch is checked from
+  // Vex's window, on your real connection — and the check at each look only
+  // knows the site rules, not which tab it came from.
+  add({ url, title, selector, kind = 'text', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null }) {
     if (!/^https?:/i.test(String(url || ''))) throw new Error('Only a web page can be watched');
+    if (partition && typeof TabManager !== 'undefined' && typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(partition)) throw new Error(this.OWN_SESSION_REFUSED);
     const local = this.isLocal(url);
     if (local && !byUser) throw new Error(this.LOCAL_REFUSED);
     const list = this.list();
@@ -59,6 +65,7 @@ const PageWatch = {
   remove(id) { this._save(this.list().filter(w => w.id !== id)); },
 
   LOCAL_REFUSED: 'Pages on this computer or your home network are watched only when you add the watch yourself',
+  OWN_SESSION_REFUSED: 'This tab goes through Tor, a proxy, a container or a private session, and a watch would check the page from your real connection — so it is not watched',
 
   // Is this address this computer or the home network (router, NAS,
   // localhost, 192.168.x, .local)?
@@ -101,12 +108,12 @@ const PageWatch = {
   // Ctrl+K passes byUser (the person typed it); the agent does not.
   watchCurrent(when, { url, title, byUser = false } = {}) {
     const rule = this.parseWhen(when);
-    let u = url, t = title;
+    let u = url, t = title, partition = null;
     if (!u && typeof TabManager !== 'undefined') {
       const tab = TabManager.tabs.find(x => x.id === TabManager.activeTabId);
-      if (tab) { u = tab.url; t = t || tab.title; }
+      if (tab) { u = tab.url; t = t || tab.title; partition = tab.partition || null; }
     }
-    const watch = this.add({ url: u, title: t, ...rule, byUser });
+    const watch = this.add({ url: u, title: t, ...rule, byUser, partition });
     return { watch, said: (t || u) + ' — ' + this.describeRule(rule) + (watch.local ? '. ' + this.localNote(watch) : '') };
   },
   describeRule(r) {
@@ -291,9 +298,9 @@ const PageWatch = {
 
   // "Watch This Page" in Ctrl+K: the whole page, any change, the default pace.
   // The first look sets the baseline.
-  async watchPage(url, title) {
+  async watchPage(url, title, { partition = null } = {}) {
     let watch;
-    try { watch = this.add({ url, title: title || url, byUser: true }); }
+    try { watch = this.add({ url, title: title || url, byUser: true, partition }); }
     catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); return null; }
     window.showToast?.('Watching — Vex will say when it changes' + (watch.local ? '. ' + this.localNote(watch) : ''));
     const first = await this.checkOne(watch.id);
