@@ -556,7 +556,55 @@ window.__vexCheckUi = (function () {
     };
   }
 
-  return { audit: audit, freeze: freeze };
+  // A whole surface — a panel, a menu, a dialog, a picker, the New Tab page —
+  // judged for text only: every piece of text in it against what is painted
+  // behind it. The bands above miss these, and so did the checker (cat-themes:
+  // Settings chips, the command bar's selected row and the Glass panels all
+  // failed while check:ui said clean). Large text (24px, or 18.66px bold)
+  // needs 3:1 (WCAG 1.4.3), the rest 4.5:1.
+  function scanSurface(exceptions, style, surface, sel) {
+    freeze();
+    var findings = [];
+    var judged = 0;
+    var roots = document.querySelectorAll(sel);
+    var seen = {};
+    function add(check, el, message, numbers) {
+      for (var i = 0; i < exceptions.length; i++) {
+        var ex = exceptions[i];
+        if (ex.check !== check) continue;
+        if (ex.styles && ex.styles.indexOf(style) === -1) continue;
+        if (el.matches && el.matches(ex.selector)) return;
+      }
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: message, numbers: numbers || {} });
+    }
+    for (var r = 0; r < roots.length; r++) {
+      var all = [roots[r]].concat(Array.prototype.slice.call(roots[r].querySelectorAll('*')));
+      for (var j = 0; j < all.length; j++) {
+        var el = all[j];
+        if (!hasOwnText(el)) continue;
+        if (/^(SCRIPT|STYLE|OPTION|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue;
+        if (!isVisible(el)) continue;
+        if (el.closest('[disabled], [aria-disabled="true"]')) continue;
+        var res = contrastOf(el, false);
+        if (res.skipped) continue;
+        judged++;
+        if (res.unreadable) { add('contrast-unreadable', el, 'in ' + surface + ': could not read colour ' + JSON.stringify(res.unreadable)); continue; }
+        var cs = getComputedStyle(el);
+        var px = parseFloat(cs.fontSize);
+        var min = (px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700)) ? 3 : TEXT_MIN;
+        if (res.ratio + 0.05 < min) {
+          add('contrast', el, 'in ' + surface + ': text ' + res.fg + ' on ' + res.bg + ' is ' + n(res.ratio) + ':1, under ' + min + ':1',
+            { ratio: n(res.ratio), required: min, fg: res.fg, bg: res.bg, region: surface, opacity: n(res.opacity) });
+        }
+      }
+    }
+    return { roots: roots.length, judged: judged, findings: findings };
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface };
 })();
 'installed';
 `;
@@ -597,6 +645,86 @@ function freePort() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------------------------------------------------------------------------
+// SURFACES — what opens over the chrome. Each is opened by script, its text
+// judged (scanSurface), and closed again, in the Firefox look (the owner's)
+// and Glass, for every theme on --full. `open` and `close` run in Vex's window;
+// the New Tab page is a separate document and is judged through its own target.
+// ---------------------------------------------------------------------------
+const SURFACE_STYLES = ['firefox', 'glass'];
+const SURFACES = [
+  { name: 'Settings', sel: '#panel-settings', open: "SidebarManager.openPanel('settings')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'History', sel: '#panel-history', open: "SidebarManager.openPanel('history')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'Downloads', sel: '#panel-downloads', open: "SidebarManager.openPanel('downloads')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'the command bar', sel: '#command-bar', open: "CommandBar.open(); const i = document.querySelector('#command-input'); if (i) { i.value = 'set'; i.dispatchEvent(new Event('input', { bubbles: true })); }", close: 'CommandBar.close()' },
+  { name: 'a dialog', sel: '.vex-dialog', open: "vexConfirm({ title: 'Check', message: 'A dialog the checker opened.' })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel())" },
+  { name: 'a toast', sel: '#toast-container', open: "showToast('A toast the checker opened', 'info', 60000)", close: "document.querySelectorAll('#toast-container > *').forEach(t => t.remove())" },
+  { name: 'the tab menu', sel: '.tab-context-menu', open: "(() => { const t = document.querySelector('.top-tab, .tab-item'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); })()", close: "document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove())" },
+  { name: 'the theme picker', sel: '.vex-theme-picker', open: 'ThemePicker.open()', close: 'ThemePicker.close()' },
+  { name: 'the font picker', sel: '.vexfont', open: 'VexFonts.open()', close: 'VexFonts.close()' },
+  { name: 'the keys sheet', sel: '#vex-keys', open: 'KeysSheet.open()', close: 'KeysSheet.close()' },
+];
+
+async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, summaries) {
+  // The New Tab page: its own target, its own copy of the audit library. A
+  // look change can reload it, so the library is put back whenever it is gone.
+  let newTab = null;
+  const newTabReady = async () => {
+    if (newTab) {
+      try { if (await evaluate(newTab, 'typeof window.__vexCheckUi') === 'object') return newTab; }
+      catch { newTab.close(); newTab = null; }
+    }
+    if (!newTab) {
+      const list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
+      const start = list.find(t => /\/renderer\/start\.html/.test(t.url || ''));
+      if (!start) throw new Error('no New Tab page to check — the first tab should be one');
+      newTab = await connectCdp(start.webSocketDebuggerUrl);
+      await newTab.send('Runtime.enable');
+    }
+    if (await evaluate(newTab, PAGE_LIB) !== 'installed') throw new Error('audit library did not install in the New Tab page');
+    return newTab;
+  };
+  try {
+    for (const style of styles) {
+      await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
+      if (await evaluate(cdp, 'window.VexGuiStyle.isBrowserLook()')) await evaluate(cdp, "window.VexGuiStyle.setColors('theme')");
+      await sleep(250);
+      const judgedBy = {};
+      let count = 0;
+      for (const theme of themes) {
+        await evaluate(cdp, 'window.ThemeManager.applyTheme(' + JSON.stringify(theme) + ', { persist: false })');
+        for (const s of SURFACES) {
+          await evaluate(cdp, '(() => { ' + s.open + '; return true; })()');
+          await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+          await sleep(120);
+          const res = await evaluate(cdp, 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(s.name) + ', ' + JSON.stringify(s.sel) + ')');
+          await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+          if (!res.roots || !res.judged) throw new Error('judged no text in ' + s.name + ' (' + style + '/' + theme + ') — it did not open, or the check would be reporting on nothing');
+          judgedBy[s.name] = Math.max(judgedBy[s.name] || 0, res.judged);
+          for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
+          count += res.findings.length;
+        }
+        // The New Tab page follows the theme a beat later (it is recoloured
+        // by script); wait until it wears this one.
+        const t0 = Date.now();
+        while (await evaluate(await newTabReady(), 'document.documentElement.getAttribute("data-theme")') !== theme) {
+          if (Date.now() - t0 > 5000) throw new Error('the New Tab page never took the theme ' + theme);
+          await sleep(100);
+        }
+        await sleep(150);
+        const res = await evaluate(await newTabReady(), 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', "the New Tab page", "body")');
+        if (!res.judged) throw new Error('judged no text on the New Tab page (' + style + '/' + theme + ')');
+        judgedBy['the New Tab page'] = Math.max(judgedBy['the New Tab page'] || 0, res.judged);
+        for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
+        count += res.findings.length;
+      }
+      summaries.push({ style, colors: 'surfaces', themes: themes.length, controls: Object.keys(judgedBy).length, colours: Object.values(judgedBy).reduce((a, b) => a + b, 0), findings: count });
+    }
+  } finally {
+    if (newTab) newTab.close();
+  }
+}
 
 async function waitForTarget(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -753,6 +881,7 @@ async function evaluate(cdp, expression) {
 }
 
 function styleLabel(style, colors) {
+  if (colors === 'surfaces') return style + ' (panels, menus, New Tab)';
   return colors ? style + ' (' + colors + ' colours)' : style;
 }
 
@@ -932,6 +1061,11 @@ async function main() {
         summaries.push({ style, colors, themes: themes.length, controls, colours, findings: count });
       }
     }
+
+    // Panels, menus, dialogs, pickers and the New Tab page, in the Firefox
+    // look and Glass (or the one style asked for, if it is either).
+    const surfaceStyles = SURFACE_STYLES.filter(s => runStyles.includes(s));
+    if (surfaceStyles.length) await scanSurfaces(cdp, port, EXCEPTIONS, surfaceStyles, themes, findings, summaries);
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
