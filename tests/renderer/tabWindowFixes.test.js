@@ -357,6 +357,16 @@ describe('title fallback', () => {
     const TM = await loadTabManager();
     expect(TM._fallbackTitle('file:///C:/notes/report.html')).toBe('report.html');
   });
+
+  // EX11: a PDF's tab showed its host ("sitea.test"), Chrome shows its file.
+  it('names a PDF by its file name, not its host', async () => {
+    installGlobals();
+    const TM = await loadTabManager();
+    expect(TM._fallbackTitle('https://sitea.test:9899/docs/Annual%20report.pdf')).toBe('Annual report.pdf');
+    expect(TM._pdfFileName('http://sitea.test:9899/report.pdf', 'sitea.test:9899/report.pdf')).toBe('report.pdf');
+    expect(TM._pdfFileName('http://sitea.test:9899/report.pdf', 'Quarterly results')).toBe(null);
+    expect(TM._pdfFileName('http://sitea.test:9899/report.html', '')).toBe(null);
+  });
 });
 
 // ===========================================================================

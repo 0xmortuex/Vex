@@ -909,8 +909,11 @@ const TabManager = {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
 
-    if (data.title !== undefined) tab.title = data.title;
     if (data.url !== undefined) tab.url = data.url;
+    // A PDF has no title of its own: Chromium names it by its address
+    // ("host/path/report.pdf") and the tab showed the host. It is named by
+    // its file, as Chrome does (EX11).
+    if (data.title !== undefined) tab.title = this._pdfFileName(tab.url, data.title) || data.title;
     if (data.favicon !== undefined) tab.favicon = this._persistableFavicon(data.favicon, tab.partition);
     if (data.loading !== undefined) tab.loading = data.loading;
 
@@ -938,11 +941,26 @@ const TabManager = {
   // A readable stand-in when a page gave us no title: its host, else its URL.
   _fallbackTitle(url) {
     if (isStartPage(url)) return 'New Tab';
+    const pdf = this._pdfFileName(url, '');
+    if (pdf) return pdf;
     try {
       const u = new URL(url);
       if (u.hostname) return u.hostname.replace(/^www\./, '');
       return u.pathname.split('/').filter(Boolean).pop() || url;
     } catch { return url || 'Tab'; }
+  },
+
+  // The file name of a PDF's address, when the title the page gave is none
+  // or only its address; else null.
+  _pdfFileName(url, title) {
+    let u;
+    try { u = new URL(url); } catch { return null; }
+    const last = u.pathname.split('/').filter(Boolean).pop() || '';
+    if (!/\.pdf$/i.test(last)) return null;
+    const t = String(title || '').trim();
+    const bare = (s) => s.replace(/^[a-z]+:\/\/(\/)?/i, '').replace(/\/$/, '');
+    if (t && t !== 'Loading...' && bare(t) !== bare(url) && bare(t) !== bare(u.origin + u.pathname)) return null;
+    try { return decodeURIComponent(last); } catch { return last; }
   },
 
   updateUrlBar(tab) {
