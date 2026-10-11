@@ -142,13 +142,14 @@ const SyncSettings = (() => {
               <li>Shortcuts and tools</li>
               <li>Notes and scheduled tasks</li>
               <li>History and settings</li>
-              <li>Theme and preferences</li>
+              <li>Theme, look, fonts and preferences</li>
             </ul>
             <strong>What stays local:</strong>
             <ul>
               <li>Saved passwords</li>
               <li>Website cookies and logins</li>
               <li>AI chat history</li>
+              <li>Interface size and spacing</li>
             </ul>
           </div>
 
@@ -388,7 +389,7 @@ const SyncSettings = (() => {
 
         <div class="sync-subsection" id="sync-choices">
           <h3>Choose what to sync</h3>
-          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other.</p>
+          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other. The interface size and spacing (Settings › Fonts) always stay per device, since they depend on the screen.</p>
           <div class="sync-choice-list" style="display:grid;gap:6px">
             ${SyncEngine.syncTypes().map(t => `<label class="sync-choice" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" data-sync-type="${escapeHtml(t.id)}"${t.on ? ' checked' : ''}> ${escapeHtml(t.label)}</label>`).join('')}
           </div>

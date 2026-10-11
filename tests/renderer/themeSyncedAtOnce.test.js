@@ -45,7 +45,7 @@ describe('a synced or restored theme is worn at once', () => {
     globalThis.ThemeAuto = { isOn: () => true, evaluate: vi.fn() };
     stored.set('theme', 'nord');
     expect(await TM.applySynced()).toBeNull();
-    expect(ThemeAuto.evaluate).toHaveBeenCalledWith({ force: true });
+    expect(ThemeAuto.evaluate).toHaveBeenCalledWith();
     expect(TM.currentTheme).toBe('oxford');
   });
 

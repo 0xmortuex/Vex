@@ -323,7 +323,10 @@ ThemeManager.applySynced = async function (source) {
   // with the same sync is registered by js/theme-studio.js's.
   await Promise.resolve();
   if (typeof ThemeStudio !== 'undefined' && ThemeStudio.isEditing()) return null;
-  if (typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn()) { ThemeAuto.evaluate({ force: true }); return null; }
+  // Light and dark wears its (synced) light or dark theme for the hour. Not
+  // forced: that would also move the look to this device's twin and send it
+  // back, and two devices on different hours would trade it for ever.
+  if (typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn()) { ThemeAuto.evaluate(); return null; }
   // A backup restores the copy in localStorage; sync writes the theme store.
   const restored = source === 'backup';
   let want = restored ? localStorage.getItem('vex.theme') : await VexStorage.load('theme');

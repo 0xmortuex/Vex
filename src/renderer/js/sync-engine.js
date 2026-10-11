@@ -81,8 +81,23 @@ const SyncEngine = (() => {
     'vex.autoGroupSuggest', 'vex.autoAddToGroups', 'vex.groupPatterns',
     // Phase 17: customized keyboard shortcuts follow you across devices
     'vex.userShortcuts',
-    // Tab layout (horizontal vs vertical)
+    // Tab layout (horizontal vs vertical). A browser look decides the layout
+    // itself (SettingsUI.resolveTabLayout); the look travels too (below), so
+    // every device resolves the same way.
     'vex.tabLayout',
+    // The browser look and its colours (js/gui-style.js), the skin
+    // (js/skins.js), the interface and code fonts (js/fonts.js), and the
+    // reading aids (js/accessibility.js): choices about how Vex looks to you,
+    // not about the screen. They stayed on each device while the theme and the
+    // tab layout travelled, so a second computer showed the theme in another
+    // look (found 2026-10-10). The interface size and spacing (vex.uiScale,
+    // vex.uiDensity) stay per device: they depend on the screen. The copies
+    // kept for the New Tab page (vex.lookName, vex.lookPalette, vex.fontCss)
+    // are rebuilt on each device.
+    'vex.guiStyle', 'vex.guiColors',
+    'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength',
+    'vex.font', 'vex.fontMono',
+    'vex.a11y',
     // Reminders and alarms. The main process owns them (reminders.json); the
     // renderer mirrors the list here so it travels, and imports what arrives
     // (js/quick-reminder.js). Only the machine that set one wakes Windows for it.
@@ -124,7 +139,8 @@ const SyncEngine = (() => {
     { id: 'shortcuts', label: 'Shortcut tiles and tools', keys: ['vex.shortcuts', 'vex.startTiles', 'vex.tools'] },
     { id: 'reminders', label: 'Reminders and scheduled tasks', keys: ['vex.reminders', 'vex.schedules'] },
     { id: 'ai', label: 'AI settings, personas and memory', keys: ['vex.agentMode', 'vex.aiIndexingEnabled', 'vex.aiRouting', 'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.personas', 'vex.activePersona', 'vex.aiMemory'] },
-    { id: 'look', label: 'Themes and look', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout'] },
+    { id: 'look', label: 'Themes, look and fonts', keys: ['vex.theme', 'vex.themeAuto', 'vex.customThemes', 'vex.tabLayout',
+      'vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono'] },
     // Everything else: site lists, zoom, auto-sleep, keyboard shortcuts...
     { id: 'settings', label: 'Other settings', keys: [] },
   ];
@@ -923,6 +939,7 @@ const SyncEngine = (() => {
       const synced = sources['preference:vex.history'];
       sources['preference:vex.history'] = withOlderHistory(Array.isArray(synced) ? synced : [], localHistory, sources['preference:vex.historyClearedAt']);
     }
+    const lookBefore = lookSnapshot();
     for (const key of preferenceKeys()) {
       const name = 'preference:' + key;
       // Left out on this device (Choose what to sync): its copy stays.
@@ -954,6 +971,7 @@ const SyncEngine = (() => {
     recordDocument = merged;
     await VexStorage.save('sync-records', merged);
     if (rejoin.length) localStorage.removeItem(REJOIN_KEY);
+    if (lookSnapshot() !== lookBefore) applyLook();
     // An older Vex marks this device's marker deleted on its push. This device
     // put it back only on its own next push, up to two minutes later, and
     // meanwhile the other devices named it as the one tiles wait on
@@ -1185,6 +1203,30 @@ const SyncEngine = (() => {
     if (!pulled.ok) return { ok: false, reason: pulled.reason };
     return pushNow();
   }
+
+  // ===== THE LOOK =====
+  // A look, skin, font or reading aid that arrived is put on screen at once,
+  // as the theme is (theme-manager.js applySynced).
+  const LOOK_KEYS = ['vex.guiStyle', 'vex.guiColors', 'vex.skinPattern', 'vex.skinShape', 'vex.skinGlow', 'vex.skinStrength', 'vex.font', 'vex.fontMono', 'vex.a11y'];
+  const lookSnapshot = () => JSON.stringify(LOOK_KEYS.map(key => localStorage.getItem(key)));
+  function applyLook() {
+    const G = window.VexGuiStyle;
+    if (G && typeof document !== 'undefined' && document.body) {
+      const want = G.get(), shown = document.body.dataset.guiStyle || 'classic';
+      // Light and dark moves between a look and its dark twin by itself, on
+      // each device by its own clock or Windows setting: another device's
+      // twin is not worn over this one's.
+      const pairs = typeof ThemeAuto !== 'undefined' && ThemeAuto.isOn() ? ThemeAuto.LOOK_PAIRS || {} : {};
+      const twins = Object.entries(pairs).some(([light, dark]) => [light, dark].includes(want) && [light, dark].includes(shown));
+      if (want !== shown && !twins) Promise.resolve(G.set(want)).catch(err => console.error('[Sync] Could not wear the synced look:', err));
+      if ((document.body.dataset.guiColors || 'look') !== G.getColors()) G.setColors(G.getColors());
+    }
+    window.VexFonts?.apply();
+    window.VexSkins?.apply();
+    if (window.AccessibilityPack) { window.AccessibilityPack.init(); window.AccessibilityPack.reapplyAll(); }
+  }
+  // A restored backup brings these back too (js/backup.js).
+  if (typeof window !== 'undefined') window.addEventListener('vex-sync-data-applied', (e) => { if (e && e.detail && e.detail.source === 'backup') applyLook(); });
 
   // ===== CONFLICTS =====
   // Two devices changing the same thing between syncs keep both versions in

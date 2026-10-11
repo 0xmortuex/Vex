@@ -20,7 +20,7 @@ function section81() {
 function keysOnLine(text, label) {
   const line = text.split('\n').find(l => l.startsWith('- **' + label + '**'));
   if (!line) throw new Error('No "' + label + '" line in §8.1');
-  return [...line.matchAll(/`(vex\.[A-Za-z.]+)`/g)].map(m => m[1]);
+  return [...line.matchAll(/`(vex\.[A-Za-z0-9.]+)`/g)].map(m => m[1]);
 }
 
 describe('SYNC_PROTOCOL.md §8.1 lists every preference the desktop syncs', () => {
