@@ -176,13 +176,27 @@
       el.appendChild(ic); el.appendChild(label);
       el.addEventListener('click', () => navigate(s.url));
       el.addEventListener('contextmenu', (e) => { e.preventDefault(); editShortcut(i); });
+      keyboardChip(el, () => navigate(s.url), () => editShortcut(i));
       bar.appendChild(el);
     });
     const add = document.createElement('div');
     add.className = 'gsc gsc-add';
     add.innerHTML = '<span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span>Add shortcut</span>';
     add.addEventListener('click', () => editShortcut(-1));
+    keyboardChip(add, () => editShortcut(-1));
     bar.appendChild(add);
+  }
+
+  // The chips are divs; without this the editor (and the bar) could not be
+  // reached from the keyboard at all. Enter or Space opens; the context-menu
+  // key or Shift+F10 edits, as right-click does.
+  function keyboardChip(el, open, edit) {
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      else if (edit && (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) { e.preventDefault(); edit(); }
+    });
   }
 
   function injectEditorStyles() {
@@ -201,7 +215,7 @@
       .gsc-ed-row{display:flex;align-items:center;gap:8px;margin-top:18px;}
       .gsc-ed-row button{border:1px solid var(--border,rgba(255,255,255,0.18));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit;}
       .gsc-ed-save{background:var(--primary,#6366f1)!important;border-color:transparent!important;color:var(--on-primary,#fff)!important;font-weight:600;}
-      .gsc-ed-del{color:#e0556a!important;border-color:rgba(224,85,106,0.4)!important;}
+      .gsc-ed-del{color:var(--danger,#e0556a)!important;border-color:color-mix(in srgb,var(--danger,#e0556a) 40%,transparent)!important;}
     `;
     document.head.appendChild(st);
   }
@@ -212,17 +226,20 @@
     const isNew = index < 0;
     const cur = isNew ? { name: '', url: '', color: '' } : Object.assign({ name: '', url: '', color: '' }, arr[index]);
     document.querySelectorAll('.gsc-ed-ov').forEach(e => e.remove());
+    // A real dialog (cat-themes TH10): named, modal, Escape closes it, Enter
+    // saves, Tab stays inside, and focus goes back where it was.
+    const prevFocus = document.activeElement;
     const ov = document.createElement('div');
     ov.className = 'gsc-ed-ov';
-    ov.innerHTML = `<div class="gsc-ed">
-        <div class="gsc-ed-title">${isNew ? 'Add shortcut' : 'Edit shortcut'}</div>
-        <label>Name</label>
-        <input class="gsc-ed-name" type="text" value="${escAttr(cur.name)}" placeholder="e.g. Reddit">
-        <label>Link (URL)</label>
-        <input class="gsc-ed-url" type="text" value="${escAttr(cur.url)}" placeholder="https://www.reddit.com">
-        <label>Color <span style="opacity:.6">— optional, overrides the logo</span></label>
+    ov.innerHTML = `<div class="gsc-ed" role="dialog" aria-modal="true" aria-labelledby="gsc-ed-title">
+        <div class="gsc-ed-title" id="gsc-ed-title">${isNew ? 'Add shortcut' : 'Edit shortcut'}</div>
+        <label for="gsc-ed-name">Name</label>
+        <input class="gsc-ed-name" id="gsc-ed-name" type="text" value="${escAttr(cur.name)}" placeholder="e.g. Reddit">
+        <label for="gsc-ed-url">Link (URL)</label>
+        <input class="gsc-ed-url" id="gsc-ed-url" type="text" value="${escAttr(cur.url)}" placeholder="https://www.reddit.com">
+        <label for="gsc-ed-color">Color <span style="opacity:.6">— optional, overrides the logo</span></label>
         <div class="gsc-ed-colors">
-          <input class="gsc-ed-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(cur.color) ? cur.color : '#6366f1'}">
+          <input class="gsc-ed-color" id="gsc-ed-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(cur.color) ? cur.color : '#6366f1'}">
           <button class="gsc-ed-clearcolor" type="button">Use logo instead</button>
         </div>
         <div class="gsc-ed-row">
@@ -237,9 +254,22 @@
     const colorInput = ov.querySelector('.gsc-ed-color');
     colorInput.addEventListener('input', () => { useColor = true; });
     ov.querySelector('.gsc-ed-clearcolor').addEventListener('click', () => { useColor = false; try { window.showToast?.('Will use the site logo'); } catch {} });
-    const close = () => ov.remove();
+    const close = () => {
+      ov.remove();
+      try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); } catch {}
+    };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.gsc-ed-cancel').addEventListener('click', close);
+    ov.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type === 'text') { e.preventDefault(); ov.querySelector('.gsc-ed-save').click(); return; }
+      if (e.key === 'Tab') {
+        const f = [...ov.querySelectorAll('input, button')].filter(el => !el.disabled);
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
     const del = ov.querySelector('.gsc-ed-del');
     if (del) del.addEventListener('click', () => { arr.splice(index, 1); saveShortcuts(arr); close(); });
     ov.querySelector('.gsc-ed-save').addEventListener('click', () => {
