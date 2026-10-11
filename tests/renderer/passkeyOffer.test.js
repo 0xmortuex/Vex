@@ -91,6 +91,22 @@ describe('host side', () => {
     await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('vex.passkeyAllowedHosts'))).toEqual(['b.example']));
   });
 
+  // Found 2026-10-11 in a live probe: the list was drawn once at start, so a
+  // site allowed from the bar was missing from Settings until a restart.
+  it('a site allowed from the bar shows in Settings at once', async () => {
+    const box = document.createElement('div');
+    box.id = 'setting-passkey-allowed';
+    document.body.appendChild(box);
+    PasswordVault.renderPasskeyAllowed(box);
+    expect(box.textContent).toBe('');
+    const wv = fakeWebview('https://new.example.com/signin');
+    PasswordVault.attach(wv);
+    await say(wv, 'vex-passkey-refused', { host: 'new.example.com' });
+    document.querySelector('#vex-passkey-offer [data-allow]').click();
+    await vi.waitFor(() => expect(wv.reload).toHaveBeenCalled());
+    expect(box.textContent).toMatch(/Passkeys allowed on:new\.example\.comRemove/);
+  });
+
   it('ignores a malformed host', async () => {
     const wv = fakeWebview('https://login.example.com/');
     PasswordVault.attach(wv);

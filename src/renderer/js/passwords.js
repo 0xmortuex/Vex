@@ -163,6 +163,9 @@ const PasswordVault = {
     const list = this.passkeyAllowed().filter(h => h !== host);
     if (allowed) list.push(host);
     localStorage.setItem(this.PASSKEY_ALLOWED_KEY, JSON.stringify(list));
+    // Settings › Privacy lists them; it was drawn once at start, so a site
+    // allowed from the bar was missing there until Vex restarted.
+    this.renderPasskeyAllowed(document.getElementById('setting-passkey-allowed'));
     // Main reads the saved file when the page loads again: wait for the write.
     if (window.PersistentStorage && window.PersistentStorage._flush) await window.PersistentStorage._flush();
   },
