@@ -1,5 +1,7 @@
 # Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3; key proof, protocol version 1 of §2.7, from the release after v14.72.3)
 
+> **Release after v18.59.3 — an email after an erase (server and client change, §2.9).** After `POST /sync/reset` or `DELETE /sync/all` the worker emails the account's address in plain text: what was erased, when (UTC), from which device, and what to do if it was not them. The worker keeps no address, so the client sends `email` in those two requests' JSON bodies (`DELETE /sync/all` now has a body); it is used only if its HMAC is the account, and is never stored. Both replies gain `notice` (§2.9). Older clients keep working; they get no email. **The worker must be redeployed for this.**
+
 > **Release after v14.72.3 — key proof (server and client change, §2.7, §2.8).** Up to now one sign-in email code was enough to overwrite or erase an account without its sync key (push with `baseRevision: 0`, read the revision from the 409, push again; or `DELETE /sync/all`). A worker from this release keeps, per account, a key check derived from the sync key, and from then on refuses a push or wipe that does not prove the key with an HMAC over a one-time nonce (`GET /sync/challenge`, header `X-Vex-Proof`). New: `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`; status **403** with a `code` field on refusals; `keyCheck` in the pull and challenge replies; `keyCheckSet` in the push reply. An account without a key check (every account until a current client syncs) works exactly as before, so **older clients keep working until the first current client locks the account**; after that they can still pull (and list devices), but their pushes and wipes get 403 (§2.7.5). A current client talking to an older worker sees `/sync/challenge` answer 404 (or 403 "This device has not synced yet") and syncs without proofs.
 
 > **Release after v14.72.3 — document contents only, no server change.** Each desktop sends its own open tabs as `sync:tabs:<deviceId>` and no longer writes or applies the shared `storage:tabs`, `storage:groups` and `storage:stacks` (§4.8). The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
@@ -127,7 +129,9 @@ A successful push replaces the account's blob **entirely**, and it registers a p
 - A **pending** session may remove **only itself** (`/sync/devices/<its own deviceId>`), which deletes its session. Anything else gets 403.
 
 #### `DELETE /sync/all`  (Bearer, registered; key proof, §2.7)
-Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, the key check (§2.7), and **every session of the account, including the caller's**. Returns 200 `{"ok":true}`. The caller's next request gets 401. On a locked account it needs a proof for the action `wipe` (403 as for push without one); a pending session may wipe only with a valid proof.
+Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, the key check (§2.7), and **every session of the account, including the caller's**. Returns 200 `{"ok":true}` (from the release after v18.59.3: `{"ok":true,"notice":…}`, §2.9). The caller's next request gets 401. On a locked account it needs a proof for the action `wipe` (403 as for push without one); a pending session may wipe only with a valid proof.
+
+From the release after v18.59.3 the request MAY carry a JSON body `{"email":"<the address signed in with>"}` (with `Content-Type: application/json`), for the email of §2.9. The body is not part of the proof. A request without a body is still accepted.
 
 #### `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`  (Bearer; from the release after v14.72.3)
 See §2.7 and §2.8. Older workers answer 404 (or 403 "This device has not synced yet" to a pending session).
@@ -291,12 +295,21 @@ A worker from before this release answers `GET /sync/challenge` with 404 (a regi
 ### 2.8 Starting over without the key (from the release after v14.72.3)
 A user who has lost the recovery code on every device cannot read the account, and with §2.7 cannot erase it with a proof either. `POST /sync/reset` erases it on purpose:
 
-- Request: `{"confirm":"erase my synced data"}` exactly, else **400** `code: "confirm-required"`.
+- Request: `{"confirm":"erase my synced data"}` exactly, else **400** `code: "confirm-required"`. From the release after v18.59.3 the body SHOULD also carry `"email"`, the address the sign-in used, for the email of §2.9; the reply is then `{"ok":true,"notice":…}`.
 - Only from a **pending** session made **at most 10 minutes ago**, i.e. straight after a fresh email code; anything else gets **403** `code: "fresh-sign-in-required"`.
 - It deletes what `DELETE /sync/all` deletes (blob, devices, mailbox, key check, sessions), except the caller's own session, which stays pending. Every other device's next request gets 401 and it signs out with "… the cloud data was wiped". **Data on the devices is not touched.**
 - The caller then creates a new account as in §2.4 (new key, push with `baseRevision: 0`), which locks it to the new key.
 
 The desktop offers this only on the sign-in that just found the account has data ("I lost my recovery code: start over"), after a confirmation that says what is erased; it then shows the new recovery code. It cannot replace the account's data unseen: the old data is erased (not overwritten with something the other devices would try to decrypt), and every other device is signed out with a message. **What stays possible:** someone who can read the user's email can still erase the synced copy this way (never read it, never change it while keeping it). The devices keep their data and can sign in again.
+
+### 2.9 The email after an erase (from the release after v18.59.3)
+So that an erase the owner did not do (§2.8: someone who can read the email; or a device with the sync key) does not go unnoticed, the worker writes to the account's address after `POST /sync/reset` and after `DELETE /sync/all`.
+
+- **The address.** Accounts are an HMAC of the address (§2.2), so the worker has none to write to. The client sends `email` in the request body. The worker uses it only if `HMAC(email.trim().toLowerCase())` is the account the session belongs to, sends to it, and does not store it anywhere. Any other address, or none (older clients), sends nothing.
+- **How it is sent.** The same way as the sign-in code (Resend, `RESEND_API_KEY`, from `RESEND_FROM`), no new provider or secret. Without `RESEND_API_KEY` (a development worker) nothing is sent.
+- **Limit.** Like the sign-in codes: at most 3 per address per 15 minutes. Past that the erase still happens; the email does not.
+- **What it says.** Plain text, subject `Your Vex Sync data was erased`: that the synced data was erased (and, for `/sync/reset`, the account started over with a new recovery code), the time in UTC to the minute, and the device, as `a device named "<deviceName>"` (control and line-break characters folded to spaces, at most 60 characters) or `a device` when it has no name. Then what to do if it was not them: secure the email account; on one of their own devices open Vex, Settings › Vex Sync, and sign in again with the address (after a reset Vex finds an account they have no recovery code for, and "I lost my recovery code: start over" erases it and uploads that device's data under a new recovery code; after a wipe Vex starts a new account); join the other devices with the new recovery code. **It never contains synced data, keys, codes, tokens or device ids.**
+- **The reply.** The erase is done before the email is tried, and a failed email does not undo it. The reply says what happened to the email in `notice`: `"sent"`, `"no-address"` (no or wrong address), `"not-configured"` (no `RESEND_API_KEY`), `"rate-limited"`, or `"failed"` (Resend refused or did not answer; also in the worker log). A client MAY show it; the desktop does not.
 
 ---
 
@@ -642,7 +655,7 @@ A device with no local data can just adopt the cloud document.
 15. On **401**: stop using the token, sign out locally, keep the user's data, and do not call DELETE (the session is already gone). Prompt the user to sign in again.
 16. On **403** "This device has not synced yet": the session is pending. Pull or push first, after which device list and handoff calls work.
 17. On **503**: the server is misconfigured. Show that, and keep the session.
-18. A client MUST `DELETE /sync/devices/<own id>` when it abandons a sign-in, including after a failed decrypt, because the pull already registered the device. It SHOULD also do this on user sign-out.
+18. A client MUST `DELETE /sync/devices/<own id>` when it abandons a sign-in, including after a failed decrypt, because the pull already registered the device. It SHOULD also do this on user sign-out.
 
 **Sources the phone must not write**
 

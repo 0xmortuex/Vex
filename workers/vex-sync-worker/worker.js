@@ -151,6 +151,26 @@ async function forgetSessions(env, emailHash, keep) {
   else await env.VEX_AUTH_KV.delete(`sessions:${emailHash}`);
 }
 
+// Every email the worker sends goes out here, through Resend, as the sign-in
+// code always has. `content` is { html } or { text }.
+async function sendEmail(env, to, subject, content) {
+  const response = await fetch('https://api.resend.com/emails', {
+    signal: AbortSignal.timeout(10000),
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM || 'Vex Sync <onboarding@resend.dev>',
+      to,
+      subject,
+      ...content
+    })
+  });
+  if (!response.ok) throw new Error('Email delivery failed');
+}
+
 async function sendMagicCode(email, code, env) {
   // Never log the code itself — Worker logs are retained by Cloudflare and a
   // logged code is a logged credential. Log only that one was issued.
@@ -158,17 +178,7 @@ async function sendMagicCode(email, code, env) {
 
   if (env.RESEND_API_KEY) {
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        signal: AbortSignal.timeout(10000),
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: env.RESEND_FROM || 'Vex Sync <onboarding@resend.dev>',
-          to: email,
-          subject: `Your Vex Sync code: ${code}`,
+      await sendEmail(env, email, `Your Vex Sync code: ${code}`, {
           html: `
             <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 500px; padding: 32px; background: #0a0c10; color: #e5e9f0;">
               <h1 style="color: #6366f1; margin: 0 0 16px;">Vex Sync</h1>
@@ -177,9 +187,7 @@ async function sendMagicCode(email, code, env) {
               <p style="color: #6b7482; font-size: 13px;">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
             </div>
           `
-        })
       });
-      if (!response.ok) throw new Error('Email delivery failed');
     } catch (err) {
       throw Object.assign(new Error('Could not deliver verification email'), { status: 502 });
     }
@@ -689,14 +697,14 @@ async function handleSync(request, env, account, path) {
   // session, which then pushes a new account. Every other device is signed
   // out (401), so nothing is replaced unseen.
   if (path === '/sync/reset' && request.method === 'POST') {
-    const { confirm } = await boundedJson(request);
+    const { confirm, email } = await boundedJson(request);
     if (confirm !== RESET_CONFIRM) return json({ error: `Send {"confirm":"${RESET_CONFIRM}"} to erase the account`, code: 'confirm-required' }, 400);
     const age = Date.now() - Date.parse(session.createdAt);
     if (!session.pending || !(age >= 0 && age <= RESET_WINDOW_MS)) return json({ error: 'Starting over needs a sign-in code from the last 10 minutes: send a new code and try again', code: 'fresh-sign-in-required' }, 403);
     await env.forgetElsewhere();
     await wipeAccount(env, account, token);
     console.log('[vex-sync] account erased by a fresh sign-in without the key');
-    return json({ ok: true });
+    return json({ ok: true, notice: await sendErasedNotice(env, account, email, 'reset', session) });
   }
 
   if (path === '/sync/devices' && request.method === 'GET') {
@@ -719,6 +727,8 @@ async function handleSync(request, env, account, path) {
   }
 
   if (path === '/sync/all' && request.method === 'DELETE') {
+    // The address for the email afterwards (§2.9); older clients send no body.
+    const { email } = request.body ? await boundedJson(request, 4096) : {};
     const proof = await checkProof(request, env, account, session, token, 'wipe', '');
     if (proof.refused) return proof.refused;
     // A pending session may wipe only with a proof.
@@ -727,7 +737,7 @@ async function handleSync(request, env, account, path) {
     // account as it was rather than half wiped.
     await env.forgetElsewhere();
     await wipeAccount(env, account);
-    return json({ ok: true });
+    return json({ ok: true, notice: await sendErasedNotice(env, account, email, 'wipe', session) });
   }
 
   // ====== DROP — cross-device tab handoff ("Send to Phone/Desktop") ======
@@ -772,6 +782,72 @@ async function handleSync(request, env, account, path) {
   }
 
   return json({ error: 'Not found' }, 404);
+}
+
+// ====== The email after an account is erased (SYNC_PROTOCOL.md §2.9) ======
+// POST /sync/reset and DELETE /sync/all tell the account's address, so an
+// erase the owner did not do does not go unnoticed. The worker keeps no
+// address (accounts are an HMAC of it): the client sends it with the request,
+// and it is used only if its HMAC is this account, and never stored. Limited
+// like the sign-in codes: three per address in 15 minutes. Plain text, with
+// no data, keys or codes in it.
+const NOTICE_LIMIT = 3;
+const NOTICE_WINDOW = 900;
+
+function noticeDevice(name) {
+  const clean = String(name || '').replace(/[\x00-\x1f\x7f\p{Zl}\p{Zp}]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return !clean || clean === 'Unknown device' ? 'a device' : `a device named "${clean}"`;
+}
+
+function erasedNotice(kind, atIso, deviceName) {
+  const when = atIso.slice(0, 16).replace('T', ' ') + ' UTC';
+  const device = noticeDevice(deviceName);
+  const signInAgain = 'On one of your own devices, open Vex, go to Settings › Vex Sync and sign in again with this address. '
+    + (kind === 'reset'
+      ? 'Vex will find an account you have no recovery code for: choose "I lost my recovery code: start over". That erases what was put there and uploads this device\'s data with a new recovery code.'
+      : 'Vex starts a new account with a new recovery code and uploads this device\'s data. If it says the account already has data you have no recovery code for, choose "I lost my recovery code: start over".');
+  const what = kind === 'reset'
+    ? `At ${when}, ${device} signed in to Vex Sync with a code sent to this address, erased everything synced to this account and started the account over with a new recovery code. Every other device was signed out of sync.`
+    : `At ${when}, ${device}, signed in to this account with its sync key, erased everything synced to it. Every device was signed out of sync.`;
+  const how = kind === 'reset'
+    ? 'Secure this email account first (change its password): starting over needs a code sent to this address, so whoever did it could read your email.'
+    : 'Check who can use your devices, and keep your recovery code private: erasing needs a device that has your sync key. Secure this email account too (change its password), since signing in needs a code sent to it.';
+  return [
+    'Your Vex Sync data was erased.',
+    '',
+    what + ' What is on each device was not touched.',
+    '',
+    'If this was you, there is nothing to do' + (kind === 'reset' ? ': join your other devices with the new recovery code.' : '.'),
+    '',
+    'If it was not you:',
+    '1. ' + how,
+    '2. ' + signInAgain,
+    '3. Join your other devices with the new recovery code.',
+    '',
+    'The erased data was end-to-end encrypted: it could not be read without your recovery code.',
+    '',
+    '— Vex Sync',
+  ].join('\n');
+}
+
+// -> 'sent' | 'no-address' | 'not-configured' | 'rate-limited' | 'failed'.
+// Never throws: the account is already erased when this runs.
+async function sendErasedNotice(env, account, email, kind, session) {
+  if (typeof email !== 'string' || !email.includes('@') || email.length > 320) return 'no-address';
+  if (await hashEmail(email, env.EMAIL_HASH_SECRET) !== account) return 'no-address';
+  if (!env.RESEND_API_KEY) return 'not-configured';
+  if (await rateLimited(env, `notice:email:${account}`, NOTICE_LIMIT, NOTICE_WINDOW)) {
+    console.warn('[vex-sync] erase notice not sent: rate limited');
+    return 'rate-limited';
+  }
+  try {
+    await sendEmail(env, email.trim(), 'Your Vex Sync data was erased', { text: erasedNotice(kind, new Date().toISOString(), session.deviceName) });
+    console.log('[vex-sync] erase notice sent');
+    return 'sent';
+  } catch (err) {
+    console.error('[vex-sync] erase notice could not be sent:', err.message);
+    return 'failed';
+  }
 }
 
 // `keepToken`: the one session that stays (POST /sync/reset).

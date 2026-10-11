@@ -526,7 +526,8 @@ const SyncEngine = (() => {
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.sessionToken}` },
-      body: JSON.stringify({ confirm: RESET_CONFIRM })
+      // The address, for the email the server sends afterwards (SYNC_PROTOCOL.md §2.9).
+      body: JSON.stringify({ confirm: RESET_CONFIRM, email })
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
@@ -1505,7 +1506,9 @@ const SyncEngine = (() => {
       const proofed = await proofHeaders('wipe', '');
       r = proofed.refused || await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/all`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${state.sessionToken}`, ...proofed.headers }
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}`, ...proofed.headers },
+        // The address, for the email the server sends afterwards (SYNC_PROTOCOL.md §2.9).
+        body: JSON.stringify({ email: state.email })
       });
     } catch (err) { return { ok: false, reason: err.message || String(err) }; }
     if (!r.ok) {

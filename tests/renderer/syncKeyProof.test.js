@@ -156,6 +156,37 @@ describe('starting over without the recovery code', () => {
   });
 });
 
+// The worker emails the address after an erase (SYNC_PROTOCOL.md §2.9); it
+// keeps no address, so the desktop sends the one it signed in with.
+describe('the email after the account is erased', () => {
+  it('starting over and wiping both send the address, and the worker writes to it', async () => {
+    const { system } = workerStandIn();
+    const EMAIL = 'notice@sy3.test';
+    const a = freshEngine();
+    await a.verifyCode(EMAIL, (await a.requestCode(EMAIL)).devCode, 'Desk A');
+    await a.signOut(false);
+    const b = freshEngine();
+    expect((await b.verifyCode(EMAIL, (await b.requestCode(EMAIL)).devCode, 'Laptop B')).needsRecoveryCode).toBe(true);
+
+    const sent = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url, init) => { sent.push({ url: String(url), body: JSON.parse(init.body) }); return new Response('{}', { status: 200 }); });
+    system.env.RESEND_API_KEY = 're_test';
+    try {
+      expect((await b.startOver()).ok).toBe(true);
+      expect(sent.map(m => [m.url, m.body.to, m.body.subject])).toEqual([['https://api.resend.com/emails', EMAIL, 'Your Vex Sync data was erased']]);
+      expect(sent[0].body.text).toContain('a device named "Laptop B" signed in to Vex Sync with a code sent to this address');
+      expect(await b.wipeAllCloudData()).toEqual({ ok: true, signedOut: true });
+      expect(sent).toHaveLength(2);
+      expect(sent[1].body.to).toBe(EMAIL);
+      expect(sent[1].body.text).toContain('signed in to this account with its sync key, erased everything synced to it');
+    } finally {
+      globalThis.fetch = realFetch;
+      delete system.env.RESEND_API_KEY;
+    }
+  });
+});
+
 describe('a sync server from before the key check', () => {
   it('the desktop still syncs with it, without proofs, and says the account is not protected', async () => {
     const system = syncSystem({ module: previousWorker });
