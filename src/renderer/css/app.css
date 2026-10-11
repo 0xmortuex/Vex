@@ -688,6 +688,18 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   background: var(--vex-accent);
 }
 
+/* Windows contrast themes (forced colours) drop every background, the knob's
+   included, so on and off looked the same (cat-themes TH7). Here the switch
+   draws itself in the system's own colours: an outlined track with a
+   ButtonText knob when off, a Highlight track with a HighlightText knob on. */
+@media (forced-colors: active) {
+  .toggle-slider { forced-color-adjust: none; background: Canvas; border: 1px solid ButtonText; }
+  .toggle-slider::before { background: ButtonText; }
+  .toggle input:checked + .toggle-slider { background: Highlight; border-color: Highlight; }
+  .toggle input:checked + .toggle-slider::before { background: HighlightText; }
+  .toggle input:focus-visible + .toggle-slider { outline: 2px solid Highlight; outline-offset: 2px; }
+}
+
 .setting-info {
   color: var(--text);
   font-size: 14px;
