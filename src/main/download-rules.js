@@ -31,11 +31,22 @@ function hostOf(url) {
   try { return new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
 }
 
+// A rule's site as a bare host: "github.com", "https://www.github.com/x" and
+// "github.com/" all give "github.com".
+function siteHost(site) {
+  const s = clean(site).toLowerCase();
+  if (!s) return '';
+  const viaUrl = hostOf(/^[a-z][a-z0-9+.-]*:\/\//.test(s) ? s : 'https://' + s);
+  return viaUrl || s.replace(/^www\./, '');
+}
+
 function matches(rule, { filename, url }) {
   const ext = path.extname(String(filename || '')).replace(/^\./, '').toLowerCase();
   const host = hostOf(url);
-  const wantExt = clean(rule.ext).toLowerCase().split(/[,\s]+/).filter(Boolean);
-  const wantSite = clean(rule.site).toLowerCase().replace(/^www\./, '');
+  // ".pdf" and a site typed as an address ("https://github.com/") are read
+  // as "pdf" and "github.com"; they used to never match.
+  const wantExt = clean(rule.ext).toLowerCase().split(/[,\s]+/).map(e => e.replace(/^\.+/, '')).filter(Boolean);
+  const wantSite = siteHost(rule.site);
   if (wantExt.length && !wantExt.includes(ext)) return false;
   if (wantSite && !(host === wantSite || host.endsWith('.' + wantSite))) return false;
   return !!(wantExt.length || wantSite);          // a rule matching everything is not a rule

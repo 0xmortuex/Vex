@@ -311,9 +311,12 @@ const DownloadsPanel = {
     if (!/^add$/i.test(String(answer).trim())) return list;
     const what = await vexPrompt({ title: 'Which downloads?', message: 'A kind of file, a site, or both.\n\nExamples: “pdf”, “github.com”, “pdf from github.com”.', placeholder: 'pdf from github.com', okLabel: 'Next' });
     if (what == null) return list;
-    const m = /^\s*([a-z0-9,\s]*?)\s*(?:from\s+(\S+))?\s*$/i.exec(String(what));
-    const ext = (m && m[1] || '').trim().replace(/^\./, '');
-    const site = (m && m[2] || '').trim();
+    // ".pdf" and "from https://github.com/" are how people write these; the
+    // dot used to fail the whole answer and the address never matched a host.
+    const m = /^\s*([a-z0-9.,\s]*?)\s*(?:from\s+(\S+))?\s*$/i.exec(String(what));
+    const ext = (m && m[1] || '').split(/[,\s]+/).map(e => e.replace(/^\.+/, '')).filter(Boolean).join(', ');
+    let site = (m && m[2] || '').trim();
+    if (site) { try { site = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(site) ? site : 'https://' + site).hostname.replace(/^www\./i, '').toLowerCase(); } catch { window.showToast?.('“' + site + '” is not a site', 'error'); return list; } }
     if (!ext && !site) { window.showToast?.('Say a kind of file, a site, or both', 'error'); return list; }
     const folder = await vexPrompt({ title: 'Into which folder?', message: 'Under your Downloads folder. “Invoices”, or “Work/Invoices”.', placeholder: 'Invoices', okLabel: 'Next' });
     if (folder == null) return list;

@@ -290,3 +290,16 @@ describe('a finished download whose file has been deleted', () => {
     expect(row('n1').querySelector('[data-action="open-file"]')).not.toBeNull();
   });
 });
+
+describe('the sorting-rule editor (RD8)', () => {
+  it('accepts ".pdf from https://github.com/" as pdf files from github.com', async () => {
+    const answers = ['add', '.pdf from https://github.com/', 'Invoices', ''];
+    globalThis.vexPrompt = vi.fn(async () => answers.shift());
+    globalThis.vexId = (p) => p + '1';
+    window.vex.downloadsSetRules = vi.fn(async () => ({ ok: true }));
+    const list = await DownloadsPanel.editRules();
+    expect(window.showToast).not.toHaveBeenCalledWith('Say a kind of file, a site, or both', 'error');
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ ext: 'pdf', site: 'github.com', folder: 'Invoices' });
+  });
+});
