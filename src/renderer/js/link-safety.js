@@ -88,8 +88,14 @@ const LinkSafety = {
     if (!h || this.GUARDED.includes(h)) return null;
 
     // 1. Not even in this alphabet. A punycode host that decodes to something
-    //    a person reads as Latin is the classic one.
-    if (/(^|\.)xn--/.test(h)) return { host: h, looksLike: null, why: 'This address is written in another alphabet, which can be made to look exactly like a familiar name.' };
+    //    a person reads as Latin is the classic one. Only that one: every
+    //    xn-- name was warned about, münchen.de and пример.рф too (found
+    //    2026-10-10). js/idn.js decides, as Chrome does.
+    if (/(^|\.)xn--/.test(h)) {
+      const Idn = (typeof window !== 'undefined' && window.VexIdn) || require('./idn.js');
+      const why = Idn.suspicious(h);
+      if (why) return { host: h, looksLike: null, why };
+    }
 
     const bare = h.replace(/\.[a-z.]+$/, '');            // drop the ending
     for (const guarded of this.GUARDED) {
@@ -186,6 +192,10 @@ LinkSafety.warnOnce = function (warn, webview) {
     try { if (webview && webview.canGoBack && webview.canGoBack()) webview.goBack(); else if (typeof TabManager !== 'undefined') TabManager.closeTab(TabManager.activeTabId); } catch {}
   });
   bar.querySelectorAll('.lw-btn')[1].addEventListener('click', () => bar.remove());
+  // Over the page, not the toolbar: at a fixed 44px it covered the address
+  // bar in the Firefox look and took its clicks (found 2026-10-10).
+  const area = document.getElementById('webviews-container') || document.getElementById('content-area');
+  if (area) bar.style.top = Math.round(area.getBoundingClientRect().top + 8) + 'px';
   document.body.appendChild(bar);
   VexProblems?.note('Link safety', 'Visited a lookalike address: ' + warn.host, warn.why);
   return true;

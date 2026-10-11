@@ -970,7 +970,11 @@ const TabManager = {
     // A name and password before the host are left out, as in Chrome:
     // http://accounts.google.com@127.0.0.1/ read as a Google address while
     // the page came from 127.0.0.1 (found 2026-10-10).
-    return String(shown || '').replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, '$1');
+    const text = String(shown || '').replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, '$1');
+    // A name in another alphabet is shown in it (münchen.de, not
+    // xn--mnchen-3ya.de), unless it is built to deceive (js/idn.js).
+    if (typeof VexIdn === 'undefined') return text;
+    return text.replace(/^(https?:\/\/)([^/?#:]+)/i, (m, scheme, host) => scheme + VexIdn.display(host));
   },
 
   // While the active tab's page loads, Reload is Stop, as in every browser.
