@@ -874,6 +874,10 @@
     html[data-user-theme] .engine-glyph {
       background: color-mix(in srgb, var(--engine-color, #4285F4) 60%, #000000);
     }
+    /* A search engine of your own has no brand colour: its letter is on the
+       theme's accent in the theme's text colour for the accent (--on-primary,
+       4.5:1 or better in every theme; white on the dark accents that have none). */
+    html body .engine-glyph.engine-glyph-own { background: var(--vex-accent); color: var(--on-primary, #fff); }
 
     /* Oxford editorial typography on the start page — Fraunces display serif. */
     [data-theme="oxford"] .clock,
@@ -2682,14 +2686,28 @@
         ecosia:     { glyph: 'E', color: '#2e8b57' },
       };
       const ENGINES = {};
-      for (const id of Object.keys(TA.SEARCH_ENGINES)) ENGINES[id] = { ...TA.SEARCH_ENGINES[id], ...ENGINE_LOOK[id] };
+      // A search engine of your own (Settings › General › Add your own…):
+      // its first letter, on the theme's accent in the theme's own text
+      // colour for it (.engine-glyph-own), which every theme holds to 4.5:1.
+      function buildEngines() {
+        for (const id of Object.keys(ENGINES)) delete ENGINES[id];
+        for (const id of Object.keys(TA.SEARCH_ENGINES)) ENGINES[id] = { ...TA.SEARCH_ENGINES[id], ...ENGINE_LOOK[id] };
+        const own = TA.customEngine();
+        if (own) ENGINES[TA.CUSTOM_ID] = { ...own, glyph: ((own.name.match(/[\p{L}\p{N}]/u) || ['?'])[0]).toUpperCase(), own: true };
+      }
+      buildEngines();
       let engineId = TA.currentEngine();
       const engineBtn = document.getElementById('engine-btn');
       const engineGlyph = document.getElementById('engine-glyph');
       const engineMenu = document.getElementById('engine-menu');
       function applyEngineUI() {
         const e = ENGINES[engineId];
-        if (engineGlyph) { engineGlyph.textContent = e.glyph; engineGlyph.style.setProperty('--engine-color', e.color); }
+        if (engineGlyph) {
+          engineGlyph.textContent = e.glyph;
+          engineGlyph.classList.toggle('engine-glyph-own', !!e.own);
+          if (e.own) engineGlyph.style.removeProperty('--engine-color');
+          else engineGlyph.style.setProperty('--engine-color', e.color);
+        }
         if (input) input.placeholder = 'Search with ' + e.name + '…';
         if (engineBtn) engineBtn.title = 'Search engine: ' + e.name;
       }
@@ -2698,8 +2716,9 @@
         engineMenu.innerHTML = Object.keys(ENGINES).map(id => {
           const e = ENGINES[id];
           return '<div class="engine-opt' + (id === engineId ? ' active' : '') + '" data-engine="' + id + '">' +
-            '<span class="engine-glyph" style="--engine-color:' + e.color + '">' + e.glyph + '</span>' +
-            '<span>' + e.name + '</span>' +
+            (e.own ? '<span class="engine-glyph engine-glyph-own">' + esc(e.glyph) + '</span>'
+              : '<span class="engine-glyph" style="--engine-color:' + e.color + '">' + e.glyph + '</span>') +
+            '<span>' + esc(e.name) + '</span>' +
             '<svg class="eo-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>';
         }).join('');
         engineMenu.querySelectorAll('.engine-opt').forEach(opt => {
@@ -2722,6 +2741,21 @@
         engineMenu.classList.toggle('hidden');
       });
       document.addEventListener('click', (ev) => { if (engineMenu && !engineMenu.contains(ev.target) && ev.target !== engineBtn && !engineBtn?.contains(ev.target)) engineMenu.classList.add('hidden'); });
+      // Vex hands this page the engine chosen now, and one of your own, when
+      // it loads and when the choice changes (js/webview.js,
+      // js/search-engine-custom.js): this page keeps its own storage.
+      window.__vexSetEngine = (id, own) => {
+        try {
+          if (own) localStorage.setItem(TA.CUSTOM_KEY, JSON.stringify({ name: own.name, q: own.q }));
+          else localStorage.removeItem(TA.CUSTOM_KEY);
+          localStorage.setItem('vex.searchEngine', String(id));
+        } catch (err) { console.error('[New Tab] could not keep the search engine:', err && err.message); }
+        buildEngines();
+        engineId = TA.currentEngine();
+        applyEngineUI();
+        if (engineMenu && !engineMenu.classList.contains('hidden')) buildEngineMenu();
+        return true;
+      };
       applyEngineUI();
 
       const WEB_DEBOUNCE_MS = 150;

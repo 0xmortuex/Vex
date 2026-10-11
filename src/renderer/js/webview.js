@@ -320,6 +320,10 @@ const WebviewManager = {
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
           // And the font Vex is wearing (js/fonts.js), for the same reason.
           try { window.VexFonts?.paintStartPages(); } catch (err) { console.error('[fonts] start page failed:', err); }
+          // The search engine chosen now, a search engine of your own too
+          // (js/search-engine-custom.js): the page's own copy can be stale.
+          webview.executeJavaScript(VexTypedAddress.startPageEngineJs())
+            .catch(err => console.error('[Search] New Tab search engine at load failed:', err && err.message));
         }
       } catch {}
     });
@@ -615,7 +619,7 @@ const WebviewManager = {
           } else if (cmd.type === 'set-engine' && typeof cmd.id === 'string') {
             // The New Tab page's engine menu changed only its own storage, and
             // the address bar kept the old engine (found 2026-09-29).
-            if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.SEARCH_ENGINES[cmd.id] && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
+            if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.engineOf(cmd.id) === cmd.id && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
           } else if (cmd.type === 'exit-reading') {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           } else if (cmd.type === 'start-tiles') {

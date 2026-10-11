@@ -452,22 +452,31 @@ function vexOwnTextFocused(doc) {
 
   // Settings › General › Search keywords (js/search-keywords-ui.js).
   SearchKeywordsUI.init();
+  // Settings › General › Default search engine › Add your own….
+  CustomSearchEngineUI.init();
 
   // An engine chosen anywhere else (setup wizard, New Tab page) reaches the
   // Settings list too (Onboarding._setStart announces it).
   window.addEventListener('vex-search-engine-changed', (e) => {
     const id = e.detail && e.detail.id;
-    if (!id || !VexTypedAddress.SEARCH_ENGINES[id] || settings.searchEngine === id) return;
+    if (!id || VexTypedAddress.engineOf(id) !== id || settings.searchEngine === id) return;
     settings.searchEngine = id;
     searchEngineSelect.value = id;
     VexStorage.saveSettings(settings);
   });
 
   searchEngineSelect.addEventListener('change', () => {
+    // "Add your own…" (js/search-engine-custom.js) asks first; it chooses
+    // the new engine here once it is saved.
+    if (searchEngineSelect.value === CustomSearchEngineUI.ADD) {
+      CustomSearchEngineUI.add(settings.searchEngine).catch(err => showToast(err.message, 'error'));
+      return;
+    }
     settings.searchEngine = searchEngineSelect.value;
     VexStorage.saveSettings(settings);
     // Mirror to the start page (separate session) so its search box matches.
     if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', searchEngineSelect.value);
+    CustomSearchEngineUI.pushStartPages();
   });
 
   // Search suggestions: main reads this from the main window's settings for
@@ -694,6 +703,8 @@ function vexOwnTextFocused(doc) {
     'vex.uiMode',
     // Settings › General › Workspaces: private and Tor tabs on a switch.
     'vex.workspacePrivateTabs',
+    // Settings › General › Default search engine › Add your own….
+    'vex.customSearchEngine',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {

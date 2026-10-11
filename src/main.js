@@ -7001,7 +7001,11 @@ ipcMain.handle('web-suggest', async (event, query) => {
   const text = (query == null ? '' : String(query)).trim();
   if (!text || !_suggestAllowedFrom(event.sender)) return [];
   if (!_typedAddress.suggestionsOn(_readPersistString(_typedAddress.SUGGEST_KEY, 'on'))) return [];
-  const engine = _typedAddress.engineOf(_readPersistString('vex.searchEngine', 'google'));
+  const chosen = _readPersistString('vex.searchEngine', 'google');
+  // A search engine of your own has no suggestion address: nothing is asked
+  // (engineOf here, with no window storage, would have answered Google).
+  if (chosen === _typedAddress.CUSTOM_ID) return [];
+  const engine = _typedAddress.engineOf(chosen);
   const url = _typedAddress.suggestUrl(text, engine);
   if (!url) return [];
   const q = engine + '\n' + text;

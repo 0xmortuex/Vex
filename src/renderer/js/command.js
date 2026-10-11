@@ -717,7 +717,7 @@ const CommandBar = {
       // Search action: "@yt cats" on YouTube, as in the address bar. It used
       // to open a new tab beside the empty New Tab you were in.
       const searched = where && where.kind === 'keyword' ? where
-        : { url: _typedAddress().searchUrl(query), name: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name, query: query.trim() };
+        : { url: _typedAddress().searchUrl(query), name: _typedAddress().engineInfo().name, query: query.trim() };
       this.results.push({
         id: 'search',
         label: `Search "${searched.query}"`,

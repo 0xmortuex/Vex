@@ -424,7 +424,7 @@ const SmartSearchbar = (() => {
     if (!q || !_webAllowed()) { _webResults = []; return; }
     const TA = window.VexTypedAddress;
     const engineId = TA.currentEngine();
-    const engine = TA.SEARCH_ENGINES[engineId].name;
+    const engine = TA.engineInfo(engineId).name;
     const key = engineId + '\n' + q;
     // Instant cache hit — no debounce, no IPC, no network.
     const cached = _cacheGet(key);

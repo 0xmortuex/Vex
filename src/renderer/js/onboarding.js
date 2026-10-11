@@ -77,7 +77,7 @@ const Onboarding = {
       const TA = window.VexTypedAddress;
       const engine = TA.currentEngine();
       if (engine !== 'google' && TA.suggestionsOn(localStorage.getItem(TA.SUGGEST_KEY))) {
-        told = 'Search suggestions now come from ' + TA.SEARCH_ENGINES[engine].name + ', the search engine you chose, instead of Google. Settings › General can turn them off.';
+        told = 'Search suggestions now come from ' + TA.engineInfo(engine).name + ', the search engine you chose, instead of Google. Settings › General can turn them off.';
       }
     }
     localStorage.setItem(this.PRIVACY_DEFAULTS_KEY, '1');
@@ -1240,7 +1240,7 @@ const Onboarding = {
   // engine only; weather off until a city is set; SponsorBlock off.
   PRIVACY_FIELDS() {
     const TA = window.VexTypedAddress;
-    const engine = TA.SEARCH_ENGINES[TA.currentEngine()].name;
+    const engine = TA.engineInfo().name;
     return [
       { key: 'suggest', label: 'Search suggestions', help: 'Suggestions as you type, from ' + engine + ' — only the search engine you already search with. Never from a private window.' },
       { key: 'weather', label: 'Weather on the New Tab page', help: 'Asks for your city, then gets its forecast from Open-Meteo. Nothing is looked up until you set one.' },

@@ -377,6 +377,14 @@
                 <option value="startpage">Startpage</option>
                 <option value="ecosia">Ecosia</option>
               </select>
+              <!-- A search engine of your own (js/search-engine-custom.js). -->
+              <div id="setting-search-own" class="setting-toggle-row" hidden>
+                <span style="min-width:0"><span data-own-name></span> <span data-own-url style="color:var(--text-muted);font-size:11px;overflow-wrap:anywhere"></span></span>
+                <span style="display:flex;gap:6px;flex:none">
+                  <button type="button" class="btn-secondary" data-own-edit>Edit</button>
+                  <button type="button" class="btn-secondary" data-own-remove>Remove</button>
+                </span>
+              </div>
               <!-- The same choice as the setup's language step (js/onboarding.js setLanguage). -->
               <div class="setting-row-label" style="margin-top:10px">Language · Dil</div>
               <select id="setting-language" aria-label="Language · Dil">
@@ -1677,6 +1685,7 @@
   <script src="js/url-bar-menu.js"></script>
   <script src="js/search-shortcuts.js"></script>
   <script src="js/search-keywords-ui.js"></script>
+  <script src="js/search-engine-custom.js"></script>
   <script src="js/tour.js"></script>
   <script src="js/feature-catalog.js"></script>
   <script src="js/discover.js"></script>
