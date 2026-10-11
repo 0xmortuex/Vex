@@ -55,6 +55,11 @@ describe('feed parsing', () => {
     expect(items).toHaveLength(1);
     expect(items[0].link).toBe('https://a.test/1');
   });
+
+  it('an Atom entry whose first link is rel="replies" opens the article, not the comments', () => {
+    const xml = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>F</title><entry><title>T</title><link rel="replies" href="https://e.com/p/1#comments"/><link href="https://e.com/p/1"/><updated>2026-01-01T00:00:00Z</updated></entry></feed>`;
+    expect(VexFeeds.parse(xml, '', 'https://e.com/feed')[0].link).toBe('https://e.com/p/1');
+  });
 });
 
 describe('fetching feeds', () => {

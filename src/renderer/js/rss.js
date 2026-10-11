@@ -57,7 +57,10 @@ const VexFeeds = {
     });
     // Atom
     doc.querySelectorAll('entry').forEach(it => {
-      const linkEl = it.querySelector('link[rel="alternate"]') || it.querySelector('link');
+      // Atom: rel="alternate" is the article; a link with no rel means the
+      // same. Only then the first link of any kind ("replies" is the comments).
+      const links = [...it.querySelectorAll('link')];
+      const linkEl = links.find(l => l.getAttribute('rel') === 'alternate') || links.find(l => !l.hasAttribute('rel')) || links[0];
       out.push({
         title: it.querySelector('title')?.textContent?.trim() || '(untitled)',
         link: abs(linkEl?.getAttribute('href') || ''),
