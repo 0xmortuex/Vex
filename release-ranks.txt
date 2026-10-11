@@ -45,3 +45,4 @@ cddf5d7 fix-small-some             # shutdowns and updates logged as crashes
 d32d27b fix-high-some              # Back/Forward lost on sleep, reopen and restart
 1b0cfc6 fix-mid-everyone           # link tabs opened at the far right
 883ad20 none                       # code moved for a test
+d3439be none                       # v18.59.3 version bump, never published (folded into the next release)
