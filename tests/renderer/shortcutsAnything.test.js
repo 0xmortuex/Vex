@@ -89,14 +89,14 @@ describe('a key for anything else', () => {
   });
 
   it('binds a command of your choosing, and the key runs it', () => {
-    expect(ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+1')).toBe(true);
-    press('Ctrl+Alt+1');
+    expect(ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+7')).toBe(true);
+    press('Ctrl+Alt+7');
     expect(ran).toEqual(['zap']);
     expect(ShortcutsRegistry.assignable().map(c => c.id)).not.toContain('zap');
   });
 
   it('shows up in the list under your own name for it, read from the command bar', () => {
-    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+1');
+    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+7');
     const row = ShortcutsRegistry.getAllShortcuts()['cmd:zap'];
     expect(row.label).toBe('Zap an element');
     expect(row.category).toBe('Your own');
@@ -113,20 +113,20 @@ describe('a key for anything else', () => {
   });
 
   it('refuses a command that is not in Vex', () => {
-    expect(ShortcutsRegistry.setShortcut('cmd:nonsense', 'Ctrl+Alt+1')).toEqual({ unknown: true });
+    expect(ShortcutsRegistry.setShortcut('cmd:nonsense', 'Ctrl+Alt+7')).toEqual({ unknown: true });
   });
 
   it('removing it takes the key away and offers the command again', () => {
-    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+1');
+    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+7');
     ShortcutsRegistry.removeShortcut('cmd:zap');
     expect(ShortcutsRegistry.getAllShortcuts()['cmd:zap']).toBeUndefined();
-    press('Ctrl+Alt+1');
+    press('Ctrl+Alt+7');
     expect(ran).toEqual([]);
     expect(ShortcutsRegistry.assignable().map(c => c.id)).toContain('zap');
   });
 
   it('one whose command has since gone says so rather than vanishing', () => {
-    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+1');
+    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+7');
     globalThis.CommandBar.commands = globalThis.CommandBar.commands.filter(c => c.id !== 'zap');
     const row = ShortcutsRegistry.getAllShortcuts()['cmd:zap'];
     expect(row.label).toMatch(/no longer in Vex/);
@@ -156,7 +156,7 @@ describe('the editor', () => {
   });
 
   it('your own shortcuts are listed with a way to take them off', () => {
-    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+1');
+    ShortcutsRegistry.setShortcut('cmd:zap', 'Ctrl+Alt+7');
     render();
     const remove = document.querySelector('[data-remove="cmd:zap"]');
     expect(remove).not.toBeNull();
@@ -168,7 +168,7 @@ describe('the editor', () => {
   it('pressing keys on a row in the adder binds that command', () => {
     render();
     document.querySelector('[data-add="zap"]').click();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, altKey: true, bubbles: true, cancelable: true }));
-    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+1');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '7', ctrlKey: true, altKey: true, bubbles: true, cancelable: true }));
+    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+7');
   });
 });

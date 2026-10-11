@@ -249,8 +249,8 @@ describe('the shortcut editor while it records', () => {
     document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(window.vex.setShortcutCapturing).toHaveBeenLastCalledWith(false);
     document.querySelector('[data-add="zap"]').click();
-    key({ key: '1', ctrlKey: true, altKey: true });
-    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+1');
+    key({ key: '7', ctrlKey: true, altKey: true });
+    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+7');
     expect(window.vex.setShortcutCapturing).toHaveBeenLastCalledWith(false);
   });
 
