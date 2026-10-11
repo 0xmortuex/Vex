@@ -105,6 +105,18 @@ const WebviewManager = {
       container.classList.add('wv-loading');
     });
 
+    // Whether the page in front is an error page, for the padlock
+    // (js/site-panel.js): a new page clears it, a failed one sets it.
+    onWebview('did-start-navigation', (e) => {
+      if (e.isMainFrame === false || e.isSameDocument || e.isInPlace) return;
+      tab._loadFailed = null;
+    });
+    onWebview('did-fail-load', (e) => {
+      if (e.isMainFrame === false || e.errorCode === -3) return;
+      tab._loadFailed = { code: e.errorCode, url: e.validatedURL };
+      if (typeof SitePanel !== 'undefined' && TabManager.activeTabId === tab.id) SitePanel.refreshIcon();
+    });
+
     onWebview('did-stop-loading', () => {
       TabManager.updateTab(tab.id, { loading: false });
       container.classList.remove('wv-loading');

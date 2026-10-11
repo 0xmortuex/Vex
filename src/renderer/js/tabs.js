@@ -966,7 +966,11 @@ const TabManager = {
   // shows nothing.
   urlBarText(tab) {
     const shown = tab._typedUrl || tab.url;
-    return isStartPage(shown) ? '' : shown;
+    if (isStartPage(shown)) return '';
+    // A name and password before the host are left out, as in Chrome:
+    // http://accounts.google.com@127.0.0.1/ read as a Google address while
+    // the page came from 127.0.0.1 (found 2026-10-10).
+    return String(shown || '').replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, '$1');
   },
 
   // While the active tab's page loads, Reload is Stop, as in every browser.

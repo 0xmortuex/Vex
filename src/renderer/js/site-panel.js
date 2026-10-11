@@ -74,12 +74,17 @@ const SitePanel = {
     const ephemeral = !partition.startsWith('persist:');
     let pageId = null;
     try { pageId = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : null; } catch { pageId = null; }
+    // The page in front is an error page: the load failed, a certificate
+    // refused among the reasons (webview.js did-fail-load). The padlock said
+    // "secure" over it because the address began with https (found 2026-10-10).
+    const failed = !!(tab._loadFailed && tab._loadFailed.url === url);
     return {
+      failed,
       tab, wv, url, kind, web, partition, privateWindow, tor, torRoute, ephemeral, pageId,
       host: web ? u.hostname.replace(/^www\./, '').toLowerCase() : '',
       fullHost: web ? u.hostname.toLowerCase() : '',
       origin: web ? u.origin : '',
-      secure: !!u && u.protocol === 'https:',
+      secure: !!u && u.protocol === 'https:' && !failed,
       container: /^persist:container-/.test(partition) ? partition.slice('persist:container-'.length) : null,
       proxyRoute: /^persist:route-proxy-/.test(partition),
       // Whether a choice made here may be kept for the site.
@@ -105,6 +110,7 @@ const SitePanel = {
   _iconFor(c) {
     if (!c || c.kind === 'start' || c.kind === 'internal') return { icon: 'globe', state: 'internal', label: 'Vex page — site information' };
     if (c.kind === 'file') return { icon: 'file', state: 'file', label: 'Local file — site information' };
+    if (c.failed) return { icon: 'warning', state: 'failed', label: 'This page did not load — site information and settings for ' + c.host };
     if (c.secure) return { icon: 'lock', state: 'secure', label: 'Connection is secure — site information and settings for ' + c.host };
     return { icon: 'unlock', state: 'insecure', label: 'Not secure — site information and settings for ' + c.host };
   },
