@@ -72,7 +72,9 @@ describe('main.js', () => {
   it('judges by the input the page got, never by what the page says', () => {
     expect(main).toMatch(/lastGestureAt: \(id\) => _lastGestureAt\.get\(id\)/);
     expect(main).not.toMatch(/popup:activation|_popupActivated/);
-    expect(read('src/preload-webview.js')).not.toMatch(/vexPopupActivation|popup:activation|userActivation\.isActive/);
+    // The pop-up report is gone. (The save-password card still reads
+    // userActivation, in the isolated world where a page cannot redefine it.)
+    expect(read('src/preload-webview.js')).not.toMatch(/vexPopupActivation|popup:activation/);
     expect(read('src/main/ipc-policy.js')).not.toMatch(/popup:activation/);
     expect(read('src/main/ipc-schemas.js')).not.toMatch(/popup:activation/);
   });
