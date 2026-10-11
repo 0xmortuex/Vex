@@ -48,11 +48,16 @@ const VexJobs = {
     }
   },
 
-  // The reason went away: every owed job runs once, now.
+  // The reason went away: every owed job runs once, now — and so does one
+  // that fell due while held (_arm sets no timer for those, so tick() never
+  // got to mark it owed).
   resume() {
+    const now = Date.now();
     for (const job of this._jobs.values()) {
-      if (!job.owed || this.heldBecause(job.when)) continue;
-      job.next = Date.now() + job.ms;
+      if (this.heldBecause(job.when)) continue;
+      if (!job.owed && job.next > now) continue;
+      if (!job.owed) job.held++;
+      job.next = now + job.ms;
       this._run(job);
     }
     this._arm();
@@ -84,11 +89,18 @@ const VexJobs = {
   // The jobs run every half-minute or more, so a 1 s tick woke Vex sixty
   // times a minute to find nothing due. TICK_MS stays the shortest wait, so
   // jobs due together still run together.
+  // A held job does not count: it cannot run until the game ends or the
+  // window shows again, and both call resume(). Counting it woke Vex every
+  // second through a whole game just to hold the zoom indicator again.
   _arm() {
     if (this._tick) { clearTimeout(this._tick); this._tick = null; }
     if (!this._jobs.size) return;
     let next = Infinity;
-    for (const job of this._jobs.values()) if (job.next < next) next = job.next;
+    for (const job of this._jobs.values()) {
+      if (this.heldBecause(job.when)) continue;
+      if (job.next < next) next = job.next;
+    }
+    if (next === Infinity) return;
     const wait = Math.min(Math.max(this.TICK_MS, next - Date.now()), 2147483647);
     this._tick = setTimeout(() => { this._tick = null; this.tick(); this._arm(); }, wait);
   },
