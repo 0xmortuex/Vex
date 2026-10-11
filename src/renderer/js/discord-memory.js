@@ -63,14 +63,17 @@ const DiscordMemory = {
   mode() { return localStorage.getItem(this.MODE_KEY) === 'tab' ? 'tab' : 'panel'; },
   setMode(mode) {
     if (mode !== 'panel' && mode !== 'tab') throw new Error('Discord opens as a panel or a tab');
-    localStorage.setItem(this.MODE_KEY, mode);
     const sb = this._sidebar();
-    // Leaving the panel behind frees it at once.
+    // Leaving the panel behind frees it at once — but not in the middle of a
+    // call: sleepPanel refuses with the reason, and the choice is not saved.
     if (mode === 'tab' && sb && sb.panelWebviews && sb.panelWebviews.discord) {
+      const busy = typeof sb.panelBusy === 'function' ? sb.panelBusy('discord') : '';
+      if (busy) throw new Error('Discord is in use — ' + busy + '. Switch to a tab after the call.');
       if (sb.activePanel === 'discord') sb.hideActivePanel();
       if (sb.sidePanel === 'discord') sb.closeBeside();
       sb.sleepPanel('discord');
     }
+    localStorage.setItem(this.MODE_KEY, mode);
     return mode;
   },
   discordTab() {

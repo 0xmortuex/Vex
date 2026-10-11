@@ -950,13 +950,25 @@ const SidebarManager = {
     return back;
   },
 
-  sleepPanel(name) {
+  // A panel in a call (microphone, camera, screen share, or making a sound)
+  // is refused with the reason: sleeping it ends the call. Only a caller that
+  // has asked the user first passes { evenIfBusy: true }.
+  sleepPanel(name, { evenIfBusy = false } = {}) {
     const wv = this.panelWebviews[name];
     if (!wv) throw new Error(this.panelLabel(name) + ' is not loaded');
     if (name === this.activePanel || name === this.sidePanel) throw new Error(this.panelLabel(name) + ' is open — close it first');
+    const busy = this.panelBusy(name);
+    if (busy && !evenIfBusy) throw new Error(this.panelLabel(name) + ' is in use — ' + busy + '. Sleeping it would cut that off.');
     try { wv.remove(); } catch {}
     delete this.panelWebviews[name];
     document.querySelectorAll('.panel-navbar[data-panel="' + name + '"]').forEach(n => n.remove());
+    // Its page is gone, and with it the microphone, camera or screen share:
+    // the capture state used to stay set for ever, holding the badge and
+    // keeping the panel "busy" so no memory limit ever applied to it again.
+    const c = this.panelCapture[name];
+    if (c) for (const kind of ['mic', 'camera', 'screen']) if (c[kind]) this.setPanelCapturing(name, kind, false);
+    delete this.panelCapture[name];
+    document.querySelectorAll('.sidebar-icon[data-panel="' + name + '"] .icon-badge.discord-call').forEach(n => n.remove());
     this.sleptPanels[name] = Date.now();
     document.dispatchEvent(new CustomEvent('vex:panel-slept', { detail: { panel: name } }));
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Slept panel: ' + this.panelLabel(name) } }));
@@ -2261,10 +2273,11 @@ const SidebarManager = {
         });
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
-        // and an off switch (for people running Zapret).
-        const bypassOn = DiscordBypass.choice().mode !== 'off';
-        items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
-        if (bypassOn) {
+        // and an off switch (for people running Zapret). js/discord-bypass.js
+        // is loaded in the main window only.
+        const bypass = window.DiscordBypass;
+        if (bypass) items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
+        if (bypass && bypass.choice().mode !== 'off') {
           items.push({
             label: 'Turn bypass off (use Zapret)',
             action: async () => {
@@ -2275,7 +2288,7 @@ const SidebarManager = {
             }
           });
         }
-        items.push({ label: 'Bypass settings…', action: () => SettingsUI.openSection('discord-bypass-setting') });
+        if (bypass) items.push({ label: 'Bypass settings…', action: () => SettingsUI.openSection('discord-bypass-setting') });
       } else if (panelName === 'roblox') {
         // Roblox is blocked by the same ISP/DPI as Discord — share the bypass.
         const robloxOn = (localStorage.getItem('vex.robloxBypass') === 'on');
@@ -2313,8 +2326,20 @@ const SidebarManager = {
       if (this.panelWebviews[panelName] && panelName !== this.activePanel && panelName !== this.sidePanel) {
         items.push({
           label: 'Sleep panel (frees its memory)',
-          action: () => {
-            try { this.sleepPanel(panelName); window.showToast?.(this.panelLabel(panelName) + ' is asleep'); }
+          action: async () => {
+            // In a call: ask, because sleeping it hangs up.
+            const busy = this.panelBusy(panelName);
+            if (busy) {
+              const ok = await window.vexConfirm({
+                title: 'Sleep ' + this.panelLabel(panelName) + '?',
+                message: this.panelLabel(panelName) + ' is in use — ' + busy + '. Sleeping it ends that.',
+                okLabel: 'Sleep it anyway',
+                cancelLabel: 'Keep it awake',
+                danger: true,
+              });
+              if (!ok) return;
+            }
+            try { this.sleepPanel(panelName, { evenIfBusy: !!busy }); window.showToast?.(this.panelLabel(panelName) + ' is asleep'); }
             catch (err) { window.showToast?.(err.message, 'error'); }
           }
         });
