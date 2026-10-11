@@ -1,5 +1,83 @@
 # Changelog
 
+## v18.59.3 (2026-10-11) — Pop-ups blocked like Chrome, a password manager you can manage, sync that stays small, and extensions that work
+
+### Privacy and security
+- **Pop-ups are blocked like in Chrome.** A window a page opens without your click is blocked, "Pop-up blocked" shows in the address bar, and the site panel has "Allow for this site". Print windows, sign-in pop-ups and links you click still open.
+- **A saved password is filled only when you click into the sign-in field**, never as the page loads, so a script on the site cannot read it out of a form you never saw.
+- **A sign-in email code alone can no longer overwrite or erase your synced data.** Every upload and wipe now proves this device has your sync key, and Settings › Vex Sync says whether the account is locked to it.
+- **HTTPS-Only works in private windows, burner, New Identity and Tor tabs too.** A site with no secure connection shows a page with Go back or Continue instead of loading unencrypted, and a certificate error gets a page that explains it.
+- **A page that starts download after download with no click now asks first**, and a held file never lands in your download folder unless you allow it.
+- **Installing an extension that only shares a name with one you have asks "Replace X?"** and starts it fresh, instead of slipping into its place and reading its data.
+- **When a page goes full screen, Vex names the site** and says "press Esc to exit", so a page posing as your desktop or a sign-in window is caught.
+- The AI agent can no longer be pointed at this computer or your home network, always asks before it downloads, and private and Tor tabs are never sent to the AI by Organize Tabs.
+- With on-device AI chat on, a chat after a restart answers on this machine again instead of quietly going to the cloud.
+- A site asking for a HID device gets only the one you pick, and only in that tab's container. A web page can no longer read audio or video from your computer or local network.
+- More risky file kinds are stopped before opening (shortcuts, disk images, OneNote files, installer patches and the rest Chrome warns about), and an ordinary file like a film opens at once.
+- The lock is stronger: its PIN cannot be swapped while locked, wrong PINs are counted across restarts with a growing wait, and site notifications and authenticator changes wait until you unlock.
+- The address bar shows the real host of an address with a name before an @, and the padlock no longer says a failed page is secure.
+- Vex tells you by name when a device you have not seen before signs in to your sync account.
+- Export All Data no longer writes the lock PIN's hash or MCP tokens, problem reports leave out your worker names and home addresses, and a page can no longer fill Clipboard History with fake copies.
+
+### Passwords and sign-in
+- **Settings › Passwords can add, edit, show, copy, search and export your logins** (show and copy ask again first), and undo "Never save".
+- **Password Health can check your passwords against known breaches**, off until you turn it on. Only the first 5 characters of each password's hash leave your computer.
+- **The Authenticator can back up to a passphrase-locked file** and import Google Authenticator's transfer QR code in one go.
+- Two-step sign-ins (Google, Microsoft) are offered for saving, and a blocked passkey request shows a bar with Allow here.
+- Form Fill no longer puts your full name into Company or User name, and an emptied 2FA field gets the current code.
+
+### Tabs and the address bar
+- **Reload becomes Stop while a page loads**, and F5, Ctrl+F5, F6, Alt+D, Ctrl+PageUp/PageDown and Ctrl+Shift+PageUp/PageDown work as in other browsers.
+- **The address bar completes sites you visit** ("gith" goes to github.com) and ranks them by how often and how recently you went there. Shift+Delete removes a suggestion.
+- **A sentence typed in the address bar is searched** instead of being taken by a one-letter keyword ("a good book" no longer searches Amazon). Built-in site searches use "@w hotels" or the keyword and Tab, and Settings › General lists them and lets you add your own.
+- The address bar knows the real domain endings, so "lodash.debounce" is searched and "router/" opens. Addresses in other alphabets show as written.
+- **Opening a saved session adds its tabs beside yours** instead of closing them all, and a workspace switch keeps sleeping tabs asleep and no longer closes private and Tor tabs for good.
+- Split screen works on the pane you clicked into and comes back after a restart.
+- A "List all tabs" button at the end of the strip, Ctrl+S to save a page, Ctrl+Shift+Delete for Clear Browsing Data, a right-click menu on the address bar, and links or files dropped on the tab strip open there.
+- Duplicate, Reopen Closed Tab and links from panels put the tab next to where it belongs. Muted tabs stay muted.
+
+### Vex Sync
+- **Sync no longer grows until the server refuses it.** Deleted items are cleared once every device has them, and only recent history syncs.
+- **A sync never changes or closes a tab you have open.** Other devices' tabs are listed under History › Tabs from other devices.
+- **Changes reach your other devices in about 5 seconds** instead of two minutes.
+- **Choose what to sync**, one switch per kind of data. Name each device, see and undo sync conflicts, and your look, skin and fonts now sync too.
+
+### Settings and accessibility
+- **Choose your download folder**, or be asked where to save each file.
+- **A Language choice in Settings › General** switches between English and Türkçe at once, and Turkish now reaches every Settings heading, tooltip and setup step.
+- **Settings works from the keyboard and a screen reader**: focus rings, named controls, and dialogs that keep Tab inside.
+- The Settings search knows "dark mode", "homepage", "proxy" and more. The "Other" chip is gone, its sections moved where you would look.
+- The Stable update channel offers an update once you have been behind for two days. Before, it almost never did.
+- Import from another browser finds Opera, Vivaldi, Chromium, LibreWolf and more.
+
+### Themes
+- **Websites follow Vex's light or dark**, or Windows, or always light or dark (Settings › Appearance › Website appearance). A Reduce motion switch is there too.
+- **New theme: High Contrast Dark.**
+- Text, hints and links are readable in every theme and on the New Tab page: 45 themes had colours under the 4.5:1 minimum, and Glass with light themes was fixed.
+- Dark themes get dark scrollbars and menus. Larger and Largest text now reach the shortcuts bar, toasts, find bar and New Tab page.
+
+### Downloads, reading and pages
+- **The Downloads panel can be searched**, a link copied, a finished file deleted or dragged out. A dropped connection shows Resume that really resumes.
+- **Feeds know what you have read**, and Ctrl+K can subscribe to a page's feed.
+- One list of watched pages, never checked from your real connection for Tor or proxy sites.
+- Highlights come back across bold text and links, and show in reading mode.
+- **The ad blocker's lists update weekly**, and clicking a blocked ad says so instead of a blank tab.
+
+### Extensions
+- **Extensions' alarms, cookies and tab events now work**, and they get chrome.windows, chrome.notifications and chrome.downloads.
+- Install dialogs say plainly what will not work in Vex.
+- A container's first tab loads again with a request-watching extension installed.
+
+### AI, Discord and panels
+- The AI panel no longer closes when you answer its question, Clear empties the chat you are looking at, and "remember that…" is kept in AI memory.
+- AI Translate uses your chosen language. Slow local answers are no longer cut off at two minutes.
+- **Discord's Auto-configure bypass works again** and remembers what worked, and switching presets no longer leaves an old ciadpi.exe running.
+- Discord's memory has one limit and one notice, and Vex wakes up far less often during games.
+
+### Faster
+- **A new window or private window opens about 0.3 s sooner**, and the first launch about 0.4 s sooner.
+- Recall saves at most once a minute instead of after every page.
+
 ## v14.72.3 (2026-10-10) — A safer lock, keys back for your other apps, and a much quieter Vex
 
 ### A new kind of version number
