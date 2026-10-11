@@ -103,6 +103,63 @@ describe('fetching feeds', () => {
   });
 });
 
+describe('read and unread posts', () => {
+  it('shows unread posts as unread, and opening one marks it read for next time', async () => {
+    VexFeeds.feeds = [{ url: 'https://ok.test/feed', title: 'Good' }];
+    globalThis.SidebarManager = { hideActivePanel: vi.fn() };
+    globalThis.TabManager = { createTab: vi.fn() };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    await VexFeeds.renderPanel(container);
+    expect(container.querySelectorAll('.feed-item.unread')).toHaveLength(2);
+    expect(container.querySelector('#feed-status').textContent).toContain('2 unread');
+    container.querySelector('.feed-item').click();
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://example.test/2', true);
+    await VexFeeds.renderPanel(container);
+    expect(container.querySelectorAll('.feed-item.unread')).toHaveLength(1);
+    expect(container.querySelectorAll('.feed-item.read')).toHaveLength(1);
+    container.querySelector('#feed-mark-all').click();
+    await vi.waitFor(() => expect(container.querySelectorAll('.feed-item.read')).toHaveLength(2));
+    expect(container.querySelector('#feed-status').textContent).toContain('All read');
+    delete globalThis.TabManager;
+  });
+});
+
+describe("subscribing to a page's own feed", () => {
+  const pageWith = (head) => {
+    document.head.innerHTML = head;
+    // eslint-disable-next-line no-eval
+    return { executeJavaScript: vi.fn(async (js) => (0, eval)(js)) };
+  };
+
+  it('finds the RSS and Atom feeds a page names, as full addresses', async () => {
+    const wv = pageWith('<link rel="alternate" type="application/rss+xml" title="Posts" href="/feed.xml"><link rel="alternate" type="application/atom+xml" href="https://ex.test/atom"><link rel="alternate" hreflang="fr" href="/fr/"><link rel="stylesheet" href="/a.css">');
+    const found = await VexFeeds.discover(wv);
+    expect(found).toEqual([{ url: new URL('/feed.xml', location.href).href, title: 'Posts' }, { url: 'https://ex.test/atom', title: '' }]);
+  });
+
+  it('subscribes to the one feed a page names', async () => {
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('<link rel="alternate" type="application/rss+xml" href="https://ex.test/rss">') };
+    const feed = await VexFeeds.subscribeToPage();
+    expect(feed).toMatchObject({ url: 'https://ex.test/rss', title: 'Test Feed' });
+    expect(JSON.parse(localStorage.getItem('vex.feeds'))).toEqual([{ url: 'https://ex.test/rss', title: 'Test Feed' }]);
+  });
+
+  it('says so when the page names no feed', async () => {
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('') };
+    expect(await VexFeeds.subscribeToPage()).toBeNull();
+    expect(window.showToast).toHaveBeenCalledWith('This page does not name a feed', 'error');
+  });
+
+  it('will not read a feed from your real connection for a site sent through Tor or a proxy', async () => {
+    globalThis.TabManager = { mayAskSiteForIcon: () => false };
+    const r = await VexFeeds.subscribe('https://hidden.test/rss');
+    expect(r.ok).toBe(false);
+    expect(window.vex.rssFetch).not.toHaveBeenCalled();
+    delete globalThis.TabManager;
+  });
+});
+
 describe('highlight page keys', () => {
   beforeEach(() => { Annotations.store = {}; Annotations._baseline = {}; });
 

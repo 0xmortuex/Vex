@@ -73,6 +73,87 @@ const VexFeeds = {
     return out.filter(i => this._normalizeUrl(i.link));
   },
 
+  // --- Read / unread ---
+  // The links of items you have opened (or marked read), newest last, capped.
+  READ_KEY: 'vex.feedsRead',
+  READ_MAX: 3000,
+  _readSet() {
+    let a;
+    try { a = JSON.parse(localStorage.getItem(this.READ_KEY) || '[]'); }
+    catch (err) { console.error('[Feeds] the read list could not be read:', err.message); a = []; }
+    return new Set(Array.isArray(a) ? a.filter(x => typeof x === 'string') : []);
+  },
+  isRead(link) { return this._readSet().has(link); },
+  markRead(links) {
+    const set = this._readSet();
+    for (const l of [].concat(links)) if (typeof l === 'string' && l) { set.delete(l); set.add(l); }
+    const list = [...set].slice(-this.READ_MAX);
+    try { localStorage.setItem(this.READ_KEY, JSON.stringify(list)); }
+    catch (err) { console.error('[Feeds] could not save what was read:', err.message); window.showToast?.('Could not remember what you read', 'error'); }
+  },
+
+  // --- Subscribing ---
+  // Checks the address really is a feed before keeping it. → { ok, feed } or
+  // { ok: false, error } in words the person can act on.
+  async subscribe(input) {
+    const url = this._normalizeUrl(input);
+    if (!url) return { ok: false, error: 'That is not a valid http(s) feed URL' };
+    if (this.feeds.some(f => this._normalizeUrl(f.url) === url)) return { ok: false, error: 'That feed is already in your list' };
+    // Feeds are fetched by Vex directly; a site sent through Tor, a proxy or a
+    // container would see your real address (as page watches, page-watch.js).
+    if (typeof TabManager !== 'undefined' && typeof TabManager.mayAskSiteForIcon === 'function' && !TabManager.mayAskSiteForIcon(url)) {
+      return { ok: false, error: 'This site goes through Tor, a proxy or a container, and its feed would be read from your real connection — so it was not added' };
+    }
+    const xml = await window.vex.rssFetch(url);
+    if (!xml) return { ok: false, error: "Couldn't fetch that feed — the server did not respond with a readable feed" };
+    let items;
+    try { items = this.parse(xml, '', url); } catch (err) { return { ok: false, error: "Couldn't add that feed: " + err.message }; }
+    if (!items.length) return { ok: false, error: 'No items found at that URL — is it really an RSS/Atom feed?' };
+    const feed = { url, title: (items[0] && items[0].src) || url.replace(/^https?:\/\//, '').slice(0, 40) };
+    this.feeds.push(feed);
+    this.save();
+    return { ok: true, feed };
+  },
+
+  // The feeds a page names in its <head> (<link rel="alternate"
+  // type="application/rss+xml|atom+xml">), as absolute http(s) addresses.
+  async discover(webview) {
+    if (!webview) throw new Error('No page is open');
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) throw new Error('Vex does not read this private page');
+    const js = `(function(){var out=[];document.querySelectorAll('link[rel~="alternate" i][href]').forEach(function(l){
+      var t=(l.getAttribute('type')||'').toLowerCase();
+      if(t==='application/rss+xml'||t==='application/atom+xml')out.push({url:l.href,title:l.getAttribute('title')||''});
+    });return JSON.stringify(out.slice(0,20));})()`;
+    const raw = await webview.executeJavaScript(js);
+    const seen = new Set();
+    return JSON.parse(raw || '[]').map(f => ({ url: this._normalizeUrl(f.url), title: String(f.title || '').slice(0, 120) }))
+      .filter(f => f.url && /^https?:/i.test(f.url) && !seen.has(f.url) && seen.add(f.url));
+  },
+
+  // Ctrl+K "Subscribe to this page's feed".
+  async subscribeToPage() {
+    const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+    let found;
+    try { found = await this.discover(wv); }
+    catch (err) { window.showToast?.((err && err.message) || 'Could not look for a feed on this page', 'error'); return null; }
+    if (!found.length) { window.showToast?.('This page does not name a feed', 'error'); return null; }
+    let pick = found[0];
+    if (found.length > 1) {
+      const answer = await vexPrompt({
+        title: 'Which feed?',
+        message: found.map((f, i) => (i + 1) + '. ' + (f.title || f.url)).join('\n'),
+        value: '1', okLabel: 'Subscribe',
+      });
+      if (answer == null) return null;
+      pick = found[parseInt(answer, 10) - 1];
+      if (!pick) { window.showToast?.('Choose a number from 1 to ' + found.length, 'error'); return null; }
+    }
+    const r = await this.subscribe(pick.url);
+    if (!r.ok) { window.showToast?.(r.error, 'error'); return null; }
+    window.showToast?.('Subscribed to ' + (r.feed.title || r.feed.url) + ' — it is in the Feeds panel');
+    return r.feed;
+  },
+
   // Fetch every feed, keeping per-feed failures instead of swallowing them —
   // a dead feed used to look exactly like a feed with no new posts.
   async fetchAll() {
@@ -133,20 +214,13 @@ const VexFeeds = {
     const addButton = container.querySelector('#feed-add');
     const input = container.querySelector('#feed-url');
     const addFeed = async () => {
-      const url = this._normalizeUrl(input.value);
       if (!input.value.trim()) return;
-      if (!url) { window.showToast?.('That is not a valid http(s) feed URL', 'error'); return; }
-      if (this.feeds.some(f => this._normalizeUrl(f.url) === url)) { window.showToast?.('That feed is already in your list'); return; }
       addButton.disabled = true;
       const previousLabel = addButton.textContent;
       addButton.textContent = 'Checking…';
       try {
-        const xml = await window.vex.rssFetch(url);
-        if (!xml) { window.showToast?.("Couldn't fetch that feed — the server did not respond with a readable feed", 'error'); return; }
-        const items = this.parse(xml, '', url);
-        if (!items.length) { window.showToast?.('No items found at that URL — is it really an RSS/Atom feed?', 'error'); return; }
-        this.feeds.push({ url, title: (items[0] && items[0].src) || url.replace(/^https?:\/\//, '').slice(0, 40) });
-        this.save();
+        const r = await this.subscribe(input.value);
+        if (!r.ok) { window.showToast?.(r.error, 'error'); return; }
         this.renderPanel(container);
       } catch (err) {
         window.showToast?.("Couldn't add that feed: " + err.message, 'error');
@@ -172,15 +246,40 @@ const VexFeeds = {
     const list = container.querySelector('#feed-list');
     if (!list) return;
     list.innerHTML = items.length ? '' : (window.VexUI ? VexUI.emptyState('rss', 'No items', 'New posts from your feeds will appear here') : '<div style="text-align:center;color:var(--text-muted);font-size:12.5px;padding:24px">No items.</div>');
+    // Unread posts stand out (a dot, full weight); opening one marks it read.
+    const read = this._readSet();
+    const unread = items.filter(it => !read.has(it.link));
+    if (items.length) {
+      const status = document.createElement('div');
+      status.id = 'feed-status';
+      status.style.cssText = 'display:flex;align-items:center;gap:8px;padding:0 8px 6px;font-size:11px;color:var(--text-muted)';
+      const count = document.createElement('span');
+      count.textContent = unread.length ? unread.length + ' unread' : 'All read';
+      status.appendChild(count);
+      if (unread.length) {
+        const all = document.createElement('button');
+        all.type = 'button';
+        all.id = 'feed-mark-all';
+        all.textContent = 'Mark all read';
+        all.style.cssText = 'margin-left:auto;border:none;background:none;color:var(--primary);cursor:pointer;font-size:11px;padding:0';
+        all.addEventListener('click', () => { this.markRead(unread.map(it => it.link)); this.renderPanel(container); });
+        status.appendChild(all);
+      }
+      list.appendChild(status);
+    }
     items.forEach(it => {
+      const isRead = read.has(it.link);
       const row = document.createElement('div');
-      row.style.cssText = 'padding:9px 8px;border-radius:8px;cursor:pointer';
+      row.className = 'feed-item' + (isRead ? ' read' : ' unread');
+      row.style.cssText = 'padding:9px 8px;border-radius:8px;cursor:pointer;display:flex;gap:8px;align-items:flex-start';
       row.addEventListener('mouseenter', () => row.style.background = 'var(--surface)');
       row.addEventListener('mouseleave', () => row.style.background = '');
       const when = it.at ? new Date(it.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-      row.innerHTML = `<div style="font-size:12.5px;color:var(--text);line-height:1.4">${esc(it.title)}</div>
-        <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${esc(it.src)}${when ? ' · ' + when : ''}</div>`;
-      row.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(it.link, true); });
+      row.innerHTML = `<span aria-hidden="true" style="flex:none;width:6px;height:6px;margin-top:6px;border-radius:50%;background:${isRead ? 'transparent' : 'var(--primary)'}"></span>
+        <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:${isRead ? 'var(--text-muted)' : 'var(--text)'};font-weight:${isRead ? 400 : 600};line-height:1.4">${esc(it.title)}</div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">${esc(it.src)}${when ? ' · ' + when : ''}</div></div>`;
+      if (!isRead) row.setAttribute('aria-label', 'Unread: ' + it.title);
+      row.addEventListener('click', () => { this.markRead(it.link); SidebarManager.hideActivePanel?.(); TabManager.createTab(it.link, true); });
       list.appendChild(row);
     });
   },
