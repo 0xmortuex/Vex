@@ -53,9 +53,9 @@ describe('keywords of your own', () => {
     expect(text).toContain('@w Wikipedia');
   });
 
-  it('Reset to Defaults clears them', () => {
+  it('Reset to Defaults keeps them: they are yours, like bookmarks (settingsResetPolicy.test.js)', () => {
     const app = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
     const keys = app.slice(app.indexOf('const SETTINGS_PREF_KEYS'), app.indexOf('const SETTINGS_DEFAULTS'));
-    expect(keys).toContain("'vex.searchKeywords'");
+    expect(keys).not.toContain("'vex.searchKeywords'");
   });
 });

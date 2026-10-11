@@ -69,9 +69,12 @@ describe('the history visit a navigation sends', () => {
   });
 
   it('records an ordinary visit in the History panel\'s list, and nowhere else', () => {
+    // The tab's title at this point is the page it came from's, so the visit
+    // is recorded untitled and page-title-updated names it
+    // (addressBarSuggestionsTruth.test.js).
     tab.title = 'Example';
     navigate('https://example.org/page');
-    expect(panel).toEqual([{ url: 'https://example.org/page', title: 'Example' }]);
+    expect(panel).toEqual([{ url: 'https://example.org/page', title: 'https://example.org/page' }]);
     expect(sent).toEqual([]);
     expect(VexStorage.save).not.toHaveBeenCalled();
   });

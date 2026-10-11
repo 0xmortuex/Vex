@@ -663,8 +663,6 @@ function vexOwnTextFocused(doc) {
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
-    // Settings › General › Search keywords (js/search-keywords-ui.js).
-    'vex.searchKeywords',
     'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
     'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.agentShowCursor',
     'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
