@@ -26,13 +26,16 @@ const fsp = require('fs/promises');
 let _engine = null;       // { blocker, fromElectronDetails } once ready
 let _initStarted = false;
 
-async function initEngine(cachePath) {
+// listFetch: how the lists are downloaded (main/adblock-lists.js): through
+// Vex's default session, and only while the blocker is on. Node's own fetch
+// went around every route.
+async function initEngine(cachePath, { fetch: listFetch } = {}) {
   if (_engine) return true;
   if (_initStarted) return false;
+  if (typeof listFetch !== 'function') throw new Error('initEngine needs the fetch the filter lists are downloaded with');
   _initStarted = true;
   try {
     const { ElectronBlocker, fromElectronDetails } = require('@ghostery/adblocker-electron');
-    if (typeof fetch !== 'function') throw new Error('global fetch unavailable');
     // Caching contract: read() must REJECT when the cache file is missing so the
     // library knows to download + serialize fresh; write() persists it.
     const caching = {
@@ -42,12 +45,14 @@ async function initEngine(cachePath) {
     };
     // Full list set (default config → cosmetic + network filters both parsed),
     // so enableCosmeticFiltering() below has real cosmetic rules to serve.
-    const blocker = await ElectronBlocker.fromPrebuiltFull(fetch, caching);
+    const blocker = await ElectronBlocker.fromPrebuiltFull(listFetch, caching);
     _engine = { blocker, fromElectronDetails };
     return true;
   } catch (e) {
     console.error('[Vex adblock-engine] init failed:', e && e.message);
     _engine = null;
+    // Tried again when the blocker is next switched on (main.js).
+    _initStarted = false;
     return false;
   }
 }
@@ -77,9 +82,12 @@ function isReady() { return !!_engine; }
 const LISTS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 let _refreshing = null;
 
+// deps.fetch: how the lists are downloaded, as for initEngine.
 // deps (for tests): build() → a new blocker, now(), stat(), write(path, buf).
 async function refreshIfStale(cachePath, deps = {}) {
   if (!_engine) return 'not-ready';
+  const listFetch = deps.fetch;
+  if (!deps.build && typeof listFetch !== 'function') throw new Error('refreshIfStale needs the fetch the filter lists are downloaded with');
   if (_refreshing) return _refreshing;
   const now = deps.now || Date.now;
   const stat = deps.stat || ((p) => fsp.stat(p));
@@ -91,7 +99,7 @@ async function refreshIfStale(cachePath, deps = {}) {
     try {
       const build = deps.build || (() => {
         const { ElectronBlocker } = require('@ghostery/adblocker-electron');
-        return ElectronBlocker.fromPrebuiltFull(fetch);   // no cache: downloads the lists
+        return ElectronBlocker.fromPrebuiltFull(listFetch);   // no cache: downloads the lists
       });
       const blocker = await build();
       const write = deps.write || (async (p, buf) => { await fsp.writeFile(p + '.new', buf); await fsp.rename(p + '.new', p); });

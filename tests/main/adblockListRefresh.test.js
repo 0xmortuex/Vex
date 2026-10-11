@@ -42,9 +42,9 @@ describe('refreshing stale filter lists', () => {
     expect(E.engineBlocks({ isMainFrame: () => false })).toBe(false);
   });
   it('main.js checks in the background after start and daily, never before the engine is ready', () => {
-    const at = main.indexOf("initAdblockEngine(adblockCache)");
+    const at = main.indexOf("initAdblockEngine(adblockCache, ");
     const block = main.slice(at, at + 1200);
-    expect(block).toMatch(/if \(!ok\) return;/);
+    expect(block).toMatch(/if \(!ok\) \{ adblockStarting = null; return; \}/);
     expect(block).toMatch(/setTimeout\(refresh, 60 \* 1000\)\.unref\(\)/);
     expect(block).toMatch(/setInterval\(refresh, 24 \* 60 \* 60 \* 1000\)\.unref\(\)/);
   });

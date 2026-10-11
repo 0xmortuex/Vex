@@ -175,6 +175,8 @@ let mainWindow = null;
 // once the window exists, referenced by the second-instance handler above it.
 let reminders = null;
 let adBlockerEnabled = true;
+// Starts the ad-block engine (set once the window is ready; see initAdblockEngine).
+let _startAdblockEngine = null;
 let pendingOpenUrl = null;
 // The main window's own keys (before-input-event), set once Vex has started
 // (app.whenReady below), so a main window made again gets them too.
@@ -6430,18 +6432,32 @@ function createWindow() {
     && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)));
 
   const adblockCache = path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin');
-  initAdblockEngine(adblockCache)
-    .then(ok => {
-      console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
-      if (!ok) return;
-      // Lists older than a week are fetched again in the background, now and
-      // once a day while Vex runs; the engine in use stays meanwhile (PE3).
-      const refresh = () => _adblockEngine.refreshIfStale(adblockCache)
-        .catch(e => console.error('[Vex] adblock list update check failed:', e && e.message));
-      setTimeout(refresh, 60 * 1000).unref();
-      setInterval(refresh, 24 * 60 * 60 * 1000).unref();
-    })
-    .catch(e => console.error('[Vex] adblock engine start failed:', e && e.message));
+  // The lists come through the default session, which the route for all of
+  // Vex covers, and only while the blocker is on (main/adblock-lists.js).
+  const _adblockListFetch = require('./main/adblock-lists').createListFetch({ fetch: (url, init) => session.defaultSession.fetch(url, init), isOn: () => adBlockerEnabled });
+  let adblockStarting = null;
+  _startAdblockEngine = () => {
+    if (adblockStarting) return adblockStarting;
+    adblockStarting = initAdblockEngine(adblockCache, { fetch: _adblockListFetch })
+      .then(ok => {
+        console.log('[Vex] adblock engine', ok ? 'ready (full lists)' : 'unavailable — using domain list');
+        if (!ok) { adblockStarting = null; return; }
+        // Lists older than a week are fetched again in the background, now and
+        // once a day while Vex runs; the engine in use stays meanwhile (PE3).
+        // Not while the blocker is off.
+        const refresh = () => adBlockerEnabled && _adblockEngine.refreshIfStale(adblockCache, { fetch: _adblockListFetch })
+          .catch(e => console.error('[Vex] adblock list update check failed:', e && e.message));
+        setTimeout(refresh, 60 * 1000).unref();
+        setInterval(refresh, 24 * 60 * 60 * 1000).unref();
+      })
+      .catch(e => { adblockStarting = null; console.error('[Vex] adblock engine start failed:', e && e.message); });
+    return adblockStarting;
+  };
+  // Started with the switch as the main window saved it; switched off, it
+  // starts when it is turned on (adblocker-set-state).
+  dataStore.read('settings')
+    .then(saved => { if (require('./main/adblock-lists').storedBlockerOn(saved)) _startAdblockEngine(); })
+    .catch(e => console.error('[Vex] could not read whether the ad blocker is on, so its engine waits until the window says:', e && e.message));
   // The cache an older Vex kept under another name, read by nothing (PE4).
   _adblockEngine.removeOrphanCache(path.join(app.getPath('userData'), 'vex-adblock-engine.bin'))
     .then(gone => { if (gone) console.log('[Vex] removed the old ad-block cache vex-adblock-engine.bin'); })
@@ -8839,6 +8855,8 @@ ipcMain.handle('is-default-browser', () => {
 ipcMain.handle('adblocker-get-state', () => adBlockerEnabled);
 ipcMain.handle('adblocker-set-state', (event, enabled) => {
   adBlockerEnabled = enabled;
+  // Not started while it was off (or its first download failed).
+  if (adBlockerEnabled && _startAdblockEngine) _startAdblockEngine();
   return adBlockerEnabled;
 });
 
