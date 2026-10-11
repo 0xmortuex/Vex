@@ -25,6 +25,14 @@ webview:focus-visible {
   outline: none !important;
 }
 
+/* A switch (.toggle) hides its checkbox at 0x0, so the checkbox's own ring
+ * drew nothing and no Settings switch showed keyboard focus. The ring goes
+ * on the visible track instead. */
+.toggle input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary, #7aa2ff) !important;
+  outline-offset: 2px;
+}
+
 /* A tab on the strip takes keyboard focus now (js/a11y-keys.js): its ring sits
  * inside the tab, where the strip's overflow cannot clip it. */
 .top-tab:focus-visible,

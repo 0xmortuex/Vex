@@ -163,12 +163,12 @@ const AccessibilityPack = {
 
   renderPanel(container) {
     if (!container) return;
-    const sel = (id, label, opts, cur) => `<div class="setting-row-label" style="margin-top:10px">${label}</div><select id="${id}">${opts.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+    const sel = (id, label, opts, cur) => `<div class="setting-row-label" style="margin-top:10px">${label}</div><select id="${id}" aria-label="${label}">${opts.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:6px">Applied to every page you open.</p>
       ${sel('a11y-font', 'Reading font', [['off', 'Default'], ['lexend', 'Lexend'], ['atkinson', 'Atkinson Hyperlegible'], ['opendyslexic', 'OpenDyslexic']], this.cfg.font)}
       ${sel('a11y-cvd', 'Color-vision filter', [['off', 'Off'], ['protanopia', 'Protanopia (red-blind)'], ['deuteranopia', 'Deuteranopia (green-blind)'], ['tritanopia', 'Tritanopia (blue-blind)'], ['grayscale', 'Grayscale']], this.cfg.cvd)}
-      <div class="setting-toggle-row" style="margin-top:10px"><span>Reading ruler (bar follows cursor)</span><label class="toggle"><input type="checkbox" id="a11y-ruler" ${this.cfg.ruler ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
+      <div class="setting-toggle-row" style="margin-top:10px"><span>Reading ruler (bar follows cursor)</span><label class="toggle"><input type="checkbox" id="a11y-ruler" aria-label="Reading ruler" ${this.cfg.ruler ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin-top:10px">On demand from the command bar: <strong>Bionic Reading</strong>, <strong>Speed Read</strong>, <strong>Translate Selection</strong>.</p>`;
     // A change that could not be written to disk must say so — it is applied to
     // the open pages now, but it will not survive a restart.

@@ -369,7 +369,7 @@
             <div class="setting-group">
               <label class="setting-label">General</label>
               <div class="setting-row-label">Default Search Engine</div>
-              <select id="setting-search-engine">
+              <select id="setting-search-engine" aria-label="Default Search Engine">
                 <option value="google">Google</option>
                 <option value="duckduckgo">DuckDuckGo</option>
                 <option value="brave">Brave Search</option>
@@ -427,7 +427,7 @@
               <div class="setting-toggle-row">
                 <span>Block ads and trackers</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-adblocker" checked>
+                  <input type="checkbox" id="setting-adblocker" aria-label="Block ads and trackers" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -458,7 +458,7 @@
                     <strong>Streamer mode</strong>
                     <span class="setting-hint">Blurs one-time codes, saved passwords and notification text so they cannot be read from a recording. Hover one to read it; copying still copies the real value.</span>
                   </div>
-                  <select id="setting-streamer-mode">
+                  <select id="setting-streamer-mode" aria-label="Streamer mode">
                     <option value="auto">While you share your screen (not during calls)</option>
                     <option value="on">Always on</option>
                     <option value="off">Off</option>
@@ -482,21 +482,21 @@
               <div class="setting-toggle-row">
                 <span><span>Fill sign-in codes from your email</span> <span style="color:var(--text-muted);font-size:11px">· only a code the same site emailed you, read from your open webmail</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-emailcode-autofill">
+                  <input type="checkbox" id="setting-emailcode-autofill" aria-label="Fill sign-in codes from your email">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row">
                 <span>Read email codes from a hidden Gmail <span style="color:var(--text-muted);font-size:11px">· fills verification codes with no Gmail tab open or awake, using your signed-in session</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-emailcode-hidden">
+                  <input type="checkbox" id="setting-emailcode-hidden" aria-label="Read email codes from a hidden Gmail">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row">
                 <span>Submit automatically after filling a code <span style="color:var(--text-muted);font-size:11px">· off by default — presses the form's submit/verify button</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-emailcode-autosubmit">
+                  <input type="checkbox" id="setting-emailcode-autosubmit" aria-label="Submit automatically after filling a code">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -507,7 +507,7 @@
               <div class="setting-toggle-row">
                 <span>Auto-save session every 10 minutes</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosave">
+                  <input type="checkbox" id="setting-autosave" aria-label="Auto-save session every 10 minutes">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -525,7 +525,7 @@
               <div class="setting-toggle-row">
                 <span>Ask where to save each file before downloading</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-download-ask">
+                  <input type="checkbox" id="setting-download-ask" aria-label="Ask where to save each file before downloading">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -552,7 +552,7 @@
               <div class="setting-toggle-row">
                 <span>Memory Saver <span style="color:var(--text-muted);font-size:11px">· frees background caches and holds fewer pages in memory (restart to fully apply). When the choice above lets Vex sleep things, it also shortens auto-sleep to 10 minutes, holds the memory guard at 900 MB and sleeps background tabs when Vex is minimized — it never turns on a switch below that is off.</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-memory-saver">
+                  <input type="checkbox" id="setting-memory-saver" aria-label="Memory Saver">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -564,13 +564,13 @@
               <div class="setting-toggle-row">
                 <span>Auto-sleep inactive tabs</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosleep">
+                  <input type="checkbox" id="setting-autosleep" aria-label="Auto-sleep inactive tabs">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div style="margin-top:8px">
                 <div class="setting-row-label">Sleep after (minutes)</div>
-                <select id="setting-autosleep-minutes">
+                <select id="setting-autosleep-minutes" aria-label="Sleep after (minutes)">
                   <option value="5">5 minutes</option>
                   <option value="10">10 minutes</option>
                   <option value="15">15 minutes</option>
@@ -581,14 +581,14 @@
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Exclude pinned tabs from auto-sleep</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosleep-exclude-pinned" checked>
+                  <input type="checkbox" id="setting-autosleep-exclude-pinned" aria-label="Exclude pinned tabs from auto-sleep" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Sleep hidden sidebar panels <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same “Sleep after” time as tabs (on its own switch, so it works with tab auto-sleep off); never one playing audio or kept awake</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-panel-autosleep" checked>
+                  <input type="checkbox" id="setting-panel-autosleep" aria-label="Sleep hidden sidebar panels" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -599,7 +599,7 @@
               </div>
               <div style="margin-top:8px">
                 <div class="setting-row-label">Memory notices — a strip at the top of a tab or the Discord panel using more than</div>
-                <select id="setting-memory-notice">
+                <select id="setting-memory-notice" aria-label="Memory notices">
                   <option value="">Default (tabs 800 MB, Discord 1 GB)</option>
                   <option value="0">Off</option>
                   <option value="800">800 MB</option>
@@ -615,13 +615,13 @@
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· not a sleep: after two minutes out of sight it stops using the CPU but stays loaded and keeps notifying; a call, or opening it, wakes it at once. Runs whatever the choice at the top says.</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-discord-rest" checked>
+                  <input type="checkbox" id="setting-discord-rest" aria-label="Rest Discord when hidden and not in a call" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div style="margin-top:12px" data-sleep-dependent>
                 <div class="setting-row-label">Memory guard — sleep idle tabs when memory exceeds</div>
-                <select id="setting-mem-ceiling">
+                <select id="setting-mem-ceiling" aria-label="Memory guard">
                   <option value="0">Off</option>
                   <option value="900">900 MB (aggressive)</option>
                   <option value="1200" selected>1.2 GB (balanced)</option>
@@ -706,7 +706,7 @@
                   <strong>Local Model</strong>
                   <span class="setting-hint">Pick which Ollama model to use</span>
                 </div>
-                <select id="local-model-select">
+                <select id="local-model-select" aria-label="Local model">
                   <option value="">Loading models...</option>
                 </select>
               </div>
@@ -739,7 +739,7 @@
                   <strong>Start Ollama when it is needed</strong>
                   <span class="setting-hint">If the local model is wanted and Ollama is not running, Vex starts it in the background — no window. It is left running, as Ollama's own app leaves it.</span>
                 </div>
-                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart"><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart" aria-label="Start Ollama when it is needed"><span class="toggle-slider"></span></label>
               </div>
 
               <div class="setting-row" id="agent-numctx-row" style="margin-top:14px">
@@ -747,7 +747,7 @@
                   <strong>Agent context size</strong>
                   <span class="setting-hint">How much the local model can hold in mind during an agent run. Larger fits longer tasks and uses more memory.</span>
                 </div>
-                <select id="agent-numctx-select">
+                <select id="agent-numctx-select" aria-label="Agent context size">
                   <option value="8192">8K — small machines</option>
                   <option value="16384">16K — default</option>
                   <option value="32768">32K</option>
@@ -814,7 +814,7 @@
               <div class="setting-toggle-row">
                 <span>Enable AI history indexing</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-ai-indexing-enabled">
+                  <input type="checkbox" id="setting-ai-indexing-enabled" aria-label="Enable AI history indexing">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -830,7 +830,7 @@
               <label class="setting-label">GUI Style</label>
               <div class="setting-toggle-row">
                 <span>Overall look of the interface</span>
-                <select id="setting-gui-style" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                <select id="setting-gui-style" aria-label="Overall look of the interface" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
                   <option value="classic">Classic (your themes)</option>
                   <option value="glass">Glass (frosted · tabs on top · shortcuts bar)</option>
                   <optgroup label="Browser looks">
@@ -853,7 +853,7 @@
               </div>
               <div class="setting-toggle-row" id="setting-gui-colors-row" style="display:none">
                 <span>Browser look colours</span>
-                <select id="setting-gui-colors" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                <select id="setting-gui-colors" aria-label="Browser look colours" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
                   <option value="look">The look's own colours</option>
                   <option value="theme">Match my colour theme</option>
                 </select>
@@ -954,7 +954,7 @@
               <label class="setting-label">Tab Layout</label>
               <div class="setting-toggle-row">
                 <span>Where tabs appear</span>
-                <select id="setting-tab-layout" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                <select id="setting-tab-layout" aria-label="Where tabs appear" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
                   <option value="horizontal">Horizontal (top bar, like Chrome)</option>
                   <option value="vertical">Vertical (left sidebar)</option>
                 </select>
@@ -1012,14 +1012,14 @@
               <div class="setting-toggle-row">
                 <span>Auto-suggest when 12+ tabs are ungrouped</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-auto-group-suggest" checked>
+                  <input type="checkbox" id="setting-auto-group-suggest" aria-label="Auto-suggest when 12+ tabs are ungrouped" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row">
                 <span>Auto-add new tabs that match a remembered pattern</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-auto-add-to-groups" checked>
+                  <input type="checkbox" id="setting-auto-add-to-groups" aria-label="Auto-add new tabs that match a remembered pattern" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -1092,19 +1092,19 @@
               <label class="setting-label">Browsing extras</label>
               <div class="setting-toggle-row">
                 <span>Mouse gestures (hold right button + drag)</span>
-                <label class="toggle"><input type="checkbox" id="setting-gestures" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-gestures" aria-label="Mouse gestures (hold right button + drag)" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Clipboard history (web pages only — never your other programs)</span>
-                <label class="toggle"><input type="checkbox" id="setting-clipboard-history" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-clipboard-history" aria-label="Clipboard history" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Auto-hide cookie consent banners</span>
-                <label class="toggle"><input type="checkbox" id="setting-consent" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-consent" aria-label="Auto-hide cookie consent banners" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Always allow copy &amp; right-click (bypass site blocks)</span>
-                <label class="toggle"><input type="checkbox" id="setting-copyunlock"><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-copyunlock" aria-label="Always allow copy and right-click"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Float a playing video when you switch tabs (Picture-in-Picture)</span>

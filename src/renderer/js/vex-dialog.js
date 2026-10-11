@@ -32,6 +32,37 @@
   let counter = 0;
   const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
 
+  // The one focus trap. Every visible [aria-modal="true"] keeps Tab inside
+  // itself: these dialogs used to trap it, while What's new, the Backup and
+  // the Import screens let it walk out to the toolbar behind them (found
+  // 2026-10-10). One document-level listener covers every modal, the ones
+  // added later too; the topmost (last in the document) wins.
+  const shown = (el) => (typeof el.checkVisibility === 'function' ? el.checkVisibility() : !el.closest('[hidden]'));
+  const FocusTrap = {
+    focusables(root) {
+      return [...root.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')]
+        .filter(el => !el.disabled && el.tabIndex >= 0 && el.type !== 'hidden' && shown(el));
+    },
+    topModal() {
+      const all = [...document.querySelectorAll('[aria-modal="true"]')].filter(shown);
+      return all[all.length - 1] || null;
+    },
+    // Wraps Tab at the ends, and brings focus that is outside `root` back in.
+    onTab(e, root) {
+      if (e.key !== 'Tab' || e.defaultPrevented || !root) return;
+      const items = this.focusables(root);
+      if (!items.length) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!root.contains(active)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    },
+  };
+  window.VexFocusTrap = FocusTrap;
+  document.addEventListener('keydown', (e) => { if (e.key === 'Tab') FocusTrap.onTab(e, FocusTrap.topModal()); }, true);
+
   function open(opts) {
     return new Promise(resolve => {
       // One dialog at a time — a new one cancels any dialog still open.
@@ -88,14 +119,7 @@
         if (e.key === 'Escape') { e.preventDefault(); done(cancelResult()); return; }
         // Enter in a multi-line box is a new line, not OK.
         if (e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); done(okResult()); return; }
-        if (e.key === 'Tab') {
-          const focusables = [...overlay.querySelectorAll('input, textarea, button')].filter(el => !el.disabled);
-          if (!focusables.length) return;
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-        }
+        if (e.key === 'Tab') FocusTrap.onTab(e, overlay.firstElementChild);
       });
 
       const initialFocus = input

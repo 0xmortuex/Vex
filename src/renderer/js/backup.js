@@ -275,8 +275,8 @@ const VexBackup = {
     m.id = 'vex-backup';
     m.className = 'vexsr-ov';
     const now = this.collect([]);
-    m.innerHTML = '<div class="vexsr-card"><div class="vexsr-head">'
-      + '<span class="vexsr-title">Back up everything, or put it back</span>'
+    m.innerHTML = '<div class="vexsr-card" role="dialog" aria-modal="true" aria-labelledby="bk-title"><div class="vexsr-head">'
+      + '<span class="vexsr-title" id="bk-title">Back up everything, or put it back</span>'
       + '<button class="vexsr-x" id="bk-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">One file with everything Vex remembers about how you work — your notes, sessions, keybindings, site rules, panels, theme, skin and typeface. '
       + Object.keys(now.items).length + ' things right now.</div>'
@@ -285,7 +285,7 @@ const VexBackup = {
       + '<button id="bk-save" class="vexsr-go">Save a backup</button>'
       + '</div>'
       + '<div class="vexsr-row" style="margin-top:8px">'
-      + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input">'
+      + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input" aria-label="Backup file to restore">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
       + '</div>'
       // Made by Vex itself right before each update installed (update-notifier.js).
