@@ -985,7 +985,11 @@ const TabManager = {
     if (!btn) return;
     const state = tab && tab.loading ? 'stop' : 'reload';
     if ((btn.dataset.state || 'reload') === state) return;
-    if (btn._reloadMarkup === undefined) { btn._reloadMarkup = btn.innerHTML; btn._reloadTitle = btn.title; }
+    // The ENGLISH title is kept (i18n-ui.js keeps it in data-i18ntitle when it
+    // has translated it), and each title is translated as it is put up:
+    // caching the shown one kept the language it had at the first load, and
+    // the Stop title was never translated (found 2026-10-10).
+    if (btn._reloadMarkup === undefined) { btn._reloadMarkup = btn.innerHTML; btn._reloadTitle = btn.dataset.i18ntitle || btn.title; }
     btn.dataset.state = state;
     if (state === 'stop') {
       btn.innerHTML = VexIcons.svg('x', { size: 16 });
@@ -994,6 +998,7 @@ const TabManager = {
       btn.innerHTML = btn._reloadMarkup;
       btn.title = btn._reloadTitle;
     }
+    if (typeof VexI18nUI !== 'undefined') VexI18nUI.translateEl(btn);
   },
 
   renderTab(tab) {

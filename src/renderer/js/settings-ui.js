@@ -293,7 +293,8 @@ const SettingsUI = {
 
     groups.forEach((g, i) => {
       const labelEl = g.querySelector('.setting-label');
-      const text = (labelEl ? labelEl.textContent : '').toLowerCase();
+      // The English heading: Turkish headings would match no category (js/i18n-ui.js).
+      const text = (labelEl ? (typeof VexI18nUI !== 'undefined' ? VexI18nUI.english(labelEl) : labelEl.textContent) : '').toLowerCase();
       const cat = this._matchCat(text);
       const tier = this.tierOf(text);
       g.dataset.tier = tier;

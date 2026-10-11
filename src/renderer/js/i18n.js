@@ -23,7 +23,15 @@
     'ondevice.sub': 'Küçük bir modeli Vex içinde çalıştırın. İlk indirmeden sonra çevrimdışı kullanılabilir.',
     'sync.sub': 'Sekme, yer imi, geçmiş ve ayarlarınızı cihazlar arasında şifreleyerek eşitleyin. Mevcut bir hesap için kurtarma kodunuz gerekir.',
     'passwords.sub': 'Parolalar işletim sistemi anahtarıyla şifrelenir. İlk hesabınızı ekleyebilir veya bu adımı atlayabilirsiniz.',
-    'done.sub': 'Hazırsınız. Bu seçenekleri daha sonra Ayarlar bölümünden değiştirebilirsiniz.' });
+    'done.sub': 'Hazırsınız. Bu seçenekleri daha sonra Ayarlar bölümünden değiştirebilirsiniz.',
+    // The steps that were English in a Turkish setup (found 2026-10-10).
+    'look.sub': 'Tarayıcının kendi biçimi: Vex’in kendi görünümü, buzlu Cam, Chrome, Firefox, Safari, Internet Explorer veya Netscape’ten alınmış bir görünüm ya da Fluent, Glossy, Neobrutal veya Terminal stili. Tema renkleriniz hepsinin üzerinde korunabilir.',
+    'performance.sub': 'Vex’in gerçekte nasıl davranacağını belirleyen ayarlar. Çalışma biçiminize uyanı seçin ya da listeyi açıp dokuzunu da kendiniz ayarlayın.',
+    'browsing.sub': 'Günlük davranışlar: sekmelerin yeri, fare hareketleri, çerez bildirimleri, kopyalamayı engelleyen siteler, oturumunuzun kaydedilmesi. Her biri daha sonra Ayarlar’da bir anahtardır.',
+    'aidata.sub': 'İki özellik çalışmak için kendi verilerinizi okur: yapay zekâ geçmiş dizini (Vex AI ziyaret ettiğiniz sayfaları hatırlayabilsin diye) ve e-posta kodu doldurma (giriş kodu gelen kutunuzdan doldurulsun diye). İkisi de bu bilgisayarda kalır. Şimdi seçin; daha sonra Ayarlar’dan değiştirin.',
+    privacy: 'Gizlilik seçimleri',
+    'privacy.sub': 'İnternetteki bir hizmete soran üç özellik. Her biri sizin seçiminizdir ve her biri daha sonra Ayarlar’da bir anahtardır.',
+    'notifications.sub': 'Hatırlatıcılar, alarmlar, sayfa değişikliği uyarıları ve izin verdiğiniz siteler Windows bildirimi olarak gelir. Size ulaştığından emin olmak için şimdi bir tane gönderin; görünmezse düzeltme Windows’tadır ve bu sayfa nerede olduğunu söyler.' });
   function locale() { let value; try { value = localStorage.getItem('vex.lang') || 'en'; try { value = JSON.parse(value); } catch {} } catch {} return value === 'tr' ? 'tr' : 'en'; }
   function t(key, fallback) { return strings[locale()][key] || strings.en[key] || fallback || key; }
   window.VexI18n = { t, locale, strings };

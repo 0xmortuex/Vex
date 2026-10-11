@@ -46,6 +46,17 @@ const VexI18nUI = {
       'Split Screen': 'Bölünmüş ekran', 'Picture-in-Picture': 'Pencere içinde pencere',
       'Edit Layout': 'Düzeni düzenle', 'Extensions': 'Eklentiler',
       'Zoom in': 'Yakınlaştır', 'Zoom out': 'Uzaklaştır', 'Reset zoom': 'Yakınlaştırmayı sıfırla',
+      // The toolbar tooltips that stayed English (found 2026-10-10).
+      'Stop loading this page': 'Bu sayfanın yüklenmesini durdur',
+      'Vex page — site information': 'Vex sayfası — site bilgileri',
+      'Local file — site information': 'Yerel dosya — site bilgileri',
+      'All features': 'Tüm özellikler',
+      'All features — show every panel, button and setting Vex has': 'Tüm özellikler — Vex’in her panelini, düğmesini ve ayarını göster',
+      'Hide the sidebar': 'Kenar çubuğunu gizle', 'Show the sidebar': 'Kenar çubuğunu göster',
+      'Show sidebar': 'Kenar çubuğunu göster', 'Collapse sidebar': 'Kenar çubuğunu daralt',
+      'Close / open the left sidebar': 'Sol kenar çubuğunu kapat / aç',
+      'Command Bar': 'Komut çubuğu', 'New tab': 'Yeni sekme',
+      'Privacy — trackers & ads blocked': 'Gizlilik — engellenen izleyiciler ve reklamlar',
 
       // --- panels ---
       'Settings': 'Ayarlar', 'History': 'Geçmiş', 'Downloads': 'İndirilenler',
@@ -76,6 +87,28 @@ const VexI18nUI = {
       // The AI section's own row of chips (2026-10-10).
       'AI sections': 'Yapay zekâ bölümleri', 'Personas': 'Kişilikler',
       'Skills': 'Beceriler', 'On-Device': 'Cihaz üzerinde',
+      // The chips that stayed English, and every section heading (a heading
+      // holds the section's mark, so only its text node is translated).
+      'Profiles': 'Profiller', 'Data': 'Veriler', 'Permissions': 'İzinler',
+      'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar',
+      'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
+      'Search settings…': 'Ayarlarda arayın…',
+      'Default Browser': 'Varsayılan tarayıcı', 'Sidebar Buttons': 'Kenar çubuğu düğmeleri',
+      'Privacy & Security': 'Gizlilik ve güvenlik', 'Privacy Hardening': 'Gizlilik sıkılaştırma',
+      'Vex Sync': 'Vex eşitleme', 'AI Backend': 'Yapay zekâ altyapısı',
+      'AI Personas': 'Yapay zekâ kişilikleri', 'AI Memory': 'Yapay zekâ belleği',
+      'On-Device AI': 'Cihaz üzerinde yapay zekâ', 'MCP Servers': 'MCP sunucuları',
+      'AI Skills': 'Yapay zekâ becerileri', 'AI History Indexing': 'Yapay zekâ geçmiş dizini',
+      'Private routing': 'Özel yönlendirme', 'Site Settings': 'Site ayarları',
+      'Site Permissions': 'Site izinleri', 'Chrome Extensions': 'Chrome eklentileri',
+      'Smart Tab Grouping': 'Akıllı sekme gruplama', 'Command Chains': 'Komut zincirleri',
+      'Reading & Accessibility': 'Okuma ve erişilebilirlik',
+      'Recall (full-text history)': 'Geri çağırma (tam metin geçmişi)',
+      'Browsing extras': 'Gezinme ekstraları',
+      'Cloud Services (self-hosted)': 'Bulut hizmetleri (kendi sunucunuzda)',
+      'Gaming and streaming': 'Oyun ve yayın', 'Discord hotkeys': 'Discord kısayol tuşları',
+      'When a game is running': 'Bir oyun çalışırken', 'Your local models': 'Yerel modelleriniz',
+      'Streamer mode': 'Yayıncı modu',
 
       // --- settings controls people actually change ---
       'Default search engine': 'Varsayılan arama motoru',
@@ -129,45 +162,84 @@ const VexI18nUI = {
     return null;
   },
 
-  // Translate one element's attributes and, when it holds nothing but text,
-  // its text. Elements with children are left to their children, so markup is
-  // never rebuilt and no event listener is disturbed.
+  // The first direct text node with words in it: a section heading is
+  // "<span class=set-emoji><svg/></span>General", a chip "<svg/>Privacy".
+  _firstText(el) {
+    for (const n of el.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return n;
+    return null;
+  },
+
+  // Each translated string keeps its English (data-i18n…) and what was shown
+  // in its place (data-i18n…-shown). Both are needed: Vex's own code changes
+  // labels while Turkish is on (a download's Pause becomes Resume), and that
+  // fresh English must be translated in turn, and be what comes back on
+  // switching to English — not the English the element started with.
+  _swap(el, key, current, set, lang) {
+    const shownKey = key + 'Shown';
+    const cur = String(current).trim();
+    if (el.dataset[shownKey] != null && el.dataset[shownKey] === cur) return false;   // still ours
+    const hit = this.lookup(cur, lang);
+    if (!hit) return false;
+    el.dataset[key] = cur;
+    el.dataset[shownKey] = hit;
+    set(hit);
+    return true;
+  },
+
+  // Translate one element's attributes and its text: all of it when it holds
+  // nothing but text, otherwise its first text node only. Markup is never
+  // rebuilt and no event listener is disturbed.
   translateEl(el, lang) {
     let changed = false;
     for (const attr of this.ATTRS) {
       const value = el.getAttribute && el.getAttribute(attr);
       if (!value) continue;
-      const hit = this.lookup(value, lang);
-      if (hit) {
-        // Keep the English around so switching back is exact, and so the same
-        // element is never translated twice.
-        if (!el.dataset['i18n' + attr.replace(/-/g, '')]) el.dataset['i18n' + attr.replace(/-/g, '')] = value;
-        el.setAttribute(attr, hit);
-        changed = true;
-      }
+      if (this._swap(el, 'i18n' + attr.replace(/-/g, ''), value, (v) => el.setAttribute(attr, v), lang)) changed = true;
     }
-    const onlyText = el.children.length === 0;
-    if (onlyText && el.textContent) {
-      const hit = this.lookup(el.textContent, lang);
-      if (hit) {
-        if (!el.dataset.i18nText) el.dataset.i18nText = el.textContent.trim();
-        el.textContent = hit;
-        changed = true;
-      }
+    if (el.children.length === 0) {
+      if (el.textContent && this._swap(el, 'i18nText', el.textContent, (v) => { el.textContent = v; }, lang)) changed = true;
+    } else {
+      const node = this._firstText(el);
+      if (node && this._swap(el, 'i18nFirst', node.textContent, (v) => { node.textContent = node.textContent.replace(node.textContent.trim(), v); }, lang)) changed = true;
     }
     return changed;
   },
 
-  // Put everything back to the English it was drawn with.
+  // Put everything back to the English it was drawn with — unless Vex has
+  // since replaced the translation with something else, which then stays.
   revert(root) {
     const scope = root || document;
-    scope.querySelectorAll('[data-i18n-text]').forEach((el) => { el.textContent = el.dataset.i18nText; });
+    const back = (key, attrName, current, set) => {
+      scope.querySelectorAll('[' + attrName + ']').forEach((el) => {
+        const en = el.dataset[key];
+        const shown = el.dataset[key + 'Shown'];
+        const cur = current(el);
+        if (cur != null && shown != null && String(cur).trim() === shown) set(el, en);
+        delete el.dataset[key];
+        delete el.dataset[key + 'Shown'];
+      });
+    };
+    const firstBack = (el, en) => { const n = this._firstText(el); n.textContent = n.textContent.replace(n.textContent.trim(), en); };
+    // A text-only label may have been given a child since (Settings puts its
+    // mark in front of each heading): then only its text node goes back.
+    back('i18nText', 'data-i18n-text', (el) => (el.children.length ? (this._firstText(el) || {}).textContent : el.textContent),
+      (el, en) => { if (el.children.length) firstBack(el, en); else el.textContent = en; });
+    back('i18nFirst', 'data-i18n-first', (el) => { const n = this._firstText(el); return n ? n.textContent : null; }, firstBack);
     for (const attr of this.ATTRS) {
       const key = 'i18n' + attr.replace(/-/g, '');
-      scope.querySelectorAll('[data-' + key.replace(/([A-Z])/g, '-$1').toLowerCase() + ']').forEach((el) => {
-        el.setAttribute(attr, el.dataset[key]);
-      });
+      back(key, 'data-' + key, (el) => el.getAttribute(attr), (el, en) => el.setAttribute(attr, en));
     }
+    if (!root && typeof document !== 'undefined') document.documentElement.lang = this.locale();
+  },
+
+  // The English a heading was drawn with, for code that reads it to decide
+  // something (Settings' categories and Simple mode match English words).
+  english(el) {
+    if (!el) return '';
+    if (el.dataset.i18nText != null) return el.dataset.i18nText;
+    const n = this._firstText(el);
+    if (el.dataset.i18nFirst != null && n) return el.textContent.replace(n.textContent.trim(), el.dataset.i18nFirst);
+    return el.textContent;
   },
 
   // Translate the chrome. Safe to call as often as you like: an element that
@@ -175,6 +247,8 @@ const VexI18nUI = {
   apply(root) {
     const lang = this.locale();
     if (lang === 'en') { this.revert(root); return 0; }
+    // Screen readers and the spell checker read the window's language from here.
+    document.documentElement.lang = lang;
     const scope = root && root.querySelectorAll ? root : document;
     let n = 0;
     const seen = new Set();
