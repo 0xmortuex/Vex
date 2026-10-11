@@ -344,6 +344,25 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     else takeOver(c.commands, commandsApi, 'commands');
   }
 
+  // chrome.alarms: Electron's takes alarms and never fires onAlarm (found
+  // 2026-10-10). Main keeps them and fires them (src/main/extension-alarms.js).
+  if (api && perms.indexOf('alarms') !== -1) {
+    var nameAnd = function (name, cb) { return typeof name === 'function' ? ['', name] : [name == null ? '' : name, cb]; };
+    var alarmsApi = {
+      create: function (name, info, cb) {
+        if (name !== null && typeof name === 'object') { cb = info; info = name; name = ''; }
+        return settle(api('alarms.create', { name: name == null ? '' : String(name), info: info || {} }).then(function () { return undefined; }), cb, 'alarms.create');
+      },
+      get: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.get', { name: String(a[0]) }), a[1], 'alarms.get'); },
+      getAll: function (cb) { return settle(api('alarms.getAll'), cb, 'alarms.getAll'); },
+      clear: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.clear', { name: String(a[0]) }), a[1], 'alarms.clear'); },
+      clearAll: function (cb) { return settle(api('alarms.clearAll'), cb, 'alarms.clearAll'); },
+      onAlarm: hubEvent('alarms.onAlarm'),
+    };
+    if (!c.alarms) c.alarms = alarmsApi;
+    else takeOver(c.alarms, alarmsApi, 'alarms');
+  }
+
   if (!c.extension) c.extension = {};
   if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') {
     c.extension.isAllowedFileSchemeAccess = function (cb) { return settle(fileAccess(), cb, 'extension.isAllowedFileSchemeAccess'); };

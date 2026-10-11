@@ -3112,6 +3112,8 @@ async function loadAllExtensionsOnStartup() {
   _migrateFileAccess();
   // Before any extension starts, so one that adds to its saved items finds them.
   _restoreExtensionMenus();
+  try { _extAlarms.restore(); }
+  catch (err) { console.error('[Extensions] the saved extension alarms could not be read, so none are set:', err.message); }
   const disabled = _readDisabledFolders();
   for (const entry of _extEntries()) {
     if (entry.error && !entry.manifest) { _extLoadErrors.set(entry.folder, entry.error); continue; }
@@ -4317,6 +4319,28 @@ function _restoreExtensionMenus() {
   catch (err) { console.error('[Extensions] the saved menu items could not be read, so extensions start without them:', err.message); }
 }
 
+// chrome.alarms (src/main/extension-alarms.js): Electron's never fired.
+// Keyed '<partition>|<extension id>'.
+const EXT_ALARMS_FILE = path.join(userDataPath, 'extension-alarms.json');
+let _extAlarmsWrites = Promise.resolve();
+const _extAlarms = require('./main/extension-alarms').createExtensionAlarms({
+  load: () => (fs.existsSync(EXT_ALARMS_FILE) ? JSON.parse(fs.readFileSync(EXT_ALARMS_FILE, 'utf-8')) : {}),
+  save: (data) => {
+    const bytes = JSON.stringify(data);
+    _extAlarmsWrites = _extAlarmsWrites.then(() => atomicWrite(EXT_ALARMS_FILE, bytes, { backup: false }))
+      .catch(err => console.error('[Extensions] could not save the extensions\' alarms:', err.message));
+  },
+  fire: async (key, alarm) => {
+    const cut = key.lastIndexOf('|');
+    const ses = _sessionForKey(key.slice(0, cut));
+    const extId = key.slice(cut + 1);
+    if (!ses) return 'later';
+    if (!_exts(ses).getExtension(extId)) return 'gone';
+    await _extDispatch(ses, extId, 'alarms.onAlarm', [alarm]);
+    return 'fired';
+  },
+});
+
 // Tell an extension something, in every context of it in that session that
 // listens: its pages (background page, popup, options) and its service
 // worker, which is started for it if it was asleep (as Chrome wakes it).
@@ -4420,6 +4444,7 @@ async function _extApi(senderUrl, ses, request) {
   const perms = Array.isArray(manifest.permissions) ? manifest.permissions : [];
   const needMenus = () => { if (!perms.includes('contextMenus') && !perms.includes('menus')) throw new Error('The "contextMenus" permission is required'); };
   const needAction = () => { if (!manifest.action && !manifest.browser_action) throw new Error('This extension has no toolbar button in its manifest'); };
+  const needPerm = (name) => { if (!perms.includes(name)) throw new Error(`The "${name}" permission is required`); };
   const tabId = args.tabId == null ? null : args.tabId;
   if (tabId !== null && !_extPage(ses, tabId)) throw new Error(`No tab with id: ${tabId}.`);
   switch (r.op) {
@@ -4442,6 +4467,11 @@ async function _extApi(senderUrl, ses, request) {
       return _extUi.actionGet(partition, extId, args.prop, tabId, { title: typeof own === 'string' ? own : (ext.name || '') });
     }
     case 'extension.fileAccess': return !!_fileAccessState().allow[path.basename(ext.path)];
+    case 'alarms.create': needPerm('alarms'); _extAlarms.create(`${partition}|${extId}`, args.name, args.info); return undefined;
+    case 'alarms.get': needPerm('alarms'); return _extAlarms.get(`${partition}|${extId}`, args.name);
+    case 'alarms.getAll': needPerm('alarms'); return _extAlarms.getAll(`${partition}|${extId}`);
+    case 'alarms.clear': needPerm('alarms'); return _extAlarms.clear(`${partition}|${extId}`, args.name);
+    case 'alarms.clearAll': needPerm('alarms'); return _extAlarms.clearAll(`${partition}|${extId}`);
     case 'commands.getAll': {
       const rows = _extCommands().byFolder[path.basename(ext.path)] || [];
       return rows.map(row => ({ name: row.name, description: row.description, shortcut: row.shortcut }));
