@@ -40,6 +40,15 @@
         document.documentElement.setAttribute('data-vex-font', '');
       } catch (e) { console.error('[start] font:', e); }
     })();
+    // How big Vex is (Larger, Largest: js/fonts.js scaleScript), before first paint.
+    (function () {
+      try {
+        var z = localStorage.getItem('vex.uiScale');
+        if (!z || !/^\d(\.\d+)?$/.test(z)) return;
+        document.documentElement.style.setProperty('--vex-ui-scale', z);
+        document.documentElement.setAttribute('data-vex-scale', '');
+      } catch (e) { console.error('[start] size:', e); }
+    })();
   </script>
   <style>
     /* Accessibility baseline (mirrors css/a11y.css — this page is a separate
@@ -868,6 +877,8 @@
        scrollbar is tinted from the theme as well. */
     html { color-scheme: light; scrollbar-color: color-mix(in srgb, var(--vex-text-muted) 60%, transparent) transparent; }
     html:is([data-scheme="dark"], [data-gui-style="glass"]) { color-scheme: dark; }
+    /* Vex's own size (Larger, Largest) — every block of the page grows with it. */
+    html[data-vex-scale] body > * { zoom: var(--vex-ui-scale, 1); }
 
     body {
       background-image:
