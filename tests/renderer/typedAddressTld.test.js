@@ -37,9 +37,13 @@ describe('real domains still open', () => {
 });
 
 describe('intranet names with a slash open', () => {
-  it('"router/" and "nas/admin"', () => {
+  it('"router/" always, "nas/admin" once nas has been visited, "and/or" never', () => {
     expect(TA.addressFor('router/')).toBe('http://router/');
-    expect(TA.addressFor('nas/admin')).toBe('http://nas/admin');
+    expect(TA.addressFor('and/or')).toBeNull();
+    expect(TA.addressFor('nas/admin')).toBeNull();
+    globalThis.HistoryPanel = { list: () => [{ url: 'http://nas/' }] };
+    try { expect(TA.addressFor('nas/admin')).toBe('http://nas/admin'); }
+    finally { delete globalThis.HistoryPanel; }
   });
   it('but not a fraction or a date', () => {
     expect(TA.addressFor('24/7')).toBeNull();

@@ -94,8 +94,16 @@
   }
 
   // A one-word intranet name and a slash, as Chrome opens it: "router/",
-  // "nas/admin" were searched. Not a number: "24/7" and "1/2" are words.
+  // "nas/admin" were searched. Not a number: "24/7" and "1/2" are words. With
+  // a path, only a name already visited: "nas/admin" and "and/or" look alike.
   const INTRANET_PATH = /^(?=[a-z0-9-]*[a-z])[a-z0-9]([a-z0-9-]*[a-z0-9])?\/\S*$/i;
+  function intranetAddress(t) {
+    if (!INTRANET_PATH.test(t)) return false;
+    const host = t.slice(0, t.indexOf('/')).toLowerCase();
+    if (t.length === host.length + 1) return true;
+    const list = (typeof HistoryPanel !== 'undefined' && HistoryPanel.list) ? HistoryPanel.list() : [];
+    return list.some(e => { try { return new URL(e.url).hostname.toLowerCase() === host; } catch { return false; } });
+  }
 
   // The address a line names, or null when it is words to search for.
   function addressFor(text) {
@@ -109,7 +117,7 @@
     if (/\s/.test(t)) return null;
     if (LOCAL_HOST.test(t)) return realIpv4(t) ? 'http://' + t : null;
     if (HOST_WITH_PORT.test(t) && !ALL_CAPS_LABEL.test(t)) return 'http://' + t;
-    if (INTRANET_PATH.test(t)) return 'http://' + t;
+    if (intranetAddress(t)) return 'http://' + t;
     if (DOMAIN.test(t) && !isBareFileName(t) && (!BARE_NAME.test(t) || knownTld(t))) return 'https://' + t;
     return null;
   }
