@@ -1213,6 +1213,45 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === A Discord / WhatsApp notification clicked (main world) =================
+//
+// Discord and WhatsApp in a panel notify through the page's own Notification
+// API; Windows shows it, and a click went to the page — which cannot bring
+// up the panel it lives in, so the click did nothing you could see. The page's
+// Notification is wrapped (on these two sites only) so a click also tells the
+// host, which opens that panel and brings Vex to the front
+// (js/sidebar.js, 'vex-notification-click'). Nothing about the notification
+// is sent: only that one was clicked.
+(function () {
+  let host = '';
+  try { host = (window.location && window.location.protocol === 'https:' && window.location.hostname) || ''; } catch { return; }
+  if (!/^(?:(?:[a-z0-9-]+\.)?discord\.com|web\.whatsapp\.com)$/i.test(host)) return;
+  let contextBridge = null, ipcRenderer = null;
+  try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
+  const clicked = () => { try { ipcRenderer.sendToHost('vex-notification-click'); } catch { /* host gone */ } };
+  function wrapNotification(clicked) {
+    const N = window.Notification;
+    if (typeof N !== 'function' || N.__vexWrapped) return;
+    const Wrapped = function Notification(title, options) {
+      const n = new N(title, options);
+      try { n.addEventListener('click', () => clicked()); } catch (e) { /* a notification that cannot be listened to still shows */ }
+      return n;
+    };
+    Wrapped.prototype = N.prototype;
+    Object.defineProperty(Wrapped, 'permission', { get: () => N.permission, configurable: true });
+    if (typeof N.requestPermission === 'function') Wrapped.requestPermission = N.requestPermission.bind(N);
+    if ('maxActions' in N) Object.defineProperty(Wrapped, 'maxActions', { get: () => N.maxActions, configurable: true });
+    Object.defineProperty(Wrapped, '__vexWrapped', { value: true });
+    window.Notification = Wrapped;
+  }
+  function inject() {
+    try { contextBridge.executeInMainWorld({ func: wrapNotification, args: [clicked] }); }
+    catch (err) { console.error('[Vex] notification clicks cannot reach the panel on this page:', err && err.message); }
+  }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
 // === Where this tab's sound comes out (main world) ==========================
 //
 // Windows sets ONE output device for a whole program, so a browser plays

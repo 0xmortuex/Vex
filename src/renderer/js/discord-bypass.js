@@ -20,6 +20,15 @@ const DiscordBypass = {
   // ByeDPI presets in src/byedpi.js (PRESETS). Shown 1-based.
   PRESETS: 10,
 
+  // Chromium's net errors that blocking produces: the name not resolving
+  // (DNS blocking), the connection reset, refused, closed or answered with
+  // nothing (DPI cutting it), timing out, and TLS broken in the middle.
+  // Not -106 (no internet at all), -21 (the network changed) or -3 (a load
+  // the page itself aborted): "Discord looks blocked" then was wrong, and
+  // the bypass it offered could not help.
+  BLOCKED_ERRORS: [-7, -15, -100, -101, -102, -104, -105, -107, -109, -113, -118, -137, -324],
+  looksBlocked(code) { return this.BLOCKED_ERRORS.includes(Number(code)); },
+
   choice() {
     const mode = localStorage.getItem(this.KEY);
     if (mode === 'off') return { mode: 'off' };

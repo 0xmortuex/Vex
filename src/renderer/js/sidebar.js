@@ -599,6 +599,9 @@ const SidebarManager = {
     wv.addEventListener('ipc-message', (e) => {
       // The picture under a right-click, for the menu (js/webview.js contextImage).
       if (e.channel === 'vex-ctx-image') { if (typeof WebviewManager !== 'undefined') WebviewManager.noteContextImage(wv, e.args && e.args[0]); return; }
+      // One of its desktop notifications was clicked (preload-webview.js):
+      // bring Vex up with this panel open.
+      if (e.channel === 'vex-notification-click') { this.openFromNotification(panelName); return; }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);
@@ -680,7 +683,9 @@ const SidebarManager = {
     // Discord: if the page fails to connect (it's blocked), offer the bypass.
     if (panelName === 'discord') {
       wv.addEventListener('did-fail-load', (e) => {
-        if (!e.isMainFrame || e.errorCode === -3) return; // ignore aborts
+        // Only the failures blocking looks like (js/discord-bypass.js) —
+        // not being offline, which no bypass can help with.
+        if (!e.isMainFrame || !window.DiscordBypass || !DiscordBypass.looksBlocked(e.errorCode)) return;
         this._showDiscordBlockedPrompt(wv, panelEl);
       });
       wv.addEventListener('did-finish-load', () => this._hideDiscordBlockedPrompt());
@@ -1316,11 +1321,13 @@ const SidebarManager = {
     const btn = document.querySelector('.sidebar-icon[data-panel="' + name + '"]');
     if (btn) {
       let b = btn.querySelector('.icon-badge.capture');
-      if (!c.mic && !c.camera) { if (b) b.remove(); }
+      if (!c.mic && !c.camera && !c.screen) { if (b) b.remove(); }
       else {
         if (!b) { b = document.createElement('span'); b.className = 'icon-badge capture'; btn.appendChild(b); }
-        b.innerHTML = VexIcons.svg(c.camera ? 'camera' : 'mic', { size: 10 });
-        b.title = c.camera && c.mic ? 'Using the camera and microphone' : c.camera ? 'Using the camera' : 'Using the microphone';
+        // A screen share is the one to see first: it shows what is on screen.
+        b.innerHTML = VexIcons.svg(c.screen ? 'monitor' : c.camera ? 'camera' : 'mic', { size: 10 });
+        const uses = c.camera && c.mic ? 'the camera and microphone' : c.camera ? 'the camera' : c.mic ? 'the microphone' : '';
+        b.title = c.screen ? 'Sharing your screen' + (uses ? ', and using ' + uses : '') : 'Using ' + uses;
       }
     }
     if (name === 'discord') {
@@ -1984,6 +1991,17 @@ const SidebarManager = {
     if (t) TabManager.closeTab(t.id);
     DiscordMemory.openTab();
     return true;
+  },
+
+  // A desktop notification from a panel was clicked: Vex to the front, and
+  // the panel open (Discord as a tab: its tab).
+  openFromNotification(panelName) {
+    if (window.vex && typeof window.vex.focusWindow === 'function') {
+      window.vex.focusWindow().then((r) => { if (r && r.ok === false) window.VexProblems?.note('Panels', 'Vex could not come to the front for a notification', r.error); },
+        (err) => window.VexProblems?.note('Panels', 'Vex could not come to the front for a notification', err));
+    }
+    if (this.activePanel === panelName || this.sidePanel === panelName) return;
+    this.showPanel(panelName);
   },
 
   // Turn the bypass off (for Zapret or a VPN), saved.
