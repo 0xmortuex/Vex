@@ -131,6 +131,36 @@ describe('Settings › Passwords', () => {
     expect(rowFor('github.com').textContent).toMatch(/octocat/);
   });
 
+  // Found 2026-10-11 in a live probe: a login with no username (kept from a
+  // browser's CSV since this release) could not be edited at all: Save said
+  // "Enter the username or email", though main accepts an empty one.
+  it('edits a login that has no username, without making one up', async () => {
+    vault.push({ host: 'pin.example', username: '', password: 'Pin-only-77' });
+    await PasswordVault.renderPanel(container);
+    rowFor('pin.example').querySelector('[data-edit]').click();
+    await tick();
+    const d = document.querySelector('.vex-dialog');
+    expect(d.querySelector('#vex-pwedit-user').value).toBe('');
+    d.querySelector('#vex-pwedit-pass').value = 'Pin-new-88';
+    d.querySelector('[data-ok]').click();
+    await tick();
+    expect(d.querySelector('#vex-pwedit-error').style.display).not.toBe('block');
+    expect(window.vex.vaultUpdate).toHaveBeenCalledWith({ host: 'pin.example', username: '', newUsername: '', password: 'Pin-new-88', note: '' });
+    expect(vault.find(e => e.host === 'pin.example').password).toBe('Pin-new-88');
+  });
+
+  it('a login that has a username still needs one when edited', async () => {
+    await PasswordVault.renderPanel(container);
+    rowFor('github.com').querySelector('[data-edit]').click();
+    await tick();
+    const d = document.querySelector('.vex-dialog');
+    d.querySelector('#vex-pwedit-user').value = '  ';
+    d.querySelector('[data-ok]').click();
+    await tick();
+    expect(d.querySelector('#vex-pwedit-error').textContent).toBe('Enter the username or email');
+    expect(window.vex.vaultUpdate).not.toHaveBeenCalled();
+  });
+
   it('export warns plainly first, and does nothing if the warning is declined', async () => {
     await PasswordVault.renderPanel(container);
     window.vexConfirm = vi.fn(async () => false);

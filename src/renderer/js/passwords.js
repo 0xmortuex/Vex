@@ -569,7 +569,9 @@ const PasswordVault = {
   },
 
   // The add / edit form. -> { host, username, password, note } or null.
-  _editDialog({ title, okLabel, host = '', username = '', password = '', note = '', hostEditable = false, passwordRequired = true }) {
+  // usernameRequired: false for a saved login that has none (one kept from a
+  // browser's CSV, for a site that asks only for a password or a PIN).
+  _editDialog({ title, okLabel, host = '', username = '', password = '', note = '', hostEditable = false, passwordRequired = true, usernameRequired = true }) {
     return new Promise((resolve) => {
       document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel?.());
       const prevFocus = document.activeElement;
@@ -617,7 +619,7 @@ const PasswordVault = {
         const user = $('#vex-pwedit-user').value.trim();
         const pass = $('#vex-pwedit-pass').value;
         if (!siteHost) { fail('Enter the site, like example.com'); $('#vex-pwedit-host').focus(); return; }
-        if (!user) { fail('Enter the username or email'); $('#vex-pwedit-user').focus(); return; }
+        if (!user && usernameRequired) { fail('Enter the username or email'); $('#vex-pwedit-user').focus(); return; }
         if (passwordRequired && !pass) { fail('Enter the password'); $('#vex-pwedit-pass').focus(); return; }
         done({ host: siteHost, username: user, password: pass, note: $('#vex-pwedit-note').value.trim() });
       };
@@ -667,7 +669,7 @@ const PasswordVault = {
     if (!await this._recheck('shows a saved password')) return;
     const m = await this._fullEntry(entry.host, entry.username);
     if (!m) { window.showToast?.('That saved login is no longer in the vault', 'error'); await this.renderPanel(container); return; }
-    const got = await this._editDialog({ title: 'Edit saved password', okLabel: 'Save changes', host: m.host, username: m.username, password: m.password, note: m.note || '', passwordRequired: false });
+    const got = await this._editDialog({ title: 'Edit saved password', okLabel: 'Save changes', host: m.host, username: m.username, password: m.password, note: m.note || '', passwordRequired: false, usernameRequired: !!m.username });
     if (!got) return;
     const r = await window.vex.vaultUpdate({ host: m.host, username: m.username, newUsername: got.username, password: got.password, note: got.note });
     if (!r || !r.ok) { window.showToast?.('Could not save the changes: ' + ((r && r.error) || 'unknown error'), 'error'); return; }
