@@ -97,6 +97,35 @@ describe('Ask where to save each file', () => {
     }
   });
 
+  it('a Save dialog closed with Cancel leaves no row and no toast; a chosen place is announced with its real path', () => {
+    const prefs = makePrefs();
+    prefs.setAsk(true);
+    const sent = [];
+    const service = createDownloadService({
+      app: { getPath: () => downloads },
+      secureSessions: { owner: () => null, partitionOf: () => 'persist:main' },
+      broadcast: (channel, data) => sent.push({ channel, data }), ipcMain: null, prefs: () => prefs.current(),
+    });
+    const session = { on: (name, fn) => { session._will = fn; } };
+    service.wireDownloadsOnSession(session, 'test');
+    const live = (savePath) => {
+      const handlers = {};
+      const item = { ...fakeItem(), getSavePath: () => savePath, on: (n, fn) => { handlers[n] = fn; }, once: (n, fn) => { handlers[n] = fn; } };
+      session._will({}, item, null);
+      return handlers;
+    };
+    live('').done(null, 'cancelled');
+    expect(sent).toEqual([]);
+    const picked = path.join(chosen, 'mine.pdf');
+    const h = live(picked);
+    expect(sent).toEqual([]);
+    h.updated(null, 'progressing');
+    expect(sent.map(s => s.channel)).toEqual(['download-started', 'download-progress']);
+    expect(sent[0].data).toMatchObject({ path: picked, fileName: 'mine.pdf' });
+    h.done(null, 'completed');
+    expect(sent.at(-1)).toMatchObject({ channel: 'download-complete', data: { state: 'completed', path: picked } });
+  });
+
   it('Reset to Defaults puts both back: the Downloads folder, and no asking', () => {
     const prefs = makePrefs();
     prefs.setFolder(chosen);

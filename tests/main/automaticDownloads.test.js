@@ -140,6 +140,17 @@ describe('a page starting downloads by itself', () => {
     expect(service.autoDownloadCheck(page, ['https://files.example/3'], 'persist:main', t0 + 61000)).toMatchObject({ origin: 'https://files.example' });
   });
 
+  it('a tab that has gone on to another site starts counting again: that site\'s first download is not asked', () => {
+    let url = 'https://first.example/';
+    const page = { id: 7, getURL: () => url, once() {}, partition: 'persist:main', session: {} };
+    const t0 = Date.now();
+    expect(service.autoDownloadCheck(page, ['https://first.example/1'], 'persist:main', t0)).toBeNull();
+    url = 'https://second.example/';
+    expect(service.autoDownloadCheck(page, ['https://second.example/1'], 'persist:main', t0 + 1000)).toBeNull();
+    // …and its own second one still is.
+    expect(service.autoDownloadCheck(page, ['https://second.example/2'], 'persist:main', t0 + 2000)).toMatchObject({ origin: 'https://second.example' });
+  });
+
   it('a private window or Tor tab is asked the same way, but nothing is kept beyond the tab', async () => {
     for (const partition of ['private-1', 'persist:route-tor']) {
       setup();

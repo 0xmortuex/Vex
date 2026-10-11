@@ -95,10 +95,13 @@ function autoDownloadCheck(contents, urls, partition, now = Date.now()) {
   const id = contents.id;
   let page = _pageDownloads.get(id);
   if (!page) {
-    page = { at: [], gestureUsed: null };
+    page = { at: [], gestureUsed: null, origin };
     _pageDownloads.set(id, page);
     contents.once('destroyed', () => _pageDownloads.delete(id));
   }
+  // The tab has gone on to another site: that site's first download is its
+  // first, not a second one of the site before (the count was per tab).
+  if (page.origin !== origin) { page.at = []; page.origin = origin; }
   page.at = page.at.filter(t => now - t <= AUTO_WINDOW_MS);
   const earlier = page.at.length;
   page.at.push(now);
@@ -270,9 +273,20 @@ function wireDownloadsOnSession(ses, tag) {
       _sources.set(info.id, { session: ses, partition: partition || '', hostId: owner ? owner.win.webContents.id : null });
       while (_sources.size > SOURCES_MAX) _sources.delete(_sources.keys().next().value);
       console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
-      emit('download-started', info);
+      // With "Ask where to save" the panel hears of it once a place is
+      // chosen: a Save dialog closed with Cancel used to leave a "cancelled"
+      // row and a toast for a download the user had just said no to (Chrome
+      // shows nothing).
+      let announced = false;
+      const announce = () => { if (!announced) { announced = true; emit('download-started', info); } };
+      if (!readChosen) announce();
       item.on('updated', (_e, state) => {
-        if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
+        if (readChosen) {
+          const chosen = safeCall(item, 'getSavePath', '');
+          if (!chosen) return;
+          savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen);
+          announce();
+        }
         emit('download-progress', {
           id: info.id,
           receivedBytes: item.getReceivedBytes(),
@@ -286,7 +300,15 @@ function wireDownloadsOnSession(ses, tag) {
       });
       const finish = (state) => {
         _liveDownloads.delete(info.id);
-        if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.fileName = path.basename(chosen); } }
+        if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
+        if (!announced) {
+          if (state === 'cancelled') {
+            _sources.delete(info.id);
+            console.log(`[Downloads] (${tag || 'session'}) Save was cancelled:`, info.fileName);
+            return;
+          }
+          announce();
+        }
         // An allowed download that was held: moved to where it belongs.
         if (held) {
           if (state === 'completed') {
