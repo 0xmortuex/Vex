@@ -2698,13 +2698,14 @@
 
       function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
-      // Resolve a query string to an address or a search with the address
-      // bar's rule, then navigate via the VEX_CMD bridge.
+      // What was typed goes to Vex, which sends it where the address bar
+      // would (keywords, the engine, an http retry for a typed name): this
+      // page had its own rule and knew none of your keywords (found
+      // 2026-10-10).
       function navigateQuery(query, newTab) {
         query = (query || '').trim();
         if (!query) return;
-        const url = TA.addressFor(query) || TA.searchUrl(query, engineId);
-        console.log('VEX_CMD:' + JSON.stringify({ type: 'navigate', url, newTab }));
+        console.log('VEX_CMD:' + JSON.stringify({ type: 'typed', query, newTab: !!newTab }));
       }
 
       function close() {

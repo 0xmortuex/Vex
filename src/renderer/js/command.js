@@ -654,7 +654,10 @@ const CommandBar = {
 
       // Is it an address? Read from what was typed, not the lower-cased copy
       // used for matching: "…watch?v=dQw4w9WgXcQ" opened "…v=dqw4w9wgxcq".
-      const url = _typedAddress().addressFor(query);
+      // The address bar's answer (js/typed-address.js resolve), so keywords
+      // and the engine are the same here (found 2026-10-10).
+      const where = _typedAddress().resolve(query);
+      const url = where && where.kind === 'address' ? where.url : null;
       if (url) {
         // As text: renderResults sets labels with textContent, so escaping
         // here showed "a&amp;b" (found 2026-10-10).
@@ -668,7 +671,7 @@ const CommandBar = {
           action: () => {
             const tab = TabManager.getActiveTab();
             if (tab && isStartPage(tab.url)) {
-              WebviewManager.navigate(url);
+              WebviewManager.navigate(url, { httpFallback: !!where.guessedHttps });
             } else {
               TabManager.createTab(url, true);
             }
@@ -696,14 +699,19 @@ const CommandBar = {
       this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
       this.results.push(...quickAfter);
 
-      // Search action
+      // Search action: "@yt cats" on YouTube, as in the address bar. It used
+      // to open a new tab beside the empty New Tab you were in.
+      const searched = where && where.kind === 'keyword' ? where
+        : { url: _typedAddress().searchUrl(query), name: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name, query: query.trim() };
       this.results.push({
         id: 'search',
-        label: `Search "${query.trim()}"`,
-        hint: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name + ' Search',
+        label: `Search "${searched.query}"`,
+        hint: searched.name + ' Search',
         icon: 'search',
         action: () => {
-          TabManager.createTab(_typedAddress().searchUrl(query), true);
+          const tab = TabManager.getActiveTab();
+          if (tab && isStartPage(tab.url)) WebviewManager.navigate(searched.url);
+          else TabManager.createTab(searched.url, true);
         }
       });
 

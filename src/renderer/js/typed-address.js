@@ -147,7 +147,27 @@
     return [];
   }
 
-  const api = { SEARCH_ENGINES, SUGGEST_KEY, addressFor, engineOf, currentEngine, searchUrl, suggestUrl, suggestionsOn, parseSuggestions };
+  // Where a typed line goes, the one answer for the address bar, Ctrl+K and
+  // the New Tab box: they each made their own, so "@yt cats" or a keyword of
+  // your own worked in one and not the others (found 2026-10-10).
+  // → { kind: 'address'|'keyword'|'search', url, name?, query?, guessedHttps? }
+  // or null for nothing typed. guessedHttps: the address had no scheme and
+  // https was guessed, so a failed load may try http (WebviewManager.navigate).
+  function resolve(text, engineId) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const address = addressFor(t);
+    if (address) return { kind: 'address', url: address, guessedHttps: !SCHEME.test(t) && address.startsWith('https://') };
+    const SS = (typeof window !== 'undefined' && window.SearchShortcuts) ||
+      (typeof require === 'function' ? require('./search-shortcuts.js').SearchShortcuts : null);
+    if (!SS) throw new Error('js/search-shortcuts.js is not loaded, so search keywords cannot be read');
+    const k = SS.resolveKeywordSearch(t);
+    if (k) return { kind: 'keyword', url: k.url, name: k.name, query: k.query };
+    const id = engineId === undefined ? currentEngine() : engineOf(engineId);
+    return { kind: 'search', url: searchUrl(t, id), name: SEARCH_ENGINES[id].name, query: t };
+  }
+
+  const api = { SEARCH_ENGINES, SUGGEST_KEY, addressFor, resolve, engineOf, currentEngine, searchUrl, suggestUrl, suggestionsOn, parseSuggestions };
   if (typeof window !== 'undefined') window.VexTypedAddress = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

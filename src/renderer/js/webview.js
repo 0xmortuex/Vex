@@ -586,6 +586,13 @@ const WebviewManager = {
                 });
               } catch { webview.src = cmd.url; }
             }
+          } else if (cmd.type === 'typed' && typeof cmd.query === 'string') {
+            // What was typed in the New Tab box goes where the address bar
+            // sends it: its own keyword and engine rules differed (found
+            // 2026-10-10). Only from the tab in front, which is this one.
+            if (TabManager.activeTabId !== tab.id) return;
+            if (typeof window.VexSubmitTyped !== 'function') throw new Error('The address bar is not ready');
+            window.VexSubmitTyped(cmd.query.slice(0, 4096), !!cmd.newTab);
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
           } else if (cmd.type === 'open-theme-picker') {
@@ -921,7 +928,18 @@ const WebviewManager = {
     return handed;
   },
 
-  navigate(url) {
+  // The failures an https guess for a typed name falls back to http on: no
+  // TLS there, nothing listening on 443, or a certificate a home device made
+  // for itself.
+  HTTP_FALLBACK_ERRORS: /ERR_SSL_PROTOCOL_ERROR|ERR_SSL_VERSION_OR_CIPHER_MISMATCH|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_CONNECTION_TIMED_OUT|ERR_CERT_[A-Z_]+/,
+
+  _httpsOnly() {
+    return typeof PrivacyPack !== 'undefined' && !!(PrivacyPack.cfg && PrivacyPack.cfg.httpsOnly);
+  },
+
+  // opts.httpFallback: the address was typed without a scheme and https was
+  // guessed (VexTypedAddress.resolve).
+  navigate(url, opts = {}) {
     // A site rule cannot move a tab that already exists — a webview's session
     // is fixed the moment it is attached — so the tab opens beside this one,
     // in the routed session, and this one stays where it was.
@@ -972,6 +990,15 @@ const WebviewManager = {
           }
           console.warn('[Vex] navigate failed:', m);
           settle();
+          // A name typed without a scheme was tried over https, and a printer
+          // or a dev server with only http failed there (printer.lan,
+          // myapp.test:3000). As in Chrome, it is tried again over http,
+          // unless HTTPS-Only is on (found 2026-10-10).
+          if (opts.httpFallback && /^https:\/\//i.test(url) && TabManager.activeTabId === tabId &&
+              WebviewManager.HTTP_FALLBACK_ERRORS.test(m) && !WebviewManager._httpsOnly()) {
+            this.navigate('http://' + url.slice('https://'.length));
+            return;
+          }
           const tab = TabManager.tabs.find(t => t.id === tabId);
           if (tab) { tab.url = url; TabManager.renderTabUpdate?.(tab); }
           const input = document.getElementById('url-input');

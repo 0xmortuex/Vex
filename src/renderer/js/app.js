@@ -142,16 +142,11 @@ function vexOwnTextFocused(doc) {
     val = (val || '').trim();
     if (!val) return;
 
-    // An address, or words for the chosen engine (js/typed-address.js).
-    // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
-    // precedence over the default engine.
-    let url = VexTypedAddress.addressFor(val);
-    if (!url) {
-      const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
-      // The saved choice, read each time: an engine picked in the setup wizard
-      // or on the New Tab page was ignored until a restart (found 2026-09-29).
-      url = shortcut || VexTypedAddress.searchUrl(val);
-    }
+    // An address, a keyword search ("@yt cats", "!w einstein") or words for
+    // the chosen engine, read each time (js/typed-address.js resolve, the
+    // same answer Ctrl+K and the New Tab box give).
+    const where = VexTypedAddress.resolve(val);
+    const url = where.url;
 
     // If sidebar panel is open, close it first
     SidebarManager.hideActivePanel();
@@ -161,7 +156,7 @@ function vexOwnTextFocused(doc) {
     } else {
       const activeTab = TabManager.getActiveTab();
       if (activeTab) {
-        WebviewManager.navigate(url);
+        WebviewManager.navigate(url, { httpFallback: !!where.guessedHttps });
       } else {
         // No active tab — fall back to creating one so the URL doesn't drop.
         TabManager.createTab(url, true);
@@ -170,6 +165,9 @@ function vexOwnTextFocused(doc) {
 
     urlInput.blur();
   }
+  // The New Tab box hands what was typed here (webview.js, 'typed'), so it
+  // goes where the address bar would send it.
+  window.VexSubmitTyped = submitUrlBar;
 
   // Smart Searchbar: local-only suggestion dropdown (open tabs, history,
   // bookmarks). Selecting a suggestion routes through submitUrlBar so it
