@@ -862,6 +862,12 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body { background: var(--vex-bg-base); min-height: 100vh; }
+    /* Native parts (scrollbars, selects, date/time inputs) follow the theme:
+       light on a light theme, dark on a dark one or under Glass. Without it a
+       dark New Tab scrolled with a white scrollbar (cat-themes TH4). The
+       scrollbar is tinted from the theme as well. */
+    html { color-scheme: light; scrollbar-color: color-mix(in srgb, var(--vex-text-muted) 60%, transparent) transparent; }
+    html:is([data-scheme="dark"], [data-gui-style="glass"]) { color-scheme: dark; }
 
     body {
       background-image:
@@ -1500,7 +1506,7 @@
       --vex-glass-strong:rgba(255,255,255,0.10); --vex-glass-medium:rgba(255,255,255,0.07);
       --vex-glass-light:rgba(255,255,255,0.05); --vex-glass-input:rgba(255,255,255,0.12);
       --vex-border-subtle:rgba(255,255,255,0.12); --vex-border-medium:rgba(255,255,255,0.18); --vex-border-strong:rgba(255,255,255,0.26);
-      --vex-text-primary:#eef0ff; --vex-text-secondary:#c4c8ec; --vex-text-muted:#9499c4;
+      --vex-text-primary:#eef0ff; --vex-text-secondary:#c4c8ec; --vex-text-muted:#b4b8e0;
       --vex-blur-medium:blur(20px) saturate(140%); --vex-blur-light:blur(12px) saturate(120%);
       --vex-radius-sm:7px; --vex-radius-md:10px; --vex-radius-lg:14px;
       /* --vex-accent + accent-dim/glow + border-accent* intentionally NOT set —
@@ -2179,6 +2185,8 @@
     // switches reload this page with a fresh ?theme= (see ThemeManager
     // .applyTheme). Falls back to oxford only when the param is missing/unknown.
     const VEX_THEMES = ['oxford', 'default', 'midnight', 'forest', 'ocean', 'dracula', 'nord', 'catppuccin', 'sunset', 'rose', 'matrix', 'mocha', 'solarized', 'vaporwave', 'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome', 'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian', 'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark', 'contrast-light', 'evening', 'mica-light', 'mica-dark', 'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen', 'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material', 'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred', 'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight'];
+    // The light ones (ThemeManager.isLight; a test keeps the two lists equal).
+    const VEX_LIGHT_THEMES = ['oxford', 'firefox-light', 'contrast-light', 'mica-light', 'androidbeige', 'paperred', 'ezlight'];
     // A theme of your own (js/theme-studio.js in the window) comes as its id
     // (user-...) and its nine colours in ?tc=; js/theme-custom.js derives every
     // token from them, the same way the window does, and writes the CSS from
@@ -2261,6 +2269,7 @@
         html.removeAttribute('data-user-theme');
       }
       html.setAttribute('data-theme', t);
+      html.setAttribute('data-scheme', (own ? CustomThemes.isLight(own) : VEX_LIGHT_THEMES.includes(t)) ? 'light' : 'dark');
       if (!own) { paintThemeImage(null); return; }
       if (img === false) { paintThemeImage(shownThemeImage, own); return; }
       if (typeof img === 'string' || img === null) { paintThemeImage(img, own); return; }

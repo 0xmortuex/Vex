@@ -191,6 +191,13 @@
    below applies to every dark theme via [data-theme] grouping.
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* Native parts (scrollbars, selects, date/time inputs, the caret) follow the
+   theme: ThemeManager.applyTheme marks <html> data-scheme light or dark. With
+   none set they were light in every dark theme (cat-themes TH4). Glass is a
+   dark look whatever the theme. */
+:root { color-scheme: light; }
+html[data-scheme="dark"], html:has(> body[data-gui-style="glass"]) { color-scheme: dark; }
+
 /* Shared hover/elevation tokens for every dark theme (Oxford is the only
    light theme — it keeps the navy/warm values from :root above). */
 html[data-theme]:not([data-theme="oxford"]) {
