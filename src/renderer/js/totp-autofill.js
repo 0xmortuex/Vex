@@ -292,21 +292,29 @@ const TotpAutofill = {
       var n=0;var iv=setInterval(function(){if(fill()||++n>8)clearInterval(iv);},400);
       // Click-to-fill: a real click into an emptied 2FA field asks Vex for the
       // code of THAT moment (the promise below resolves, _inject's caller fetches
-      // a fresh code and injects again). The listener is wired once per page and
-      // used to re-fill the code it was first wired with, long expired.
-      window.__vexTotpIsOtp=isOtp;
-      var prev=window.__vexTotpWant;
-      var waiter=new Promise(function(resolve){window.__vexTotpWant=resolve;});
-      if(prev)prev('replaced');
-      if(!window.__vexTotpFocusWired){window.__vexTotpFocusWired=true;
-        document.addEventListener('focusin',function(e){try{if(!e.isTrusted)return;var el=e.target;var want=window.__vexTotpWant;if(want&&el&&el.tagName==='INPUT'&&!el.value&&window.__vexTotpIsOtp(el)){window.__vexTotpWant=null;want('focus');}}catch(e){}},true);
-      }
-      return waiter;
+      // a fresh code and injects again). One listener per injection, kept in
+      // this closure: nothing on window, so the page's own script cannot call
+      // it (it could, through window.__vexTotpWant, found 2026-10-11). A focus
+      // the page's script makes with el.focus() also arrives trusted, so the
+      // person must just have clicked or pressed a key.
+      return new Promise(function(resolve){
+        function onFocus(e){try{
+          if(!e.isTrusted||!(navigator.userActivation&&navigator.userActivation.isActive))return;
+          var el=e.target;if(!el||el.tagName!=='INPUT'||el.value||!isOtp(el))return;
+          document.removeEventListener('focusin',onFocus,true);resolve('focus');
+        }catch(x){}}
+        document.addEventListener('focusin',onFocus,true);
+      });
     }catch(e){}})();`;
     let pending;
     try { pending = webview.executeJavaScript(js); } catch { return; }
     Promise.resolve(pending).then((asked) => {
-      if (asked === 'focus' && account) return this._refill(webview, url, account);
+      if (asked !== 'focus' || !account) return;
+      // A page filled twice (a route change) has two listeners; one click
+      // answers both. One refill, and only that one wires a new listener.
+      if (webview._vexTotpRefilling) return;
+      webview._vexTotpRefilling = true;
+      return this._refill(webview, url, account).finally(() => { webview._vexTotpRefilling = false; });
     }).catch(() => {});
   },
 
