@@ -31,6 +31,9 @@ const WebviewManager = {
 
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
+    // A container's own route is asked for now, before anything reads the
+    // page (VexTabPolicy.isRouted counts it routed until main answers).
+    if (window.VexTabPolicy) window.VexTabPolicy.isRouted(tab.partition);
     const container = document.getElementById('webviews-container');
     const webview = document.createElement('webview');
     const lifecycle = window.VexLifecycle ? new window.VexLifecycle() : null;

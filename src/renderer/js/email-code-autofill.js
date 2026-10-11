@@ -150,7 +150,7 @@ const EmailCodeAutofill = {
       const T = this._tabs();
       if (T && Array.isArray(T.tabs)) {
         for (const p of this._PROVIDERS) {
-          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canPersist(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
+          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canShareTab(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
           if (!tab) continue;
           // If this tab was asleep/lazy, WE are waking it just to read a code —
           // remember that so we can put it back to sleep afterwards (see

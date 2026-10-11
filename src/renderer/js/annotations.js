@@ -194,7 +194,7 @@ const Annotations = {
 
   // --- Apply all stored highlights for a page (called on dom-ready) ---
   applyTo(webview, url) {
-    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
     const list = this.forUrl(url);
     if (!list.length) return;
     const loc = this._liveLocation(webview, url);
@@ -234,7 +234,7 @@ const Annotations = {
     const loc = wv.getURL?.() || t.url;
     const url = this._pageUrl(loc);
     const generation = wv._navigationGeneration;
-    const persist = !window.VexTabPolicy || window.VexTabPolicy.canReadWebview(wv);
+    const persist = !window.VexTabPolicy || window.VexTabPolicy.canFillWebview(wv);
     const id = 'hl' + Date.now().toString(36) + Math.floor(performance.now() % 1000);
     const hex = this.COLORS[color];
     const js = `(function(){try{

@@ -35,7 +35,7 @@ beforeEach(() => {
   window.escapeHtml = (value) => String(value == null ? '' : value);
   window.showToast = vi.fn();
   window.VexPasswordGen = G;
-  window.VexTabPolicy = { canReadWebview: (wv) => String(wv.getAttribute('partition') || '').startsWith('persist:') };
+  window.VexTabPolicy = { canFillWebview: (wv) => String(wv.getAttribute('partition') || '').startsWith('persist:') };
   window.vex = { vaultGet: vi.fn(async () => []), vaultSave: vi.fn(async () => ({ ok: true })) };
 });
 

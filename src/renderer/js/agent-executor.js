@@ -296,7 +296,7 @@ const AgentExecutor = {
         }
 
         case 'list_tabs': {
-          const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId, group: t.groupId || null, asleep: !!(t.sleeping || t._lazy) }));
+          const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId, group: t.groupId || null, asleep: !!(t.sleeping || t._lazy) }));
           return { ok: true, result: tabs };
         }
 
@@ -304,7 +304,7 @@ const AgentExecutor = {
         case 'read_tab': {
           const tab = TabManager.tabs.find(t => t.id === params.tabId);
           if (!tab) return { ok: false, error: 'No tab with that id — list_tabs gives the ids' };
-          if (window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) return { ok: false, error: 'Private tabs are excluded from agent access' };
+          if (window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) return { ok: false, error: 'Private tabs are excluded from agent access' };
           const other = WebviewManager.webviews.get(tab.id);
           if (!other || tab.sleeping || tab._lazy) return { ok: false, error: 'That tab is asleep — switch_tab to it first, or read_url its address: ' + tab.url };
           if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(other)) return { ok: false, error: 'Private tabs are excluded from agent access' };

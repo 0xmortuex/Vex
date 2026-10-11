@@ -1213,7 +1213,7 @@ const AIPanel = {
       try {
         const tab = (typeof TabManager !== 'undefined' && TabManager.tabs)
           ? TabManager.tabs.find(t => String(t.id) === String(id)) : null;
-        if (tab && window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) this._convPrivate[id] = true;
+        if (tab && window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) this._convPrivate[id] = true;
       } catch {}
     }
     return this._conversations[id];

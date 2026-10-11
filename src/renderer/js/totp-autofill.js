@@ -81,7 +81,7 @@ const TotpAutofill = {
   },
 
   async autofill(webview, url) {
-    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
     const generation = webview._navigationGeneration;
     let host = '';
     try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return; }
@@ -312,7 +312,7 @@ const TotpAutofill = {
 
   // The emptied field was clicked: the current code, never the one from before.
   async _refill(webview, url, account) {
-    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
     let origin = '';
     try { origin = new URL(url).origin; } catch { return; }
     const here = () => { try { return webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { return false; } };

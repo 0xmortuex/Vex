@@ -70,7 +70,7 @@ const TwoModels = {
       catch (err) { console.warn('[TwoModels] could not read the page:', err.message); }
     }
     const out = ctx || { url: tab.url, title: tab.title || '' };
-    return (window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) ? { ...out, privateTab: true } : out;
+    return (window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) ? { ...out, privateTab: true } : out;
   },
 
   _column(a, md) {

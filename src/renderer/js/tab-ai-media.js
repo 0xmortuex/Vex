@@ -57,7 +57,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     try {
       // A Tor, off-the-record or private-window tab is not sent to the AI, so
       // it is never closed or grouped from here either (found 2026-10-10).
-      const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
+      const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)).map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
       const data = await AIRouter.callAI('chat', {
         message: 'Instruction: ' + want + '\n\nOpen tabs:\n' + JSON.stringify(tabs),
         // As `persona`, the shape the router reads on every backend: a bare

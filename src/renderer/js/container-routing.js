@@ -54,6 +54,8 @@ const ContainerRouting = {
       try {
         const r = await window.vex.routingSet(part, mode, custom);
         if (!r || !r.ok) { msg('Failed: ' + ((r && r.error) || 'unknown'), false); return; }
+        // What Vex may read or send from its tabs follows (js/tab-policy.js).
+        window.VexTabPolicy?.noteRoute(part, mode);
         // The main session routed or not decides whether Vex's window may ask
         // normal tabs' sites for their icons (TabManager.windowMayAsk).
         if (part === 'persist:main') await TabManager.mainRoutingChanged();
@@ -71,6 +73,7 @@ const ContainerRouting = {
       try {
         const r = await window.vex.routingSet(p, 'tor');
         if (!r || !r.ok) { msg('Failed to start Tor: ' + ((r && r.error) || ''), false); return; }
+        window.VexTabPolicy?.noteRoute(p, 'tor');
         TabManager.createTab('https://check.torproject.org/', true, null, { partition: p });
         m.remove();
         window.showToast?.('Opened a Tor-routed container');

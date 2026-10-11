@@ -51,7 +51,7 @@ const PasswordVault = {
       ? (ev, fn) => webview._lifecycle.listen(webview, ev, fn)
       : (ev, fn) => webview.addEventListener(ev, fn);
     on('ipc-message', async (e) => {
-      if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+      if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
       let actualHost;
       try { const current = new URL(webview.getURL()); if (current.protocol !== 'https:') return; actualHost = this._host(current.hostname); } catch { return; }
       // Passwordless: remember the email the user typed on a login page.
@@ -330,7 +330,7 @@ const PasswordVault = {
   // opts.now: the AI agent's "sign in", which the person asked for, fills at
   // once (still from the isolated world).
   async autofill(webview, url, opts = {}) {
-    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
     const generation = webview._navigationGeneration;
     let host = '', origin = '';
     try { const u = new URL(url); host = this._host(u.hostname); origin = u.origin; } catch { return; }

@@ -227,7 +227,7 @@ const TabGrouper = (() => {
   async function analyzeAndPropose(onlyUngrouped = true) {
     // A Tor, off-the-record or private-window tab is never sent to the AI
     // (it went with the rest, found 2026-10-10).
-    const all = _allTabs().filter(t => !_isBlankTab(t) && (!window.VexTabPolicy || window.VexTabPolicy.canPersist(t)));
+    const all = _allTabs().filter(t => !_isBlankTab(t) && (!window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)));
     const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
     if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs with a page open to propose groupings', 'warn'); return; }
 
