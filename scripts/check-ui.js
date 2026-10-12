@@ -730,7 +730,50 @@ window.__vexCheckUi = (function () {
     });
   }
 
-  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow };
+  // The category menu: clicking an entry scrolls to its section and marks
+  // that entry (aria-current). In two and three columns it marked the section
+  // beside it that began higher in nearly every category.
+  function settingsChips(style, label) {
+    var panel = document.getElementById('panel-settings');
+    var root = panel && panel.querySelector('.settings-content');
+    var findings = [];
+    if (!root || !root.clientWidth) return Promise.resolve({ blocks: 0, findings: findings });
+    var chips = Array.prototype.slice.call(panel.querySelectorAll('.set-nav .set-nav-chip')).filter(function (c) { return c.getClientRects().length; });
+    var pick = [3, 8, 14, chips.length - 4].filter(function (i, k, a) { return i >= 0 && i < chips.length && a.indexOf(i) === k; });
+    var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    var settle = function () {
+      var last = -1, same = 0, n = 0;
+      return new Promise(function (resolve) {
+        (function tick() {
+          wait(50).then(function () {
+            n++;
+            if (root.scrollTop === last) same++; else { same = 0; last = root.scrollTop; }
+            if (same >= 4 || n > 80) resolve(); else tick();
+          });
+        })();
+      });
+    };
+    var run = function (k) {
+      if (k >= pick.length) return Promise.resolve({ blocks: chips.length, findings: findings });
+      var c = chips[pick[k]];
+      root.scrollTop = 0;
+      return wait(60).then(function () {
+        c.click();
+        return settle();
+      }).then(function () { return wait(120); }).then(function () {
+        var cur = panel.querySelector('.set-nav-chip[aria-current]');
+        var want = c.textContent.trim();
+        var got = cur ? cur.textContent.trim() : null;
+        if (want !== got) {
+          findings.push({ check: 'settings-nav-mark', element: describe(c), message: 'Settings (' + label + '): clicking "' + want + '" scrolled to its section and the menu marks "' + got + '"', numbers: {} });
+        }
+        return run(k + 1);
+      });
+    };
+    return run(0);
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow, settingsChips: settingsChips };
 })();
 'installed';
 `;
@@ -931,6 +974,13 @@ async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) 
             const grown = await evaluate(cdp, 'window.__vexCheckUi.settingsGrow(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ', ' + JSON.stringify(layout.expect) + ')');
             for (const f of grown.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
             count += grown.findings.length;
+            // The menu marks the entry clicked (the owner's look, default
+            // and the first two column choices only: each click scrolls).
+            if (style === 'firefox' && size === 'normal' && (layout.prefs === null || layout.expect.columns === '2' || layout.expect.columns === 'auto')) {
+              const marked = await evaluate(cdp, 'window.__vexCheckUi.settingsChips(' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ')');
+              for (const f of marked.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
+              count += marked.findings.length;
+            }
           }
         }
       }

@@ -421,7 +421,7 @@ const SettingsUI = {
           sub.style.setProperty('--chip-color', cat.color);
           sub.innerHTML = this._svg(cat.icon, 12) + '<span>' + (cat.short || cat.name) + '</span>';
           sub.dataset.tier = tier;
-          sub.addEventListener('click', () => g.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
           grp.row.appendChild(sub);
         }
       }
@@ -439,7 +439,7 @@ const SettingsUI = {
         navChip.innerHTML = this._svg(look.icon, 13) + '<span>' + look.name + '</span>';
         navChip.dataset.tier = tier;
         navChip.dataset.navKey = key;
-        navChip.addEventListener('click', () => target.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        navChip.addEventListener('click', () => { SettingsUI._wanted = { key, until: Date.now() + 3000 }; target.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
         nav.appendChild(navChip);
         if (grp) grp.chip = navChip;
       }
@@ -704,12 +704,29 @@ const SettingsUI = {
     let best = null;
     let bestTop = Infinity;
     let bestLeft = Infinity;
+    // A section that starts at the top of the area is the one the user was
+    // taken to (a chip, a deep link). Of two columns, the other one's section
+    // that began earlier and runs on under it is not: it was marked instead,
+    // so clicking Downloads marked Privacy in nearly every category.
+    // Two sections can start level (the first row of columns); the chip just
+    // clicked says which one it was.
+    const wanted = this._wanted && Date.now() < this._wanted.until ? this._wanted.key : null;
+    let near = null;
+    let nearGap = Infinity;
+    let nearLeft = Infinity;
     for (const el of root.children) {
       if (!el.dataset || !el.dataset.navKey || !el.getClientRects().length) continue;
       const r = el.getBoundingClientRect();
       if (r.bottom <= top + 24 || r.top >= area.bottom) continue;
       if (r.top < bestTop - 1 || (Math.abs(r.top - bestTop) <= 1 && r.left < bestLeft)) { best = el; bestTop = r.top; bestLeft = r.left; }
+      if (r.top < top - 4 || r.top > top + 80) continue;
+      const gap = Math.abs(r.top - top);
+      const asked = wanted !== null && el.dataset.navKey === wanted;
+      const better = !near || (asked && near.dataset.navKey !== wanted) ||
+        ((asked === (near.dataset.navKey === wanted)) && (gap < nearGap - 1 || (Math.abs(gap - nearGap) <= 1 && r.left < nearLeft)));
+      if (better) { near = el; nearGap = gap; nearLeft = r.left; }
     }
+    if (near) best = near;
     const key = best ? best.dataset.navKey : null;
     let current = null;
     nav.querySelectorAll('.set-nav-chip').forEach((chip) => {

@@ -205,6 +205,29 @@ describe('the list down the left side', () => {
     expect(document.activeElement).toBe(chips[0]);
   });
 
+  it('marks the section the user was taken to, not the one beside it that began higher and runs on (two columns)', () => {
+    const { root } = setup();
+    root.getBoundingClientRect = () => ({ top: 0, bottom: 900, left: 0, right: 1600 });
+    // The line a scrolled-to section starts on: under the toolbar.
+    const line = parseFloat(root.style.scrollPaddingTop) || 0;
+    const place = (tops) => {
+      for (const el of root.children) {
+        el.getClientRects = () => [{}];
+        const p = tops[el.id];
+        el.getBoundingClientRect = () => (p === undefined ? { top: -900, bottom: -880, left: 0 } : { top: line + p[0], bottom: line + p[0] + 400, left: p[1] });
+      }
+    };
+    // General is long and began 300px above; Appearance starts at the top of the other column.
+    place({ 's-general': [-300, 0], 's-appearance': [0, 800] });
+    expect(SettingsUI._markCurrent(root)).toBe('Appearance');
+    // Two start level (the first row): the leftmost, unless a chip asked for the other.
+    place({ 's-ai': [0, 0], 's-appearance': [0, 800] });
+    expect(SettingsUI._markCurrent(root)).toBe('AI');
+    SettingsUI._wanted = { key: 'Appearance', until: Date.now() + 3000 };
+    expect(SettingsUI._markCurrent(root)).toBe('Appearance');
+    SettingsUI._wanted = null;
+  });
+
   it('puts the toolbar beside the scroll area: no padding for a toolbar over it', () => {
     const { panel, root } = setup();
     SettingsUI._syncPad(root);
