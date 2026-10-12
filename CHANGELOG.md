@@ -1,5 +1,10 @@
 # Changelog
 
+## v20.31.0 (2026-10-12) — Settings "One column, full width" now really uses the full width
+
+### Fixed
+- **Settings › "One column, full width" now runs from the left edge to the right edge, with the chips across the top and with the category list down the left.** In v20.30.0 the sections stayed in a narrow centred column with the space on both sides empty, because the centring comes from the side padding of the whole Settings area, which the choice did not replace.
+
 ## v20.30.0 (2026-10-12) — A full-width Settings layout, and the Settings list scrolls on its own
 
 ### New
