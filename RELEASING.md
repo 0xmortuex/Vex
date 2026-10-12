@@ -47,6 +47,20 @@ In order:
 
 If any step fails, the later ones do not run. Fix the cause and run `npm run publish` again; `ensure-release.js` and the uploader are safe to repeat.
 
+### Publishing the workers too: `scripts\publish-all.ps1`
+
+Before cutting, `node scripts/release-check.js` shows in one screen whether the version is already published, what CI says about HEAD, the ranked commits and the next version. `scripts/release.js` itself refuses (no file changed) a version that already has a GitHub release, a changed CHANGELOG heading of a published release, and a red, running or missing CI run for HEAD (`--ignore-ci` skips only the CI part).
+
+When the release also needs the Cloudflare workers redeployed, the owner runs (never an agent):
+
+```
+$env:GH_TOKEN = '<token>'     # or be signed in with gh auth login
+node scripts/release.js <version> "<title>" --no-publish
+pwsh scripts\publish-all.ps1  # sync worker -> npm run publish -> AI worker
+```
+
+It stops at the first failing step and says which; progress is saved in `%TEMP%\vex-publish-all-state.json` (per version), so running the same command again skips the finished steps and resumes at the failed one. `wrangler deploy` is retried up to 3 times (5 s, then 20 s) only for network/5xx errors such as a Cloudflare 504; `npm run publish` is never retried. The token is never printed. `-DryRun` prints the plan and the resume point; `-Reset` forgets progress. Tests: `tests/main/publishAll.test.js`.
+
 ## 4. After publishing
 
 - Check the website's GitHub Pages deploy finished: `gh run list -R 0xmortuex/vex-website --limit 1`. A failed or stuck run leaves the live site on the old version; re-run it with `gh run rerun <id> -R 0xmortuex/vex-website`.
