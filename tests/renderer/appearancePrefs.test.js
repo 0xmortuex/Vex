@@ -100,10 +100,10 @@ describe('Reduce motion', () => {
     expect(css).toMatch(/html\[data-reduce-motion\] :is\(\.ai-spinner/);
   });
 
-  it('the page loading ring keeps pulsing under reduced motion instead of freezing', () => {
+  it('the page loading ring spins with Windows animations off, and pulses under Vex\'s own switch', () => {
     const css = read('src/renderer/css/a11y.css');
     const media = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(media).toMatch(/#webviews-container\.wv-loading::after\s*\{\s*animation-name: vex-a11y-working !important;/);
+    expect(media).toMatch(/#webviews-container\.wv-loading::after\s*\{\s*animation-name: spin-centered !important;\s*animation-duration: 0\.8s !important;\s*animation-iteration-count: infinite !important;/);
     expect(css).toMatch(/html\[data-reduce-motion\] #webviews-container\.wv-loading::after \{\s*animation-name: vex-a11y-working !important;/);
     // A pseudo-element inside :is() is dropped by the browser, silently.
     expect(css).not.toMatch(/:is\([^)]*::(after|before)/);

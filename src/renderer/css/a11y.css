@@ -98,12 +98,21 @@ webview:focus-visible {
   .ai-spinner,
   .ws-spinner,
   .agent-spinner,
-  .ai-msg.streaming .ai-msg-content::after,
-  #webviews-container.wv-loading::after {
+  .ai-msg.streaming .ai-msg-content::after {
     animation-name: vex-a11y-working !important;
     animation-duration: 1.4s !important;
     animation-iteration-count: infinite !important;
     animation-timing-function: ease-in-out !important;
+  }
+
+  /* The page's loading ring keeps spinning with Windows' "Show animations"
+   * off: frozen it looked stuck, and the owner wants a spin, not a pulse
+   * (2026-10-12). Vex's own Reduce motion switch (below) still pulses it. */
+  #webviews-container.wv-loading::after {
+    animation-name: spin-centered !important;
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: linear !important;
   }
 }
 
@@ -117,10 +126,10 @@ html[data-reduce-motion] *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
-/* The page's loading ring (app.css #webviews-container.wv-loading) froze into
- * a still circle with Windows' "Show animations" off (found 2026-10-12): it
- * pulses like the others. Pseudo-elements cannot sit inside :is(), so the two
- * ::after rules are listed on their own. */
+/* With Vex's own switch on, the page's loading ring (app.css
+ * #webviews-container.wv-loading) pulses like the others instead of freezing.
+ * Pseudo-elements cannot sit inside :is(), so the two ::after rules are listed
+ * on their own. */
 html[data-reduce-motion] :is(.ai-spinner, .ws-spinner, .agent-spinner),
 html[data-reduce-motion] .ai-msg.streaming .ai-msg-content::after,
 html[data-reduce-motion] #webviews-container.wv-loading::after {
