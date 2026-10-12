@@ -377,6 +377,14 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         } catch (Throwable ignored) { }
     }
 
+    /** A download held for your answer (TabWebView.startDownload): { id, token, allow }. */
+    @PluginMethod
+    public void answerDownload(PluginCall call) {
+        final String token = call.getString("token", "");
+        final boolean allow = Boolean.TRUE.equals(call.getBoolean("allow", false));
+        withTab(call, tab -> tab.releaseDownload(token, allow));
+    }
+
     @PluginMethod
     public void setStateKey(PluginCall call) {
         final String key = call.getString("key", "");

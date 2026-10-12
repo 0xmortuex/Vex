@@ -2278,8 +2278,16 @@ const VexPanels = (() => {
         grid.appendChild(card);
       }
       body.appendChild(grid);
+      // Auto's pair, yours to choose (the desktop's "Light and dark").
+      const nameOf = id => { const theme = VexTheme.themes().find(item => item.id === id); return theme ? String(theme.label || id).split(' — ')[0] : id; };
+      for (const [key, label, fallback, wantDark] of [['vex.autoLight', 'Auto in the light', VexTheme.AUTO_LIGHT, false], ['vex.autoDark', 'Auto in the dark', VexTheme.AUTO_DARK, true]]) {
+        body.appendChild(valueRow(label, 'When the phone is ' + (wantDark ? 'dark' : 'light') + ' and the theme is Auto', nameOf(VexStore.get(key, fallback)), () =>
+          VexSheets.choose(label, VexTheme.themes().filter(theme => !!theme.dark === wantDark).map(theme => ({
+            id: theme.id, label: String(theme.label || theme.id).split(' — ')[0], selected: VexStore.get(key, fallback) === theme.id
+          })), async id => { await VexStore.set(key, id); VexTheme.apply(); VexSheets.close(); this.appearance(); })));
+      }
       body.appendChild(el('div', 'field-note',
-        'Auto follows the system: Oxford in the light, Midnight in the dark. The rest are the same themes '
+        'Auto follows the system: ' + nameOf(VexStore.get('vex.autoLight', VexTheme.AUTO_LIGHT)) + ' in the light, ' + nameOf(VexStore.get('vex.autoDark', VexTheme.AUTO_DARK)) + ' in the dark. The rest are the same themes '
         + 'the desktop app ships, generated from the same token files'
         + (VexTheme.themes().some(theme => theme.custom) ? ', and the ones you made on your computer, at the end.' : '. Themes you make on your computer appear here too, with Vex Sync.')
         + (lookNow !== 'vex' && VexTheme.lookColors() === 'look'

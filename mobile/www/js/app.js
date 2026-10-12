@@ -23,6 +23,8 @@
     VexStore.prime('vex.syncShareTabs', true),
     VexStore.prime('vex.syncSecrets', {}),
     VexStore.prime('vex.syncedThemes', []),
+    VexStore.prime('vex.autoLight', 'oxford'),
+    VexStore.prime('vex.autoDark', 'midnight'),
     VexStore.prime('vex.syncSecretsSeen', {}),
     VexStore.prime('vex.bookmarkFolders', []),
     VexStore.prime('vex.readingList', []),
@@ -481,6 +483,24 @@
         { id: 'open', label: what, note: data.incognito ? 'It leaves this private tab' : 'Leaves Vex' },
         { id: 'stay', label: 'Stay here' }
       ], choice => { VexSheets.close(); if (choice === 'open') open(); }, data.page || '');
+    });
+
+    // A download held for your answer: an app installer always, and the
+    // second and later of a burst a page started on its own (as the desktop).
+    VexBridge.on('downloadHeld', data => {
+      if (!data || !data.token) return;
+      const site = data.page || VexSearch.prettyHost(data.url) || 'This page';
+      const name = data.filename || 'a file';
+      const installer = data.reason === 'installer';
+      VexSheets.choose(installer ? 'Download an app installer?' : site + ' wants to download another file', [
+        { id: 'allow', label: installer ? 'Download ' + name : 'Allow ' + name,
+          note: installer ? 'An Android app from ' + site + ' — only install apps from sources you trust' : 'It started this one without you asking' },
+        { id: 'block', label: 'Don’t download it' }
+      ], async choice => {
+        VexSheets.close();
+        await VexBridge.answerDownload(data.id, data.token, choice === 'allow').catch(() => {});
+        if (choice !== 'allow') VexUI.toast('Not downloaded — nothing reached your Downloads folder');
+      }, site);
     });
 
     // Picture-in-picture ended: the page goes back under the toolbar.

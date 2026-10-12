@@ -391,7 +391,7 @@ const VexBridge = (() => {
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
         'longPress', 'fullscreen', 'scroll', 'selection', 'command',
-        'streamProgress', 'streamDone', 'streamFailed', 'openedInApp', 'appLink', 'pictureInPicture']) {
+        'streamProgress', 'streamDone', 'streamFailed', 'openedInApp', 'appLink', 'pictureInPicture', 'downloadHeld']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));
@@ -426,6 +426,7 @@ const VexBridge = (() => {
     reload(id, options = {}) { return tabs('reload', { id, bypassCache: !!options.bypassCache }); },
     stop(id) { return tabs('stop', { id }); },
     openAppLink(token) { return tabs('openAppLink', { token }); },
+    answerDownload(id, token, allow) { return tabs('answerDownload', { id, token, allow: !!allow }); },
     // Back and Forward across a restart (VexTabsPlugin): a tab's key, its list
     // put back, and the lists of tabs gone. Nothing to keep without a phone.
     async setTabStateKey(id, key) { if (plugins.VexTabs) await tabs('setStateKey', { id, key }); },

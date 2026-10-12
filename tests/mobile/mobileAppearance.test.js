@@ -234,3 +234,15 @@ describe('your own themes, from the computer', () => {
     expect(root.style.getPropertyValue('--vex-accent')).toBe('');
   });
 });
+
+describe('Auto’s light and dark themes, yours to pick', () => {
+  it('follows the system with the two you chose, and falls back when one is gone', async () => {
+    store['vex.autoLight'] = 'forest';
+    store['vex.autoDark'] = 'ocean';
+    expect(VexTheme.resolvedId()).toBe('forest');
+    systemPrefersDark = true;
+    expect(VexTheme.resolvedId()).toBe('ocean');
+    store['vex.autoDark'] = 'user-gone';
+    expect(VexTheme.resolvedId()).toBe('midnight');
+  });
+});

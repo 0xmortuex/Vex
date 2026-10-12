@@ -801,6 +801,52 @@ public class TabWebView extends WebView {
             host.emit("download", data);
             return;
         }
+        // Held for your answer, as on the desktop: an Android app installer
+        // always (one from a site you did not mean to trust is how phones get
+        // malware), and a page that starts download after download — the
+        // first goes, the rest within ten seconds of it wait.
+        String lower = filename.toLowerCase(java.util.Locale.ROOT);
+        boolean installer = "application/vnd.android.package-archive".equalsIgnoreCase(mimeType)
+                || lower.endsWith(".apk") || lower.endsWith(".apks") || lower.endsWith(".xapk") || lower.endsWith(".apkm");
+        long now = System.currentTimeMillis();
+        if (now - burstStart > 10000) { burstStart = now; burstCount = 0; }
+        burstCount++;
+        if (installer || burstCount > 1) {
+            String token = "d" + (++heldSequence);
+            final String fUrl = url, fAgent = userAgent, fType = mimeType;
+            final JSObject fData = data;
+            heldDownloads.put(token, () -> enqueue(fUrl, fAgent, fType, filename, fData));
+            JSObject held = new JSObject();
+            held.put("id", id);
+            held.put("token", token);
+            held.put("url", url);
+            held.put("filename", filename);
+            held.put("size", size);
+            held.put("reason", installer ? "installer" : "burst");
+            held.put("count", burstCount);
+            held.put("page", pageHost == null ? "" : pageHost);
+            host.emit("downloadHeld", held);
+            return;
+        }
+        enqueue(url, userAgent, mimeType, filename, data);
+    }
+
+    // Downloads waiting on your answer (startDownload), by token; and the
+    // window a burst is counted in.
+    private final java.util.Map<String, Runnable> heldDownloads = new java.util.HashMap<>();
+    private int heldSequence;
+    private long burstStart;
+    private int burstCount;
+
+    /** Your answer to a held download: let it through, or drop it. */
+    public boolean releaseDownload(String token, boolean allow) {
+        Runnable run = heldDownloads.remove(token);
+        if (run == null) return false;
+        if (allow) run.run();
+        return true;
+    }
+
+    private void enqueue(String url, String userAgent, String mimeType, String filename, JSObject data) {
         // Queued before the event goes out, so the event can carry the queue's
         // id: the downloads list matches a row to its progress by that id, and
         // by address alone two downloads of the same file were one row twice.

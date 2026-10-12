@@ -183,7 +183,11 @@ const VexTheme = (() => {
   function resolvedId() {
     const preference = VexStore.get('vex.theme', 'auto');
     if (preference !== 'auto' && themes().some(theme => theme.id === preference)) return preference;
-    return systemDark && systemDark.matches ? AUTO_DARK : AUTO_LIGHT;
+    // Auto's two themes are yours to pick, as on the desktop (Light and dark).
+    const known = id => themes().some(theme => theme.id === id);
+    const light = VexStore.get('vex.autoLight', AUTO_LIGHT);
+    const dark = VexStore.get('vex.autoDark', AUTO_DARK);
+    return systemDark && systemDark.matches ? (known(dark) ? dark : AUTO_DARK) : (known(light) ? light : AUTO_LIGHT);
   }
 
   function current() {
@@ -204,7 +208,7 @@ const VexTheme = (() => {
   }
 
   return {
-    SKINS, FONTS, CORNERS, SHADOWS,
+    SKINS, FONTS, CORNERS, SHADOWS, AUTO_LIGHT, AUTO_DARK,
 
     LOOKS,
     themes,
