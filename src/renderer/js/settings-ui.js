@@ -44,6 +44,8 @@ const SettingsUI = {
     box: '<path d="M3 7.5L12 3l9 4.5v9L12 21l-9-4.5v-9Z"/><path d="M3 7.5L12 12l9-4.5M12 12v9"/>',
     info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5"/>',
+    // The Settings layout button (VexIcons' sliders).
+    sliders: '<path d="M5 3.5v6M5 14.5v6M12 3.5v3M12 11.5v9M19 3.5v9M19 17.5v3"/><circle cx="5" cy="12" r="2.4"/><circle cx="12" cy="9" r="2.4"/><circle cx="19" cy="15" r="2.4"/>',
   },
 
   // First match wins, so the order matters: "Tab Layout" has to reach Appearance
@@ -173,7 +175,7 @@ const SettingsUI = {
     'vex sync': 'sync devices account eşitleme',
     'ai backend': 'ai claude ollama local model llm assistant yapay zeka yapay zekâ',
     'gui style': 'look skin firefox chrome safari classic glass interface style görünüm',
-    'appearance': 'dark mode light mode dark theme night mode colours colors theme font font size text size ui scale bigger text zoom skin karanlık mod koyu tema yazı tipi yazı boyutu',
+    'appearance': 'dark mode light mode dark theme night mode colours colors theme font font size text size ui scale bigger text zoom skin karanlık mod koyu tema yazı tipi yazı boyutu settings layout columns compact density category menu side list sütun düzen yoğunluk',
     'private routing': 'proxy tor vpn socks route yönlendirme',
     'tab layout': 'vertical tabs horizontal tabs tabs on the side dikey sekmeler',
     'layout': 'toolbar buttons customize toolbar hide buttons araç çubuğu',
@@ -323,11 +325,27 @@ const SettingsUI = {
       search.spellcheck = false;
       nav = document.createElement('div');
       nav.className = 'set-nav';
-      inner.appendChild(search);
+      nav.setAttribute('role', 'navigation');
+      nav.setAttribute('aria-label', 'Settings categories');
+      // The search box, and the Settings layout button beside it.
+      const searchRow = document.createElement('div');
+      searchRow.className = 'set-search-row';
+      searchRow.appendChild(search);
+      this._buildLayoutButton(searchRow);
+      inner.appendChild(searchRow);
       inner.appendChild(nav);
       toolbar.appendChild(inner);
       panel.insertBefore(toolbar, root);                 // pinned over the scroll area
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
+      // The list on the left goes up and down with the arrow keys too.
+      nav.addEventListener('keydown', (e) => SettingsUI._navKey(e, panel, nav));
+      // The category in view is the one marked in the menu.
+      let marking = false;
+      root.addEventListener('scroll', () => {
+        if (marking) return;
+        marking = true;
+        requestAnimationFrame(() => { marking = false; SettingsUI._markCurrent(root); });
+      }, { passive: true });
       toolbar.addEventListener('wheel', (e) => SettingsUI._wheelToArea(e, root), { passive: false });
       // Keep the scroll area's top padding matched to the (variable-height) toolbar.
       window.addEventListener('resize', () => SettingsUI._syncPad(root));
@@ -367,6 +385,8 @@ const SettingsUI = {
       if (labelEl) g.dataset.keywords = text.trim().split('\n')[0] + ' ' + this.keywordsFor(text);
       g.style.setProperty('--cat-color', cat.color);
       if (!g.id) g.id = 'setcat-' + i;
+      // Which entry of the category menu this section belongs to (_markCurrent).
+      g.dataset.navKey = cat.group || cat.name;
 
       if (labelEl && !labelEl.querySelector('.set-emoji')) {
         const chip = document.createElement('span');
@@ -387,6 +407,7 @@ const SettingsUI = {
           row.setAttribute('role', 'group');
           row.setAttribute('aria-label', this.GROUPS[cat.group].name + ' sections');
           row.dataset.tier = tier;
+          row.dataset.navKey = cat.group;
           g.before(row);
           grp = rows[cat.group] = { row, chip: null, names: new Set() };
         }
@@ -415,6 +436,7 @@ const SettingsUI = {
         navChip.style.setProperty('--chip-color', look.color);
         navChip.innerHTML = this._svg(look.icon, 13) + '<span>' + look.name + '</span>';
         navChip.dataset.tier = tier;
+        navChip.dataset.navKey = key;
         navChip.addEventListener('click', () => target.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         nav.appendChild(navChip);
         if (grp) grp.chip = navChip;
@@ -448,11 +470,267 @@ const SettingsUI = {
     if (lastGroup.nextSibling !== adv) lastGroup.after(adv);
     this._setAdvancedShown(panel, panel.classList.contains('set-show-advanced'));
 
+    // Settings › Appearance › Settings layout, and the saved choices.
+    this._fillLayoutSetting(document.getElementById('settings-layout-setting'));
+    this._applyLayoutAttrs(panel);
+
     // Push the scroll content below the absolute toolbar (and let anchored jumps
     // clear it too). Measured after the chips are in, so wrapping is accounted for.
     this._syncPad(root);
     // Side-by-side sections in a wide window (see _layout).
     this._watchLayout(root);
+    this._markCurrent(root);
+  },
+
+  // === Settings layout =====================================================
+  // How Settings is laid out, chosen by the user (the owner, 2026-10-12:
+  // "give more layout options for the settings"): how many columns, where
+  // the category menu is, and how tightly the rows are packed. Kept on this
+  // device and never synced (sync is an allow-list, js/sync-engine.js): it is
+  // about this screen. Reset to Defaults clears it (app.js), which is the
+  // layout Settings had before: automatic columns, chips, comfortable.
+  LAYOUT_KEY: 'vex.settingsLayout',
+  LAYOUT_CHOICES: {
+    columns: [['auto', 'Automatic'], ['1', 'One column'], ['2', 'Two columns'], ['3', 'Three columns']],
+    nav: [['chips', 'Chips across the top'], ['side', 'A list down the left side']],
+    density: [['comfortable', 'Comfortable'], ['compact', 'Compact']],
+  },
+  // [the row's name in Settings › Appearance, the short name in the
+  // toolbar's box, what it does]
+  LAYOUT_LABELS: {
+    columns: ['Settings columns', 'Columns', 'Automatic uses two columns from about 1300px wide, and three on very wide screens.'],
+    nav: ['Settings category menu', 'Category menu', 'On a narrow window the list becomes chips again.'],
+    density: ['Settings density', 'Density', 'Compact fits more on the screen: tighter rows, the same text size.'],
+  },
+  // The least width of a column the user asked for: narrower than the
+  // automatic choice's COL_MIN, wide enough for a label beside its switch.
+  COL_MIN_CHOSEN: 480,
+  // The narrowest Settings that keeps the category list on the left.
+  SIDE_MIN: 900,
+
+  layoutPrefs() {
+    const out = { columns: 'auto', nav: 'chips', density: 'comfortable' };
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(this.LAYOUT_KEY) || 'null'); }
+    catch (err) { console.warn('[settings] the saved Settings layout is unreadable; showing the default:', err && err.message); }
+    if (saved && typeof saved === 'object') {
+      for (const k of Object.keys(out)) {
+        if (this.LAYOUT_CHOICES[k].some(([v]) => v === saved[k])) out[k] = saved[k];
+      }
+    }
+    return out;
+  },
+
+  setLayoutPref(name, value) {
+    const choices = this.LAYOUT_CHOICES[name];
+    if (!choices) throw new Error('There is no Settings layout choice called "' + name + '"');
+    if (!choices.some(([v]) => v === value)) throw new Error('"' + value + '" is not one of the ' + name + ' choices');
+    const prefs = this.layoutPrefs();
+    prefs[name] = value;
+    localStorage.setItem(this.LAYOUT_KEY, JSON.stringify(prefs));
+    this.applyLayoutPrefs();
+    return prefs;
+  },
+
+  // The saved choices, on screen at once: no reload.
+  applyLayoutPrefs() {
+    const panel = typeof document !== 'undefined' ? document.getElementById('panel-settings') : null;
+    if (!panel) return null;
+    const prefs = this._applyLayoutAttrs(panel);
+    const root = panel.querySelector('.settings-content');
+    if (root) { this._layout(root); this._markCurrent(root); }
+    return prefs;
+  },
+
+  _applyLayoutAttrs(panel) {
+    const prefs = this.layoutPrefs();
+    if (prefs.density === 'compact') panel.dataset.setDensity = 'compact';
+    else delete panel.dataset.setDensity;
+    panel.querySelectorAll('select[data-set-layout]').forEach(sel => { sel.value = prefs[sel.dataset.setLayout]; });
+    return prefs;
+  },
+
+  // The list on the left, or the chips, for a panel this many CSS pixels wide.
+  navFor(panelWidth, choice) {
+    return choice === 'side' && Number(panelWidth) >= this.SIDE_MIN ? 'side' : 'chips';
+  },
+
+  _layoutSelect(name, label) {
+    const sel = document.createElement('select');
+    sel.dataset.setLayout = name;
+    sel.setAttribute('aria-label', label);
+    for (const [value, text] of this.LAYOUT_CHOICES[name]) {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = text;
+      sel.appendChild(o);
+    }
+    sel.value = this.layoutPrefs()[name];
+    sel.addEventListener('change', () => {
+      try { SettingsUI.setLayoutPref(name, sel.value); }
+      catch (err) {
+        window.showToast?.('The Settings layout could not be changed: ' + ((err && err.message) || err), 'error');
+        SettingsUI.applyLayoutPrefs();   // the box shows what is really in force
+      }
+    });
+    return sel;
+  },
+
+  // Why a choice is not what is on screen: too narrow a window.
+  _layoutNote(name) {
+    const note = document.createElement('span');
+    note.className = 'set-layout-note';
+    note.dataset.setLayoutNote = name;
+    note.setAttribute('role', 'status');
+    note.hidden = true;
+    return note;
+  },
+
+  // Settings › Appearance › Settings layout: three rows.
+  _fillLayoutSetting(host) {
+    if (!host || host.childElementCount) return;
+    const head = document.createElement('div');
+    head.className = 'setting-toggle-row set-layout-heading';
+    const title = document.createElement('span');
+    title.textContent = 'Settings layout';
+    head.appendChild(title);
+    host.appendChild(head);
+    for (const name of ['columns', 'nav', 'density']) {
+      const [label, , hint] = this.LAYOUT_LABELS[name];
+      const row = document.createElement('div');
+      row.className = 'setting-toggle-row';
+      const text = document.createElement('span');
+      text.appendChild(document.createTextNode(label));
+      text.appendChild(document.createElement('br'));
+      const h = document.createElement('span');
+      h.className = 'set-layout-hint';
+      h.textContent = hint;
+      text.appendChild(h);
+      if (name !== 'density') text.appendChild(this._layoutNote(name));
+      row.appendChild(text);
+      row.appendChild(this._layoutSelect(name, label));
+      host.appendChild(row);
+    }
+  },
+
+  // The small layout button beside the search box, and its box of the same
+  // three choices.
+  _buildLayoutButton(row) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'set-layout-btn';
+    btn.title = 'Settings layout';
+    btn.setAttribute('aria-label', 'Settings layout');
+    btn.setAttribute('aria-haspopup', 'dialog');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = this._svg('sliders', 16);
+    const pop = document.createElement('div');
+    pop.className = 'set-layout-pop';
+    pop.hidden = true;
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Settings layout');
+    const title = document.createElement('div');
+    title.className = 'set-layout-pop-title';
+    title.textContent = 'Settings layout';
+    pop.appendChild(title);
+    for (const name of ['columns', 'nav', 'density']) {
+      const short = this.LAYOUT_LABELS[name][1];
+      const field = document.createElement('label');
+      field.className = 'set-layout-field';
+      const t = document.createElement('span');
+      t.textContent = short;
+      field.appendChild(t);
+      field.appendChild(this._layoutSelect(name, short));
+      pop.appendChild(field);
+      if (name !== 'density') pop.appendChild(this._layoutNote(name));
+    }
+    const show = (on) => {
+      pop.hidden = !on;
+      btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      if (on) {
+        if (typeof VexI18nUI !== 'undefined') VexI18nUI.apply();
+        pop.querySelector('select').focus();
+      }
+    };
+    btn.addEventListener('click', () => show(pop.hidden));
+    pop.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      show(false);
+      btn.focus();
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) show(false);
+    }, true);
+    row.appendChild(btn);
+    row.appendChild(pop);
+  },
+
+  // The notes under a choice the window is too narrow for.
+  _layoutNotes(panel, prefs, cols, nav) {
+    const wanted = Number(prefs.columns) || 0;
+    const texts = {
+      columns: wanted > cols
+        ? (wanted === 3 ? 'Three' : 'Two') + ' columns need a wider window, so Settings shows ' + (cols === 2 ? 'two.' : 'one.')
+        : '',
+      nav: prefs.nav === 'side' && nav !== 'side' ? 'This window is too narrow for the list, so the chips are shown.' : '',
+    };
+    const lang = typeof VexI18nUI !== 'undefined' ? VexI18nUI.locale() : 'en';
+    panel.querySelectorAll('[data-set-layout-note]').forEach((el) => {
+      const text = texts[el.dataset.setLayoutNote] || '';
+      if (el.dataset.note === text) return;
+      el.dataset.note = text;
+      el.textContent = text;
+      el.hidden = !text;
+      if (text && lang !== 'en') VexI18nUI.translateEl(el, lang);
+    });
+  },
+
+  // The category in view is marked in the menu (aria-current): the section
+  // nearest the top of the scroll area, the leftmost when two start level.
+  _markCurrent(root) {
+    if (!root) return null;
+    const panel = root.parentElement || root;
+    const nav = panel.querySelector('.set-nav');
+    if (!nav) return null;
+    const area = root.getBoundingClientRect();
+    const top = area.top + (parseFloat(root.style.scrollPaddingTop) || 0);
+    let best = null;
+    let bestTop = Infinity;
+    let bestLeft = Infinity;
+    for (const el of root.children) {
+      if (!el.dataset || !el.dataset.navKey || !el.getClientRects().length) continue;
+      const r = el.getBoundingClientRect();
+      if (r.bottom <= top + 24 || r.top >= area.bottom) continue;
+      if (r.top < bestTop - 1 || (Math.abs(r.top - bestTop) <= 1 && r.left < bestLeft)) { best = el; bestTop = r.top; bestLeft = r.left; }
+    }
+    const key = best ? best.dataset.navKey : null;
+    let current = null;
+    nav.querySelectorAll('.set-nav-chip').forEach((chip) => {
+      if (key && chip.dataset.navKey === key) { chip.setAttribute('aria-current', 'true'); current = chip; }
+      else chip.removeAttribute('aria-current');
+    });
+    // The list on the left keeps the marked entry in sight.
+    if (current && panel.dataset.setNav === 'side' && nav.scrollHeight > nav.clientHeight) {
+      const c = current.offsetTop - nav.offsetTop;
+      if (c < nav.scrollTop) nav.scrollTop = c;
+      else if (c + current.offsetHeight > nav.scrollTop + nav.clientHeight) nav.scrollTop = c + current.offsetHeight - nav.clientHeight;
+    }
+    return key;
+  },
+
+  // Up, Down, Home and End move along the list on the left.
+  _navKey(e, panel, nav) {
+    if (panel.dataset.setNav !== 'side') return false;
+    const chips = Array.from(nav.querySelectorAll('.set-nav-chip')).filter(c => c.getClientRects().length);
+    const i = chips.indexOf(document.activeElement);
+    if (i < 0) return false;
+    const to = { ArrowDown: Math.min(chips.length - 1, i + 1), ArrowUp: Math.max(0, i - 1), Home: 0, End: chips.length - 1 }[e.key];
+    if (to === undefined) return false;
+    e.preventDefault();
+    chips[to].focus();
+    return true;
   },
 
   // Wide windows lay the sections out side by side (the owner, 2026-10-11:
@@ -465,12 +743,21 @@ const SettingsUI = {
   COL_GAP: 18,
   COL_SIDE: 32,      // the least space left and right of the columns
   ROW_UNIT: 4,       // the grid's row track, see _layout
-  // How many columns fit in a scroll area this many CSS pixels wide.
-  columnsFor(width) {
+  // How many columns fit in a scroll area this many CSS pixels wide, for the
+  // user's choice (Settings layout): 'auto' as many as fit at COL_MIN; one,
+  // two or three as asked, but fewer when the window cannot give each
+  // COL_MIN_CHOSEN (Settings layout says so).
+  columnsFor(width, choice = 'auto') {
     const avail = Number(width) - 2 * this.COL_SIDE;
     if (!(avail > 0)) return 1;
-    let n = 1;
-    while (n < 3 && (n + 1) * this.COL_MIN + n * this.COL_GAP <= avail) n++;
+    const fits = (n, min) => n * min + (n - 1) * this.COL_GAP <= avail;
+    if (choice === 'auto') {
+      let n = 1;
+      while (n < 3 && fits(n + 1, this.COL_MIN)) n++;
+      return n;
+    }
+    let n = Math.min(3, Math.max(1, Number(choice) || 1));
+    while (n > 1 && !fits(n, this.COL_MIN_CHOSEN)) n--;
     return n;
   },
 
@@ -522,11 +809,44 @@ const SettingsUI = {
   // column count already in use and leaves a change of count to the next
   // frame: see _watchLayout.
   _layout(root, { keepCols = false } = {}) {
-    if (!root) return;
+    if (!root) return false;
+    // Every block watched from the moment it is there, Settings open or not
+    // (opening it builds the chip rows anew). A watch started inside the size
+    // observer's own callback cannot be reported in that pass, and Chromium
+    // says "ResizeObserver loop completed with undelivered notifications"
+    // (seen opening Settings after a look change): there it waits a frame.
+    if (!this._observed) this._observed = new WeakSet();
+    const kids = Array.from(root.children);
+    let unwatched = false;
+    if (this._blockObserver) {
+      for (const el of kids) {
+        if (this._observed.has(el)) continue;
+        if (keepCols) { unwatched = true; continue; }
+        this._observed.add(el);
+        this._blockObserver.observe(el, { box: 'border-box' });
+      }
+    }
+    // Hidden (Settings closed): nothing to measure. What it had stays, so it
+    // opens again as it was, not one frame in one column first.
+    if (!root.clientWidth) return unwatched;
     const panel = root.parentElement || root;
-    const want = this.columnsFor(root.clientWidth);
+    const prefs = this.layoutPrefs();
+    // The category menu first: the list on the left takes width from the
+    // columns. Like a new column count, a change waits for the next frame.
+    const navHad = panel.dataset.setNav === 'side' ? 'side' : 'chips';
+    const navWant = this.navFor(panel.clientWidth, prefs.nav);
+    if (!keepCols && navWant !== navHad) {
+      if (navWant === 'side') panel.dataset.setNav = 'side';
+      else delete panel.dataset.setNav;
+      this._syncPad(root);
+    }
+    const nav = keepCols ? navHad : navWant;
+    const want = this.columnsFor(root.clientWidth, prefs.columns);
     const had = Number(panel.dataset.setCols) || 1;
     const cols = keepCols ? had : want;
+    // Said before the heights are read: a note changes its section's height.
+    if (!keepCols) this._layoutNotes(panel, prefs, cols, nav);
+    const again = want !== cols || navWant !== nav || unwatched;
     if (cols > 1) {
       panel.dataset.setCols = String(cols);
       panel.style.setProperty('--set-cols', String(cols));
@@ -536,17 +856,12 @@ const SettingsUI = {
       panel.style.removeProperty('--set-cols');
       panel.style.removeProperty('--set-grid-max');
     }
-    if (!this._observed) this._observed = new WeakSet();
-    const kids = Array.from(root.children);
-    for (const el of kids) {
-      if (this._sizeObserver && !this._observed.has(el)) { this._observed.add(el); this._sizeObserver.observe(el, { box: 'border-box' }); }
-    }
     // A new count: off with the old places first. A block still in column 3
     // of a grid now two wide sits in a column of its own, measures at the
     // wrong width, and its height is wrong.
     if (cols === 1 || cols !== had) {
       for (const el of kids) { el.style.removeProperty('grid-row'); el.style.removeProperty('grid-column'); }
-      if (cols === 1) return want !== cols;
+      if (cols === 1) return again;
     }
     // A grid row as it is drawn. Under Larger text (the panel's zoom) a 4px
     // row is 5.2 screen pixels, and Chromium draws it in 1/64ths, rounded
@@ -576,21 +891,25 @@ const SettingsUI = {
       el.style.gridColumn = at[i].col ? String(at[i].col) : '1 / -1';
       el.style.gridRow = at[i].row + ' / span ' + at[i].rows;
     });
-    return want !== cols;
+    return again;
   },
 
-  // Watch the scroll area's width and every block's size, once, and place the
-  // blocks again in the same frame, before it is painted. It used to wait for
-  // the next frame, and a change that takes long to restyle (Larger text,
-  // full screen) painted one or two frames, 300ms, with every block at its
-  // old height: 15-28 blocks over each other and gaps of thousands of pixels.
+  // Watch the scroll area's width, and every block's size, once.
   //
-  // Placing blocks changes no size, so it is safe inside the observer. A new
-  // column count changes every block's width, the toolbar's too, and done
-  // inside the observer Chromium reports "ResizeObserver loop completed with
-  // undelivered notifications" (an error Vex records); so the observer places
-  // the blocks for the count in use, still correct for that frame, and the
-  // count changes in the next one.
+  // The scroll area's own observer places the blocks again in the same frame,
+  // before it is painted. It used to wait for the next frame, and a change
+  // that takes long to restyle (Larger text, full screen) painted one or two
+  // frames, 300ms, with every block at its old height: 15-28 blocks over each
+  // other and gaps of thousands of pixels. Placing blocks changes no size of
+  // the area, so it is safe inside that observer.
+  //
+  // A block's own size is another matter: put in a new place inside an
+  // observer that reports only blocks, its size is at the depth already
+  // delivered, and Chromium says "ResizeObserver loop completed with
+  // undelivered notifications" (an error Vex records; seen opening Settings
+  // after a look change). So a block's change, a new column count (which
+  // changes every block's width) and a block not yet watched all wait for
+  // the next frame, from a second observer.
   _watchLayout(root) {
     if (this._layoutWatched === root || typeof ResizeObserver === 'undefined') { this._layout(root); return; }
     this._layoutWatched = root;
@@ -600,6 +919,7 @@ const SettingsUI = {
       pending = true;
       requestAnimationFrame(() => { pending = false; SettingsUI._layout(root); });
     };
+    this._blockObserver = new ResizeObserver(recount);
     this._sizeObserver = new ResizeObserver(() => {
       if (SettingsUI._layout(root, { keepCols: true })) recount();
     });
@@ -638,6 +958,13 @@ const SettingsUI = {
     const panel = root.parentElement || root;
     const tb = panel.querySelector('.set-toolbar');
     if (!tb) return;
+    // With the category list on the left the toolbar is beside the scroll
+    // area, not over it: the stylesheet's own padding stands.
+    if (panel.dataset.setNav === 'side') {
+      root.style.removeProperty('padding-top');
+      root.style.scrollPaddingTop = '16px';
+      return;
+    }
     const h = (tb.offsetHeight || 88) + 8;
     root.style.paddingTop = h + 'px';
     root.style.scrollPaddingTop = h + 'px';

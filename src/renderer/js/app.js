@@ -710,6 +710,8 @@ function vexOwnTextFocused(doc) {
     'vex.workspacePrivateTabs',
     // Settings › General › Default search engine › Add your own….
     'vex.customSearchEngine',
+    // Settings › Appearance › Settings layout (js/settings-ui.js).
+    'vex.settingsLayout',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
@@ -722,6 +724,8 @@ function vexOwnTextFocused(doc) {
       SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
       // Back to Full at once, so the restart button the toast names is in view.
       VexSimpleMode.apply();
+      // And Settings back to its own layout at once: automatic columns, chips.
+      SettingsUI.applyLayoutPrefs();
       // The settings the panel actually reads live in settings.json, not
       // localStorage — clearing the keys above alone reset nothing. The
       // in-memory copy is replaced too: any later change saved it whole, which

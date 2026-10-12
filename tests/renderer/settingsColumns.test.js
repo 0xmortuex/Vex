@@ -231,7 +231,7 @@ describe('SettingsUI._watchLayout', () => {
     frames = [];
     globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; this.els = []; observers.push(this); } observe(el) { this.els.push(el); } unobserve() {} disconnect() {} };
     globalThis.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
-    SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._observed = null;
+    SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._blockObserver = null; SettingsUI._observed = null;
     document.body.innerHTML = `
       <div class="panel" id="panel-settings"><div class="settings-content">
         <div class="setting-group" id="a"></div><div class="setting-group" id="b"></div><div class="setting-group" id="c"></div>
@@ -246,15 +246,20 @@ describe('SettingsUI._watchLayout', () => {
   });
   const width = (w) => Object.defineProperty(root, 'clientWidth', { configurable: true, get: () => w });
 
-  it('watches the area and every block, and places blocks again inside the observer, before the frame is painted', () => {
+  const watchers = () => ({
+    area: observers.find(o => o.els.includes(root)),
+    blocks: observers.find(o => o.els.includes(document.getElementById('a'))),
+  });
+
+  it('watches the area and every block, and places blocks again inside the area\'s observer, before the frame is painted', () => {
     width(1868);
     SettingsUI._watchLayout(root);
-    const ro = observers.find(o => o.els.includes(root));
+    const { area: ro, blocks } = watchers();
     expect(ro).toBeTruthy();
-    for (const el of root.children) expect(ro.els).toContain(el);
+    for (const el of root.children) expect(blocks.els).toContain(el);
     expect(document.getElementById('c').style.gridRow).toBe('26 / span 25');   // under b in column 2
     heights.b = 600;                                                          // b grows
-    ro.cb([{ target: document.getElementById('b') }]);
+    ro.cb([{ target: root }]);
     expect(frames.length).toBe(0);                                            // no waiting for a frame
     expect(document.getElementById('c').style.gridColumn).toBe('1');          // column 1 ends first now
     expect(document.getElementById('c').style.gridRow).toBe('101 / span 25');
@@ -274,6 +279,41 @@ describe('SettingsUI._watchLayout', () => {
     expect(c.style.gridRow).toBe('26 / span 25');
   });
 
+  it('a block\'s own change waits for the next frame: placed inside the observer that reports blocks, Chromium reports a ResizeObserver loop', () => {
+    width(1868);
+    SettingsUI._watchLayout(root);
+    const { blocks } = watchers();
+    heights.b = 600;
+    blocks.cb([{ target: document.getElementById('b') }]);
+    expect(frames.length).toBe(1);
+    expect(document.getElementById('c').style.gridRow).toBe('26 / span 25');   // not yet
+    frames.shift()();
+    expect(document.getElementById('c').style.gridRow).toBe('101 / span 25');
+  });
+
+  it('watches a new block from outside the observer: started inside it, Chromium reports a ResizeObserver loop', () => {
+    width(1868);
+    SettingsUI._watchLayout(root);
+    const { area: ro } = watchers();
+    const blk = watchers().blocks;
+    const row = document.createElement('div');
+    row.className = 'set-subnav';
+    row.getClientRects = () => [{}];
+    Object.defineProperty(row, 'offsetHeight', { configurable: true, get: () => 40 });
+    root.insertBefore(row, document.getElementById('c'));
+    ro.cb([{ target: root }]);
+    expect(blk.els).not.toContain(row);         // not inside the callback
+    expect(frames.length).toBe(1);              // the next frame does it
+    frames.shift()();
+    expect(blk.els).toContain(row);
+    // And while Settings is closed: watched at once, nothing measured.
+    const row2 = row.cloneNode();
+    root.appendChild(row2);
+    width(0);
+    SettingsUI._layout(root);
+    expect(blk.els).toContain(row2);
+  });
+
   it('counts rows as they are drawn under Larger text, so a very tall section is not cut short', () => {
     // Zoom 1.3: a 4px row is drawn 5.1875px (1/64ths, rounded down), not 5.2.
     width(1868 / 1.3);
@@ -288,7 +328,7 @@ describe('SettingsUI._watchLayout', () => {
   it('changes the column count in the next frame, and places the blocks for the count in use meanwhile', () => {
     width(1868);
     SettingsUI._watchLayout(root);
-    const ro = observers.find(o => o.els.includes(root));
+    const ro = watchers().area;
     width(2508);                                                             // full screen on a wider screen
     heights.a = 300;
     ro.cb([{ target: root }]);

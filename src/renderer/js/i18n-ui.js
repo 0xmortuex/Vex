@@ -149,6 +149,22 @@ const VexI18nUI = {
       'Follow Windows': 'Windows’u izle', 'Light': 'Açık', 'Dark': 'Koyu',
       'Reduce motion': 'Hareketi azalt',
       'Tor tabs always show sites light, like Tor Browser.': 'Tor sekmeleri, Tor Browser gibi siteleri her zaman açık renkte gösterir.',
+      // Settings › Appearance › Settings layout, and the layout button beside
+      // the search box (js/settings-ui.js).
+      'Settings layout': 'Ayarlar düzeni', 'Settings categories': 'Ayar kategorileri',
+      'Settings columns': 'Ayarlar sütunları', 'Settings category menu': 'Ayarlar kategori menüsü',
+      'Settings density': 'Ayarlar yoğunluğu',
+      'Columns': 'Sütunlar', 'Category menu': 'Kategori menüsü', 'Density': 'Yoğunluk',
+      'Automatic': 'Otomatik', 'One column': 'Tek sütun', 'Two columns': 'İki sütun', 'Three columns': 'Üç sütun',
+      'Chips across the top': 'Üstte, yan yana düğmeler', 'A list down the left side': 'Solda bir liste',
+      'Comfortable': 'Rahat', 'Compact': 'Sıkışık',
+      'Automatic uses two columns from about 1300px wide, and three on very wide screens.': 'Otomatik, yaklaşık 1300 piksel genişlikten itibaren iki, çok geniş ekranlarda üç sütun kullanır.',
+      'On a narrow window the list becomes chips again.': 'Dar bir pencerede liste yeniden üstte düğmelere dönüşür.',
+      'Compact fits more on the screen: tighter rows, the same text size.': 'Sıkışık, ekrana daha fazlasını sığdırır: satırlar daha sık, yazı boyutu aynı.',
+      'Three columns need a wider window, so Settings shows two.': 'Üç sütun için pencere dar, bu yüzden Ayarlar iki sütun gösteriyor.',
+      'Three columns need a wider window, so Settings shows one.': 'Üç sütun için pencere dar, bu yüzden Ayarlar tek sütun gösteriyor.',
+      'Two columns need a wider window, so Settings shows one.': 'İki sütun için pencere dar, bu yüzden Ayarlar tek sütun gösteriyor.',
+      'This window is too narrow for the list, so the chips are shown.': 'Bu pencere liste için çok dar, bu yüzden düğmeler gösteriliyor.',
 
       // --- states you see constantly ---
       'Loading...': 'Yükleniyor…', 'Loading…': 'Yükleniyor…',

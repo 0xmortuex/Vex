@@ -70,6 +70,8 @@ const PREFERENCE_KEYS = [
   'vex.readingDigest.newTab',
   // Settings › Appearance › Light and dark (js/theme-auto.js).
   'vex.themeAuto',
+  // Settings › Appearance › Settings layout (js/settings-ui.js).
+  'vex.settingsLayout',
 ];
 
 describe('Reset to Defaults key policy', () => {

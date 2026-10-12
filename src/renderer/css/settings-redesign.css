@@ -366,3 +366,170 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
 #panel-settings[data-set-cols] .settings-content > :is(.setting-group, .set-subnav, .set-advanced-toggle) { grid-column: auto; }
 /* The search box and the chips line up with the columns. */
 #panel-settings[data-set-cols] .set-toolbar-inner { max-width: var(--set-grid-max, 1658px); }
+
+/* === Settings layout (SettingsUI.LAYOUT_*) ==============================
+   The user's own choice of columns, category menu and density, from the
+   button beside the search box or Settings › Appearance. The defaults
+   (automatic columns, chips, comfortable) are the rules above, untouched. */
+.set-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.set-toolbar .set-search-row > .set-search { flex: 1; min-width: 0; margin-bottom: 0; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row { margin-bottom: 6px; }
+.set-layout-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.set-layout-btn:hover,
+.set-layout-btn[aria-expanded="true"] { color: var(--text); border-color: var(--primary); }
+.set-layout-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 300px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px var(--vex-shadow-color, rgba(0, 0, 0, 0.3));
+}
+.set-layout-pop[hidden] { display: none; }
+.set-layout-pop-title { font-size: 13px; font-weight: 700; }
+.set-layout-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.set-layout-field select {
+  flex: 0 0 168px;
+  width: 168px;
+  min-height: 28px;
+  padding: 4px 8px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.set-layout-hint { font-size: 11.5px; color: var(--text-muted); }
+.set-layout-note { display: block; margin-top: 3px; font-size: 11.5px; color: var(--text); }
+.set-layout-note[hidden] { display: none; }
+.set-layout-heading > span { font-weight: 600; }
+#settings-layout-setting select { width: auto; flex: 0 1 230px; min-width: 0; max-width: 100%; }
+
+/* The category menu as a list down the left side, like Chrome's and
+   Firefox's settings. SettingsUI turns it back into chips (no
+   data-set-nav) when the panel is narrower than SIDE_MIN. */
+#panel-settings[data-set-nav="side"] { flex-direction: row; }
+#panel-settings[data-set-nav="side"] .set-toolbar {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  flex: 0 0 232px;
+  width: 232px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 12px 12px;
+  border-bottom: none;
+  border-right: 1px solid var(--border);
+}
+#panel-settings[data-set-nav="side"] .set-toolbar-inner {
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#panel-settings[data-set-nav="side"] .set-nav {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+#panel-settings[data-set-nav="side"] .set-nav-chip {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: transparent;
+  white-space: normal;
+  text-align: left;
+}
+#panel-settings[data-set-nav="side"] .set-nav-chip:hover { transform: none; }
+#panel-settings[data-set-nav="side"] .set-nav-chip[aria-current="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--chip-color, var(--primary)) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--chip-color, var(--primary)) 45%, var(--border));
+  box-shadow: inset 3px 0 0 var(--chip-color, var(--primary));
+}
+#panel-settings[data-set-nav="side"] .settings-content { flex: 1; width: auto; min-width: 0; }
+
+/* Compact: more on the screen. The spacing shrinks, the text does not, and
+   nothing you click is under 24px (a 22px switch reaches 26 with its rim). */
+#panel-settings[data-set-density="compact"] .set-toolbar { padding-top: 10px; padding-bottom: 8px; }
+#panel-settings[data-set-density="compact"] .set-search { padding-top: 6px; padding-bottom: 6px; }
+#panel-settings[data-set-density="compact"] .set-search-row { margin-bottom: 7px; }
+#panel-settings[data-set-density="compact"] .set-nav { gap: 6px; }
+#panel-settings[data-set-density="compact"] .set-nav-chip { padding-top: 4px; padding-bottom: 4px; }
+#panel-settings[data-set-density="compact"] .settings-content .setting-group {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-group > label.setting-label {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  gap: 8px;
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-label .set-emoji { width: 26px; height: 26px; border-radius: 8px; }
+#panel-settings[data-set-density="compact"] .settings-content .setting-toggle-row {
+  padding-top: calc(5px * var(--vex-density, 1));
+  padding-bottom: calc(5px * var(--vex-density, 1));
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-row { padding-top: 7px; padding-bottom: 7px; }
+#panel-settings[data-set-density="compact"] .settings-content :is(select, input[type="text"], input.set-input) { padding-top: 6px; padding-bottom: 6px; }
+#panel-settings[data-set-density="compact"] .settings-content input:is([type="text"], [type="password"], [type="search"], [type="number"], [type="url"], [type="email"], :not([type])) {
+  min-height: 26px;
+  box-sizing: border-box;
+}
+#panel-settings[data-set-density="compact"] .settings-content input[type="range"] { min-height: 24px; }
+#panel-settings[data-set-density="compact"] .settings-content > .set-subnav { margin-bottom: 8px; }
+#panel-settings[data-set-density="compact"] .settings-content .toggle::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  cursor: pointer;
+}
