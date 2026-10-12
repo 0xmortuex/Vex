@@ -6,7 +6,7 @@
  * keep the clean outline-free look everywhere. */
 
 :focus-visible {
-  outline: 2px solid var(--primary, #7aa2ff) !important;
+  outline: 2px solid var(--vex-focus-ring, var(--primary, #7aa2ff)) !important;
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -29,7 +29,7 @@ webview:focus-visible {
  * drew nothing and no Settings switch showed keyboard focus. The ring goes
  * on the visible track instead. */
 .toggle input:focus-visible + .toggle-slider {
-  outline: 2px solid var(--primary, #7aa2ff) !important;
+  outline: 2px solid var(--vex-focus-ring, var(--primary, #7aa2ff)) !important;
   outline-offset: 2px;
 }
 

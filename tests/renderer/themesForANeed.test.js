@@ -102,7 +102,7 @@ describe('themes for a need', () => {
     // Even the faintest border is a line you can see (WCAG non-text 3:1).
     for (const b of ['--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--border'])
       expect(contrast(p[b], p['--vex-bg-base']), b).toBeGreaterThanOrEqual(4.5);
-    expect(EXTRA_CSS).toMatch(/html\[data-theme="contrast-light"\] :focus-visible:not\(webview\) \{\s*outline: 3px solid #0037a6 !important;/);
+    expect(EXTRA_CSS).toMatch(/html\[data-theme="contrast-light"\] :focus-visible:not\(webview\) \{\s*outline: 3px solid var\(--vex-focus-ring, #0037a6\) !important;/);
     expect(contrast('#0037a6', '#ffffff')).toBeGreaterThanOrEqual(7);
   });
 

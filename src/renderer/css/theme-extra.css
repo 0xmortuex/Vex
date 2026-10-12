@@ -984,7 +984,7 @@
    control. a11y.css is loaded last; this wins on specificity, not order. The
    page itself (webview) still draws no ring around it. */
 html[data-theme="contrast-light"] :focus-visible:not(webview) {
-  outline: 3px solid #0037a6 !important;
+  outline: 3px solid var(--vex-focus-ring, #0037a6) !important;
   outline-offset: 2px;
 }
 
@@ -1011,7 +1011,7 @@ html[data-theme="contrast-light"] :focus-visible:not(webview) {
   --vex-hover-fill: rgba(255, 255, 255, 0.14); --vex-shadow-color: rgba(0, 0, 0, 0.6);
 }
 html[data-theme="contrast-dark"] :focus-visible:not(webview) {
-  outline: 3px solid #8ec5ff !important;
+  outline: 3px solid var(--vex-focus-ring, #8ec5ff) !important;
   outline-offset: 2px;
 }
 

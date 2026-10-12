@@ -40,7 +40,7 @@ describe('High Contrast Dark', () => {
     expect(T.ratio(p['--on-primary'], p['--primary'])).toBeGreaterThanOrEqual(7);
     expect(T.ratio(p['--on-primary'], p['--primary-hover'])).toBeGreaterThanOrEqual(7);
     for (const b of ['--vex-border-subtle', '--vex-border-medium', '--vex-border-strong', '--border']) expect(T.ratio(p[b], p['--vex-bg-elevated']), b).toBeGreaterThanOrEqual(4.5);
-    expect(T.tokensCss).toMatch(/html\[data-theme="contrast-dark"\] :focus-visible:not\(webview\) \{\s*outline: 3px solid #8ec5ff !important;/);
+    expect(T.tokensCss).toMatch(/html\[data-theme="contrast-dark"\] :focus-visible:not\(webview\) \{\s*outline: 3px solid var\(--vex-focus-ring, #8ec5ff\) !important;/);
   });
 
   it('pairs with High Contrast Light in Light and dark', () => {
