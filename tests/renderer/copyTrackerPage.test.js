@@ -116,6 +116,35 @@ describe('a site\'s own Copy button (navigator.clipboard.writeText)', () => {
     expect(sent).toEqual([]);
   });
 
+  // The text was read once for the history and again by the browser for the
+  // write: a value whose toString answers differently each time put one text
+  // in the history and another on the clipboard (release check, 2026-10-12).
+  it('what is kept is exactly what is written, read from the page value once', async () => {
+    const written = [];
+    Clipboard.prototype.writeText = function (data) { written.push(String(data)); return Promise.resolve(); };
+    const sent = run();
+    let n = 0;
+    const shifty = { toString: () => (n++ === 0 ? 'harmless text' : 'bc1-attacker-address') };
+    const p = navigator.clipboard.writeText(shifty);
+    await p; await flush();
+    expect(written).toEqual(['harmless text']);
+    expect(sent).toEqual([{ channel: 'vex-copy', payload: expect.objectContaining({ text: 'harmless text', kind: 'write' }) }]);
+    expect(n).toBe(1);
+  });
+
+  it('the page still gets the browser\'s own promise, and a call with no text is passed on untouched', async () => {
+    const calls = [];
+    const own = Promise.resolve('done');
+    Clipboard.prototype.writeText = function (...args) { calls.push({ self: this, args }); return own; };
+    const sent = run();
+    expect(navigator.clipboard.writeText('x')).toBe(own);
+    expect(calls[0].self).toBe(navigator.clipboard);
+    navigator.clipboard.writeText();
+    expect(calls[1].args).toEqual([]);
+    await flush();
+    expect(sent.map(s => s.payload.text)).toEqual(['x']);
+  });
+
   it('with no main-world bridge (an old build) nothing is wrapped', () => {
     const before = Clipboard.prototype.writeText;
     run({ mainWorld: false });

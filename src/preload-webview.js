@@ -2383,12 +2383,22 @@ let _vexStartPageOwn = null;
       // later replaces Promise.prototype.then cannot fake a finished write.
       const write = Clipboard.prototype.writeText;
       const then = Promise.prototype.then;
+      // Function.prototype.call and apply too: a page can replace those.
+      const apply = Reflect.apply;
       const wrapped = {
         writeText(data) {
-          const text = String(data);
+          // No text, or one that cannot be read: the browser answers as it
+          // always does, and nothing is kept.
+          if (arguments.length === 0) return apply(write, this, arguments);
+          let text;
+          try { text = String(data); } catch (e) { return apply(write, this, arguments); }
           try { seen(text, "call"); } catch (e) { /* the report never stops the copy */ }
-          const p = write.apply(this, arguments);
-          try { then.call(p, () => { try { seen(text, "done"); } catch (e) { /* never break the page */ } }, () => {}); } catch (e) { /* never break the page */ }
+          // The text read once above is what is written, so what the history
+          // keeps is what the clipboard holds: a value whose toString answered
+          // differently the second time put one text in each (release check,
+          // 2026-10-12).
+          const p = apply(write, this, [text]);
+          try { apply(then, p, [() => { try { seen(text, "done"); } catch (e) { /* never break the page */ } }, () => {}]); } catch (e) { /* never break the page */ }
           return p;
         },
       }.writeText;
