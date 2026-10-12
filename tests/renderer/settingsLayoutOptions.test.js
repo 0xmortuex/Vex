@@ -235,5 +235,7 @@ describe('One column, full width', () => {
     expect(SettingsUI.columnsFor(900, 'wide')).toBe(1);
     const css = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/css/settings-redesign.css'), 'utf8');
     expect(css).toMatch(/#panel-settings\[data-set-wide\] \.settings-content > \* \{ max-width: none;/);
+    // The centred 780px column is the side padding on .settings-content; the wide choice has to replace it.
+    expect(css).toMatch(/#panel-settings\[data-set-wide\] \.settings-content \{ padding-left: 32px; padding-right: 32px; \}/);
   });
 });

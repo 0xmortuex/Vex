@@ -368,7 +368,9 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
 #panel-settings[data-set-cols] .set-toolbar-inner { max-width: var(--set-grid-max, 1658px); }
 
 /* "One column, full width": one column whose sections run from the left
-   edge to the right edge instead of the centred 960px. */
+   edge to the right edge. The centred 780px column is the side padding on
+   .settings-content (top of this file), so that is what is replaced. */
+#panel-settings[data-set-wide] .settings-content { padding-left: 32px; padding-right: 32px; }
 #panel-settings[data-set-wide] .settings-content > * { max-width: none; margin-left: 0; margin-right: 0; }
 #panel-settings[data-set-wide] .set-toolbar-inner { max-width: none; }
 
