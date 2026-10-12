@@ -993,6 +993,8 @@ const VexUI = (() => {
         closeScanner();
         // A QR code is usually a URL; when it is a 2FA enrolment it belongs in
         // the vault instead, and when it is neither it becomes a search.
+        // Google Authenticator's "Transfer accounts": many codes at once.
+        if (/^otpauth-migration:/i.test(String(text).trim())) { VexPanels.importMigration(text); return; }
         const otp = VexVault.parseOtpAuth(text);
         if (otp) {
           // The whole otpauth:// address goes in, so the code's digits, period

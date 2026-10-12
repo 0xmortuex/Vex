@@ -24,6 +24,7 @@ window.VexBridge = {
 };
 window.VexSearch = { prettyHost: url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } } };
 window.VexCollections = { id: prefix => prefix + Math.random().toString(36).slice(2, 8) };
+require('../../mobile/www/js/sync-secrets.js');
 const { VexVault } = require('../../mobile/www/js/vault.js');
 
 const SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -126,5 +127,23 @@ describe('managing logins', () => {
     const csv = VexVault.loginsToCsv([{ host: 'x.example', username: 'a,b', password: 'q"t', label: 'X' }]);
     expect(csv).toBe('name,url,username,password,note\nX,https://x.example/,"a,b","q""t",\n');
     expect(VexVault.loginsFromCsv(csv)[0]).toEqual({ host: 'x.example', username: 'a,b', password: 'q"t' });
+  });
+});
+
+describe('2FA codes from a backup or Google Authenticator', () => {
+  it('adds what is new, onto the login for its site, and skips what is already here', async () => {
+    await VexVault.save({ host: 'github.com', username: 'octo', password: 'pw' });
+    const counts = await VexVault.importAccounts([
+      { label: 'octo', issuer: 'GitHub', secret: 'GEZDGNBVGY3TQOJQ', algorithm: 'sha1', digits: 6, period: 30 },
+      { label: 'me', issuer: 'roblox.com', secret: SECRET, algorithm: 'sha1', digits: 6, period: 30 },
+      { label: 'x', issuer: 'Bank', secret: 'not base32 !!', algorithm: 'sha1', digits: 6, period: 30 },
+      { label: 'y', issuer: 'Elsewhere', secret: 'MFRGGZDF', algorithm: 'sha256', digits: 8, period: 30 }
+    ]);
+    expect(counts).toEqual({ added: 2, duplicates: 1, invalid: 1 });
+    const github = VexVault.all().find(entry => entry.host === 'github.com');
+    expect(github).toMatchObject({ password: 'pw', secret: 'GEZDGNBVGY3TQOJQ' });
+    const other = VexVault.all().find(entry => entry.secret === 'MFRGGZDF');
+    expect(other).toMatchObject({ password: '', username: 'y', label: 'Elsewhere', digits: 8, algorithm: 'SHA256' });
+    expect(VexVault.accountsForBackup().map(account => account.issuer).sort()).toEqual(['Elsewhere', 'GitHub', 'roblox.com']);
   });
 });

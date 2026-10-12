@@ -560,6 +560,41 @@ const VexVault = (() => {
       return true;
     },
 
+    /** Every 2FA account, as a backup file holds them: [{ label, issuer, secret, algorithm, digits, period }]. */
+    accountsForBackup() {
+      return this.all().filter(entry => entry.secret).map(entry => {
+        const account = VexSyncSecrets.accountOf(entry);
+        return { label: account.label, issuer: account.issuer, secret: account.secret.replace(/\s/g, ''), algorithm: account.algorithm, digits: account.digits, period: account.period };
+      });
+    },
+
+    /**
+     * 2FA accounts from a backup or Google Authenticator: what is not here yet
+     * (the same secret is the same account), each on the login for its site
+     * when there is one. → { added, duplicates, invalid }
+     */
+    async importAccounts(list) {
+      if (!(await this.unlock('Import 2FA codes'))) throw new Error('Not unlocked');
+      const key = secret => String(secret || '').replace(/[\s=]/g, '').toUpperCase();
+      const have = new Set(entries.filter(entry => entry.secret).map(entry => key(entry.secret)));
+      const counts = { added: 0, duplicates: 0, invalid: 0 };
+      const put = [];
+      for (const account of list) {
+        const secret = String(account && account.secret || '').replace(/\s/g, '');
+        if (!/^[A-Z2-7]+=*$/i.test(secret) || !base32Decode(secret).length || !['sha1', 'sha256', 'sha512'].includes(String(account.algorithm || 'sha1').toLowerCase())) { counts.invalid++; continue; }
+        if (have.has(key(secret))) { counts.duplicates++; continue; }
+        have.add(key(secret));
+        put.push({ entryId: null, payload: {
+          id: 'im-' + VexCollections.id(''), label: String(account.label || '') || 'Account', issuer: String(account.issuer || ''),
+          secret, algorithm: String(account.algorithm || 'sha1').toLowerCase(), digits: Number(account.digits) === 8 ? 8 : 6,
+          period: Number(account.period) || 30, created: new Date().toISOString()
+        } });
+        counts.added++;
+      }
+      if (put.length) await this.applySecretChanges('authenticator', [], put);
+      return counts;
+    },
+
     /** Put back a login exactly as it was (Undo of a delete). */
     async restore(entry) {
       if (locked() || !entry || !entry.id) return false;

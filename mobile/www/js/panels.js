@@ -1139,6 +1139,10 @@ const VexPanels = (() => {
         body.appendChild(heading('Move logins'));
         body.appendChild(valueRow('Import from a CSV file', 'Exported from Chrome, Samsung Internet, Firefox, Bitwarden…', '', () => this.importLogins()));
         if (all.length) body.appendChild(valueRow('Export to a CSV file', 'Every password in plain text — keep it somewhere safe', '', () => this.exportLogins()));
+        body.appendChild(heading('2FA codes'));
+        body.appendChild(valueRow('Import from Google Authenticator', 'Scan its “Transfer accounts” QR code', '', () => VexUI.openScanner()));
+        if (all.some(entry => entry.secret)) body.appendChild(valueRow('Back up 2FA codes to a file', 'Locked with a passphrase — Vex on your computer opens it too', '', () => this.backupCodes()));
+        body.appendChild(valueRow('Restore 2FA codes from a backup', 'A .vexauth file from this phone or your computer', '', () => this.restoreCodes()));
       };
       if (!entries.length) {
         body.appendChild(empty(needle ? 'No login matches “' + query + '”.' : 'Nothing saved yet. On a page with a login form, the menu offers '
@@ -1326,6 +1330,45 @@ const VexPanels = (() => {
       } catch (error) { VexUI.toast(error.message, 4500); return; }
       VexUI.toast('Delete the CSV file now — it holds your passwords in plain text', 6000);
       this.passwords();
+    },
+
+    async backupCodes() {
+      const accounts = VexVault.accountsForBackup();
+      if (!accounts.length) { VexUI.toast('There are no 2FA codes to back up'); return; }
+      const passphrase = await VexUI.prompt('Choose a passphrase', 'At least 8 characters. Without it the file cannot be opened — not by Vex, not by anyone.');
+      if (!passphrase) return;
+      const again = await VexUI.prompt('Type it again', 'The same passphrase, to be sure.');
+      if (again !== passphrase) { VexUI.toast('The two did not match — nothing was saved'); return; }
+      VexUI.toast('Locking ' + accounts.length + ' codes…', 2500);
+      try {
+        const text = await VexTotpTransfer.encryptBackup(accounts, passphrase);
+        await VexUI.downloadText('Vex Authenticator backup.vexauth', text, 'application/json');
+      } catch (error) { VexUI.toast(error.message, 4500); }
+    },
+
+    restoreCodes() {
+      VexUI.pickTextFile(async text => {
+        const passphrase = await VexUI.prompt('The backup’s passphrase', 'The one chosen when the backup was made.');
+        if (!passphrase) return;
+        VexUI.toast('Opening the backup…', 2500);
+        try {
+          const counts = await VexVault.importAccounts(await VexTotpTransfer.decryptBackup(text, passphrase));
+          VexUI.toast('Restored ' + counts.added + ' codes' + (counts.duplicates ? ', ' + counts.duplicates + ' already here' : '')
+            + (counts.invalid ? ', ' + counts.invalid + ' unreadable' : ''), 5000);
+          this.passwords();
+        } catch (error) { VexUI.toast(error.message, 5000); }
+      }, '.vexauth,application/json,text/plain,*/*');
+    },
+
+    async importMigration(uri) {
+      try {
+        const { accounts, skipped } = VexTotpTransfer.parseMigration(uri);
+        if (!accounts.length) throw new Error(skipped ? 'The export holds only counter-based (HOTP) accounts, which Vex does not support' : 'The export link has no accounts in it');
+        const counts = await VexVault.importAccounts(accounts);
+        VexUI.toast('Imported ' + counts.added + ' codes' + (counts.duplicates ? ', ' + counts.duplicates + ' already here' : '')
+          + (skipped ? ', ' + skipped + ' counter-based left out' : ''), 5000);
+        this.passwords();
+      } catch (error) { VexUI.toast(error.message, 5000); }
     },
 
     async exportLogins() {
