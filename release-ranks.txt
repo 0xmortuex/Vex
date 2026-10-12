@@ -46,3 +46,19 @@ d32d27b fix-high-some              # Back/Forward lost on sleep, reopen and rest
 1b0cfc6 fix-mid-everyone           # link tabs opened at the far right
 883ad20 none                       # code moved for a test
 d3439be none                       # v18.59.3 version bump, never published (folded into the next release)
+
+# Since v19.1.7 (published 2026-10-11): fixes first ranked none as "unreleased",
+# but the code they fix shipped in v19.1.7.
+0666c4d fix-small-rare             # extension download of a redirecting link
+3ed8430 fix-small-rare             # Turkish setup skip question
+a12e0bd polish-small-rare          # About accepted-on line follows language
+27d68cc fix-small-rare             # email-code fill-now flag left behind
+699d72c polish-small-some          # sync panel: passwords listed as local
+ebeed28 fix-small-rare             # Roblox off leaves ByeDPI running
+719dd4d fix-small-some             # Discord tab notification click
+5e81f29 fix-small-rare             # migrated home-network watches refused
+7611b04 fix-small-some             # automatic-downloads question covered
+d6414a4 security-small-rare        # Clipboard History copy-button spoof
+399d044 security-small-some        # keys acted behind the agreement
+2fce57f security-small-some        # private window skipped the agreement
+0749154 none                       # v19.42.1 version bump, never published (folded into the next release)
