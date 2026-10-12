@@ -215,6 +215,8 @@ const Authenticator = {
   async _refreshList() {
     const el = this._el; if (!el) return;
     const list = await window.vex.totpList().catch(() => []);
+    // The page right-click menu's "Fill code from authenticator" row follows this list.
+    if (typeof TotpAutofill !== 'undefined') TotpAutofill._noteAccounts(list);
     const box = el.querySelector('#auth-list');
     if (!list.length) {
       box.innerHTML = `<div class="auth-empty">No accounts yet.<br>Add one to get its 2FA codes here — no phone needed.</div>`;

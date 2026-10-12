@@ -1614,9 +1614,26 @@ const WebviewManager = {
     ];
 
     // Right-clicking an input (e.g. the verification-code box): offer to fill the
-    // code from Gmail on demand, in case the automatic pass didn't catch it.
-    if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
+    // code from the Authenticator, or from Gmail, on demand, in case the
+    // automatic pass didn't catch it. The authenticator row shows on any input
+    // when there is an account (or the list is not known yet), and on other
+    // spots only when an account belongs to this site; never in a private or
+    // Tor tab (js/totp-autofill.js).
+    const offerTotp = typeof TotpAutofill !== 'undefined' && TotpAutofill.shouldOfferMenuRow(webview, !!e.params.isEditable);
+    if (typeof TotpAutofill !== 'undefined') TotpAutofill.refreshAccounts();
+    if (offerTotp) {
       items.push({ sep: true });
+      items.push({
+        label: (window.VexI18n && window.VexI18n.t('menuFillTotp', 'Fill code from authenticator')) || 'Fill code from authenticator',
+        action: () => {
+          let at = {};
+          try { const r = webview.getBoundingClientRect(); at = { x: (e.params.x || 0) - r.left, y: (e.params.y || 0) - r.top }; } catch { at = {}; }
+          TotpAutofill.fillFromAuthenticator(webview, at).catch((err) => { console.error('[TOTP] fill from authenticator failed:', err); window.showToast?.('Could not fill the code: ' + ((err && err.message) || err), 'error'); });
+        }
+      });
+    }
+    if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
+      if (!offerTotp) items.push({ sep: true });
       items.push({
         label: 'Fill code from email',
         action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }

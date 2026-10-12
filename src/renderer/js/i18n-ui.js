@@ -71,6 +71,7 @@ const VexI18nUI = {
       'Library': 'Kitaplık', 'Feeds': 'Akışlar', 'Highlights': 'Vurgular',
       'Recall': 'Geri çağırma', 'Schedules': 'Zamanlanmış görevler',
       'Authenticator': 'Kimlik doğrulayıcı', 'Privacy': 'Gizlilik',
+      'Fill code from authenticator': 'Kimlik doğrulayıcıdan kod doldur',
       'Shortcuts': 'Kısayollar', 'Queue': 'Kuyruk', 'Work': 'Çalışma',
       'Start Page': 'Başlangıç sayfası', 'Toolbox': 'Araç kutusu',
       // A web panel's page as a tab (js/panel-to-tab.js).

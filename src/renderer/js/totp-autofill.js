@@ -214,6 +214,7 @@ const TotpAutofill = {
 
     let list = [];
     try { list = await window.vex.totpList(); } catch { return; }
+    this._noteAccounts(list);
     if (!list || !list.length) return;
 
     const matches = this._matchesFor(list, host);
@@ -351,7 +352,7 @@ const TotpAutofill = {
 
   // A list of the accounts that match this site, like the saved-password
   // chooser. -> the chosen match, or null when dismissed.
-  _pickAccount(matches, host) {
+  _pickAccount(matches, host, opts = {}) {
     return new Promise((resolve) => {
       document.getElementById('vex-totp-pick')?.remove();
       const prevFocus = document.activeElement;
@@ -359,12 +360,14 @@ const TotpAutofill = {
       overlay.id = 'vex-totp-pick';
       overlay.style.cssText = 'position:fixed;inset:0;z-index:100052;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-family:\'Outfit\',sans-serif';
       overlay.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="vex-totp-pick-title" style="width:340px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
-        <div id="vex-totp-pick-title" style="padding:16px 18px 8px;font-size:13.5px;font-weight:700;color:var(--text)">Which account's code?</div>
+        <div id="vex-totp-pick-title" style="padding:16px 18px 8px;font-size:13.5px;font-weight:700;color:var(--text)"></div>
         <div data-host style="padding:0 18px 10px;font-size:11.5px;color:var(--text-muted)"></div>
         <div data-list style="max-height:46vh;overflow-y:auto;padding:0 10px 10px"></div>
-        <div style="padding:10px 18px 16px;display:flex;justify-content:flex-end"><button type="button" data-cancel style="padding:7px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Not now</button></div>
+        <div style="padding:10px 18px 16px;display:flex;justify-content:flex-end"><button type="button" data-cancel style="padding:7px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px"></button></div>
       </div>`;
-      overlay.querySelector('[data-host]').textContent = 'Authenticator codes for ' + host;
+      overlay.querySelector('#vex-totp-pick-title').textContent = opts.title || this._t('totpWhich', "Which account's code?");
+      overlay.querySelector('[data-cancel]').textContent = this._t('totpNotNow', 'Not now');
+      overlay.querySelector('[data-host]').textContent = opts.hint || (this._t('totpCodesFor', 'Authenticator codes for') + ' ' + host);
       const list = overlay.querySelector('[data-list]');
       let settled = false;
       const done = (value) => {
@@ -484,6 +487,144 @@ const TotpAutofill = {
       webview._vexTotpRefilling = true;
       return this._refill(webview, url, account).finally(() => { webview._vexTotpRefilling = false; });
     }).catch(() => {});
+  },
+
+  // --- "Fill code from authenticator", on request ---------------------------
+  // The right-click row, Ctrl+K and the shortcut all land here. Unlike the
+  // automatic fill this is the person asking, so it needs no second question:
+  // it fills the field they right-clicked (or have focused, or the first code
+  // field on the page) with the current code of the account that belongs to the
+  // site, asks which one when several do, and when none does says so and lets
+  // them pick ANY account (remembering that choice for the site, which is what
+  // makes the automatic fill work there next time).
+
+  // What the last look at the account list found: null until it was looked at.
+  // Only for deciding whether a menu row is worth showing; the action itself
+  // always reads the list afresh.
+  _accounts: null,
+  _noteAccounts(list) { this._accounts = Array.isArray(list) ? list.slice() : null; },
+  forgetAccounts() { this._accounts = null; },
+  // Ask for the list in the background so the next menu knows.
+  refreshAccounts() {
+    if (!window.vex || typeof window.vex.totpList !== 'function') return;
+    Promise.resolve(window.vex.totpList()).then((l) => this._noteAccounts(l), () => { /* locked */ });
+  },
+  // Show the menu row? Yes unless the list is known to be empty; and on a
+  // field that is not editable (the person right-clicked the dialog's text) only
+  // when an account is known to belong to this site.
+  shouldOfferMenuRow(webview, editable) {
+    if (!webview || (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview))) return false;
+    let url = '';
+    try { url = webview.getURL(); } catch { return false; }
+    if (!/^https:/i.test(url)) return false;
+    if (this._accounts === null) return !!editable;
+    if (!this._accounts.length) return false;
+    if (editable) return true;
+    let host = '';
+    try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return false; }
+    return this._matchesFor(this._accounts, host).length > 0;
+  },
+
+  _t(key, fallback) { return (window.VexI18n && window.VexI18n.t(key, fallback)) || fallback; },
+
+  // -> { ok: true, account } or { ok: false, reason }. Says why in a toast.
+  async fillFromAuthenticator(webview, opts = {}) {
+    const say = (message, kind) => { try { window.showToast?.(message, kind); } catch { /* no toast host */ } };
+    const refuse = (reason, message, kind = 'error') => { say(message, kind); return { ok: false, reason }; };
+    if (!webview) return refuse('no-page', this._t('totpOpenPage', 'Open a web page first'));
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) {
+      return refuse('private', this._t('totpPrivate', 'Authenticator codes are never filled in a private or Tor tab'));
+    }
+    let url = '', host = '';
+    try { url = webview.getURL(); host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* handled below */ }
+    if (!host || !/^https:/i.test(url)) {
+      return refuse('not-https', this._t('totpHttps', 'Authenticator codes are only filled on secure (https) pages'));
+    }
+    let list = [];
+    try { list = await window.vex.totpList(); }
+    catch (err) {
+      return refuse('locked', /locked/i.test(String(err && err.message))
+        ? this._t('totpLocked', 'Vex is locked: unlock it, then try again')
+        : this._t('totpListFailed', 'Could not read your authenticator accounts: ') + (err && err.message));
+    }
+    this._noteAccounts(list);
+    if (!list || !list.length) {
+      return refuse('no-accounts', this._t('totpNoAccounts', 'No authenticator accounts yet: add one in the Authenticator panel first'), 'info');
+    }
+    const origin = new URL(url).origin;
+    const here = () => { try { return webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { return false; } };
+
+    let matches = this._matchesFor(list, host);
+    let account = null;
+    let chosenByHand = false;
+    if (matches.length === 1) account = matches[0].account;
+    else if (matches.length > 1) {
+      const picked = await this._pickAccount(matches, host);
+      if (!picked) return { ok: false, reason: 'cancelled' };
+      account = picked.account;
+    } else {
+      // None belongs to this site: say so, and let the person pick any account.
+      const all = list.map((a) => ({ account: a, kind: 'manual' }));
+      const picked = await this._pickAccount(all, host, {
+        title: this._t('totpNoneHere', 'No authenticator account for this site'),
+        hint: this._t('totpPickAny', 'Pick the account to use on {host}. It is remembered for this site.').replace('{host}', host),
+      });
+      if (!picked) return { ok: false, reason: 'cancelled' };
+      account = picked.account;
+      chosenByHand = true;
+    }
+    if (!here()) return { ok: false, reason: 'moved' };
+
+    let codes = [];
+    try { codes = await window.vex.totpCodes(); }
+    catch (err) { return refuse('codes', this._t('totpCodesFailed', 'Could not read the code: ') + (err && err.message)); }
+    const entry = (codes || []).find((x) => x.id === account.id);
+    const code = entry && entry.code;
+    if (!code || !/^\d{4,8}$/.test(code)) return refuse('no-code', this._t('totpNoCode', 'That account has no code right now'));
+    if (!here()) return { ok: false, reason: 'moved' };
+
+    const result = await this._injectNow(webview, code, url, opts);
+    if (result !== 'filled') {
+      return refuse('no-field', this._t('totpNoField', 'No code field found on this page: click into the field and try again'), 'info');
+    }
+    // The person asked for this account on this site, so it is theirs for the
+    // site from now on (the automatic fill honours it).
+    if (chosenByHand || matches.some((m) => m.account.id === account.id && m.kind === 'label')) this._bind(account, host, true);
+    try { window.AutofillLog?.record('totp', url, true, account.issuer || account.label); } catch { /* the log is optional */ }
+    const name = String(account.issuer || account.label || '').trim();
+    say((this._t('totpFilled', 'Authenticator code filled') + (name ? ' (' + name + ')' : '')) + (chosenByHand ? '. ' + this._t('totpRemembered', 'Remembered for this site') : ''));
+    return { ok: true, account };
+  },
+
+  // Fill NOW, once, the field the person means: the one under the cursor when
+  // they right-clicked, else the focused one, else the first code field.
+  // -> 'filled' | 'nofield'. No listeners are left behind.
+  async _injectNow(webview, code, url, opts = {}) {
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { return 'nofield'; }
+    const point = (opts && Number.isFinite(opts.x) && Number.isFinite(opts.y)) ? { x: opts.x, y: opts.y } : null;
+    const js = `(function(){try{
+      var ORIGIN=${JSON.stringify(origin)};
+      if(location.origin!==ORIGIN)return 'nofield';
+      var CODE=${JSON.stringify(code)};
+      var D=(${vexTotpDetector.toString()})();
+      var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
+      function put(el,val){el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}
+      var POINT=${JSON.stringify(point)};
+      var target=null;
+      function usable(el){return el&&el.tagName==='INPUT'&&D.textual(el)&&D.vis(el);}
+      if(POINT){try{var at=document.elementFromPoint(POINT.x,POINT.y);if(usable(at))target=at;}catch(e){}}
+      if(!target&&usable(document.activeElement))target=document.activeElement;
+      if(target){put(target,CODE);return 'filled';}
+      var f=D.fields();
+      var digits=CODE.split('');
+      if(f.boxes.length>=digits.length&&f.boxes.length<=digits.length+2){for(var i=0;i<digits.length;i++)put(f.boxes[i],digits[i]);return 'filled';}
+      var first=null;for(var j=0;j<f.single.length;j++){if(!f.single[j].value){first=f.single[j];break;}}
+      if(!first)first=f.single[0]||null;
+      if(first){put(first,CODE);return 'filled';}
+      return 'nofield';
+    }catch(e){return 'nofield';}})();`;
+    try { return await webview.executeJavaScript(js); } catch { return 'nofield'; }
   },
 
   // The emptied field was clicked: the current code, never the one from before.
