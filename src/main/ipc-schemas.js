@@ -311,6 +311,7 @@ define('vault:update', [shape({ host: string(253), username: string(4096), newUs
 define('vault:export-csv vault:breach-check', []);
 define('totp:import-migration', [string(65536)]);
 define('totp:export-backup totp:import-backup', [string(1024)]);
+define('totp:rename', [string(256), string(4096), string(4096)]);
 define('vault:delete', [shape({ host: string(253), username: string(4096) })]);
 // Import from another browser (main/browser-import.js): a browser and a profile
 // id from browser-import:sources, never a path; the CSV is chosen in main.

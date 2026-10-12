@@ -161,6 +161,21 @@ function registerTotpTransfer({ ipcMain, dialog, app, windowFor, load, save, val
     return { ...(await addAccounts(accounts)), skipped };
   });
 
+  // The name and account shown for one authenticator entry (imports often
+  // arrive as "Account"). The secret is never touched.
+  ipcMain.handle('totp:rename', async (_e, id, issuer, label) => {
+    refuseWhileLocked();
+    const arr = load();
+    const entry = arr.find(a => a.id === id);
+    if (!entry) return { ok: false, error: 'That account is no longer in the Authenticator' };
+    const i = String(issuer || '').trim().slice(0, 4096), l = String(label || '').trim().slice(0, 4096);
+    if (!i && !l) return { ok: false, error: 'Give it a name' };
+    entry.issuer = i;
+    entry.label = l || i;
+    await save(arr);
+    return { ok: true };
+  });
+
   ipcMain.handle('totp:export-backup', async (e, passphrase) => {
     refuseWhileLocked();
     const arr = load();

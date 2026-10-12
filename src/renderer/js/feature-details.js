@@ -210,7 +210,7 @@ const FeatureDetails = {
   'panel-roblox': 'Roblox in its own session, with the censorship bypass for networks that block it.',
   'panel-github': 'Your GitHub one click away, signed in separately from anything else.',
   'panel-netflix': 'Netflix in the sidebar; right-click the icon to switch it to Prime Video or Disney+. They share one session, so switching does not sign you out of the others.',
-  'panel-authenticator': 'Your 2FA codes generated here, with a ring showing how long each one has left. Add an account by scanning a screenshot of its QR code.',
+  'panel-authenticator': 'Your 2FA codes generated here, with a ring showing how long each one has left. Add an account by scanning a screenshot of its QR code. Rename an account with its pencil (imports often arrive as just “Account”), and search the list once you have six or more.',
   pinsite2: 'Any site at all can become a panel, with its own session and its own unread badge. This is how a web app you use all day stops being a lost tab.',
 
   // ---- Logins & autofill ---------------------------------------------------

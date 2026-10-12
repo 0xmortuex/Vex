@@ -31,6 +31,7 @@ const Authenticator = {
             <span id="auth-status" class="auth-status"></span>
           </div>
         </div>
+        <input id="auth-search" class="auth-search" type="search" placeholder="Search accounts" aria-label="Search accounts" autocomplete="off" style="display:none">
         <div id="auth-list" class="auth-list"></div>
         <div class="auth-transfer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
           <button type="button" id="auth-backup" class="auth-add-btn" title="Save every account in a file locked with a passphrase">Back up…</button>
@@ -46,6 +47,7 @@ const Authenticator = {
     el.querySelector('#auth-save').addEventListener('click', () => this._add());
     el.querySelector('#auth-backup').addEventListener('click', () => this._backup());
     el.querySelector('#auth-restore').addEventListener('click', () => this._restore());
+    el.querySelector('#auth-search').addEventListener('input', () => this._filter());
     el.querySelector('#auth-secret').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
     el.querySelector('#auth-label').addEventListener('keydown', (e) => { if (e.key === 'Enter') this._add(); });
 
@@ -219,24 +221,35 @@ const Authenticator = {
     if (typeof TotpAutofill !== 'undefined') TotpAutofill._noteAccounts(list);
     const box = el.querySelector('#auth-list');
     if (!list.length) {
+      const s = el.querySelector('#auth-search'); if (s) s.style.display = 'none';
       box.innerHTML = `<div class="auth-empty">No accounts yet.<br>Add one to get its 2FA codes here — no phone needed.</div>`;
       return;
     }
+    this._accounts = new Map(list.map(a => [a.id, a]));
+    // Searching only helps once there are more rows than fit at a glance.
+    const search = el.querySelector('#auth-search');
+    if (search) search.style.display = list.length >= this.SEARCH_FROM ? '' : 'none';
     box.innerHTML = list.map(a => {
       const iss = (a.issuer || '').trim();
       const lab = (a.label || '').trim();
       const title = iss && lab && lab.toLowerCase() !== iss.toLowerCase() ? `${iss} · ${lab}` : (iss || lab || 'Account');
-      return `<div class="auth-item" data-id="${this._esc(a.id)}" title="Click to copy the code" role="button" tabindex="0">
+      return `<div class="auth-item" data-id="${this._esc(a.id)}" data-title="${this._esc(title.toLowerCase())}" title="Click to copy the code" role="button" tabindex="0">
         <div class="auth-info">
           <div class="auth-name">${this._esc(title)}</div>
           <div class="auth-code" data-code>••• •••</div>
         </div>
         <div class="auth-ctrls">
           <svg class="auth-ring" width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="none" stroke="var(--border)" stroke-width="2"/><circle data-ring cx="11" cy="11" r="9" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" transform="rotate(-90 11 11)" stroke-dasharray="56.55" stroke-dashoffset="0"/></svg>
+          <button class="auth-ren" data-ren title="Rename account" aria-label="Rename account">${VexIcons.svg('edit', { size: 14 })}</button>
           <button class="auth-del" data-del title="Remove account" aria-label="Remove account">${VexIcons.svg('trash', { size: 14 })}</button>
         </div>
       </div>`;
     }).join('');
+    box.querySelectorAll('.auth-ren').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._rename(e.currentTarget.closest('.auth-item').dataset.id);
+    }));
+    this._filter();
     // Delete — stopPropagation so removing an account doesn't also copy its code.
     box.querySelectorAll('.auth-del').forEach(b => b.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -262,10 +275,42 @@ const Authenticator = {
       setTimeout(() => item.classList.remove('copied'), 550);
     };
     box.querySelectorAll('.auth-item').forEach(item => {
-      item.addEventListener('click', (e) => { if (!e.target.closest('.auth-del')) copyFrom(item); });
+      item.addEventListener('click', (e) => { if (!e.target.closest('.auth-del, .auth-ren')) copyFrom(item); });
       item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copyFrom(item); } });
     });
     await this._tick();
+  },
+
+  // Show only the rows whose name holds every word typed in the search box.
+  SEARCH_FROM: 6,
+  _filter() {
+    const el = this._el; if (!el) return;
+    const q = ((el.querySelector('#auth-search') || {}).value || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const rows = el.querySelectorAll('.auth-item');
+    let shown = 0;
+    rows.forEach(r => {
+      const hit = q.every(w => (r.dataset.title || '').includes(w));
+      r.style.display = hit ? '' : 'none';
+      if (hit) shown++;
+    });
+    const none = el.querySelector('#auth-nomatch');
+    if (rows.length && !shown) {
+      if (!none) el.querySelector('#auth-list').insertAdjacentHTML('beforeend', '<div id="auth-nomatch" class="auth-empty">No account matches that.</div>');
+    } else if (none) none.remove();
+  },
+
+  // Imported accounts often arrive as just "Account". The secret is not touched.
+  async _rename(id) {
+    const a = this._accounts && this._accounts.get(id);
+    if (!a) return;
+    const issuer = await window.vexPrompt({ title: 'Rename account', label: 'Service name', value: a.issuer || a.label || '', okLabel: 'Next',
+      message: 'Vex uses this name to match the site when it fills a code, so keep the site’s name in it (for example GitHub).' });
+    if (issuer === null) return;
+    const label = await window.vexPrompt({ title: 'Rename account', label: 'Account (your email or username, optional)', value: a.label && a.label !== a.issuer ? a.label : '', okLabel: 'Rename' });
+    if (label === null) return;
+    const r = await window.vex.totpRename(id, issuer, label).catch(err => ({ ok: false, error: this._plainError(err) }));
+    if (!r || !r.ok) { window.showToast?.('Could not rename it: ' + ((r && r.error) || 'no answer'), 'error'); return; }
+    await this._refreshList();
   },
 
   async _tick() {
@@ -332,6 +377,9 @@ const Authenticator = {
       .auth-ctrls{display:flex;align-items:center;gap:6px}
       .auth-del{background:none;border:none;cursor:pointer;font-size:14px;opacity:.6;padding:3px;line-height:1}
       .auth-del:hover{opacity:1}
+      .auth-ren{background:none;border:none;cursor:pointer;color:inherit;opacity:.6;padding:3px;line-height:0}
+      .auth-ren:hover,.auth-ren:focus-visible{opacity:1}
+      .auth-search{width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:8px;flex:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:12.5px}
     `;
     document.head.appendChild(st);
   },
