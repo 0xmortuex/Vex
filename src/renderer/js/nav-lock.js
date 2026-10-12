@@ -6,12 +6,12 @@
 // Notes, a pinned site...) they went back, forward and reloaded the website
 // hidden behind it, keys pressed inside the panel too (found 2026-10-12).
 //
-// They are locked while you are on a panel: it covers the page (Classic, a
-// maximized panel in a browser look, Settings), or it is docked beside the
-// page and the panel is what you used last (opened it, clicked or typed in
-// it). Clicking the page beside a docked panel gives them back. A key pressed
-// in a page is judged by that page, which main names: from a panel's page it
-// is refused, from the website's own page beside a docked panel it works.
+// They are locked while a panel COVERS the page (Classic, a maximized panel in
+// a browser look, Settings). A panel docked beside the page leaves the website
+// on screen, so the toolbar's buttons, Ctrl+K and Vex's own keys act on it
+// whichever side has the focus (2026-10-12). A key pressed in a page is judged
+// by that page, which main names: from a panel's page it is refused, from the
+// website's own page beside a docked panel it works.
 // The panel's own back/forward/reload bar is the panel's, untouched here.
 //
 // Every way in calls run(); the buttons show the lock (aria-disabled, greyed
