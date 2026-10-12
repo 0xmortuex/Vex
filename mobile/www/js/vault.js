@@ -195,6 +195,34 @@ const VexVault = (() => {
 
   const HAS_PASSWORD_FIELD = "(function(){return !!document.querySelector('input[type=password]:not([disabled])')})()";
 
+  // A sign-up or change-password form: a field that asks for a new password,
+  // or a password and its confirmation side by side.
+  const NEW_PASSWORD_FIELDS = `
+  function newPasswordFields() {
+    var all = [].slice.call(document.querySelectorAll('input[type=password]:not([disabled]):not([readonly])'));
+    var marked = all.filter(function (f) { return (f.autocomplete || '').indexOf('new-password') >= 0; });
+    if (marked.length) return marked;
+    var forms = new Map();
+    all.forEach(function (f) { var k = f.form || document; if (!forms.has(k)) forms.set(k, []); forms.get(k).push(f); });
+    var pair = null;
+    forms.forEach(function (list) { if (!pair && list.length >= 2 && list.length <= 3) pair = list.slice(-2); });
+    return pair || [];
+  }`;
+  const HAS_NEW_PASSWORD = `(function(){${NEW_PASSWORD_FIELDS}
+  return newPasswordFields().length > 0;
+})()`;
+  const FILL_NEW_PASSWORD = password => `(function(){${NEW_PASSWORD_FIELDS}
+  var fields = newPasswordFields();
+  if (!fields.length) return 'no-field';
+  var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  fields.forEach(function (field) {
+    setter.call(field, ${JSON.stringify(String(password))});
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  return 'filled';
+})()`;
+
   // A one-time code field, as the desktop finds it: by autocomplete, by its
   // name, id, placeholder or aria-label, by the words of its label or next to
   // it, inside open shadow roots too — or a row of one-digit boxes. A field
@@ -732,6 +760,19 @@ const VexVault = (() => {
       const said = String(result || '');
       if (said.includes('wrong-host')) return 'wrong-host';
       return said.includes('filled') ? 'filled' : 'no-form';
+    },
+
+    async pageWantsNewPassword(tabId) {
+      try {
+        const { result } = await VexBridge.evaluate(tabId, HAS_NEW_PASSWORD);
+        return String(result) === 'true';
+      } catch { return false; }
+    },
+
+    /** A strong password, made here, into the page's new-password field and its confirmation. */
+    async fillNewPassword(tabId, password) {
+      const { result } = await VexBridge.evaluate(tabId, FILL_NEW_PASSWORD(password));
+      return String(result || '').includes('filled');
     },
 
     async pageHasCodeField(tabId) {

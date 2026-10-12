@@ -174,3 +174,19 @@ describe('Password Health', () => {
     delete store['vex.breachCheck'];
   });
 });
+
+describe('a strong password for a sign-up form', () => {
+  it('finds a new-password field and its confirmation, and fills both — never a sign-in form', async () => {
+    page('<form><input name="email"><input type="password" name="pw"><input type="password" name="pw2"></form>');
+    expect(await VexVault.pageWantsNewPassword('t1')).toBe(true);
+    expect(await VexVault.fillNewPassword('t1', 'Zx9!strong-made-here')).toBe(true);
+    expect([...document.querySelectorAll('input[type=password]')].map(node => node.value)).toEqual(['Zx9!strong-made-here', 'Zx9!strong-made-here']);
+
+    page('<form><input type="password" autocomplete="current-password"><input type="password" autocomplete="new-password"></form>');
+    await VexVault.fillNewPassword('t1', 'new-one');
+    expect([...document.querySelectorAll('input')].map(node => node.value)).toEqual(['', 'new-one']);
+
+    page('<form><input name="user"><input type="password"></form>');
+    expect(await VexVault.pageWantsNewPassword('t1')).toBe(false);
+  });
+});

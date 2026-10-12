@@ -1527,7 +1527,37 @@ const VexUI = (() => {
     }, host);
   }
 
-  async function saveLoginFromPage(tab) {
+  /**
+   * A sign-up form: a strong password, made on the phone, offered — not put
+   * in until you tap. Then the login can be saved, as the desktop offers.
+   */
+  const passwordOffered = new Map();     // tab id → the address it was offered on
+  async function offerStrongPassword(tab, { manual = false } = {}) {
+    if (!tab || !tab.url) return;
+    if (!manual) {
+      if (tab.incognito || passwordOffered.get(tab.id) === tab.url || VexTabStore.activeId() !== tab.id) return;
+      if (!(await VexVault.pageWantsNewPassword(tab.id))) return;
+      passwordOffered.set(tab.id, tab.url);
+      toast('Making an account? Vex can make up a strong password', 8000, { label: 'Suggest one', run: () => offerStrongPassword(tab, { manual: true }) });
+      return;
+    }
+    const length = Number(VexStore.get('vex.passwordLength', 20)) || 20;
+    const password = VexVault.makePassword({ length });
+    if (!(await VexVault.fillNewPassword(tab.id, password))) { toast('No new-password box on this page'); return; }
+    // Kept for you until it is saved: an account made with a password you
+    // never saw is an account you cannot get back into.
+    await copySecret(password, { clearAfterMs: 120000, label: 'A ' + length + '-character password is in the form and on the clipboard' });
+    setTimeout(() => toast('Save this login, so Vex fills it next time?', 9000, {
+      label: 'Save', run: () => saveLoginFromPage(tab, password)
+    }), 1800);
+  }
+
+  async function saveLoginFromPage(tab, password) {
+    if (password) {
+      const fields = await VexVault.readFields(tab.id).catch(() => null);
+      await VexPanels.addLogin({ host: VexSearch.prettyHost(tab.url), username: (fields && fields.username) || '', password });
+      return;
+    }
     const fields = await VexVault.readFields(tab.id);
     if (!fields) { toast('No login form on this page'); return; }
     await VexPanels.addLogin({
@@ -1606,7 +1636,7 @@ const VexUI = (() => {
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, starPage, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage, tabHistory,
-    offerAutofill, offerCode, saveLoginFromPage, copySecret, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
+    offerAutofill, offerCode, offerStrongPassword, saveLoginFromPage, copySecret, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },

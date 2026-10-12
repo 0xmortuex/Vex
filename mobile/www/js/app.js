@@ -307,6 +307,8 @@
         setTimeout(() => VexUI.offerAutofill(tab).catch(() => {}), 700);
         // A 2-step box: on the page as it loads, or opened a moment later.
         for (const wait of [900, 4000]) setTimeout(() => VexUI.offerCode(tab).catch(() => {}), wait);
+        // A sign-up form: a strong password, offered.
+        setTimeout(() => VexUI.offerStrongPassword(tab).catch(() => {}), 1500);
       }
       indexForRecall(tab);
       // Whether to show the reader icon: asked once the page has settled.
