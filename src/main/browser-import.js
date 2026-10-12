@@ -340,7 +340,9 @@ function totpFromCell(cell, username, host) {
   if (u.protocol !== 'otpauth:' || u.hostname.toLowerCase() !== 'totp') return null;
   const secret = (u.searchParams.get('secret') || '').replace(/[\s-]/g, '').toUpperCase();
   if (!secret) return null;
-  let label = ''; try { label = decodeURIComponent(u.pathname.replace(/^\//, '')); } catch { label = u.pathname.replace(/^\//, ''); }
+  const rawLabel = u.pathname.replace(/^\//, '');
+  let label;
+  try { label = decodeURIComponent(rawLabel); } catch { label = rawLabel; }
   let issuer = u.searchParams.get('issuer') || '';
   if (label.includes(':')) { const [head, ...rest] = label.split(':'); if (!issuer) issuer = head.trim(); label = rest.join(':').trim(); }
   const algorithm = String(u.searchParams.get('algorithm') || 'sha1').toLowerCase();
