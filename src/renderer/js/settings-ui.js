@@ -814,7 +814,14 @@ const SettingsUI = {
   // search. `keepCols` (from the size observer) places the blocks for the
   // column count already in use and leaves a change of count to the next
   // frame: see _watchLayout.
-  _layout(root, { keepCols = false } = {}) {
+  _layout(root, opts) {
+    const again = this._layoutBlocks(root, opts);
+    // The style written to the blocks is not a change of content to react to.
+    if (this._contentObserver) this._contentObserver.takeRecords();
+    return again;
+  },
+
+  _layoutBlocks(root, { keepCols = false } = {}) {
     if (!root) return false;
     // Every block watched from the moment it is there, Settings open or not
     // (opening it builds the chip rows anew). A watch started inside the size
@@ -932,6 +939,22 @@ const SettingsUI = {
     // Its border box: the toolbar's observer sets its padding-top (_syncPad),
     // which is no reason to lay out again.
     this._sizeObserver.observe(root, { box: 'border-box' });
+    // A section whose content is changed by script (the local models list
+    // arriving after "Reading the models...", a row added, a group opened)
+    // is placed again in the same task, before anything is drawn. The block
+    // observer above only hears of it after layout and waits a frame, which
+    // painted one frame, sometimes more on a busy machine, with that section
+    // over the next one or 1000px of empty space under it (check:ui caught
+    // it as a gap above AI Memory, one run in three). A mutation callback
+    // runs as a microtask and is outside Chromium's ResizeObserver loop, so
+    // it may place blocks (measured: the same placement inside the block
+    // observer's own callback reported the loop error).
+    if (typeof MutationObserver !== 'undefined') {
+      this._contentObserver = new MutationObserver(() => {
+        if (SettingsUI._layout(root, { keepCols: true })) recount();
+      });
+      this._contentObserver.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'open', 'style'] });
+    }
     this._layout(root);
   },
 

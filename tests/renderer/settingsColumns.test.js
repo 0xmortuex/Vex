@@ -231,7 +231,7 @@ describe('SettingsUI._watchLayout', () => {
     frames = [];
     globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; this.els = []; observers.push(this); } observe(el) { this.els.push(el); } unobserve() {} disconnect() {} };
     globalThis.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
-    SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._blockObserver = null; SettingsUI._observed = null;
+    SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._blockObserver = null; SettingsUI._contentObserver = null; SettingsUI._observed = null;
     document.body.innerHTML = `
       <div class="panel" id="panel-settings"><div class="settings-content">
         <div class="setting-group" id="a"></div><div class="setting-group" id="b"></div><div class="setting-group" id="c"></div>
@@ -289,6 +289,32 @@ describe('SettingsUI._watchLayout', () => {
     expect(document.getElementById('c').style.gridRow).toBe('26 / span 25');   // not yet
     frames.shift()();
     expect(document.getElementById('c').style.gridRow).toBe('101 / span 25');
+  });
+
+  it('a section changed by script is placed again before anything is drawn, not a frame later (the local models list arriving left it over the next section, or 1000px of gap)', async () => {
+    width(1868);
+    SettingsUI._watchLayout(root);
+    const c = document.getElementById('c');
+    expect(c.style.gridRow).toBe('26 / span 25');
+    heights.b = 600;                                         // b's list arrives...
+    document.getElementById('b').appendChild(document.createElement('p'));   // ...as new content
+    await new Promise(r => setTimeout(r, 0));                // the microtask, not a frame
+    expect(frames.length).toBe(0);
+    expect(c.style.gridColumn).toBe('1');
+    expect(c.style.gridRow).toBe('101 / span 25');
+  });
+
+  it('does not lay out again for the style it wrote itself', async () => {
+    width(1868);
+    SettingsUI._watchLayout(root);
+    let passes = 0;
+    const real = SettingsUI._layoutBlocks;
+    SettingsUI._layoutBlocks = function (...a) { passes++; return real.apply(this, a); };
+    try {
+      SettingsUI._layout(root);
+      await new Promise(r => setTimeout(r, 0));
+      expect(passes).toBe(1);
+    } finally { SettingsUI._layoutBlocks = real; }
   });
 
   it('watches a new block from outside the observer: started inside it, Chromium reports a ResizeObserver loop', () => {

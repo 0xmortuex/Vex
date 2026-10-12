@@ -28,7 +28,7 @@ const PANEL = `
 
 const setup = ({ panelWidth = 1920, rootWidth = 1868 } = {}) => {
   document.body.innerHTML = PANEL;
-  SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._blockObserver = null; SettingsUI._observed = null;
+  SettingsUI._layoutWatched = null; SettingsUI._sizeObserver = null; SettingsUI._blockObserver = null; SettingsUI._contentObserver = null; SettingsUI._observed = null;
   const panel = document.getElementById('panel-settings');
   const root = panel.querySelector('.settings-content');
   Object.defineProperty(panel, 'clientWidth', { configurable: true, get: () => panelWidth });
