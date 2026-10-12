@@ -439,6 +439,19 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row {
   border-radius: 8px;
   font-size: 12.5px;
 }
+.set-layout-reset {
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.set-layout-reset:hover:not(:disabled) { border-color: var(--primary); }
+.set-layout-reset:disabled { opacity: 0.55; cursor: default; }
 .set-layout-hint { font-size: 11.5px; color: var(--text-muted); }
 .set-layout-note { display: block; margin-top: 3px; font-size: 11.5px; color: var(--text); }
 .set-layout-note[hidden] { display: none; }

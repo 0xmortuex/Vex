@@ -536,6 +536,16 @@ const SettingsUI = {
     return prefs;
   },
 
+  _isDefaultLayout(prefs) {
+    return prefs.columns === 'auto' && prefs.nav === 'chips' && prefs.density === 'comfortable';
+  },
+
+  // Every choice back to its default (the saved layout dropped), on screen at once.
+  resetLayoutPrefs() {
+    localStorage.removeItem(this.LAYOUT_KEY);
+    return this.applyLayoutPrefs();
+  },
+
   // The saved choices, on screen at once: no reload.
   applyLayoutPrefs() {
     const panel = typeof document !== 'undefined' ? document.getElementById('panel-settings') : null;
@@ -554,6 +564,8 @@ const SettingsUI = {
     if (prefs.columns === 'wide') panel.dataset.setWide = '1';
     else delete panel.dataset.setWide;
     panel.querySelectorAll('select[data-set-layout]').forEach(sel => { sel.value = prefs[sel.dataset.setLayout]; });
+    const plain = this._isDefaultLayout(prefs);
+    panel.querySelectorAll('.set-layout-reset').forEach(btn => { btn.disabled = plain; });
     return prefs;
   },
 
@@ -651,6 +663,17 @@ const SettingsUI = {
       pop.appendChild(field);
       if (name !== 'density') pop.appendChild(this._layoutNote(name));
     }
+    // Back to what Settings had: three boxes to put back one by one otherwise.
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'set-layout-reset';
+    reset.textContent = 'Back to the default layout';
+    reset.addEventListener('click', () => {
+      SettingsUI.resetLayoutPrefs();
+      pop.querySelector('select').focus();   // the button is off now
+    });
+    pop.appendChild(reset);
+    reset.disabled = this._isDefaultLayout(this.layoutPrefs());
     const show = (on) => {
       pop.hidden = !on;
       btn.setAttribute('aria-expanded', on ? 'true' : 'false');

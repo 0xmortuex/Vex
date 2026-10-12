@@ -175,6 +175,7 @@ const VexI18nUI = {
       'Automatic': 'Otomatik', 'One column': 'Tek sütun', 'One column, full width': 'Tek sütun, tam genişlik', 'Two columns': 'İki sütun', 'Three columns': 'Üç sütun',
       'Chips across the top': 'Üstte, yan yana düğmeler', 'A list down the left side': 'Solda bir liste',
       'Comfortable': 'Rahat', 'Compact': 'Sıkışık',
+      'Back to the default layout': 'Varsayılan düzene dön',
       'Automatic uses two columns from about 1300px wide, and three on very wide screens.': 'Otomatik, yaklaşık 1300 piksel genişlikten itibaren iki, çok geniş ekranlarda üç sütun kullanır.',
       'On a narrow window the list becomes chips again.': 'Dar bir pencerede liste yeniden üstte düğmelere dönüşür.',
       'Compact fits more on the screen: tighter rows, the same text size.': 'Sıkışık, ekrana daha fazlasını sığdırır: satırlar daha sık, yazı boyutu aynı.',

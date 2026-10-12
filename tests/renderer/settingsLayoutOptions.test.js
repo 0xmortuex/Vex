@@ -179,7 +179,7 @@ describe('Settings › Appearance › Settings layout, and the button beside the
   it('is in Turkish when Vex is', () => {
     const tr = VexI18nUI.TABLE.tr;
     const english = [
-      'Settings layout', 'Settings categories',
+      'Settings layout', 'Settings categories', 'Back to the default layout',
       ...Object.values(SettingsUI.LAYOUT_LABELS).flat(),
       ...Object.values(SettingsUI.LAYOUT_CHOICES).flat().map(([, label]) => label),
       'Three columns need a wider window, so Settings shows two.',
@@ -272,6 +272,26 @@ describe('the list down the left side', () => {
     expect(root.style.paddingTop).toBe('');
     expect(css).toMatch(/#panel-settings\[data-set-nav="side"\] \{ flex-direction: row; \}/);
     expect(css).toMatch(/#panel-settings\[data-set-nav="side"\] \.set-nav-chip\[aria-current="true"\]/);
+  });
+});
+
+describe('the layout button\'s "Back to the default layout"', () => {
+  it('is off while the layout is the default, and puts all three choices back at once', () => {
+    const { panel } = setup();
+    const btn = panel.querySelector('.set-layout-pop .set-layout-reset');
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+    SettingsUI.setLayoutPref('columns', '3');
+    SettingsUI.setLayoutPref('nav', 'side');
+    SettingsUI.setLayoutPref('density', 'compact');
+    expect(btn.disabled).toBe(false);
+    btn.click();
+    expect(localStorage.getItem('vex.settingsLayout')).toBeNull();
+    expect(SettingsUI.layoutPrefs()).toEqual({ columns: 'auto', nav: 'chips', density: 'comfortable' });
+    expect(panel.dataset.setNav).toBeUndefined();
+    expect(panel.dataset.setDensity).toBeUndefined();
+    expect(btn.disabled).toBe(true);
+    for (const sel of panel.querySelectorAll('.set-layout-pop select')) expect(sel.selectedIndex).toBe(0);
   });
 });
 
