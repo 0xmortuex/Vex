@@ -104,6 +104,10 @@ const PermissionPrompts = (() => {
         ${actions}
       </div>
     `;
+    // The Downloads drop opens by itself with a page's first download and
+    // sits over the top right, where this question's Allow is — with its
+    // click-catching layer over the rest. The question needs an answer.
+    if (window.DownloadsButton && window.DownloadsButton._open) window.DownloadsButton.close();
     document.body.appendChild(prompt);
     requestAnimationFrame(() => prompt.classList.add('show'));
 
