@@ -315,7 +315,7 @@ const PiPManager = {
     const sites = this.hiddenSites();
     row.style.display = sites.length ? '' : 'none';
     const text = document.getElementById('setting-pip-sites-text');
-    if (text) text.textContent = 'Picture-in-Picture button hidden for ' + sites.join(',');
+    if (text) text.textContent = 'Picture-in-Picture button hidden for ' + sites.join(', ');
   },
 
   // Mute and pause the tab the pop-out is showing, so the same video isn't
