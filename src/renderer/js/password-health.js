@@ -81,7 +81,7 @@ const PasswordHealth = {
 
     const card = (color, title, count) => `<div style="margin:12px 0 6px;font-weight:700"><span style="color:${color}">${title}</span> <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${count}</span></div>`;
     const rowbox = (rows) => `<div style="border:1px solid var(--border);border-radius:9px;max-height:160px;overflow-y:auto">${rows}</div>`;
-    const line = (left, right) => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${left}</span><span style="color:var(--text-muted);white-space:nowrap">${right}</span></div>`;
+    const line = (left, right, host) => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${left}</span><span style="color:var(--text-muted);white-space:nowrap">${right}</span>${host ? `<button type="button" data-open-host="${esc(host)}" title="Open ${esc(host)} to change it" aria-label="Open ${esc(host)}" style="flex:none;padding:3px 6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;line-height:0">${VexIcons.svg('external', { size: 12 })}</button>` : ''}</div>`;
 
     const breachOn = this.breachCheckOn();
     let html = `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${health.total} saved password${health.total === 1 ? '' : 's'} checked. ${breachOn ? 'The analysis runs locally; only the breach check below asks Have I Been Pwned, and never sees a password.' : 'Nothing here leaves your machine — the analysis runs locally.'}</div>`;
@@ -90,7 +90,7 @@ const PasswordHealth = {
     html += card('#e5556a', 'Reused passwords', (health.reused || []).length);
     if ((health.reused || []).length) {
       html += rowbox((health.reused).map(g =>
-        line(g.entries.map(x => esc(x.host)).join(', '), `${g.count}× same password`)
+        line(g.entries.map(x => esc(x.host)).join(', '), `${g.count}× same password`, g.entries[0].host)
       ).join(''));
       html += `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Give each of these a unique password — one leak shouldn't unlock the rest.</div>`;
     } else html += `<div style="font-size:12px;color:var(--text-muted)">None — every saved password is unique.</div>`;
@@ -99,7 +99,7 @@ const PasswordHealth = {
     html += card('#e8a13a', 'Weak passwords', (health.weak || []).length);
     if ((health.weak || []).length) {
       html += rowbox((health.weak).map(w =>
-        line(esc(w.host) + (w.username ? ` <span style="color:var(--text-muted)">· ${esc(w.username)}</span>` : ''), esc((w.reasons || []).join(', ')))
+        line(esc(w.host) + (w.username ? ` <span style="color:var(--text-muted)">· ${esc(w.username)}</span>` : ''), esc((w.reasons || []).join(', ')), w.host)
       ).join(''));
     } else html += `<div style="font-size:12px;color:var(--text-muted)">None flagged — no short, digit-only, common, repeating or easy-to-guess passwords.</div>`;
 
@@ -108,7 +108,7 @@ const PasswordHealth = {
     html += card('#8a8aa5', 'Not changed in a year or more', olds.length);
     if (olds.length) {
       html += rowbox(olds.slice(0, 60).map(o =>
-        line(esc(o.host) + (o.username ? ` <span style="color:var(--text-muted)">· ${esc(o.username)}</span>` : ''), this._age(o.days))
+        line(esc(o.host) + (o.username ? ` <span style="color:var(--text-muted)">· ${esc(o.username)}</span>` : ''), this._age(o.days), o.host)
       ).join(''));
       html += `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Counted from when Vex saved or last changed the password. A long, unique password does not need changing on a schedule; change the ones for accounts that matter most, or that you shared.</div>`;
     } else html += `<div style="font-size:12px;color:var(--text-muted)">None — every saved password was saved or changed within the last year.</div>`;
@@ -119,7 +119,7 @@ const PasswordHealth = {
     // No 2FA
     html += card('#8a8aa5', 'No 2FA in Vex', no2fa.length);
     if (no2fa.length) {
-      html += rowbox(no2fa.slice(0, 40).map(h => line(esc(h), 'no authenticator')).join(''));
+      html += rowbox(no2fa.slice(0, 40).map(h => line(esc(h), 'no authenticator', h)).join(''));
       html += `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">You have a password saved but no authenticator code here. If the site supports 2FA, add it in the Authenticator panel.</div>`;
     } else if (list.length) {
       html += `<div style="font-size:12px;color:var(--text-muted)">Every saved login has a matching authenticator entry.</div>`;
@@ -129,6 +129,13 @@ const PasswordHealth = {
 
     body.innerHTML = html;
     this._wireBreach(m);
+    // A finding is something to act on: open that site to change the password.
+    body.querySelectorAll('[data-open-host]').forEach(b => b.addEventListener('click', () => {
+      const host = b.getAttribute('data-open-host');
+      if (typeof TabManager === 'undefined') { window.showToast?.('Tabs are not ready yet — try again in a moment', 'error'); return; }
+      TabManager.createTab('https://' + host + '/', true);
+      m.remove();
+    }));
   },
 
   // --- Breach check, off unless turned on here ---
@@ -151,7 +158,7 @@ const PasswordHealth = {
     if (!r) return html;
     if (r.error) return html + `<div role="alert" style="font-size:12px;color:var(--danger)">The breach check failed: ${esc(r.error)}</div>`;
     if (!r.breached.length) return html + `<div style="font-size:12px;color:var(--text-muted)">None of your ${r.checked} saved password${r.checked === 1 ? '' : 's'} appears in a known breach.</div>`;
-    html += rowbox(r.breached.map(b => line(esc(b.host) + (b.username ? ` <span style="color:var(--text-muted)">· ${esc(b.username)}</span>` : ''), `seen ${Number(b.count).toLocaleString()}×`)).join(''));
+    html += rowbox(r.breached.map(b => line(esc(b.host) + (b.username ? ` <span style="color:var(--text-muted)">· ${esc(b.username)}</span>` : ''), `seen ${Number(b.count).toLocaleString()}×`, b.host)).join(''));
     return html + `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">These passwords are in lists attackers use. Change each one on its site, then update it in Settings › Passwords.</div>`;
   },
 
