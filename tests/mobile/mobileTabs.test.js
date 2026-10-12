@@ -42,6 +42,15 @@ async function reset() {
 beforeEach(reset);
 
 describe('opening tabs', () => {
+  it('puts a tab a page opened beside it, after the ones it opened before — not at the far end', async () => {
+    const a = await VexTabStore.create('https://a.example/');
+    const b = await VexTabStore.create('https://b.example/');
+    const one = await VexTabStore.create('https://a.example/1', { opener: a.id, background: true });
+    const two = await VexTabStore.create('https://a.example/2', { opener: a.id, background: true });
+    const plain = await VexTabStore.create('https://c.example/');
+    expect(VexTabStore.all().map(tab => tab.id)).toEqual([a.id, one.id, two.id, b.id, plain.id]);
+  });
+
   it('creates a tab, makes it active and counts it', async () => {
     const tab = await VexTabStore.create('https://example.com/');
     expect(tab.url).toBe('https://example.com/');

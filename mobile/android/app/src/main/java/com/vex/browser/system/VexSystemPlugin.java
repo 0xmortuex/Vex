@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.app.PictureInPictureParams;
 import android.app.role.RoleManager;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -12,6 +15,9 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PersistableBundle;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.Rational;
@@ -178,7 +184,7 @@ public class VexSystemPlugin extends Plugin {
         getActivity().runOnUiThread(() -> {
             try {
                 PictureInPictureParams params = new PictureInPictureParams.Builder()
-                        .setAspectRatio(new Rational(Math.max(1, width), Math.max(1, height)))
+                        .setAspectRatio(MainActivity.pipRatio(width, height))
                         .build();
                 boolean entered = getActivity().enterPictureInPictureMode(params);
                 JSObject result = new JSObject();
@@ -188,6 +194,75 @@ public class VexSystemPlugin extends Plugin {
                 call.reject("Could not go to picture-in-picture: " + error.getMessage());
             }
         });
+    }
+
+    /** A video started or stopped: whether leaving Vex floats it (MainActivity). */
+    @PluginMethod
+    public void setFloatOnLeave(PluginCall call) {
+        final boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        final int width = call.getInt("width", 16);
+        final int height = call.getInt("height", 9);
+        getActivity().runOnUiThread(() -> {
+            if (getActivity() instanceof MainActivity) ((MainActivity) getActivity()).setFloatOnLeave(on, width, height);
+            call.resolve();
+        });
+    }
+
+    // ── A password or code on the clipboard ──────────────────────────────────
+    // Marked sensitive, so Android's copy preview and keyboards' clipboard
+    // history (Samsung Keyboard keeps one) hide it, and taken off the clipboard
+    // after a while — as the desktop clears a copied password after 30 s. Only
+    // if it is still what is there: a later copy of your own is left alone. A
+    // phone does not let an app read the clipboard from the background, so a
+    // clear that falls due then happens when Vex comes back.
+    private String secretOnClipboard;
+    private long secretClearAt;
+    private final Handler clipHandler = new Handler(Looper.getMainLooper());
+
+    @PluginMethod
+    public void copySecret(PluginCall call) {
+        final String text = call.getString("text", "");
+        final int clearAfter = Math.max(0, call.getInt("clearAfterMs", 30000));
+        getActivity().runOnUiThread(() -> {
+            try {
+                ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData clip = ClipData.newPlainText("Vex", text);
+                PersistableBundle extras = new PersistableBundle();
+                extras.putBoolean(Build.VERSION.SDK_INT >= 33 ? ClipDescription.EXTRA_IS_SENSITIVE : "android.content.extra.IS_SENSITIVE", true);
+                clip.getDescription().setExtras(extras);
+                clipboard.setPrimaryClip(clip);
+                secretOnClipboard = clearAfter > 0 ? text : null;
+                secretClearAt = System.currentTimeMillis() + clearAfter;
+                clipHandler.removeCallbacksAndMessages(null);
+                if (clearAfter > 0) clipHandler.postDelayed(this::clearSecretIfDue, clearAfter);
+                JSObject result = new JSObject();
+                result.put("ok", true);
+                call.resolve(result);
+            } catch (Throwable error) {
+                call.reject("Could not copy: " + error.getMessage());
+            }
+        });
+    }
+
+    private void clearSecretIfDue() {
+        if (secretOnClipboard == null || System.currentTimeMillis() < secretClearAt) return;
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null) return;                    // not readable from here now: on resume
+            CharSequence now = clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+            if (now != null && secretOnClipboard.contentEquals(now)) {
+                if (Build.VERSION.SDK_INT >= 28) clipboard.clearPrimaryClip();
+                else clipboard.setPrimaryClip(ClipData.newPlainText("", ""));
+            }
+            secretOnClipboard = null;
+        } catch (Throwable ignored) { }
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        clipHandler.postDelayed(this::clearSecretIfDue, 300);
     }
 
     // ── Runtime permissions ──────────────────────────────────────────────────

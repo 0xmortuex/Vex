@@ -3,7 +3,11 @@ package com.vex.browser;
 import android.Manifest;
 import android.content.ClipData;
 import android.content.Intent;
+import android.app.PictureInPictureParams;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.os.Build;
+import android.util.Rational;
 import android.graphics.Color;
 import android.provider.MediaStore;
 import android.net.Uri;
@@ -286,6 +290,54 @@ public class MainActivity extends BridgeActivity {
             if (video.resolveActivity(getPackageManager()) != null) intents.add(video);
         }
         return intents;
+    }
+
+    // ── Picture-in-picture ───────────────────────────────────────────────────
+    // Leaving Vex (Home, Recents) while a video plays floats it in a small
+    // window, as the desktop floats a playing video when you switch tabs —
+    // unless that is turned off. The chrome says when a video plays.
+    private boolean floatOnLeave;
+    private Rational floatRatio = new Rational(16, 9);
+
+    /** Android takes a ratio between 1:2.39 and 2.39:1 and refuses anything else. */
+    public static Rational pipRatio(int width, int height) {
+        double w = Math.max(1, width), h = Math.max(1, height);
+        double ratio = Math.max(1 / 2.39, Math.min(2.39, w / h));
+        return new Rational((int) Math.round(ratio * 1000), 1000);
+    }
+
+    public PictureInPictureParams pipParams(Rational ratio, boolean autoEnter) {
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder().setAspectRatio(ratio);
+        if (Build.VERSION.SDK_INT >= 31) builder.setAutoEnterEnabled(autoEnter).setSeamlessResizeEnabled(false);
+        return builder.build();
+    }
+
+    /** From the chrome: whether a video is playing now, and its shape. */
+    public void setFloatOnLeave(boolean on, int width, int height) {
+        floatOnLeave = on;
+        floatRatio = pipRatio(width, height);
+        // Android 12 and later float it themselves, with the system's animation.
+        if (Build.VERSION.SDK_INT >= 31) {
+            try { setPictureInPictureParams(pipParams(floatRatio, on)); } catch (Exception ignored) { }
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (floatOnLeave && Build.VERSION.SDK_INT < 31 && !isInPictureInPictureMode()) {
+            try { enterPictureInPictureMode(pipParams(floatRatio, false)); } catch (Exception ignored) { }
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPictureInPicture, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(inPictureInPicture, newConfig);
+        if (getBridge() == null) return;
+        com.getcapacitor.PluginHandle handle = getBridge().getPlugin("VexTabs");
+        if (handle != null && handle.getInstance() instanceof VexTabsPlugin) {
+            ((VexTabsPlugin) handle.getInstance()).pictureInPicture(inPictureInPicture);
+        }
     }
 
     @Override

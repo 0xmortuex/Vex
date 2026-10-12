@@ -962,6 +962,36 @@ const VexPanels = (() => {
 
     // ── Downloads ──────────────────────────────────────────────────────────
     /** The two things that header button can mean. */
+    /** One finished download: copy where it came from, share it, or delete the file itself. */
+    downloadActions(entry, now, query = '') {
+      const downloadId = (now.match && now.match.id) || entry.downloadId || '';
+      const localUri = (now.match && now.match.localUri) || entry.localUri || '';
+      const options = [];
+      if (/^https?:/i.test(entry.url || '')) options.push({ id: 'copy', label: 'Copy the download link', note: VexSearch.prettyHost(entry.url) });
+      if (entry.pageUrl && entry.pageUrl !== entry.url) options.push({ id: 'page', label: 'Go to the page it came from', note: VexSearch.prettyHost(entry.pageUrl) });
+      if (now.state !== 'failed' && (downloadId || localUri)) options.push({ id: 'delete', label: 'Delete the file', note: 'From the phone, not just this list' });
+      options.push({ id: 'forget', label: 'Remove from this list', note: 'The file stays' });
+      VexSheets.choose(entry.filename || 'Download', options, async choice => {
+        VexSheets.close();
+        if (choice === 'copy') VexUI.copy(entry.url);
+        if (choice === 'page') { close(); VexUI.openUrl(entry.pageUrl, { newTab: true }); }
+        if (choice === 'forget') {
+          await VexDB.delete('downloads', entry.id);
+          this.downloads(query);
+          undo('Removed from the list — the file is still in Downloads', async () => { await VexDB.put('downloads', entry); this.downloads(query); });
+        }
+        if (choice === 'delete') {
+          if (!(await VexUI.confirm('Delete ' + (entry.filename || 'this file') + ' from the phone? This cannot be undone.', 'Delete the file'))) return;
+          let result;
+          try { result = await VexBridge.deleteDownload({ downloadId, localUri }); }
+          catch (error) { VexUI.toast(error.message || 'Could not delete it'); return; }
+          await VexDB.delete('downloads', entry.id);
+          VexUI.toast(result && result.deleted ? 'Deleted' : 'It was already gone — removed from the list');
+          this.downloads(query);
+        }
+      }, VexSearch.prettyHost(entry.pageUrl || entry.url));
+    },
+
     downloadsMenu() {
       VexSheets.choose('Downloads', [
         { id: 'folder', label: 'Open the Downloads folder', note: 'The phone’s own list of files' },
@@ -979,17 +1009,21 @@ const VexPanels = (() => {
       return true;
     },
 
-    async downloads() {
+    async downloads(query = '') {
       const body = openShell('downloads', 'Downloads', {
+        search: { value: query, placeholder: 'Search downloads', onInput: value => this.downloads(value) },
         action: { label: 'Files', run: () => this.downloadsMenu() }
       });
       const mine = drawn;
-      const rows = await VexDB.scan('downloads', { limit: 200 });
+      const needle = String(query || '').trim().toLowerCase();
+      const rows = (await VexDB.scan('downloads', { limit: 200 }))
+        .filter(entry => !needle || [entry.filename, entry.url, entry.pageUrl].join(' ').toLowerCase().includes(needle));
       const live = await downloadQueue();
       if (mine !== drawn) return;
 
       if (!rows.length) {
-        body.appendChild(empty('Files you download land in the phone’s Downloads folder, and are listed here.'));
+        body.appendChild(empty(needle ? 'No download matches “' + query + '”.'
+          : 'Files you download land in the phone’s Downloads folder, and are listed here.'));
         return;
       }
 
@@ -1010,9 +1044,12 @@ const VexPanels = (() => {
               try { await now.stop(); }
               catch (error) { VexUI.toast(error.message || 'Could not stop it'); return; }
               VexUI.toast('Stopped — the part that arrived is gone with it');
-              this.downloads();
+              this.downloads(query);
             }
-          }] : null,
+          }] : [{
+            icon: 'more', label: 'More',
+            run: () => this.downloadActions(entry, now, query)
+          }],
           onOpen: async () => {
             if (now.state === 'running') { VexUI.toast('Still downloading'); return; }
             if (now.state === 'failed') {
@@ -1034,10 +1071,10 @@ const VexPanels = (() => {
           },
           onRemove: async () => {
             await VexDB.delete('downloads', entry.id);
-            this.downloads();
+            this.downloads(query);
             undo('Removed from the list — the file is still in Downloads', async () => {
               await VexDB.put('downloads', entry);
-              this.downloads();
+              this.downloads(query);
             });
           }
         });
@@ -1073,8 +1110,9 @@ const VexPanels = (() => {
     },
 
     // ── Passwords and 2FA ──────────────────────────────────────────────────
-    async passwords() {
+    async passwords(query = '') {
       const body = openShell('passwords', 'Passwords and 2FA', {
+        search: VexVault.locked() ? undefined : { value: query, placeholder: 'Search logins', onInput: value => this.passwords(value) },
         action: { label: 'Add', run: () => this.addLogin() }
       });
 
@@ -1092,10 +1130,20 @@ const VexPanels = (() => {
         return;
       }
 
-      const entries = VexVault.all();
+      const all = VexVault.all();
+      const needle = String(query || '').trim().toLowerCase();
+      const entries = needle
+        ? all.filter(entry => [entry.host, entry.username, entry.label].join(' ').toLowerCase().includes(needle))
+        : all;
+      const moveRows = () => {
+        body.appendChild(heading('Move logins'));
+        body.appendChild(valueRow('Import from a CSV file', 'Exported from Chrome, Samsung Internet, Firefox, Bitwarden…', '', () => this.importLogins()));
+        if (all.length) body.appendChild(valueRow('Export to a CSV file', 'Every password in plain text — keep it somewhere safe', '', () => this.exportLogins()));
+      };
       if (!entries.length) {
-        body.appendChild(empty('Nothing saved yet. On a page with a login form, the menu offers '
+        body.appendChild(empty(needle ? 'No login matches “' + query + '”.' : 'Nothing saved yet. On a page with a login form, the menu offers '
           + '"Save this login" — what it saves is what is in the fields you can see.'));
+        if (!needle) moveRows();
         return;
       }
 
@@ -1112,7 +1160,8 @@ const VexPanels = (() => {
       for (const entry of entries) {
         const node = el('div', 'list-row');
         node.appendChild(el('span', 'favicon', (entry.host[0] || '?').toUpperCase()));
-        const lines = el('div', 'lines');
+        const lines = el('div', 'lines tappable');
+        lines.onclick = () => this.loginDetails(entry.id, query);
         lines.appendChild(el('span', 't', entry.label || entry.host));
         lines.appendChild(el('span', 'u', entry.username || 'no username'));
         if (entry.secret) {
@@ -1125,6 +1174,13 @@ const VexPanels = (() => {
             + '<circle class="fill" cx="12" cy="12" r="9" stroke-dasharray="56.5" stroke-dashoffset="0"/>';
           totp.appendChild(code);
           totp.appendChild(ring);
+          // A tap on the code copies it, and only it.
+          totp.onclick = async event => {
+            event.stopPropagation();
+            const fresh = current(entry.id);
+            if (!fresh || VexVault.locked()) { relock(); return; }
+            VexUI.copySecret(await VexVault.totp(fresh.secret, VexVault.codeOptions(fresh)), { label: 'Code copied' });
+          };
           lines.appendChild(totp);
           codeNodes.push({ entry, code, ring });
         }
@@ -1162,7 +1218,7 @@ const VexPanels = (() => {
           if (VexVault.locked() && !(await VexVault.unlock('Copy this password'))) { relock(); return; }
           const fresh = current(entry.id);
           if (!fresh) { relock(); return; }
-          VexUI.copy(fresh.password);
+          VexUI.copySecret(fresh.password, { label: 'Password copied' });
         };
         actions.appendChild(copy);
         node.appendChild(actions);
@@ -1170,9 +1226,11 @@ const VexPanels = (() => {
         const remove = el('button', { class: 'x', 'aria-label': 'Delete' });
         remove.appendChild(icon('trash'));
         remove.onclick = async () => {
-          if (!(await VexUI.confirm('Delete the login for ' + entry.host + '?'))) return;
+          const gone = current(entry.id);
+          if (!gone) { relock(); return; }
           await VexVault.remove(entry.id);
-          this.passwords();
+          this.passwords(query);
+          undo('Deleted the login for ' + gone.host, async () => { await VexVault.restore(gone); this.passwords(query); });
         };
         node.appendChild(remove);
         body.appendChild(node);
@@ -1199,11 +1257,89 @@ const VexPanels = (() => {
       tick();
       stopTicker();
       ticker = setInterval(tick, 1000);
+      moveRows();
+    },
+
+    /** One login: what you can do with it, the password shown only when asked. */
+    async loginDetails(entryId, query = '') {
+      if (VexVault.locked() && !(await VexVault.unlock('Open this login'))) return;
+      const entry = VexVault.all().find(row => row.id === entryId);
+      if (!entry) return;
+      const options = [
+        { id: 'user', label: 'Copy username', note: entry.username || 'none saved' },
+        { id: 'pass', label: 'Copy password', note: 'Off the clipboard again in 30 seconds' },
+        { id: 'show', label: 'Show password' }
+      ];
+      if (entry.secret) options.push({ id: 'code', label: 'Copy the 2FA code' });
+      options.push({ id: 'fill', label: 'Fill on this page' }, { id: 'edit', label: 'Edit' }, { id: 'delete', label: 'Delete' });
+      VexSheets.choose(entry.label || entry.host, options, async choice => {
+        VexSheets.close();
+        const fresh = VexVault.all().find(row => row.id === entryId);
+        if (!fresh) return;
+        if (choice === 'user') { if (fresh.username) VexUI.copy(fresh.username); else VexUI.toast('No username saved'); }
+        if (choice === 'pass') VexUI.copySecret(fresh.password, { label: 'Password copied' });
+        if (choice === 'code') VexUI.copySecret(await VexVault.totp(fresh.secret, VexVault.codeOptions(fresh)), { label: 'Code copied' });
+        if (choice === 'show') {
+          // Asked again, as the desktop asks before it shows one.
+          const check = await VexBridge.authenticate('Vex', 'Show the password for ' + fresh.host);
+          if (!check.ok) return;
+          await VexUI.offer(fresh.password || '(no password saved)', 'Copy', fresh.host + (fresh.username ? ' · ' + fresh.username : ''))
+            && VexUI.copySecret(fresh.password, { label: 'Password copied' });
+        }
+        if (choice === 'fill') {
+          const tab = VexTabStore.active();
+          if (!tab) return;
+          const pageHost = VexSearch.prettyHost(tab.url);
+          let anyHost = false;
+          if (!VexVault.belongsOn(fresh, pageHost)) {
+            anyHost = await VexUI.confirm('This login is for ' + fresh.host + ', and the page is '
+              + (pageHost || 'not a website') + '. Type the password into it anyway?', 'A different site');
+            if (!anyHost) return;
+          }
+          close();
+          const said = await VexVault.fill(tab.id, fresh, { anyHost });
+          VexUI.toast(said === 'filled' ? 'Filled — you press the button'
+            : said === 'wrong-host' ? 'The page changed — nothing was filled' : 'No login form on this page');
+        }
+        if (choice === 'edit') this.addLogin({ ...fresh, editing: fresh.id });
+        if (choice === 'delete') {
+          await VexVault.remove(fresh.id);
+          this.passwords(query);
+          undo('Deleted the login for ' + fresh.host, async () => { await VexVault.restore(fresh); this.passwords(query); });
+        }
+      }, entry.username || entry.host);
+    },
+
+    importLogins() {
+      VexUI.pickTextFile(text => this.importLoginsFrom(text), '.csv,text/csv,text/comma-separated-values,text/plain');
+    },
+
+    async importLoginsFrom(text) {
+      let rows;
+      try { rows = VexVault.loginsFromCsv(text); }
+      catch (error) { VexUI.toast(error.message, 5000); return; }
+      if (!rows.length) { VexUI.toast('No logins in that file'); return; }
+      try {
+        const counts = await VexVault.importMany(rows);
+        VexUI.toast('Imported ' + counts.added + ' new, ' + counts.updated + ' updated'
+          + (counts.skipped ? ', ' + counts.skipped + ' already here or without a site' : ''), 5000);
+      } catch (error) { VexUI.toast(error.message, 4500); return; }
+      VexUI.toast('Delete the CSV file now — it holds your passwords in plain text', 6000);
+      this.passwords();
+    },
+
+    async exportLogins() {
+      const check = await VexBridge.authenticate('Vex', 'Export every password to a file');
+      if (!check.ok) return;
+      if (!(await VexUI.confirm('The file holds every password in plain text. Anyone who opens it can read them. '
+        + 'Import it where you need it, then delete it.', 'Export passwords'))) return;
+      const stamp = new Date().toISOString().slice(0, 10);
+      await VexUI.downloadText('vex-passwords-' + stamp + '.csv', VexVault.loginsToCsv(VexVault.all()), 'text/csv');
     },
 
     async addLogin(prefill = {}) {
-      if (!(await VexVault.unlock('Add a login'))) { VexUI.toast('Not unlocked'); return; }
-      const body = openShell('addLogin', 'Add a login');
+      if (!(await VexVault.unlock(prefill.editing ? 'Change this login' : 'Add a login'))) { VexUI.toast('Not unlocked'); return; }
+      const body = openShell('addLogin', prefill.editing ? 'Edit login' : 'Add a login');
       const fields = {};
       for (const [key, label, type] of [
         ['host', 'Site', 'text'], ['username', 'Username', 'text'],
@@ -1246,7 +1382,7 @@ const VexPanels = (() => {
           row.appendChild(longer);
           const copy = el('button', 'pill-btn small');
           copy.textContent = 'Copy';
-          copy.onclick = () => { if (input.value) VexUI.copy(input.value); };
+          copy.onclick = () => { if (input.value) VexUI.copySecret(input.value, { label: 'Password copied' }); };
           row.appendChild(copy);
           field.appendChild(row);
         }
@@ -1260,13 +1396,22 @@ const VexPanels = (() => {
       save.onclick = async () => {
         const host = fields.host.value.trim().replace(/^https?:\/\//, '').split('/')[0];
         if (!host) { VexUI.toast('Which site is it for?'); return; }
-        await VexVault.save({
-          host,
-          username: fields.username.value.trim(),
-          password: fields.password.value,
-          secret: fields.secret.value.trim(),
-          label: host
-        });
+        try {
+          if (prefill.editing) {
+            await VexVault.update(prefill.editing, {
+              host, username: fields.username.value.trim(), password: fields.password.value,
+              secret: fields.secret.value.trim().replace(/\s+/g, ''), label: prefill.label === prefill.host ? host : prefill.label
+            });
+          } else {
+            await VexVault.save({
+              host,
+              username: fields.username.value.trim(),
+              password: fields.password.value,
+              secret: fields.secret.value.trim(),
+              label: host
+            });
+          }
+        } catch (error) { VexUI.toast(error.message, 4500); return; }
         VexUI.toast('Saved');
         this.passwords();
       };
@@ -1662,6 +1807,9 @@ const VexPanels = (() => {
         VexMedia.backgroundAudio(), value => VexMedia.setBackgroundAudio(value)));
       body.appendChild(toggleRow('Video controls', 'A small bar while something is playing',
         VexStore.get('vex.mediaBar', true), value => VexStore.set('vex.mediaBar', value)));
+      body.appendChild(toggleRow('Float a playing video when you leave Vex',
+        'Home or Recents while a video plays keeps it going in a small window, as the computer does when you switch tabs',
+        VexStore.get('vex.floatOnLeave', true) !== false, async value => { await VexStore.set('vex.floatOnLeave', value); VexUI.refreshMediaBar(); }));
       body.appendChild(toggleRow('Keep the screen on while reading', null,
         VexStore.get('vex.keepAwake', false), value => VexMedia.setKeepAwake(value)));
 
@@ -2446,6 +2594,16 @@ const VexPanels = (() => {
           await VexStore.set('vex.httpsOnly', value);
           await VexBridge.setPrivacy({ httpsOnly: value, doNotTrack: VexStore.get('vex.dnt', true) });
         }));
+      const httpHosts = VexStore.get('vex.httpAllowedHosts', []);
+      if (Array.isArray(httpHosts) && httpHosts.length) {
+        body.appendChild(valueRow('Sites without HTTPS', httpHosts.length + ' let through — tap to take one back', '', () =>
+          VexSheets.choose('Let through HTTPS-Only', httpHosts.map(host => ({ id: host, label: host, note: 'Tap to upgrade it again' })), async host => {
+            VexSheets.close();
+            await VexStore.set('vex.httpAllowedHosts', VexStore.get('vex.httpAllowedHosts', []).filter(item => item !== host));
+            await VexBridge.setPrivacy({ httpsOnly: VexStore.get('vex.httpsOnly', true) !== false, doNotTrack: VexStore.get('vex.dnt', true) !== false });
+            VexUI.toast(host + ' is upgraded to HTTPS again');
+          })));
+      }
       body.appendChild(toggleRow('Send Do Not Track and GPC', null, VexStore.get('vex.dnt', true),
         async value => {
           await VexStore.set('vex.dnt', value);

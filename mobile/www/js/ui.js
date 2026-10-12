@@ -172,7 +172,12 @@ const VexUI = (() => {
   const BUTTONS = {
     back: { icon: 'back', label: 'Back', run: tab => tab && VexBridge.back(tab.id), enabled: tab => !!(tab && tab.canGoBack) },
     forward: { icon: 'forward', label: 'Forward', run: tab => tab && VexBridge.forward(tab.id), enabled: tab => !!(tab && tab.canGoForward) },
-    reload: { icon: 'reload', label: 'Reload', run: tab => tab && VexBridge.reload(tab.id) },
+    // Stop while the page loads, as on the desktop and every other browser.
+    reload: {
+      icon: 'reload', label: 'Reload',
+      run: tab => tab && (tab.loading ? VexBridge.stop(tab.id) : VexBridge.reload(tab.id)),
+      swap: tab => (tab && tab.loading ? { icon: 'close', label: 'Stop loading' } : null)
+    },
     home: { icon: 'home', label: 'Home', run: () => goHome() },
     tabs: { icon: null, label: 'Tabs', run: () => openTabGrid(), counter: true },
     // The star bookmarks the page in front, as a star does everywhere else; it
@@ -248,6 +253,14 @@ const VexUI = (() => {
         const button = $('tb-' + id);
         if (!spec || !button) continue;
         if (spec.enabled) button.disabled = !spec.enabled(tab);
+        if (spec.swap) {
+          const look = spec.swap(tab) || { icon: spec.icon, label: spec.label };
+          if (button.dataset.icon !== look.icon) {
+            button.dataset.icon = look.icon;
+            clear(button).appendChild(icon(look.icon));
+            button.setAttribute('aria-label', look.label);
+          }
+        }
         if (spec.on) {
           const on = !startVisible() && spec.on(tab);
           button.classList.toggle('on', on);
@@ -442,7 +455,8 @@ const VexUI = (() => {
     const copyButton = el('button', { class: 'chip rc-copy', type: 'button' });
     copyButton.appendChild(icon('copy'));
     copyButton.appendChild(document.createTextNode('Copy'));
-    copyButton.onclick = () => copy(code);
+    // Marked sensitive, but left there: it is meant to be pasted somewhere safe.
+    copyButton.onclick = () => copySecret(code, { clearAfterMs: 0 });
     box.appendChild(copyButton);
   }
 
@@ -983,13 +997,30 @@ const VexUI = (() => {
     scheduleBounds();        // it is a flex item: the page moves to make room
   }
 
+  // Whether leaving Vex floats the video playing now (Android's picture-in-
+  // picture), as the desktop floats a playing video when you switch tabs.
+  // Told to the activity only when it changes.
+  let floating = '';
+  function floatWhenLeaving(state) {
+    const on = !!(state && state.playing) && VexStore.get('vex.floatOnLeave', true) !== false;
+    const width = Math.round((state && state.width) || 16);
+    const height = Math.round((state && state.height) || 9);
+    const key = on ? width + 'x' + height : 'off';
+    if (key === floating) return;
+    floating = key;
+    VexBridge.setFloatOnLeave(on, width, height).catch(() => {});
+  }
+
   async function refreshMediaBar() {
-    if (!VexStore.get('vex.mediaBar', true)) { setMediaBar(true); return; }
     const tab = VexTabStore.active();
-    if (!tab || !tab.url || tab.url === 'about:blank' || !$('omnibox').hidden) { setMediaBar(true); return; }
+    if (!tab || !tab.url || tab.url === 'about:blank') { setMediaBar(true); floatWhenLeaving(null); return; }
     // Dismissed for this page: it comes back when you go somewhere else.
-    if (mediaDismissedFor && mediaDismissedFor === tab.url) { setMediaBar(true); return; }
+    const barWanted = VexStore.get('vex.mediaBar', true) && $('omnibox').hidden
+      && !(mediaDismissedFor && mediaDismissedFor === tab.url);
+    if (!barWanted && VexStore.get('vex.floatOnLeave', true) === false) { setMediaBar(true); floatWhenLeaving(null); return; }
     const state = await VexMedia.state(tab.id);
+    floatWhenLeaving(state);
+    if (!barWanted) { setMediaBar(true); return; }
     const show = !!state.playing;
     setMediaBar(!show);
     if (show) {
@@ -1207,6 +1238,15 @@ const VexUI = (() => {
     catch { toast('Could not copy'); }
   }
 
+  /** A password or a code: hidden from clipboard previews, and gone again in 30 seconds. */
+  async function copySecret(text, { clearAfterMs = 30000, label = 'Copied' } = {}) {
+    if (!text) return;
+    try {
+      await VexBridge.copySecret(text, clearAfterMs);
+      toast(clearAfterMs ? label + ' — off the clipboard again in ' + Math.round(clearAfterMs / 1000) + ' seconds' : label);
+    } catch { toast('Could not copy'); }
+  }
+
   async function toggleBookmark() {
     const tab = VexTabStore.active();
     if (!tab || !tab.url || tab.url === 'about:blank') { toast('Nothing to bookmark yet'); return; }
@@ -1384,9 +1424,56 @@ const VexUI = (() => {
       if (said === 'wrong-host') { toast('The page changed — nothing was filled'); return; }
       toast(said === 'filled' ? 'Filled — you press the button' : 'No login form on this page');
       if (entry.secret) {
-        const code = await VexVault.totp(entry.secret, VexVault.codeOptions(entry));
-        toast('2FA code ' + code, 6000, { label: 'Copy', run: () => copy(code) });
+        // The code box usually comes on the next page: offerCode fills it
+        // there. One already here is filled now.
+        if (await VexVault.pageHasCodeField(tab.id)) await fillCodeFrom(tab, entry);
       }
+    }, host);
+  }
+
+  async function fillCodeFrom(tab, entry, options = {}) {
+    const said = await VexVault.fillCode(tab.id, entry, options);
+    if (said === 'wrong-host') { toast('The page changed — nothing was filled'); return said; }
+    if (said === 'filled') toast('Filled your code from the authenticator');
+    else {
+      const code = await VexVault.totp(entry.secret, VexVault.codeOptions(entry));
+      toast('No code box found — the code is ' + code, 6000, { label: 'Copy', run: () => copySecret(code) });
+    }
+    return said;
+  }
+
+  /**
+   * A 2-step code box on a site you keep a code for: filled at once while
+   * your logins are open, else offered in a line you can ignore. From the
+   * menu (`manual`), any code you keep can be picked — with a list when
+   * several match this site, or none does.
+   */
+  const codeOffered = new Map();      // tab id → the address a code was offered on
+  async function offerCode(tab, { manual = false } = {}) {
+    if (!tab || !tab.url || tab.incognito && !manual) return;
+    const host = VexSearch.prettyHost(tab.url);
+    if (!manual) {
+      if (!VexVault.hasCodeFor(host) || codeOffered.get(tab.id) === tab.url) return;
+      if (VexTabStore.activeId() !== tab.id) return;
+      if (!(await VexVault.pageHasCodeField(tab.id))) return;
+      codeOffered.set(tab.id, tab.url);
+      if (VexVault.locked()) {
+        toast('2-step code for ' + host, 8000, { label: 'Fill it', run: () => offerCode(tab, { manual: true }) });
+        return;
+      }
+    }
+    if (!(await VexVault.unlock('Fill a code from the authenticator'))) return;
+    const here = VexVault.codesFor(host);
+    if (here.length === 1) { await fillCodeFrom(tab, here[0]); return; }
+    const all = here.length ? here : VexVault.all().filter(entry => entry.secret);
+    if (!all.length) { toast('No authenticator codes saved — Passwords and 2FA'); return; }
+    VexSheets.choose(here.length ? 'Which account?' : 'None saved for ' + host + ' — pick one', all.map(entry => ({
+      id: entry.id, label: entry.label || entry.host, note: (entry.username ? entry.username + ' · ' : '') + entry.host
+    })), async entryId => {
+      VexSheets.close();
+      const entry = all.find(candidate => candidate.id === entryId);
+      // Picked by you for this page: it may go on another site's box.
+      await fillCodeFrom(tab, entry, { anyHost: !here.length });
     }, host);
   }
 
@@ -1469,7 +1556,7 @@ const VexUI = (() => {
     openOmnibox, closeOmnibox, dictateIntoOmnibox, openTabGrid, closeTabGrid, openFind, closeFind, findOnPage,
     openUrl, newTab, copy, toggleBookmark, starPage, reopenClosed, closeTabWithUndo, setStartVisible, startVisible,
     showQr, closeQr, openScanner, closeScanner, translatePage, tabHistory,
-    offerAutofill, saveLoginFromPage, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
+    offerAutofill, offerCode, saveLoginFromPage, copySecret, downloadText, pickTextFile, unlockPrivate, relockPrivate, guardPrivateOnReturn, forgetSite,
 
     prompt(title, message, value = '') { return dialog({ title, message, input: value }); },
     confirm(message, title = 'Vex') { return dialog({ title, message, okLabel: 'Yes', cancelLabel: 'No' }).then(Boolean); },

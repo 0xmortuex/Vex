@@ -214,6 +214,12 @@ const VexSheets = (() => {
       when: tab => VexVault.hasFor(VexSearch.prettyHost(tab.url)),
       run: tab => VexUI.offerAutofill(tab, { manual: true })
     },
+    'fill-code': {
+      icon: 'key', label: 'Fill code from authenticator', needsPage: true,
+      note: () => 'The current code, into the page’s code box',
+      when: () => VexVault.codeHosts().length > 0,
+      run: tab => VexUI.offerCode(tab, { manual: true })
+    },
     'fill-details': {
       icon: 'text', label: 'Fill in my details', needsPage: true,
       when: () => VexVault.hasProfile(),
@@ -294,7 +300,7 @@ const VexSheets = (() => {
     'new-tab', 'new-private', 'assistant', 'agent', 'ai-lab', 'reader', 'read-aloud', 'translate', 'find', 'site',
     'add-reading', 'reading-list', 'bookmarks', 'history', 'recall', 'downloads',
     'save-page', 'save-video', 'saved-pages', 'notes', 'synced-notes', 'remind-me', 'reminders', 'sessions',
-    'fill', 'fill-details', 'save-login', 'passwords',
+    'fill', 'fill-code', 'fill-details', 'save-login', 'passwords',
     'print', 'capture', 'qr-share', 'add-home', 'desktop', 'copy', 'unlock-copy', 'share', 'send-devices',
     'reopen', 'computer-tabs', 'read-voice', 'library', 'settings'
   ];

@@ -83,7 +83,13 @@ const VexTabStore = (() => {
         tab.title = opts.title || '';
       }
       tabs.set(id, tab);
-      order.push(id);
+      // Opened from a page: beside it, after the tabs it opened before, as on
+      // the desktop and in every other browser — not at the far end.
+      if (tab.openerId && order.includes(tab.openerId)) {
+        let at = order.indexOf(tab.openerId) + 1;
+        while (at < order.length && tabs.get(order[at]) && tabs.get(order[at]).openerId === tab.openerId) at++;
+        order.splice(at, 0, id);
+      } else order.push(id);
       if (opts.background !== true) await this.activate(id);
       else emit();
       this.persist();

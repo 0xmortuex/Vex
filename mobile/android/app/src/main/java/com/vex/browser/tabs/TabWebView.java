@@ -80,6 +80,9 @@ public class TabWebView extends WebView {
          * made the site-permissions screen a list nobody wrote to.
          */
         void askPermission(String tabId, String origin, java.util.List<String> kinds, PermissionDecision decision);
+
+        /** An app link held for the chrome to offer: a token it can open it with, once. */
+        String holdIntent(Intent intent);
     }
 
     /** What the chrome calls back with: the kinds it decided to allow. */
@@ -150,6 +153,26 @@ public class TabWebView extends WebView {
     public static void setPrivacy(boolean upgradeToHttps, boolean doNotTrack) {
         httpsOnly = upgradeToHttps;
         sendDnt = doNotTrack;
+    }
+
+    // Sites you chose to visit without HTTPS ("Continue to the unencrypted
+    // site" on the page that says it has no secure connection), as the
+    // desktop's HTTPS-Only lets one site through.
+    private static volatile java.util.Set<String> httpAllowed = java.util.Collections.emptySet();
+
+    public static void setHttpAllowed(java.util.Collection<String> hosts) {
+        java.util.Set<String> next = new java.util.HashSet<>();
+        for (String host : hosts) if (host != null && !host.isEmpty()) next.add(host.toLowerCase(java.util.Locale.ROOT));
+        httpAllowed = next;
+    }
+
+    /** Whether an http:// address is upgraded: HTTPS-Only on, and not a site you let through. */
+    static boolean upgrades(String host) {
+        if (!httpsOnly) return false;
+        if (host == null) return true;
+        String clean = host.toLowerCase(java.util.Locale.ROOT);
+        if (clean.startsWith("www.")) clean = clean.substring(4);
+        return !httpAllowed.contains(clean);
     }
 
     private void configure() {
@@ -318,7 +341,7 @@ public class TabWebView extends WebView {
 
     public void navigate(String url) {
         String target = url;
-        if (httpsOnly && target != null && target.startsWith("http://")) {
+        if (target != null && target.startsWith("http://") && upgrades(Uri.parse(target).getHost())) {
             target = "https://" + target.substring("http://".length());
         }
         if (sendDnt) {
@@ -912,7 +935,7 @@ public class TabWebView extends WebView {
                     // No app for it: the browser it is.
                 }
             }
-            if (scheme.equals("http") && httpsOnly) {
+            if (scheme.equals("http") && upgrades(uri.getHost())) {
                 view.loadUrl(uri.buildUpon().scheme("https").build().toString());
                 return true;
             }
@@ -957,7 +980,37 @@ public class TabWebView extends WebView {
                         | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                         | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(intent);
+                // Opened straight away only for what a tap on a link has always
+                // meant on a phone — write an email, call, text, show a map — and
+                // only from a normal tab. An app link a page sent you to by itself
+                // (a redirect, a script), any other app's link, and anything from a
+                // private tab is asked about first, as the desktop asks.
+                boolean everyday = "mailto".equals(scheme) || "tel".equals(scheme) || "sms".equals(scheme)
+                        || "smsto".equals(scheme) || "geo".equals(scheme);
+                if (everyday && request.hasGesture() && !incognito) {
+                    getContext().startActivity(intent);
+                    return true;
+                }
+                // The app's name where Android lets Vex see it (package visibility
+                // hides most apps from a browser); otherwise "another app".
+                CharSequence label = null;
+                try {
+                    android.content.pm.ResolveInfo info = getContext().getPackageManager().resolveActivity(intent, 0);
+                    if (info != null) label = info.loadLabel(getContext().getPackageManager());
+                } catch (Exception ignored) { }
+                // A page that redirected to its app on its own goes to its web
+                // page instead, as Chrome does; the app stays one tap away.
+                if (!request.hasGesture() && fallback != null) view.loadUrl(fallback);
+                JSObject data = new JSObject();
+                data.put("id", id);
+                data.put("token", host.holdIntent(intent));
+                data.put("scheme", scheme);
+                data.put("app", label == null ? "" : label.toString());
+                data.put("tapped", request.hasGesture());
+                data.put("incognito", incognito);
+                data.put("page", pageHost == null ? "" : pageHost);
+                data.put("fallback", fallback == null ? "" : fallback);
+                host.emit("appLink", data);
             } catch (ActivityNotFoundException | java.net.URISyntaxException ex) {
                 if (fallback != null) {
                     view.loadUrl(fallback);

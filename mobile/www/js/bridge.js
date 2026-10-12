@@ -186,6 +186,7 @@ const VexBridge = (() => {
         return { started: true, resumingFrom: 0 };
       },
       cancelDownload: () => ({}),
+      deleteDownload: () => ({ deleted: true }),
       deleteModel: ({ name }) => { delete state.models[name]; return { deleted: true }; },
       load: ({ name, backend, vision, audio, tools: declared }) => {
         if (state.models[name] === undefined) throw new Error('That model is not on this device');
@@ -334,7 +335,7 @@ const VexBridge = (() => {
   // chrome calls them on every page event and has nothing useful to say.
   const STRICT = new Set([
     'VexLocalAI', 'VexTranslate', 'VexSpeak',
-    'VexTabs.openDownload', 'VexTabs.cancelDownload', 'VexTabs.openDownloadsFolder',
+    'VexTabs.openDownload', 'VexTabs.cancelDownload', 'VexTabs.openDownloadsFolder', 'VexTabs.deleteDownload',
     'VexTabs.saveData', 'VexTabs.writeDownload', 'VexTabs.save', 'VexTabs.downloadStream'
   ]);
 
@@ -390,7 +391,7 @@ const VexBridge = (() => {
       for (const event of ['loadStart', 'loadProgress', 'loadEnd', 'title', 'urlChange', 'icon',
         'newTab', 'download', 'error', 'blocked', 'findResult', 'permission', 'edgeSwipe',
         'longPress', 'fullscreen', 'scroll', 'selection', 'command',
-        'streamProgress', 'streamDone', 'streamFailed', 'openedInApp']) {
+        'streamProgress', 'streamDone', 'streamFailed', 'openedInApp', 'appLink', 'pictureInPicture']) {
         plugins.VexTabs.addListener(event, data => emit(event, data));
       }
       if (plugins.VexBlock) plugins.VexBlock.addListener('blocked', data => emit('blocked', data));
@@ -424,6 +425,7 @@ const VexBridge = (() => {
     go(id, steps) { return tabs('go', { id, steps }); },
     reload(id, options = {}) { return tabs('reload', { id, bypassCache: !!options.bypassCache }); },
     stop(id) { return tabs('stop', { id }); },
+    openAppLink(token) { return tabs('openAppLink', { token }); },
     state(id) { return tabs('state', { id }); },
     snapshot(id) { return tabs('snapshot', { id }); },
     find(id, text) { return tabs('find', { id, text }); },
@@ -444,7 +446,11 @@ const VexBridge = (() => {
     scrollPosition(id) { return tabs('scrollPosition', { id }); },
     restoreScroll(id, y) { return tabs('restoreScroll', { id, y: Math.round(y) || 0 }); },
     setDocumentStartScript(script) { return tabs('setDocumentStartScript', { script: script || '' }); },
-    setPrivacy(options = {}) { return tabs('setPrivacy', options); },
+    // The sites let through HTTPS-Only always go with it.
+    setPrivacy(options = {}) {
+      const httpHosts = typeof VexStore !== 'undefined' ? VexStore.get('vex.httpAllowedHosts', []) : [];
+      return tabs('setPrivacy', { ...options, httpHosts: Array.isArray(httpHosts) ? httpHosts : [] });
+    },
     setPullToRefresh(enabled) { return tabs('setPullToRefresh', { enabled: !!enabled }); },
     setScrollButtons(enabled) { return tabs('setScrollButtons', { enabled: !!enabled }); },
     setOpenInApps(enabled) { return tabs('setOpenInApps', { enabled: !!enabled }); },
@@ -466,6 +472,9 @@ const VexBridge = (() => {
     },
     // DownloadManager has no pause: removing it is what cancelling is.
     cancelDownload(id) { return tabs('cancelDownload', { id: String(id) }); },
+    deleteDownload({ downloadId = '', localUri = '' } = {}) {
+      return tabs('deleteDownload', { downloadId: String(downloadId || ''), localUri: localUri || '' });
+    },
     openDownloadsFolder() { return tabs('openDownloadsFolder', {}); },
     // A file the chrome made itself — a backup, an export — written into
     // Downloads. The chrome's own WebView has no download handler, so an <a
@@ -528,6 +537,15 @@ const VexBridge = (() => {
       return (result && result.text) || '';
     },
     enterPictureInPicture(width, height) { return system('enterPictureInPicture', { width, height }); },
+    /** A password or code: sensitive on the clipboard, and cleared again after a while. */
+    async copySecret(text, clearAfterMs = 30000) {
+      if (!plugins.VexSystem) { await navigator.clipboard.writeText(text); return { ok: true }; }
+      return system('copySecret', { text: String(text), clearAfterMs });
+    },
+    async setFloatOnLeave(on, width, height) {
+      if (!plugins.VexSystem) return;           // fallback: no window to float
+      return system('setFloatOnLeave', { on: !!on, width, height });
+    },
     async hasPermission(name) {
       const result = await system('hasPermission', { name });
       return !!(result && result.granted);

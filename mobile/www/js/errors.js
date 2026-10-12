@@ -43,7 +43,7 @@ const VexErrors = (() => {
 
     // The page itself. Self-contained: it is handed to a WebView that has no
     // access to the chrome's stylesheet, and no network to fetch one.
-    html({ url, code, description, hasSaved, offline }) {
+    html({ url, code, description, hasSaved, offline, insecure }) {
       const key = offline ? 'offline' : String(code);
       // Not escaped here: everything below goes through escape() on the way into
       // the page, and doing it twice turned a "<" in a WebView's own message into
@@ -74,6 +74,7 @@ const VexErrors = (() => {
     <p>${escape(detail)}</p>
     <p class="host">${escape(host)}</p>
     <a class="button" href="vex://retry">Try again</a>
+    ${insecure ? '<p>HTTPS-Only asked this site for a secure connection, and it may not have one.</p><a class="button ghost" href="vex://insecure">Continue to the unencrypted site</a>' : ''}
     ${hasSaved ? '<a class="button ghost" href="vex://saved">Open the copy Vex saved</a>' : ''}
     <a class="button ghost" href="vex://search?${encodeURIComponent(host)}">Search for it instead</a>
   </div>
@@ -91,7 +92,10 @@ const VexErrors = (() => {
         code,
         description,
         hasSaved: saved.length > 0,
-        offline: typeof navigator !== 'undefined' && navigator.onLine === false
+        offline: typeof navigator !== 'undefined' && navigator.onLine === false,
+        // An https:// address that would not connect, with HTTPS-Only on: the
+        // site may only speak http. A name that does not exist is not that.
+        insecure: /^https:/.test(url) && VexStore.get('vex.httpsOnly', true) !== false && String(code) !== '-2'
       });
       await VexBridge.loadHtml(tab.id, page, url);
       VexTabStore.update(tab.id, { errorAt: Date.now(), errorUrl: url });
@@ -110,6 +114,15 @@ const VexErrors = (() => {
           .sort((a, b) => (b.at || 0) - (a.at || 0));
         if (saved.length) await VexTools.openSaved(saved[0]);
         else VexUI.toast('There is no saved copy of that page');
+      } else if (command === 'insecure') {
+        // That one site, from now on (Settings › Privacy lists it, to take back).
+        let host = '';
+        try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return; }
+        const allowed = VexStore.get('vex.httpAllowedHosts', []);
+        await VexStore.set('vex.httpAllowedHosts', [...new Set([...(Array.isArray(allowed) ? allowed : []), host])]);
+        await VexBridge.setPrivacy({ httpsOnly: VexStore.get('vex.httpsOnly', true) !== false, doNotTrack: VexStore.get('vex.dnt', true) !== false });
+        await VexTabStore.navigate(tab.id, url.replace(/^https:/, 'http:'));
+        VexUI.toast(host + ' opens without HTTPS — it is not encrypted', 5000);
       } else if (command === 'search') {
         const query = decodeURIComponent(value || '').replace(/^\?/, '');
         await VexTabStore.navigate(tab.id, VexSearch.searchUrl(query || url));

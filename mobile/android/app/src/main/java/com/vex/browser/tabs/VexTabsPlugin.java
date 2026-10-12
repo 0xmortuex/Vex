@@ -69,6 +69,28 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     private boolean backgroundAudio = true;
     private String documentStartScript = "";
     private int[] bounds = new int[]{0, 0, 0, 0};    // left, top, width, height in px
+    /**
+     * In Android's picture-in-picture the whole window is the little floating
+     * one: the page's video fills it, with no toolbar, until it is opened again.
+     */
+    private boolean inPictureInPicture;
+
+    // The playing video (else the largest frame, where a player lives in one)
+    // laid over the whole page, and put back as it was.
+    private static final String PIP_ON = "(function(){try{"
+            + "var vs=[].slice.call(document.querySelectorAll('video'));"
+            + "var v=vs.filter(function(x){return !x.paused&&!x.ended;})[0]||vs.sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;})[0];"
+            + "if(!v){var fs=[].slice.call(document.querySelectorAll('iframe')).sort(function(a,b){return b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight;});v=fs[0];}"
+            + "if(!v)return;v.setAttribute('data-vex-pip',v.getAttribute('style')||'');"
+            + "v.style.cssText='position:fixed!important;left:0!important;top:0!important;width:100vw!important;height:100vh!important;"
+            + "max-width:none!important;max-height:none!important;margin:0!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important;transform:none!important';"
+            + "document.documentElement.setAttribute('data-vex-pip-scroll',String(window.scrollY));"
+            + "}catch(e){}})()";
+    private static final String PIP_OFF = "(function(){try{"
+            + "[].slice.call(document.querySelectorAll('[data-vex-pip]')).forEach(function(v){var s=v.getAttribute('data-vex-pip');"
+            + "if(s)v.setAttribute('style',s);else v.removeAttribute('style');v.removeAttribute('data-vex-pip');});"
+            + "var y=document.documentElement.getAttribute('data-vex-pip-scroll');if(y!==null){document.documentElement.removeAttribute('data-vex-pip-scroll');window.scrollTo(0,Number(y)||0);}"
+            + "}catch(e){}})()";
 
     @Override
     public void load() {
@@ -97,8 +119,36 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         return metrics.density;
     }
 
+    /** MainActivity: the window went into picture-in-picture, or came back from it. */
+    public void pictureInPicture(boolean on) {
+        getActivity().runOnUiThread(() -> {
+            inPictureInPicture = on;
+            TabWebView tab = activeId == null ? null : tabs.get(activeId);
+            // A video already in full screen fills the window by itself.
+            if (fullscreenView == null && tab != null) tab.evaluateJavascript(on ? PIP_ON : PIP_OFF, null);
+            if (on && scrollButtons != null) scrollButtons.dismiss();
+            applyContainerBounds();
+            JSObject data = new JSObject();
+            data.put("on", on);
+            notifyListeners("pictureInPicture", data);
+        });
+    }
+
     private void applyContainerBounds() {
         if (container == null) return;
+        if (inPictureInPicture) {
+            // The whole little window, whatever the chrome (shrunk with it) asks.
+            ViewGroup.LayoutParams params = container.getLayoutParams();
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ((ViewGroup.MarginLayoutParams) params).leftMargin = 0;
+                ((ViewGroup.MarginLayoutParams) params).topMargin = 0;
+            }
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            params.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            container.setLayoutParams(params);
+            container.setVisibility(View.VISIBLE);
+            return;
+        }
         ViewGroup.LayoutParams params = container.getLayoutParams();
         if (params instanceof ViewGroup.MarginLayoutParams) {
             ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
@@ -783,6 +833,35 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     /**
+     * Delete a finished download's file, not just its line in the list: the
+     * queue removes its own file with the entry; a file Vex wrote itself (a
+     * stream, a blob:) is deleted through its content Uri, which Vex owns.
+     */
+    @PluginMethod
+    public void deleteDownload(PluginCall call) {
+        final String rawId = call.getString("downloadId", "");
+        final String localUri = call.getString("localUri", "");
+        boolean deleted = false;
+        try {
+            if (!rawId.trim().isEmpty()) {
+                android.app.DownloadManager manager =
+                        (android.app.DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+                deleted = manager != null && manager.remove(Long.parseLong(rawId.trim())) > 0;
+            }
+            if (!deleted && !localUri.isEmpty()) {
+                Uri given = Uri.parse(localUri);
+                if ("file".equals(given.getScheme()) && given.getPath() != null) deleted = new java.io.File(given.getPath()).delete();
+                else if ("content".equals(given.getScheme())) deleted = getContext().getContentResolver().delete(given, null, null) > 0;
+            }
+            JSObject result = new JSObject();
+            result.put("deleted", deleted);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Could not delete that file: " + error.getMessage());
+        }
+    }
+
+    /**
      * Write bytes the chrome read out of a page into Downloads. Used for the
      * blob: and data: downloads DownloadManager cannot fetch.
      */
@@ -931,6 +1010,12 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
         TabWebView.setPrivacy(
                 !Boolean.FALSE.equals(call.getBoolean("httpsOnly", true)),
                 !Boolean.FALSE.equals(call.getBoolean("doNotTrack", true)));
+        JSArray hosts = call.getArray("httpHosts");
+        if (hosts != null) {
+            java.util.List<String> list = new java.util.ArrayList<>();
+            for (int i = 0; i < hosts.length(); i++) list.add(hosts.optString(i, ""));
+            TabWebView.setHttpAllowed(list);
+        }
         call.resolve();
     }
 
@@ -977,6 +1062,41 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
     }
 
     // ── TabWebView.Host ──────────────────────────────────────────────────────
+
+    // App links waiting on your answer (TabWebView: "Open in <app>?"). A token
+    // opens its link once, and only for a minute.
+    private final Map<String, Intent> heldIntents = new java.util.HashMap<>();
+    private final Map<String, Long> heldAt = new java.util.HashMap<>();
+    private int heldSequence;
+
+    @Override
+    public String holdIntent(Intent intent) {
+        long now = System.currentTimeMillis();
+        heldAt.entrySet().removeIf(entry -> now - entry.getValue() > 60000 && heldIntents.remove(entry.getKey()) != null);
+        String token = "a" + (++heldSequence) + "-" + Long.toString(now, 36);
+        heldIntents.put(token, intent);
+        heldAt.put(token, now);
+        return token;
+    }
+
+    @PluginMethod
+    public void openAppLink(PluginCall call) {
+        final String token = call.getString("token", "");
+        getActivity().runOnUiThread(() -> {
+            Intent intent = heldIntents.remove(token);
+            Long at = heldAt.remove(token);
+            if (intent == null || at == null || System.currentTimeMillis() - at > 60000) {
+                call.reject("That link has expired — tap it again");
+                return;
+            }
+            try {
+                getContext().startActivity(intent);
+                call.resolve();
+            } catch (Exception error) {
+                call.reject("No app can open that link");
+            }
+        });
+    }
 
     @Override
     public void emit(String event, JSObject data) {

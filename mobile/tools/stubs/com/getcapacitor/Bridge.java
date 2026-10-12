@@ -10,4 +10,5 @@ public class Bridge {
     public void triggerWindowJSEvent(String eventName) { }
     public void triggerWindowJSEvent(String eventName, String data) { }
     public void eval(String js, android.webkit.ValueCallback<String> callback) { }
+    public PluginHandle getPlugin(String pluginName) { return null; }
 }

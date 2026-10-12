@@ -42,6 +42,7 @@
     VexStore.prime('vex.dataSaver', false),
     VexStore.prime('vex.dnt', true),
     VexStore.prime('vex.httpsOnly', true),
+    VexStore.prime('vex.httpAllowedHosts', []),
     VexStore.prime('vex.shield', 'standard'),
     VexStore.prime('vex.siteRules', {}),
     VexStore.prime('vex.sitePermissions', {}),
@@ -72,6 +73,7 @@
     VexStore.prime('vex.recall', true),
     VexStore.prime('vex.historyDays', 365),
     VexStore.prime('vex.mediaBar', true),
+    VexStore.prime('vex.floatOnLeave', true),
     VexStore.prime('vex.backgroundAudio', false),
     VexStore.prime('vex.keepAwake', false),
     VexStore.prime('vex.lockPrivate', false),
@@ -85,6 +87,7 @@
     VexStore.prime('vex.menuOrder', null),
     VexStore.prime('vex.menuHidden', []),
     VexStore.prime('vex.loginHosts', []),
+    VexStore.prime('vex.codeHosts', []),
     VexStore.prime('vex.translateTo', 'en'),
     VexStore.prime('vex.blockedByHost', {}),
     VexStore.prime('vex.forceZoom', true),
@@ -297,6 +300,8 @@
         VexUI.refreshMediaBar();
         // A saved login for this site is offered, never filled behind your back.
         setTimeout(() => VexUI.offerAutofill(tab).catch(() => {}), 700);
+        // A 2-step box: on the page as it loads, or opened a moment later.
+        for (const wait of [900, 4000]) setTimeout(() => VexUI.offerCode(tab).catch(() => {}), wait);
       }
       indexForRecall(tab);
       // Whether to show the reader icon: asked once the page has settled.
@@ -436,6 +441,32 @@
         }
       });
     });
+
+    // A link into another app that was not simply tapped in a normal tab —
+    // a page sending you there by itself, an app's own link, a private tab —
+    // waits for your yes, as on the desktop.
+    VexBridge.on('appLink', data => {
+      if (!data || !data.token) return;
+      const tab = VexTabStore.get(data.id);
+      if (!tab || VexTabStore.activeId() !== data.id) return;
+      const app = data.app || 'another app';
+      const what = data.scheme === 'tel' ? 'Call from ' + app : data.scheme === 'mailto' ? 'Write an email in ' + app : 'Open in ' + app;
+      const open = () => VexBridge.openAppLink(data.token).catch(async error => {
+        if (data.fallback) { await VexTabStore.navigate(data.id, data.fallback); return; }
+        VexUI.toast(error.message || 'No app can open that link');
+      });
+      if (!data.tapped) {
+        VexUI.toast((data.page || 'This page') + ' wants to open ' + app, 7000, { label: 'Open', run: open });
+        return;
+      }
+      VexSheets.choose(what + '?', [
+        { id: 'open', label: what, note: data.incognito ? 'It leaves this private tab' : 'Leaves Vex' },
+        { id: 'stay', label: 'Stay here' }
+      ], choice => { VexSheets.close(); if (choice === 'open') open(); }, data.page || '');
+    });
+
+    // Picture-in-picture ended: the page goes back under the toolbar.
+    VexBridge.on('pictureInPicture', data => { if (data && !data.on) VexUI.scheduleBounds(); });
 
     // "Ask Vex", "Translate", "Keep as a note" on selected text — the menu
     // Android shows when you select something, with Vex's own items added.

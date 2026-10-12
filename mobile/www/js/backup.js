@@ -37,6 +37,7 @@ const VexBackup = (() => {
     // phone's Keystore, so on another phone this list would offer to fill
     // logins that are not there.
     'vex.loginHosts',
+    'vex.codeHosts',
     'vex.blockRules'         // gone in version 5; still named so an old one is never copied
   ]);
 

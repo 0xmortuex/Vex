@@ -1516,6 +1516,21 @@ await page.waitForTimeout(600);
 results.passwordRows = await page.$$eval('#panel-body .list-row', rows => rows.length);
 results.totpShown = /^\d{6}$/.test((await page.textContent('#panel-body .totp-code')) || '');
 await shot('15-passwords');
+// Search, one login's own sheet, and the CSV rows (desktop v19 parity).
+await page.evaluate(() => VexPanels.passwords('nothing-like-this'));
+await page.waitForTimeout(300);
+results.passwordSearchMiss = await page.$$eval('#panel-body .list-row', rows => rows.length);
+await page.evaluate(() => VexPanels.passwords('example'));
+await page.waitForTimeout(400);
+results.passwordSearchHit = await page.$$eval('#panel-body .list-row', rows => rows.length);
+results.passwordMoveRows = await page.evaluate(() => [...document.querySelectorAll('#panel-body .sheet-row')]
+  .map(row => row.textContent).filter(text => /CSV file/.test(text)).length);
+await page.click('#panel-body .list-row .lines');
+await page.waitForTimeout(400);
+results.loginSheet = await page.evaluate(() => [...document.querySelectorAll('#sheet-list .sheet-row')].map(row => row.textContent).join('|'));
+await page.evaluate(() => VexSheets.close());
+results.reloadBecomesStop = await page.evaluate(() => VexUI.BUTTONS.reload.swap({ loading: true }).label + '|' + (VexUI.BUTTONS.reload.swap({ loading: false }) === null));
+results.httpsContinue = await page.evaluate(() => VexErrors.html({ url: 'https://old.example/', code: -6, insecure: true }).includes('vex://insecure'));
 
 // ── Sync: the record merge is the desktop's own file ────────────────────────
 results.syncMerge = await page.evaluate(() => {
@@ -2149,6 +2164,9 @@ console.log(JSON.stringify(results, null, 2));
 await browser.close();
 
 const expected = {
+  passwordSearchMiss: 0, passwordSearchHit: 1, passwordMoveRows: 2,
+  loginSheet: 'Copy usernameme@example.com|Copy passwordOff the clipboard again in 30 seconds|Show password|Copy the 2FA code|Fill on this page|Edit|Delete',
+  reloadBecomesStop: 'Stop loading|true', httpsContinue: true,
   welcomeLook: 'samsung,split,navbar vex,bottom',
   welcomeShown: true, welcomeSteps: 4, welcomeDismissed: true, welcomeRemembered: true,
   startTiles: 4, startRail: 4,
