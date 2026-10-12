@@ -3612,7 +3612,8 @@ const _extUpdates = require('./main/extension-updates');
 let _extUpdaterLazy = null;
 function _extUpdater() {
   if (_extUpdaterLazy) return _extUpdaterLazy;
-  const AdmZip = require('adm-zip');
+  // adm-zip is read when a check unpacks an update (the first one is two
+  // minutes after start), not when the schedule is set up at launch.
   const { validateZip } = require('./main/archive-security');
   _extUpdaterLazy = _extUpdates.createExtensionUpdater({
     list: () => {
@@ -3624,8 +3625,8 @@ function _extUpdater() {
       }));
     },
     find: (item) => item.source.webstore
-      ? _extUpdates.findWebStoreUpdate({ id: item.source.webstore, installedVersion: item.version, fetch: boundedNetFetch, chromeVersion: process.versions.chrome, AdmZip, validateZip })
-      : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, AdmZip, validateZip }),
+      ? _extUpdates.findWebStoreUpdate({ id: item.source.webstore, installedVersion: item.version, fetch: boundedNetFetch, chromeVersion: process.versions.chrome, AdmZip: require('adm-zip'), validateZip })
+      : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, AdmZip: require('adm-zip'), validateZip }),
     install: async (item, found) => {
       const previous = _extEntriesOnDisk().find(e => e.folder === item.folder && e.manifest);
       if (!previous || _readRemovingFolders()[item.folder]) return { ok: false, error: 'It was uninstalled during the check' };
