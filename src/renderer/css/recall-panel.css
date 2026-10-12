@@ -33,7 +33,7 @@
 
 .recall-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0;
+  width: 24px; height: 24px; padding: 0;
   background: none; border: none; border-radius: 6px;
   color: var(--vex-text-muted); cursor: pointer;
   transition: background .12s ease, color .12s ease;

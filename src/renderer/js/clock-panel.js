@@ -429,7 +429,7 @@ const VexClock = {
     body.innerHTML = `
       <form class="ck-form" id="ck-alarm-form">
         <div class="ck-row">
-          <input type="time" id="ck-alarm-time" class="ck-input ck-time" value="07:00" required>
+          <input type="time" id="ck-alarm-time" class="ck-input ck-time" value="07:00" aria-label="Alarm time" required>
           <input type="text" id="ck-alarm-label" class="ck-input" placeholder="Label (optional)" maxlength="120">
         </div>
         <div class="ck-days" id="ck-alarm-days">${days.map((d, i) => `<label class="ck-day"><input type="checkbox" value="${i}" ${i >= 1 && i <= 5 ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div>

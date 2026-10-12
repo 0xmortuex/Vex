@@ -10,6 +10,7 @@
 //   node scripts/check-ui.js               (or: npm run check:ui)
 //   node scripts/check-ui.js --full        sweep every ThemeManager theme
 //   node scripts/check-ui.js --style=win98 limit to one GUI style
+//   node scripts/check-ui.js --theme=midnight  limit to one colour theme
 //   node scripts/check-ui.js --json        machine-readable findings
 //   node scripts/check-ui.js --keep-open   leave the app running to poke at
 //
@@ -70,6 +71,14 @@ const EXCEPTIONS = [
     reason: 'The Windows-98 look\'s caption boxes are authentic at 16x14. ' +
       'gui-browser.css gives each an ::after with inset -4px -2px, so the real ' +
       'hit area is 20x22 — bigger than the 16x16 floor even though the painted box is not.',
+  },
+  {
+    check: 'a11y-target-24',
+    selector: '#btn-minimize, #btn-maximize, #btn-close',
+    styles: ['win98'],
+    reason: 'The same caption boxes: authentic 18x16 painted, 20x22 hit area, and they sit ' +
+      'edge to edge as the real Windows 98 ones do. The 24x24 minimum (WCAG 2.5.8) is a ' +
+      'trade this look makes on purpose; no other look is flagged.',
   },
   {
     check: 'contrast',
@@ -773,7 +782,261 @@ window.__vexCheckUi = (function () {
     return run(0);
   }
 
-  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow, settingsChips: settingsChips };
+  // --- keyboard and screen-reader structure ------------------------------
+  // What a keyboard or screen-reader user meets, judged on the live DOM:
+  // a control with no accessible name, a positive tabindex, a role=button that
+  // Tab cannot reach, a focusable thing inside aria-hidden or parked off the
+  // screen, a dialog that does not say it is one, and a focused control that
+  // shows no ring (or a ring too faint against what is behind it, WCAG 2.4.7 /
+  // 1.4.11).
+  var FOCUSABLE_SEL = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [tabindex], [contenteditable=""], [contenteditable=true]';
+  var ROLE_WIDGET_SEL = '[role=button], [role=link], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=tab], [role=checkbox], [role=switch], [role=radio], [role=option], [role=slider], [role=combobox], [role=treeitem]';
+  var RING_MIN = 3.0;      // WCAG 1.4.11
+  var RING_SAMPLE = 60;    // controls focused per surface (a focus() is a real event)
+  var TARGET_24 = 24;      // WCAG 2.5.8 floor, reported as its own check
+
+  function textOf(el, depth) {
+    if (depth > 8) return '';
+    var out = '';
+    for (var i = 0; i < el.childNodes.length; i++) {
+      var c = el.childNodes[i];
+      if (c.nodeType === 3) { out += c.nodeValue; continue; }
+      if (c.nodeType !== 1) continue;
+      if (c.getAttribute('aria-hidden') === 'true') continue;
+      var tag = c.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style') continue;
+      var al = (c.getAttribute('aria-label') || '').trim();
+      if (al) { out += ' ' + al + ' '; continue; }
+      if (tag === 'img') { out += ' ' + (c.getAttribute('alt') || '') + ' '; continue; }
+      if (tag === 'svg') {
+        var t = c.querySelector(':scope > title');
+        out += ' ' + (t ? t.textContent : '') + ' ';
+        continue;
+      }
+      if (getComputedStyle(c).display === 'none') continue;
+      out += ' ' + textOf(c, (depth || 0) + 1) + ' ';
+    }
+    return out;
+  }
+
+  function accessibleName(el, depth) {
+    depth = depth || 0;
+    if (depth > 4) return '';
+    var by = el.getAttribute('aria-labelledby');
+    if (by) {
+      var joined = by.split(/\\s+/).map(function (id) {
+        var e = document.getElementById(id);
+        return e ? (accessibleName(e, depth + 1) || e.textContent || '') : '';
+      }).join(' ').trim();
+      if (joined) return joined;
+    }
+    var al = (el.getAttribute('aria-label') || '').trim();
+    if (al) return al;
+    if (el.labels && el.labels.length) {
+      for (var i = 0; i < el.labels.length; i++) {
+        var lt = textOf(el.labels[i], 0).trim();
+        if (lt) return lt;
+      }
+    }
+    var tag = el.tagName;
+    if (tag === 'INPUT' && /^(button|submit|reset)$/i.test(el.type)) { if ((el.value || '').trim()) return el.value.trim(); }
+    var own = textOf(el, 0).replace(/\\s+/g, ' ').trim();
+    if (own) return own;
+    var title = (el.getAttribute('title') || '').trim();
+    if (title) return title;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return (el.getAttribute('placeholder') || '').trim();
+    return '';
+  }
+
+  // The real tab stops: focusable by default or by tabindex, not disabled.
+  function tabbable(el) {
+    if (el.disabled) return false;
+    var ti = el.getAttribute('tabindex');
+    if (ti !== null && parseInt(ti, 10) < 0) return false;
+    return true;
+  }
+
+  function a11yScan(exceptions, style, surface, sel, asDialog) {
+    freeze();
+    var findings = [];
+    var seen = {};
+    var judged = 0;
+    function add(check, el, message, numbers) {
+      for (var i = 0; i < exceptions.length; i++) {
+        var ex = exceptions[i];
+        if (ex.check !== check) continue;
+        if (ex.styles && ex.styles.indexOf(style) === -1) continue;
+        if (el.matches && el.matches(ex.selector)) return;
+      }
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: 'in ' + surface + ': ' + message, numbers: numbers || {} });
+    }
+    var roots = document.querySelectorAll(sel);
+    var ringBudget = RING_SAMPLE;
+    var ringsJudged = 0;
+    var stopRects = null;
+    for (var r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      stopRects = null;
+      var focusables = Array.prototype.slice.call(root.querySelectorAll(FOCUSABLE_SEL));
+      if (root.matches && root.matches(FOCUSABLE_SEL)) focusables.unshift(root);
+      var widgets = Array.prototype.slice.call(root.querySelectorAll(ROLE_WIDGET_SEL));
+
+      // role=button (etc.) that Tab skips: a mouse-only control.
+      for (var w = 0; w < widgets.length; w++) {
+        var we = widgets[w];
+        if (we.matches(FOCUSABLE_SEL) || !isVisible(we)) continue;
+        if (we.closest('[aria-hidden="true"], [inert]')) continue;
+        if (we.closest('[role=menu], [role=listbox], [role=tablist], [role=radiogroup], [role=tree], [role=grid]')) continue; // roving tabindex: the group is the stop
+        add('a11y-not-focusable', we, 'has role="' + we.getAttribute('role') + '" but no tabindex, so Tab and the keyboard cannot reach it');
+      }
+
+      for (var i = 0; i < focusables.length; i++) {
+        var el = focusables[i];
+        var ti = el.getAttribute('tabindex');
+        if (ti !== null && parseInt(ti, 10) > 0) {
+          add('a11y-tabindex', el, 'has tabindex="' + ti + '": a positive value jumps the whole page\\'s Tab order');
+        }
+        if (!isVisible(el)) continue;
+        var inHidden = el.closest('[aria-hidden="true"]');
+        if (inHidden && tabbable(el) && !el.closest('[inert]')) {
+          add('a11y-hidden-focusable', el, 'can be tabbed to but sits inside aria-hidden="true" (' + describe(inHidden) + '): a screen reader says nothing while focus lands on it');
+        }
+        if (!tabbable(el)) continue;
+        if (el.matches('input[type=radio]') && el.closest('[role=radiogroup]') && !el.checked) continue;
+        judged++;
+        if (!accessibleName(el)) {
+          add('a11y-unnamed', el, 'has no accessible name (no text, aria-label, label, alt or title), so a screen reader says only its role');
+        }
+        var rr = rect(el);
+        if (rr.width > 0 && rr.height > 0 && (rr.width < TARGET_24 || rr.height < TARGET_24) && !/^(INPUT)$/.test(el.tagName)) {
+          // A control smaller than 24x24 CSS px (WCAG 2.5.8) is a miss for a
+          // shaky hand; reported on its own so it can be weighed apart from
+          // the 16px floor tiny-target already enforces.
+          // WCAG 2.5.8's spacing exception: a small target is fine when a 24px
+          // square centred on it touches no other target.
+          if (!stopRects) {
+            stopRects = focusables.filter(function (o) { return tabbable(o) && isVisible(o); }).map(function (o) { return { el: o, r: rect(o) }; });
+          }
+          var cx = rr.left + rr.width / 2, cy = rr.top + rr.height / 2;
+          var probeBox = { left: cx - TARGET_24 / 2, right: cx + TARGET_24 / 2, top: cy - TARGET_24 / 2, bottom: cy + TARGET_24 / 2 };
+          var crowdedBy = null;
+          for (var sr = 0; sr < stopRects.length && !crowdedBy; sr++) {
+            var other = stopRects[sr];
+            if (other.el === el || el.contains(other.el) || other.el.contains(el)) continue;
+            if (intersect(probeBox, other.r).area > 0) crowdedBy = other.el;
+          }
+          if (crowdedBy) {
+            add('a11y-target-24', el, 'is ' + n(rr.width) + 'x' + n(rr.height) + 'px, under the 24x24 minimum target size, and ' + describe(crowdedBy) + ' is within 24px of it', { w: n(rr.width), h: n(rr.height) });
+          }
+        }
+        // Parked off-screen but still a Tab stop: focus vanishes from view.
+        if (rr.width > 0 && rr.height > 0 && (rr.right <= 0 || rr.bottom <= 0 || rr.left >= innerWidth || rr.top >= innerHeight)) {
+          add('a11y-offscreen-focusable', el, 'is a Tab stop but is parked off the screen (' + n(rr.left) + ',' + n(rr.top) + '), so focus disappears when Tab lands on it');
+        }
+      }
+
+      // Focus ring: focus a sample of the visible, hittable stops and read what it
+      // paints. focusVisible:true asks for :focus-visible the way Tab would.
+      for (var k = 0; k < focusables.length && ringBudget > 0; k++) {
+        var fe = focusables[k];
+        if (!isVisible(fe) || !isHittable(fe) || !tabbable(fe)) continue;
+        if (fe.matches('input[type=hidden], input[type=file]') || (fe.tagName === 'INPUT' && fe.type === 'checkbox' && fe.closest('.toggle'))) continue;
+        if (fe.closest('[aria-hidden="true"]')) continue;
+        ringBudget--;
+        var before = getComputedStyle(fe);
+        var snap = before.outlineStyle + '|' + before.outlineWidth + '|' + before.outlineColor + '|' + before.boxShadow + '|' + before.borderTopColor + '|' + before.backgroundColor;
+        // A field can show its ring on the box that wraps it (the address bar's
+        // #url-bar:has(:focus-visible)); remember the nearest three ancestors too.
+        var anc = [];
+        for (var pa = fe.parentElement, qa = 0; pa && qa < 3; pa = pa.parentElement, qa++) {
+          var pcs = getComputedStyle(pa);
+          anc.push(pcs.outlineStyle + '|' + pcs.outlineWidth + '|' + pcs.outlineColor + '|' + pcs.boxShadow);
+        }
+        var prev = document.activeElement;
+        try { fe.focus({ focusVisible: true, preventScroll: true }); } catch (e) { fe.focus(); }
+        if (document.activeElement !== fe) continue;
+        var vis = fe.matches(':focus-visible');
+        if (vis) ringsJudged++;
+        var cs = getComputedStyle(fe);
+        var after = cs.outlineStyle + '|' + cs.outlineWidth + '|' + cs.outlineColor + '|' + cs.boxShadow + '|' + cs.borderTopColor + '|' + cs.backgroundColor;
+        var ringW = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth);
+        var ringColor = cs.outlineColor;
+        var offset = parseFloat(cs.outlineOffset) || 0;
+        var host = fe;
+        if (vis && ringW > 0) {
+          // The ring paints outside the box (offset >= 0): what is behind it is
+          // the parent's background; inside (offset < 0): the control's own.
+          var behind = bgBehind(offset >= 0 && fe.parentElement ? fe.parentElement : fe);
+          var rc = toRgb(ringColor);
+          if (!rc) {
+            add('a11y-focus-ring-unreadable', fe, 'focus ring colour ' + JSON.stringify(ringColor) + ' could not be read');
+          } else {
+            var painted = over({ r: rc.r, g: rc.g, b: rc.b, a: rc.a }, behind.color);
+            var ratio = contrast(painted, behind.color);
+            if (ratio + 0.05 < RING_MIN) {
+              add('a11y-focus-ring-contrast', fe, 'focus ring ' + ringColor + ' on ' + 'rgb(' + Math.round(behind.color.r) + ',' + Math.round(behind.color.g) + ',' + Math.round(behind.color.b) + ')' +
+                ' is ' + n(ratio) + ':1, under ' + RING_MIN + ':1', { ratio: n(ratio), required: RING_MIN });
+            }
+          }
+        } else if (vis && snap === after) {
+          var viaParent = false;
+          for (var pb = fe.parentElement, qb = 0; pb && qb < 3; pb = pb.parentElement, qb++) {
+            var pcs2 = getComputedStyle(pb);
+            if (pcs2.outlineStyle + '|' + pcs2.outlineWidth + '|' + pcs2.outlineColor + '|' + pcs2.boxShadow !== anc[qb]) viaParent = true;
+          }
+          if (!viaParent) add('a11y-focus-invisible', fe, 'shows nothing at all when it takes keyboard focus (no ring, shadow, border or fill change)');
+        } else if (!vis) {
+          // The browser would not match :focus-visible here; not a fault of the control.
+        }
+        try { fe.blur(); if (prev && prev !== document.body && prev.focus) prev.focus({ preventScroll: true }); } catch (e2) { /* focus restore is best effort in the checker only */ }
+      }
+
+      // Dialogs: say so, say they are modal, and have a name.
+      var dialogs = root.querySelectorAll('.vex-dialog, [role=dialog], [role=alertdialog], dialog[open]');
+      for (var d = 0; d < dialogs.length; d++) {
+        var dg = dialogs[d];
+        if (!isVisible(dg)) continue;
+        var role = dg.getAttribute('role') || (dg.tagName === 'DIALOG' ? 'dialog' : '');
+        var holder = dg.closest('.vex-dialog-overlay') || dg;
+        var roleEl = role ? dg : (holder.getAttribute('role') ? holder : null);
+        var rl = roleEl ? roleEl.getAttribute('role') : '';
+        if (!/^(dialog|alertdialog)$/.test(rl) && dg.tagName !== 'DIALOG') {
+          add('a11y-dialog-role', dg, 'is a dialog with no role="dialog" or role="alertdialog"');
+          continue;
+        }
+        var modalEl = roleEl || dg;
+        if (modalEl.getAttribute('aria-modal') !== 'true' && dg.tagName !== 'DIALOG') {
+          add('a11y-dialog-modal', dg, 'is a dialog without aria-modal="true": a screen reader can wander out to the page behind it');
+        }
+        if (!accessibleName(modalEl) || (!modalEl.getAttribute('aria-label') && !modalEl.getAttribute('aria-labelledby'))) {
+          add('a11y-dialog-name', dg, 'is a dialog with no aria-label or aria-labelledby: it is announced as just "dialog"');
+        }
+      }
+    }
+    // A surface that is a modal by design (a picker, a sheet, an editor): the
+    // dialog role must be on it or inside it, with aria-modal and a name.
+    if (asDialog) {
+      for (var m = 0; m < roots.length; m++) {
+        var mroot = roots[m];
+        if (!isVisible(mroot)) continue;
+        var found = mroot.matches('[role=dialog], [role=alertdialog]') ? [mroot] : Array.prototype.slice.call(mroot.querySelectorAll('[role=dialog], [role=alertdialog]'));
+        var up = mroot.closest('[role=dialog], [role=alertdialog]');
+        if (up && found.indexOf(up) === -1) found.push(up);
+        if (!found.length) add('a11y-dialog-role', mroot, 'is a modal with no role="dialog" or role="alertdialog" on it or inside it');
+        for (var q = 0; q < found.length; q++) {
+          var fd = found[q];
+          if (fd.getAttribute('aria-modal') !== 'true') add('a11y-dialog-modal', fd, 'is a dialog without aria-modal="true": a screen reader can wander out to the page behind it, and Tab is not held inside');
+          if (!fd.getAttribute('aria-label') && !fd.getAttribute('aria-labelledby')) add('a11y-dialog-name', fd, 'is a dialog with no aria-label or aria-labelledby: it is announced as just "dialog"');
+        }
+      }
+    }
+    return { roots: roots.length, judged: judged, rings: ringsJudged, findings: findings };
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow, settingsChips: settingsChips, a11yScan: a11yScan };
 })();
 'installed';
 `;
@@ -790,12 +1053,13 @@ function fail(msg) {
 const args = process.argv.slice(2);
 const flags = new Set(args.filter(a => a.startsWith('--') && !a.includes('=')));
 const styleArg = (args.find(a => a.startsWith('--style=')) || '').split('=')[1] || null;
+const themeArg = (args.find(a => a.startsWith('--theme=')) || '').split('=')[1] || null;
 const FULL = flags.has('--full');
 const JSON_OUT = flags.has('--json');
 const KEEP_OPEN = flags.has('--keep-open');
 
 for (const a of args) {
-  if (!/^--(full|json|keep-open|style=.+)$/.test(a)) fail('unknown argument: ' + a);
+  if (!/^--(full|json|keep-open|style=.+|theme=.+)$/.test(a)) fail('unknown argument: ' + a);
 }
 
 // A handful of representative themes: the default, a near-black, a saturated
@@ -827,12 +1091,27 @@ const SURFACES = [
   { name: 'History', sel: '#panel-history', open: "SidebarManager.openPanel('history')", close: 'SidebarManager.hideActivePanel()' },
   { name: 'Downloads', sel: '#panel-downloads', open: "SidebarManager.openPanel('downloads')", close: 'SidebarManager.hideActivePanel()' },
   { name: 'the command bar', sel: '#command-bar', open: "CommandBar.open(); const i = document.querySelector('#command-input'); if (i) { i.value = 'set'; i.dispatchEvent(new Event('input', { bubbles: true })); }", close: 'CommandBar.close()' },
-  { name: 'a dialog', sel: '.vex-dialog', open: "vexConfirm({ title: 'Check', message: 'A dialog the checker opened.' })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel())" },
+  { name: 'a dialog', dialog: true, sel: '.vex-dialog', open: "vexConfirm({ title: 'Check', message: 'A dialog the checker opened.' })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel())" },
   { name: 'a toast', sel: '#toast-container', open: "showToast('A toast the checker opened', 'info', 60000)", close: "document.querySelectorAll('#toast-container > *').forEach(t => t.remove())" },
   { name: 'the tab menu', sel: '.tab-context-menu', open: "(() => { const t = document.querySelector('.top-tab, .tab-item'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); })()", close: "document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove())" },
-  { name: 'the theme picker', sel: '.vex-theme-picker', open: 'ThemePicker.open()', close: 'ThemePicker.close()' },
-  { name: 'the font picker', sel: '.vexfont', open: 'VexFonts.open()', close: 'VexFonts.close()' },
-  { name: 'the keys sheet', sel: '#vex-keys', open: 'KeysSheet.open()', close: 'KeysSheet.close()' },
+  { name: 'the theme picker', dialog: true, sel: '.vex-theme-picker', open: 'ThemePicker.open()', close: 'ThemePicker.close()' },
+  { name: 'the font picker', dialog: true, sel: '.vexfont', open: 'VexFonts.open()', close: 'VexFonts.close()' },
+  { name: 'the keys sheet', dialog: true, sel: '#vex-keys', open: 'KeysSheet.open()', close: 'KeysSheet.close()' },
+];
+
+// Judged for keyboard and screen-reader structure only (a11yScan): the whole
+// window with nothing open, and each sidebar panel that is plain HTML.
+const PANEL_IDS = ['bookmarks', 'notes', 'clock', 'memory', 'library', 'schedules', 'shortcuts', 'privacy', 'recall', 'annotations', 'authenticator', 'feeds', 'queue', 'work', 'devtools-dash'];
+const A11Y_ONLY_SURFACES = [
+  { name: 'the window', sel: 'body', open: 'SidebarManager.hideActivePanel()', close: 'true' },
+  { name: 'the site panel', sel: '#vex-site-panel', open: 'SitePanel.open()', close: 'SitePanel.close()' },
+  { name: 'the boost editor', dialog: true, sel: '#boost-edit-modal', open: "VexBoosts.openEditor('example.com')", close: "document.getElementById('boost-edit-modal')?.remove()" },
+  { name: 'the developer dashboard', dialog: true, sel: '#vex-devdash', open: 'VexDevMode.openDashboard()', close: "document.getElementById('vex-devdash')?.remove()" },
+  { name: 'the AI panel', sel: '#ai-panel', open: 'AIPanel.open()', close: 'AIPanel.close()' },
+  { name: 'the passkey sheet', dialog: true, sel: '#vex-passkey-sheet', open: "PasskeyUI.openSheet({ id: 'check-ui', kind: 'create', host: 'example.com', rpName: 'Example', userName: 'ada', userDisplayName: 'Ada', uv: 'discouraged', hasPin: false })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel && o._vexCancel())" },
+  { name: 'the passkey picker', dialog: true, sel: '#vex-passkey-sheet', open: "PasskeyUI.openSheet({ id: 'check-ui', kind: 'get', host: 'example.com', rpName: 'Example', uv: 'discouraged', hasPin: false, accounts: [{ credentialId: 'a', userName: 'ada', userDisplayName: 'Ada', createdAt: '2026-01-01T00:00:00Z' }, { credentialId: 'b', userName: 'grace', userDisplayName: 'Grace', createdAt: '2026-01-02T00:00:00Z' }] })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel && o._vexCancel())" },
+  { name: 'a sidebar button menu', sel: '.tab-context-menu', open: "(() => { const b = document.querySelector('#icon-sidebar .sidebar-icon'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); })()", close: "document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove())" },
+  ...PANEL_IDS.map(id => ({ name: 'the ' + id + ' panel', sel: '#panel-' + id, open: "SidebarManager.openPanel('" + id + "')", close: 'SidebarManager.hideActivePanel()' })),
 ];
 
 async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, summaries) {
@@ -868,11 +1147,24 @@ async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, sum
           await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
           await sleep(120);
           const res = await evaluate(cdp, 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(s.name) + ', ' + JSON.stringify(s.sel) + ')');
+          const ax = await runA11yScan(cdp, exceptions, style, s.name, s.sel, s.dialog);
           await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+          for (const f of ax.findings) findings.push({ ...f, style, colors: 'keyboard', theme });
+          count += ax.findings.length;
           if (!res.roots || !res.judged) throw new Error('judged no text in ' + s.name + ' (' + style + '/' + theme + ') — it did not open, or the check would be reporting on nothing');
           judgedBy[s.name] = Math.max(judgedBy[s.name] || 0, res.judged);
           for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
           count += res.findings.length;
+        }
+        for (const s of A11Y_ONLY_SURFACES) {
+          await evaluate(cdp, '(() => { ' + s.open + '; return true; })()');
+          await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+          await sleep(120);
+          const ax = await runA11yScan(cdp, exceptions, style, s.name, s.sel, s.dialog);
+          await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+          if (!ax.roots) throw new Error(s.name + ' did not open (' + style + '/' + theme + ') — the keyboard check would be reporting on nothing');
+          for (const f of ax.findings) findings.push({ ...f, style, colors: 'keyboard', theme });
+          count += ax.findings.length;
         }
         // The New Tab page follows the theme a beat later (it is recoloured
         // by script); wait until it wears this one.
@@ -885,6 +1177,9 @@ async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, sum
         const res = await evaluate(await newTabReady(), 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', "the New Tab page", "body")');
         if (!res.judged) throw new Error('judged no text on the New Tab page (' + style + '/' + theme + ')');
         judgedBy['the New Tab page'] = Math.max(judgedBy['the New Tab page'] || 0, res.judged);
+        const axNew = await runA11yScan(await newTabReady(), exceptions, style, 'the New Tab page', 'body');
+        for (const f of axNew.findings) findings.push({ ...f, style, colors: 'keyboard', theme });
+        count += axNew.findings.length;
         for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
         count += res.findings.length;
       }
@@ -926,6 +1221,23 @@ function settingsLayouts(full) {
   return out;
 }
 
+// Settings places its blocks from observers that run a frame or two after a
+// change; measured the instant they are due, a busy machine caught the blocks
+// where they were before (an "overlap" that was gone 100ms later). Wait until
+// no block has moved for 300ms, at most 3s, and judge what the person is left
+// looking at. A layout that never settles, or settles wrong, is still flagged.
+async function settleSettingsLayout(cdp) {
+  const sig = "Array.from(document.querySelectorAll('#panel-settings .settings-content > *')).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.left) + ':' + Math.round(r.top) + ':' + Math.round(r.height); }).join()";
+  const until = Date.now() + 3000;
+  let last = null, same = 0;
+  while (Date.now() < until && same < 3) {
+    const now = await evaluate(cdp, sig);
+    same = now === last ? same + 1 : 0;
+    last = now;
+    await sleep(100);
+  }
+}
+
 async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) {
   try {
     for (const style of styles) {
@@ -964,6 +1276,7 @@ async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) 
           await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
           await sleep(150);
           runs++;
+          await settleSettingsLayout(cdp);
           const res = await evaluate(cdp, 'window.__vexCheckUi.settingsLayout(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ', ' + JSON.stringify(layout.expect) + ')');
           if (!res.blocks) throw new Error('Settings showed no sections (' + style + ', ' + label + ') — the check would be reporting on nothing');
           blocks = Math.max(blocks, res.blocks);
@@ -990,6 +1303,19 @@ async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) 
     await cdp.send('Emulation.clearDeviceMetricsOverride');
     await evaluate(cdp, "(VexFonts.setSize('normal'), localStorage.removeItem('vex.settingsLayout'), SettingsUI.applyLayoutPrefs(), SidebarManager.hideActivePanel(), true)");
   }
+}
+
+// The keyboard scan judges what Tab shows, so the page must be in keyboard
+// modality: Chromium only matches :focus-visible on a script focus() after a
+// key event (focus({ focusVisible: true }) is not honoured here). One real Tab
+// key through the target, with focus parked first, does it.
+async function runA11yScan(target, exceptions, style, name, sel, dialog) {
+  // Focus a real control first, so the key goes to this document and not to a
+  // page's guest that held the window's focus.
+  await evaluate(target, '(() => { const e = Array.from(document.querySelectorAll("button, input, a[href], [tabindex]")).find(x => x.getClientRects().length && !x.disabled); if (e) e.focus(); return true; })()');
+  await target.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await target.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  return evaluate(target, 'window.__vexCheckUi.a11yScan(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(name) + ', ' + JSON.stringify(sel) + ', ' + JSON.stringify(!!dialog) + ')');
 }
 
 async function waitForTarget(port, timeoutMs) {
@@ -1285,6 +1611,10 @@ async function main() {
     if (!Array.isArray(allThemes) || !allThemes.length) throw new Error('ThemeManager.availableThemes returned nothing');
 
     let themes = FULL ? allThemes : SAMPLE_THEMES.filter(t => allThemes.includes(t));
+    if (themeArg) {
+      if (!allThemes.includes(themeArg)) throw new Error('unknown theme "' + themeArg + '"');
+      themes = [themeArg];
+    }
     if (!themes.length) throw new Error('none of the sample themes exist in ThemeManager');
 
     let runStyles = styles;
@@ -1326,6 +1656,12 @@ async function main() {
           controls = Math.max(controls, result.measured);
           colours = Math.max(colours, result.colorsJudged);
           for (const f of result.findings) findings.push({ ...f, style, colors, theme });
+          // Keyboard and screen-reader structure of the whole window in this
+          // look and theme: names, Tab stops, and the focus ring each look draws.
+          const ax = await runA11yScan(cdp, EXCEPTIONS, style, 'the window', 'body');
+          if (!ax.judged || !ax.rings) throw new Error('judged no Tab stops or no focus ring at ' + at + ' — the keyboard check would be reporting on nothing');
+          for (const f of ax.findings) findings.push({ ...f, style, colors, theme });
+          count += ax.findings.length;
           count += result.findings.length;
         }
         summaries.push({ style, colors, themes: themes.length, controls, colours, findings: count });
