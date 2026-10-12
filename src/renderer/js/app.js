@@ -1475,7 +1475,10 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
-    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()));
+    // Refused while Vex is locked, or before this profile has agreed to the
+    // privacy policy and terms (main.js): said, not dropped.
+    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())
+      ?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));

@@ -8,8 +8,12 @@
 // - A first start: the first step of the setup wizard (js/onboarding.js).
 // - A profile that already accepted an older version, or none: this file's
 //   own dialog over the window, once, with what changed (maybeAsk, js/app.js).
-// - A private window never asks: it is not where Vex is first used, and it
-//   keeps its own storage, so it would ask every time.
+// - A private window never asks: it keeps its own storage, so it would ask
+//   every time. Instead it does not open until this profile has agreed in
+//   the main window: main reads the version saved for the profile and
+//   refuses before (src/main/agreement-gate.js, agreedTo). On a profile that
+//   had not agreed, a private window was Vex used without agreeing (release
+//   check, 2026-10-12).
 //
 // VERSION is the only thing that shows it again. It must be the "Document
 // version" written at the top of PRIVACY.md and TERMS.md (a test checks), and
@@ -84,6 +88,11 @@ const VexLegal = {
   accept() {
     localStorage.setItem(this.KEY, String(this.VERSION));
     localStorage.setItem(this.AT_KEY, new Date().toISOString());
+    // Saved now, not in 300 ms: main reads it before it opens a private
+    // window (above). A failed save is retried and reported by storage.js.
+    if (window.PersistentStorage?._ready) {
+      window.PersistentStorage._flush().catch(err => console.error('[legal] the agreement is saved on the next try:', err));
+    }
     window.dispatchEvent(new CustomEvent('vex-legal-accepted', { detail: { version: this.VERSION } }));
   },
   quit() {

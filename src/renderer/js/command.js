@@ -320,7 +320,7 @@ const CommandBar = {
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode()) },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },

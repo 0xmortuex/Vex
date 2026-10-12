@@ -27,4 +27,13 @@ function createAgreementGate() {
   };
 }
 
-module.exports = { createAgreementGate };
+// Has this profile agreed to `version`? `stored` is vex.legalAcceptedVersion
+// as the main window saved it (vex-persist.json). A private window opens only
+// once it has: it never shows the agreement itself, so it was a way to use Vex
+// without agreeing (release check, 2026-10-12).
+function agreedTo(stored, version) {
+  const v = typeof stored === 'number' ? stored : (typeof stored === 'string' && /^\d+$/.test(stored) ? Number(stored) : NaN);
+  return Number.isInteger(v) && v >= version;
+}
+
+module.exports = { createAgreementGate, agreedTo };

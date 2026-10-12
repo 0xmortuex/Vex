@@ -8080,9 +8080,22 @@ function _wireEphemeralBrowsing(ses, tag) {
   wireClientHintsOnSession(ses);
 }
 
+// A private window shows no agreement of its own (it keeps no storage, so it
+// would ask every time): it opens only once this profile has agreed in the
+// main window, read from the profile's saved settings (src/main/agreement-gate.js).
+const _LEGAL_VERSION = require('./renderer/js/legal').VexLegal.VERSION;
+async function _refuseBeforeAgreement() {
+  // "I agree" may still be on its way to disk: the saved settings are read
+  // once the writes already asked for are done.
+  await preferences.flush();
+  if (!require('./main/agreement-gate').agreedTo(_readPersistString('vex.legalAcceptedVersion', null), _LEGAL_VERSION)) {
+    throw new Error('A private window opens once you have agreed to the privacy policy and terms in the main Vex window');
+  }
+}
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
-function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '' } = {}) {
+async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '' } = {}) {
+  await _refuseBeforeAgreement();
   if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
   const privSession = secureSessions.fromPartition(privatePartition);

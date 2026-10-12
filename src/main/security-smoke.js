@@ -2,6 +2,9 @@
 const assert = require('assert/strict');
 const fs = require('fs/promises');
 async function run({ mainWindow, security, userData }) {
+  // A fresh profile agrees first, as a person would: a private window opens
+  // only once it has (main.js, _refuseBeforeAgreement).
+  await mainWindow.webContents.executeJavaScript("(async () => { await PersistentStorage.init(); localStorage.setItem('vex.legalAcceptedVersion', String(VexLegal.VERSION)); await PersistentStorage._flush(); })()");
   await mainWindow.webContents.executeJavaScript('window.vex.openPrivateWindow()');
   const host = [...security.hosts.values()].find(h => h.privatePartition);
   assert(host, 'Private window registered');
