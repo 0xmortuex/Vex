@@ -2458,8 +2458,8 @@ const VexPanels = (() => {
           VexSheets.close();
           this.tabsSettings();
         })));
-      body.appendChild(toggleRow('Confirm before closing them all', null,
-        VexStore.get('vex.confirmCloseAll', true), value => VexStore.set('vex.confirmCloseAll', value)));
+      body.appendChild(toggleRow('Ask before closing them all', 'Normal tabs come back with Undo; private ones are always asked about',
+        VexStore.get('vex.confirmCloseAll', false) === true, value => VexStore.set('vex.confirmCloseAll', value)));
 
       body.appendChild(heading('Battery'));
       body.appendChild(valueRow('Let background tabs sleep', 'Their timers and animations stop; the page stays loaded',

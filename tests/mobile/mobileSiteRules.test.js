@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('storing a rule', () => {
   it('starts from the defaults', () => {
     expect(VexSiteRules.for('example.com')).toEqual({
-      scripts: true, images: true, dark: null, desktop: null, autoplay: null, blocking: true, copy: false, zoom: 1
+      scripts: true, images: true, dark: null, desktop: null, autoplay: null, blocking: true, copy: false, popups: false, zoom: 1
     });
     expect(VexSiteRules.customised('example.com')).toEqual([]);
   });

@@ -87,7 +87,7 @@
     VexStore.prime('vex.restoreTabs', true),
     VexStore.prime('vex.closeTabsAfter', 0),
     VexStore.prime('vex.sleepTabs', 15),
-    VexStore.prime('vex.confirmCloseAll', true),
+    VexStore.prime('vex.confirmCloseAll', false),
     VexStore.prime('vex.menuOrder', null),
     VexStore.prime('vex.menuHidden', []),
     VexStore.prime('vex.loginHosts', []),
@@ -344,10 +344,21 @@
       // `background` is set when the page opened this without a tap — which is
       // what a pop-up is. Blocking it still tells you, so a site that needs one
       // is not a mystery.
-      if (data.background && VexStore.get('vex.blockPopups', true) !== false) {
-        VexUI.toast('Blocked a pop-up', 3000, {
-          label: 'Open it',
-          run: () => VexUI.openUrl(data.url, { newTab: true })
+      // A site you allowed pop-ups on (its sheet, or "Always allow" here) is let through.
+      const opener = VexTabStore.get(data.id);
+      const openerHost = opener ? VexSearch.prettyHost(opener.url) : '';
+      if (data.background && VexStore.get('vex.blockPopups', true) !== false
+        && !(openerHost && VexSiteRules.for(openerHost).popups === true)) {
+        VexUI.toast('Pop-up blocked', 4500, {
+          label: 'Options',
+          run: () => VexSheets.choose('Pop-up blocked', [
+            { id: 'open', label: 'Open it', note: VexSearch.prettyHost(data.url) || data.url },
+            ...(openerHost ? [{ id: 'always', label: 'Always allow on ' + openerHost, note: 'Change it in the site’s sheet' }] : [])
+          ], async choice => {
+            VexSheets.close();
+            if (choice === 'always') await VexSiteRules.set(openerHost, 'popups', true);
+            VexUI.openUrl(data.url, { newTab: true });
+          }, openerHost)
         });
         return;
       }

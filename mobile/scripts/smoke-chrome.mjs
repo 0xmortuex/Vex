@@ -1707,7 +1707,18 @@ results.popupBlocked = await page.evaluate(async () => {
   await new Promise(resolve => setTimeout(resolve, 200));
   return VexTabStore.all().length === before;
 });
-results.popupToast = await page.$$eval('.toast', toasts => toasts.some(t => t.textContent.includes('Blocked a pop-up')));
+results.popupToast = await page.$$eval('.toast', toasts => toasts.some(t => t.textContent.includes('Pop-up blocked')));
+// A site whose pop-ups you allowed gets them.
+results.popupAllowedForSite = await page.evaluate(async () => {
+  const opener = VexTabStore.active();
+  const host = VexSearch.prettyHost(opener.url);
+  await VexSiteRules.set(host, 'popups', true);
+  const before = VexTabStore.all().length;
+  window.__vexEmit('newTab', { id: opener.id, url: 'https://ok.example/window', background: true });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await VexSiteRules.set(host, 'popups', false);
+  return VexTabStore.all().length === before + 1;
+});
 
 // ── The blocking dashboard ──────────────────────────────────────────────────
 results.blockedByHost = await page.evaluate(async () => {
@@ -2209,7 +2220,7 @@ const expected = {
   toolbarHides: true, toolbarReturns: true, qrDrawn: true, qrVisible: true,
   promptReturns: 'Named', confirmCancels: false, pageSaved: true,
   toolbarButtonsChosen: '3:2', presentationScript: true, presentationEmptyWhenOff: true,
-  profileSaved: true, popupBlocked: true, popupToast: true,
+  profileSaved: true, popupBlocked: true, popupToast: true, popupAllowedForSite: true,
   blockedByHost: 'shop.example:40,news.example:12',
   agentParses: true, agentRefusesJunk: true, agentPanel: 'Let it do things',
   noteKept: true, notesPanelRows: 1,

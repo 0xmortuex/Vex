@@ -403,6 +403,11 @@ const VexSheets = (() => {
         toggle: rules.copy === true
       }, 'copy'));
       list.appendChild(toggleRow({
+        icon: 'external', label: 'Pop-ups',
+        note: 'Windows it opens without your tap. Blocked unless you allow this site',
+        toggle: rules.popups === true
+      }, 'popups'));
+      list.appendChild(toggleRow({
         icon: 'video', label: 'Let it play on its own',
         note: 'Vex asks for a tap before any video starts. Some sites are the reason you went.',
         toggle: rules.autoplay === true, tristate: true

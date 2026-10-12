@@ -911,15 +911,31 @@ const VexUI = (() => {
         const name = await prompt('Rename the group', 'A name for it', group.name);
         if (name) { await VexCollections.groups.rename(group.id, name); renderTabGrid(); }
       } else if (choice === 'close') {
-        if (!(await confirm('Close ' + inside + (inside === 1 ? ' tab' : ' tabs') + ' in ' + group.name + '?'))) return;
-        for (const id of group.tabIds.slice()) {
-          const tab = VexTabStore.get(id);
-          if (tab) await VexTabStore.close(id);
-        }
+        // Undo, not "Are you sure?", as on the desktop — except for private
+        // tabs, which nothing can bring back.
+        const closing = group.tabIds.map(id => VexTabStore.get(id)).filter(Boolean);
+        const isPrivate = closing.some(tab => tab.incognito);
+        if (isPrivate && !(await confirm('Close ' + inside + (inside === 1 ? ' tab' : ' tabs') + ' in ' + group.name + '? Private tabs cannot be brought back.'))) return;
+        const kept = closing.map(tab => ({ url: tab.url, title: tab.title }));
+        for (const tab of closing) await VexTabStore.close(tab.id);
         await VexCollections.groups.remove(group.id);
         renderTabGrid();
         renderToolbar();
-        toast('Closed ' + group.name);
+        if (isPrivate) { toast('Closed ' + group.name); return; }
+        toast('Closed ' + group.name, 5000, {
+          label: 'Undo',
+          run: async () => {
+            const ids = [];
+            for (const entry of kept) {
+              if (!entry.url || entry.url === 'about:blank') continue;
+              ids.push((await VexTabStore.create(entry.url, { background: true, title: entry.title })).id);
+            }
+            const again = await VexCollections.groups.create(group.name, ids);
+            await VexCollections.groups.recolour(again.id, group.color);
+            renderTabGrid();
+            renderToolbar();
+          }
+        });
       }
     });
     return true;
@@ -1678,8 +1694,10 @@ const VexUI = (() => {
         const closing = VexTabStore.all().filter(tab => !!tab.incognito === scope)
           .map(tab => ({ url: tab.url, title: tab.title }));
         if (!closing.length) return;
-        if (VexStore.get('vex.confirmCloseAll', true)
-          && !(await VexUI.confirm('Close all ' + closing.length + ' tabs?'))) return;
+        // Normal tabs come back with Undo, so they are not asked about first
+        // (unless you asked to be); private tabs cannot, so they always are.
+        if ((scope || VexStore.get('vex.confirmCloseAll', false) === true)
+          && !(await VexUI.confirm('Close all ' + closing.length + (scope ? ' private tabs? They cannot be brought back.' : ' tabs?')))) return;
         await VexTabStore.closeAll(scope);
         renderTabGrid();
         renderToolbar();

@@ -102,6 +102,7 @@ const VexSiteRules = (() => {
     autoplay: null,    // null = follow the global setting, which is "ask for a tap"
     blocking: true,
     copy: false,       // true: Copy Unlock on every page of the site
+    popups: false,     // true: a window it opens without your tap is let through
     zoom: 1
   };
 
@@ -209,6 +210,7 @@ const VexSiteRules = (() => {
       if (rules.autoplay === false) parts.push('no autoplay');
       if (!rules.blocking) parts.push('blocking off');
       if (rules.copy === true) parts.push('copying unlocked');
+      if (rules.popups === true) parts.push('pop-ups allowed');
       if (rules.zoom !== 1) parts.push(Math.round(rules.zoom * 100) + '% text');
       return parts.length ? parts.join(' · ') : 'Default settings';
     }
