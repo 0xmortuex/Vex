@@ -66,3 +66,4 @@ a82a342 none                       # v19.55.9 version bump, never published (fol
 4478335 none                       # Discord theme match rewrite: fixes unpublished work (v19.56.9 was never published)
 ab2a912 none                       # v19.71.4 version bump
 3d69a97 none                       # v19.91.7 version bump
+8677b48a none                       # v20.28.0 version bump
