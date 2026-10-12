@@ -42,6 +42,13 @@ const PasswordHealth = {
     return (parts.length >= 2 ? parts[parts.length - 2] : parts[0]) || h;
   },
 
+  _age(days) {
+    const y = Math.floor(days / 365);
+    if (y >= 1) return `${y} year${y === 1 ? '' : 's'}`;
+    const mo = Math.floor(days / 30);
+    return `${mo} month${mo === 1 ? '' : 's'}`;
+  },
+
   async _paint(m) {
     const body = m.querySelector('#pwh-body'); if (!body) return;
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
@@ -94,7 +101,17 @@ const PasswordHealth = {
       html += rowbox((health.weak).map(w =>
         line(esc(w.host) + (w.username ? ` <span style="color:var(--text-muted)">· ${esc(w.username)}</span>` : ''), esc((w.reasons || []).join(', ')))
       ).join(''));
-    } else html += `<div style="font-size:12px;color:var(--text-muted)">None flagged — no short, digit-only, or common passwords.</div>`;
+    } else html += `<div style="font-size:12px;color:var(--text-muted)">None flagged — no short, digit-only, common, repeating or easy-to-guess passwords.</div>`;
+
+    // Old: unchanged for a year. A reminder, not proof of a problem.
+    const olds = health.old || [];
+    html += card('#8a8aa5', 'Not changed in a year or more', olds.length);
+    if (olds.length) {
+      html += rowbox(olds.slice(0, 60).map(o =>
+        line(esc(o.host) + (o.username ? ` <span style="color:var(--text-muted)">· ${esc(o.username)}</span>` : ''), this._age(o.days))
+      ).join(''));
+      html += `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Counted from when Vex saved or last changed the password. A long, unique password does not need changing on a schedule; change the ones for accounts that matter most, or that you shared.</div>`;
+    } else html += `<div style="font-size:12px;color:var(--text-muted)">None — every saved password was saved or changed within the last year.</div>`;
 
     // Breached (opt-in): Have I Been Pwned's range API, k-anonymity.
     html += this._breachHtml(breachOn, esc, card, rowbox, line);

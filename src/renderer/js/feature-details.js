@@ -97,7 +97,7 @@ const FeatureDetails = {
   sitedata: 'Every cookie and stored item for one site, listed one by one, with the value editable. For the times when clearing everything would sign you out of the thing you are trying to fix.',
   siterules: 'Three switches per site: JavaScript, cookies, and content loaded from other hosts. The third one is the trap — YouTube serves its video from another host, so switching it off gives a black player; the toolbar now marks a site that is being held back.',
   siteidentity: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work. Start here when a site behaves oddly only in Vex.',
-  pwhealth: 'Finds reused passwords, weak ones, and accounts with no second factor — checked on this machine against local data, never by uploading your vault.',
+  pwhealth: 'Finds reused passwords, weak ones (short, common, repeating, or built from your username or the site name), passwords not changed in a year, and accounts with no second factor — checked on this machine against local data, never by uploading your vault.',
 
   // ---- Reading -------------------------------------------------------------
   pagediff: 'Marks the paragraphs that were not here last time you read the page: a changelog, a wiki page, a thread you are following. It compares against your own last visit, so it is private by construction.',

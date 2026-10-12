@@ -1,5 +1,7 @@
 const path = require('path');
 const { atomicWrite } = require('./file-store');
+const { weakReasons, ageDays } = require('./password-strength');
+const OLD_PASSWORD_DAYS = 365;
 // dialog / windowFor: the CSV export's save dialog. breachCheckOn: whether the
 // person turned on the breach check ('vex.breachCheck'); nothing is sent to
 // Have I Been Pwned unless it is. fetchRange(prefix) -> the range API's text
@@ -128,20 +130,27 @@ ipcMain.handle('vault:health', () => {
     const reused = [];
     for (const list of byPw.values()) { if (list.length > 1) reused.push({ count: list.length, entries: list }); }
     reused.sort((a, b) => b.count - a.count);
-    // Weak: short, digits-only, or a well-known common password.
-    const COMMON = new Set(['password', '123456', '12345678', '1234567890', 'qwerty', '111111', '123123', 'abc123', 'password1', 'iloveyou', '000000', 'letmein', 'admin', 'welcome', 'monkey', 'dragon', 'football', 'qwerty123']);
+    // Weak: the pattern checks in main/password-strength.js (short, digits
+    // only, a common password or a small change to one, a repeat or a simple
+    // sequence, the username or the site name inside it).
     const weak = [];
     for (const e of arr) {
       if (!e || !e.password) continue;
-      const reasons = [];
-      if (e.password.length < 8) reasons.push('too short');
-      if (/^\d+$/.test(e.password)) reasons.push('digits only');
-      if (COMMON.has(e.password.toLowerCase())) reasons.push('common password');
+      const reasons = weakReasons({ password: e.password, host: e.host, username: e.username });
       if (reasons.length) weak.push({ host: e.host, username: e.username, reasons });
     }
-    return { total: arr.length, reused, weak };
+    // Old: not changed for a year. The date is when Vex saved or last changed
+    // it (an import counts from the day it was imported).
+    const old = [];
+    for (const e of arr) {
+      if (!e || !e.password) continue;
+      const days = ageDays(e.updatedAt);
+      if (days !== null && days >= OLD_PASSWORD_DAYS) old.push({ host: e.host, username: e.username, days });
+    }
+    old.sort((x, y) => y.days - x.days);
+    return { total: arr.length, reused, weak, old };
   } catch (e) {
-    return { total: 0, reused: [], weak: [], error: e && e.message };
+    return { total: 0, reused: [], weak: [], old: [], error: e && e.message };
   }
 });
 ipcMain.handle('vault:save', async (_e, entry) => {
