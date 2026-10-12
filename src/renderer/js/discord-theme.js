@@ -11,9 +11,12 @@
 //     bypass route, like any theme link the user pastes there. Vex's link ends
 //     in LINK_MARK, so it is told apart from the user's own links;
 //   * every other theme (and your own) becomes a Vencord theme file, FILE,
-//     written from the theme's colours onto Discord's own colour variables
-//     with every text colour checked to 4.5:1, and switched on in Vencord's
-//     Local Themes (enabledThemes).
+//     switched on in Vencord's Local Themes (enabledThemes). It sets every
+//     colour variable Discord's own CSS defines and uses (js/discord-tokens.js,
+//     from scripts/discord-tokens.js), in every Discord mode, so a light Vex
+//     theme gives an all-light Discord even with Discord in dark mode; and
+//     every text-on-background pairing Discord's rules make is checked to
+//     4.5:1 (3:1 for icons).
 //
 // Only Vex's own entry is ever added, changed or removed: the user's links,
 // their other theme files and their QuickCSS are left exactly as they are.
@@ -27,7 +30,9 @@ const DiscordTheme = {
   APPLIED_KEY: 'vex.discordMatchApplied',    // '1' while Discord may still hold Vex's entries
   FILE: 'vex-theme-match.css',
   LINK_MARK: '#vex-theme-match',
-  MIN_CONTRAST: 4.5,
+  // The least a colour gets when Discord uses it in ways no lightness can
+  // all serve at 3:1 on the theme's surfaces (see tokens()).
+  BALANCED_FLOOR: 2.5,
   // How long a Discord page is given for Vencord to start.
   VENCORD_WAIT_MS: 15000,
 
@@ -86,143 +91,384 @@ const DiscordTheme = {
     return ct;
   },
 
-  // `fg` moved in lightness, the least it can be, until it reads at
-  // MIN_CONTRAST on every one of `bgs`. Throws when no lightness can.
-  _readable(fg, bgs) {
+  _data() {
+    const d = (typeof DiscordTokens !== 'undefined') ? DiscordTokens : (typeof window !== 'undefined' ? window.DiscordTokens : null);
+    if (!d) throw new Error('Discord\'s colour variables (js/discord-tokens.js) are not loaded');
+    return d;
+  },
+
+  // '#rrggbb' or '#rrggbbaa' -> { hex: '#rrggbb', a }.
+  _parse(v) {
+    const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(v);
+    if (!m) throw new Error('Not a Discord colour value: ' + v);
+    return { hex: '#' + m[1], a: m[2] ? Math.round(parseInt(m[2], 16) / 255 * 1000) / 1000 : 1 };
+  },
+
+  _over(fg, bgHex) {
+    if (fg.a >= 1) return fg.hex;
+    return this._ct().mix(bgHex, fg.hex, fg.a);
+  },
+
+  // Discord's colour `v` ({hex, a}) in the Vex theme. Greys are placed on the
+  // theme's own ladder by where they sit on Discord's (its chat background,
+  // muted text and text, in `axis`); Discord's blurple, red, green and amber
+  // become the theme's accent, danger, success and warning, as much lighter
+  // or darker than them as Discord's were than its own; other colours
+  // (Nitro, chart and role colours) keep their hue and take the ladder's
+  // lightness. `flip`: the colour comes from a Discord design of the other
+  // brightness than the theme's.
+  _map(v, axis, refs, vex, flip) {
     const ct = this._ct();
-    const worst = (c) => Math.min(...bgs.map(b => ct.contrast(c, b)));
-    if (worst(fg) >= this.MIN_CONTRAST) return fg;
-    const [h, s, l] = ct.toHsl(fg);
-    for (let step = 1; step <= 200; step++) {
-      for (const dir of [-1, 1]) {
-        const nl = l + dir * step * 0.005;
-        if (nl < 0 || nl > 1) continue;
-        const cand = ct.fromHsl(h, s, nl);
-        if (worst(cand) >= this.MIN_CONTRAST) return cand;
-      }
+    const lab = (h) => ct.rgbToOklab(...ct.rgb(h));
+    const [L, a, b] = lab(v.hex);
+    const C = Math.hypot(a, b), h = (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+    const [Lb, Lm, Lt] = axis.map(x => lab(x)[0]);
+    const span = (Lt - Lb) || 1e-6;
+    const s = (L - Lb) / span, sm = Math.min(0.95, Math.max(0.05, (Lm - Lb) / span));
+    const V = vex.axis;
+    const [A, B, u] = s <= sm ? [V[0], V[1], s / sm] : [V[1], V[2], (s - sm) / (1 - sm)];
+    const ladderL = A[0] + u * (B[0] - A[0]);
+    const out = (hex) => ({ hex, a: v.a });
+    if (C < 0.035) {
+      const k = Math.max(0, Math.min(1, u));
+      const na = A[1] + k * (B[1] - A[1]), nb = A[2] + k * (B[2] - A[2]);
+      return out(ct.fromOklch(ladderL, Math.hypot(na, nb), (Math.atan2(nb, na) * 180 / Math.PI + 360) % 360));
     }
-    for (const ink of ['#ffffff', '#000000']) if (worst(ink) >= this.MIN_CONTRAST) return ink;
-    throw new Error('No text colour reads on these backgrounds: ' + bgs.join(', '));
+    let best = null, bestD = 35;
+    for (const fam of ['brand', 'danger', 'success', 'warning']) {
+      const [, , rh] = ct.toOklch(refs[fam]);
+      const d = Math.min(Math.abs(rh - h), 360 - Math.abs(rh - h));
+      if (d < bestD) { bestD = d; best = fam; }
+    }
+    if (!best) return out(ct.fromOklch(ladderL, C, h));
+    const [rL, rC] = ct.toOklch(refs[best]);
+    const [tL, tC, tH] = ct.toOklch(vex[best]);
+    const dL = (L - rL) * (flip ? -1 : 1);
+    return out(ct.fromOklch(tL + dL, Math.min(tC * 1.5, tC * (rC > 0.01 ? C / rC : 1)), tH));
+  },
+
+  // Which of Discord's colours are text on the page (drawn straight on the
+  // surfaces, or on a hover veil over them), and which are its inks: a theme
+  // variable that is plain white or black in Discord's design and only ever
+  // drawn on filled things (a button, a badge, a notice). Like Discord, Vex
+  // keeps an ink white or black, and the fill moves until it reads, so every
+  // label on the accent button agrees instead of each nudging it its own way.
+  _kinds(light) {
+    const D = this._data();
+    const onSurfaces = new Set(D.freeText.map(f => f[0]));
+    for (const [fg, bg] of D.pairs) if (D.floors.includes(bg) || D.layers.includes(bg)) onSurfaces.add(fg);
+    const inks = new Set();
+    for (const [fg] of D.pairs) {
+      const raw = D.semantic[fg] && D.semantic[fg][light ? 1 : 0];
+      if ((raw === '#ffffff' || raw === '#000000') && !onSurfaces.has(fg)) inks.add(fg);
+    }
+    return { onSurfaces, inks };
+  },
+
+  // The palette colours some of Discord's rules use for one mode only
+  // (.theme-dark .x { color: var(--primary-300) }). Those are recoloured per
+  // Discord mode, so a rule written for dark mode still reads when a light
+  // theme turns that mode light; every other palette colour is recoloured
+  // once, from Discord's design of the theme's own brightness, which keeps
+  // the pairings Discord made with it (white on its grey and its blurple)
+  // as readable as Discord made them.
+  _modeBound() {
+    const D = this._data();
+    const out = new Set();
+    for (const p of D.pairs) if (p[5]) for (const n of [p[0], p[1]]) if (Object.prototype.hasOwnProperty.call(D.primitive, n)) out.add(n);
+    for (const f of D.freeText) if (f[3] && Object.prototype.hasOwnProperty.call(D.primitive, f[0])) out.add(f[0]);
+    return out;
+  },
+
+  // Every text-on-background pairing to check for a light or dark theme, per
+  // Discord mode: { fg, bg (null: the surfaces), min, fa, ba, m, discord }.
+  // A pairing of colours taken from Discord's design of the theme's own
+  // brightness is checked when that design means it to be read; a pairing
+  // with a palette colour recoloured per mode (see _modeBound) is checked in
+  // each mode where Discord's own colours read, when they also read in a
+  // Discord mode as light or dark as the theme (a colour Discord uses both
+  // as text on its white page and under white text cannot do both on a dark
+  // page, so its light-mode-only use is not carried over to a dark theme,
+  // and the other way round). `discord` is how well the pairing reads in
+  // Discord itself.
+  //
+  // Two shapes are left out because no colour can satisfy them without
+  // breaking the text people read most: one of Discord's text colours used
+  // as the background of something (black text on a pill the colour of the
+  // channel names), and page text unlike Discord's white or black ink drawn
+  // on a fill that also carries that ink (the accent button with both a
+  // white label and dark page text on it). The ink and the page text win.
+  pairings(light) {
+    const D = this._data();
+    const own = light ? 'light' : 'dark';
+    const sameKind = D.modes.filter(m => (m === 'light') === light);
+    const { onSurfaces, inks } = this._kinds(light);
+    const isInk = (n) => inks.has(n) || Object.prototype.hasOwnProperty.call(D.absolute, n);
+    // Discord's own colour for a variable, in its design of this brightness.
+    const raw = (n) => {
+      const v = D.absolute[n] || (D.semantic[n] && D.semantic[n][light ? 1 : 0]) || D.primitive[n];
+      return v ? this._parse(Array.isArray(v) ? v[D.modes.indexOf(own)] : v).hex : null;
+    };
+    const inksOn = new Map();
+    for (const [fg, bg] of D.pairs) if (isInk(fg)) { if (!inksOn.has(bg)) inksOn.set(bg, []); inksOn.get(bg).push(raw(fg)); }
+    const ct = this._ct();
+    const fightsInk = (fg, bg) => inksOn.has(bg) && !isInk(fg) && onSurfaces.has(fg) && raw(fg)
+      && inksOn.get(bg).some(ink => ct.contrast(ink, raw(fg)) > 3);
+    const bound = this._modeBound();
+    const want = [];
+    const push = (w, modes, reads) => {
+      if (w.bg && ((onSurfaces.has(w.bg) && /(^--|-)(text|icon)(-|$)/.test(w.bg)) || fightsInk(w.fg, w.bg))) return;
+      const rd = reads.split(' ');
+      const palette = [w.fg, w.bg].some(n => n && bound.has(n));
+      const ms = modes ? modes.split(' ') : D.modes;
+      if (palette) {
+        if (!rd.some(m => sameKind.includes(m))) return;
+        for (const m of ms) if (rd.includes(m)) want.push({ ...w, m, ref: m });
+        return;
+      }
+      if (!(modes ? ms.some(m => rd.includes(m)) : rd.includes(own))) return;
+      for (const m of ms) want.push({ ...w, m, ref: modes ? m : own });
+    };
+    for (const [fg, bg, min, fa, ba, modes, reads] of D.pairs) push({ fg, bg, min, fa, ba }, modes, reads);
+    for (const [fg, min, fa, modes, reads] of D.freeText) push({ fg, bg: null, min, fa }, modes, reads);
+    // How well each pairing reads in Discord itself: where no colour can
+    // serve all of a colour's uses, Vex holds it to that (see tokens()).
+    const inMode = (n, m) => {
+      const v = D.absolute[n] || (D.semantic[n] && D.semantic[n][m === 'light' ? 1 : 0]) || D.primitive[n];
+      return v ? this._parse(Array.isArray(v) ? v[D.modes.indexOf(m)] : v) : null;
+    };
+    for (const w of want) {
+      const f = inMode(w.fg, w.ref);
+      const fv = w.fa === null || w.fa === undefined ? f : { hex: f.hex, a: w.fa };
+      const floors = D.floors.map(n => inMode(n, w.ref).hex);
+      let bgs = floors;
+      if (w.bg) {
+        const b = inMode(w.bg, w.ref);
+        const bv = w.ba === null || w.ba === undefined ? b : { hex: b.hex, a: w.ba };
+        bgs = bv.a >= 1 ? [bv.hex] : floors.map(x => this._over(bv, x));
+      }
+      w.discord = Math.min(...bgs.map(b => ct.contrast(this._over(fv, b), b)));
+    }
+    return want;
   },
 
   // From a theme's colours (js/theme-custom.js's nine: background surface
-  // text muted primary success warning danger border) to Discord's colour
-  // variables. Returns { vars, checks, light }: checks lists every text
-  // colour against what it is drawn on.
+  // text muted primary success warning danger border) to every colour
+  // variable Discord's own CSS defines and uses (js/discord-tokens.js).
+  // Returns { vars, modeVars, checks, light }: vars are Discord's theme
+  // variables (the same in every Discord mode: a light Vex theme makes a
+  // light Discord whichever mode Discord is in), modeVars its palette
+  // colours its components use directly, per Discord mode; checks are every
+  // text-on-background pairing Discord's rules make, after the fixes.
   tokens(colors) {
-    const ct = this._ct();
+    const ct = this._ct(), D = this._data();
     const c = ct.complete(colors);
     const light = ct.isLight(c);
-    const bg = c.background, surf = c.surface;
-    // Discord's ladder, darkest to lightest in dark mode: the server rail,
-    // the channel list, the chat, then popouts and modals above it.
-    const lowest = light ? ct.mix(bg, c.text, 0.08) : ct.mix(bg, '#000000', 0.3);
-    const lower = light ? ct.mix(bg, c.text, 0.04) : ct.mix(bg, '#000000', 0.15);
-    const higher = ct.mix(surf, c.text, 0.04);
-    const highest = ct.mix(surf, c.text, 0.08);
-    const floors = [lowest, lower, bg, surf, higher, highest];
-    const text = this._readable(c.text, floors);
-    const strong = this._readable(light ? ct.mix(text, '#000000', 0.4) : ct.mix(text, '#ffffff', 0.4), floors);
-    const muted = this._readable(c.muted, floors);
-    const subtle = this._readable(ct.mix(text, muted, 0.5), floors);
-    const link = this._readable(c.primary, [lowest, lower, bg, surf, higher]);
-    // The accent as a button: white or black text, whichever reads; the
-    // button itself darkened or lightened until it does.
-    let button = c.primary, onButton;
-    const pickInk = (b) => (ct.contrast('#ffffff', b) >= ct.contrast('#000000', b) ? '#ffffff' : '#000000');
-    onButton = pickInk(button);
-    if (ct.contrast(onButton, button) < this.MIN_CONTRAST) {
-      const [h, s, l] = ct.toHsl(button);
-      const dir = onButton === '#ffffff' ? -1 : 1;
-      for (let step = 1; step <= 200 && ct.contrast(onButton, button) < this.MIN_CONTRAST; step++) button = ct.fromHsl(h, s, Math.max(0, Math.min(1, l + dir * step * 0.005)));
-    }
-    const buttonHover = ct.mix(button, onButton === '#ffffff' ? '#000000' : '#ffffff', 0.1);
-    const buttonActive = ct.mix(button, onButton === '#ffffff' ? '#000000' : '#ffffff', 0.2);
-    const success = this._readable(c.success, [lowest, lower, bg, surf]);
-    const warning = this._readable(c.warning, [lowest, lower, bg, surf]);
-    const danger = this._readable(c.danger, [lowest, lower, bg, surf]);
-    const [tr, tg, tb] = ct.rgb(text);
-    const veil = (a) => `rgb(${tr} ${tg} ${tb} / ${a})`;
-    const [pr, pg, pb] = ct.rgb(button);
-    const tint = (a) => `rgb(${pr} ${pg} ${pb} / ${a})`;
-    const vars = {
-      // backgrounds
-      '--background-base-lowest': lowest, '--background-base-lower': lower, '--background-base-low': bg,
-      '--background-surface-high': surf, '--background-surface-higher': higher, '--background-surface-highest': highest,
-      '--background-secondary-alt': lower, '--background-accent': button, '--background-brand': button,
-      '--app-frame-background': lowest, '--panel-bg': lower, '--channel-background-default': lower,
-      '--chat-background': bg, '--chat-background-default': bg, '--channeltextarea-background': surf,
-      '--bg-surface-raised': surf, '--card-background-default': surf,
-      '--modal-background': surf, '--modal-footer-background': higher,
-      // hover and selection veils, from the text colour so they show on any floor
-      '--background-mod-muted': veil(0.04), '--background-mod-subtle': veil(0.08),
-      '--background-mod-normal': veil(0.12), '--background-mod-strong': veil(0.16),
-      '--interactive-background-default': veil(0.04), '--interactive-background-hover': veil(0.08),
-      '--interactive-background-active': veil(0.12), '--interactive-background-selected': veil(0.16),
-      '--message-background-hover': veil(0.04),
-      // text and icons
-      '--text-default': text, '--text-strong': strong, '--text-subtle': subtle, '--text-muted': muted,
-      '--text-invert': bg, '--text-brand': link, '--text-link': link,
-      '--text-feedback-positive': success, '--text-feedback-warning': warning, '--text-feedback-critical': danger,
-      '--channels-default': subtle, '--channel-icon': muted, '--chat-text-muted': muted,
-      '--channel-text-area-placeholder': muted, '--input-placeholder-text-default': muted, '--input-text-default': text,
-      '--interactive-text-default': subtle, '--interactive-text-hover': text, '--interactive-text-active': strong,
-      '--interactive-icon-default': subtle, '--interactive-icon-hover': text, '--interactive-icon-active': strong,
-      '--icon-default': text, '--icon-strong': strong, '--icon-subtle': subtle, '--icon-muted': muted,
-      '--icon-brand': link, '--icon-link': link,
-      '--mention-foreground': link, '--control-brand-foreground': link, '--control-brand-foreground-new': link,
-      // the accent
-      '--brand-500': button, '--brand-560': buttonHover, '--brand-600': buttonActive,
-      '--control-primary-background-default': button, '--control-primary-background-hover': buttonHover,
-      '--control-primary-background-active': buttonActive,
-      '--control-primary-text-default': onButton, '--control-primary-text-hover': onButton, '--control-primary-text-active': onButton,
-      '--control-primary-icon-default': onButton, '--control-primary-icon-hover': onButton, '--control-primary-icon-active': onButton,
-      '--interactive-accent-background-hover': button, '--interactive-accent-background-selected': button,
-      '--interactive-accent-background-active': buttonActive,
-      '--badge-background-brand': button, '--badge-text-brand': onButton,
-      '--input-border-active': button, '--border-focus': button,
-      '--mention-background': tint(0.24), '--message-highlight-background-default': tint(0.16),
-      '--message-highlight-background-hover': tint(0.12),
-      '--scrollbar-auto-thumb': c.border, '--scrollbar-thin-thumb': c.border,
-    };
-    const named = { [lowest]: 'the server list', [lower]: 'the channel list', [bg]: 'the chat', [surf]: 'popouts', [higher]: 'raised popouts', [highest]: 'the highest popouts' };
-    const pairs = [
-      ['Text', text, floors], ['Strong text', strong, floors], ['Muted text', muted, floors],
-      ['Channel names', subtle, floors], ['Links and the accent as text', link, [lowest, lower, bg, surf, higher]],
-      ['Text on the accent', onButton, [button, buttonHover, buttonActive]],
-      ['Success', success, [lowest, lower, bg, surf]], ['Warning', warning, [lowest, lower, bg, surf]], ['Danger', danger, [lowest, lower, bg, surf]],
-    ];
-    const checks = pairs.map(([label, fg, on]) => {
-      let worst = Infinity, against = on[0];
-      for (const b of on) { const r = ct.contrast(fg, b); if (r < worst) { worst = r; against = b; } }
-      return { label, fg, against, againstName: named[against] || against, ratio: Math.round(worst * 100) / 100, ok: worst >= this.MIN_CONTRAST };
+    const lab = (h) => ct.rgbToOklab(...ct.rgb(h));
+    const vex = { axis: [c.background, c.muted, c.text].map(lab), brand: c.primary, danger: c.danger, success: c.success, warning: c.warning };
+    const own = light ? 'light' : 'dark';
+    const sem = {};
+    for (const [n, vals] of Object.entries(D.semantic)) sem[n] = this._map(this._parse(vals[light ? 1 : 0]), D.axes[own], D.refs[own], vex, false);
+    const prim = {};
+    const bound = this._modeBound();
+    const oi = D.modes.indexOf(own);
+    D.modes.forEach((m, i) => {
+      prim[m] = {};
+      for (const [n, v] of Object.entries(D.primitive)) {
+        prim[m][n] = bound.has(n)
+          ? this._map(this._parse(Array.isArray(v) ? v[i] : v), D.axes[m], D.refs[m], vex, (m === 'light') !== light)
+          : this._map(this._parse(Array.isArray(v) ? v[oi] : v), D.axes[own], D.refs[own], vex, false);
+      }
     });
-    return { vars, checks, light };
+    const abs = {};
+    for (const [n, v] of Object.entries(D.absolute)) abs[n] = this._parse(v);
+    const { inks } = this._kinds(light);
+    for (const n of inks) abs[n] = sem[n] = this._parse(D.semantic[n][light ? 1 : 0]);
+    // A see-through black (a scrim behind a dialog, a shade over a picture)
+    // stays black: it darkens what is under it in any theme.
+    for (const [n, vals] of Object.entries(D.semantic)) if (/^#000000[0-9a-f]{2}$/.test(vals[light ? 1 : 0])) sem[n] = this._parse(vals[light ? 1 : 0]);
+    const val = (n, m) => abs[n] || prim[m][n] || sem[n] || null;
+    const want = this.pairings(light);
+    // The surfaces never move (they are the theme), so each mode's set of
+    // them is made once.
+    const floorCache = {};
+    const floorsOf = (m) => floorCache[m] || (floorCache[m] = [...new Set(D.floors.map(n => val(n, m).hex))]);
+    const withAlpha = (v, a) => (a === null || a === undefined ? v : { hex: v.hex, a });
+    const isAbs = (n) => Object.prototype.hasOwnProperty.call(abs, n);
+    const owner = (n, m) => (prim[m][n] ? prim[m] : sem);
+    const surfaces = new Set([...D.floors, ...D.layers]);
+    const known = want.filter(w => val(w.fg, w.m) && (!w.bg || val(w.bg, w.m)));
+    // The opaque colours a background stands for: the surfaces for text
+    // drawn straight on them, a background itself, or a see-through one (a
+    // hover or selection veil) over each surface.
+    const bgsFor = (w, bgv) => {
+      if (!w.bg) return floorsOf(w.m);
+      const b = withAlpha(bgv, w.ba);
+      return b.a >= 1 ? [b.hex] : floorsOf(w.m).map(f => this._over(b, f));
+    };
+    const worstOf = (fgv, bgs) => {
+      let worst = Infinity, against = bgs[0];
+      for (const b of bgs) { const r = ct.contrast(this._over(fgv, b), b); if (r < worst) { worst = r; against = b; } }
+      return { worst, against };
+    };
+    // How well a pairing reads, as a share of what it needs (>= 1 is enough).
+    // Relaxed, for a colour no lightness can serve in all its uses, it needs
+    // 3:1 (the floor for large text and controls), or what Discord's own
+    // colours give that pairing when that is less.
+    const need = (w, relaxed) => (relaxed ? Math.min(w.min, w.discord, 3) : w.min);
+    const score = (w, fgv, bgv, relaxed) => worstOf(withAlpha(fgv, w.fa), bgsFor(w, bgv)).worst / need(w, relaxed);
+    // Each colour that can move (a theme variable once, a palette colour
+    // once per Discord mode; never the surfaces, which are the theme, nor
+    // Discord's fixed white and black), with every pairing it is in, as the
+    // text or as what the text is drawn on.
+    const keyOf = (n, m) => (owner(n, m) === sem ? n : n + '@' + m);
+    const movable = (n) => !isAbs(n) && !surfaces.has(n);
+    const roles = new Map();
+    const add = (k, r) => { if (!roles.has(k)) roles.set(k, []); roles.get(k).push(r); };
+    for (const w of known) {
+      if (movable(w.fg)) add(keyOf(w.fg, w.m), { w, as: 'fg' });
+      if (w.bg && movable(w.bg)) add(keyOf(w.bg, w.m), { w, as: 'bg' });
+    }
+    const conflicted = new Set();
+    // Of those, the ones that cannot reach even the relaxed need (they read
+    // as well as they can on all their uses at once).
+    const impossible = new Set();
+    // Move one colour's lightness, the least it can be, until every pairing
+    // it is in reads. When no lightness can (Discord uses the same green as
+    // text on the dark surfaces and under white text, and no colour is 4.5:1
+    // from both), it takes the lightness that reads best on all of them, and
+    // is remembered as a conflict.
+    const settle = (k, bestEffort, only) => {
+      const rs = only ? (roles.get(k) || []).filter(only) : roles.get(k);
+      if (!rs || !rs.length) return;
+      const { w, as } = rs[0];
+      const n = as === 'fg' ? w.fg : w.bg;
+      const store = owner(n, w.m);
+      // The worst score over every pairing; it stops early once it is below
+      // `floor` (that candidate can neither pass nor beat the best so far).
+      const test = (cand, floor = -Infinity) => {
+        let worst = Infinity;
+        for (const r of rs) {
+          const s = r.as === 'fg' ? score(r.w, cand, r.w.bg ? val(r.w.bg, r.w.m) : null, bestEffort) : score(r.w, val(r.w.fg, r.w.m), cand, bestEffort);
+          if (s < worst) { worst = s; if (worst < floor) return worst; }
+        }
+        return worst;
+      };
+      const v = store[n];
+      let best = v, bestScore = test(v);
+      if (bestScore >= 0.999) { if (bestEffort) conflicted.add(k); return; }
+      const [L, C, h] = ct.toOklch(v.hex);
+      for (let step = 1; step <= 100; step++) {
+        for (const dir of [-1, 1]) {
+          const nl = L + dir * step * 0.01;
+          if (nl < 0 || nl > 1) continue;
+          const cand = { hex: ct.fromOklch(nl, C, h), a: v.a };
+          const s = test(cand, bestScore);
+          if (s >= 0.999) { store[n] = cand; if (bestEffort) conflicted.add(k); return; }
+          if (s > bestScore) { best = cand; bestScore = s; }
+        }
+      }
+      for (const ink of ['#ffffff', '#000000']) {
+        const cand = { hex: ink, a: v.a };
+        const s = test(cand, bestScore);
+        if (s >= 0.999) { store[n] = cand; if (bestEffort) conflicted.add(k); return; }
+        if (s > bestScore) { best = cand; bestScore = s; }
+      }
+      if (bestEffort) { store[n] = best; conflicted.add(k); impossible.add(k); }
+    };
+    const reads = (w) => score(w, val(w.fg, w.m), w.bg ? val(w.bg, w.m) : null) >= 0.999;
+    // 1. A background under one of Discord's fixed inks (white text on a
+    // button) moves until the ink reads; any other text on it follows below.
+    const underInk = (r) => r.as === 'bg' && isAbs(r.w.fg);
+    for (const k of new Set(known.filter(w => w.bg && isAbs(w.fg) && movable(w.bg)).map(w => keyOf(w.bg, w.m)))) settle(k, false, underInk);
+    // 2. Every other text and icon colour moves until it reads on all it is
+    // drawn on; the page's own text first reads on the page, whatever else
+    // it is drawn on (the fills give way to it below).
+    const texts = new Set(known.filter(w => movable(w.fg)).map(w => keyOf(w.fg, w.m)));
+    const onPage = (r) => r.as === 'fg' && (!r.w.bg || surfaces.has(r.w.bg));
+    for (const k of texts) settle(k, false, onPage);
+    for (const k of texts) settle(k, false);
+    // 3. Text that cannot read on every one of its backgrounds at once (the
+    // same label on a grey hover and on a red or accent button): the
+    // coloured background moves to suit it. What still cannot read takes the
+    // best it can.
+    for (let round = 0; round < 3; round++) {
+      const bad = known.filter(w => !reads(w));
+      if (!bad.length) break;
+      // In the last round a fill gives way before the text does.
+      for (const k of new Set(bad.filter(w => w.bg && movable(w.bg)).map(w => keyOf(w.bg, w.m)))) settle(k, round === 2);
+      const still = bad.filter(w => !reads(w) && movable(w.fg));
+      for (const k of new Set(still.map(w => keyOf(w.fg, w.m)))) settle(k, round === 2);
+    }
+    const checks = known.map((w) => {
+      const fgv = withAlpha(val(w.fg, w.m), w.fa);
+      const { worst, against } = worstOf(fgv, bgsFor(w, w.bg ? val(w.bg, w.m) : null));
+      // A conflict: a colour that could not serve all its uses, or a pairing
+      // of two of Discord's fixed colours (white on its see-through black)
+      // over the theme's surfaces, where nothing can move.
+      const conflict = worst < w.min - 0.005 && (conflicted.has(keyOf(w.fg, w.m)) || (!!w.bg && conflicted.has(keyOf(w.bg, w.m)))
+        || (!movable(w.fg) && (!w.bg || !movable(w.bg))));
+      const balanced = conflict && (impossible.has(keyOf(w.fg, w.m)) || (!!w.bg && impossible.has(keyOf(w.bg, w.m))));
+      return {
+        label: w.fg + ' on ' + (w.bg || 'the surfaces') + ' (' + w.m + ')', fg: fgv.hex, against,
+        ratio: Math.round(worst * 100) / 100, min: w.min, discord: Math.round(w.discord * 100) / 100, conflict, balanced,
+        // A conflict is held to 3:1, or what Discord itself gives that
+        // pairing when that is less; one balanced between uses that cannot
+        // all reach that, to BALANCED_FLOOR.
+        ok: worst >= (balanced ? Math.min(need(w, true), this.BALANCED_FLOOR) : need(w, conflict)) - 0.01,
+      };
+    });
+    const fmt = (n, v) => {
+      if (n.endsWith('-hsl')) {
+        const [h, s, l] = ct.toHsl(v.hex);
+        return `${Math.round(h * 3600) / 10} ${Math.round(s * 1000) / 10}% ${Math.round(l * 1000) / 10}%`;
+      }
+      if (v.a >= 1) return v.hex;
+      const [r, g, b] = ct.rgb(v.hex);
+      return `rgb(${r} ${g} ${b} / ${Math.round(v.a * 1000) / 1000})`;
+    };
+    const vars = {};
+    for (const [n, v] of Object.entries(sem)) vars[n] = fmt(n, v);
+    const modeVars = {};
+    for (const m of D.modes) { modeVars[m] = {}; for (const [n, v] of Object.entries(prim[m])) modeVars[m][n] = fmt(n, v); }
+    return { vars, modeVars, checks, light };
   },
 
   // Discord's own variables are set on its .theme-dark / .theme-light /
   // .theme-darker / .theme-midnight elements (and again, more specific, for
   // high-contrast mode). This selector outranks both, on <html> and inside
   // it, and leaves people's Nitro profile themes alone.
-  SELECTOR: [':root:root.theme-dark', ':root:root.theme-light', ':root:root.theme-darker', ':root:root.theme-midnight',
-    ':root:root .theme-dark:not(.custom-user-profile-theme)', ':root:root .theme-light:not(.custom-user-profile-theme)',
-    ':root:root .theme-darker:not(.custom-user-profile-theme)', ':root:root .theme-midnight:not(.custom-user-profile-theme)'].join(',\n'),
+  _modeSelector(m) { return `:root:root.theme-${m},\n:root:root .theme-${m}:not(.custom-user-profile-theme)`; },
+  get SELECTOR() { return this._data().modes.map(m => this._modeSelector(m)).join(',\n'); },
 
   _cssValue(v) {
-    if (/^#[0-9a-f]{6}$/.test(v) || /^rgb\(\d{1,3} \d{1,3} \d{1,3} \/ 0\.\d{1,2}\)$/.test(v)) return v;
+    if (/^#[0-9a-f]{6}$/.test(v) || /^rgb\(\d{1,3} \d{1,3} \d{1,3} \/ (0|1|0\.\d{1,3})\)$/.test(v)
+      || /^\d{1,3}(\.\d)? \d{1,3}(\.\d)?% \d{1,3}(\.\d)?%$/.test(v)) return v;
     throw new Error('Refusing a Discord theme value: ' + v);
   },
 
-  // The Vencord theme file for `colors`. `name` is the Vex theme's name, for
-  // the header Vencord shows in its Themes list.
-  css(colors, name) {
-    const { vars } = this.tokens(colors);
-    const label = String(name || 'your theme').replace(/[^\w .+'-]/g, '').slice(0, 40) || 'your theme';
+  _block(selector, vars) {
     const body = Object.entries(vars).map(([k, v]) => {
-      if (!/^--[a-z0-9-]+$/.test(k)) throw new Error('Refusing a Discord variable: ' + k);
+      if (!/^--[a-z0-9_-]+$/i.test(k)) throw new Error('Refusing a Discord variable: ' + k);
       return `  ${k}: ${this._cssValue(v)} !important;`;
     }).join('\n');
-    return `/**\n * @name Vex theme match\n * @description Discord in the colours of the Vex theme "${label}". Written by Vex (Settings > Appearance > Match Discord to my Vex theme); turn that off to remove it.\n * @author Vex\n */\n${this.SELECTOR} {\n${body}\n}\n`;
+    return `${selector} {\n${body}\n}\n`;
+  },
+
+  // The Vencord theme file for `colors`. `name` is the Vex theme's name, for
+  // the header Vencord shows in its Themes list. Throws, naming them, when
+  // some text could not be made to read.
+  css(colors, name) {
+    const { vars, modeVars, checks } = this.tokens(colors);
+    // A palette colour balanced between uses that no colour can all serve
+    // (see tokens()) reads as well as it can; anything else short is a bug.
+    const bad = checks.filter(k => !k.ok && !k.balanced);
+    if (bad.length) throw new Error('Some Discord text would not read in these colours: ' + bad.slice(0, 5).map(k => `${k.label} ${k.ratio}:1`).join('; '));
+    const label = String(name || 'your theme').replace(/[^\w .+'-]/g, '').slice(0, 40) || 'your theme';
+    let out = `/**\n * @name Vex theme match\n * @description Discord in the colours of the Vex theme "${label}". Written by Vex (Settings > Appearance > Match Discord to my Vex theme); turn that off to remove it.\n * @author Vex\n */\n`;
+    out += this._block(this.SELECTOR, vars);
+    for (const m of this._data().modes) out += this._block(this._modeSelector(m), modeVars[m]);
+    return out;
   },
 
   // ---- what Discord should wear ---------------------------------------------
