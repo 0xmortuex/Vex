@@ -682,7 +682,7 @@ const DiscordTheme = {
   applyAll() {
     if (this._queued) return this._chain;
     this._queued = true;
-    this._chain = this._chain.then(async () => {
+    const run = this._chain.then(async () => {
       this._queued = false;
       const plan = this.plan();
       const out = [];
@@ -701,7 +701,11 @@ const DiscordTheme = {
       this._renderState();
       return out;
     });
-    return this._chain;
+    // A run that failed (a theme whose colours cannot be worked out) says so to
+    // whoever asked, and must not end the chain: every later change would
+    // otherwise be skipped for the rest of the session.
+    this._chain = run.catch(() => {});
+    return run;
   },
 
   // A Discord page finished loading (js/sidebar.js's panel, js/webview.js's
