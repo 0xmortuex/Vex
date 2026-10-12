@@ -164,28 +164,26 @@ describe('with a panel docked beside the page (browser looks, Glass)', () => {
     openPanel('discord');
   });
 
-  it('opening the panel puts you on it: the website buttons stand still', () => {
-    expect(NavLock.run('back')).toBe(false);
-    expect(btn('btn-back').getAttribute('aria-disabled')).toBe('true');
+  it('the website is on screen beside the panel, so the toolbar buttons stay live', () => {
+    expect(NavLock.blocked()).toBe(false);
+    expect(NavLock.run('back')).toBe(true);
+    expect(btn('btn-back').title).not.toContain(NavLock.WHY);
   });
 
-  it('using the page beside it gives them back; using the panel again takes them away', () => {
-    btn('tab-page').dispatchEvent(new Event('focusin', { bubbles: true }));
-    expect(NavLock.run('back')).toBe(true);
-    expect(btn('btn-back').getAttribute('aria-disabled')).toBeNull();
+  it('they stay live whichever side has the focus (the toolbar acts on the website beside the panel)', () => {
     btn('discord-page').dispatchEvent(new Event('focusin', { bubbles: true }));
-    expect(NavLock.run('back')).toBe(false);
+    expect(NavLock.run('back')).toBe(true);
     btn('tab-page').dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(NavLock.run('forward')).toBe(true);
-    // A feature panel's own controls count as the panel.
+    // A feature panel's own controls do not take them away either.
     btn('note').dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    expect(NavLock.run('reload')).toBe(false);
+    expect(NavLock.run('reload')).toBe(true);
   });
 
   it('a click on the toolbar itself does not change who you are on', () => {
     btn('btn-back').dispatchEvent(new Event('pointerdown', { bubbles: true }));
     btn('btn-back').dispatchEvent(new Event('focusin', { bubbles: true }));
-    expect(NavLock.blocked()).toBe(true);
+    expect(NavLock.blocked()).toBe(false);
   });
 
   it('Settings takes the whole area even in a docked look', () => {
@@ -281,7 +279,7 @@ describe('a key names the page it was pressed in', () => {
     });
 
     it("a key from the website's own page goes through even while the panel was last used", () => {
-      expect(NavLock.blocked()).toBe(true);
+      expect(NavLock.blocked()).toBe(false);
       expect(NavLock.run('back', 11)).toBe(true);
       expect(WebviewManager.goBack).toHaveBeenCalledTimes(1);
     });

@@ -41,10 +41,9 @@ const NavLock = {
     // A key from a page: refused from a panel's, allowed from the website's.
     const source = this._pageSide(from);
     if (source !== null) return source;
-    // What has the focus now says it best; with the focus elsewhere (the
-    // toolbar button being clicked), the side used last.
-    const now = this._side(document.activeElement);
-    return now === null ? this._onPanel : now;
+    // The toolbar, Ctrl+K and Vex's own keys: the website beside a docked
+    // panel is on screen, so they act on it whichever side has the focus.
+    return false;
   },
 
   // Which side the page with this webContents id is on: true a panel's,
