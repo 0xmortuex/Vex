@@ -199,7 +199,9 @@
 .hint-dismiss {
   background: transparent; border: none;
   color: var(--text-muted); cursor: pointer; font-size: 16px;
-  padding: 0 4px;
+  /* 24x24: the smallest comfortable target (WCAG 2.5.8) */
+  min-width: 24px; min-height: 24px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 
 /* === Phase 17: Keyboard Shortcut Editor === */

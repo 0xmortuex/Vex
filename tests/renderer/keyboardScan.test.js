@@ -69,3 +69,13 @@ describe('check:ui keyboard scan', () => {
     expect(src).toMatch(/if \(!ax\.judged \|\| !ax\.rings\) throw new Error\('judged no Tab stops or no focus ring at '/);
   });
 });
+
+describe('the AI panel hint\'s Dismiss button', () => {
+  it('is at least 24x24 (WCAG 2.5.8): CI found it 21x18 beside the quick-action buttons', () => {
+    const css = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/css/sync-settings.css'), 'utf8');
+    const rule = css.match(/\.hint-dismiss \{([^}]*)\}/);
+    expect(rule).toBeTruthy();
+    expect(rule[1]).toMatch(/min-width:\s*24px/);
+    expect(rule[1]).toMatch(/min-height:\s*24px/);
+  });
+});
