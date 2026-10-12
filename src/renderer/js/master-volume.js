@@ -20,8 +20,12 @@
 //   * a page's own Web Audio graph (games, web synths, sites that route their
 //     own media): what it sends to its destination goes through one gain that
 //     this slider sets, for audio contexts the page makes after this script ran.
-//   * DRM/EME players (Netflix, Prime Video, Disney+) are left on
-//     element.volume (0-100%) and the slider says so.
+//   * DRM/EME players (Netflix, Prime Video, Disney+): Vex's Widevine is a
+//     software CDM and the decrypted sound is routable, so they boost too. A
+//     tapped element cannot be un-tapped, so a protected player whose sound
+//     stays digitally silent for 10 s after the tap is put back by reloading
+//     the page once with boosting off for that tab (sessionStorage), and the
+//     slider says the page is capped at 100%.
 //
 // The page script also answers report() for the slider's status line, so the
 // slider says what it did on the page in front instead of doing nothing quietly.
@@ -70,6 +74,7 @@ const MasterVolume = {
       // at 50% (both found 2026-09-29).
       var map=new WeakMap();
       var st={g:target};
+      var noTap=false; try{ noTap=window.sessionStorage.getItem('__vexMVOff')==='1'; }catch(e){}
       function isDrm(m){ try{ return !!m.mediaKeys; }catch(e){ return false; } }
       function tap(m,rec){
         var c=getCtx();
@@ -79,6 +84,32 @@ const MasterVolume = {
           catch(e){ rec.why=(e&&e.name==='InvalidStateError')?'routed':'tapfail'; }
         }
         return false;
+      }
+      // Protected (EME) sound that stays digitally silent after the tap: a
+      // tap cannot be undone, so the page is reloaded once with boosting off.
+      function silent(m,rec){
+        rec.why='silent';
+        var saved=false;
+        try{ window.sessionStorage.setItem('__vexMVOff','1'); saved=true; }catch(e){}
+        noTap=true;
+        if(saved){ try{ location.reload(); }catch(e){} }
+      }
+      function watch(m,rec){
+        if(rec.watching||rec.audible) return;
+        var c=A.ctx, n=A.nodes.get(m);
+        if(!c||!n||typeof c.createAnalyser!=='function') return;
+        rec.watching=true;
+        var an=c.createAnalyser(); an.fftSize=1024; n.out.connect(an);
+        var buf=new Float32Array(an.fftSize), zero=0;
+        var iv=setInterval(function(){
+          try{
+            if(m.paused||m.ended||m.muted||m.volume===0||m.readyState<3){ zero=0; return; }
+            an.getFloatTimeDomainData(buf);
+            var mx=0; for(var i=0;i<buf.length;i++){ var x=buf[i]<0?-buf[i]:buf[i]; if(x>mx) mx=x; }
+            if(mx>0){ rec.audible=true; rec.watching=false; clearInterval(iv); try{ n.out.disconnect(an); }catch(e){} return; }
+            if(++zero>=20){ clearInterval(iv); rec.watching=false; silent(m,rec); }
+          }catch(e){ clearInterval(iv); rec.watching=false; }
+        },500);
       }
       // Boost above 100% needs Web Audio, which SILENCES a cross-origin media
       // element unless it's CORS-clean. Vex adds Access-Control-Allow-Origin to
@@ -129,14 +160,13 @@ const MasterVolume = {
             map.set(m,rec);
           }
           if(!rec.gain && st.g>1 && !rec.corsPending && !rec.why){
-            // DRM/EME media (Netflix/Disney+/Prime) is left on element.volume.
-            if(isDrm(m)) rec.why='drm';
+            if(noTap && isDrm(m)) rec.why='silent';
             else if(sameOrigin(m)) tap(m,rec);
             // Cross-origin, not yet tried: convert to CORS + reload, then re-hook.
             else if(!rec.corsTried){ if(makeCors(m,rec)) return; }
             else rec.why='cors';
           }
-          if(rec.gain) rec.gain.gain.value=Math.max(1,st.g);
+          if(rec.gain){ rec.gain.gain.value=Math.max(1,st.g); if(isDrm(m)) watch(m,rec); }
           level(m,rec);
         }catch(e){}
       }
@@ -250,7 +280,8 @@ const MasterVolume = {
           if(st.g>1 && !map.get(m)) hook(m);
           var rec=map.get(m);
           if(!rec) return;
-          if(rec.gain && st.g>1) boosted++;
+          if(rec.why==='silent') why.silent=(why.silent||0)+1;
+          else if(rec.gain && st.g>1) boosted++;
           else if(rec.why && st.g>1) why[rec.why]=(why[rec.why]||0)+1;
         }); }catch(e){}
         var contexts=0; for(var i=0;i<wa.length;i++){ if(wa[i].deref?wa[i].deref():wa[i]) contexts++; }
@@ -345,7 +376,7 @@ const MasterVolume = {
     if (total.boosted) parts.push('Boosting ' + plural(total.boosted, 'player') + ' on this page.');
     if (total.contexts) parts.push('The page\'s own audio engine is boosted too.');
     const w = total.why || {};
-    if (w.drm) parts.push('Protected video (DRM): the browser cannot boost it above 100%. Use the video\'s own volume or Windows\' volume.');
+    if (w.silent) parts.push('Protected video (DRM): the browser cannot boost it above 100%. Use the video\'s own volume or Windows\' volume.');
     if (w.cors) parts.push(plural(w.cors, 'player') + ' stream' + (w.cors === 1 ? 's' : '') + ' from a server that does not allow boosting (one on your own network) and stay' + (w.cors === 1 ? 's' : '') + ' at 100%.');
     if (w.routed) parts.push(plural(w.routed, 'player') + ' already use' + (w.routed === 1 ? 's' : '') + ' the page\'s own audio processing and stay' + (w.routed === 1 ? 's' : '') + ' at 100%.');
     if (w.tapfail) parts.push(plural(w.tapfail, 'player') + ' could not be boosted.');
@@ -358,8 +389,13 @@ const MasterVolume = {
 
   async _refreshStatus() {
     const el = this._el && this._el.querySelector('.mastervol-status');
-    if (!el) return;
-    const pct = Math.round(this.level() * 100) === 0 ? 0 : +this._el.querySelector('.mastervol-slider').value;
+    if (!el || this._statusBusy) return;
+    this._statusBusy = true;
+    try { await this._refreshStatusNow(el); } finally { this._statusBusy = false; }
+  },
+
+  async _refreshStatusNow(el) {
+    const pct = +this._el.querySelector('.mastervol-slider').value;
     if (!(pct > 100)) { el.hidden = true; el.textContent = ''; return; }
     try {
       const total = await this.status();
@@ -416,6 +452,9 @@ const MasterVolume = {
     mute.addEventListener('click', () => set(+slider.value === 0 ? lastNonZero : 0));
     set(pct, false); // colourise the % label on open
     if (pct > 100) this._refreshStatus();
+    // A page can change what it plays (the next video, a protected one that
+    // could not be boosted): the line follows it while the slider is open.
+    this._statusPoll = setInterval(() => { if (this._el && +slider.value > 100) this._refreshStatus(); }, 2500);
 
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
     this._onDoc = (e) => { if (this._el && !this._el.contains(e.target)) this.close(); };
@@ -431,6 +470,7 @@ const MasterVolume = {
 
   close() {
     clearTimeout(this._statusTimer);
+    clearInterval(this._statusPoll);
     if (this._el) { this._el.remove(); this._el = null; }
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
     if (this._onDoc) document.removeEventListener('mousedown', this._onDoc, true);

@@ -148,17 +148,20 @@ describe("a page's own Web Audio", () => {
 describe('what the slider says about the page in front', () => {
   it('the page script reports players, boosted ones and why the rest are not', () => {
     fakeAudio();
-    document.body.innerHTML = '<video id="a"></video><video id="b"></video>';
-    Object.defineProperty(document.getElementById('b'), 'mediaKeys', { value: {} });
+    document.body.innerHTML = '<video id="a"></video><audio id="b" src="http://192.168.1.20/radio.mp3"></audio>';
+    const b = document.getElementById('b');
+    b.load = () => {};
+    b.play = () => Promise.resolve();
     runInPage(MasterVolume._script(2));
-    expect(window.__vexMV.report()).toMatchObject({ players: 2, boosted: 1, why: { drm: 1 } });
+    b.dispatchEvent(new Event('error'));              // the server on the local network sends no CORS header
+    expect(window.__vexMV.report()).toMatchObject({ players: 2, boosted: 1, why: { cors: 1 } });
   });
 
   it('says it in words, and says nothing at or below 100%', () => {
     const d = (t, pct) => MasterVolume.describe({ players: 0, boosted: 0, contexts: 0, why: {}, ...t }, pct);
     expect(d({ players: 2, boosted: 2 }, 200)).toBe('Boosting 2 players on this page.');
     expect(d({ players: 1, boosted: 1 }, 200)).toBe('Boosting 1 player on this page.');
-    expect(d({ players: 1, why: { drm: 1 } }, 200)).toContain("Protected video (DRM): the browser cannot boost it above 100%. Use the video's own volume or Windows' volume.");
+    expect(d({ players: 1, why: { silent: 1 } }, 200)).toContain("Protected video (DRM): the browser cannot boost it above 100%. Use the video's own volume or Windows' volume.");
     expect(d({ players: 1, why: { cors: 1 } }, 200)).toContain('own network');
     expect(d({}, 200)).toContain('Nothing is playing on this page yet');
     // sound that Chromium hears but no player of ours is under: say what to do
@@ -178,6 +181,91 @@ describe('what the slider says about the page in front', () => {
     expect(document.querySelector('.mastervol-status').textContent).toMatch(/Boosting 4 players on this page\./);
     MasterVolume.close();
     delete globalThis.WebviewManager; delete globalThis.SidebarManager;
+  });
+});
+
+// Vex's Widevine is a software CDM and the decrypted sound can be routed through Web
+// Audio (measured on the Shaka Widevine demo, 2026-10-12): protected players boost.
+// A tapped element cannot be un-tapped, so sound that stays silent is put back by
+// reloading the page once with boosting off.
+describe('protected (EME) players', () => {
+  const protectedVideo = (html = '<video></video>') => {
+    document.body.innerHTML = html;
+    const v = document.querySelector('video');
+    Object.defineProperty(v, 'mediaKeys', { value: {} });
+    Object.defineProperty(v, 'paused', { value: false });
+    Object.defineProperty(v, 'readyState', { value: 4 });
+    return v;
+  };
+  // Web Audio whose analyser hears `sample` for ever.
+  const audioHearing = (sample) => {
+    const node = () => ({ connect: vi.fn(), disconnect: vi.fn(), gain: { value: 1 } });
+    class Ctx {
+      constructor() { this.state = 'running'; this.destination = {}; }
+      addEventListener() {}
+      resume() { return Promise.resolve(); }
+      createMediaElementSource() { return node(); }
+      createGain() { return node(); }
+      createAnalyser() { return { fftSize: 1024, connect() {}, getFloatTimeDomainData(b) { b.fill(sample); } }; }
+    }
+    window.AudioContext = Ctx;
+  };
+  beforeEach(() => { vi.useFakeTimers(); sessionStorage.clear(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); sessionStorage.clear(); });
+
+  it('is boosted like any other player', () => {
+    audioHearing(0.1);
+    const v = protectedVideo();
+    runInPage(MasterVolume._script(2));
+    expect(window.__vexAudio.nodes.get(v).out.gain.value).toBe(2);
+    expect(window.__vexMV.report()).toMatchObject({ players: 1, boosted: 1 });
+  });
+
+  it('whose sound arrives is left alone', () => {
+    audioHearing(0.1);
+    protectedVideo();
+    const reload = vi.fn();
+    vi.stubGlobal('location', { href: 'http://site.test/', reload });
+    runInPage(MasterVolume._script(2));
+    vi.advanceTimersByTime(15000);
+    expect(sessionStorage.getItem('__vexMVOff')).toBe(null);
+    expect(reload).not.toHaveBeenCalled();
+    expect(window.__vexMV.report().why).toEqual({});
+  });
+
+  it('whose sound stays digitally silent 10 s after the tap reloads the page once with boosting off', () => {
+    audioHearing(0);
+    const v = protectedVideo();
+    const reload = vi.fn();
+    vi.stubGlobal('location', { href: 'http://site.test/', reload });
+    runInPage(MasterVolume._script(2));
+    vi.advanceTimersByTime(9000);
+    expect(sessionStorage.getItem('__vexMVOff')).toBe(null);     // not yet
+    vi.advanceTimersByTime(2000);
+    expect(sessionStorage.getItem('__vexMVOff')).toBe('1');
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(window.__vexMV.report().why).toEqual({ silent: 1 });
+    expect(window.__vexAudio.nodes.get(v)).toBeTruthy();
+  });
+
+  it('after that reload the page is not tapped again, and the slider says why', () => {
+    audioHearing(0.1);
+    sessionStorage.setItem('__vexMVOff', '1');
+    const v = protectedVideo();
+    runInPage(MasterVolume._script(2));
+    expect(window.__vexAudio && window.__vexAudio.nodes.get(v)).toBeFalsy();
+    expect(window.__vexMV.report().why).toEqual({ silent: 1 });
+    expect(MasterVolume.describe({ players: 1, boosted: 0, contexts: 0, why: { silent: 1 }, audible: 0 }, 200))
+      .toContain("Protected video (DRM): the browser cannot boost it above 100%. Use the video's own volume or Windows' volume.");
+  });
+
+  it('paused or muted sound is not mistaken for silence', () => {
+    audioHearing(0);
+    const v = protectedVideo();
+    Object.defineProperty(v, 'muted', { value: true });
+    runInPage(MasterVolume._script(2));
+    vi.advanceTimersByTime(30000);
+    expect(sessionStorage.getItem('__vexMVOff')).toBe(null);
   });
 });
 
