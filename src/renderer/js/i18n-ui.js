@@ -70,6 +70,16 @@ const VexI18nUI = {
       'Authenticator': 'Kimlik doğrulayıcı', 'Privacy': 'Gizlilik',
       'Shortcuts': 'Kısayollar', 'Queue': 'Kuyruk', 'Work': 'Çalışma',
       'Start Page': 'Başlangıç sayfası', 'Toolbox': 'Araç kutusu',
+      // A web panel's page as a tab (js/panel-to-tab.js).
+      'Open in a tab': 'Sekmede aç', 'Copy page link': 'Sayfa bağlantısını kopyala',
+      'Page link copied': 'Sayfa bağlantısı kopyalandı', 'Could not copy the link': 'Bağlantı kopyalanamadı',
+      'This panel does not show a web page': 'Bu panel bir web sayfası göstermiyor',
+      'has no page to open yet': 'henüz açılacak bir sayfa göstermiyor',
+      'Open a web panel first': 'Önce bir web paneli açın',
+      'Open Roblox Hub page in a tab': 'Roblox Hub sayfasını sekmede aç',
+      'Open side panel page in a tab': 'Yan paneldeki sayfayı sekmede aç',
+      'The page Roblox Hub is showing, as a tab with its address — still signed in': 'Roblox Hub’ın gösterdiği sayfa, adresiyle birlikte bir sekmede — oturumunuz açık kalır',
+      'The page the open side panel is showing, as a tab with its address — still signed in': 'Açık yan panelin gösterdiği sayfa, adresiyle birlikte bir sekmede — oturumunuz açık kalır',
 
       // --- common actions ---
       'Save': 'Kaydet', 'Cancel': 'İptal', 'Delete': 'Sil', 'Remove': 'Kaldır',

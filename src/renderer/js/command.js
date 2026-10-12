@@ -267,6 +267,8 @@ const CommandBar = {
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: 'sparkles', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
     { id: 'spotify', label: 'Spotify', hint: 'Open Spotify panel', icon: 'music', isPrimary: true, action: () => SidebarManager.openPanel('spotify') },
     { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: 'gamepad', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
+    // A web panel's page as a tab, still signed in (js/panel-to-tab.js).
+    ...((typeof PanelToTab !== 'undefined') ? PanelToTab.commands() : []),
     { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: 'git', isPrimary: true, action: () => SidebarManager.openPanel('github') },
     { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: 'refresh', action: () => WebviewManager.reload() },
     { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: 'refresh', action: () => WebviewManager.hardReload() },

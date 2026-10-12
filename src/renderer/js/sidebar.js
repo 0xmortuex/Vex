@@ -2159,6 +2159,8 @@ const SidebarManager = {
     const back = nav.querySelector('.pnav-back');
     const fwd = nav.querySelector('.pnav-fwd');
     const reload = nav.querySelector('.pnav-reload');
+    // Its page as a tab, still signed in (js/panel-to-tab.js).
+    if (typeof PanelToTab !== 'undefined') PanelToTab.decorateNav(nav, panelName);
     // Always drive the LIVE <webview> in the panel — the captured `wv` can go
     // stale after a service switch / re-mount, and back/reload on a detached
     // node silently does nothing (the "back & refresh don't work" this fixes).
@@ -2199,6 +2201,11 @@ const SidebarManager = {
     } else if (this.activePanel && this.activePanel !== panelName && this._canSit(panelName) && this._canSit(this.activePanel)) {
       items.push({ label: 'Open beside ' + this.panelLabel(this.activePanel), action: () => this.openBeside(panelName) });
       items.push({ separator: true });
+    }
+    // The page a web panel is showing, as a tab or a link (js/panel-to-tab.js).
+    if (isUrl && typeof PanelToTab !== 'undefined') {
+      const pageItems = PanelToTab.menuItems(panelName);
+      if (pageItems.length) items.push(...pageItems, { separator: true });
     }
     items.push(
       { label: 'Rename…', action: () => this.renamePanel(panelName) },
