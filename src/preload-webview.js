@@ -1884,13 +1884,39 @@ let _vexStartPageOwn = null;
   try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
   if (!ipcRenderer || !ipcRenderer.sendToHost) return;
 
+  // Every match of `selector`, and those inside open shadow roots (sign-in
+  // forms built from web components keep each input in its own shadow root).
+  function deepAll(selector) {
+    const out = [];
+    const seen = { n: 0 };
+    (function walk(r, depth) {
+      for (const el of r.querySelectorAll(selector)) out.push(el);
+      if (depth > 6) return;
+      for (const el of r.querySelectorAll("*")) {
+        if (++seen.n > 20000) return;
+        if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+      }
+    })(document, 0);
+    return out;
+  }
+  // The element an event really came from, shadow DOM included.
+  function realTarget(e) {
+    try { const p = e.composedPath && e.composedPath(); if (p && p.length && p[0] && p[0].nodeType === 1) return p[0]; } catch {}
+    return e.target;
+  }
+
   let lastUser = "";
+  // The password field the person last typed in. Its "show password" eye
+  // turns it into a text field, which no input[type=password] search finds:
+  // a login submitted with the password showing was never offered for saving.
+  let lastPwField = null;
   document.addEventListener("input", (e) => {
     try {
-      const el = e.target;
+      const el = realTarget(e);
       if (!el || el.tagName !== "INPUT") return;
       const t = (el.type || "text").toLowerCase();
-      if (t === "password") return;
+      if (t === "password") { lastPwField = el; return; }
+      if (el === lastPwField) return;
       if (t === "email" || t === "text" || t === "tel" || t === "") {
         const v = String(el.value || "").trim();
         const hint = ((el.name || "") + (el.id || "") + (el.autocomplete || "")).toLowerCase();
@@ -1913,7 +1939,10 @@ let _vexStartPageOwn = null;
       // On a change-password form the first field is the OLD password, so the
       // new one was never offered for saving (found 2026-09-29). Take the one
       // marked new-password, else the last one filled in.
-      const filled = Array.prototype.filter.call(document.querySelectorAll("input[type=password]"), (p) => !!p.value);
+      const filled = deepAll("input[type=password]").filter((p) => !!p.value);
+      // Shown by its eye button: now type=text, but still the password.
+      if (lastPwField && lastPwField.isConnected && lastPwField.value && !filled.includes(lastPwField)
+        && ["text", ""].includes((lastPwField.type || "").toLowerCase())) filled.push(lastPwField);
       const pw = filled.find((p) => /new-password/i.test(p.getAttribute("autocomplete") || "")) || filled[filled.length - 1];
       if (!pw) return;
       let user = lastUser;
@@ -1921,8 +1950,8 @@ let _vexStartPageOwn = null;
         // Scope to the password's own form so a search box elsewhere on the page
         // can't be mistaken for the username.
         const scope = pw.form || document;
-        const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
-        for (const c of cands) { if (c.value && c !== pw) { user = c.value; break; } }
+        const cands = pw.form ? scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])") : deepAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+        for (const c of cands) { if (c.value && c !== pw && c !== lastPwField) { user = c.value; break; } }
       }
       // No username on this page is normal for a two-step login (email first,
       // password on the next page): the host pairs it with the username sent
@@ -1962,7 +1991,7 @@ let _vexStartPageOwn = null;
   document.addEventListener("submit", (e) => { if (!e.isTrusted || !justActed()) return; tryCapture(); rememberEmail(); }, true);
   document.addEventListener("keydown", (e) => {
     if (!e.isTrusted || e.key !== "Enter") return;
-    const el = e.target;
+    const el = realTarget(e);
     // Capture NOW (before a React SPA clears the password on submit) AND after a
     // short delay (for sites that populate the field late). Debounce dedupes.
     if (el && el.tagName === "INPUT") { tryCapture(); setTimeout(tryCapture, 60); rememberEmail(); }
@@ -1970,7 +1999,7 @@ let _vexStartPageOwn = null;
   document.addEventListener("click", (e) => {
     try {
       if (!e.isTrusted) return;
-      const el = e.target;
+      const el = realTarget(e);
       if (!el || !el.closest) return;
       const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
       if (!ctl) return;
@@ -2050,12 +2079,35 @@ let _vexStartPageOwn = null;
   // A field asking for a NEW password (sign-up, change-password) never gets
   // the saved one (found 2026-10-08).
   function isNewPw(el) { return /new-password/i.test(el.getAttribute("autocomplete") || ""); }
+  // Matches of `selector` in `root` and in every open shadow root under it:
+  // sign-in forms built from web components (Reddit, Salesforce, many design
+  // systems) keep each input inside its own shadow root, where
+  // document.querySelectorAll never looks. Capped so a huge page costs little.
+  function deepAll(root, selector) {
+    const out = [];
+    const seen = { n: 0 };
+    (function walk(r, depth) {
+      for (const el of r.querySelectorAll(selector)) out.push(el);
+      if (depth > 6) return;
+      for (const el of r.querySelectorAll("*")) {
+        if (++seen.n > 20000) return;
+        if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+      }
+    })(root, 0);
+    return out;
+  }
+  // The element a gesture really landed on, shadow DOM included (the event is
+  // retargeted to the shadow host at the document).
+  function realTarget(e) {
+    try { const p = e.composedPath && e.composedPath(); if (p && p.length && p[0] && p[0].nodeType === 1) return p[0]; } catch {}
+    return e.target;
+  }
   function loginPassword() {
-    return Array.prototype.find.call(document.querySelectorAll("input[type=password]"), (el) => visible(el) && !isNewPw(el)) || null;
+    return deepAll(document, "input[type=password]").find((el) => visible(el) && !isNewPw(el)) || null;
   }
   function userField(pw) {
     const scope = (pw && pw.form) || document;
-    const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+    const cands = deepAll(scope, "input[type=text],input[type=email],input[type=tel],input:not([type])");
     let plain = null;
     for (let i = 0; i < cands.length; i++) {
       const el = cands[i];
@@ -2113,7 +2165,7 @@ let _vexStartPageOwn = null;
     try {
       if (!e.isTrusted || !armed || typed || armed !== location.origin) return;
       if (e.type === "keydown" && e.key !== "ArrowDown") return;
-      const el = e.target;
+      const el = realTarget(e);
       if (!isLoginField(el) || el.value) return;
       const id = "lf" + (++seq) + "-" + Date.now();
       asked = { id, field: el };
@@ -2127,7 +2179,7 @@ let _vexStartPageOwn = null;
   // (found 2026-09-29). Only real key presses count.
   document.addEventListener("input", (e) => {
     try {
-      const el = e.target;
+      const el = realTarget(e);
       if (!e.isTrusted || !el || el.tagName !== "INPUT") return;
       if ((el.type || "").toLowerCase() === "password" || looksLikeUser(el)) typed = true;
     } catch {}
