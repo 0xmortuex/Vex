@@ -2255,7 +2255,8 @@ const AIPanel = {
       return b;
     };
     if (VexFeatures.command(a.entry) || a.entry.panel) button('Do it', 'Run it now', () => VexGuide.run(a.entry));
-    if (a.entry.sel || a.entry.setting) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
+    if (a.entry.setting && (a.entry.setting.id || a.entry.setting.section)) button('Open settings', 'Open its switch in Settings', () => SettingsUI.openSection(a.entry.setting.id || a.entry.setting.section));
+    if (a.entry.sel) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
     if (a.entry.steps) button('Step me through it', 'One step at a time', () => VexGuide.walk(a.entry));
     // Three lines is the answer; the Library entry is the whole thing — where
     // it lives, every step, and what sits next to it (js/feature-library.js).

@@ -325,6 +325,9 @@ const CommandBar = {
     { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
+    // The same slider as Quick Tools > Master Volume (js/master-volume.js); it
+    // had no command, so the Library could only describe it.
+    { id: 'master-volume', label: 'Master Volume', hint: 'One slider, 0 to 500%, for the sound of every tab', icon: 'sliders', action: () => { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },
     // Ctrl+S, as in every browser: one file or a PDF (found missing
     // 2026-10-10). A page with a save of its own keeps Ctrl+S (page first).
@@ -921,9 +924,13 @@ const CommandBar = {
             // Run it where it can be run; otherwise show it in the Library,
             // which is where its explanation lives.
             try {
-              if ((f.cmd || f.panel) && typeof VexGuide !== 'undefined') { VexGuide.run(f); return; }
+              // Anything with a way to open it (command, panel, Settings
+              // switch, control) opens; the rest show their "How it works".
+              if (VexFeatures.actions(f).length && typeof VexGuide !== 'undefined') { VexGuide.run(f); return; }
             } catch (err) { window.showToast?.(err.message, 'error'); return; }
             try {
+              // At this entry, so its "How it works" is the first thing seen.
+              if (typeof FeatureLibrary !== 'undefined' && FeatureLibrary.openAt) { FeatureLibrary.openAt(f.id); return; }
               if (typeof ReadLater !== 'undefined') ReadLater.showTab('features');
               SidebarManager.openPanel('library');
             } catch (err) { window.showToast?.(err.message || 'That could not be opened', 'error'); }

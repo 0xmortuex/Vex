@@ -158,10 +158,12 @@ const VexGuide = {
     // Only the id was followed, so every section entry ended in "nothing to
     // point at".
     const target = entry.setting && (entry.setting.id || entry.setting.section);
-    if (target && typeof SettingsUI !== 'undefined') return SettingsUI.openSection(target);
+    // A control on screen is what "show me" points at; an entry that has a
+    // Settings switch as well opens it with its own "Open settings" button.
     if (entry.sel && typeof VexTour !== 'undefined') {
       return VexTour.run([{ sel: entry.sel, title: VexFeatures.nameOf(entry), html: entry.what }], { markSeen: false });
     }
+    if (target && typeof SettingsUI !== 'undefined') return SettingsUI.openSection(target);
     window.showToast?.('There is nothing to point at for that one — ' + entry.what, 'info', 7000);
     return null;
   },

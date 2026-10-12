@@ -25,6 +25,9 @@ const VexI18nUI = {
     '.panel-header', '#panel-settings', '#panel-shortcuts', '#panel-memory',
     '#panel-downloads', '#panel-history', '#panel-bookmarks', '#panel-notes',
     '#command-bar', '.vexd-card',
+    // The Library's feature list (js/feature-library.js), not the articles
+    // saved beside it, which are the person's own words.
+    '.flib',
   ],
 
   // Attributes worth translating; `title` is most of the toolbar.
@@ -174,6 +177,10 @@ const VexI18nUI = {
       'Search every feature…': 'Tüm özelliklerde arayın…',
       'New to you': 'Sizin için yeni',
       'Show me': 'Bana göster', 'Turn on & show me': 'Aç ve bana göster',
+      // The Library's buttons and the heading above what cannot be opened.
+      'Open panel': 'Paneli aç', 'Open settings': 'Ayarları aç', 'Run command': 'Komutu çalıştır',
+      'Open the volume slider': 'Ses kaydırıcısını aç', 'How it works': 'Nasıl çalışır',
+      'Ask Vex about this': 'Vex’e bunu sor',
     },
   },
 

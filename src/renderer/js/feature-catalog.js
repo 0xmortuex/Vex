@@ -20,6 +20,11 @@
 //   setting  { id } of the Settings checkbox that turns the feature on
 //   keys     the shortcut, when it isn't on the command
 //   manual   true when there is nothing to run — you do it with the mouse
+//   openLabel  what the button that runs `cmd` says, instead of "Run command"
+//
+// An entry that has none of cmd / panel / setting / sel is not openable and
+// MUST have a "How it works" entry in js/feature-details.js (FeatureHow);
+// tests/renderer/libraryOpenButtons.test.js walks the whole list.
 //
 // Adding a feature: add it to the README's "Every feature" list AND here.
 const VexFeatures = {
@@ -52,7 +57,7 @@ const VexFeatures = {
       phrases: 'less memory ram slow computer memory saver',
       what: 'Chromium\u2019s own memory saving, on Vex\u2019s terms: idle tabs give their memory back.' },
     // --- Tabs & windows -------------------------------------------------
-    { id: 'vertical-tabs', phrases: 'tabs on the side vertical tabs too many tabs', cat: 'tabs', name: 'Vertical or horizontal tabs', sel: '#tabs-list', manual: true,
+    { id: 'vertical-tabs', phrases: 'tabs on the side vertical tabs too many tabs', cat: 'tabs', name: 'Vertical or horizontal tabs', sel: '#tabs-list', manual: true, setting: { id: 'setting-tab-layout', label: 'Where tabs appear' },
       what: 'Your tabs down the left side instead of squeezed along the top — so a title stays readable at thirty tabs. Switch layouts in Settings › Tab Layout (Classic GUI style only).' },
     { id: 'tab-groups', phrases: 'group tabs organise tabs tidy tabs', cat: 'tabs', cmd: 'group-tabs', name: 'Tab groups, sorted by AI',
       what: 'Clusters your open tabs into named, coloured groups — and remembers the pattern, so tabs you open later join the right group on their own.' },
@@ -84,7 +89,7 @@ const VexFeatures = {
       what: 'Save a named set of tabs and bring it back whenever you want. Auto-saved too, so a crash costs you nothing.' },
     { id: 'reopen', cat: 'tabs', cmd: 'reopen',
       what: 'Brings back the tab you just closed — and the one before that.' },
-    { id: 'gestures', cat: 'tabs', name: 'Mouse gestures', manual: true,
+    { id: 'gestures', cat: 'tabs', name: 'Mouse gestures', manual: true, setting: { id: 'setting-gestures', label: 'Mouse gestures' },
       what: 'Hold the right button and flick: left goes back, right forward, down-then-right closes a tab. Ten gestures in all.' },
     { id: 'containers', phrases: 'two accounts multiple accounts separate logins work and personal', cat: 'tabs', cmd: 'container-work', name: 'Container tabs',
       steps: [
@@ -98,7 +103,7 @@ const VexFeatures = {
       what: 'Opens a site in a bare window with no tabs or address bar, like a desktop app.' },
     { id: 'closeduplicates', cat: 'tabs', cmd: 'closeduplicates',
       what: 'Closes the copies when you have opened the same page five times, keeping one.' },
-    { id: 'apps-not-links', cat: 'tabs', name: 'Opens apps, not dead links', manual: true,
+    { id: 'apps-not-links', cat: 'tabs', name: 'Opens apps, not dead links', manual: true, setting: { section: 'permissions-panel-content', label: 'Site permissions' },
       what: 'A roblox://, spotify:, steam:, vscode: or zoommtg: link hands off to the app you already have installed instead of failing.' },
 
     // --- AI ---------------------------------------------------------------
@@ -207,7 +212,7 @@ const VexFeatures = {
       what: 'Writes a note about the video at the second it is on now, as a link back to that second. One note per video, so a talk’s notes are one page.' },
     { id: 'cards', phrases: 'flashcards revision study spaced repetition remember what I read highlights into cards', cat: 'reading', cmd: 'cards-review', name: 'Cards from your highlights',
       what: 'Turns what you highlighted into cards and brings each one back on a spacing that grows while you keep getting it right. All on this machine.' },
-    { id: 'agent-pause', phrases: 'pause the agent stop it for a second change my mind mid run correct the agent', cat: 'ai', sel: '#ai-pause-agent', manual: true, name: 'Pause the agent, or change your mind',
+    { id: 'agent-pause', phrases: 'pause the agent stop it for a second change my mind mid run correct the agent', cat: 'ai', manual: true, name: 'Pause the agent, or change your mind',
       what: 'Pause holds a run between steps — the page stays where it is — and anything you type while it is held becomes the next thing the agent is told, so a run going the wrong way is corrected rather than restarted.' },
     { id: 'agent-schedule', phrases: 'agent every morning run this daily set up a schedule from chat repeat this task', cat: 'ai', sel: '#ai-input', manual: true, name: 'Ask the agent to set something up for every day',
       what: 'Say “every weekday at 8:30, check the status page and note anything new” and the agent makes the scheduled task itself — it turns up in the Schedules panel like any other.' },
@@ -265,7 +270,7 @@ const VexFeatures = {
       what: 'A note pinned to one specific page, which reappears every time you return to it.' },
     { id: 'clip', cat: 'work', cmd: 'clip',
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
-    { id: 'gaming', phrases: 'gaming game fps performance while playing', cat: 'media', name: 'Gets out of a game’s way', sel: '#gaming-settings', manual: true,
+    { id: 'gaming', phrases: 'gaming game fps performance while playing', cat: 'media', name: 'Gets out of a game’s way', manual: true, setting: { section: 'gaming-settings', label: 'Gaming and streaming' },
       what: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Privacy Hardening › Gaming and streaming.' },
     { id: 'record-screen', phrases: 'record video capture screen recording film my screen', cat: 'media', cmd: 'record-screen',
       what: 'Record a screen or a window, with its sound, to a video file — no recorder to install. Written to disk as it goes, so a long recording never fills memory.' },
@@ -337,19 +342,19 @@ const VexFeatures = {
       what: 'A named work mode: one click opens a set of tabs, switches AI persona, dims the interface and blocks distractions.' },
     { id: 'remind', phrases: 'reminder remind alarm', cat: 'work', cmd: 'remind',
       what: 'Paste what you have to do, type "in 2 hours" or "tomorrow 9am", and a desktop notification arrives at the minute — even if Vex is closed, because Windows wakes it. It reads the time back to you before it saves anything.' },
-    { id: 'remind-repeat', cat: 'work', name: 'Reminders that repeat', manual: true,
+    { id: 'remind-repeat', cat: 'work', cmd: 'remind', name: 'Reminders that repeat', manual: true,
       what: 'Every day, weekdays or every week, at the same time — and each occurrence gets its own Windows wake-up, so "weekdays 9am" still arrives with Vex closed.' },
-    { id: 'remind-page', cat: 'work', name: 'Remind me about this page', manual: true,
+    { id: 'remind-page', cat: 'work', cmd: 'remind', name: 'Remind me about this page', manual: true,
       what: 'A reminder can carry the page you were on. Its notification opens the reminder in Vex with an Open page button, so "come back to this" actually brings you back.' },
-    { id: 'remind-site', cat: 'unique', name: 'Next time I open this site', manual: true,
+    { id: 'remind-site', cat: 'unique', cmd: 'remind', name: 'Next time I open this site', manual: true,
       what: 'Type "when I open github.com" instead of a time, and the reminder fires the moment a tab lands on that site. Nobody else does this.' },
     { id: 'quick-capture', cat: 'work', name: 'Right-click any selection', manual: true,
       what: 'Select text on any page — a Discord message, a paragraph, a task — and right-click: Remind me about this, Save as a note for this page, or Ask Vex AI about this. Works inside the sidebar panels too.' },
-    { id: 'today', cat: 'work', name: 'Today, on the new tab', manual: true,
+    { id: 'today', cat: 'work', cmd: 'start', name: 'Today, on the new tab', manual: true,
       what: 'Reminders due today, scheduled tasks about to run, watched pages that changed and pages you saved recently — together, on the new tab page.' },
-    { id: 'focus-reminders', cat: 'work', name: 'Focus holds your reminders', manual: true,
+    { id: 'focus-reminders', cat: 'work', cmd: 'focus', name: 'Focus holds your reminders', manual: true,
       what: 'During a focus session reminders wait and arrive as a batch when it ends — unless you marked one urgent.' },
-    { id: 'remind-calendar', cat: 'work', name: 'Reminder to calendar', manual: true,
+    { id: 'remind-calendar', cat: 'work', cmd: 'remind', name: 'Reminder to calendar', manual: true,
       what: 'Any timed reminder can be saved as a .ics entry for Outlook or Google Calendar, repeat rule included.' },
     { id: 'clock', phrases: 'timer stopwatch alarm world clock', cat: 'work', cmd: 'clock', panel: 'clock',
       what: 'Alarms that ring until dismissed — even if Vex was closed, Windows wakes it — with snooze; timers that keep counting through a reload and end with a notification; a stopwatch with laps; and a world clock for the cities you pick, with a slider for "what time is it there when it is 3pm here". Timers you ran come back as one-click Again chips, and alarms you set before can be set again.' },
@@ -363,17 +368,17 @@ const VexFeatures = {
       what: 'Type "remind me to call Dana tomorrow 9am", "timer 25 min", "alarm 7am weekdays" or "what time is it in Tokyo" straight into the command bar. Enter does it; no panel.' },
     { id: 'weekly-review', cat: 'work', cmd: 'weekly-review',
       what: 'Every Friday at five — a reminder that opens one honest card: what fired, what got snoozed, what you saved and never read, which watched pages changed, which tools you used.' },
-    { id: 'toast-snooze', cat: 'work', name: 'Snooze from the notification', manual: true,
+    { id: 'toast-snooze', cat: 'work', name: 'Snooze from the notification', manual: true,   // happens on the Windows toast: nothing in Vex to open
       what: 'A reminder\'s Windows notification has Snooze 9 min and Open buttons on it, so you deal with it without bringing Vex forward.' },
-    { id: 'reminders-sync', cat: 'data', name: 'Reminders follow you', manual: true,
+    { id: 'reminders-sync', cat: 'data', name: 'Reminders follow you', manual: true, setting: { section: 'sync-panel-content', label: 'Vex Sync' },
       what: 'With Vex Sync on, a reminder set on the laptop rings on the desktop too. Only the machine that set it wakes Windows for it, and one that fired anywhere never fires twice.' },
-    { id: 'alarm-sound', cat: 'work', name: 'Alarm tone and volume', manual: true,
+    { id: 'alarm-sound', cat: 'work', cmd: 'clock', panel: 'clock', name: 'Alarm tone and volume', manual: true,
       what: 'Four tones, a volume, and insistent or gentle — once, then every thirty seconds — with a preview, in the Clock\'s Alarms tab.' },
-    { id: 'today-work', cat: 'work', name: 'Work, apart from the rest', manual: true,
+    { id: 'today-work', cat: 'work', panel: 'work', name: 'Work, apart from the rest', manual: true,
       what: 'Reminders and alarms carry the job they were set under. Today marks them, and the Work panel lists what is set for this job.' },
-    { id: 'remind-zone', cat: 'work', name: 'Reminders in another city\'s time', manual: true,
+    { id: 'remind-zone', cat: 'work', cmd: 'remind', name: 'Reminders in another city\'s time', manual: true,
       what: 'Type "9am New York time" or "tomorrow 17:00 in Tokyo" and the reminder lands at that moment, read back in both clocks before it saves.' },
-    { id: 'tool-history', cat: 'work', name: 'Tool history', manual: true,
+    { id: 'tool-history', cat: 'work', cmd: 'toolbox', name: 'Tool history', manual: true,
       what: 'Every tool keeps its last ten results and the Toolbox shows the tools you opened most recently, beside your favourites.' },
     { id: 'automations', cat: 'work', cmd: 'automations',
       what: 'When this, do that — when a page opens, or at a time each day, run a command or open something.' },
@@ -381,11 +386,11 @@ const VexFeatures = {
       what: 'Bundle several commands into one — reading mode then read aloud — and put the first three on a shortcut.' },
     { id: 'toolbox', cat: 'work', cmd: 'toolbox',
       what: 'Over three hundred small tools that run locally: converters, regex, JSON, hashes, colour, loans, dates.' },
-    { id: 'toolbox-reference', cat: 'work', name: 'The reference beside every tool', manual: true,
+    { id: 'toolbox-reference', cat: 'work', cmd: 'toolbox', name: 'The reference beside every tool', manual: true,
       what: 'Each tool opens with a written reference panel — the categories, the traps, the lookup table you would otherwise go and search for. Not just the answer, but what it means.' },
-    { id: 'toolbox-full', cat: 'work', name: 'Tools at two sizes', manual: true,
+    { id: 'toolbox-full', cat: 'work', cmd: 'toolbox', name: 'Tools at two sizes', manual: true,
       what: 'Every tool opens as a compact panel or, with one click, as a full-screen workspace with the reference open beside it. Vex remembers which you prefer.' },
-    { id: 'toolbox-favourites', cat: 'work', name: 'Favourite tools', manual: true,
+    { id: 'toolbox-favourites', cat: 'work', cmd: 'toolbox', name: 'Favourite tools', manual: true,
       what: 'Star the tools you keep coming back to and they sit at the top of the Toolbox, ahead of the other three hundred.' },
     { id: 'jobsetup', cat: 'work', cmd: 'jobsetup',
       what: 'Pick your profession and Vex sets a fitting theme and puts the tools that job actually uses within reach.' },
@@ -411,7 +416,7 @@ const VexFeatures = {
       what: 'When a site asks to share your screen, you choose the source, resolution up to 1440p, frame rate, whether system audio goes with it and whether the cursor shows.' },
     { id: 'media-grabber', cat: 'media', cmd: 'media',
       what: 'Finds the video or audio playing on a page and saves it.' },
-    { id: 'volume', phrases: 'volume loud quiet sound', cat: 'media', name: 'Master volume', manual: true,
+    { id: 'volume', phrases: 'volume loud quiet sound master volume boost louder slider', cat: 'media', cmd: 'master-volume', name: 'Master volume', openLabel: 'Open the volume slider', manual: true,
       what: 'One slider from 0 to 500% across every tab — including making a quiet video louder than it was mixed.' },
     { id: 'nowplaying', cat: 'media', name: 'Now Playing', manual: true,
       what: 'Whatever is making sound, in one place, with the controls for it.' },
@@ -664,6 +669,26 @@ const VexFeatures = {
     if (item.keys) return item.keys;
     const cmd = this.command(item);
     return (cmd && cmd.shortcut) || '';
+  },
+
+  // The ways an entry can actually be opened from the Library, the search box,
+  // Ctrl+K and the AI panel, in the order their buttons are drawn:
+  //   panel     SidebarManager.openPanel(item.panel)
+  //   command   the live Ctrl+K command item.cmd
+  //   settings  SettingsUI.openSection(item.setting.id | .section), highlighted
+  //   show      point at the real control (item.sel) with the tour
+  // An entry with none of them cannot be opened: it gets a "How it works"
+  // block instead (js/feature-details.js, FeatureHow) and no button at all.
+  // `openLabel` on an entry replaces the generic label of its command.
+  // The first action is the primary button.
+  actions(item) {
+    if (!item) return [];
+    const out = [];
+    if (item.panel) out.push({ act: 'panel', label: 'Open panel' });
+    if (this.command(item)) out.push({ act: 'command', label: item.openLabel || 'Run command' });
+    if (item.setting && (item.setting.id || item.setting.section)) out.push({ act: 'settings', label: 'Open settings' });
+    if (item.sel) out.push({ act: 'show', label: 'Show me' });
+    return out;
   },
 
   iconOf(item) {

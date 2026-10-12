@@ -275,5 +275,86 @@ const FeatureDetails = {
   formfill2: 'One profile that fills any form on any site, and never touches card numbers.',
 };
 
-if (typeof window !== 'undefined') window.FeatureDetails = FeatureDetails;
-if (typeof module !== 'undefined' && module.exports) module.exports = { FeatureDetails };
+// === How it works ==========================================================
+//
+// For the entries you do with a key, a click on the page, or that simply
+// happen. The Library draws one of these under "How it works" for every
+// entry that is `manual` in the catalogue; an entry that cannot be opened at
+// all (no command, panel, setting or control to point at) shows ONLY this and
+// no button, so there is never a button that does nothing.
+//
+// Each one says what it does, when it happens, how to see or start it, and how
+// to turn it off — or says plainly that there is no switch. Written from the
+// code (the file is named in the comment), not from the marketing sentence:
+// when the code changes, change the words here. tests/renderer/
+// libraryOpenButtons.test.js fails for a manual entry that has none.
+const FeatureHow = {
+  // app.js: showFindBar / findOnActive
+  'find-in-page': 'Press Ctrl+F with a page in front and a find bar opens over it. Type a word and the matches are highlighted and counted (for example 2/5); Enter goes to the next one, Shift+Enter to the previous one, Escape closes the bar. Each tab has its own find bar, and on Google Docs, which paints its text on a canvas, Ctrl+F is handed to the page’s own find. It is a key, so there is no button to press and nothing to switch off.',
+  // tabs.js: _showKeepAwakeChooser, sidebar.js: keep awake for panels
+  'keep-awake': 'Right-click a tab and choose “Prevent from sleeping…”, then pick how long: 1, 5, 12 or 24 hours, a custom time, or never (until you revert it). A tab kept awake is marked on the strip and is not put to sleep automatically; right-click it again, choose “Keep awake — change…” and press “Allow sleeping again” to undo it. A tab on a call or playing sound is never slept anyway. Panels have the same choice when you right-click their sidebar icon.',
+  // mouse-gestures: the toggle in Settings
+  gestures: 'Hold the right mouse button on a page and flick the mouse: left goes back, right goes forward and down-then-right closes the tab, among ten gestures in all. It is on by default. If it fires when you only meant to right-click, switch it off with “Mouse gestures” in Settings.',
+  // main.js: handleExternalProtocol
+  'apps-not-links': 'When a page links to roblox://, spotify:, steam:, vscode: or zoommtg:, Vex hands the link to the program you already have instead of showing an error. It only does so shortly after you clicked or pressed a key on that page, so an ad cannot launch anything on its own, and never from a private, off-the-record or Tor tab. The first time for a site and kind of link Vex asks, and remembers your answer; Site permissions lists those answers and lets you take one back.',
+  // selection-ai-bar.js
+  'selection-bar': 'Select some text on any page and a small bar appears just above it with Explain, Debug, Summarize and Translate; in a box you can type in it also offers Rewrite, Fix and Shorten, which write the result back into the box. Clicking one opens the AI panel and runs it on the selection. Press Escape or click elsewhere and the bar goes away. There is no switch for it: it only shows when you select text.',
+  // quick-reminder.js
+  'remind-repeat': 'In the Remind me box (Ctrl+K, then “Remind me”) the Repeat list offers Once, Every day, Weekdays or Every week at the time you typed. Each occurrence is given its own Windows wake-up, so a weekday 9am reminder still arrives with Vex closed. A reminder set for a site cannot repeat, and the list is greyed out for it.',
+  // quick-reminder.js
+  'remind-page': 'The Remind me box has an “About this page” box for the page in front. Tick it and the reminder keeps that page’s address, and its notification opens the reminder in Vex with an Open page button; leave it unticked and the reminder is just text. Start from Ctrl+K, then “Remind me”.',
+  // quick-reminder.js
+  'remind-site': 'Instead of a time, type “when I open github.com” (or press the “when I open this site” chip) in the Remind me box. The reminder waits and fires the moment a tab lands on that site, instead of at a clock time. It cannot also repeat. Start from Ctrl+K, then “Remind me”.',
+  // webview.js: page context menu
+  'quick-capture': 'Select text on a page — or in a sidebar panel such as Discord — and right-click. The menu offers “Remind me about this”, “Save as a note for this page” and “Ask Vex AI about this”, each using the selected words. It is a menu item, so there is nothing to open here and nothing to switch off.',
+  // today.js, start.html
+  today: 'The new tab page shows a Today section: reminders due today, scheduled tasks about to run, watched pages that changed and pages you saved recently. Vex refreshes what it shows every minute while the window is open. Open a new tab to see it, or use the button to go straight to the start page.',
+  // focus mode + reminders
+  'focus-reminders': 'While a focus session is running, reminders do not interrupt: they wait and arrive together when it ends. A reminder you marked “Urgent — even during focus” in the Remind me box is the exception and rings at once. Starting and ending a focus session is the Focus command; there is no separate switch for this part.',
+  // quick-reminder.js: ics
+  'remind-calendar': 'A timed reminder’s card has a Calendar button. Pressing it saves a .ics file for that reminder, with its repeat rule and an alarm, that Outlook and Google Calendar can import. Only reminders with a time have the button, not “when I open a site” ones. Make one from Ctrl+K, then “Remind me”.',
+  // quick-commands.js
+  'quick-commands': 'Open the command bar with Ctrl+K and type a plain sentence instead of a command name: “remind me to call Dana tomorrow 9am”, “timer 25 min”, “alarm 7am weekdays” or “what time is it in Tokyo”. Vex works the sentence out on this machine and Enter does it. A sentence it cannot read says so rather than guessing. There is no switch for it.',
+  // main/reminders.js: toast actions
+  'toast-snooze': 'When a reminder or alarm fires, the Windows notification carries two buttons, Snooze 9 min and Open. Snooze sets it again for nine minutes later without bringing Vex forward; Open brings the reminder up in Vex. Timers and the weekly review have no Snooze. It happens on the notification itself, so there is nothing to open in Vex.',
+  // sync-engine.js
+  'reminders-sync': 'With Vex Sync on and “Reminders and scheduled tasks” ticked under Choose what to sync, a reminder set on one machine appears on the others. Only the machine that set it asks Windows to wake for it, so it does not ring twice. Without Sync nothing leaves this computer. Settings has the Sync section.',
+  // clock-panel.js
+  'alarm-sound': 'In the Clock panel, on the Alarms tab, you pick the tone, the volume, and whether an alarm rings once or insistently, again every thirty seconds until you dismiss it. Each tone has a preview so you can hear it before choosing.',
+  // job-work-panel.js
+  'today-work': 'A reminder or alarm remembers the job it was set under. Today marks the ones that belong to your work, and the Work panel lists what is set for the job you are in. Open the Work panel to see them.',
+  // quick-reminder.js: VexClock zones
+  'remind-zone': 'In the Remind me box, add a place to the time: “9am New York time” or “tomorrow 17:00 in Tokyo”. Vex works out the moment in your own clock and reads it back in both before it saves, so you can see what you agreed to. Start from Ctrl+K, then “Remind me”.',
+  // toolbox
+  'tool-history': 'Each Toolbox tool keeps the last ten results you got from it, and the Toolbox lists the tools you opened most recently beside your favourites. It is all kept on this computer. Open the Toolbox and look at the tool’s own history or the recent list.',
+  'toolbox-reference': 'Open any tool in the Toolbox and its written reference sits beside it: the categories, the traps and the lookup table. It is part of the tool, so it is always there and there is no setting for it.',
+  'toolbox-full': 'Every Toolbox tool opens as a compact panel, or as a full-screen workspace with the reference open beside it when you press the button to expand it. Vex remembers which of the two you chose last. Open the Toolbox and pick a tool to try both.',
+  'toolbox-favourites': 'Press the star on a tool in the Toolbox and it moves to the top of the list, ahead of the rest.',
+  // main.js: DRM, castLabs build
+  drm: 'Netflix, Spotify, Prime Video and Disney+ play because Vex is built on a version of Electron that carries the Widevine protected-media module, and the build is signed so the services accept it. It is automatic: open the site and press play. If playback says “DRM failed”, the signature on this build is the usual cause rather than the site; Settings › About shows what the build reports. There is no switch.',
+  // main.js: display-media handler
+  screenshare: 'This happens when a website asks to share your screen. Vex shows its own picker instead of the site’s: you choose the screen or window, the resolution up to 1440p, the frame rate, whether the sound goes with it and whether the cursor shows. Nothing is shared until you confirm there.',
+  // master-volume.js
+  volume: 'Master Volume is a popup with one slider from 0 to 500% that sets the sound of every tab and sidebar panel at once, with a button that mutes and unmutes. Opening it only shows the level; nothing changes until you move the slider. Above 100% it boosts louder than the source, which does not work on DRM streams such as Netflix. The level is remembered. It is also in the Quick Tools menu on the toolbar.',
+  // tab-ai-media.js: NowPlaying
+  nowplaying: 'When a tab starts playing sound, a small card appears at the bottom left of the window with its title, a play/pause button and a mute button. Click the card itself to go to that tab. It goes away when playback pauses or the tab closes, and several tabs stack up. It is automatic and has no switch.',
+  // codec fixes
+  codecfixes: 'These are repairs that ship switched on: Spotify protected audio, TikTok and Instagram video, Discord staying connected, and Google sign-in not calling Vex an insecure browser. They apply by themselves when you use those sites, so there is nothing to open. They are listed so you know about them if a site behaves differently here than in another browser.',
+  // preload / devtools key
+  devtools: 'Press F12 to open the Chromium developer tools on the page in front of you, including the pages inside sidebar panels. It is a key, so there is no button here to press and nothing to switch off.',
+  // tabs: Settings > Tab Layout
+  'vertical-tabs': 'Settings has a “Where tabs appear” choice: Horizontal (top bar) or Vertical (left sidebar). Down the side every tab keeps its full title, so thirty tabs stay readable. The choice applies to the Classic look; other looks arrange their own tab strip. Press Show me to see where the tab strip is.',
+  // ai-panel.js: mentions
+  tabmentions: 'In the AI panel’s message box, type @ and a list opens with your open tabs, your personas and your saved notes. Pick a tab and its text goes with the question without you switching to it. It is part of the message box, so there is nothing to turn on or off.',
+  // chat-file.js
+  chatfile: 'Drop a file on the AI panel: a PDF, or a text, Markdown, log, CSV, JSON, XML, HTML or subtitle file, up to 32 MB. It is read on this machine and the first 60,000 characters go with your next question; the file itself is not uploaded. Each tab keeps its own dropped file. A file of any other kind is refused with a message.',
+  // agent-loop.js
+  'agent-pause': 'The Pause button appears in the AI panel only while the agent is running. Pressing it holds the run between steps and leaves the page where it is; what you type while it is held becomes the agent’s next instruction, and it carries on from there. It is not there when the agent is idle, which is why there is nothing to open.',
+  // agent: schedule tool
+  'agent-schedule': 'Tell the agent in the AI panel what to repeat and when — “every weekday at 8:30, check the status page and note anything new” — and it creates the scheduled task itself. The task is listed in the Schedules panel like any other. Press Show me to find the box to type in.',
+  // game-mode.js
+  gaming: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and panels, stops its own animations and holds scheduled AI tasks. When the game ends it wakes the tabs one at a time and tells you what it did. Anything playing sound, on a call or kept awake is left alone. Each of the five behaviours has its own switch in Settings.',
+};
+
+if (typeof window !== 'undefined') { window.FeatureDetails = FeatureDetails; window.FeatureHow = FeatureHow; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { FeatureDetails, FeatureHow };
