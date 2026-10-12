@@ -69,6 +69,20 @@ describe('the choices', () => {
     const reset = app.slice(app.indexOf("getElementById('setting-reset')"));
     expect(reset.slice(0, reset.indexOf('saveSettings'))).toMatch(/SettingsUI\.applyLayoutPrefs\(\)/);
   });
+
+  it('put the text size, density and font back on screen at once too, not after a restart', () => {
+    const app = read('src/renderer/js/app.js');
+    const reset = app.slice(app.indexOf("getElementById('setting-reset')"));
+    expect(reset.slice(0, reset.indexOf('saveSettings'))).toMatch(/VexFonts\.reset\(\)/);
+    // And that call really does undo what the keys held.
+    const { VexFonts } = require('../../src/renderer/js/fonts.js');
+    VexFonts.setSize('larger');
+    VexFonts.setDensity('cosy');
+    expect(document.documentElement.getAttribute('data-vex-scale')).toBe('larger');
+    VexFonts.reset();
+    expect(document.documentElement.getAttribute('data-vex-scale')).toBeNull();
+    expect(document.documentElement.getAttribute('data-vex-density')).toBeNull();
+  });
 });
 
 describe('columns', () => {

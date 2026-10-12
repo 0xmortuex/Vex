@@ -726,6 +726,9 @@ function vexOwnTextFocused(doc) {
       VexSimpleMode.apply();
       // And Settings back to its own layout at once: automatic columns, chips.
       SettingsUI.applyLayoutPrefs();
+      // The interface size, density and fonts too: their keys are gone, but
+      // the window kept wearing Larger text and a tight density until restart.
+      if (typeof VexFonts !== 'undefined') VexFonts.reset();
       // The settings the panel actually reads live in settings.json, not
       // localStorage — clearing the keys above alone reset nothing. The
       // in-memory copy is replaced too: any later change saved it whole, which
