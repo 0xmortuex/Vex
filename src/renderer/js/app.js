@@ -1658,13 +1658,18 @@ function vexOwnTextFocused(doc) {
   window.vex.onOpenUrl?.((url) => {
     console.log('[Vex URL] renderer: handler invoked with URL:', url);
     console.log('[Vex URL] renderer: TabManager present?', !!window.TabManager || typeof TabManager !== 'undefined', 'createTab type:', typeof TabManager?.createTab);
-    try {
-      const tab = TabManager.createTab(url, true);
-      console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
-    } catch (err) {
-      console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);
-    }
-    window.showToast?.('Opened link: ' + url.substring(0, 50));
+    // While the agreement is outstanding the link waits, and opens right
+    // after "I agree" (js/legal.js).
+    const held = !VexLegal.openFromOutside(url, (link) => {
+      try {
+        const tab = TabManager.createTab(link, true);
+        console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
+      } catch (err) {
+        console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);
+      }
+      window.showToast?.('Opened link: ' + link.substring(0, 50));
+    });
+    if (held) console.log('[Vex URL] renderer: held until the privacy policy and terms are agreed to');
   });
 
   // Set as default browser button (in settings)

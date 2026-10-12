@@ -94,6 +94,21 @@ const VexLegal = {
       window.PersistentStorage._flush().catch(err => console.error('[legal] the agreement is saved on the next try:', err));
     }
     window.dispatchEvent(new CustomEvent('vex-legal-accepted', { detail: { version: this.VERSION } }));
+    // The links other programs sent meanwhile, in the order they came.
+    for (const { url, open } of this._heldLinks.splice(0)) {
+      try { open(url); } catch (err) { console.error('[legal] a link held for the agreement could not open:', url, err); }
+    }
+  },
+
+  // A link from another program (Vex as the default browser, a second start
+  // with a link: main's 'open-url', app.js) opened a tab behind the agreement.
+  // Until this profile has agreed it waits, and opens right after "I agree";
+  // "Quit Vex" quits with it unopened. Returns whether it was opened now.
+  _heldLinks: [],
+  openFromOutside(url, open) {
+    if (window.VexTabPolicy?.isPrivateWindow || !this.needed()) { open(url); return true; }
+    this._heldLinks.push({ url, open });
+    return false;
   },
   quit() {
     if (typeof window.vex?.quitApp !== 'function') throw new Error('Vex cannot quit from here: window.vex.quitApp is missing');
