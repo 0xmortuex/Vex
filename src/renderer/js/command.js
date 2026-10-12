@@ -1072,6 +1072,8 @@ const CommandBar = {
     }
     resultsEl.setAttribute('role', 'listbox');
 
+    this._keyIndex = this._buildKeyIndex();
+    try {
     this.results.forEach((item, i) => {
       const el = document.createElement('div');
       el.className = `command-result${i === this.selectedIndex ? ' selected' : ''}`;
@@ -1080,6 +1082,7 @@ const CommandBar = {
       el.id = id;
       el.setAttribute('role', 'option');
       el.setAttribute('aria-selected', String(i === this.selectedIndex));
+      const key = item.shortcut;
 
       el.innerHTML = `
         <div class="command-result-icon${item.isPrimary ? ' primary' : ''}" aria-hidden="true">${this._iconMarkup(item.icon)}</div>
@@ -1087,14 +1090,14 @@ const CommandBar = {
           <div class="command-result-title" id="${id}-t"></div>
           ${item.hint ? `<div class="command-result-hint" id="${id}-h"></div>` : ''}
         </div>
-        ${item.shortcut ? `<div class="command-result-shortcut" id="${id}-k"></div>` : ''}
+        ${key ? `<div class="command-result-shortcut" id="${id}-k"></div>` : ''}
       `;
       el.setAttribute('aria-labelledby', id + '-t');
-      const described = [item.hint && id + '-h', item.shortcut && id + '-k'].filter(Boolean);
+      const described = [item.hint && id + '-h', key && id + '-k'].filter(Boolean);
       if (described.length) el.setAttribute('aria-describedby', described.join(' '));
       el.querySelector('.command-result-title').textContent = item.label == null ? '' : String(item.label);
       if (item.hint) el.querySelector('.command-result-hint').textContent = String(item.hint);
-      if (item.shortcut) el.querySelector('.command-result-shortcut').textContent = String(item.shortcut);
+      if (key) el.querySelector('.command-result-shortcut').textContent = String(key);
 
       el.addEventListener('click', () => {
         this._execute(item);
@@ -1107,6 +1110,7 @@ const CommandBar = {
 
       resultsEl.appendChild(el);
     });
+    } finally { this._keyIndex = null; }
     this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
   },
 
@@ -1208,10 +1212,30 @@ const COMMAND_SHORTCUT_IDS = {
   remember: 'history-ai', 'group-tabs': 'group-tabs', theme: 'toggle-theme', 'lock-vex': 'lock-vex',
   bookmark: 'bookmark', 'zoom-reset': 'zoom-reset',
 };
+// The keys of every command, worked out once for a whole list of results.
+// _keyFor on its own rebuilds the registry's entire shortcut table for each
+// command it is asked about, and the results list asked three times per row
+// (typing "a" took ~90 ms). Kept only while renderResults draws: nothing can
+// change a binding in the middle of a synchronous draw.
+CommandBar._keyIndex = null;
+CommandBar._buildKeyIndex = function () {
+  if (typeof ShortcutsRegistry === 'undefined') return null;
+  const all = ShortcutsRegistry.getAllShortcuts();
+  const own = new Map();
+  const byCmd = new Map();
+  for (const id in all) {
+    const e = all[id];
+    if (!e || !e.cmd || !e.current) continue;
+    if (id === 'cmd:' + e.cmd && !own.has(e.cmd)) own.set(e.cmd, e.current);
+    if (!byCmd.has(e.cmd)) byCmd.set(e.cmd, e.current);
+  }
+  return { own, byCmd };
+};
 CommandBar._keyFor = function (c, typed) {
   if (typeof ShortcutsRegistry === 'undefined') return typed;
   const rid = COMMAND_SHORTCUT_IDS[c.id];
   if (rid) return ShortcutsRegistry.getShortcut(rid) || typed;
+  if (this._keyIndex) return this._keyIndex.own.get(c.id) || this._keyIndex.byCmd.get(c.id) || typed;
   const all = ShortcutsRegistry.getAllShortcuts();
   const own = all['cmd:' + c.id];
   if (own && own.current) return own.current;
@@ -1220,7 +1244,7 @@ CommandBar._keyFor = function (c, typed) {
 };
 for (const c of CommandBar.commands) {
   const typed = c.shortcut;
-  Object.defineProperty(c, 'shortcut', { get() { return CommandBar._keyFor(c, typed); }, enumerable: true, configurable: true });
+  Object.defineProperty(c, 'shortcut', { get() { return CommandBar._keyFor.call(CommandBar, c, typed); }, enumerable: true, configurable: true });
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { CommandBar };
