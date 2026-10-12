@@ -1,5 +1,18 @@
 # Changelog
 
+## v20.28.0 (2026-10-12) — Passkeys in Vex, a code and password helper on any page, and a Picture-in-Picture button that stays out of the way
+
+### New
+- **Vex keeps your passkeys.** A site that offers "Sign in with a passkey" or "Create a passkey" now works in tabs and in side panels. Vex asks you in its own sheet, and the private key stays in Vex's encrypted store on this PC. Settings › Passkeys lists them with Rename, Delete and Undo. Syncing passkeys to your other devices is off unless you turn it on, and only passkeys created while it was on can sync. It uses your Vex PIN when a site asks for verification. Limits: only the top page of a tab or panel (a passkey inside an embedded frame or a sign-in pop-up still uses the old behaviour), only the ES256 key type, sites that demand a specific hardware maker's attestation will refuse it, and nothing is offered in private windows, Tor or burner tabs.
+- **"Fill code from authenticator"**: right-click a page's code field (or press Ctrl+K) to fill the current code of your account for that site, with a list to pick from when several match or none does.
+- **"Save a password for this site…"** in the page's right-click menu (and Ctrl+K) saves a login yourself when the automatic "Save password?" offer did not appear. Right-click a password field for "Generate a strong password"; Settings › Passwords › Add has a generator too.
+- **Settings has a "Picture-in-Picture button on videos" choice** (beside "Float a playing video when you switch tabs"): show it when you hover a video (the default), always, or never. A site can be hidden from the button's right-click menu, and Settings lists hidden sites with a way to show them again.
+
+### Fixed
+- **The authenticator code now fills when a 2-Step Verification box opens in the middle of a signed-in page** (Roblox when changing a group's owner). Vex only looked for the box when the page loaded. It also recognises a code field by its label, the words next to it, or when it sits inside a shadow root, not only by its placeholder.
+- **The Picture-in-Picture button no longer covers or blocks anything on the page.** It used to sit fixed in the window's corner and a second one was drawn over each video's top-right, hiding players' cast and fullscreen buttons, cookie banners and chat bubbles. Now it shows only while you move the mouse over a video, sits in a free corner of that video, goes away after about 2.5 seconds of stillness, and does not cover the site's own controls. In the builder's test 0 of 39 clickable page elements were blocked, against 15 of 39 before. The shortcut Ctrl+Shift+P is unchanged.
+- **The toolbar's Back, Forward and Reload stay live while a side panel is docked beside the page.** v19.91.7 dimmed them whenever a panel was open, even though the website was on screen. Now they act on the website beside the panel whichever side has the focus. A key pressed inside the panel's own page is still refused, and a panel that covers the page (or Settings) still locks them.
+
 ## v19.91.7 (2026-10-12) — Master Volume reaches Netflix and Prime, the Library opens everything, and Discord matches your theme properly
 
 ### New
