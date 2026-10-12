@@ -7466,6 +7466,7 @@ ipcMain.handle('identity:create', () => {
     // Header stripping + ad blocker, mirroring the private-window session.
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
+      _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
@@ -7686,6 +7687,7 @@ ipcMain.handle('tor:create', async (event) => {
     try { ses.setPermissionCheckHandler(() => false); } catch {}
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
+      _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
       _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
@@ -8080,6 +8082,9 @@ function _wireEphemeralBrowsing(ses, tag) {
     if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
       for (const k of Object.keys(rh)) if (k.toLowerCase() === 'set-cookie') delete rh[k];
     }
+    // Master Volume's boost works in a private window too (it had no header, so a
+    // cross-origin player stayed at 100% there; found 2026-10-12).
+    _addMediaCorsHeaders(details, rh);
     _scriptsOffCsp(details, rh);
     callback({ responseHeaders: rh });
   });
