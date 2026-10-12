@@ -6509,10 +6509,11 @@ function createWindow() {
     && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)),
   // Vex's own interface and New Tab page: nothing there to hide.
   (event) => {
-    const frame = event && event.senderFrame;
-    let url = '';
-    try { url = frame && !frame.isDestroyed?.() ? String(frame.url || '') : (event && event.sender && !event.sender.isDestroyed() ? event.sender.getURL() : ''); } catch { return false; }
-    return url.startsWith(_vexPagesPrefix);
+    try {
+      const frame = event && event.senderFrame;
+      const url = frame && !frame.isDestroyed?.() ? String(frame.url || '') : (event && event.sender && !event.sender.isDestroyed() ? event.sender.getURL() : '');
+      return url.startsWith(_vexPagesPrefix);
+    } catch { return false; }
   });
 
   const adblockCache = path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin');
