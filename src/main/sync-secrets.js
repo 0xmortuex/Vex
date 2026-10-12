@@ -24,7 +24,7 @@
 // Both keys are derived from the sync key with HKDF (SYNC_PROTOCOL.md §4.9).
 const crypto = require('crypto');
 
-const KINDS = ['passwords', 'authenticator'];
+const KINDS = ['passwords', 'authenticator', 'passkeys'];
 const AAD = 'vex-secret/1';
 const ID_RE = /^[a-f0-9]{32}$/;
 const MAX_SEALED = 65536;
@@ -40,6 +40,7 @@ const hmac = (key, text) => crypto.createHmac('sha256', key).update(text, 'utf8'
 // Each kind: what one item is (canonical, so the same item always seals the
 // same), what makes it that item, when it changed, and what is valid.
 const text = (value, max) => typeof value === 'string' && value.length <= max && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
+const b64u = (value, min, max) => typeof value === 'string' && value.length >= min && value.length <= max && /^[A-Za-z0-9_-]+$/.test(value);
 const totpSecret = value => String(value || '').replace(/[\s=]/g, '').toUpperCase();
 const KIND = {
   passwords: {
@@ -58,9 +59,29 @@ const KIND = {
       && ['sha1', 'sha256', 'sha512'].includes(e.algorithm) && Number.isInteger(e.digits) && Number.isInteger(e.period) && (e.created === undefined || text(e.created, 64)),
     label: e => (e.issuer ? e.issuer + ' (' + e.label + ')' : e.label),
   },
+  // A passkey (main/passkeys.js). Only what makes it work travels: the key
+  // pair and the names a site gave. Where it was last used and its counter
+  // stay on each device (a synced passkey reports a counter of 0 anyway), so
+  // using one never makes a sync change.
+  passkeys: {
+    canonical: e => ({
+      credentialId: e.credentialId, rpId: e.rpId, rpName: e.rpName, userHandle: e.userHandle, userName: e.userName,
+      userDisplayName: e.userDisplayName, ...(typeof e.nickname === 'string' && e.nickname ? { nickname: e.nickname } : {}),
+      privateKeyPkcs8: e.privateKeyPkcs8, publicKeySpki: e.publicKeySpki, createdAt: e.createdAt,
+      ...(typeof e.updatedAt === 'string' ? { updatedAt: e.updatedAt } : {}),
+    }),
+    identity: e => e.credentialId,
+    changedAt: e => Date.parse(e.updatedAt || e.createdAt),
+    valid: e => b64u(e.credentialId, 16, 1400) && text(e.rpId, 253) && e.rpId.length > 0 && text(e.rpName, 512) && b64u(e.userHandle, 1, 128)
+      && text(e.userName, 512) && text(e.userDisplayName, 512) && (e.nickname === undefined || text(e.nickname, 80))
+      && b64u(e.privateKeyPkcs8, 40, 600) && b64u(e.publicKeySpki, 40, 400)
+      && text(e.createdAt, 64) && (e.updatedAt === undefined || text(e.updatedAt, 64)),
+    label: e => (e.userName || '(no name)') + ' on ' + e.rpId,
+  },
 };
 
-// stores: { passwords: { load(), save(list) }, authenticator: { load(), save(list), validate(entry) } }
+// stores: { passwords: { load(), save(list) }, authenticator: { load(), save(list), validate(entry) },
+//           passkeys: { load(), save(list), validate(entry) } }
 // readKeyHex() -> the sync key (hex), or null when this device is not signed in.
 function createSyncSecrets({ readKeyHex, isLocked, stores, randomId = () => crypto.randomUUID() }) {
   if (typeof readKeyHex !== 'function' || typeof isLocked !== 'function' || !stores) throw new Error('createSyncSecrets: missing readKeyHex, isLocked or stores');
@@ -111,11 +132,11 @@ function createSyncSecrets({ readKeyHex, isLocked, stores, randomId = () => cryp
       decipher.setAuthTag(raw.subarray(raw.length - 16));
       entry = JSON.parse(Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]).toString('utf8'));
     } catch {
-      throw new Error('A synced ' + (kind === 'passwords' ? 'password' : 'authenticator account') + ' could not be opened with this device’s sync key');
+      throw new Error('A synced ' + (kind === 'passwords' ? 'password' : kind === 'passkeys' ? 'passkey' : 'authenticator account') + ' could not be opened with this device’s sync key');
     }
     const def = KIND[kind];
     if (!entry || typeof entry !== 'object' || Array.isArray(entry) || !def.valid(entry)) throw new Error('Invalid synced ' + kind + ' item');
-    if (kind === 'authenticator' && stores.authenticator.validate) stores.authenticator.validate(entry);
+    if (typeof stores[kind].validate === 'function') stores[kind].validate(entry);
     if (idOf(k, kind, entry) !== id) throw new Error('A synced ' + kind + ' item does not match its record');
     return def.canonical(entry);
   }

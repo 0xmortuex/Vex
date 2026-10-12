@@ -117,6 +117,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 ### 🔑 Autofill & logins
 - **Password vault** — encrypted at rest with the OS keychain (DPAPI/safeStorage); offers to save on login, autofills on return.
 - **Authenticator (2FA/TOTP)** — generate codes for Discord/GitHub/Roblox/etc., and **autofill** the 6‑digit code on 2FA screens.
+- **Passkeys** — Vex is a passkey provider: sites that offer "Sign in with a passkey" work in tabs and side panels, the private key stays in Vex's encrypted store (Settings › Passkeys), your Vex PIN is the user verification, and sync is off unless you turn it on.
 - **Email‑code autofill** — reads the newest verification code from your Gmail and fills it — even from a backgrounded Gmail, or (opt‑in) a hidden background Gmail with no tab open at all.
 - **Logins & Codes hub** — all three systems in one place with per‑site success rates.
 

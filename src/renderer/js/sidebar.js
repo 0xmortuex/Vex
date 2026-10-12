@@ -651,6 +651,8 @@ const SidebarManager = {
     // the Spotify panel never offered to save and never autofilled (the
     // vault was only wired in WebviewManager.createWebview for tabs).
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
+    // Passkeys: the list under a field marked autocomplete="webauthn".
+    if (window.PasskeyUI) window.PasskeyUI.attach(wv);
     // Apply the saved Master Volume level to this panel's media (Spotify,
     // Netflix, etc.) on load + as media appears, like tab webviews do.
     wv.addEventListener('dom-ready', () => {

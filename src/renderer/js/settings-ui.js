@@ -85,6 +85,7 @@ const SettingsUI = {
     { name: 'AI History',      icon: 'clock',    color: '#7dd3fc', match: ['ai history'], group: 'AI', short: 'History' },
     { name: 'Boosts',          icon: 'rocket',   color: '#f472b6', match: ['boost'] },
     { name: 'Passwords',       icon: 'key',      color: '#34d399', match: ['password'] },
+    { name: 'Passkeys',        icon: 'key',      color: '#2dd4bf', match: ['passkey'] },
     { name: 'Focus',           icon: 'target',   color: '#fb7185', match: ['focus'] },
     { name: 'Library',         icon: 'book',     color: '#38bdf8', match: ['library'] },
     { name: 'Reading',         icon: 'bookOpen', color: '#818cf8', match: ['reading', 'accessibility'] },
@@ -128,7 +129,7 @@ const SettingsUI = {
   // advanced settings, and still found by the search.
   BASIC_SECTIONS: [
     'general', 'default browser', 'sidebar buttons', 'privacy & security',
-    'autofill', 'sessions', 'downloads', 'passwords', 'appearance', 'gui style', 'tab layout',
+    'autofill', 'sessions', 'downloads', 'passwords', 'passkeys', 'appearance', 'gui style', 'tab layout',
     'reading & accessibility', 'personalization', 'data', 'about',
   ],
   tierOf(labelText) {
@@ -184,6 +185,7 @@ const SettingsUI = {
     'chrome extensions': 'add-ons addons plugins extensions web store eklenti',
     'keyboard shortcuts': 'hotkeys keybindings keys kısayol tuşları',
     'passwords': 'logins password manager saved passwords vault parola şifre',
+    'passkeys': 'passkey passkeys webauthn fido sign in without password windows hello biometric security key',
     'reading & accessibility': 'a11y font size text size dyslexia reading font colour blind color blind contrast ruler erişilebilirlik yazı boyutu',
     'browsing extras': 'mouse gestures clipboard cookie banners consent copy right-click',
     'personalization': 'name greeting homepage home page start page new tab page weather github başlangıç sayfası ana sayfa',

@@ -20,6 +20,15 @@ describe('passkeySuppressed', () => {
   });
   it('is what main.js uses, with the allowed list read from the saved settings', () => {
     const main = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
-    expect(main).toMatch(/require\('\.\/main\/passkey-policy'\)\.passkeySuppressed\(\s*_readPersistString\('vex\.passkeySuppressedHosts', \['\*'\]\),\s*_readPersistString\('vex\.passkeyAllowedHosts', \[\]\)/);
+    // Vex is a passkey provider now: a profile that never saved the list gets
+    // Vex's passkeys everywhere (no default "*"); sign-in pop-ups, which have
+    // no provider, keep the old refuse-everywhere default.
+    expect(main).toMatch(/require\('\.\/main\/passkey-policy'\)\.passkeySuppressed\(\s*_readPersistString\('vex\.passkeySuppressedHosts', null\),\s*_readPersistString\('vex\.passkeyAllowedHosts', \[\]\)/);
+    expect(main).toMatch(/function _passkeySuppressedInPopup[\s\S]*?Array\.isArray\(saved\) \? saved : \['\*'\]/);
+  });
+  it('an unsaved list means Vex offers passkeys; a saved "*" keeps the old refusal', () => {
+    expect(passkeySuppressed(null, [], 'roblox.com')).toBe(false);
+    expect(passkeySuppressed(['*'], [], 'roblox.com')).toBe(true);
+    expect(passkeySuppressed(['bank.example'], [], 'roblox.com')).toBe(false);
   });
 });

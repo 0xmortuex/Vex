@@ -439,6 +439,8 @@ const WebviewManager = {
     if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
     // What you copied off this page (private and Tor tabs are refused inside)
     if (window.ClipboardHistory) window.ClipboardHistory.attach(webview);
+    // The list under a field marked autocomplete="webauthn" (Vex passkeys)
+    if (window.PasskeyUI) window.PasskeyUI.attach(webview);
     if (window.Dictionary) window.Dictionary.attach(webview);
     if (window.TeachMode) window.TeachMode.attach(webview);
     // Give this page the snippet list so Tab can expand an abbreviation in it

@@ -16,6 +16,18 @@ beforeEach(async () => {
 const INFO = { version: '2.35.2', electron: '42.11.0', chrome: '148.0.7778.0', os: '10.0.26200', arch: 'x64', style: 'firefox', colors: 'theme', theme: 'solarized' };
 
 describe('scrubbing', () => {
+  it('never lets a passkey, its key or its id into a report', () => {
+    // A PEM key, and the base64url a passkey's key pair, credential id or
+    // user handle would be if one were ever logged.
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----';
+    expect(VexReport.scrub('failed: ' + pem + ' at sign')).toBe('failed: [private key removed] at sign');
+    const pkcs8 = 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgq3VqK1wH7yRzv8Jd0w9uXn2o4f1LxTt5mQb3rYkE4zehRANCAAQ';
+    const credentialId = 'xYz0Qw7r2Kd9LmN3pVb6TfGh1JsC4uHaE8oIyZXwq-s';
+    const out = VexReport.scrub(`passkey ${credentialId} key ${pkcs8}`);
+    expect(out).not.toContain(credentialId);
+    expect(out).not.toContain(pkcs8);
+  });
+
   it('takes the query string and fragment off every address, keeping the site and path', () => {
     const out = VexReport.scrub('page crashed https://mail.example.com/inbox/42?user=bob&sid=abc#access_token=xyz — oom');
     expect(out).toBe('page crashed https://mail.example.com/inbox/42?[query removed] — oom');

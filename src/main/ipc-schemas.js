@@ -145,13 +145,23 @@ define('cloud:token-save', [string(4096)]);
 define('sync-save-key', [value => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)]);
 // Saved passwords and authenticator accounts in Vex Sync (main/sync-secrets.js):
 // sealed items { id, t, s } only, never a password or a secret.
-const secretKind = oneOf(['passwords', 'authenticator']);
+const secretKind = oneOf(['passwords', 'authenticator', 'passkeys']);
 const sealedItem = shape({ id: value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value), t: value => Number.isSafeInteger(value) && value >= 0, s: string(65536) });
 const sealedList = value => Array.isArray(value) && value.length <= 20000 && value.every(sealedItem);
-define('sync-secrets-seal', [value => Array.isArray(value) && value.length >= 1 && value.length <= 2 && value.every(secretKind)]);
-define('sync-secrets-apply', [value => object(value) && Object.keys(value).length <= 2 && Object.entries(value).every(([kind, list]) => secretKind(kind) && sealedList(list))]);
+define('sync-secrets-seal', [value => Array.isArray(value) && value.length >= 1 && value.length <= 3 && value.every(secretKind)]);
+define('sync-secrets-apply', [value => object(value) && Object.keys(value).length <= 3 && Object.entries(value).every(([kind, list]) => secretKind(kind) && sealedList(list))]);
 define('sync-secrets-describe', [value => Array.isArray(value) && value.length <= 5000 && value.every(item => object(item) && secretKind(item.kind) && typeof item.id === 'string' && item.id.length <= 64 && string(65536)(item.s))]);
 define('sync-secrets-put-back', [shape({ kind: secretKind, id: string(64), item: optional(sealedItem) })]);
+// Passkeys (src/main/passkeys.js): the page's request is checked field by
+// field in main; the window answers the sheet and manages the list by
+// credential id. No private key is ever an argument or a result.
+define('passkeys:request', [object]);
+define('passkeys:cancel passkeys:conditional-list', [string(64)]);
+define('passkeys:conditional-choose', [string(64), string(1400), optional(string(24))]);
+define('passkeys:answer', [string(64), object]);
+define('passkeys:list', []);
+define('passkeys:delete passkeys:undo-delete', [string(1400)]);
+define('passkeys:rename', [string(1400), string(200)]);
 define('persist-set', [string(170), string(12 * 1024 * 1024)]);
 define('persist-delete storage-load', [string(170)]);
 // Many preference keys in one write: [[key, value or null to delete], ...].

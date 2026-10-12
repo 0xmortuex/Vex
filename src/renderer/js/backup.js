@@ -40,6 +40,10 @@ const VexBackup = {
     // MCP servers: their tokens were kept here, and a server's address can
     // carry one too (security scan S5-3). The tokens now live encrypted in main.
     /^vex\.mcpServers$/i,
+    // Passkeys (main/passkeys.js) live encrypted in the main process and never
+    // in a preference; should a key with their name ever appear, it is a
+    // passkey store and stays out. Only the two site lists are settings.
+    /^vex\.passkey(?!(?:SuppressedHosts|AllowedHosts)$)/i,
   ],
 
   // True of this machine, not of this person.

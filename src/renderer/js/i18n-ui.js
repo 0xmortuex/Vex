@@ -98,7 +98,7 @@ const VexI18nUI = {
       'General': 'Genel', 'Browser': 'Tarayıcı', 'Appearance': 'Görünüm',
       'Layout': 'Düzen', 'Sidebar': 'Kenar çubuğu', 'Performance': 'Performans',
       'Sessions': 'Oturumlar', 'Workspaces': 'Çalışma alanları',
-      'Location': 'Konum', 'Sync': 'Eşitleme', 'Passwords': 'Parolalar',
+      'Location': 'Konum', 'Sync': 'Eşitleme', 'Passwords': 'Parolalar', 'Passkeys': 'Geçiş anahtarları',
       'Autofill': 'Otomatik doldurma', 'Security': 'Güvenlik',
       'Keyboard Shortcuts': 'Klavye kısayolları', 'Tab Groups': 'Sekme grupları',
       'Personalization': 'Kişiselleştirme', 'Reading': 'Okuma', 'Focus': 'Odak',

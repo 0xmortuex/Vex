@@ -50,6 +50,7 @@ const VexReport = (() => {
     // id, a hash).
     [/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{16,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,})\b/g, '[token removed]'],
     [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, '[token removed]'],
+    [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, '[private key removed]'],
     [/\b(bearer)\s+[A-Za-z0-9._~+/-]{8,}=*/gi, '$1 [removed]'],
     [/\b(token|access_token|refresh_token|id_token|api[_-]?key|apikey|secret|client_secret|password|passwd|pwd|auth|sid|key)=[^\s"'&,;]+/gi, '$1=[removed]'],
     [/("(?:token|access_token|refresh_token|id_token|api_?key|apikey|secret|client_secret|password|authorization)"\s*:\s*")[^"]*"/gi, '$1[removed]"'],

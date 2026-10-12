@@ -611,7 +611,19 @@ contextBridge.exposeInMainWorld('vex', {
   syncSecretsApply: (lists) => ipcRenderer.invoke('sync-secrets-apply', lists),
   syncSecretsDescribe: (items) => ipcRenderer.invoke('sync-secrets-describe', items),
   syncSecretsPutBack: (request) => ipcRenderer.invoke('sync-secrets-put-back', request),
-  onSyncSecretsChanged: (callback) => subscribe('sync-secrets-changed', callback)
+  onSyncSecretsChanged: (callback) => subscribe('sync-secrets-changed', callback),
+  // Passkeys (main/passkeys.js, js/passkeys.js): the sheet's answer, Settings'
+  // list, and a field's chooser pick. Only names and ids cross; a private key
+  // never does.
+  passkeysAnswer: (id, answer) => ipcRenderer.invoke('passkeys:answer', id, answer),
+  passkeysList: () => ipcRenderer.invoke('passkeys:list'),
+  passkeysDelete: (credentialId) => ipcRenderer.invoke('passkeys:delete', credentialId),
+  passkeysUndoDelete: (token) => ipcRenderer.invoke('passkeys:undo-delete', token),
+  passkeysRename: (credentialId, nickname) => ipcRenderer.invoke('passkeys:rename', credentialId, nickname),
+  passkeysConditionalChoose: (requestId, credentialId, pin) => ipcRenderer.invoke('passkeys:conditional-choose', requestId, credentialId, pin),
+  onPasskeysAsk: (callback) => subscribe('passkeys:ask', callback),
+  onPasskeysAskCancel: (callback) => subscribe('passkeys:ask-cancel', callback),
+  onPasskeysNotice: (callback) => subscribe('passkeys:notice', callback)
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

@@ -154,13 +154,15 @@ const SyncEngine = (() => {
     // (SECRET_SOURCES, main/sync-secrets.js).
     { id: 'passwords', label: 'Passwords', keys: ['vex.pwNever'], secret: true },
     { id: 'authenticator', label: 'Authenticator (2FA codes)', keys: ['vex.totpSites'], secret: true },
+    // Passkeys Vex keeps (main/passkeys.js): only those made while this was on.
+    { id: 'passkeys', label: 'Passkeys', keys: [], secret: true },
     // Everything else: site lists, zoom, auto-sleep, keyboard shortcuts...
     { id: 'settings', label: 'Other settings', keys: [] },
   ];
   const OFF_UNLESS_CHOSEN = SYNC_TYPES.filter(t => t.secret).map(t => t.id);
   // The sealed lists: { id, t, s } per saved login or authenticator account
   // (SYNC_PROTOCOL.md §4.9).
-  const SECRET_SOURCES = { 'secret:passwords': 'passwords', 'secret:authenticator': 'authenticator' };
+  const SECRET_SOURCES = { 'secret:passwords': 'passwords', 'secret:authenticator': 'authenticator', 'secret:passkeys': 'passkeys' };
   const secretSource = source => Object.hasOwn(SECRET_SOURCES, source);
   // How every record key of a sealed list begins (JSON.stringify of the key).
   const SECRET_KEY_START = '["secret:';
@@ -1423,7 +1425,7 @@ const SyncEngine = (() => {
     // again, as before showing a saved password (the Vex PIN if set).
     if (on && type.secret && !typeOn(id)) {
       if (!window.VexLock || typeof window.VexLock.recheck !== 'function') throw new Error('The PIN check did not load');
-      const what = id === 'passwords' ? 'your saved passwords' : 'your authenticator (2FA) accounts';
+      const what = id === 'passwords' ? 'your saved passwords' : id === 'passkeys' ? 'your passkeys' : 'your authenticator (2FA) accounts';
       const asked = await window.VexLock.recheck({ title: 'Sync ' + type.label.toLowerCase(), message: 'Vex asks again before it syncs ' + what + ' to your other devices. They travel end-to-end encrypted with your sync key.', okLabel: 'Turn on' });
       if (!asked) return { ok: false, canceled: true };
     }

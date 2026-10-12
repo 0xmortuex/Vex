@@ -433,7 +433,7 @@ const SyncSettings = (() => {
 
         <div class="sync-subsection" id="sync-choices">
           <h3>Choose what to sync</h3>
-          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other. The interface size and spacing (Settings › Fonts) always stay per device, since they depend on the screen. Passwords and authenticator codes are off until you turn them on here, on each device; Vex asks again first, and they travel end-to-end encrypted with your sync key.</p>
+          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other. The interface size and spacing (Settings › Fonts) always stay per device, since they depend on the screen. Passwords, authenticator codes and passkeys are off until you turn them on here, on each device; Vex asks again first, and they travel end-to-end encrypted with your sync key.</p>
           <div class="sync-choice-list" style="display:grid;gap:6px">
             ${SyncEngine.syncTypes().map(t => `<label class="sync-choice" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" data-sync-type="${escapeHtml(t.id)}"${t.on ? ' checked' : ''}> ${escapeHtml(t.label)}</label>`).join('')}
           </div>

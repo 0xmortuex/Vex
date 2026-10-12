@@ -70,6 +70,7 @@
   <link rel="stylesheet" href="css/simple-mode.css">
   <link rel="stylesheet" href="css/site-panel.css">
   <link rel="stylesheet" href="css/legal.css">
+  <link rel="stylesheet" href="css/passkeys.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -447,9 +448,9 @@
                 </label>
               </div>
               <div style="margin-top:12px">
-                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Block passkey and security-key sign-in on these sites</label>
+                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Don't offer Vex passkeys on these sites</label>
                 <input id="setting-passkey-hosts" class="set-input" placeholder="example.com, login.example.com">
-                <p class="setting-info muted" style="margin-top:6px">While blocked, a site cannot open the Windows "use your passkey or security key" dialog, so it never covers a password sign-in; sites that only sign in with a passkey will not work there. <b>*</b> (the default) blocks it on every site. Type hostnames instead to block it only on those, or clear the field to allow passkeys everywhere. When a blocked site asks for one, Vex shows a bar with <b>Allow here</b>. Reload the site after changing this.</p>
+                <p class="setting-info muted" style="margin-top:6px">Vex signs you in with your passkeys (see Passkeys in Settings) wherever a site offers one. Sites listed here are told no passkey is available, so they never cover a password sign-in with a passkey prompt; sites that only sign in with a passkey will not work there. Type hostnames, or <b>*</b> to turn passkeys off on every site as older versions of Vex did. When a site on this list asks for one, Vex shows a bar with <b>Allow here</b>. Reload the site after changing this.</p>
                 <div id="setting-passkey-allowed" style="margin-top:6px"></div>
               </div>
               <div style="margin-top:12px">
@@ -1085,6 +1086,14 @@
               <label class="setting-label">Passwords</label>
               <div id="passwords-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading passwords...</div>
+              </div>
+            </div>
+
+            <!-- Passkeys — kept by the main process, encrypted like the vault (js/passkeys.js) -->
+            <div class="setting-group" id="settings-passkeys">
+              <label class="setting-label">Passkeys</label>
+              <div id="passkeys-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading passkeys...</div>
               </div>
             </div>
 
@@ -1727,6 +1736,7 @@
   <script src="js/password-gen.js"></script>
   <script src="js/passwords.js"></script>
   <script src="js/password-manual.js"></script>
+  <script src="js/passkeys.js"></script>
   <script src="js/focus-mode.js"></script>
   <script src="js/page-extras.js"></script>
   <script src="js/gestures.js"></script>

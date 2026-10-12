@@ -18,7 +18,9 @@ describe('backup secret filter', () => {
     const secrets = ['vex.password', 'vex.savedPasswords', 'vex.syncPassphrase', 'vex.apiKey', 'vex.ai.apiKey',
       'vex.githubToken', 'vex.synctoken', 'vex.authToken', 'vex.oauth', 'vex.workerSecret', 'vex.credentials',
       'vex.vault', 'vex.totpSites', 'vex.otpSeed', 'vex.seed', 'vex.sync_key', 'vex.syncKeys', 'vex.pass',
-      'vex.lockPin', 'vex.locked', 'vex.lockFails', 'vex.lockWaitUntil', 'vex.mcpServers', 'vex.OTPCode', 'vex.AUTH'];
+      'vex.lockPin', 'vex.locked', 'vex.lockFails', 'vex.lockWaitUntil', 'vex.mcpServers', 'vex.OTPCode', 'vex.AUTH',
+      // Passkeys never live in a preference; a key by their name is a store.
+      'vex.passkeys', 'vex.passkeyStore', 'vex.passkeyCredentials', 'vex.passkeyPrivateKeys', 'vex.passkeysSync'];
     expect(secrets.filter(k => !VexBackup._blocked(k))).toEqual([]);
   });
 

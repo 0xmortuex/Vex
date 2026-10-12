@@ -422,7 +422,7 @@ A **source** is one named value of app state:
 - `storage:<file-store key>`, for example `storage:tabs`, `storage:settings`. These are JSON values, possibly `null`.
 - `sync:device:<deviceId>`, the device marker (§4.6).
 - `sync:tabs:<deviceId>`, that device's open tabs (§4.8), from the release after v14.72.3.
-- `secret:passwords` and `secret:authenticator`, saved passwords and authenticator (2FA) accounts as sealed items (§4.9), from the release after v18.59.3.
+- `secret:passwords` and `secret:authenticator`, saved passwords and authenticator (2FA) accounts as sealed items (§4.9), from the release after v18.59.3, and `secret:passkeys`, passkeys as sealed items (§4.9.1).
 
 ### 4.3 Record keys (flatten)
 A record key is the exact output of JavaScript `JSON.stringify` on an array:
@@ -561,6 +561,18 @@ Two list sources, item records only (§4.3), each item a **sealed item**:
 - **Joining** (a recovery code, or the kind just turned on): a login both sides hold is merged as in §5.2 (newer change wins, the other kept as a conflict), not replaced by the account's copy, and a login this device holds that the account has deleted is kept and sent again: a join never removes a saved password.
 - **Locked:** while Vex is locked, a desktop that syncs either kind neither pulls nor pushes; it syncs as soon as it is unlocked.
 - Carried with them: `preference:vex.pwNever` (sites never offered a save, a list of host names like `vex.forceDarkHosts`) with passwords, and `preference:vex.totpSites` (sites an authenticator code is or is not filled on, a JSON object as a string) with the authenticator.
+- A phone or other client MUST copy these records verbatim (§6 rule 1) unless it implements this section exactly.
+
+#### 4.9.1 Passkeys (`secret:passkeys`)
+A third sealed kind, sealed exactly as above (same keys, same `s` layout, AAD `vex-secret/1\npasskeys\n<id>`), **off by default** on each device, turned on under Choose what to sync as `passkeys` (the same Vex PIN or confirmation first).
+```
+["secret:passkeys","type"]            → "array"
+["secret:passkeys","item","<id>"]     → {"index":0,"item":{"id":"<id>","t":<ms int>,"s":"<base64>"}}
+```
+- Payload, in exactly this order: `{"credentialId","rpId","rpName","userHandle","userName","userDisplayName","nickname"?,"privateKeyPkcs8","publicKeySpki","createdAt","updatedAt"?}`. `credentialId`, `userHandle`, `privateKeyPkcs8` (PKCS#8 DER of an ECDSA P-256 key) and `publicKeySpki` (SPKI DER) are base64url without padding; `createdAt` / `updatedAt` are ISO times. Where a passkey was last used and its signature counter are **not** part of it (a synced passkey reports a counter of 0), so using one is never a sync change.
+- `<identity>` for the id is `credentialId`; `t` is `updatedAt`, else `createdAt`, in ms.
+- A desktop opens an item only in its main process and additionally checks that the private key is the private half of `publicKeySpki` (else the pull fails, §6 rule 11). A deletion is a tombstone like any other item; renaming (`nickname`) is an edit.
+- Only passkeys **made while sync was on** (those that told the site they are backup eligible, the BE flag, which cannot change afterwards) are sealed; the others stay on the device that made them.
 - A phone or other client MUST copy these records verbatim (§6 rule 1) unless it implements this section exactly.
 
 ---
@@ -723,7 +735,7 @@ A small per-account mailbox, separate from the record document.
 - **Storage**: `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:tabs`, `storage:groups` and `storage:stacks` are no longer sent or applied from the release after v14.72.3 (§4.8): records an older desktop sends under them are copied verbatim. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
 - **Markers**: `sync:device:<id>`.
 - **Open tabs**: `sync:tabs:<id>`, one per device, written only by that device (§4.8).
-- **Sealed secrets** (only on a desktop that turned them on, §4.9): `secret:passwords`, `secret:authenticator`.
+- **Sealed secrets** (only on a desktop that turned them on, §4.9): `secret:passwords`, `secret:authenticator`, `secret:passkeys` (§4.9.1).
 
 `vex.theme` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. The theme travels as `storage:theme`, the shortcuts as a tile list. (`vex.tabs` and `vex.groups` were in the same position until the shared tab list was retired, §4.8.)
 
@@ -743,7 +755,7 @@ A small per-account mailbox, separate from the record document.
 | `storage:tabs` | only from desktops up to v14.72.3 | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. The open-tab set those desktops shared, **merged across all of them**. Retired (§4.8). |
 
 ### 8.3 Desktop-only sources (copy verbatim, never write)
-`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto` (Light and dark: `{mode, light, dark, ...}`), `vex.whatsNewCard`, the look keys (`vex.guiStyle`, `vex.guiColors`, `vex.skin*`, `vex.font`, `vex.fontMono`, `vex.a11y`), `vex.historyClearedAt`, `vex.neverSleepHosts` and `vex.translateAlwaysHosts` (lists of host-name strings, like `vex.forceDarkHosts`), `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, every other device's `sync:device:*`, and `secret:passwords`, `secret:authenticator`, `vex.pwNever` and `vex.totpSites` (§4.9).
+`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto` (Light and dark: `{mode, light, dark, ...}`), `vex.whatsNewCard`, the look keys (`vex.guiStyle`, `vex.guiColors`, `vex.skin*`, `vex.font`, `vex.fontMono`, `vex.a11y`), `vex.historyClearedAt`, `vex.neverSleepHosts` and `vex.translateAlwaysHosts` (lists of host-name strings, like `vex.forceDarkHosts`), `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, every other device's `sync:device:*`, and `secret:passwords`, `secret:authenticator`, `secret:passkeys`, `vex.pwNever` and `vex.totpSites` (§4.9).
 
 ### 8.4 Validation every merged source must pass (`data-contracts.js` `sources()`)
 The desktop runs these checks on the **sources it owns** in the merged result (§6 rule 1; tile lists only while the gate is open). A failure aborts the pull. Sources it does not own are not checked (from v2.35.2; up to v2.35.1 the desktop checked the whole merged result, and any failure aborted the pull).

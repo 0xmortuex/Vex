@@ -211,6 +211,9 @@ let _widevineStatus = 'unknown';
 const GUEST_PRELOADS = [
   path.join(__dirname, 'preload-webview.js'),
   path.join(__dirname, 'site-tweaks.js'),
+  // Vex as a passkey provider (main/passkeys.js): its own preload for the same
+  // sandboxing reason as site-tweaks.js.
+  path.join(__dirname, 'preload-passkeys.js'),
   // Cosmetic ad-filtering preload (@ghostery). Self-contained bundle that only
   // require()s 'electron', so it's safe in the sandboxed guest context. It asks
   // main (ipc) for element-hiding rules per page and applies them — this is what
@@ -1789,6 +1792,32 @@ require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard,
 // Bookmarks and history from Chrome, Edge, Brave and Firefox on this PC, and
 // passwords from a CSV the person exported themselves (main/browser-import.js).
 require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing });
+
+// === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
+// Keys are made and kept here, encrypted like the vault, and only finished
+// signatures leave. Refused in private, Tor and burner tabs and while Vex is
+// locked; the Vex lock PIN is the user verification.
+const _passkeys = require('./main/passkeys').createPasskeyService({
+  safeStorage, ipcMain, userDataPath,
+  // atomicWrite is declared further down this file.
+  atomicWrite: (file, bytes, options) => atomicWrite(file, bytes, options),
+  isLocked: () => _vexLocked,
+  hasPin: () => !!require('./main/lock-pin').parseRecord(_persistLoad()['vex.lockPin']),
+  verifyPin: (pin) => _lockGate.tryUnlock(pin),
+  ownerOf: (wc) => { const h = secureSessions.owner(wc); return h ? { win: h.win, privatePartition: h.privatePartition } : null; },
+  partitionOf: (wc) => secureSessions.partitionOf(wc),
+  isTorContents: (wc) => !!(wc.session && wc.session.__vexTor),
+  suppressedFor: (host) => _passkeySuppressed(host),
+  // Passkeys made while Vex Sync syncs them are backup eligible (the BE flag
+  // a site sees can never change afterwards, so it is decided at creation).
+  syncOn: () => {
+    const choices = _readPersistString('vex.syncChoices', {});
+    return !!(choices && choices.passkeys === true) && require('fs').existsSync(path.join(userDataPath, 'sync-key.bin'));
+  },
+  windowSend: (win, channel, payload) => { if (!win || win.isDestroyed()) return false; win.webContents.send(channel, payload); return true; },
+  onChange: () => _syncSecretsChanged(),
+});
+_passkeys.register();
 
 // === TOTP authenticator — 2FA codes (Discord/Roblox/GitHub/etc.) generated
 // locally per RFC 6238. Secrets are encrypted at rest with safeStorage
@@ -5373,7 +5402,9 @@ app.on('web-contents-created', (_event, contents) => {
       // preload), so disable WebAuthn get() here too, on each load. Runs before
       // the user reaches the passkey step, so the prompt never appears.
       try { win.webContents.on('did-finish-load', () => { try {
-        if (_passkeySuppressed(new URL(win.webContents.getURL()).hostname)) win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {});
+        // Sign-in pop-ups have no Vex passkey provider yet, so the old default
+        // (refuse everywhere unless allowed) stays for them.
+        if (_passkeySuppressedInPopup(new URL(win.webContents.getURL()).hostname)) win.webContents.executeJavaScript(_WEBAUTHN_DISABLE_JS).catch(() => {});
       } catch {} }); } catch {}
     }
 
@@ -5849,14 +5880,24 @@ try {
 // This used to apply everywhere. The September audit made it opt-in per exact
 // hostname, which left the default list empty - so the dialog came back on every
 // site and there was no way to turn it off short of typing each hostname in.
-// The default is suppression everywhere again, expressed as "*", and the setting
-// still narrows it: replace "*" with hostnames to keep passkeys on elsewhere, or
-// empty the field to re-enable passkey prompts everywhere.
+// Now that Vex is a passkey provider (main/passkeys.js) the default is to
+// offer passkeys everywhere: a profile that never saved the setting gets
+// Vex's own passkeys. A saved list still says where NOT to offer them (its
+// hostnames), "*" being nowhere, which is what every profile had before.
 // Sites allowed from the "asked for a passkey" bar are never suppressed
 // (main/passkey-policy.js).
 function _passkeySuppressed(hostname) {
   return require('./main/passkey-policy').passkeySuppressed(
-    _readPersistString('vex.passkeySuppressedHosts', ['*']),
+    _readPersistString('vex.passkeySuppressedHosts', null),
+    _readPersistString('vex.passkeyAllowedHosts', []),
+    hostname);
+}
+// Sign-in pop-ups get no Vex provider (no guest preload there), so they keep
+// refusing the Windows passkey dialog unless the site was allowed.
+function _passkeySuppressedInPopup(hostname) {
+  const saved = _readPersistString('vex.passkeySuppressedHosts', null);
+  return require('./main/passkey-policy').passkeySuppressed(
+    Array.isArray(saved) ? saved : ['*'],
     _readPersistString('vex.passkeyAllowedHosts', []),
     hostname);
 }
@@ -6015,6 +6056,8 @@ require('./main/sync-secrets').createSyncSecrets({
   stores: {
     passwords: { load: () => _vaultLoad(), save: (list) => _vaultSave(list) },
     authenticator: { load: () => totpLoad(), save: (list) => totpSave(list), validate: (entry) => _totpCode(entry.secret, entry) },
+    // Passkeys made while sync was on (main/passkeys.js syncStore).
+    passkeys: { load: () => _passkeys.syncStore.load(), save: (list) => _passkeys.syncStore.save(list), validate: (entry) => _passkeys.validateRecord(entry) },
   },
 }).register(ipcMain);
 // A saved password or authenticator account changed: the windows' sync
@@ -8934,7 +8977,13 @@ ipcMain.on('privacy:config-sync', (e) => {
   e.returnValue = { farble: _mainHelpers.farbleOn(privacyCfg.farble, partition, e.sender.session), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '') };
 });
 ipcMain.on('compatibility:get', e => {
-  try { e.returnValue = { suppressPasskeys: _passkeySuppressed(new URL(e.senderFrame.url).hostname) }; }
+  try {
+    // 'off': the site is on the "don't offer passkeys" list (the old refusal
+    // applies); 'refused': a private, Tor or burner tab, where the page is told
+    // no passkey is available; otherwise Vex answers passkey requests itself.
+    const off = _passkeySuppressed(new URL(e.senderFrame.url).hostname);
+    e.returnValue = { suppressPasskeys: off, passkeys: off ? 'off' : (_passkeys.whyRefused(e.sender) ? 'refused' : 'vex') };
+  }
   catch { e.returnValue = { suppressPasskeys: false }; }
 });
 ipcMain.handle('privacy:get-config', () => privacyLoad());
