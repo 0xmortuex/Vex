@@ -27,7 +27,10 @@ const FILES = {
   'data-contracts.js': 'or the phone could write a value every desktop refuses.',
   // Not sync, but the same rule: "yt cats" and "!w einstein" should mean one
   // thing in the desktop's address bar and the phone's.
-  'search-shortcuts.js': 'so a keyword or a !bang means one thing on both.'
+  'search-shortcuts.js': 'so a keyword or a !bang means one thing on both.',
+  // Your own colour themes, synced from the computer: the same nine colours
+  // have to become the same chrome on both.
+  'theme-custom.js': 'so a theme of your own looks the same on both.'
 };
 
 const header = name => '// Copied verbatim from src/renderer/js/' + name + ' by scripts/sync-shared.mjs.\n'

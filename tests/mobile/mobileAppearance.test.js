@@ -20,6 +20,7 @@ window.VexBridge = {
 };
 window.VEX_THEMES = require('../../mobile/www/js/themes-data.js') && window.VEX_THEMES;
 
+require('../../mobile/www/js/shared/theme-custom.js');
 const { VexTheme } = require('../../mobile/www/js/theme.js');
 const { VexShield } = require('../../mobile/www/js/shield.js');
 
@@ -213,5 +214,23 @@ describe('browser looks', () => {
       expect(['bottom', 'top', 'split', 'stacked']).toContain(look.layout);
       expect(look.buttons.right).toContain('menu');
     }
+  });
+});
+
+describe('your own themes, from the computer', () => {
+  const MINE = { id: 'user-sunset', name: 'Sunset', colors: { background: '#1b1020', surface: '#2a1830', text: '#fbe8f0', muted: '#c9a8b8', primary: '#ff7a59', success: '#34d399', warning: '#fbbf24', danger: '#f87171', border: '#3a2840' }, updated: 1 };
+
+  it('are listed after the built-in ones and dress the chrome in their colours, the desktop’s maths', async () => {
+    store['vex.syncedThemes'] = [MINE, { id: 'not-valid', name: 'x', colors: {} }];
+    const mine = VexTheme.themes().filter(theme => theme.custom);
+    expect(mine.map(theme => theme.label)).toEqual(['Sunset']);
+    expect(mine[0].dark).toBe(true);
+    await VexTheme.set('user-sunset');
+    const root = document.documentElement;
+    expect(root.style.getPropertyValue('--vex-accent')).toBe('#ff7a59');
+    expect(root.style.getPropertyValue('--vex-bg-base')).toBe('#1b1020');
+    expect(root.style.getPropertyValue('--vex-text-muted')).toBe(window.CustomThemes.derive(MINE.colors).chrome['--vex-text-muted']);
+    await VexTheme.set('midnight');
+    expect(root.style.getPropertyValue('--vex-accent')).toBe('');
   });
 });

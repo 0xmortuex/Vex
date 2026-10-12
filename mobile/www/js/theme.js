@@ -155,8 +155,29 @@ const VexTheme = (() => {
 
   let systemDark = null;
 
+  // Your own themes, made on the computer and synced (vex.customThemes, spec
+  // §8.2): each derived into the chrome's tokens by the desktop's own colour
+  // maths (shared/theme-custom.js), so it looks here as it does there.
+  function customThemes() {
+    const list = VexStore.get('vex.syncedThemes', []);
+    const CustomThemes = window.CustomThemes;
+    if (!Array.isArray(list) || !CustomThemes) return [];
+    const out = [];
+    for (const record of list) {
+      try {
+        const theme = CustomThemes.validateRecord(record);
+        const derived = CustomThemes.derive(theme.colors);
+        const tokens = {};
+        for (const token of LOOK_TOKENS) if (derived.chrome[token]) tokens[token] = derived.chrome[token];
+        out.push({ id: theme.id, label: theme.name, dark: !derived.light, accent: derived.colors.primary,
+          bg: derived.colors.background, custom: true, tokens });
+      } catch { /* a record the desktop would refuse is not drawn either */ }
+    }
+    return out;
+  }
+
   function themes() {
-    return window.VEX_THEMES || [];
+    return (window.VEX_THEMES || []).concat(customThemes());
   }
 
   function resolvedId() {
@@ -232,9 +253,11 @@ const VexTheme = (() => {
       root.dataset.lookDark = theme.dark ? '1' : '0';
       // The look's palette goes on as inline properties, which outrank the
       // theme's [data-theme] rules, and comes off again to give them back.
-      const palette = ownColours ? (theme.dark ? look.dark : look.light) : null;
+      // A theme of your own has no [data-theme] rules: its colours go on
+      // inline the same way, under a look's own palette when there is one.
+      const palette = ownColours ? (theme.dark ? look.dark : look.light) : (theme.custom ? theme.tokens : null);
       for (const token of LOOK_TOKENS) {
-        if (palette) root.style.setProperty(token, palette[token]);
+        if (palette && palette[token]) root.style.setProperty(token, palette[token]);
         else root.style.removeProperty(token);
       }
       if (palette) root.style.setProperty('--vex-shadow', theme.dark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(0, 0, 0, 0.16)');
@@ -262,7 +285,7 @@ const VexTheme = (() => {
       // The status bar and the window background belong to Android, and both
       // have to move with the theme or the top of the screen stays last
       // theme's colour.
-      const bg = palette ? palette['--vex-bg-base'] : theme.bg;
+      const bg = palette && palette['--vex-bg-base'] ? palette['--vex-bg-base'] : theme.bg;
       if (window.VexBridge) {
         VexBridge.setStatusBarStyle(theme.dark, bg);
         VexBridge.setWindowBackground(bg, theme.dark);

@@ -2229,13 +2229,15 @@ const VexPanels = (() => {
         swatch.appendChild(dot);
         card.appendChild(swatch);
         card.appendChild(el('div', 'theme-name', theme.id === 'auto' ? 'Auto' : String(theme.label || theme.id).split(' — ')[0]));
+        if (theme.custom) card.title = 'Yours, from your computer';
         card.onclick = async () => { await VexTheme.set(theme.id); this.appearance(); };
         grid.appendChild(card);
       }
       body.appendChild(grid);
       body.appendChild(el('div', 'field-note',
         'Auto follows the system: Oxford in the light, Midnight in the dark. The rest are the same themes '
-        + 'the desktop app ships, generated from the same token files.'
+        + 'the desktop app ships, generated from the same token files'
+        + (VexTheme.themes().some(theme => theme.custom) ? ', and the ones you made on your computer, at the end.' : '. Themes you make on your computer appear here too, with Vex Sync.')
         + (lookNow !== 'vex' && VexTheme.lookColors() === 'look'
           ? ' With a browser look on, the theme decides light or dark; the look brings its own colours.' : '')));
 

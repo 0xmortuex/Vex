@@ -697,6 +697,13 @@ const VexSync = (() => {
     state.remoteTabs = devices.flatMap(device => device.tabs.map(tab => ({ ...tab, device: device.name, deviceId: device.deviceId })));
     state.remoteGroups = devices.some(device => device.legacy) ? [...groups.values()] : [];
 
+    // Your own colour themes, made on the computer: kept here so they draw
+    // at launch, before the first pull. Read only — the phone has no editor.
+    const custom = accountList(doc, 'preference:vex.customThemes').filter(item => item && typeof item.id === 'string');
+    if (JSON.stringify(custom) !== JSON.stringify(VexStore.get('vex.syncedThemes', []))) {
+      VexStore.set('vex.syncedThemes', custom).then(() => { if (window.VexTheme) VexTheme.apply(); }).catch(() => {});
+    }
+
     // The desktop's history (preference:vex.history, newest first, ≤ 5000):
     // read here so a page from the computer can be found on the phone. The
     // phone does not own it (spec §8.2 rule 2), so nothing is written back.
