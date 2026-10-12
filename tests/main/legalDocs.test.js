@@ -5,7 +5,6 @@ import path from 'path';
 
 const { readLegalDoc, registerLegalDocs, LEGAL_DOCS } = require('../../src/main/legal-docs.js');
 const { validate } = require('../../src/main/ipc-schemas.js');
-const policySrc = require('fs').readFileSync(path.join(__dirname, '../../src/main/ipc-policy.js'), 'utf8');
 const root = path.join(__dirname, '../..');
 
 describe('legal documents in the main process', () => {
@@ -19,7 +18,8 @@ describe('legal documents in the main process', () => {
     expect(() => validate('legal:read', ['PRIVACY.md'])).not.toThrow();
     expect(() => validate('legal:read', ['..\\package.json'])).toThrow();
     expect(() => validate('app:quit', [])).not.toThrow();
-    expect(policySrc).toMatch(/'legal:read', 'app:quit'\]\)/);
+    const { UI_ONLY_CHANNELS } = require('../../src/main/ipc-policy.js');
+    for (const ch of ['legal:read', 'app:quit', 'legal:gate']) expect(UI_ONLY_CHANNELS.has(ch), ch).toBe(true);
   });
 
   it('registers the handlers; Quit Vex quits', async () => {
