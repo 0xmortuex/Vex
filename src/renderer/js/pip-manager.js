@@ -56,6 +56,15 @@ function vexPipFrame(mode, token, override) {
     while ((n = tw.nextNode()) && seen++ < 40000) if (n.shadowRoot) walk(n.shadowRoot, depth + 1);
   };
   walk(document, 0);
+  // Closed shadow roots cannot be reached from outside; preload-webview.js keeps
+  // a weak list of the ones made with mode "closed".
+  const closed = window.__vexClosedRoots;
+  if (Array.isArray(closed)) {
+    for (const w of closed) {
+      const r = w && typeof w.deref === 'function' ? w.deref() : null;
+      if (r && r.host && r.host.isConnected) walk(r, 1);
+    }
+  }
   const vw = window.innerWidth || 0, vh = window.innerHeight || 0;
   let best = null, bestScore = -1;
   for (const v of videos) {
@@ -147,6 +156,11 @@ const PiPManager = {
       this._onTabs = () => this._tabsChanged();
       window.addEventListener('vex-tabs-changed', this._onTabs);
     }
+    // A panel opening or closing changes which page the button is for.
+    if (!this._onPanel) {
+      this._onPanel = () => this._showButton();
+      document.addEventListener('vex:panel-changed', this._onPanel);
+    }
     const autoToggle = document.getElementById('setting-auto-pip');
     if (autoToggle && !autoToggle._vexWired) {
       autoToggle._vexWired = true;
@@ -164,7 +178,11 @@ const PiPManager = {
     window.vex?.onPipClosed?.((reason, at) => {
       const source = this._source;
       this._restoreSource(at);
-      if (reason === 'back-to-tab' && source && typeof TabManager !== 'undefined') {
+      if (reason === 'back-to-tab' && source && source.panel) {
+        // The video came from a web panel: bring that panel back.
+        if (typeof SidebarManager !== 'undefined' && typeof SidebarManager.showPanel === 'function') SidebarManager.showPanel(source.panel);
+        else window.showToast?.('That panel is closed now');
+      } else if (reason === 'back-to-tab' && source && typeof TabManager !== 'undefined') {
         const tab = TabManager.tabs.find(t => t.id === source.tabId);
         if (tab) TabManager.switchTab(tab.id);
         else window.showToast?.('That tab is closed now');
@@ -181,14 +199,15 @@ const PiPManager = {
   // Mute and pause the tab the pop-out is showing, so the same video isn't
   // playing twice. The mute is remembered so a tab you had already muted
   // yourself doesn't get un-muted on the way back.
-  _silenceSource(tabId) {
-      const wv = WebviewManager.webviews.get(tabId);
+  // `panel` names the web panel the page is in, when it is not a tab.
+  _silenceSource(tabId, panelWv, panel) {
+    const wv = panelWv || WebviewManager.webviews.get(tabId);
     // Remember the tab regardless: "Back to tab" has to work even for a tab
     // with no live webview (asleep, or discarded while the pop-out was up).
     if (!wv) { this._source = { tabId, wasMuted: true }; return; }
     let wasMuted = false;
     try { wasMuted = typeof wv.isAudioMuted === 'function' ? wv.isAudioMuted() : false; } catch { wasMuted = false; }
-    this._source = { tabId, wasMuted };
+    this._source = { tabId, wasMuted, ...(panel ? { panel, wv } : {}) };
     try { wv.setAudioMuted(true); } catch (err) { console.warn('[PiP] could not mute the source tab:', err && err.message); }
     // Pause as well: muting alone leaves it running down the video, so
     // coming back would drop you minutes further on than you left off.
@@ -205,7 +224,7 @@ const PiPManager = {
     const source = this._source;
     this._source = null;
     if (!source) return;
-    const wv = WebviewManager.webviews.get(source.tabId);
+    const wv = source.wv || WebviewManager.webviews.get(source.tabId);
     if (!wv) return;                       // the tab was closed meanwhile
     if (Number.isFinite(at) && at > 0) {
       try { wv.send('vex-pip-resume', at); }
@@ -225,13 +244,17 @@ const PiPManager = {
     }
 
     const wv = WebviewManager.getActiveWebview();
-    if (!wv || typeof wv.send !== 'function') {
+    const targets = this._targets();
+    if (!targets.length && (!wv || typeof wv.send !== 'function')) {
       window.showToast?.('No page to put in Picture-in-Picture', 'error');
       return;
     }
-    if (window.vex && typeof window.vex.evalAllFrames === 'function' && typeof wv.getWebContentsId === 'function') {
-      const tab = TabManager.getActiveTab();
-      return this.floatTab(wv, { interactive: true, tab });
+    if (window.vex && typeof window.vex.evalAllFrames === 'function' && targets.length) {
+      return this._floatFrom(targets, { interactive: true });
+    }
+    if (!wv || typeof wv.send !== 'function') {
+      window.showToast?.('No page to put in Picture-in-Picture', 'error');
+      return;
     }
     // Ask the guest to toggle native PiP over the webview IPC channel
     // (wv.contentWindow.postMessage doesn't reach the guest across processes).
@@ -243,12 +266,73 @@ const PiPManager = {
     wv.send('vex-request-pip');
   },
 
+  // The pages the video you mean can be in: the web panels showing now (a pinned
+  // site such as Disney+ in the sidebar) and the tab in front. The button and
+  // Ctrl+Shift+P used to look only at the tab, so a video in a panel was "no
+  // video on this page" (owner's report, 2026-10-12).
+  _targets() {
+    const out = [];
+    if (typeof SidebarManager !== 'undefined' && SidebarManager && SidebarManager.panelWebviews) {
+      for (const name of [SidebarManager.activePanel, SidebarManager.sidePanel]) {
+        const w = name && SidebarManager.panelWebviews[name];
+        if (!w || w.isConnected === false || typeof w.getWebContentsId !== 'function' || out.some(t => t.wv === w)) continue;
+        out.push({ wv: w, panel: name, tab: null });
+      }
+    }
+    let wv = null;
+    try { wv = WebviewManager.getActiveWebview(); } catch (err) { console.warn('[PiP] no page in front:', err && err.message); }
+    if (wv && typeof wv.getWebContentsId === 'function' && !out.some(t => t.wv === wv)) {
+      out.push({ wv, panel: null, tab: typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null });
+    }
+    return out;
+  },
+
+  // What the pop-out and the silencing need to know about a page that is not a
+  // tab: its address, its webview and the panel's name.
+  _panelTab(t) {
+    if (t.tab) return t.tab;
+    let url = '';
+    try { url = t.wv.getURL(); } catch (err) { console.warn('[PiP] the panel has no page yet:', err && err.message); }
+    return { id: 'panel:' + t.panel, url, wv: t.wv, panel: t.panel };
+  },
+
+  // Float the best video among these pages: the one already floating (to bring
+  // it back), else the one with the best score, the page you last clicked in
+  // winning a tie.
+  async _floatFrom(targets, o) {
+    if (targets.length === 1) return this.floatTab(targets[0].wv, { ...o, tab: this._panelTab(targets[0]) });
+    const scans = await Promise.all(targets.map(async (t) => {
+      try { return { t, scan: await this._frames(t.wv, 'scan') }; }
+      catch (err) { return { t, error: err }; }
+    }));
+    const reached = scans.filter(s => s.scan);
+    if (!reached.length) {
+      if (o.interactive) window.showToast?.('Picture-in-Picture could not reach this page: ' + scans[0].error.message, 'error');
+      return 'failed';
+    }
+    const floating = reached.find(s => s.scan.some(f => f.inPip));
+    let chosen = floating;
+    if (!chosen) {
+      const focused = document.activeElement;
+      const scoreOf = (s) => Math.max(-1, ...s.scan.map(f => (f.best ? f.best.score : -1)));
+      chosen = reached.slice().sort((a, b) => (scoreOf(b) - scoreOf(a)) || ((b.t.wv === focused) - (a.t.wv === focused)))[0];
+    }
+    return this.floatTab(chosen.t.wv, { ...o, tab: this._panelTab(chosen.t), scan: chosen.scan });
+  },
+
+  // A web panel's own PiP button (the overlay on its video) asked for the
+  // pop-out. It used to be dropped, because only tabs relayed the message.
+  popoutPanel(panel, wv, media) {
+    return this._openPopout(this._panelTab({ wv, panel, tab: null }), media || null);
+  },
+
   _showButton() {
     const pipBtn = document.getElementById('pip-btn');
     if (!pipBtn) return;
     let wv = null;
     try { wv = WebviewManager.getActiveWebview(); } catch { wv = null; }
-    pipBtn.style.display = (this.videoDetected || (wv && wv._vexMediaPlaying)) ? 'flex' : 'none';
+    const panelHasVideo = this._targets().some(t => t.panel && (t.wv._vexMediaPlaying || t.wv._vexHasVideo));
+    pipBtn.style.display = (this.videoDetected || (wv && wv._vexMediaPlaying) || panelHasVideo) ? 'flex' : 'none';
   },
 
   // The pop-out window: for a frame that may not use native PiP (a site's
@@ -257,7 +341,7 @@ const PiPManager = {
     if (!tab || !window.vex?.openPipWindow) return Promise.resolve(false);
     // The tab's page, so main opens the pop-out in the tab's own session: a
     // Tor or private tab's video is never fetched outside it.
-    const wv = WebviewManager.webviews.get(tab.id);
+    const wv = tab.wv || WebviewManager.webviews.get(tab.id);
     let pageId = 0;
     try { pageId = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : 0; }
     catch (err) { console.warn('[PiP] the tab has no page yet:', err && err.message); }
@@ -266,7 +350,7 @@ const PiPManager = {
       // main rejects non-http(s) URLs (safePipUrl) and returns false on a
       // creation failure; say so instead of silently doing nothing.
       if (!result || result.ok === false) { window.showToast?.('Picture-in-Picture is not available for this page', 'error'); return false; }
-      this._silenceSource(tab.id);
+      this._silenceSource(tab.id, tab.panel ? wv : null, tab.panel || null);
       if (result.mode === 'page') {
         window.showToast?.('This site streams its video in pieces, so the whole page is floating instead');
       }
@@ -292,9 +376,11 @@ const PiPManager = {
   async floatTab(wv, opts) {
     const o = opts || {};
     const say = (msg, type) => { if (o.interactive) window.showToast?.(msg, type); };
-    let scan;
-    try { scan = await this._frames(wv, 'scan'); }
-    catch (err) { say('Picture-in-Picture could not reach this page: ' + err.message, 'error'); return 'failed'; }
+    let scan = o.scan;                // already taken, when several pages were compared
+    if (!scan) {
+      try { scan = await this._frames(wv, 'scan'); }
+      catch (err) { say('Picture-in-Picture could not reach this page: ' + err.message, 'error'); return 'failed'; }
+    }
     if (scan.some(f => f.inPip)) {
       if (o.auto === 'enter') return 'none';           // already floating
       try { await this._frames(wv, 'exit'); } catch (err) { say('Could not bring the video back: ' + err.message, 'error'); return 'failed'; }

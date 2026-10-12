@@ -605,6 +605,19 @@ const SidebarManager = {
       // One of its desktop notifications was clicked (preload-webview.js):
       // bring Vex up with this panel open.
       if (e.channel === 'vex-notification-click') { this.openFromNotification(panelName); return; }
+      // Its video, for the toolbar's Picture-in-Picture button, and its own PiP
+      // overlay button asking for the pop-out (preload-webview.js). Only tabs
+      // relayed these, so a video in a panel never showed the button and its
+      // overlay did nothing when the page refused native PiP.
+      if (e.channel === 'vex-video-detected') {
+        wv._vexHasVideo = !!(e.args && e.args[0] && e.args[0].hasVideo);
+        if (typeof PiPManager !== 'undefined') PiPManager._showButton();
+        return;
+      }
+      if (e.channel === 'vex-pip-fallback') {
+        if (typeof PiPManager !== 'undefined') PiPManager.popoutPanel(panelName, wv, e.args && e.args[0]);
+        return;
+      }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);

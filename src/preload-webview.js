@@ -1596,6 +1596,35 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Closed shadow roots, for Picture-in-Picture (main world) ===
+// The Picture-in-Picture scan (js/pip-manager.js) looks into every open shadow
+// root for a video, but a custom player element that attaches a CLOSED root
+// cannot be looked into from outside: the toolbar button said "There is no
+// video on this page" for it. This keeps a weak list of the closed roots a page
+// makes, so the scan can look into those too. attachShadow behaves exactly as
+// before; nothing is kept alive and the list is not enumerable on window.
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  const src = `(function(){try{
+    var p = Element.prototype, orig = p.attachShadow;
+    if(typeof orig !== 'function' || orig.__vexRoots || typeof WeakRef !== 'function') return;
+    var list = [];
+    try{ Object.defineProperty(window,'__vexClosedRoots',{configurable:true,enumerable:false,value:list}); }catch(e){ return; }
+    var patched = function(init){
+      var r = orig.apply(this, arguments);
+      try{ if(init && init.mode === 'closed') list.push(new WeakRef(r)); }catch(e){}
+      return r;
+    };
+    patched.__vexRoots = true;
+    try{ Object.defineProperty(p,'attachShadow',{configurable:true,writable:true,value:patched}); }catch(e){}
+  }catch(e){}})();`;
+  // executeInMainWorld needs no document, so this runs before the page's first
+  // script; only the <script>-tag fallback has to wait for one.
+  if (!runInMainWorld(src)) document.addEventListener('readystatechange', () => runInMainWorld(src), { once: true });
+})();
+
 // === Smart Searchbar suggest bridge (start page only) ===
 // The start page is a sandboxed webview guest with contextIsolation, so it
 // cannot reach the main renderer's window.vex IPC. It needs Google Suggest
