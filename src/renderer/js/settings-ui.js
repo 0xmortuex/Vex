@@ -235,6 +235,8 @@ const SettingsUI = {
       empty.textContent = 'No settings match “' + query + '”.';
       empty.style.display = '';
     } else if (empty) { empty.style.display = 'none'; }
+    // The results, and the empty note, get their place in the columns.
+    this._layout(root);
   },
 
   // The pickers that live in Settings but open as their own screens, because
@@ -449,6 +451,79 @@ const SettingsUI = {
     // Push the scroll content below the absolute toolbar (and let anchored jumps
     // clear it too). Measured after the chips are in, so wrapping is accounted for.
     this._syncPad(root);
+    // Side-by-side sections in a wide window (see _layout).
+    this._watchLayout(root);
+  },
+
+  // Wide windows lay the sections out side by side (the owner, 2026-10-11:
+  // one 720px column in a 1876px panel, many screens of scrolling).
+  // A column is never narrower than COL_MIN, so 1280px windows, and Larger and
+  // Largest text (the panel is zoomed, so it has fewer CSS pixels), keep the
+  // one column they had; never wider than COL_MAX, so lines stay readable.
+  COL_MIN: 600,
+  COL_MAX: 820,
+  COL_GAP: 18,
+  COL_SIDE: 32,      // the least space left and right of the columns
+  ROW_UNIT: 4,       // the grid's row track, see _layout
+  // How many columns fit in a scroll area this many CSS pixels wide.
+  columnsFor(width) {
+    const avail = Number(width) - 2 * this.COL_SIDE;
+    if (!(avail > 0)) return 1;
+    let n = 1;
+    while (n < 3 && (n + 1) * this.COL_MIN + n * this.COL_GAP <= avail) n++;
+    return n;
+  },
+
+  // Columns on, or off, for the scroll area's current width, and each block's
+  // height in grid rows. The sections stay in their order: the grid's rows are
+  // ROW_UNIT px, each block spans as many as it is tall, and auto-placement
+  // puts the next section in whichever column frees up first, so sections
+  // read (and Tab, and a screen reader, go) top to bottom by where they start.
+  // Everything that is not a section (the heading, a group's chip row, Show
+  // advanced settings, "No settings match") spans every column.
+  _layout(root) {
+    if (!root) return;
+    const panel = root.parentElement || root;
+    const cols = this.columnsFor(root.clientWidth);
+    if (cols > 1) {
+      panel.dataset.setCols = String(cols);
+      panel.style.setProperty('--set-cols', String(cols));
+      panel.style.setProperty('--set-grid-max', (cols * this.COL_MAX + (cols - 1) * this.COL_GAP) + 'px');
+    } else {
+      delete panel.dataset.setCols;
+      panel.style.removeProperty('--set-cols');
+      panel.style.removeProperty('--set-grid-max');
+    }
+    if (!this._observed) this._observed = new WeakSet();
+    for (const el of root.children) {
+      if (this._childObserver && !this._observed.has(el)) { this._observed.add(el); this._childObserver.observe(el); }
+      if (cols === 1) { el.style.removeProperty('grid-row-end'); continue; }
+      if (!el.getClientRects().length) continue;   // hidden: no grid area
+      const cs = getComputedStyle(el);
+      const h = el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+      el.style.gridRowEnd = 'span ' + Math.max(1, Math.ceil(h / this.ROW_UNIT));
+    }
+  },
+
+  // Watch the scroll area's width and every block's height, once. The new
+  // layout waits for the next frame: done inside the observer's callback, it
+  // resized the toolbar and the scroll area again in the same pass, and
+  // Chromium reported "ResizeObserver loop completed with undelivered
+  // notifications" each time.
+  _watchLayout(root) {
+    if (this._layoutWatched === root || typeof ResizeObserver === 'undefined') { this._layout(root); return; }
+    this._layoutWatched = root;
+    let pending = false;
+    const again = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; SettingsUI._layout(root); });
+    };
+    this._childObserver = new ResizeObserver(again);
+    // Its border box: the toolbar's observer sets its padding-top (_syncPad),
+    // which is no reason to lay out again.
+    new ResizeObserver(again).observe(root, { box: 'border-box' });
+    this._layout(root);
   },
 
   // The wheel anywhere over Settings scrolls it: the search box and the chips
