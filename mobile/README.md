@@ -24,8 +24,12 @@ is the feature-by-feature comparison; the short version:
 can name, recolour and close as a set; a card (or a row in any list) swiped
 aside to close it, with Undo; tabs that go to sleep when you leave
 them alone; an address bar that offers the tab you already have open, and
-takes the desktop's keywords ("yt", "w", "gh") and DuckDuckGo !bangs; links
-that open in their apps when you tap them; Samsung's scroll buttons and a
+takes the desktop's keywords ("@w", "yt", "gh") and DuckDuckGo !bangs, and
+completes the sites you use most as you type ("gith" → github.com, ranked by
+how often and how recently); links that open in their apps when you tap them,
+and app links a page sends you to by itself asked about first; Reload that is
+Stop while a page loads; a tab a page opens beside it; Back and Forward that
+survive Android stopping Vex in the background; Samsung's scroll buttons and a
 status bar you can hide; private tabs (own WebView profile on WebView 116+, optionally
 behind a fingerprint, kept out of screenshots and the app-switcher thumbnail);
 session restore down to the scroll position; pull to refresh; a toolbar that
@@ -33,7 +37,10 @@ sits at the top or the bottom, hides as you scroll, and carries the buttons you
 choose; find in page, including straight from the address bar; edge-swipe back
 and forward; long-press menus on links and images; a search engine of your own
 if the six built in are not it; downloads with live progress, a Stop button,
-and the files a page makes itself; print and save-as-PDF; pop-up blocking;
+and the files a page makes itself, search, and a way to delete the file
+itself, with app installers and a burst of downloads asked about first; print
+and save-as-PDF; pop-up blocking, with "always allow" per site; Undo instead
+of "are you sure?" when closing all tabs or a group;
 Android back that walks the UI the way the system expects; four shortcuts on
 the launcher icon.
 
@@ -51,7 +58,8 @@ only reaches the page.
 folders with import and export, and Recall: the readable text of every page
 you read, indexed on the device, searchable by what it said.
 
-**Media** — a floating video window (Android picture-in-picture), background
+**Media** — a floating video window (Android picture-in-picture, that starts
+by itself when you leave Vex with a video playing), background
 audio, ±10 s controls, speed, sound, and video brightness past what the site
 allows. Nothing plays until you tap, everywhere, unless you let a site. And
 **download the video**: a plain file goes to the download queue, and an HLS
@@ -62,19 +70,27 @@ segment, even when the site's player hides it behind a blob: URL.
 of what it cost the sites you visit; a fingerprint shield that runs before the
 page's first script; per-site rules, and per-site permissions the page actually
 waits on; third-party cookies off; HTTPS upgrades; DNT and GPC; certificate
-errors that refuse rather than offering a way past; clearing that is a list
+errors that refuse rather than offering a way past; HTTPS-Only with
+"continue to the unencrypted site" for one site; clearing that is a list
 with tick boxes, and can run every time you leave; and "forget everything from
 this site" in one move.
 
 **Your things** — a password vault under an Android Keystore key with TOTP
-codes, form filling and a generator worth using; personal details for sign-up forms; QR codes both
+codes, form filling and a generator worth using: search, edit, delete with
+Undo, CSV import and export, Password Health (weak, reused and — if you turn
+it on — breached, by k-anonymity), a strong password offered on sign-up forms,
+the 2-step code filled into the page's code box, copied secrets kept out of
+clipboard history and cleared after 30 seconds, and 2FA codes backed up to a
+passphrase-locked file the desktop also opens, or imported from Google
+Authenticator's transfer QR; personal details for sign-up forms; QR codes both
 ways (scan one, or hand this page to the machine next to you); dictation into
 the address bar; add a site to the home screen; a home-screen search widget
 that opens the address bar, dictation or the scanner in one tap; and a tab bar
 when the window is wide enough to hold one.
 
-**Vex's own** — every one of the desktop's colour themes (36, generated from
-its token files and its own theme list), seven skins and five typefaces; four
+**Vex's own** — every one of the desktop's colour themes (69, generated from
+its token files and its own theme list), plus the ones you make on the
+computer, with Auto's light and dark pair yours to pick; seven skins and five typefaces; four
 browser looks — Chrome, Firefox, Safari and Samsung Internet — each with its
 own shapes, type and light and dark colours, and its own toolbar layout on
 offer (Samsung's address-on-top, buttons-along-the-bottom; Safari's address
@@ -84,9 +100,12 @@ loop that shows every step); an on-device model for when there is no network
 and nothing should leave the phone; notes, exportable as Markdown, and
 reminders; the feature library with
 "ask Vex what you don't know"; and Vex Sync with the desktop, through the same
-self-hosted worker and the same end-to-end encrypted account — bookmarks and
-the desktop's notes both ways, Send to My Devices both ways, and your
-computer's open tabs on the start page.
+self-hosted worker and the same end-to-end encrypted account (the desktop's
+current protocol: key proof, level-2 markers) — bookmarks and the desktop's
+notes both ways, saved passwords and 2FA codes both ways if you turn them on
+(each sealed on its own, as the desktop seals them), each device's open tabs
+both ways, the computer's history and your own themes, and Send to My Devices
+both ways.
 
 ## How it fits together
 

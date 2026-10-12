@@ -2,8 +2,10 @@
 
 The phone can't do these alone. Each one needs a change in `src/`, `workers/` or `docs/SYNC_PROTOCOL.md`, and the mobile session doesn't edit those files. What the phone already does without help:
 
-- It shows the computer's open tabs under their group names and colours, read from `storage:tabs` and `storage:groups`.
-- It shows the computer's history as read-only, from `preference:vex.history`.
+- It follows the desktop's current protocol: key proof (§2.7), a level-2 marker with its revision (§4.6, §4.7), and drops tombstones the computers cleared.
+- It writes its own open tabs as `sync:tabs:<id>` (§4.8) and lists every other device's, by name; an older desktop's `storage:tabs` still shows in its groups.
+- It shows the computer's history as read-only, from `preference:vex.history`, and your own themes from `preference:vex.customThemes`.
+- It syncs saved passwords and 2FA accounts as sealed items (§4.9), off until turned on, tested against `src/main/sync-secrets.js`.
 
 Everything below is the part that needs the desktop. Once a request lands, the phone side follows on `claude/mobile-browser-version-00t60f`.
 
