@@ -500,9 +500,17 @@ function _windowOfContents(contents) {
   }
   return BrowserWindow.fromWebContents(contents);
 }
+// The agreement is up in a window (renderer/js/legal.js): no key main acts on
+// does anything for that window or its pages (src/main/agreement-gate.js).
+const _agreementGate = require('./main/agreement-gate').createAgreementGate();
+ipcMain.on('legal:gate', (event, up) => { _agreementGate.set(event.sender, up); });
+function _agreementBlocks(contents) {
+  return _agreementGate.blocks(_windowOfContents(contents));
+}
 function handleWindowKeys(event, input, contents) {
   // The shortcut editor is recording in the main window: the key is its.
   if (_shortcutCapturing && mainWindow && !mainWindow.isDestroyed() && contents === mainWindow.webContents) return false;
+  if (_agreementBlocks(contents)) return false;
   if (_windowKeys.isBossKey(input)) {
     event.preventDefault();
     const r = _bossKey.hide();
@@ -618,6 +626,8 @@ function _shortcutWindow(contents) {
   if (_vexLocked) return null;
   const host = secureSessions.owner(contents);
   const win = (host && host.win) || mainWindow;
+  // None while that window shows the agreement (src/main/agreement-gate.js).
+  if (_agreementGate.blocks(win)) return null;
   return win && !win.isDestroyed() ? win : null;
 }
 
@@ -5659,6 +5669,9 @@ app.on('web-contents-created', (_event, contents) => {
     if (input && input.key === 'F11') {
       console.log('[Vex F11] before-input-event fired on GUEST webContents id:', contents.id, 'type:', input.type);
     }
+    // The window this page is in, or the main one its Ctrl+K and dictation
+    // go to, shows the agreement (src/main/agreement-gate.js).
+    if (_agreementBlocks(contents) || _agreementGate.blocks(mainWindow)) return;
     if (handleFullscreenShortcut(event, input)) return;
     handleDevToolsShortcut(event, input);
     if (handleDictateShortcut(event, input)) return;
@@ -6807,6 +6820,9 @@ app.whenReady().then(async () => {
   mainWindow.webContents.on('before-input-event', (event, input) => {
     // The shortcut editor is recording: every key goes to it, F11 and F12 too.
     if (_shortcutCapturing) return;
+    // The agreement is up: no key of Vex's does anything; Tab and Enter go on
+    // to it (src/main/agreement-gate.js).
+    if (_agreementGate.blocks(mainWindow)) return;
     // An extension's shortcut (chrome.commands); never one of the keys below.
     if (handleExtensionCommandKey(event, input, null)) return;
     if (input && input.key === 'F11') {

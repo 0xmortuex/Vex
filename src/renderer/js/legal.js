@@ -91,6 +91,40 @@ const VexLegal = {
     return window.vex.quitApp();
   },
 
+  // While the agreement is up (this file's dialog, or the setup's "Before you
+  // start" step) no Vex key or command does anything: Ctrl+T opened a tab
+  // behind it (release check, 2026-10-12). The keys below (the listener at
+  // the end of this file) work its buttons and the reader; every other key is
+  // kept from Vex's own listeners, and main is told so the keys it acts on
+  // itself, and a page's keys, stand aside too (src/main/agreement-gate.js).
+  // The mouse cannot reach anything: both cover the whole window.
+  AGREEMENT: '#vex-legal, #vex-legal-doc, #vex-onboarding, .vex-dialog-overlay',
+  isUp() { return !!(document.getElementById('vex-legal') || document.querySelector('#vex-onboarding[data-vex-legal]')); },
+  _gateUp: false,
+  // Called whenever either screen comes or goes; tells main of a change.
+  gateChanged() {
+    const up = this.isUp();
+    if (up === this._gateUp) return;
+    this._gateUp = up;
+    if (typeof window.vex?.legalGate !== 'function') throw new Error('window.vex.legalGate is missing: main cannot hold its keys back');
+    window.vex.legalGate(up);
+  },
+  _AGREEMENT_KEYS: new Set(['Tab', 'Enter', ' ', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown']),
+  _keyAllowed(e) {
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    if (e.key === 'Tab') return true;   // focus comes back into it (below)
+    const t = e.target instanceof Element ? e.target : null;
+    return this._AGREEMENT_KEYS.has(e.key) && !!(t && t.closest(this.AGREEMENT));
+  },
+  // Copying text out of the reader is the browser's, not Vex's.
+  _copyKey(e) { return e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && ['c', 'C', 'a', 'A', 'Insert'].includes(e.key); },
+  _focusAgreement() {
+    const card = document.querySelector('#vex-legal .vex-legal-card') || document.querySelector('#vex-onboarding [role="dialog"]');
+    if (!card) return;
+    if (!card.hasAttribute('tabindex')) card.tabIndex = -1;
+    card.focus();
+  },
+
   // The body both screens share: the summary, what changed (an update), and
   // the two documents. `changes` adds the "What changed" list.
   renderInto(body, { changes = false } = {}) {
@@ -155,19 +189,12 @@ const VexLegal = {
       e.preventDefault(); e.stopPropagation();
     };
     document.addEventListener('keydown', onKey, true);
-    // It opens while Vex is still starting, and start-up later focuses the
-    // address bar (seen live): focus that lands behind it comes back to it,
-    // so a screen reader stays in the dialog. A document opened over it, or
-    // a Vex dialog, keeps its own focus.
-    const onFocus = (e) => {
-      if (overlay.contains(e.target) || e.target?.closest?.('#vex-legal-doc, .vex-dialog-overlay')) return;
-      overlay.querySelector('.vex-legal-card').focus();
-    };
-    document.addEventListener('focusin', onFocus, true);
+    // Focus that lands behind it comes back to it (the listener at the end
+    // of this file).
     const close = () => {
       overlay.remove();
       document.removeEventListener('keydown', onKey, true);
-      document.removeEventListener('focusin', onFocus, true);
+      this.gateChanged();
       if (returnFocus?.isConnected) returnFocus.focus();
     };
     overlay.querySelector('[data-legal-agree]').addEventListener('click', () => { this.accept(); close(); });
@@ -178,6 +205,7 @@ const VexLegal = {
       });
     });
     document.body.appendChild(overlay);
+    this.gateChanged();
     overlay.querySelector('.vex-legal-card').focus();
   },
 
@@ -251,5 +279,22 @@ if (typeof window !== 'undefined') {
   // Settings › Language switches at once; the About line went with it only
   // after a restart (found 2026-10-11).
   window.addEventListener('vex-lang-changed', () => VexLegal.renderAbout());
+  // While the agreement is up (VexLegal.isUp): on the window, in the capture
+  // phase, so it runs before every listener Vex has on the document or its
+  // elements (the shortcut registry, the address bar, the tab strip...).
+  window.addEventListener('keydown', (e) => {
+    if (!VexLegal.isUp() || VexLegal._keyAllowed(e)) return;
+    e.stopImmediatePropagation();
+    if (!VexLegal._copyKey(e)) e.preventDefault();
+  }, true);
+  // It opens while Vex is still starting, and start-up later focuses the
+  // address bar (seen live): focus that lands behind it comes back to it, so
+  // a screen reader stays in it and no key goes to what is behind. A
+  // document opened over it, or a Vex dialog, keeps its own focus.
+  document.addEventListener('focusin', (e) => {
+    if (!VexLegal.isUp()) return;
+    if (e.target instanceof Element && e.target.closest(VexLegal.AGREEMENT)) return;
+    VexLegal._focusAgreement();
+  }, true);
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexLegal };

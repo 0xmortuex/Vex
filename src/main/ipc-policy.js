@@ -28,8 +28,9 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // accounts for Vex Sync (main/sync-secrets.js).
 const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
-  // The agreement at start (js/legal.js): its documents and its "Quit Vex".
-  'legal:read', 'app:quit']);
+  // The agreement at start (js/legal.js): its documents, its "Quit Vex", and
+  // whether it is up (main holds its keys back meanwhile).
+  'legal:read', 'app:quit', 'legal:gate']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('vex', {
   // The agreement at start (js/legal.js): a shipped document's text, and quitting Vex.
   legalRead: (name) => ipcRenderer.invoke('legal:read', name),
   quitApp: () => ipcRenderer.invoke('app:quit'),
+  // It is up, or gone: main's own keys for this window stand aside meanwhile.
+  legalGate: (up) => ipcRenderer.send('legal:gate', up),
 
   // Toggle background throttling on a live webContents (kept-awake tabs).
   setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),

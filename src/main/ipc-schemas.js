@@ -15,6 +15,7 @@ define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
 define('app:quit', []);
+define('legal:gate', [boolean]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).
 define('extensions:webstore-preview extensions:install-webstore', [string(2048)]);

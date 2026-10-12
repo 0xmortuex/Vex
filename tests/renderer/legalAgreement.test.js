@@ -35,7 +35,7 @@ beforeEach(() => {
   window.showToast = vi.fn();
   window.VexTabPolicy = undefined;
   globalThis.vexConfirm = vi.fn(async () => true);
-  window.vex = { quitApp: vi.fn(async () => ({ ok: true })), legalRead: vi.fn(async (name) => '# ' + name + '\n\nSee [the terms](https://github.com/0xmortuex/Vex/blob/main/TERMS.md).') };
+  window.vex = { quitApp: vi.fn(async () => ({ ok: true })), legalGate: vi.fn(), legalRead: vi.fn(async (name) => '# ' + name + '\n\nSee [the terms](https://github.com/0xmortuex/Vex/blob/main/TERMS.md).') };
 });
 
 describe('the documents and the version constant', () => {

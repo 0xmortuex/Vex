@@ -286,6 +286,7 @@ const Onboarding = {
   _close() {
     document.getElementById('vex-onboarding')?.remove();
     if (this._keyHandler) { document.removeEventListener('keydown', this._keyHandler); this._keyHandler = null; }
+    if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
   },
 
   // Snapshot whatever's typed on the current step so Back/Skip navigation
@@ -345,6 +346,8 @@ const Onboarding = {
     // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
     const legal = s.key === 'legal';
     if (legal) {
+      // No Vex key or command works behind it (js/legal.js, isUp).
+      overlay.dataset.vexLegal = '';
       overlay.querySelector('#ob-skip')?.remove();
       overlay.querySelector('#ob-back')?.remove();
       const quit = overlay.querySelector('#ob-skipall');
@@ -360,6 +363,7 @@ const Onboarding = {
       overlay.firstElementChild.setAttribute('aria-describedby', 'vex-legal-intro');
     }
     else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
+    if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
