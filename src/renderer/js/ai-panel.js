@@ -358,6 +358,7 @@ const AIPanel = {
 
   open() {
     this._initShell();
+    this._placeBelowChrome();
     document.getElementById('ai-panel')?.classList.add('open');
     // The mark that says an answer arrived while this was shut has done its job.
     document.getElementById('btn-toggle-ai')?.classList.remove('answered');
@@ -542,6 +543,34 @@ const AIPanel = {
 
   _icon(name, size) {
     return (window.VexIcons && VexIcons.has(name)) ? VexIcons.svg(name, { size: size || 15 }) : '';
+  },
+
+  // The panel is fixed to the window, and from top:0 it covered the right end
+  // of the tab strip and toolbar in every look: a click on "+" or the window's
+  // close button landed on the panel (found 2026-10-12). It starts where the
+  // page area (#main-layout) starts instead, which is below whatever chrome
+  // the look has, and follows it when that changes height (the bookmarks bar,
+  // full screen): the page area and the bars above it are watched for size.
+  // A look switch settles over several steps and can leave the page area the
+  // same height with a different top, so the end of one places it again too.
+  _chromeWatch: null,
+  _placeBelowChrome() {
+    const main = document.getElementById('main-layout');
+    if (!main) throw new Error('AI panel: #main-layout is missing, so the panel cannot be placed below the toolbar');
+    const top = Math.max(0, Math.round(main.getBoundingClientRect().top));
+    document.documentElement.style.setProperty('--ai-top', top + 'px');
+    if (typeof ResizeObserver !== 'function') return;
+    if (!this._chromeWatch) {
+      this._chromeWatch = new ResizeObserver(() => this._placeBelowChrome());
+      this._chromeWatched = new WeakSet();
+      window.addEventListener('vex:gui-style', () => this._placeBelowChrome());
+    }
+    // Observed once each: observing an element again reports it again, which
+    // would call this again, for ever. The shortcuts bar is built later.
+    for (const id of ['main-layout', 'top-bar', 'top-tab-bar', 'gui-shortcuts-bar']) {
+      const el = document.getElementById(id);
+      if (el && !this._chromeWatched.has(el)) { this._chromeWatched.add(el); this._chromeWatch.observe(el); }
+    }
   },
 
   _initShell() {
