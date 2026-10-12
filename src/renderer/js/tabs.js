@@ -1014,14 +1014,18 @@ const TabManager = {
     // has translated it), and each title is translated as it is put up:
     // caching the shown one kept the language it had at the first load, and
     // the Stop title was never translated (found 2026-10-10).
-    if (btn._reloadMarkup === undefined) { btn._reloadMarkup = btn.innerHTML; btn._reloadTitle = btn.dataset.i18ntitle || btn.title; }
+    // Under a side panel the button shows why it is locked (js/nav-lock.js);
+    // its own title is kept there.
+    const lock = typeof NavLock !== 'undefined' ? NavLock : null;
+    if (btn._reloadMarkup === undefined) { btn._reloadMarkup = btn.innerHTML; btn._reloadTitle = btn.dataset.i18ntitle || (lock ? NavLock.realTitle(btn) : btn.title); }
     btn.dataset.state = state;
+    const setTitle = (t) => { if (lock) NavLock.setTitle(btn, t); else btn.title = t; };
     if (state === 'stop') {
       btn.innerHTML = VexIcons.svg('x', { size: 16 });
-      btn.title = 'Stop loading this page (Esc)';
+      setTitle('Stop loading this page (Esc)');
     } else {
       btn.innerHTML = btn._reloadMarkup;
-      btn.title = btn._reloadTitle;
+      setTitle(btn._reloadTitle);
     }
     if (typeof VexI18nUI !== 'undefined') VexI18nUI.translateEl(btn);
   },

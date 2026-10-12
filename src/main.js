@@ -575,7 +575,7 @@ const { guestOwnsFind } = require('./main/find-policy');
 // works through this list.
 const BROWSING_SESSIONS = ['persist:main', 'persist:container-work', 'persist:container-personal', 'persist:container-shopping'];
 
-const { shortcutFor, pageShortcut } = require('./main/guest-shortcuts');
+const { shortcutFor, pageShortcut, withSource } = require('./main/guest-shortcuts');
 
 // The key combinations the renderer's shortcut registry currently answers to
 // (js/shortcuts-registry.js pushes them on start and on every rebind). Held
@@ -638,7 +638,7 @@ function handleBrowserShortcut(event, input, contents) {
   if (!win) return false;
   let url;
   try { url = (contents && contents.getURL && contents.getURL()) || ''; } catch { url = ''; }
-  const hit = shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys });
+  const hit = withSource(shortcutFor(input, { ownsFind: guestOwnsFind(url), wanted: _guestWantedKeys }), contents.id);
   if (!hit) return false;
   win.webContents.send(hit.channel, ...(hit.args || []));
   event.preventDefault();

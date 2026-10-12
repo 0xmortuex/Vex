@@ -151,6 +151,13 @@ body[data-gui-style="glass"] #nav-buttons button {
 }
 body[data-gui-style="glass"] .nav-btn:hover,
 body[data-gui-style="glass"] #top-bar-right button:hover { background: rgba(255,255,255,0.16) !important; }
+/* Back / Forward / Reload with nowhere to go, or locked under a side panel
+   (js/nav-lock.js): dimmed, no hover lift. */
+body[data-gui-style="glass"] #nav-buttons .nav-btn[aria-disabled="true"],
+body[data-gui-style="glass"] #nav-buttons .nav-btn[aria-disabled="true"]:hover {
+  background: rgba(255,255,255,0.04) !important;
+  color: rgba(238,240,255,0.5) !important;
+}
 
 /* Force the quick-tools / AI / split / command buttons to match (some carry
    their own styling that the generic rule above didn't beat). */

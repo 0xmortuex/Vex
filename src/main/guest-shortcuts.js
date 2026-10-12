@@ -177,4 +177,18 @@ function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   return null;
 }
 
-module.exports = { shortcutFor, comboOf, pageShortcut, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP, BROWSER_KEYS };
+// Back, Forward and Reload from a page name the page (its webContents id),
+// and so does a key passed up to the registry (F5, Ctrl+F5, Shift+F5): the
+// window refuses them when that page is a side panel's, so a key pressed in
+// Discord's panel no longer moves the website beside or behind it
+// (js/nav-lock.js, found 2026-10-12).
+const FROM_PAGE = new Set(['navigate-back', 'navigate-forward', 'reload-tab', 'hard-reload-tab']);
+function withSource(hit, pageId) {
+  if (!hit) return hit;
+  if (!Number.isInteger(pageId)) throw new Error('withSource needs the page\'s webContents id');
+  if (FROM_PAGE.has(hit.channel)) return { channel: hit.channel, args: [pageId] };
+  if (hit.channel === 'guest-shortcut') return { channel: hit.channel, args: [{ ...hit.args[0], from: pageId }] };
+  return hit;
+}
+
+module.exports = { shortcutFor, comboOf, pageShortcut, withSource, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP, BROWSER_KEYS };

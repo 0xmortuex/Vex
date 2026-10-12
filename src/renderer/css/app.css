@@ -126,6 +126,17 @@ body {
   cursor: not-allowed;
 }
 
+/* Back / Forward / Reload with nowhere to go, or locked under a side panel
+   (js/nav-lock.js): aria-disabled, so the tooltip saying why still shows.
+   The muted text colour is too close to the buttons' own in some themes;
+   their colour thinned stays readable (3:1, check:ui). */
+#nav-buttons .nav-btn[aria-disabled="true"],
+#nav-buttons .nav-btn[aria-disabled="true"]:hover {
+  color: color-mix(in srgb, var(--vex-text-secondary) 88%, transparent);
+  background: transparent;
+  cursor: default;
+}
+
 /* URL Bar */
 #url-bar-wrapper {
   flex: 1;

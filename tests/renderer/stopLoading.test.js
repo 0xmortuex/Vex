@@ -144,7 +144,8 @@ describe('Esc in a page that is loading', () => {
 describe('app.js wiring', () => {
   const SRC = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
   it('the button reads its own state', () => {
-    expect(SRC).toMatch(/btn-reload'\)\.addEventListener\('click', \(e\) => \{\s*if \(e\.currentTarget\.dataset\.state === 'stop'\) WebviewManager\.stop\(\);\s*else WebviewManager\.reload\(\);/);
+    // Through js/nav-lock.js, which holds it while a side panel is in front.
+    expect(SRC).toMatch(/btn-reload'\)\.addEventListener\('click', \(e\) => \{\s*NavLock\.run\(e\.currentTarget\.dataset\.state === 'stop' \? 'stop' : 'reload'\);/);
   });
   it('Esc in the address bar: undo, then stop, then blur', () => {
     const esc = SRC.slice(SRC.indexOf("} else if (e.key === 'Escape') {"), SRC.indexOf("urlInput.addEventListener('focus'"));

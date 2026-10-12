@@ -172,6 +172,14 @@ body[data-gui-family="browser"] :is(.nav-btn, #top-bar-right > button, #btn-look
   background: var(--b-btn-hover); color: var(--b-text); border-color: var(--b-btn-hover-border, transparent);
 }
 body[data-gui-family="browser"] .nav-btn:disabled { color: var(--b-icon-disabled); background: transparent; }
+/* Back / Forward / Reload with nowhere to go, or locked under a side panel
+   (js/nav-lock.js); beats the hover fill above. Darker than the look's own
+   disabled grey (2:1 on Chrome's white), so it stays readable at 3:1. */
+body[data-gui-family="browser"] #nav-buttons .nav-btn[aria-disabled="true"],
+body[data-gui-family="browser"] #nav-buttons .nav-btn[aria-disabled="true"]:hover {
+  color: color-mix(in srgb, var(--b-icon) 60%, var(--b-icon-disabled));
+  background: transparent; border-color: transparent; cursor: default;
+}
 /* The command button stands in for the browser's own menu. */
 body[data-gui-family="browser"] #btn-command svg { display: none; }
 body[data-gui-family="browser"] #btn-command::before { content: var(--b-menu-glyph, '\22EE'); font: 18px/1 var(--b-font); }

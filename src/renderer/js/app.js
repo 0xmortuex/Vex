@@ -236,12 +236,14 @@ function vexOwnTextFocused(doc) {
   });
 
   // === Navigation Buttons ===
-  document.getElementById('btn-back').addEventListener('click', () => WebviewManager.goBack());
-  document.getElementById('btn-forward').addEventListener('click', () => WebviewManager.goForward());
+  // The website's, so they stand still while a side panel is in front
+  // (js/nav-lock.js), and so do their keys below.
+  NavLock.init();
+  document.getElementById('btn-back').addEventListener('click', () => NavLock.run('back'));
+  document.getElementById('btn-forward').addEventListener('click', () => NavLock.run('forward'));
   // Stop while the page loads, Reload otherwise (TabManager.syncReloadButton).
   document.getElementById('btn-reload').addEventListener('click', (e) => {
-    if (e.currentTarget.dataset.state === 'stop') WebviewManager.stop();
-    else WebviewManager.reload();
+    NavLock.run(e.currentTarget.dataset.state === 'stop' ? 'stop' : 'reload');
   });
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   // Restart Vex from the toolbar. Confirm first: a restart closes every tab, and
@@ -274,10 +276,11 @@ function vexOwnTextFocused(doc) {
     const tab = TabManager.getActiveTab();
     if (tab) TabManager.closeTab(tab.id);
   });
-  window.vex.onReloadTab(() => WebviewManager.reload());
-  window.vex.onHardReloadTab?.(() => WebviewManager.hardReload());
-  window.vex.onNavigateBack(() => WebviewManager.goBack());
-  window.vex.onNavigateForward(() => WebviewManager.goForward());
+  // From a page, main names it: a side panel's page never moves the website.
+  window.vex.onReloadTab((from) => NavLock.run('reload', from));
+  window.vex.onHardReloadTab?.((from) => NavLock.run('hardReload', from));
+  window.vex.onNavigateBack((from) => NavLock.run('back', from));
+  window.vex.onNavigateForward((from) => NavLock.run('forward', from));
   window.vex.onZoomIn(() => WebviewManager.zoomIn());
   window.vex.onZoomOut(() => WebviewManager.zoomOut());
   window.vex.onZoomReset(() => WebviewManager.zoomReset());
@@ -308,14 +311,16 @@ function vexOwnTextFocused(doc) {
   // decides — the same path as pressing it with Vex's own interface focused.
   window.vex.onGuestShortcut?.((combo) => {
     if (!combo || !combo.key) return;
-    document.dispatchEvent(new KeyboardEvent('keydown', {
+    // The page it came from is named for the registry's F5 / Ctrl+F5 /
+    // Shift+F5, which go through NavLock (a panel's page reloads no website).
+    NavLock.fromPage(combo.from, () => document.dispatchEvent(new KeyboardEvent('keydown', {
       key: combo.key,
       ctrlKey: !!combo.ctrl,
       shiftKey: !!combo.shift,
       altKey: !!combo.alt,
       bubbles: true,
       cancelable: true,
-    }));
+    })));
   });
   window.vex.onNextTab?.(() => cycleTab(1));
   window.vex.onPrevTab?.(() => cycleTab(-1));
@@ -1471,8 +1476,8 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
     ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
-    ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
-    ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
+    ShortcutsRegistry.register('reload',         () => NavLock.run('reload'));
+    ShortcutsRegistry.register('hard-reload',    () => NavLock.run('hardReload'));
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
     // Refused while Vex is locked, or before this profile has agreed to the
@@ -1485,9 +1490,9 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
     // The other keys browsers have for these (F5, Ctrl+F5, Shift+F5, F6,
     // Alt+D, Ctrl+PageUp/PageDown).
-    ShortcutsRegistry.register('reload-f5',            () => WebviewManager.reload());
-    ShortcutsRegistry.register('hard-reload-ctrl-f5',  () => WebviewManager.hardReload());
-    ShortcutsRegistry.register('hard-reload-shift-f5', () => WebviewManager.hardReload());
+    ShortcutsRegistry.register('reload-f5',            () => NavLock.run('reload'));
+    ShortcutsRegistry.register('hard-reload-ctrl-f5',  () => NavLock.run('hardReload'));
+    ShortcutsRegistry.register('hard-reload-shift-f5', () => NavLock.run('hardReload'));
     ShortcutsRegistry.register('focus-url-f6',         focusAddressBar);
     ShortcutsRegistry.register('focus-url-alt-d',      focusAddressBar);
     ShortcutsRegistry.register('next-tab-pagedown',    () => cycleTab(1));
