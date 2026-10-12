@@ -190,7 +190,10 @@
       if (e.key === 'Tab' && window.VexFocusTrap) VexFocusTrap.onTab(e, overlay.firstElementChild);
     });
     const first = overlay.querySelector('#pk-pin') && p.uv === 'required' ? overlay.querySelector('#pk-pin')
-      : overlay.querySelector('input[name="pk-account"]:checked') || overlay.querySelector('#pk-name') || overlay.querySelector('.vex-dialog-btn.primary');
+      // With no passkey to choose (a site that has none here) there is no primary
+      // button either; the focus still goes into the sheet, on the safe answer,
+      // or Escape and Tab would act on the page behind it.
+      : overlay.querySelector('input[name="pk-account"]:checked') || overlay.querySelector('#pk-name') || overlay.querySelector('.vex-dialog-btn.primary:not(:disabled)') || overlay.querySelector('[data-pk="cancel"]') || overlay.querySelector('.vex-dialog-btn');
     first?.focus();
     if (first && first.id === 'pk-name') first.select();
   }

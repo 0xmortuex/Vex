@@ -272,3 +272,19 @@ describe('searching the Settings list', () => {
     expect(box.querySelector('.pk-nomatch')).toBeNull();
   });
 });
+
+describe('found 2026-10-12 by driving the sheet', () => {
+  it('puts the focus inside a sheet that has no passkey to choose, so Escape closes it', async () => {
+    const l = await load();
+    l.ask(getPayload({ accounts: [] }));
+    expect(sheet().contains(document.activeElement)).toBe(true);
+    sheet().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await vi.waitFor(() => expect(answers).toEqual([['ask1', { action: 'cancel' }]]));
+  });
+
+  it('draws a button that cannot be pressed as one (the dialog stylesheet has a disabled rule)', async () => {
+    const css = (await import('node:fs')).readFileSync('src/renderer/css/vex-dialog.css', 'utf8');
+    expect(css).toMatch(/\.vex-dialog-btn:disabled\s*\{[^}]*opacity/);
+    expect(css).toMatch(/\.vex-dialog-btn:disabled\s*\{[^}]*cursor:\s*not-allowed/);
+  });
+});

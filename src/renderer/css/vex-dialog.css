@@ -147,6 +147,13 @@
   border-color: var(--primary);
 }
 
+/* A button that cannot be pressed (the passkey sheet's "Save passkey" without a
+   Vex PIN, every button while an answer is on its way) must look it. */
+.vex-dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .vex-dialog-btn.primary {
   background: var(--primary);
   border-color: var(--primary);
