@@ -1,15 +1,26 @@
 # Changelog
 
-## v19.71.4 (2026-10-12) — Discord in your Vex theme, a roomier Settings with layout choices, and every v19.1.7 change checked by hand
+## v19.71.4 (2026-10-12) — Discord matches your Vex theme properly, Settings with layout choices, and panels you can open as tabs
+
+### New
+- **Settings has layout choices**, from the sliders button beside the search box or Settings › Appearance › Settings layout: one, two or three columns (or automatic), the categories as chips across the top or as a list down the left that marks the section you are in, and a compact density that fits more on the screen with the same text size. Applied at once, kept on this device.
+- **Roblox Hub and every other web panel (Discord, WhatsApp, Spotify, pinned sites) can open the page they are showing as a tab**, still signed in, or copy its link: a button on the panel's bar, the sidebar icon's right-click menu, and Ctrl+K.
+- **While a side panel (Discord, WhatsApp, Spotify, Notes, a pinned site...) is in front, the website's Back, Forward and Reload stand still:** the toolbar buttons are dimmed and say "not available while a side panel is open", and Alt+Left/Right, F5, Ctrl+R, Ctrl+Shift+R and Ctrl+K's Reload no longer move or reload the tab hidden behind it. They come back the moment the panel closes or you click the page beside a docked panel.
+
+### Fixed
+- **"Match Discord to my Vex theme" now recolours every part of Discord, not just the text.** With a light Vex theme, parts of Discord stayed dark under dark text, and Account's Edit buttons were white on light grey. Now every colour Discord uses is set (972 of them), a light Vex theme gives a fully light Discord and a dark one a fully dark Discord whatever mode Discord is in, and every text is held to 4.5:1 against what it sits on in all 69 themes (a few colours Discord uses under both light and dark text are balanced at 3:1).
+- **If a Discord theme of your own is also on while Vex matches its colours,** Vex says so ("Your own Discord theme 'NAME' is also on; the colours may clash.") in Settings and as a notice, with a button to pause your other themes while matching. They come back exactly as they were when matching turns off. Nothing is paused without your click.
+- **Settings no longer breaks after F11, a resize or a text-size change:** no empty band above the AI sections, no sections drawn over each other while the window or text size changes, switches stay whole beside a long label instead of shrinking to a circle, and a persona's prompt preview ends on a whole line.
+- **The ring shown while a page loads keeps spinning when Windows' animations are off** (it stood still, then pulsed, and looked stuck). Vex's own Reduce motion switch still turns it into a pulse.
+
+## v19.56.9 (2026-10-12) — Discord in your Vex theme, a roomier Settings, and every v19.1.7 change checked by hand
 
 ### Read this first
 - **If changes to your settings stopped being kept, this fixes it.** A shortcut added to the shortcuts bar with its site's logo (the default) was refused when settings were saved, and every change made after it, to any setting, was refused with it.
 - **Every change in v19.1.7 was checked again by using it for real**, feature by feature, and about 30 problems were fixed. The notes below list them, and the end of this entry corrects what v19.1.7's notes said too strongly.
 
 ### New
-- **Discord can wear your Vex theme.** Turn on "Match Discord to my Vex theme" in Settings › Appearance (or right-click the Discord button). The Vex themes named after BetterDiscord themes load the real theme in Discord through Vencord (ClearVision, Dark Matter, Tokyo Night and 18 more, from their own published addresses); every other Vex theme, your own too, recolours all of Discord with matching, readable colours (a light Vex theme gives a fully light Discord, a dark one a fully dark Discord, every text checked at 4.5:1). It changes as you switch themes. If a Discord theme of your own is also on, Vex says so and offers "Pause my other themes while matching"; they come back exactly as they were when matching is turned off. Your own Vencord themes and QuickCSS are never touched otherwise. It needs Vencord, which Vex offers to install. Off until you turn it on.
-- **Settings has layout choices**, from the sliders button beside the search box or Settings › Appearance › Settings layout: one, two or three columns (or automatic), the categories as chips across the top or as a list down the left that marks the section you are in, and a compact density that fits more on the screen with the same text size. Applied at once, kept on this device.
-- **Roblox Hub and every other web panel (Discord, WhatsApp, Spotify, pinned sites) can open the page they are showing as a tab**, still signed in, or copy its link: a button on the panel's bar, the sidebar icon's right-click menu, and Ctrl+K.
+- **Discord can wear your Vex theme.** Turn on "Match Discord to my Vex theme" in Settings › Appearance (or right-click the Discord button). The Vex themes named after BetterDiscord themes load the real theme in Discord through Vencord (ClearVision, Dark Matter, Tokyo Night and 18 more, from their own published addresses); every other Vex theme, your own too, gives Discord matching, readable colours. It changes as you switch themes, and your own Vencord themes and QuickCSS are never touched. It needs Vencord, which Vex offers to install. Off until you turn it on.
 - **Settings uses your screen.** Wide windows show the sections in two columns (three on very wide screens), so a 1920px window scrolls about half as far and a 2560px one about a third. Smaller windows and Largest text keep one column.
 - **The mouse wheel scrolls Settings anywhere over it**, beside the settings and over the search box and chips too, not only in the middle.
 - **Ctrl+K opens the privacy policy, terms, license and third-party notices** inside Vex at any time (type "privacy", "terms", "license" or "legal"), and Settings › About opens all four inside Vex too, offline.
@@ -34,7 +45,6 @@
 ### Tabs, address bar and pages
 - **Vex's own HTTPS-Only and certificate pages show the address you were trying to reach** in the address bar, as Chrome does, instead of the page you came from. The site button never calls them secure.
 - **The AI panel no longer covers the tab strip, toolbar or window buttons** (the + button sat under it); full-screen AI fills the page area.
-- **While a side panel (Discord, WhatsApp, Spotify, Notes, a pinned site...) is in front, the website's Back, Forward and Reload stand still:** the toolbar buttons are dimmed and say "not available while a side panel is open", and Alt+Left/Right, F5, Ctrl+R, Ctrl+Shift+R and Ctrl+K's Reload no longer move or reload the tab hidden behind it. They come back the moment the panel closes or you click the page beside a docked panel.
 - The address bar's right-click menu and the tab menu work from the keyboard (menu key or Shift+F10, arrows, Enter, Escape).
 - Suggestions for /Docs and /docs each show their own address.
 - Settings › General no longer shows Edit and Remove for a search engine of your own when you have none.
@@ -49,8 +59,7 @@
 ### Themes and language
 - A browser look that wears its own colours gives dropdowns, scrollbars and websites its own light or dark (Firefox dark over a light theme showed light dropdowns and light sites).
 - Reduce motion now stills the New Tab page too.
-- The ring shown while a page loads keeps spinning when Windows' animations are off (it stood still and looked stuck); Vex's own Reduce motion switch turns it into a pulse.
-- **Settings no longer breaks after F11, a resize or a text-size change:** no empty band above the AI sections, no sections drawn over each other while the window or text size changes, switches stay whole beside a long label instead of shrinking to a circle, and a persona's prompt preview ends on a whole line.
+- The ring shown while a page loads pulses instead of standing still when Windows' animations are off or Reduce motion is on (it looked stuck).
 - In Turkish: the site button's tooltip on websites, the setup's "skip the rest?" question, and Settings › About's "accepted on" line.
 
 ### Corrections to the v19.1.7 notes
