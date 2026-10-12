@@ -43,8 +43,11 @@
 // A search box, a combobox and a coupon/promo/gift box never count unless the
 // page says autocomplete="one-time-code". Fields in open shadow roots count.
 function vexTotpDetector() {
-  var STRONG = /otp|2fa|two.?factor|two.?step|2.?step|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code|\b(?:6|six|8|eight)[ -]?digits?\b|login.?code|confirmation.?code/;
+  // "otp" only as a word or beside a word that makes it one (emailOtp, otpCode):
+  // a bare substring matched name="hotpink".
+  var STRONG = /(?:^|[^a-z])otp|otp(?:$|[^a-z])|(?:email|sms|mobile|login|auth|mfa|verify|phone|my|new)otp|otp(?:code|pin|input|field|value|token|digit)|2fa|two.?factor|two.?step|2.?step|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code|\b(?:6|six|8|eight)[ -]?digits?\b|login.?code|confirmation.?code/;
   var STRONG_TEXT = /\botp\b|\b2fa\b|two.?factor|two.?step|\b2.?step\b|\btotp\b|\bmfa\b|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code|\b(?:6|six|8|eight)[ -]?digits?\b|login.?code|confirmation.?code/;
+  var CARD = /cvv|cvc|csc|cc-|card.?(security|verification|code)|credit|debit/;
   var BARE = /\bcode\b|\bdigits?\b/;
   var SCREEN = /two.?factor|two.?step|2.?step|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)|\b(?:6|six)[ -]?digit/i;
   var NOT_CODE = /search|coupon|promo|voucher|discount|gift|referral|invite|redeem|zip|postal|captcha/;
@@ -100,6 +103,10 @@ function vexTotpDetector() {
     if (role === 'combobox' || role === 'searchbox' || el.getAttribute('aria-autocomplete')) return false;
     var m = meta(el), label = labelsOf(el), around = near(el);
     if (NOT_CODE.test(m) || NOT_CODE.test(label)) return false;
+    // A card's "Security code" is a CVV, not a one-time code: by its own words,
+    // or because it sits in a form that also asks for the card number.
+    if (CARD.test(m) || CARD.test(label)) return false;
+    try { if (el.form && el.form.querySelector('input[autocomplete^="cc-"]')) return false; } catch (e) { /* no form, no card */ }
     // Attribute values are short identifiers (name="emailOtp"), so the loose
     // pattern is fine there; in running text it would match "footprint".
     if (STRONG.test(m) || STRONG_TEXT.test(label)) return true;
