@@ -63,3 +63,4 @@ d6414a4 security-small-rare        # Clipboard History copy-button spoof
 2fce57f security-small-some        # private window skipped the agreement
 0749154 none                       # v19.42.1 version bump, never published (folded into the next release)
 a82a342 none                       # v19.55.9 version bump, never published (folded into the next release)
+4478335 none                       # Discord theme match rewrite: fixes unpublished work (v19.56.9 was never published)
