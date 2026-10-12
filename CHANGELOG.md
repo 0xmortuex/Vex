@@ -1,6 +1,6 @@
 # Changelog
 
-## v19.55.9 (2026-10-12) — Discord in your Vex theme, a roomier Settings, and every v19.1.7 change checked by hand
+## v19.56.9 (2026-10-12) — Discord in your Vex theme, a roomier Settings, and every v19.1.7 change checked by hand
 
 ### Read this first
 - **If changes to your settings stopped being kept, this fixes it.** A shortcut added to the shortcuts bar with its site's logo (the default) was refused when settings were saved, and every change made after it, to any setting, was refused with it.
@@ -46,6 +46,7 @@
 ### Themes and language
 - A browser look that wears its own colours gives dropdowns, scrollbars and websites its own light or dark (Firefox dark over a light theme showed light dropdowns and light sites).
 - Reduce motion now stills the New Tab page too.
+- The ring shown while a page loads pulses instead of standing still when Windows' animations are off or Reduce motion is on (it looked stuck).
 - In Turkish: the site button's tooltip on websites, the setup's "skip the rest?" question, and Settings › About's "accepted on" line.
 
 ### Corrections to the v19.1.7 notes
