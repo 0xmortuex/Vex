@@ -22,6 +22,7 @@
     "publish": "npm run build-icons && node scripts/write-release-notes.js && node scripts/check-dist-free.js && rimraf dist && electron-builder --publish never && node scripts/verify-packaged-boot.js && node scripts/verify-signing.js --release && node scripts/ensure-release.js && node scripts/upload-release.js",
     "check:source": "node scripts/verify-source.js",
     "check:ui": "node scripts/check-ui.js",
+    "perf": "node scripts/perf-baseline.js",
     "build:vendor": "node scripts/bundle-browser-libs.js",
     "prestart": "npm run build:vendor",
     "prepack": "npm run build:vendor",
