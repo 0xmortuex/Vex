@@ -282,6 +282,40 @@ describe('found 2026-10-12 by driving the sheet', () => {
     await vi.waitFor(() => expect(answers).toEqual([['ask1', { action: 'cancel' }]]));
   });
 
+  it('lets the list under a field be used from the keyboard: Down and Up mark a row, Enter takes it', async () => {
+    await load();
+    const wv = document.createElement('webview');
+    wv.getBoundingClientRect = () => ({ left: 100, top: 80, width: 800, height: 500 });
+    wv.getZoomFactor = () => 1;
+    document.body.appendChild(wv);
+    const handlers = {};
+    wv.addEventListener = (ev, fn) => { handlers[ev] = fn; };
+    window.PasskeyUI.attach(wv);
+    handlers['ipc-message']({ channel: 'vex-passkey-field', args: [{ requestId: 'req1', uv: 'preferred', hasPin: false, host: 'example.com',
+      rect: { x: 10, y: 20, width: 300, height: 30 }, accounts: [{ credentialId: 'c1', userName: 'ada', nickname: 'Ada' }, { credentialId: 'c2', userName: 'bob', nickname: 'Bob' }] }] });
+    const key = (k) => handlers['ipc-message']({ channel: 'vex-passkey-field-key', args: [{ key: k }] });
+    const rows = () => [...document.querySelectorAll('.pk-chooser-row')];
+    key('Enter');                                     // nothing marked yet: nothing taken
+    expect(vexApi.passkeysConditionalChoose).not.toHaveBeenCalled();
+    key('ArrowDown');
+    expect(rows().map(r => r.classList.contains('is-active'))).toEqual([true, false]);
+    key('ArrowDown');
+    expect(rows().map(r => r.classList.contains('is-active'))).toEqual([false, true]);
+    key('ArrowDown');                                 // wraps
+    expect(rows().map(r => r.classList.contains('is-active'))).toEqual([true, false]);
+    key('ArrowUp');                                   // up from the first goes to the last
+    expect(rows()[1].getAttribute('aria-selected')).toBe('true');
+    key('Enter');
+    await vi.waitFor(() => expect(vexApi.passkeysConditionalChoose).toHaveBeenCalledWith('req1', 'c2', undefined));
+    expect(document.querySelector('.pk-chooser')).toBeNull();
+  });
+
+  it('the page preload relays Down, Up and Enter only while the list is up', () => {
+    const src = require('node:fs').readFileSync('src/preload-passkeys.js', 'utf8');
+    expect(src).toContain("sendToHost('vex-passkey-field-key'");
+    expect(src).toMatch(/key === 'Enter' && navigating/);
+  });
+
   it('draws a button that cannot be pressed as one (the dialog stylesheet has a disabled rule)', async () => {
     const css = (await import('node:fs')).readFileSync('src/renderer/css/vex-dialog.css', 'utf8');
     expect(css).toMatch(/\.vex-dialog-btn:disabled\s*\{[^}]*opacity/);

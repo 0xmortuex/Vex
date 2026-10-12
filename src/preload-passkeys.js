@@ -254,7 +254,12 @@ function vexPasskeyShim(bridge, mode) {
     try { return el && el.tagName === 'INPUT' && /(^|\s)webauthn(\s|$)/i.test(el.getAttribute('autocomplete') || ''); }
     catch { return false; }
   };
+  // The arrow keys move through the list Vex draws under the field and Enter
+  // takes the one marked; `navigating` is true once an arrow was pressed, so a
+  // plain Enter still submits the page's form.
+  let navigating = false;
   const hideChooser = () => {
+    navigating = false;
     if (!shown) return;
     shown = null;
     try { ipcRenderer.sendToHost('vex-passkey-field-hide'); } catch { /* not in a Vex tab */ }
@@ -280,7 +285,17 @@ function vexPasskeyShim(bridge, mode) {
   document.addEventListener('focusout', (e) => { if (e.target === shown) hideChooser(); }, true);
   window.addEventListener('scroll', hideChooser, true);
   window.addEventListener('resize', hideChooser);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideChooser(); }, true);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { hideChooser(); return; }
+    if (!shown || e.target !== shown || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const key = e.key;
+    if (key === 'ArrowDown' || key === 'ArrowUp' || (key === 'Enter' && navigating)) {
+      e.preventDefault();
+      e.stopPropagation();
+      navigating = key !== 'Enter';
+      try { ipcRenderer.sendToHost('vex-passkey-field-key', { key }); } catch { /* not in a Vex tab */ }
+    }
+  }, true);
 
   const bridge = {
     request: (req) => {

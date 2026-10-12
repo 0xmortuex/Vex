@@ -212,11 +212,32 @@
   // --- The field chooser (conditional mediation) ------------------------------
   let chooser = null;
   let chooserGuard = 0;
+  let chooserActive = -1;      // the row the arrow keys are on, -1 before the first press
   function hideChooser(force) {
     if (!chooser) return;
     if (!force && Date.now() - chooserGuard < 250) return;   // a click on it is in progress
     chooser.remove();
     chooser = null;
+    chooserActive = -1;
+  }
+
+  // The page's field keeps the focus, so its keys come over from the page
+  // (preload-passkeys.js): Down and Up move along the list, Enter takes the row.
+  function chooserKey(key) {
+    if (!chooser) return;
+    const rows = Array.from(chooser.querySelectorAll('.pk-chooser-row'));
+    if (!rows.length) return;
+    if (key === 'Enter') {
+      if (rows[chooserActive]) rows[chooserActive].click();
+      return;
+    }
+    if (key === 'ArrowDown') chooserActive = (chooserActive + 1) % rows.length;
+    else if (key === 'ArrowUp') chooserActive = chooserActive <= 0 ? rows.length - 1 : chooserActive - 1;
+    else return;
+    rows.forEach((r, i) => {
+      r.classList.toggle('is-active', i === chooserActive);
+      r.setAttribute('aria-selected', i === chooserActive ? 'true' : 'false');
+    });
   }
 
   async function chooseFor(requestId, credentialId, info) {
@@ -275,9 +296,10 @@
       ? (ev, fn) => webview._lifecycle.listen(webview, ev, fn)
       : (ev, fn) => webview.addEventListener(ev, fn);
     on('ipc-message', (e) => {
-      if (e.channel !== 'vex-passkey-field' && e.channel !== 'vex-passkey-field-hide') return;
+      if (e.channel !== 'vex-passkey-field' && e.channel !== 'vex-passkey-field-hide' && e.channel !== 'vex-passkey-field-key') return;
       if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
       if (e.channel === 'vex-passkey-field-hide') { hideChooser(false); return; }
+      if (e.channel === 'vex-passkey-field-key') { chooserKey(String((e.args && e.args[0] && e.args[0].key) || '')); return; }
       showChooser(webview, (e.args && e.args[0]) || null);
     });
   }
