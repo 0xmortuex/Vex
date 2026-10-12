@@ -1,6 +1,6 @@
 # Changelog
 
-## v20.85.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
+## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New
 - **Password Health also flags easy-to-guess passwords** (a common password with a number added, repeats, keyboard runs, your username or the site's name) and lists logins **not changed in a year or more**. Each row has an "open site" button. This is a pattern check against a short built-in list, not a strength score, and it never sends a password anywhere.
@@ -25,7 +25,7 @@
 - **Discord keeps following your Vex theme after one update failed**, instead of ignoring every later change until restart.
 - **Settings › Gaming's Game Control Center location buttons say so when they fail** instead of doing nothing.
 - **Settings › Browsing extras reads right:** the copy-unlock explanation sits under its own switch, and hidden-site lists read "a.com, b.org".
-- **Small keyboard and screen-reader fixes** found by a new check: the clock's alarm time has a name and the recall panel's clear button is large enough to hit.
+- **Small keyboard and screen-reader fixes** found by a new check: the clock's alarm time has a name, and the recall panel's clear button and the AI panel's hint "Dismiss" button are large enough to hit.
 
 ### Behind the scenes
 - A one-screen release status (`node scripts/release-check.js`), a release script that refuses a published version or a red CI, a resumable `scripts/publish-all.ps1`, and a 30-second test timeout so a slow runner no longer fails a release.
