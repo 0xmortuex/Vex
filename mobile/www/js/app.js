@@ -92,6 +92,7 @@
     VexStore.prime('vex.menuHidden', []),
     VexStore.prime('vex.loginHosts', []),
     VexStore.prime('vex.codeHosts', []),
+    VexStore.prime('vex.breachCheck', false),
     VexStore.prime('vex.translateTo', 'en'),
     VexStore.prime('vex.blockedByHost', {}),
     VexStore.prime('vex.forceZoom', true),

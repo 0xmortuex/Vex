@@ -147,3 +147,30 @@ describe('2FA codes from a backup or Google Authenticator', () => {
     expect(VexVault.accountsForBackup().map(account => account.issuer).sort()).toEqual(['Elsewhere', 'GitHub', 'roblox.com']);
   });
 });
+
+describe('Password Health', () => {
+  it('finds passwords used on more than one site, and weak ones', async () => {
+    await VexVault.save({ host: 'a.example', username: 'u', password: 'Shared-Pass-2024!' });
+    await VexVault.save({ host: 'b.example', username: 'u', password: 'Shared-Pass-2024!' });
+    await VexVault.save({ host: 'c.example', username: 'u', password: 'password1' });
+    await VexVault.save({ host: 'd.example', username: 'u', password: 'k7#Lq9!vR2@wXz' });
+    const health = VexVault.health();
+    expect(health.reused.map(group => group.map(entry => entry.host).sort())).toEqual([['a.example', 'b.example']]);
+    expect(health.weak.map(entry => entry.host).sort()).toEqual(['c.example', 'roblox.com']);
+  });
+
+  it('checks breaches only when turned on, sending only the first five characters of each hash', async () => {
+    await expect(VexVault.breachCheck()).rejects.toThrow(/off/);
+    store['vex.breachCheck'] = true;
+    const asked = [];
+    // SHA-1("pw") = 1A91D62F7CA67399625A4368A6AB5D4A3BAA6073
+    window.VexBridge.fetchText = vi.fn(async url => {
+      asked.push(url);
+      return { ok: true, status: 200, body: '0000000000000000000000000000000000A:0\r\n62F7CA67399625A4368A6AB5D4A3BAA6073:4321\r\n' };
+    });
+    const found = await VexVault.breachCheck();
+    expect(asked).toEqual(['https://api.pwnedpasswords.com/range/1A91D']);
+    expect(found.breached.map(item => [item.entry.host, item.count])).toEqual([['roblox.com', 4321]]);
+    delete store['vex.breachCheck'];
+  });
+});

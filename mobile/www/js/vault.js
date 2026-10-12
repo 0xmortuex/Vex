@@ -560,6 +560,63 @@ const VexVault = (() => {
       return true;
     },
 
+    // ── Password Health (the desktop's v19) ───────────────────────────────
+    /**
+     * Which saved passwords are used on more than one site, and which are
+     * weak — short, one kind of character, or one of the passwords everyone
+     * tries first. Worked out here; nothing is sent. → { reused: [[entry]], weak: [entry] }
+     */
+    health() {
+      const withPassword = this.all().filter(entry => entry.password);
+      const byPassword = new Map();
+      for (const entry of withPassword) {
+        if (!byPassword.has(entry.password)) byPassword.set(entry.password, []);
+        byPassword.get(entry.password).push(entry);
+      }
+      const reused = [...byPassword.values()].filter(group => new Set(group.map(entry => entry.host)).size > 1);
+      const COMMON = /^(password|passw0rd|123456|1234567|12345678|123456789|1234567890|qwerty|qwertyuiop|abc123|111111|letmein|welcome|iloveyou|admin|monkey|dragon|football|sunshine|princess)\d*!?$/i;
+      const weak = withPassword.filter(entry => {
+        const p = entry.password;
+        const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter(re => re.test(p)).length;
+        return p.length < 8 || COMMON.test(p) || (p.length < 12 && kinds < 2) || (p.length < 10 && kinds < 3);
+      });
+      return { reused, weak, checked: withPassword.length };
+    },
+
+    /**
+     * Breached passwords, from Have I Been Pwned — only when you turned the
+     * check on. Each password's SHA-1 is worked out here and only its first
+     * five characters are sent; the range that comes back is matched here
+     * (k-anonymity), so neither a password nor its whole hash leaves the
+     * phone. → { checked, breached: [{ entry, count }] }, worst first.
+     */
+    async breachCheck() {
+      if (VexStore.get('vex.breachCheck', false) !== true) throw new Error('The breach check is off — turn it on first');
+      const hex = bytes => Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const byPrefix = new Map();
+      const withPassword = this.all().filter(entry => entry.password);
+      for (const entry of withPassword) {
+        const sha = hex(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(entry.password)));
+        const prefix = sha.slice(0, 5);
+        if (!byPrefix.has(prefix)) byPrefix.set(prefix, []);
+        byPrefix.get(prefix).push({ suffix: sha.slice(5), entry });
+      }
+      const breached = [];
+      for (const [prefix, list] of byPrefix) {
+        const answer = await VexBridge.fetchText('https://api.pwnedpasswords.com/range/' + prefix, { purpose: 'breach' });
+        if (!answer || !answer.ok) throw new Error('Have I Been Pwned did not answer' + (answer && answer.status ? ' (' + answer.status + ')' : '') + ' — try again later');
+        const counts = new Map();
+        for (const line of String(answer.body || '').split(/\r?\n/)) {
+          const [suffix, count] = line.trim().split(':');
+          const n = parseInt(count, 10);
+          if (suffix && n > 0) counts.set(suffix.toUpperCase(), n);
+        }
+        for (const item of list) if (counts.has(item.suffix)) breached.push({ entry: item.entry, count: counts.get(item.suffix) });
+      }
+      breached.sort((a, b) => b.count - a.count);
+      return { checked: withPassword.length, breached };
+    },
+
     /** Every 2FA account, as a backup file holds them: [{ label, issuer, secret, algorithm, digits, period }]. */
     accountsForBackup() {
       return this.all().filter(entry => entry.secret).map(entry => {

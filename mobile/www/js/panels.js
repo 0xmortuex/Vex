@@ -115,6 +115,7 @@ const VexPanels = (() => {
     sessions: () => VexPanels.sessions(),
     downloads: () => VexPanels.downloads(),
     passwords: () => VexPanels.passwords(),
+    passwordHealth: () => VexPanels.passwordHealth(),
     sync: () => VexPanels.sync(),
     syncedNotes: () => VexPanels.syncedNotes(),
     syncedNote: () => VexPanels.syncedNote(lastSyncedNote),
@@ -1139,6 +1140,14 @@ const VexPanels = (() => {
         body.appendChild(heading('Move logins'));
         body.appendChild(valueRow('Import from a CSV file', 'Exported from Chrome, Samsung Internet, Firefox, Bitwarden…', '', () => this.importLogins()));
         if (all.length) body.appendChild(valueRow('Export to a CSV file', 'Every password in plain text — keep it somewhere safe', '', () => this.exportLogins()));
+        if (all.some(entry => entry.password)) {
+          const health = VexVault.health();
+          const problems = health.reused.length + health.weak.length;
+          body.appendChild(heading('Health'));
+          body.appendChild(valueRow('Password health', problems
+            ? health.weak.length + ' weak · ' + health.reused.length + ' used on more than one site' : 'None weak, none used twice',
+            '', () => this.passwordHealth()));
+        }
         body.appendChild(heading('2FA codes'));
         body.appendChild(valueRow('Import from Google Authenticator', 'Scan its “Transfer accounts” QR code', '', () => VexUI.openScanner()));
         if (all.some(entry => entry.secret)) body.appendChild(valueRow('Back up 2FA codes to a file', 'Locked with a passphrase — Vex on your computer opens it too', '', () => this.backupCodes()));
@@ -1330,6 +1339,41 @@ const VexPanels = (() => {
       } catch (error) { VexUI.toast(error.message, 4500); return; }
       VexUI.toast('Delete the CSV file now — it holds your passwords in plain text', 6000);
       this.passwords();
+    },
+
+    async passwordHealth(found = null) {
+      if (VexVault.locked() && !(await VexVault.unlock('Check your passwords'))) return;
+      const body = openShell('passwordHealth', 'Password health');
+      const health = VexVault.health();
+      const open = entry => () => this.loginDetails(entry.id);
+      const line = entry => ({ url: 'https://' + entry.host + '/', title: entry.host, icon: '' });
+      body.appendChild(el('div', 'field-note', 'Checked here, on the phone: ' + health.checked + ' passwords. Tap one to change it.'));
+      body.appendChild(heading('Used on more than one site · ' + health.reused.length));
+      if (!health.reused.length) body.appendChild(empty('Every password is used once.'));
+      for (const group of health.reused) {
+        for (const entry of group) body.appendChild(listRow(line(entry), { sub: () => (entry.username || 'no username') + ' · the same as ' + (group.length - 1) + ' other', onOpen: open(entry) }));
+      }
+      body.appendChild(heading('Weak · ' + health.weak.length));
+      if (!health.weak.length) body.appendChild(empty('None is short, simple or one everyone tries first.'));
+      for (const entry of health.weak) body.appendChild(listRow(line(entry), { sub: () => (entry.username || 'no username') + ' · short, simple or common', onOpen: open(entry) }));
+
+      body.appendChild(heading('Known breaches'));
+      body.appendChild(toggleRow('Check against known breaches',
+        'Off until you turn it on. Only the first 5 characters of each password’s hash leave the phone (Have I Been Pwned)',
+        VexStore.get('vex.breachCheck', false) === true, async on => { await VexStore.set('vex.breachCheck', on); this.passwordHealth(); }));
+      if (VexStore.get('vex.breachCheck', false) === true) {
+        body.appendChild(valueRow('Check now', found ? 'Checked ' + found.checked + ' — ' + found.breached.length + ' found in breaches' : null, '', async () => {
+          VexUI.toast('Checking…', 2500);
+          try { this.passwordHealth(await VexVault.breachCheck()); }
+          catch (error) { VexUI.toast(error.message, 5000); }
+        }));
+        if (found) {
+          if (!found.breached.length) body.appendChild(empty('None of your passwords is in a known breach.'));
+          for (const { entry, count } of found.breached) {
+            body.appendChild(listRow(line(entry), { sub: () => (entry.username || 'no username') + ' · seen ' + count.toLocaleString() + ' times in breaches — change it', onOpen: open(entry) }));
+          }
+        }
+      }
     },
 
     async backupCodes() {

@@ -321,8 +321,10 @@ public class VexSystemPlugin extends Plugin {
         // A filter list is a megabyte or two and slower to come; it asks for
         // more room and more time. Still capped: 8 MB and 30 seconds.
         final boolean list = "list".equals(call.getString("purpose", ""));
-        final int cap = list ? 8 << 20 : 65536;
-        final int timeout = list ? 30000 : 4000;
+        // A breach range (Password Health) is a few hundred lines, padded.
+        final boolean breach = "breach".equals(call.getString("purpose", "")) && url.startsWith("https://api.pwnedpasswords.com/range/");
+        final int cap = list ? 8 << 20 : breach ? 1 << 20 : 65536;
+        final int timeout = list ? 30000 : breach ? 15000 : 4000;
         new Thread(() -> {
             HttpURLConnection connection = null;
             try {
@@ -332,6 +334,7 @@ public class VexSystemPlugin extends Plugin {
                 connection.setInstanceFollowRedirects(false);
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json, text/plain, */*");
+                if (breach) connection.setRequestProperty("Add-Padding", "true");
                 // No Cookie header is set, and no CookieHandler is installed for
                 // this connection, so the request carries no identity.
                 int status = connection.getResponseCode();
