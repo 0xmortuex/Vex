@@ -481,8 +481,10 @@ const EmailCodeAutofill = {
   // request tells that watch to fill now instead of being dropped.
   async tryFill(loginWv, url, { manual = false } = {}) {
     if (!loginWv) return;
-    if (manual) loginWv._vexEmailCodeFillNow = true;
-    if (this._watching.has(loginWv)) return;
+    // "Fill now" is set only on a page a watch runs on (this one, or the one
+    // that starts below): set before the early returns, it stayed on the tab
+    // and a later automatic watch there skipped its 15-30 s wait.
+    if (this._watching.has(loginWv)) { if (manual) loginWv._vexEmailCodeFillNow = true; return; }
     if (!manual && !this.enabled()) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
@@ -515,7 +517,8 @@ const EmailCodeAutofill = {
         try { return new URL(this._webviewUrl(loginWv) || url).origin === origin; } catch { return false; }
       };
       if (!current()) return;
-      if (this._watching.has(loginWv)) return;                   // one watch per page
+      if (this._watching.has(loginWv)) { if (manual) loginWv._vexEmailCodeFillNow = true; return; }   // one watch per page
+      if (manual) loginWv._vexEmailCodeFillNow = true;
       this._watching.add(loginWv);
       let slot = false, refusedBusy = false;
       try {

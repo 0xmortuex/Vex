@@ -74,6 +74,18 @@ describe('manual "Fill code from email"', () => {
     expect(page._vexEmailCodeFillNow).toBe(false);
   });
 
+  it('a request on a page no watch runs on leaves nothing behind for a later automatic watch', async () => {
+    const { A, injected } = harness({ loaded: true, code: '482913', unread: false, strong: true, from: ['noreply@discord.com'] });
+    const page = wv();
+    await A.tryFill(page, 'http://discord.com/login', { manual: true });   // not https: no watch
+    expect(page._vexEmailCodeFillNow).not.toBe(true);
+    const t0 = Date.now();
+    const watch = A.tryFill(page, url);                                     // the automatic watch later
+    for (let k = 0; k < 64 && !injected.length; k++) await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(200000); await watch;
+    expect(injected[0].at - t0).toBeGreaterThanOrEqual(30000);              // its wait was kept
+  });
+
   it('the automatic watch alone still waits for a newer code (baseline unchanged)', async () => {
     const { A, injected } = harness({ loaded: true, code: '482913', unread: false, strong: true, from: ['noreply@discord.com'] });
     const t0 = Date.now();
