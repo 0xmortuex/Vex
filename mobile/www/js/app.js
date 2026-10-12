@@ -43,6 +43,7 @@
     VexStore.prime('vex.dnt', true),
     VexStore.prime('vex.httpsOnly', true),
     VexStore.prime('vex.httpAllowedHosts', []),
+    VexStore.prime('vex.inlineComplete', true),
     VexStore.prime('vex.shield', 'standard'),
     VexStore.prime('vex.siteRules', {}),
     VexStore.prime('vex.sitePermissions', {}),

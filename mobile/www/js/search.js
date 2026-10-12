@@ -216,6 +216,57 @@ const VexSearch = (() => {
 
     forgetSuggestions() { remembered.clear(); },
 
+    /**
+     * How much you use each address and site: visits weighted by how recent
+     * they are (a visit counts for half after two weeks), as the desktop ranks
+     * the address bar — "how often and how recently". From the recent slice
+     * in memory, so it draws without waiting. → { urls: Map, hosts: Map }
+     */
+    frecency() {
+      const now = Date.now();
+      const urls = new Map(), hosts = new Map();
+      const visited = (typeof VexHistory !== 'undefined' && VexHistory.recent) ? VexHistory.recent(400) : [];
+      for (const entry of visited) {
+        if (!entry || !entry.url) continue;
+        const weight = Math.pow(0.5, Math.max(0, now - (entry.at || 0)) / (14 * 86400000));
+        urls.set(entry.url, (urls.get(entry.url) || 0) + weight);
+        const host = this.prettyHost(entry.url);
+        if (host) hosts.set(host, (hosts.get(host) || 0) + weight);
+      }
+      return { urls, hosts };
+    },
+
+    /**
+     * What the address bar completes `typed` to: the site you use most whose
+     * name starts with it ("gith" → github.com), or an address you have been
+     * to that starts with it ("github.com/0x" → github.com/0xmortuex/vex).
+     * Only for something that could be the start of an address — a sentence
+     * is a search. → { text, url } with text starting with what was typed, or null.
+     */
+    completion(typed) {
+      const raw = String(typed || '');
+      if (!raw || /\s/.test(raw) || raw.length > 200) return null;
+      const lower = raw.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '');
+      if (!lower || !/^[a-z0-9]/.test(lower)) return null;
+      const { urls, hosts } = this.frecency();
+      for (const bookmark of (window.VexStore ? VexStore.get('vex.bookmarks', []) : [])) {
+        const host = bookmark && bookmark.url ? this.prettyHost(bookmark.url) : '';
+        if (host) hosts.set(host, (hosts.get(host) || 0) + 0.5);
+      }
+      const best = map => [...map.entries()].sort((a, b) => b[1] - a[1]);
+      if (!lower.includes('/')) {
+        for (const [host] of best(hosts)) {
+          if (host.startsWith(lower) && host !== lower) return { text: raw + host.slice(lower.length), url: 'https://' + host + '/' };
+        }
+        return null;
+      }
+      for (const [url] of best(urls)) {
+        const bare = url.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        if (bare.startsWith(lower) && bare !== lower) return { text: raw + bare.slice(lower.length), url };
+      }
+      return null;
+    },
+
     // Suggestions: bookmarks first (you saved them), then history, capped.
     suggest(input, limit = 8) {
       const text = String(input || '').trim().toLowerCase();
@@ -250,7 +301,15 @@ const VexSearch = (() => {
       // vex.history preference — which VexHistory empties the first time it
       // migrates history into IndexedDB, and never writes again — so after the
       // first launch the address bar suggested nothing you had ever visited.
-      const visited = (typeof VexHistory !== 'undefined' && VexHistory.recent) ? VexHistory.recent(400) : [];
+      // Most used first among what matches (how often and how recently), and
+      // a site whose name starts with what you typed before one that merely
+      // mentions it.
+      const { urls: score } = this.frecency();
+      const starts = entry => !!text && this.prettyHost(entry.url).startsWith(text.replace(/^www\./, ''));
+      const visited = ((typeof VexHistory !== 'undefined' && VexHistory.recent) ? VexHistory.recent(400) : [])
+        .map((entry, order) => ({ entry, order }))
+        .sort((a, b) => (starts(b.entry) - starts(a.entry)) || ((score.get(b.entry.url) || 0) - (score.get(a.entry.url) || 0)) || (a.order - b.order))
+        .map(({ entry }) => entry);
       for (const entry of visited) {
         if (rows.length >= limit) break;
         if (!match(entry)) continue;

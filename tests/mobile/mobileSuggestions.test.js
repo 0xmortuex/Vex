@@ -107,3 +107,51 @@ describe('the shapes engines answer in', () => {
     expect(await VexSearch.remoteSuggest('hey')).toEqual([]);
   });
 });
+
+describe('completing an address as you type (the desktop’s v19 address bar)', () => {
+  const day = 86400000;
+  const visits = rows => { window.VexHistory = { recent: () => rows }; };
+
+  it('completes the site you use most whose name starts with what you typed', () => {
+    const now = Date.now();
+    visits([
+      { url: 'https://github.blog/post', at: now - day },
+      { url: 'https://github.com/a', at: now - 2 * day },
+      { url: 'https://github.com/b', at: now - 3 * day },
+      { url: 'https://www.github.com/c', at: now - 4 * day }
+    ]);
+    expect(VexSearch.completion('gith')).toEqual({ text: 'github.com', url: 'https://github.com/' });
+    expect(VexSearch.completion('Gith').text).toBe('Github.com');
+    expect(VexSearch.completion('github.b')).toEqual({ text: 'github.blog', url: 'https://github.blog/' });
+  });
+
+  it('a site visited often long ago loses to one visited this week', () => {
+    const now = Date.now();
+    visits([
+      { url: 'https://news.example/', at: now - day },
+      { url: 'https://news.example/2', at: now - 2 * day },
+      ...Array.from({ length: 6 }, (_, i) => ({ url: 'https://newsold.example/' + i, at: now - 120 * day }))
+    ]);
+    expect(VexSearch.completion('new').text).toBe('news.example');
+  });
+
+  it('completes a path you have been to, and never a sentence or something already whole', () => {
+    visits([{ url: 'https://github.com/0xmortuex/vex', at: Date.now() }]);
+    expect(VexSearch.completion('github.com/0x').text).toBe('github.com/0xmortuex/vex');
+    expect(VexSearch.completion('gith hub')).toBe(null);
+    expect(VexSearch.completion('github.com')).toBe(null);
+    expect(VexSearch.completion('')).toBe(null);
+  });
+
+  it('ranks matching history by how often and how recently, sites that start with it first', () => {
+    const now = Date.now();
+    visits([
+      { url: 'https://blog.example/github-tips', title: 'Github tips', at: now - 1000 },
+      { url: 'https://github.com/x', title: 'x', at: now - 5 * day },
+      { url: 'https://github.com/x', title: 'x', at: now - 6 * day },
+      { url: 'https://github.com/y', title: 'y', at: now - 7 * day }
+    ]);
+    const urls = VexSearch.suggest('github').filter(row => row.kind === 'history').map(row => row.url);
+    expect(urls).toEqual(['https://github.com/x', 'https://github.com/y', 'https://blog.example/github-tips']);
+  });
+});

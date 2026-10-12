@@ -274,6 +274,20 @@ await page.press('#omni-input', 'Enter');
 await page.waitForTimeout(450);
 results.urlPill = (await page.textContent('#tb-url-text')).trim();
 results.startHidden = !(await page.isVisible('#start'));
+// Typing the start of a site you use fills in the rest, selected, as the
+// desktop's address bar does ("gith" → github.com).
+await page.evaluate(() => VexHistory.restore({ url: 'https://wikipedia.example/wiki/Knot', title: 'Knot', at: Date.now() - 60000 }));
+await tap('#tb-url');
+await page.fill('#omni-input', '');
+await page.type('#omni-input', 'wiki', { delay: 30 });
+await page.waitForTimeout(150);
+results.inlineCompletion = await page.evaluate(() => {
+  const input = document.getElementById('omni-input');
+  return input.value + '|' + input.value.slice(input.selectionStart, input.selectionEnd);
+});
+await page.keyboard.press('Backspace');
+results.completionUndone = await page.evaluate(() => document.getElementById('omni-input').value);
+await page.evaluate(() => VexUI.closeOmnibox ? VexUI.closeOmnibox() : document.getElementById('omni-cancel').click());
 
 // ── On-device AI ────────────────────────────────────────────────────────────
 // There is no plugin in a desktop browser, so this is the shape of the panel on
@@ -2166,6 +2180,7 @@ await browser.close();
 const expected = {
   passwordSearchMiss: 0, passwordSearchHit: 1, passwordMoveRows: 2,
   loginSheet: 'Copy usernameme@example.com|Copy passwordOff the clipboard again in 30 seconds|Show password|Copy the 2FA code|Fill on this page|Edit|Delete',
+  inlineCompletion: 'wikipedia.example|pedia.example', completionUndone: 'wiki',
   reloadBecomesStop: 'Stop loading|true', httpsContinue: true,
   welcomeLook: 'samsung,split,navbar vex,bottom',
   welcomeShown: true, welcomeSteps: 4, welcomeDismissed: true, welcomeRemembered: true,

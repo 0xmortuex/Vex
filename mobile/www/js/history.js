@@ -115,6 +115,12 @@ const VexHistory = (() => {
       if (cache.length > CACHE_SIZE) cache.length = CACHE_SIZE;
     },
 
+    /** Every visit of one address (the address bar's "remove this suggestion"). */
+    async removeUrl(url) {
+      cache = cache.filter(row => row.url !== url);
+      return VexDB.deleteWhere('history', row => row.url === url);
+    },
+
     async removeSite(host) {
       cache = cache.filter(row => row.host !== host);
       return VexDB.deleteWhere('history', row => row.host === host);

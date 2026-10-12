@@ -643,6 +643,25 @@ const VexUI = (() => {
     }
   }
 
+  /**
+   * The rest of the address you most likely mean, typed in and selected after
+   * the caret — "gith" shows github.com, Go opens it, the next letter or a
+   * backspace takes it away — as on the desktop and in Chrome. Only while
+   * you are adding letters at the end, and never in the middle of a word the
+   * keyboard is still composing.
+   */
+  function completeInline(event) {
+    const input = $('omni-input');
+    if (!input || VexStore.get('vex.inlineComplete', true) === false) return;
+    if (!event || event.isComposing || !/^insert/.test(event.inputType || '')) return;
+    if (input.selectionStart !== input.value.length || input.selectionEnd !== input.value.length) return;
+    const typed = input.value;
+    const hit = VexSearch.completion(typed);
+    if (!hit || !hit.text.startsWith(typed)) return;
+    input.value = hit.text;
+    try { input.setSelectionRange(typed.length, hit.text.length, 'backward'); } catch { /* a type without selection */ }
+  }
+
   function suggestionRow(row, text) {
     const item = el('li', 'omni-row');
     item.setAttribute('role', 'option');
@@ -683,6 +702,19 @@ const VexUI = (() => {
         renderSuggestions(row.title);
       };
       item.appendChild(fill);
+    }
+
+    // A page you visited, pressed and held: gone from your history and from
+    // these suggestions (the desktop's Shift+Delete).
+    if (row.kind === 'history' && !row.remote) {
+      VexGestures.longPress(item, () => VexSheets.choose(row.title || row.url, [
+        { id: 'remove', label: 'Remove from history', note: 'Every visit to this address' }
+      ], async () => {
+        VexSheets.close();
+        await VexHistory.removeUrl(row.url);
+        renderSuggestions($('omni-input').value);
+        toast('Removed from history');
+      }, VexSearch.prettyHost(row.url)));
     }
 
     item.onclick = () => {
@@ -1612,8 +1644,11 @@ const VexUI = (() => {
       $('omni-input').addEventListener('input', event => {
         clearTimeout(omniTimer);
         const value = event.target.value;
+        completeInline(event);
         omniTimer = setTimeout(() => renderSuggestions(value), 70);
       });
+      // A keyboard that writes a word at a time finishes it here.
+      $('omni-input').addEventListener('compositionend', () => setTimeout(() => completeInline({ inputType: 'insertText' }), 0));
       $('omni-input').addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;
         const value = $('omni-input').value.trim();

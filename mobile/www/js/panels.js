@@ -1728,6 +1728,8 @@ const VexPanels = (() => {
           })));
       body.appendChild(valueRow('Translation', 'On the phone, with nothing sent anywhere', null,
         () => this.translation()));
+      body.appendChild(toggleRow('Complete addresses as you type', 'gith fills in github.com — the sites you use most first',
+        VexStore.get('vex.inlineComplete', true) !== false, value => VexStore.set('vex.inlineComplete', value)));
       body.appendChild(toggleRow('Search suggestions',
         'What the engine thinks you are typing, as you type it. It sees the letters before you press '
         + 'go — never in a private tab, and never on something that is already an address.',
