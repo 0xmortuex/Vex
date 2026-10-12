@@ -338,10 +338,13 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
 
 /* === Side by side on a wide window ======================================
    SettingsUI._layout sets data-set-cols (2 or 3) when the panel has room for
-   columns of at least 600px, and gives every block its height in 4px grid
-   rows, so the next section goes into whichever column frees up first and
-   the order stays top to bottom. The heading, a group's chip row and Show
-   advanced settings span every column. Narrower windows, and Larger and
+   columns of at least 600px, and places every block itself (placeBlocks:
+   its column, and its height in 4px grid rows), so the next section goes
+   into whichever column frees up first and the order stays top to bottom.
+   The heading and "No settings match" span every column; a group's chip
+   row stays above its first section, and Show advanced settings ends the
+   column that ends first. The rules below
+   only hold a block until it is placed. Narrower windows, and Larger and
    Largest text, keep the one centred column above. */
 #panel-settings[data-set-cols] .settings-content {
   display: grid;
@@ -360,6 +363,6 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
   margin-left: 0;
   margin-right: 0;
 }
-#panel-settings[data-set-cols] .settings-content > .setting-group { grid-column: auto; }
+#panel-settings[data-set-cols] .settings-content > :is(.setting-group, .set-subnav, .set-advanced-toggle) { grid-column: auto; }
 /* The search box and the chips line up with the columns. */
 #panel-settings[data-set-cols] .set-toolbar-inner { max-width: var(--set-grid-max, 1658px); }

@@ -114,7 +114,10 @@
   padding: 8px 10px; background: var(--surface);
   border-radius: 6px;
   font-family: 'JetBrains Mono', monospace;
-  max-height: 80px; overflow: hidden;
+  /* Whole lines, ending in an ellipsis: an 80px cap cut a fourth line through
+     the middle in a narrow column of Settings, or with Larger text. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .persona-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
 .meta-item {

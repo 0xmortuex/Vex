@@ -474,17 +474,59 @@ const SettingsUI = {
     return n;
   },
 
-  // Columns on, or off, for the scroll area's current width, and each block's
-  // height in grid rows. The sections stay in their order: the grid's rows are
-  // ROW_UNIT px, each block spans as many as it is tall, and auto-placement
-  // puts the next section in whichever column frees up first, so sections
-  // read (and Tab, and a screen reader, go) top to bottom by where they start.
-  // Everything that is not a section (the heading, a group's chip row, Show
-  // advanced settings, "No settings match") spans every column.
-  _layout(root) {
+  // Where every block goes in the columns: `items` are the blocks on screen,
+  // in their order, each { rows } tall (in ROW_UNIT grid rows), `wide` for one
+  // that spans every column (the heading, "No settings match"), `lead` for a
+  // group's chip row, which stays in the column
+  // of the section after it, right above it. Every other section goes into the
+  // column that ends first (the leftmost on a tie), so they read, and Tab and
+  // a screen reader go, top to bottom by where they start. Returns
+  // [{ col, row, rows }], col 0 meaning every column, rows counted from 1.
+  //
+  // Grid auto-placement did this before, with the chip row spanning every
+  // column; a spanning row starts below the longest column, so the shorter
+  // ones ended in an empty band 180-420px tall above the AI sections, wider
+  // in full screen (the owner, 2026-10-12: "some gaps in settings").
+  placeBlocks(items, cols) {
+    const n = Math.max(1, cols | 0);
+    const ends = new Array(n).fill(1);   // the first free row of each column
+    const out = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const rows = Math.max(1, it.rows | 0);
+      if (it.wide || n === 1) {
+        const row = Math.max(...ends);
+        out.push({ col: n === 1 ? 1 : 0, row, rows });
+        ends.fill(row + rows);
+        continue;
+      }
+      let c = 0;
+      for (let k = 1; k < n; k++) if (ends[k] < ends[c]) c = k;
+      out.push({ col: c + 1, row: ends[c], rows });
+      ends[c] += rows;
+      const next = items[i + 1];
+      if (it.lead && next && !next.wide) {
+        const nrows = Math.max(1, next.rows | 0);
+        out.push({ col: c + 1, row: ends[c], rows: nrows });
+        ends[c] += nrows;
+        i++;
+      }
+    }
+    return out;
+  },
+
+  // Columns on, or off, for the scroll area's current width, and every block
+  // put in its place (placeBlocks) with its height in grid rows. Run again
+  // whenever the area or a block changes size (_watchLayout), and by the
+  // search. `keepCols` (from the size observer) places the blocks for the
+  // column count already in use and leaves a change of count to the next
+  // frame: see _watchLayout.
+  _layout(root, { keepCols = false } = {}) {
     if (!root) return;
     const panel = root.parentElement || root;
-    const cols = this.columnsFor(root.clientWidth);
+    const want = this.columnsFor(root.clientWidth);
+    const had = Number(panel.dataset.setCols) || 1;
+    const cols = keepCols ? had : want;
     if (cols > 1) {
       panel.dataset.setCols = String(cols);
       panel.style.setProperty('--set-cols', String(cols));
@@ -495,34 +537,68 @@ const SettingsUI = {
       panel.style.removeProperty('--set-grid-max');
     }
     if (!this._observed) this._observed = new WeakSet();
-    for (const el of root.children) {
-      if (this._childObserver && !this._observed.has(el)) { this._observed.add(el); this._childObserver.observe(el); }
-      if (cols === 1) { el.style.removeProperty('grid-row-end'); continue; }
+    const kids = Array.from(root.children);
+    for (const el of kids) {
+      if (this._sizeObserver && !this._observed.has(el)) { this._observed.add(el); this._sizeObserver.observe(el, { box: 'border-box' }); }
+    }
+    // A new count: off with the old places first. A block still in column 3
+    // of a grid now two wide sits in a column of its own, measures at the
+    // wrong width, and its height is wrong.
+    if (cols === 1 || cols !== had) {
+      for (const el of kids) { el.style.removeProperty('grid-row'); el.style.removeProperty('grid-column'); }
+      if (cols === 1) return want !== cols;
+    }
+    // Every height first, then every place: one layout pass, not one a block.
+    const shown = [];
+    const items = [];
+    for (const el of kids) {
       if (!el.getClientRects().length) continue;   // hidden: no grid area
       const cs = getComputedStyle(el);
       const h = el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
-      el.style.gridRowEnd = 'span ' + Math.max(1, Math.ceil(h / this.ROW_UNIT));
+      shown.push(el);
+      items.push({
+        rows: Math.max(1, Math.ceil(h / this.ROW_UNIT)),
+        lead: el.classList.contains('set-subnav'),
+        // Show advanced settings ends the list in the column that ends first:
+        // across every column, it left the same empty band under the others.
+        wide: !el.classList.contains('setting-group') && !el.classList.contains('set-subnav') && !el.classList.contains('set-advanced-toggle'),
+      });
     }
+    const at = this.placeBlocks(items, cols);
+    shown.forEach((el, i) => {
+      el.style.gridColumn = at[i].col ? String(at[i].col) : '1 / -1';
+      el.style.gridRow = at[i].row + ' / span ' + at[i].rows;
+    });
+    return want !== cols;
   },
 
-  // Watch the scroll area's width and every block's height, once. The new
-  // layout waits for the next frame: done inside the observer's callback, it
-  // resized the toolbar and the scroll area again in the same pass, and
-  // Chromium reported "ResizeObserver loop completed with undelivered
-  // notifications" each time.
+  // Watch the scroll area's width and every block's size, once, and place the
+  // blocks again in the same frame, before it is painted. It used to wait for
+  // the next frame, and a change that takes long to restyle (Larger text,
+  // full screen) painted one or two frames, 300ms, with every block at its
+  // old height: 15-28 blocks over each other and gaps of thousands of pixels.
+  //
+  // Placing blocks changes no size, so it is safe inside the observer. A new
+  // column count changes every block's width, the toolbar's too, and done
+  // inside the observer Chromium reports "ResizeObserver loop completed with
+  // undelivered notifications" (an error Vex records); so the observer places
+  // the blocks for the count in use, still correct for that frame, and the
+  // count changes in the next one.
   _watchLayout(root) {
     if (this._layoutWatched === root || typeof ResizeObserver === 'undefined') { this._layout(root); return; }
     this._layoutWatched = root;
     let pending = false;
-    const again = () => {
+    const recount = () => {
       if (pending) return;
       pending = true;
       requestAnimationFrame(() => { pending = false; SettingsUI._layout(root); });
     };
-    this._childObserver = new ResizeObserver(again);
+    this._sizeObserver = new ResizeObserver(() => {
+      if (SettingsUI._layout(root, { keepCols: true })) recount();
+    });
     // Its border box: the toolbar's observer sets its padding-top (_syncPad),
     // which is no reason to lay out again.
-    new ResizeObserver(again).observe(root, { box: 'border-box' });
+    this._sizeObserver.observe(root, { box: 'border-box' });
     this._layout(root);
   },
 
