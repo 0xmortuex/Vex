@@ -269,6 +269,9 @@ async function main() {
     for (const a of actions) { await ev(a); await sleep(1600); }
     await sleep(2000);
     result.writes = { actions: actions.length, persistFileRewrites: ((state() || { writes: {} }).writes.persist || 0) - w0 };
+    const endState = state() || { stalls: [] };
+    const late = endState.stalls.filter(s => s[0] >= 6000);
+    result.mainLoop = { stallsOver40msAfterBoot: late.length, worstStallMsAfterBoot: Math.max(0, ...late.map(s => s[1])) };
     result.generatedAt = new Date().toISOString();
     result.root = ROOT;
     result.warmProfile = warm === null ? 'skipped (--no-warmup)' : warm ? 'ad blocker cache present' : 'no ad blocker cache (offline?)';
@@ -296,6 +299,7 @@ function table(r) {
   out.push('', 'idle'); out.push(row('1 tab', JSON.stringify(r.idleOneTab))); out.push(row(r.tabs.count + ' tabs', JSON.stringify(r.idleManyTabs)));
   out.push('', 'memory (after GC)');
   for (const k of ['memoryStart', 'memoryBefore', 'memoryAfterPanelCycles', 'memoryAfterTabCycles']) out.push(row(k, JSON.stringify(r[k])));
+  out.push('', 'main process event loop, after boot'); out.push(row('stalls over 40 ms', r.mainLoop.stallsOver40msAfterBoot), row('worst stall', r.mainLoop.worstStallMsAfterBoot + ' ms'));
   out.push('', 'file writes'); out.push(row(`${r.writes.actions} actions`, `${r.writes.persistFileRewrites} rewrites of vex-persist.json`));
   return out.join('\n');
 }
