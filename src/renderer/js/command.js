@@ -1072,7 +1072,7 @@ const CommandBar = {
     }
     resultsEl.setAttribute('role', 'listbox');
 
-    this._keyIndex = this._buildKeyIndex();
+    this._keyIndex = false;   // a draw is on; the table is read when a row first needs it
     try {
     this.results.forEach((item, i) => {
       const el = document.createElement('div');
@@ -1235,6 +1235,7 @@ CommandBar._keyFor = function (c, typed) {
   if (typeof ShortcutsRegistry === 'undefined') return typed;
   const rid = COMMAND_SHORTCUT_IDS[c.id];
   if (rid) return ShortcutsRegistry.getShortcut(rid) || typed;
+  if (this._keyIndex === false) this._keyIndex = this._buildKeyIndex();
   if (this._keyIndex) return this._keyIndex.own.get(c.id) || this._keyIndex.byCmd.get(c.id) || typed;
   const all = ShortcutsRegistry.getAllShortcuts();
   const own = all['cmd:' + c.id];
