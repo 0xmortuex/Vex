@@ -242,3 +242,33 @@ describe('notices and Settings', () => {
     expect(document.querySelector('.pk-chooser')).toBeNull();
   });
 });
+
+describe('searching the Settings list', () => {
+  const pk = (id, rpId, userName, nickname = '') => ({ credentialId: id, rpId, rpName: '', userName, userDisplayName: userName, nickname, createdAt: '2026-01-02T00:00:00Z', lastUsedAt: null, deviceOnly: true });
+  const visible = (box) => [...box.querySelectorAll('.pk-item')].filter(i => i.style.display !== 'none').map(i => i.dataset.id);
+  const type = (search, value) => { search.value = value; search.dispatchEvent(new Event('input', { bubbles: true })); };
+
+  it('shows a search box only for six or more passkeys, and narrows by site, account or name', async () => {
+    await load();
+    vexApi._list = [pk('c1', 'github.com', 'ada'), pk('c2', 'gitlab.com', 'bob'), pk('c3', 'google.com', 'ada'), pk('c4', 'bank.example', 'carl', 'Work phone')];
+    await window.PasskeyUI.refresh();
+    const box = document.getElementById('passkeys-panel-content');
+    const search = box.querySelector('.pk-search');
+    expect(search.style.display).toBe('none');
+    vexApi._list.push(pk('c5', 'shop.example', 'dee'), pk('c6', 'mail.example', 'eve'));
+    await window.PasskeyUI.refresh();
+    expect(search.style.display).toBe('');
+    type(search, 'git');
+    expect(visible(box)).toEqual(['c1', 'c2']);
+    type(search, 'ada');
+    expect(visible(box)).toEqual(['c1', 'c3']);
+    type(search, 'work phone');
+    expect(visible(box)).toEqual(['c4']);
+    expect([...box.querySelectorAll('.pk-site')].filter(s => s.style.display !== 'none')).toHaveLength(1);
+    type(search, 'zzz');
+    expect(box.querySelector('.pk-nomatch')).not.toBeNull();
+    type(search, '');
+    expect(visible(box)).toHaveLength(6);
+    expect(box.querySelector('.pk-nomatch')).toBeNull();
+  });
+});

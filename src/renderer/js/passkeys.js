@@ -294,7 +294,7 @@
     const bySite = new Map();
     for (const p of list) { if (!bySite.has(p.rpId)) bySite.set(p.rpId, []); bySite.get(p.rpId).push(p); }
     host.innerHTML = [...bySite].map(([site, items]) => `<div class="pk-site"><div class="pk-site-name">${esc(items[0].rpName && items[0].rpName !== site ? items[0].rpName + ' · ' : '')}${esc(site)}</div>
-      ${items.map(p => `<div class="pk-item" data-id="${esc(p.credentialId)}">
+      ${items.map(p => `<div class="pk-item" data-id="${esc(p.credentialId)}" data-search="${esc([p.rpId, p.rpName, p.userName, p.userDisplayName, p.nickname].filter(Boolean).join(' ').toLowerCase())}">
         <span class="pk-row-icon">${icon('key', 18)}</span>
         <span class="pk-row-text"><span class="pk-row-name">${esc(displayName(p))}</span><span class="pk-dim">${esc(p.userName)} · created ${esc(when(p.createdAt))} · last used ${esc(when(p.lastUsedAt))} · ${p.deviceOnly ? 'this device only' : 'synced'}</span></span>
         <span class="pk-item-actions">
@@ -303,6 +303,29 @@
           <button type="button" class="btn-danger" data-act="delete">Delete</button>
         </span></div>`).join('')}</div>`).join('');
     host._items = new Map(list.map(p => [p.credentialId, p]));
+    const search = listBox.querySelector('.pk-search');
+    if (search) { search.style.display = list.length >= 6 ? '' : 'none'; filterList(); }
+  }
+
+  // Keep the passkeys whose site, account or name holds every word typed.
+  function filterList() {
+    if (!listBox) return;
+    const q = ((listBox.querySelector('.pk-search') || {}).value || '').toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    listBox.querySelectorAll('.pk-site').forEach((site) => {
+      let any = false;
+      site.querySelectorAll('.pk-item').forEach((item) => {
+        const hit = q.every(w => (item.dataset.search || '').includes(w));
+        item.style.display = hit ? '' : 'none';
+        if (hit) any = true;
+      });
+      site.style.display = any ? '' : 'none';
+      if (any) shown++;
+    });
+    const none = listBox.querySelector('.pk-nomatch');
+    if (q.length && !shown) {
+      if (!none) listBox.querySelector('.pk-list').insertAdjacentHTML('beforeend', '<div class="pk-empty pk-nomatch">No passkey matches that.</div>');
+    } else if (none) none.remove();
   }
 
   async function onAction(act, id) {
@@ -344,8 +367,10 @@
       <div class="setting-toggle-row"><span>Sync new passkeys through Vex Sync <span class="pk-dim">· end-to-end encrypted; off by default</span></span>
         <label class="toggle"><input type="checkbox" id="setting-passkey-sync" aria-label="Sync new passkeys through Vex Sync"><span class="toggle-slider"></span></label></div>
       <div class="pk-dim pk-sync-note" id="pk-sync-note">Passkeys made while this is off stay on this device. Passkeys cannot be exported.</div>
+      <input type="search" class="pk-search" placeholder="Search passkeys" aria-label="Search passkeys" autocomplete="off" style="display:none">
       <div class="pk-list" aria-live="polite"></div>
       <div class="setting-info muted pk-limits">Limits: sites that insist on a passkey from one particular security-key model (some company and bank sign-ins) will not accept Vex. Hardware security keys and phones still work through the browser's own dialog (choose "Use a security key or phone"). Sign-in pop-up windows and embedded frames do not use Vex passkeys yet. Never offered on private or Tor tabs.</div>`;
+    box.addEventListener('input', (e) => { if (e.target.classList && e.target.classList.contains('pk-search')) filterList(); });
     box.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (!b) return;

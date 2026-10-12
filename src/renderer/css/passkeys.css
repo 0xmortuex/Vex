@@ -55,6 +55,7 @@
 .pk-intro, .pk-limits { margin-bottom: 10px; }
 .pk-sync-note { margin: 4px 0 10px; }
 .pk-list { display: flex; flex-direction: column; gap: 10px; }
+.pk-search { width: 100%; box-sizing: border-box; padding: 7px 10px; margin: 6px 0 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; font-size: 12.5px; }
 .pk-empty { font-size: 12.5px; color: var(--text-muted); padding: 8px 0; }
 .pk-site-name { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
 .pk-item {
