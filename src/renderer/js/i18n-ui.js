@@ -138,6 +138,7 @@ const VexI18nUI = {
       'Website appearance': 'Web sitesi görünümü', 'Follow Vex': 'Vex’i izle',
       'Follow Windows': 'Windows’u izle', 'Light': 'Açık', 'Dark': 'Koyu',
       'Reduce motion': 'Hareketi azalt',
+      'Tor tabs always show sites light, like Tor Browser.': 'Tor sekmeleri, Tor Browser gibi siteleri her zaman açık renkte gösterir.',
 
       // --- states you see constantly ---
       'Loading...': 'Yükleniyor…', 'Loading…': 'Yükleniyor…',

@@ -32,11 +32,11 @@ describe('switching a session to Tor', () => {
     const sessions = new Map();
     const ses = (p) => { if (!sessions.has(p)) sessions.set(p, { partition: p, calls: [], setProxy: vi.fn(function (c) { this.calls.push(c); return Promise.resolve(); }) }); return sessions.get(p); };
     const launcher = { start: vi.fn(start || (() => Promise.resolve(50123))) };
-    const t = new Function('require', 'secureSessions', 'session', 'webContents', 'detectTorPort', '_torLauncher', 'app', 'BROWSING_SESSIONS', '_discordBrowsingProxy',
+    const t = new Function('require', 'secureSessions', 'session', 'webContents', 'detectTorPort', '_torLauncher', 'app', 'BROWSING_SESSIONS', '_discordBrowsingProxy', '_syncTorLight',
       'const routingGeneration = new Map();\n' + tor + '\n' + apply + '\nreturn { applyRouting, _torSessions, _useTor };')(
       (m) => { if (m === './main/routing') return routing; throw new Error('unexpected require ' + m); },
       { fromPartition: ses }, { defaultSession: ses('') }, { getAllWebContents: () => [] },
-      vi.fn(async () => detect), launcher, { getPath: () => 'C:/tmp' }, ['persist:main'], { mode: 'direct' });
+      vi.fn(async () => detect), launcher, { getPath: () => 'C:/tmp' }, ['persist:main'], { mode: 'direct' }, async () => {});
     return { ...t, ses, launcher };
   }
 

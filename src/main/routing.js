@@ -136,8 +136,11 @@ function keepsOpenerSession(partition) {
  * @param {any} ses
  * @param {'tor'|'proxy'|'direct'} route
  * @param {any[]} allContents
+ * @param {(contents: any) => Promise<void>} [syncPage] tor-light.js's syncTorLight:
+ *   a page that goes through Tor reports light to sites, one that leaves it
+ *   follows Vex again.
  */
-function markRoutedSession(ses, route, allContents) {
+function markRoutedSession(ses, route, allContents, syncPage) {
   if (!['tor', 'proxy', 'direct'].includes(route)) throw new Error(`Unknown route "${route}"`);
   ses.__vexTor = route === 'tor';
   ses.__vexRouted = route !== 'direct';
@@ -147,6 +150,7 @@ function markRoutedSession(ses, route, allContents) {
   for (const contents of allContents) {
     if (contents.isDestroyed() || contents.session !== ses) continue;
     contents.setWebRTCIPHandlingPolicy(policy);
+    if (syncPage) syncPage(contents).catch(err => console.error('[Routing] a page could not be set to report light (or let go) for its route:', err));
   }
 }
 

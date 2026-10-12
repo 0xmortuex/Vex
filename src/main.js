@@ -5093,6 +5093,8 @@ function handleExternalProtocol(url, contents) {
 const _claudeGoogleClick = new Map();
 
 // === Route webview new-window requests into Vex tabs (not new BrowserWindows) ===
+// Tor pages always report light to sites, like Tor Browser (src/main/tor-light.js).
+const _syncTorLight = require('./main/tor-light').syncTorLight;
 // The renderer's webview 'new-window' DOM event is legacy and unreliable in
 // Electron 30+. setWindowOpenHandler in main is the supported path.
 app.on('web-contents-created', (_event, contents) => {
@@ -5114,6 +5116,9 @@ app.on('web-contents-created', (_event, contents) => {
   // page is watched: a burner or container can be routed through Tor after
   // its tab is already open.
   if (contents.session && contents.session.__vexTor) _torIdleCheck();
+  // A page in a Tor session tells sites it prefers light, whatever Vex's theme
+  // or Website appearance says (src/main/tor-light.js).
+  _syncTorLight(contents).catch(err => console.error('[Tor light] a Tor page could not be held light:', err));
   contents.once('destroyed', () => { if (_torLauncher.isRunning()) setImmediate(_torIdleCheck); });
   // A page in a Tor route whose Tor has stopped starts it again (a tab opened
   // in it starts with a navigation too); a page that cannot load because Tor
@@ -5121,6 +5126,8 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
     const ses = contents.session;
     if (isMainFrame && !isInPlace && ses && ses.__vexTorDown && ses.__vexTorRevive && /^https?:/i.test(url)) _reviveTor(contents);
+    // A hold DevTools or a crashed page let go of is taken again.
+    if (isMainFrame && !isInPlace) _syncTorLight(contents).catch(err => console.error('[Tor light] a Tor page could not be held light:', err));
   });
   contents.on('did-fail-load', (_e, errorCode, _desc, _url, isMainFrame) => {
     const ses = contents.session;
@@ -7725,7 +7732,7 @@ async function applyRouting(partition, mode, custom, sender) {
   if (mode === 'tor') {
     // Marked before Tor is up, so no page in it can use WebRTC around the
     // proxy while it starts (a restored Tor route has a refusing proxy then).
-    require('./main/routing').markRoutedSession(ses, 'tor', webContents.getAllWebContents());
+    require('./main/routing').markRoutedSession(ses, 'tor', webContents.getAllWebContents(), _syncTorLight);
     // The session kept its old proxy (often direct) until Tor had started, so
     // a page loaded in it meanwhile went direct (found 2026-09-30). It loads
     // nothing until Tor is up. A session already on a live Tor keeps it.
@@ -7760,7 +7767,7 @@ async function applyRouting(partition, mode, custom, sender) {
     const address = require('./main/routing').proxyAddress(custom);
     await ses.setProxy({ proxyRules: address });
     _leaveTor(ses);
-    require('./main/routing').markRoutedSession(ses, 'proxy', webContents.getAllWebContents());
+    require('./main/routing').markRoutedSession(ses, 'proxy', webContents.getAllWebContents(), _syncTorLight);
     return { mode: 'proxy', custom: address };
   }
   // Direct is direct plus the Discord bypass for the sessions it covers, as
@@ -7769,7 +7776,7 @@ async function applyRouting(partition, mode, custom, sender) {
   // direct overrode it (found 2026-09-30).
   await ses.setProxy(!partition || BROWSING_SESSIONS.includes(partition) ? _discordBrowsingProxy : { mode: 'direct' });
   _leaveTor(ses);
-  require('./main/routing').markRoutedSession(ses, 'direct', webContents.getAllWebContents());
+  require('./main/routing').markRoutedSession(ses, 'direct', webContents.getAllWebContents(), _syncTorLight);
   return { mode: 'direct' };
 }
 
@@ -7880,7 +7887,7 @@ function _coverWithAllRoute(ses, partition) {
   catch (err) { console.error('[Routing] could not tell whether a new session goes through the route for all of Vex:', err); return; }
   if (routingGeneration.has(partition)) return;
   ses.setProxy(require('./main/routing').REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
-  require('./main/routing').markRoutedSession(ses, all.mode, webContents.getAllWebContents());
+  require('./main/routing').markRoutedSession(ses, all.mode, webContents.getAllWebContents(), _syncTorLight);
   applyRouting(partition, all.mode, all.custom || undefined)
     .catch(err => console.error(`[Routing] ${partition} could not be put on the route for all of Vex (it loads nothing until it is):`, err));
 }
@@ -7999,7 +8006,7 @@ function _wireBrowsingSession(ses, partition) {
     // rule may be gone (routing:forget), and direct is what it exists to
     // avoid. The saved route, or the rule's arm(), replaces this proxy.
     ses.setProxy(routing.REFUSED_PROXY).catch(err => console.error(`[Routing] ${partition} could not be closed off:`, err));
-    routing.markRoutedSession(ses, partition === 'persist:route-tor' ? 'tor' : 'proxy', webContents.getAllWebContents());
+    routing.markRoutedSession(ses, partition === 'persist:route-tor' ? 'tor' : 'proxy', webContents.getAllWebContents(), _syncTorLight);
   }
   ses.setUserAgent(CHROME_UA);
   wireClientHintsOnSession(ses);
