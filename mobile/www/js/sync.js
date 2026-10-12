@@ -17,6 +17,11 @@
 //   sync:tabs:<this id>        the tabs open here (not private ones), which
 //                              the computers list under "Tabs from other
 //                              devices" — unless you turn that off
+//   secret:passwords           saved logins and 2FA accounts, each sealed on
+//   secret:authenticator       its own (sync-secrets.js, spec §4.9) — only if
+//                              you turn them on, and only in a round where
+//                              your logins are unlocked; in any other round
+//                              they are carried through like the rest
 //
 // Everything else — settings, theme, history, tiles, saved passwords, other
 // devices' markers and tabs, sources added by a newer Vex — is copied through
@@ -88,6 +93,7 @@ const VexSync = (() => {
     // (the next upload locks it), 'unsupported' (a worker from before it).
     keyLock: null,
     keyLockSince: null,
+    secretsError: null,        // why passwords did not sync last round, said in Settings
     conflicts: 0
   };
 
@@ -95,6 +101,16 @@ const VexSync = (() => {
   let authKey = null;
   // The account's device list as last read: names, and which tabs to show.
   let knownDevices = [];
+
+  // Saved passwords and 2FA accounts (spec §4.9), when turned on. Owned only
+  // in a round that starts with your logins unlocked: { sources, keys, local }
+  // where local[kind] is the vault sealed now (Map id → { id, t, s, entryId }).
+  // What was last synced into the vault, per kind ({ id: s }, the sealed text
+  // only), is what tells an edit made here from a copy that is merely behind.
+  const SECRET_SOURCES = { 'secret:passwords': 'passwords', 'secret:authenticator': 'authenticator' };
+  let secretRound = null;
+  const secretChoices = () => { const value = VexStore.get('vex.syncSecrets', {}); return value && typeof value === 'object' ? value : {}; };
+  const secretSeen = () => { const value = VexStore.get('vex.syncSecretsSeen', {}); return value && typeof value === 'object' ? value : {}; };
 
   // A session the worker issued but the phone has not settled yet: waiting on
   // a recovery code. The worker lets it push, pull or delete itself, nothing
@@ -407,6 +423,11 @@ const VexSync = (() => {
     });
   }
 
+  /** The lists this phone owns this round: its own, plus the sealed ones while unlocked. */
+  function owning(doc) {
+    return secretRound ? writable(doc).concat([...secretRound.sources]) : writable(doc);
+  }
+
   function accountList(doc, source) {
     const own = { schema: 2, records: {} };
     for (const [key, record] of Object.entries(doc.records)) if (sourceOf(key) === source) own.records[key] = record;
@@ -485,10 +506,10 @@ const VexSync = (() => {
   function captureOwned(doc, options) {
     const R = records();
     R.valid(doc);
-    const lists = writable(doc);
+    const lists = owning(doc);
     const values = {};
     for (const source of lists) {
-      const list = outgoing(source, doc, options);
+      const list = SECRET_SOURCES[source] ? secretOutgoing(source, doc) : outgoing(source, doc, options);
       const known = Object.keys(doc.records).some(key => sourceOf(key) === source);
       // An empty list the account has never had is not worth a record.
       if (list.length || known) values[source] = list;
@@ -500,7 +521,21 @@ const VexSync = (() => {
     const mine = new Set([...lists, marker(), tabsSource()]);
     const part = { schema: 2, records: {} };
     for (const [key, record] of Object.entries(doc.records)) if (mine.has(sourceOf(key))) part.records[key] = record;
-    const captured = R.capture(part, R.flatten(values), deviceId());
+    const flat = R.flatten(values);
+    // Sealed items keep index 0: they are kept in id order, and a position
+    // would make every later item change when one is added (spec §4.9).
+    for (const key of Object.keys(flat)) {
+      const [source, kind] = JSON.parse(key);
+      if (kind === 'item' && SECRET_SOURCES[source]) flat[key] = { index: 0, item: flat[key].item };
+    }
+    const captured = R.capture(part, flat, deviceId());
+    // A sealed item changed here carries the time it was changed, so of two
+    // devices' changes to one login the newer wins (as the desktop does).
+    for (const [key, record] of Object.entries(captured.records)) {
+      if (record === part.records[key] || record.deleted || !key.startsWith('["secret:')) continue;
+      const t = record.value && record.value.item && record.value.item.t;
+      if (Number.isSafeInteger(t) && t > 0) captured.records[key] = { ...record, at: t };
+    }
     return { schema: 2, records: { ...doc.records, ...captured.records } };
   }
 
@@ -517,7 +552,7 @@ const VexSync = (() => {
   function mergeIntoPulled(local, pulled) {
     const R = records();
     const merged = R.merge(local, pulled);
-    const lists = writable(pulled);
+    const lists = owning(pulled);
     const out = { schema: 2, records: {} };
     for (const [key, record] of Object.entries(pulled.records)) {
       out.records[key] = ownedKey(key, lists) ? merged.records[key] : record;
@@ -546,6 +581,7 @@ const VexSync = (() => {
         throw new Error('Invalid synced list: ' + source);
       }
     }
+    if (secretRound) for (const source of secretRound.sources) VexSyncSecrets.checkItems(SECRET_SOURCES[source], accountList(doc, source));
   }
 
   /**
@@ -744,6 +780,136 @@ const VexSync = (() => {
     if (window.VexUI && VexUI.toast) VexUI.toast(state.lastError, 6000);
   }
 
+  // ── Saved passwords and 2FA accounts ────────────────────────────────────
+
+  /**
+   * The start of a round: which sealed lists this phone owns this time. Only
+   * kinds you turned on, only with your logins unlocked, and only when every
+   * item the account holds of that kind opens with this phone's key and is
+   * what its id says (spec §4.9) — a kind that fails is carried through
+   * untouched this round, and said.
+   */
+  async function prepareSecrets(pulled) {
+    secretRound = null;
+    if (pulled) state.secretsError = null;
+    try { await sealForRound(pulled); }
+    catch (error) {
+      // Passwords not syncing this round is no reason for bookmarks not to.
+      secretRound = null;
+      state.secretsError = 'Passwords did not sync: ' + (error.message || error);
+    }
+  }
+
+  async function sealForRound(pulled) {
+    if (typeof VexSyncSecrets === 'undefined' || typeof VexVault === 'undefined') return;
+    const kinds = VexSyncSecrets.KINDS.filter(kind => secretChoices()[kind] === true);
+    if (!kinds.length || VexVault.locked()) return;
+    const keyHex = await VexBridge.vaultGet('vex.syncKey');
+    const keys = await VexSyncSecrets.deriveKeys(keyHex);
+    await VexVault.ensureSyncFields();
+    const seen = secretSeen();
+    const sources = new Set();
+    const local = {};
+    for (const kind of kinds) {
+      const source = 'secret:' + kind;
+      if (pulled) {
+        try {
+          const known = seen[kind] || {};
+          for (const item of VexSyncSecrets.checkItems(kind, accountList(pulled, source))) {
+            if (known[item.id] !== item.s) await VexSyncSecrets.open(keys, kind, item.id, item.s);
+          }
+        } catch (error) {
+          state.secretsError = error.message + ' — ' + (kind === 'passwords' ? 'passwords' : '2FA codes') + ' are left as they are until that is sorted';
+          continue;
+        }
+      }
+      if (VexVault.locked()) return;
+      local[kind] = await VexSyncSecrets.sealVault(keys, kind, VexVault.all());
+      sources.add(source);
+    }
+    if (sources.size) secretRound = { sources, keys, local };
+  }
+
+  /**
+   * This phone's version of a sealed list, in id order: the account's item
+   * where nothing changed here since it was last synced, this phone's where
+   * it did, nothing for one deleted here; new ones added. The first time a
+   * kind syncs (nothing seen yet) a login both sides hold goes by the newer
+   * change, and one the account deleted is sent again: a join never removes
+   * a saved password (spec §4.9).
+   */
+  function secretOutgoing(source, doc) {
+    const kind = SECRET_SOURCES[source];
+    const mine = secretRound.local[kind];
+    const seen = secretSeen()[kind] || {};
+    const account = accountList(doc, source).filter(item => item && typeof item.id === 'string');
+    const accountIds = new Set(account.map(item => item.id));
+    const out = new Map();
+    for (const item of account) {
+      const here = mine.get(item.id);
+      if (!here) { if (!Object.hasOwn(seen, item.id)) out.set(item.id, item); continue; }
+      if (!Object.hasOwn(seen, item.id)) out.set(item.id, here.t > item.t ? here : item);
+      else out.set(item.id, here.s === seen[item.id] ? item : here);
+    }
+    for (const [id, here] of mine) {
+      if (accountIds.has(id) || Object.hasOwn(seen, id)) continue;
+      out.set(id, here);
+    }
+    return [...out.values()].map(({ id, t, s }) => ({ id, t, s })).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
+  /**
+   * The merged sealed lists, into the vault: what is new or changed put in,
+   * what is gone taken out — never an entry changed here since the last sync
+   * (that goes up next), and nothing at all if your logins locked meanwhile.
+   */
+  async function applySecrets(merged) {
+    if (!secretRound) return;
+    const seenAll = { ...secretSeen() };
+    for (const source of secretRound.sources) {
+      const kind = SECRET_SOURCES[source];
+      const mine = secretRound.local[kind];
+      const seen = seenAll[kind] || {};
+      const account = new Map(accountList(merged, source).filter(item => item && typeof item.id === 'string').map(item => [item.id, item]));
+      const remove = [];
+      const put = [];
+      const next = {};
+      for (const [id, item] of account) {
+        const here = mine.get(id);
+        if (here && here.s === item.s) { next[id] = item.s; continue; }
+        if (here && Object.hasOwn(seen, id) && here.s !== seen[id]) { next[id] = seen[id]; continue; }
+        put.push({ entryId: here ? here.entryId : null, payload: await VexSyncSecrets.open(secretRound.keys, kind, id, item.s) });
+        next[id] = item.s;
+      }
+      for (const [id, here] of mine) {
+        if (!account.has(id) && Object.hasOwn(seen, id) && here.s === seen[id]) remove.push(here.entryId);
+      }
+      if (VexVault.locked()) return;
+      if (remove.length || put.length) await VexVault.applySecretChanges(kind, remove, put);
+      seenAll[kind] = next;
+    }
+    await VexStore.set('vex.syncSecretsSeen', seenAll);
+  }
+
+  /** After a push: what went up from this phone is now synced. */
+  async function pushedSecrets(doc) {
+    if (!secretRound) return;
+    const seenAll = { ...secretSeen() };
+    for (const source of secretRound.sources) {
+      const kind = SECRET_SOURCES[source];
+      const mine = secretRound.local[kind];
+      const before = seenAll[kind] || {};
+      const next = {};
+      for (const item of accountList(doc, source)) {
+        const here = item && mine.get(item.id);
+        if (here && here.s === item.s) next[item.id] = item.s;
+        else if (item && Object.hasOwn(before, item.id)) next[item.id] = before[item.id];
+      }
+      seenAll[kind] = next;
+    }
+    await VexStore.set('vex.syncSecretsSeen', seenAll);
+  }
+
   // ── Pull and push ──────────────────────────────────────────────────────────
 
   /**
@@ -756,7 +922,7 @@ const VexSync = (() => {
    */
   function withoutClearedTombstones(stored, pulled) {
     if (!stored) return stored;
-    const lists = writable(stored);
+    const lists = owning(stored);
     let dropped = false;
     const out = { schema: 2, records: {} };
     for (const [key, record] of Object.entries(stored.records)) {
@@ -806,12 +972,14 @@ const VexSync = (() => {
     // goes up is the phone's own part, from an empty document, as for a new
     // account (spec §5.3 step 2, rule 3) — never a stale stored document.
     const empty = !response.body.encryptedBlob;
+    await prepareSecrets(pulled);
     const stored = joining || empty ? null : withoutClearedTombstones(await loadDocument(), pulled);
     const base = stored || pulled;
     const local = captureOwned(base, { joining: joining || !stored });
     const merged = mergeIntoPulled(local, pulled);
     check(merged);
     await applyOwned(merged, { joining: joining || !stored });
+    await applySecrets(merged);
     readOnly(merged);
     // Conflicts this merge kept as recovery data, owned records only.
     state.conflicts = Object.entries(merged.records).filter(([key, record]) => record.conflicts && record.conflicts.length > 1
@@ -827,7 +995,7 @@ const VexSync = (() => {
 
     // Whether the account lacks something this phone has: a change made here,
     // or its marker (an older Vex marks every record it does not know deleted).
-    const lists = writable(pulled);
+    const lists = owning(pulled);
     const differs = Object.keys(merged.records).some(key => ownedKey(key, lists)
       && JSON.stringify(merged.records[key]) !== JSON.stringify(pulled.records[key]));
     // An older Vex marks every record it does not know as deleted, this
@@ -843,6 +1011,7 @@ const VexSync = (() => {
     if (pullBlocked) return { ok: false, reason: 'What is synced could not be read here — that has to be sorted before anything is sent' };
     const base = await loadDocument();
     if (!base) return { ok: false, needsPull: true };
+    await prepareSecrets(null);
     const doc = captureOwned(base);
     check(doc);
     const blob = await SyncCrypto.encrypt(doc, state.key);
@@ -870,6 +1039,7 @@ const VexSync = (() => {
     if (!Number.isSafeInteger(revision) || revision < 1) throw new Error('The worker sent an invalid revision');
     await saveDocument(doc);
     await pruneDeletions(doc);
+    await pushedSecrets(doc);
     state.revision = revision;
     state.lastPushAt = new Date().toISOString();
     state.lastError = null;
@@ -934,6 +1104,8 @@ const VexSync = (() => {
     state.deviceName = session.deviceName;
     state.key = await SyncCrypto.importKey(SyncCrypto.hexToKey(keyHex));
     authKey = await SyncCrypto.authKeyHex(SyncCrypto.hexToKey(keyHex));
+    // A new sign-in joins: nothing of the passwords counts as synced yet.
+    await VexStore.set('vex.syncSecretsSeen', {});
     state.enabled = true;
     state.revision = 0;
     recordDocument = null;
@@ -1100,6 +1272,7 @@ const VexSync = (() => {
       await forget();
       await VexStore.set('vex.syncDeletions', {});
       await VexStore.set('vex.syncRevivals', {});
+      await VexStore.set('vex.syncSecretsSeen', {});
     },
 
     async recoveryCode() {
@@ -1157,6 +1330,26 @@ const VexSync = (() => {
     async setSharingTabs(on) {
       await VexStore.set('vex.syncShareTabs', !!on);
       VexSync.schedulePush(500);
+    },
+
+    /** Which of your passwords and 2FA codes sync from this phone: { passwords, authenticator }. */
+    secretKinds() {
+      const choices = secretChoices();
+      return { passwords: choices.passwords === true, authenticator: choices.authenticator === true };
+    },
+    /**
+     * Turn one on or off. On, it joins: a login both sides hold goes by the
+     * newer change, nothing here is removed. Off, this phone carries the
+     * account's copies through untouched.
+     */
+    async setSecretKind(kind, on) {
+      if (!['passwords', 'authenticator'].includes(kind)) throw new Error('Unknown kind');
+      const choices = { ...secretChoices(), [kind]: !!on };
+      await VexStore.set('vex.syncSecrets', choices);
+      const seen = { ...secretSeen() };
+      delete seen[kind];
+      await VexStore.set('vex.syncSecretsSeen', seen);
+      if (on) VexSync.schedulePush(500);
     },
 
     /** The worker's key lock, as last heard: { state: 'on'|'off'|'unsupported'|null, since }. */

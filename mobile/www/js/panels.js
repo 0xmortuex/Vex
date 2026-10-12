@@ -1552,6 +1552,27 @@ const VexPanels = (() => {
         catch (error) { VexUI.toast(error.message, 5000); }
         this.sync();
       }));
+      // Passwords and 2FA codes: off until you turn them on, on each device,
+      // and asked again first — as on the computer (Choose what to sync).
+      const kinds = VexSync.secretKinds();
+      for (const [kind, label, note] of [
+        ['passwords', 'Sync saved passwords', 'With your computer’s Passwords — turn it on there too'],
+        ['authenticator', 'Sync 2FA codes', 'With your computer’s Authenticator — turn it on there too']
+      ]) {
+        body.appendChild(toggleRow(label, note, kinds[kind], async on => {
+          if (on) {
+            const check = await VexBridge.authenticate('Vex', 'Sync your ' + (kind === 'passwords' ? 'saved passwords' : '2FA codes'));
+            if (!check.ok || !(await VexVault.unlock('Sync your logins'))) { VexUI.toast('Not turned on'); this.sync(); return; }
+          }
+          await VexSync.setSecretKind(kind, on);
+          VexUI.toast(on ? 'Each one is sealed on its own inside your encrypted sync. Syncing…'
+            : 'Off — this phone leaves the account’s copies as they are', 4500);
+        }));
+      }
+      if (state.secretsError) body.appendChild(el('div', 'field-note', state.secretsError));
+      else if (Object.values(kinds).some(Boolean) && VexVault.locked()) {
+        body.appendChild(el('div', 'field-note', 'Passwords sync while your logins are unlocked — open Passwords and 2FA to let them through.'));
+      }
       body.appendChild(toggleRow('Share this phone’s tabs',
         'Your computer lists the tabs open here (never private ones) under History › Tabs from other devices',
         VexSync.sharingTabs(), on => VexSync.setSharingTabs(on)));

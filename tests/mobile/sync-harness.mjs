@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import * as worker from '../../workers/vex-sync-worker/worker.js';
 import { memoryStorage } from '../workers/syncHarness.js';
 
@@ -121,11 +122,26 @@ function sandbox(stand, extra) {
   return context;
 }
 
+// The desktop's own sealing of saved passwords and 2FA accounts
+// (src/main/sync-secrets.js, its main process), over in-memory lists.
+const requireHere = createRequire(import.meta.url);
+const { createSyncSecrets } = requireHere('../../src/main/sync-secrets.js');
+
 export function desktop(stand, { name = 'desktop' } = {}) {
   const local = new Map();
   const storage = new Map();
   const disk = { meta: null, key: null };
   const toasts = [];
+  const vault = { passwords: [], authenticator: [], passkeys: [] };
+  const secrets = createSyncSecrets({
+    readKeyHex: async () => disk.key,
+    isLocked: () => false,
+    stores: {
+      passwords: { load: () => structuredClone(vault.passwords), save: async list => { vault.passwords = structuredClone(list); } },
+      authenticator: { load: () => structuredClone(vault.authenticator), save: async list => { vault.authenticator = structuredClone(list); }, validate: () => {} },
+      passkeys: { load: () => [], save: async () => {}, validate: () => {} }
+    }
+  });
   const context = sandbox(stand, {
     localStorage: {
       getItem: key => (local.has(key) ? local.get(key) : null),
@@ -146,7 +162,11 @@ export function desktop(stand, { name = 'desktop' } = {}) {
       syncSaveMeta: async meta => { disk.meta = meta; },
       syncLoadMeta: async () => disk.meta,
       syncLoadKey: async () => disk.key,
-      syncClearState: async () => { disk.meta = null; disk.key = null; }
+      syncClearState: async () => { disk.meta = null; disk.key = null; },
+      syncSecretsSeal: kinds => secrets.sealKinds(kinds),
+      syncSecretsApply: lists => secrets.applyKinds(lists),
+      syncSecretsDescribe: items => secrets.describe(items),
+      syncSecretsPutBack: request => secrets.putBack(request)
     },
     showToast: message => toasts.push(message),
     dispatchEvent: () => true,
@@ -158,7 +178,7 @@ export function desktop(stand, { name = 'desktop' } = {}) {
     'src/renderer/js/data-contracts.js', 'src/renderer/js/sync-engine.js']) {
     vm.runInContext(read(file), context, { filename: file });
   }
-  return { name, context, local, storage, disk, toasts, engine: context.SyncEngine, records: context.VexSyncRecords, crypto: context.SyncCrypto };
+  return { name, context, local, storage, disk, toasts, vault, engine: context.SyncEngine, records: context.VexSyncRecords, crypto: context.SyncCrypto };
 }
 
 export function phone(stand) {
@@ -185,15 +205,20 @@ export function phone(stand) {
       delete: async (name, key) => { if (name === 'blobs') blobs.delete(key); }
     },
     VexUI: { toast: message => toasts.push(message) },
-    VexTabStore: { all: () => tabs, normal: () => tabs.filter(tab => !tab.incognito) }
+    VexTabStore: { all: () => tabs, normal: () => tabs.filter(tab => !tab.incognito) },
+    VexSearch: { prettyHost: url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } } }
   });
+  // The phone's vault keeps its logins under the keystore; here, in memory.
+  context.VexBridge.authenticate = async () => ({ ok: true });
   for (const file of ['mobile/www/js/shared/sync-crypto.js', 'mobile/www/js/shared/sync-records.js',
-    'mobile/www/js/shared/data-contracts.js', 'mobile/www/js/collections.js', 'mobile/www/js/sync.js']) {
+    'mobile/www/js/shared/data-contracts.js', 'mobile/www/js/collections.js', 'mobile/www/js/vault.js',
+    'mobile/www/js/sync-secrets.js', 'mobile/www/js/sync.js']) {
     vm.runInContext(read(file), context, { filename: file });
   }
   return {
     context, store, vault, blobs, toasts, tabs,
     sync: context.VexSync,
+    logins: context.VexVault,
     bookmarks: context.VexCollections.bookmarks,
     notes: () => store.get('vex.syncNotes') || [],
     setNotes: list => store.set('vex.syncNotes', structuredClone(list))

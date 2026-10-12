@@ -21,6 +21,8 @@
     VexStore.prime('vex.syncRevivals', {}),
     VexStore.prime('vex.syncDeviceName', ''),
     VexStore.prime('vex.syncShareTabs', true),
+    VexStore.prime('vex.syncSecrets', {}),
+    VexStore.prime('vex.syncSecretsSeen', {}),
     VexStore.prime('vex.bookmarkFolders', []),
     VexStore.prime('vex.readingList', []),
     VexStore.prime('vex.sessions', []),

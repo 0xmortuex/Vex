@@ -392,6 +392,8 @@ const VexVault = (() => {
         return false;
       }
       unlockedAt = Date.now();
+      // Changes from your other devices wait for this; so do yours.
+      if (typeof VexSync !== 'undefined' && VexSync.state.enabled && Object.values(VexSync.secretKinds()).some(Boolean)) VexSync.schedulePush(800);
       return true;
     },
 
@@ -435,6 +437,8 @@ const VexVault = (() => {
       const code = secret ? { digits: digits || 6, period: period || 30, algorithm: algorithm || 'SHA1' } : {};
       const existing = entries.find(entry => entry.host === host && entry.username === username);
       if (existing) {
+        if (password && password !== existing.password) existing.updatedAt = new Date(now).toISOString();
+        if (secret && secret !== existing.secret) delete existing.auth;     // another account: a new one in sync
         Object.assign(existing, {
           password: password || existing.password,
           secret: secret !== undefined ? secret : existing.secret,
@@ -444,12 +448,10 @@ const VexVault = (() => {
       } else {
         entries.unshift(Object.assign({
           id: VexCollections.id('lg_'), host, username: username || '', password: password || '',
-          secret: secret || '', label: label || host, at: now
+          secret: secret || '', label: label || host, at: now, updatedAt: new Date(now).toISOString()
         }, code));
       }
-      await write(entries);
-      await VexStore.set('vex.loginHosts', [...new Set(entries.map(entry => entry.host))]);
-      await VexStore.set('vex.codeHosts', [...new Set(entries.filter(entry => entry.secret).map(entry => entry.host))]);
+      await this._saved();
       return true;
     },
 
@@ -466,17 +468,96 @@ const VexVault = (() => {
         secret = parsed.secret;
         Object.assign(code, { digits: parsed.digits, period: parsed.period, algorithm: parsed.algorithm });
       }
+      const loginChanged = (changes.host !== undefined && changes.host !== entry.host)
+        || (changes.username !== undefined && changes.username !== entry.username)
+        || (changes.password !== undefined && changes.password !== entry.password);
       if (changes.host !== undefined) entry.host = changes.host;
       if (changes.username !== undefined) entry.username = changes.username;
       if (changes.password !== undefined) entry.password = changes.password;
+      if (loginChanged) entry.updatedAt = new Date().toISOString();
       if (secret !== undefined) {
         if (secret && secret !== entry.secret && !code.digits) Object.assign(code, { digits: 6, period: 30, algorithm: 'SHA1' });
+        if (secret !== entry.secret) delete entry.auth;
         entry.secret = secret;
       }
       if (changes.label !== undefined) entry.label = changes.label;
       Object.assign(entry, code, { at: Date.now() });
       await this._saved();
       return entry;
+    },
+
+    // ── Vex Sync (sync-secrets.js) ─────────────────────────────────────────
+    /**
+     * Give every entry what it needs to seal the same way every time: when its
+     * login last changed, and its 2FA account's id, name and issuer. Needs it
+     * unlocked; saved only when something was missing.
+     */
+    async ensureSyncFields() {
+      if (locked()) return false;
+      let changed = false;
+      for (const entry of entries) {
+        if (entry.password && typeof entry.updatedAt !== 'string') { entry.updatedAt = new Date(entry.at || Date.now()).toISOString(); changed = true; }
+        if (entry.secret && !entry.auth) {
+          const account = VexSyncSecrets.accountOf(entry);
+          entry.auth = { id: account.id, label: account.label, issuer: account.issuer, created: account.created };
+          changed = true;
+        }
+      }
+      if (changed) await write(entries);
+      return true;
+    },
+
+    /**
+     * What another device changed, into the vault: `remove` the entries (by
+     * vault id) whose login or account is gone, `put` [{ entryId, payload }]
+     * the ones that are new or changed. A login gone from an entry that also
+     * has a 2FA code keeps the code, and the other way round.
+     */
+    async applySecretChanges(kind, remove, put) {
+      if (locked()) throw new Error('Your logins locked meanwhile');
+      const norm = VexSyncSecrets.normalHost;
+      for (const entryId of remove) {
+        const entry = entries.find(row => row.id === entryId);
+        if (!entry) continue;
+        if (kind === 'passwords') {
+          if (entry.secret) { entry.password = ''; delete entry.updatedAt; }
+          else entries = entries.filter(row => row !== entry);
+        } else {
+          if (entry.password) { entry.secret = ''; delete entry.auth; delete entry.digits; delete entry.period; delete entry.algorithm; }
+          else entries = entries.filter(row => row !== entry);
+        }
+      }
+      for (const { entryId, payload } of put) {
+        let entry = entryId ? entries.find(row => row.id === entryId) : null;
+        if (kind === 'passwords') {
+          if (!entry) entry = entries.find(row => norm(row.host) === payload.host && String(row.username || '') === payload.username);
+          const at = Date.parse(payload.updatedAt) || Date.now();
+          if (entry) {
+            Object.assign(entry, { password: payload.password, updatedAt: payload.updatedAt, at: Math.max(entry.at || 0, at) });
+            if (payload.note) entry.note = payload.note; else delete entry.note;
+          } else {
+            entries.push({ id: VexCollections.id('lg_'), host: payload.host, username: payload.username, password: payload.password,
+              secret: '', label: payload.host, at, ...(payload.updatedAt ? { updatedAt: payload.updatedAt } : {}), ...(payload.note ? { note: payload.note } : {}) });
+          }
+        } else {
+          const code = { secret: payload.secret, digits: payload.digits, period: payload.period, algorithm: payload.algorithm.toUpperCase(),
+            auth: { id: payload.id, label: payload.label, issuer: payload.issuer, ...(payload.created ? { created: payload.created } : {}) } };
+          // A login here for the site the account is for takes its code.
+          const issuer = String(payload.issuer || '').toLowerCase().replace(/\s+/g, '');
+          if (!entry && issuer) {
+            entry = entries.find(row => !row.secret && row.password && (norm(row.host).startsWith(issuer)
+              || norm(row.host).split('.')[0] === issuer.split('.')[0]) && (!payload.label || !row.username || row.username === payload.label));
+          }
+          if (entry) Object.assign(entry, code);
+          else {
+            const host = /\./.test(issuer) ? norm(issuer) : '';
+            entries.push({ id: VexCollections.id('lg_'), host, username: payload.label, password: '', label: payload.issuer || payload.label,
+              at: Date.parse(payload.created) || Date.now(), ...code });
+          }
+        }
+      }
+      await this._saved();
+      return true;
     },
 
     /** Put back a login exactly as it was (Undo of a delete). */
@@ -517,6 +598,9 @@ const VexVault = (() => {
 
     async _saved() {
       await write(entries);
+      // Passwords that sync go up a few seconds later (sync.js owns them only
+      // while unlocked, which they are now).
+      if (typeof VexSync !== 'undefined' && VexSync.state.enabled && Object.values(VexSync.secretKinds()).some(Boolean)) VexSync.schedulePush(3000);
       await VexStore.set('vex.loginHosts', [...new Set(entries.map(entry => entry.host))]);
       await VexStore.set('vex.codeHosts', [...new Set(entries.filter(entry => entry.secret).map(entry => entry.host))]);
     },
