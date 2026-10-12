@@ -83,11 +83,12 @@ const AISettings = (() => {
       { id: 'explain', label: 'Explain text', desc: 'Right-click \u2192 Explain' },
       { id: 'historyIndex', label: 'History indexing', desc: 'Background page summaries' },
       { id: 'historySearch', label: 'History search', desc: 'AI-powered history queries' },
-      { id: 'agent', label: 'Agent mode', desc: 'Browser automation (cloud only)' },
+      { id: 'agent', label: 'Agent mode', desc: 'Browser automation — prefers the cloud; uses the local model when no AI Worker is set or you prefer local' },
       { id: 'multiTab', label: 'Multi-tab AI', desc: 'Cross-tab reasoning' },
       // Was routable in the router but had no row here, so the only way to
       // change it was editing localStorage by hand.
-      { id: 'groupTabs', label: 'Group tabs', desc: 'AI tab grouping suggestions' }
+      { id: 'groupTabs', label: 'Group tabs', desc: 'AI tab grouping suggestions' },
+      { id: 'digest', label: 'Reading digest', desc: 'Summaries of your Read Later pile. Local unless you choose Auto or Cloud here' }
     ];
     const prefs = AIRouter.getRoutingPrefs();
     container.innerHTML = features.map(f => `
@@ -96,7 +97,7 @@ const AISettings = (() => {
           <strong>${escapeHtml(f.label)}</strong>
           <span>${escapeHtml(f.desc)}</span>
         </div>
-        <select data-feature="${f.id}" ${f.id === 'agent' ? 'disabled' : ''}>
+        <select data-feature="${f.id}">
           <option value="auto" ${prefs[f.id] === 'auto' ? 'selected' : ''}>Auto</option>
           <option value="cloud" ${prefs[f.id] === 'cloud' ? 'selected' : ''}>Cloud</option>
           <option value="local" ${prefs[f.id] === 'local' ? 'selected' : ''}>Local</option>
@@ -292,7 +293,7 @@ const AISettings = (() => {
         <ul style="color:var(--text-muted);font-size:12px;line-height:1.7">
           <li><code>llama3.2:3b</code> &mdash; fast, 2GB, good for most tasks</li>
           <li><code>qwen2.5:3b</code> &mdash; fast, 2GB, strong at structured output</li>
-          <li><code>llama3.2:8b</code> &mdash; slower, 5GB, higher quality</li>
+          <li><code>llama3.1:8b</code> &mdash; slower, 5GB, higher quality</li>
           <li><code>gemma2:2b</code> &mdash; very fast, 1.6GB, minimal quality</li>
         </ul>
         <h3 style="font-size:13px;margin:16px 0 6px">Step 4: Click "Refresh Ollama Status"</h3>

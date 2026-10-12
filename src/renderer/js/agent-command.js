@@ -61,7 +61,7 @@ const AgentCommand = {
     // group
     if ((m = s.match(/^group (?:my |the |all )?(.+?)(?: tabs?)?$/)) && !/screen|window/.test(s)) {
       const hits = this._matchTabs(m[1]).filter(t => t.id);
-      if (hits.length >= 2) return { desc: 'Group ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => { const gid = 'g-' + Date.now(); TabManager.groups.push({ id: gid, name: m[1], color: '#d4a574', collapsed: false }); hits.forEach(t => { t.groupId = gid; }); if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups); TabManager.persistTabs(); TabManager.rebuildAllTabs(); } };
+      if (hits.length >= 2) return { desc: 'Group ' + hits.length + ' “' + m[1] + '” tab(s)', run: () => { const gid = 'g-' + Date.now(); TabManager.groups.push({ id: gid, name: m[1], color: '#d4a574', collapsed: false }); hits.forEach(t => { TabManager._setTabGroup(t.id, gid); }); if (typeof VexStorage !== 'undefined') VexStorage.saveGroups(TabManager.groups); TabManager.persistTabs(); TabManager.rebuildAllTabs(); } };
     }
     // close
     if (/^close (all |every )?(other|others|the rest)/.test(s)) { const hits = TabManager.tabs.filter(t => t.id !== TabManager.activeTabId); return { destructive: true, desc: 'Close ' + hits.length + ' other tab(s)', run: () => hits.forEach(t => { try { TabManager.closeTab(t.id); } catch {} }) }; }
@@ -77,7 +77,13 @@ const AgentCommand = {
     if (!plan) {
       // Hand off to the AI tab-manager for anything we can't parse ourselves.
       el.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">Not a built-in action — asking the AI tab manager…</div>`;
-      setTimeout(() => { m.remove(); try { if (typeof TabAI !== 'undefined') TabAI.open(); } catch {} }, 500);
+      // What was typed goes with it: the AI tab manager opened empty, and the
+      // request had to be typed again (found 2026-10-10).
+      setTimeout(() => {
+        m.remove();
+        if (typeof TabAI === 'undefined') { window.showToast?.('The AI tab manager is not available in this build', 'error'); return; }
+        TabAI.open(q);
+      }, 500);
       return;
     }
     const chip = "padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12.5px;font-family:'Outfit',sans-serif;border:1px solid var(--border);background:var(--bg);color:var(--text)";

@@ -65,9 +65,44 @@
     return FILE_TYPES.has(last);
   }
 
+  // A # or % in a Windows path is part of a name: "C:\dev\c#\notes.txt" opened
+  // C:\dev\c with "\notes.txt" as a fragment, and "100%.txt" made an address
+  // that could not be read (found 2026-10-10).
   function fileUrlFor(t) {
-    if (DRIVE_PATH.test(t)) return 'file:///' + t.replace(/\\/g, '/');
-    return 'file:' + t.replace(/\\/g, '/');
+    const p = t.replace(/\\/g, '/').replace(/%/g, '%25').replace(/#/g, '%23');
+    if (DRIVE_PATH.test(t)) return 'file:///' + p;
+    return 'file:' + p;
+  }
+
+  // The real top-level domains (js/tld-list.js, IANA's list plus local network
+  // names). Any word after a dot counted, so "document.getElementById" and
+  // "e.coli" opened as broken addresses (found 2026-10-10).
+  const TLDS = (typeof window !== 'undefined' && window.VexTlds) ||
+    (typeof require === 'function' ? require('./tld-list.js') : null);
+  if (!TLDS) throw new Error('js/tld-list.js must load before js/typed-address.js');
+  function knownTld(t) {
+    const host = t.split(/[:/?#]/)[0].replace(/\.$/, '');
+    return TLDS.has(host.slice(host.lastIndexOf('.') + 1).toLowerCase());
+  }
+  // A bare name with nothing after it: the only kind that can be words.
+  const BARE_NAME = /^[^:/?#]+$/;
+
+  // An IPv4 address has four parts of at most 255: "999.1.1.1" opened.
+  function realIpv4(t) {
+    const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?=$|[:/?#])/.exec(t);
+    return !m || m.slice(1).every(n => Number(n) <= 255);
+  }
+
+  // A one-word intranet name and a slash, as Chrome opens it: "router/",
+  // "nas/admin" were searched. Not a number: "24/7" and "1/2" are words. With
+  // a path, only a name already visited: "nas/admin" and "and/or" look alike.
+  const INTRANET_PATH = /^(?=[a-z0-9-]*[a-z])[a-z0-9]([a-z0-9-]*[a-z0-9])?\/\S*$/i;
+  function intranetAddress(t) {
+    if (!INTRANET_PATH.test(t)) return false;
+    const host = t.slice(0, t.indexOf('/')).toLowerCase();
+    if (t.length === host.length + 1) return true;
+    const list = (typeof HistoryPanel !== 'undefined' && HistoryPanel.list) ? HistoryPanel.list() : [];
+    return list.some(e => { try { return new URL(e.url).hostname.toLowerCase() === host; } catch { return false; } });
   }
 
   // The address a line names, or null when it is words to search for.
@@ -80,13 +115,61 @@
     if (SCHEME.test(t)) return t;
     if (DRIVE_PATH.test(t) || UNC_PATH.test(t)) return fileUrlFor(t);
     if (/\s/.test(t)) return null;
-    if (LOCAL_HOST.test(t)) return 'http://' + t;
+    if (LOCAL_HOST.test(t)) return realIpv4(t) ? 'http://' + t : null;
     if (HOST_WITH_PORT.test(t) && !ALL_CAPS_LABEL.test(t)) return 'http://' + t;
-    if (DOMAIN.test(t) && !isBareFileName(t)) return 'https://' + t;
+    if (intranetAddress(t)) return 'http://' + t;
+    if (DOMAIN.test(t) && !isBareFileName(t) && (!BARE_NAME.test(t) || knownTld(t))) return 'https://' + t;
     return null;
   }
 
-  function engineOf(id) { return SEARCH_ENGINES[id] ? id : 'google'; }
+  // Settings › General › Add your own…: one search engine of your own, a name
+  // and an address with %s where the words go. Chosen, vex.searchEngine is
+  // CUSTOM_ID and the address bar, Ctrl+K and the New Tab box all search it.
+  // `previous` is the built-in engine that was the default before it, which
+  // Vex goes back to when it is removed. No suggestions: what you type goes
+  // nowhere but the engine when you press Enter (main's web-suggest asks
+  // nothing for it).
+  const CUSTOM_ID = 'custom';
+  const CUSTOM_KEY = 'vex.customSearchEngine';
+
+  // { name, q } cleaned, or an Error naming what is wrong.
+  function checkCustomEngine(input) {
+    const name = String((input && input.name) || '').trim().replace(/\s+/g, ' ');
+    const q = String((input && input.q) || '').trim();
+    if (!name) throw new Error('Give the search engine a name');
+    if (name.length > 40) throw new Error('A search engine’s name is at most 40 characters');
+    if (/^\s*(javascript|data|file|vbscript|blob):/i.test(q)) throw new Error('A search engine’s address must be a web address (https://), not a ' + q.split(':')[0].trim().toLowerCase() + ': address');
+    if (!/^https?:\/\/[^\s]+$/i.test(q)) throw new Error('The address must start with https:// (or http://) and have no spaces');
+    if (!q.includes('%s')) throw new Error('Put %s in the address where the words you type go');
+    let u;
+    try { u = new URL(q.split('%s').join('test')); } catch { throw new Error('That is not a web address Vex can open'); }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('The address must start with https:// (or http://)');
+    if (q.length > 2048) throw new Error('That address is too long');
+    return { name, q };
+  }
+
+  // The saved engine of your own, or null. A saved one that is not valid any
+  // more (edited by hand) is reported and not used.
+  function customEngine() {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(CUSTOM_KEY);
+    if (raw == null) return null;
+    try {
+      const saved = JSON.parse(raw);
+      return { ...checkCustomEngine(saved), previous: SEARCH_ENGINES[saved && saved.previous] ? saved.previous : 'google' };
+    } catch (err) { console.error('[Search] the search engine of your own cannot be used:', err && err.message); return null; }
+  }
+
+  function engineOf(id) {
+    if (id === CUSTOM_ID) return customEngine() ? CUSTOM_ID : 'google';
+    return SEARCH_ENGINES[id] ? id : 'google';
+  }
+
+  // { name, q, suggest? } for an engine id (the chosen one when omitted).
+  function engineInfo(engineId) {
+    const id = engineId === undefined ? currentEngine() : engineOf(engineId);
+    return id === CUSTOM_ID ? customEngine() : SEARCH_ENGINES[id];
+  }
 
   // The engine chosen in Settings, setup or on the New Tab page (all three
   // keep it in vex.searchEngine).
@@ -95,15 +178,27 @@
     catch (err) { console.warn('[Search] could not read the chosen engine:', err && err.message); return 'google'; }
   }
 
-  // Omit engineId for the chosen engine.
+  // Omit engineId for the chosen engine. Every %s of an engine of your own
+  // gets the words.
   function searchUrl(text, engineId) {
     const id = engineId === undefined ? currentEngine() : engineOf(engineId);
-    return SEARCH_ENGINES[id].q.replace('%s', encodeURIComponent(String(text || '').trim()));
+    const words = encodeURIComponent(String(text || '').trim());
+    return id === CUSTOM_ID ? customEngine().q.split('%s').join(words) : SEARCH_ENGINES[id].q.replace('%s', words);
+  }
+
+  // The script that hands a New Tab page (its own storage) the engine chosen
+  // now, and the name and address of one of your own (start.html
+  // __vexSetEngine), for its letter, its menu and its placeholder.
+  function startPageEngineJs() {
+    const own = customEngine();
+    return 'window.__vexSetEngine ? window.__vexSetEngine(' + JSON.stringify(currentEngine()) + ', ' +
+      JSON.stringify(own ? { name: own.name, q: own.q } : null) + ') : false';
   }
 
   // The address that asks engineId for suggestions for text, or null when
   // that engine has none.
   function suggestUrl(text, engineId) {
+    if (engineId === CUSTOM_ID) return null;
     const e = SEARCH_ENGINES[engineOf(engineId)];
     const q = String(text || '').trim();
     if (!e.suggest || !q) return null;
@@ -119,7 +214,27 @@
     return [];
   }
 
-  const api = { SEARCH_ENGINES, SUGGEST_KEY, addressFor, engineOf, currentEngine, searchUrl, suggestUrl, suggestionsOn, parseSuggestions };
+  // Where a typed line goes, the one answer for the address bar, Ctrl+K and
+  // the New Tab box: they each made their own, so "@yt cats" or a keyword of
+  // your own worked in one and not the others (found 2026-10-10).
+  // → { kind: 'address'|'keyword'|'search', url, name?, query?, guessedHttps? }
+  // or null for nothing typed. guessedHttps: the address had no scheme and
+  // https was guessed, so a failed load may try http (WebviewManager.navigate).
+  function resolve(text, engineId) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const address = addressFor(t);
+    if (address) return { kind: 'address', url: address, guessedHttps: !SCHEME.test(t) && address.startsWith('https://') };
+    const SS = (typeof window !== 'undefined' && window.SearchShortcuts) ||
+      (typeof require === 'function' ? require('./search-shortcuts.js').SearchShortcuts : null);
+    if (!SS) throw new Error('js/search-shortcuts.js is not loaded, so search keywords cannot be read');
+    const k = SS.resolveKeywordSearch(t);
+    if (k) return { kind: 'keyword', url: k.url, name: k.name, query: k.query };
+    const id = engineId === undefined ? currentEngine() : engineOf(engineId);
+    return { kind: 'search', url: searchUrl(t, id), name: engineInfo(id).name, query: t };
+  }
+
+  const api = { SEARCH_ENGINES, SUGGEST_KEY, CUSTOM_ID, CUSTOM_KEY, addressFor, resolve, engineOf, engineInfo, currentEngine, customEngine, checkCustomEngine, startPageEngineJs, searchUrl, suggestUrl, suggestionsOn, parseSuggestions };
   if (typeof window !== 'undefined') window.VexTypedAddress = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

@@ -16,7 +16,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(
 describe('the tab events', () => {
   it('switching tabs announces the tab now in front, after it is in front', () => {
     const tabs = src('js/tabs.js');
-    const body = tabs.slice(tabs.indexOf('  switchTab(id) {'), tabs.indexOf('  _revealActiveInSidebar() {'));
+    const body = tabs.slice(tabs.indexOf('  switchTab(id, opts = {}) {'), tabs.indexOf('  _revealActiveInSidebar() {'));
     const set = body.indexOf('this.activeTabId = id;');
     const said = body.indexOf("window.dispatchEvent(new CustomEvent('vex:tab-activated'");
     expect(set).toBeGreaterThan(-1);
@@ -25,7 +25,8 @@ describe('the tab events', () => {
 
   it('a tab arriving somewhere new, or moving inside its page, is announced', () => {
     const wv = src('js/webview.js');
-    expect(wv.match(/window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/g) || []).toHaveLength(2);
+    // The third: one of Vex's own pages showing the address it stands for (_showVexPageAddress).
+    expect(wv.match(/window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/g) || []).toHaveLength(3);
     expect(wv).toMatch(/TabManager\.updateTab\(tab\.id, \{ url \}\);\r?\n\s*window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/);
     expect(wv).toMatch(/TabManager\.updateTab\(tab\.id, \{ url: e\.url \}\);\r?\n\s*window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/);
   });
@@ -140,7 +141,7 @@ describe('the sync indicator', () => {
       syncLoadKey: async () => 'ab'.repeat(32),
       syncClearState: vi.fn(async () => {}),
     };
-    vi.stubGlobal('SyncCrypto', { hexToKey: x => x, importKey: async () => ({}) });
+    vi.stubGlobal('SyncCrypto', { hexToKey: x => x, importKey: async () => ({}), authKeyHex: async () => 'ab'.repeat(32) });
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
     const seen = [];
     const on = (e) => seen.push({ enabled: e.detail.enabled, syncing: e.detail.syncing, key: e.detail.encryptionKey });

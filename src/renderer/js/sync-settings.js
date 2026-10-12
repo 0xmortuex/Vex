@@ -33,14 +33,69 @@ const SyncSettings = (() => {
     return d.toLocaleDateString();
   }
 
+  function syncUrlSet() {
+    try { return !!(window.VexConfig && window.VexConfig.syncWorkerUrl()); }
+    catch (err) { console.error('[Sync] the Sync Worker URL could not be read:', err.message); return false; }
+  }
+
   async function renderSyncPanel(container) {
     if (!container) return;
+    // A private window never syncs (sync-engine.js); its Settings used to
+    // offer the sign-in form, which signed the window in.
+    const off = SyncEngine.offInThisWindow ? SyncEngine.offInThisWindow() : '';
+    if (off) {
+      container.innerHTML = `
+        <div class="sync-section">
+          <div class="sync-header">
+            <div class="sync-icon-big">${VexIcons.svg('cloud', { size: 22 })}</div>
+            <div>
+              <div class="sync-title">${escapeHtml(off)}</div>
+              <div class="sync-subtitle">Nothing in this window is sent to your account or read from it. Sign in to Vex Sync or change it from a normal window.</div>
+            </div>
+          </div>
+        </div>`;
+      return;
+    }
     const state = SyncEngine.getState();
-    if (!state.enabled) renderSignedOut(container);
+    // No Sync Worker URL: nothing can sync, whatever the saved state says. It
+    // used to draw "Signed in as …" here (state left from an older server)
+    // while every call failed with "Sync is not configured".
+    if (!syncUrlSet()) renderNotSetUp(container, state);
+    else if (!state.enabled) renderSignedOut(container);
     else await renderSignedIn(container);
   }
 
+  function renderNotSetUp(container, state) {
+    container.innerHTML = `
+      <div class="sync-section">
+        <div class="sync-header">
+          <div class="sync-icon-big">${VexIcons.svg('cloud', { size: 40 })}</div>
+          <div>
+            <div class="sync-title">Not syncing</div>
+            <div class="sync-subtitle">Add your Sync Worker URL in Settings › Cloud, then sign in here. Vex Sync runs on a server you deploy yourself (SELF_HOSTING.md).</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn-primary" id="btn-sync-open-cloud">Open Settings › Cloud</button>
+          ${state && state.enabled ? '<button class="btn-secondary" id="btn-sync-forget-old">Forget the old sign-in</button>' : ''}
+        </div>
+        ${state && state.enabled ? '<p class="subsection-desc" style="margin-top:8px">This device still remembers a sign-in (<span data-sensitive>' + escapeHtml(state.email || '') + '</span>) from a server it no longer has the address of. Nothing syncs until the URL is back.</p>' : ''}
+      </div>`;
+    container.querySelector('#btn-sync-open-cloud').addEventListener('click', () => {
+      if (typeof SettingsUI === 'undefined' || typeof SettingsUI.openSection !== 'function') { toast('Open Settings › Cloud Services (self-hosted)', 'info'); return; }
+      SettingsUI.openSection('setting-sync-worker-url');
+    });
+    container.querySelector('#btn-sync-forget-old')?.addEventListener('click', async () => {
+      try { await SyncEngine.signOut(false); toast('Forgot the old sign-in on this device', 'success'); }
+      catch (err) { toast('Could not forget it: ' + human(err && err.message), 'error'); }
+      await renderSyncPanel(container);
+    });
+  }
+
   function renderSignedOut(container) {
+    // Why this device is signed out, when its saved sign-in could not be used
+    // at start (sync-engine.js restoreFailed); the toast alone was gone in seconds.
+    const why = SyncEngine.getState().lastError;
     container.innerHTML = `
       <div class="sync-section">
         <div class="sync-header">
@@ -50,6 +105,7 @@ const SyncSettings = (() => {
             <div class="sync-subtitle">Sync your tabs, notes, and settings across devices</div>
           </div>
         </div>
+        ${why ? `<div class="sync-restore-error" role="alert" style="display:flex;align-items:center;gap:8px;color:var(--danger,#e5484d);font-size:12px;margin-bottom:12px">${VexIcons.svg('warning', { size: 14 })}<span>${escapeHtml(why)}</span></div>` : ''}
 
         <div class="sync-signed-out">
           <div class="step" id="step-email">
@@ -59,6 +115,8 @@ const SyncSettings = (() => {
               <button class="btn-primary" id="btn-send-code">Send Code</button>
             </div>
             <div class="step-error" id="email-error" hidden></div>
+            <label class="step-label" for="sync-device-name-input" style="display:block;margin-top:10px">This device's name, as your other devices will show it</label>
+            <input type="text" id="sync-device-name-input" maxlength="60" value="${escapeHtml(SyncEngine.thisDeviceName())}" autocomplete="off">
           </div>
 
           <div class="step" id="step-code" hidden>
@@ -75,22 +133,26 @@ const SyncSettings = (() => {
               </label>
               <input type="text" id="recovery-code-input" placeholder="AAAA-BBBB-CCCC-DDDD-..." hidden style="margin-top: 8px; font-family: 'JetBrains Mono', monospace;">
             </div>
+            <div id="sync-start-over" hidden style="margin-top:10px">
+              <button class="btn-secondary" id="btn-sync-start-over">I lost my recovery code: start over</button>
+            </div>
           </div>
 
           <div class="sync-features">
             <strong>What gets synced:</strong>
             <ul>
-              <li>Tabs, sessions, and workspaces</li>
+              <li>Your open tabs (listed under History › Tabs from other devices), sessions, and workspaces</li>
               <li>Shortcuts and tools</li>
               <li>Notes and scheduled tasks</li>
               <li>History and settings</li>
-              <li>Theme and preferences</li>
+              <li>Theme, look, fonts and preferences</li>
+              <li>Saved passwords and 2FA codes, only if you turn them on</li>
             </ul>
             <strong>What stays local:</strong>
             <ul>
-              <li>Saved passwords</li>
               <li>Website cookies and logins</li>
               <li>AI chat history</li>
+              <li>Interface size and spacing</li>
             </ul>
           </div>
 
@@ -106,6 +168,8 @@ const SyncSettings = (() => {
     // landed (found 2026-09-29).
     setTimeout(() => document.getElementById('sync-email-input')?.focus({ preventScroll: true }), 50);
   }
+
+  const deviceNameAsked = () => (document.getElementById('sync-device-name-input')?.value || '').trim();
 
   function wireSignedOutHandlers(container) {
     document.getElementById('btn-send-code')?.addEventListener('click', async () => {
@@ -152,20 +216,73 @@ const SyncSettings = (() => {
       const btn = document.getElementById('btn-verify-code');
       btn.disabled = true; btn.textContent = 'Verifying...';
 
+      let usedPending = false;
       try {
         if (hasRecovery) {
-          const joined = await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode);
+          // The email code was already used by a Verify that found the account
+          // has data (below): finish that sign-in instead of sending it again.
+          usedPending = SyncEngine.pendingJoinFor(email);
+          const joined = usedPending
+            ? await SyncEngine.joinPending(recoveryCode)
+            : await SyncEngine.enrollWithRecoveryCode(email, code, recoveryCode, deviceNameAsked());
           if (joined.pushError) toast('Signed in and pulled your data, but this device’s own data could not be uploaded yet — ' + human(joined.pushError) + '. It will try again on the next sync.', 'error');
           else toast('Signed in — pulled your data', 'success');
         } else {
-          const result = await SyncEngine.verifyCode(email, code);
+          const result = await SyncEngine.verifyCode(email, code, deviceNameAsked());
+          if (result.needsRecoveryCode) {
+            // Ask for it here; the session waits for it.
+            const box = document.getElementById('has-recovery-code');
+            const input = document.getElementById('recovery-code-input');
+            box.checked = true;
+            input.hidden = false;
+            errorEl.textContent = 'This account already has synced data. Enter the recovery code from one of your other devices, then press Join.';
+            errorEl.hidden = false;
+            document.getElementById('sync-start-over').hidden = false;
+            btn.textContent = 'Join'; btn.disabled = false;
+            input.focus();
+            return;
+          }
           showRecoveryCodeDialog(result.recoveryCode);
         }
         await renderSyncPanel(document.getElementById('sync-panel-content'));
       } catch (err) {
-        errorEl.textContent = human(err.message); errorEl.hidden = false;
+        // A failed join used up the waiting sign-in: a new code is needed.
+        errorEl.textContent = human(err.message) + (usedPending && !SyncEngine.pendingJoinFor(email) ? ' Send a new code to try again.' : '');
+        errorEl.hidden = false;
         btn.textContent = 'Verify'; btn.disabled = false;
       }
+    });
+
+    // The recovery code is lost on every device. Only on the sign-in that just
+    // found the account has data (a code from the last ten minutes), and only
+    // after saying what it erases: nothing replaces the account unseen, and
+    // every other device is signed out (SYNC_PROTOCOL.md §2.8).
+    document.getElementById('btn-sync-start-over')?.addEventListener('click', async () => {
+      const email = document.getElementById('sync-email-input').value.trim();
+      const errorEl = document.getElementById('code-error');
+      if (!SyncEngine.pendingJoinFor(email)) { errorEl.textContent = 'Send a new code first, then press Verify.'; errorEl.hidden = false; return; }
+      if (!await vexConfirm({
+        title: 'Start over without the recovery code',
+        message: 'This erases everything synced to ' + email + ' on the sync server and signs every other device out of sync. What is on each device stays there. This device then starts a new account with a new recovery code, and your other devices can join it with that code. Without the old recovery code, the old synced data cannot be read by anyone, so it cannot be brought back.',
+        okLabel: 'Erase and start over', danger: true,
+      })) return;
+      const btn = document.getElementById('btn-sync-start-over');
+      btn.disabled = true;
+      try {
+        const result = await SyncEngine.startOver();
+        showRecoveryCodeDialog(result.recoveryCode);
+        await renderSyncPanel(document.getElementById('sync-panel-content'));
+      } catch (err) {
+        errorEl.textContent = human(err.message) + (SyncEngine.pendingJoinFor(email) ? '' : ' Send a new code to try again.');
+        errorEl.hidden = false;
+        btn.disabled = false;
+      }
+    });
+
+    // Another address is another sign-in: the one waiting for a recovery code
+    // is dropped.
+    document.getElementById('sync-email-input')?.addEventListener('input', () => {
+      SyncEngine.cancelPendingJoin().catch(err => console.error('[Sync] Could not drop the unfinished sign-in:', err));
     });
   }
 
@@ -191,6 +308,66 @@ const SyncSettings = (() => {
     overlay.querySelector('#close-recovery').addEventListener('click', () => overlay.remove());
   }
 
+  // Every conflict, each version with "Use this one".
+  function showConflictsDialog() {
+    const overlay = document.createElement('div');
+    overlay.className = 'sync-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Sync conflicts');
+    const draw = () => {
+      const conflicts = SyncEngine.conflicts();
+      const when = at => (at ? new Date(at).toLocaleString() : 'time unknown');
+      overlay.innerHTML = `
+        <div class="sync-modal-card" style="max-height:80vh;overflow:auto">
+          <h2 style="margin-top:0">Sync conflicts</h2>
+          ${conflicts.length ? conflicts.map((c, n) => `
+            <div class="sync-conflict" style="margin:12px 0">
+              <strong>${escapeHtml(c.what)}</strong>
+              ${c.versions.map((v, i) => `
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                  <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.text)}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(when(v.at))}${v.current ? ' &middot; in use' : ''}</div></div>
+                  <button class="btn-secondary" data-conflict="${n}" data-version="${i}">${v.current ? 'Keep this one' : 'Use this one'}</button>
+                </div>`).join('')}
+            </div>`).join('') : '<p>No conflicts left.</p>'}
+          <div style="display:flex;justify-content:flex-end"><button class="btn-primary" id="close-conflicts">Close</button></div>
+        </div>`;
+      overlay.querySelector('#close-conflicts').addEventListener('click', close);
+      overlay.querySelectorAll('[data-conflict]').forEach(btn => btn.addEventListener('click', async () => {
+        const c = conflicts[Number(btn.dataset.conflict)];
+        btn.disabled = true;
+        try {
+          const r = await SyncEngine.resolveConflict(c.key, Number(btn.dataset.version));
+          if (!r.ok) toast('Put back on this device. It reaches your other devices on the next sync: ' + human(r.reason), 'error');
+        } catch (err) { toast(human(err && err.message), 'error'); }
+        draw();
+      }));
+      overlay.querySelector('button')?.focus();
+    };
+    const close = async () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
+    };
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    draw();
+  }
+
+  // Whether the account is locked to the sync key (sync-engine.js keyCheckState):
+  // a sign-in code alone could overwrite or erase an account that is not
+  // (audit SY3, 2026-10-10). Nothing is said before this device has heard.
+  function keyLockNote() {
+    const lock = SyncEngine.keyCheckState ? SyncEngine.keyCheckState() : { state: null };
+    const note = (icon, text) => `<div class="sync-key-lock" id="sync-key-lock" data-lock="${escapeHtml(lock.state)}" style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:10px 0;color:var(--text-muted)">${VexIcons.svg(icon, { size: 14 })}<span>${text}</span></div>`;
+    if (lock.state === 'on') return note('lock', 'Locked to your sync key' + (lock.since ? ' since ' + escapeHtml(new Date(lock.since).toLocaleDateString()) : '') + ': a sign-in code alone cannot change your synced data. It can still erase all of it to start over without the recovery code, which signs every device out and emails this address. A device on an older Vex can still download it, but must be updated to upload.');
+    if (lock.state === 'off') return note('warning', 'Not locked to your sync key yet; this device locks it on its next upload. Until then, anyone who can read your sign-in email could overwrite or erase the synced copy (not read it).');
+    if (lock.state === 'unsupported') return note('warning', 'Your sync server is from before the sync key check, so anyone who can read your sign-in email could overwrite or erase the synced copy (not read it). Redeploy the sync worker (SELF_HOSTING.md) to lock your account to your sync key.');
+    return '';
+  }
+
   async function renderSignedIn(container) {
     const state = SyncEngine.getState();
     // A device list we could not load is NOT an empty device list. Keep the
@@ -206,6 +383,9 @@ const SyncSettings = (() => {
     // Shortcut tiles sync only once every device understands them (sync-engine.js
     // checkTileGate); name the devices they are waiting on.
     const tilesWaitOn = new Set(SyncEngine.tileSyncState?.().waitingOn || []);
+    // Deleted items leave the account only once every device is new enough
+    // (sync-engine.js compactDocument).
+    const cleanupWaitOn = new Set(SyncEngine.cleanupState?.().waitingOn || []);
     const deviceBody = devicesError
       ? `<div class="sync-devices-error" role="alert" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--danger,#e5484d);font-size:12px">
            <span>${escapeHtml(devicesError)}</span>
@@ -214,27 +394,49 @@ const SyncSettings = (() => {
       : (devices.map(d => `
               <div class="device-item ${d.deviceId === state.deviceId ? 'current' : ''}">
                 <div class="device-info">
-                  <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(d.deviceName)} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
-                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}</div>
+                  <div class="device-name">${VexIcons.svg('monitor', { size: 14 })} ${escapeHtml(SyncEngine.nameOf(d))} ${d.deviceId === state.deviceId ? '<span class="this-device">(This device)</span>' : ''}</div>
+                  <div class="device-meta">Added ${getRelativeTime(d.createdAt)} &middot; Last seen ${getRelativeTime(d.lastSeenAt)}${tilesWaitOn.has(d.deviceId) ? ' &middot; Shortcut tiles sync once this device has synced with Vex 2.34.3 or newer' : ''}${cleanupWaitOn.has(d.deviceId) && !tilesWaitOn.has(d.deviceId) ? ' &middot; Deleted items are cleared out of your account once this device has synced with this version of Vex' : ''}</div>
                 </div>
-                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : ''}
+                ${d.deviceId !== state.deviceId ? `<button class="btn-danger-sm" data-device-id="${escapeHtml(d.deviceId)}">Remove</button>` : '<button class="btn-secondary" id="btn-rename-device">Rename</button>'}
               </div>
             `).join('') || '<div style="color:var(--text-muted);font-size:12px">No devices yet.</div>');
 
     container.innerHTML = `
       <div class="sync-section">
-        <div class="sync-header signed-in">
-          <div class="sync-icon-big">${VexIcons.svg('check', { size: 22 })}</div>
+        <div class="sync-header${state.lastError ? '' : ' signed-in'}">
+          <div class="sync-icon-big">${VexIcons.svg(state.lastError ? 'warning' : 'check', { size: 22 })}</div>
           <div>
-            <div class="sync-title">Signed in as <span data-sensitive>${escapeHtml(state.email)}</span></div>
-            <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>
+            ${state.lastError
+              ? `<div class="sync-title">Not syncing — the last sync failed</div>
+            <div class="sync-subtitle">${escapeHtml(human(state.lastError))} &middot; account <span data-sensitive>${escapeHtml(state.email)}</span></div>`
+              : `<div class="sync-title">Signed in as <span data-sensitive>${escapeHtml(state.email)}</span></div>
+            <div class="sync-subtitle">Last sync: pushed ${lastPush} &middot; pulled ${lastPull}</div>`}
           </div>
           <button class="btn-primary" id="btn-sync-now">Sync Now</button>
         </div>
 
+        ${keyLockNote()}
+
         <div class="sync-subsection">
           <h3>Devices ${devicesError ? '(unavailable)' : `(${devices.length})`}</h3>
           <div class="device-list">${deviceBody}</div>
+        </div>
+
+        ${(() => {
+          const conflicts = SyncEngine.conflicts();
+          return conflicts.length ? `<div class="sync-subsection" id="sync-conflicts">
+          <h3>Sync conflicts (${conflicts.length})</h3>
+          <p class="subsection-desc">Two devices changed the same thing before syncing. The newer change, or a deletion, is in use; the other version is kept here until you pick one.</p>
+          <button class="btn-secondary" id="btn-sync-conflicts">Review conflicts</button>
+        </div>` : '';
+        })()}
+
+        <div class="sync-subsection" id="sync-choices">
+          <h3>Choose what to sync</h3>
+          <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other. The interface size and spacing (Settings › Fonts) always stay per device, since they depend on the screen. Passwords, authenticator codes and passkeys are off until you turn them on here, on each device; Vex asks again first, and they travel end-to-end encrypted with your sync key.</p>
+          <div class="sync-choice-list" style="display:grid;gap:6px">
+            ${SyncEngine.syncTypes().map(t => `<label class="sync-choice" style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" data-sync-type="${escapeHtml(t.id)}"${t.on ? ' checked' : ''}> ${escapeHtml(t.label)}</label>`).join('')}
+          </div>
         </div>
 
         <div class="sync-subsection">
@@ -288,12 +490,42 @@ const SyncSettings = (() => {
       }, 1500);
     });
 
+    document.getElementById('btn-rename-device')?.addEventListener('click', async () => {
+      const name = await vexPrompt({ title: 'Rename this device', message: 'The name your other devices show for this one.', value: SyncEngine.thisDeviceName(), okLabel: 'Rename' });
+      if (name == null) return;
+      try {
+        await SyncEngine.renameDevice(name);
+        toast('Renamed', 'success');
+      } catch (err) { toast(human(err && err.message), 'error'); }
+      await renderSyncPanel(document.getElementById('sync-panel-content'));
+    });
+
+    container.querySelectorAll('[data-sync-type]').forEach(box => {
+      box.addEventListener('change', async () => {
+        box.disabled = true;
+        try {
+          const r = await SyncEngine.setTypeSynced(box.dataset.syncType, box.checked);
+          // The PIN or the confirmation was not given: it stays off.
+          if (r.canceled) box.checked = false;
+          else if (!r.ok) toast('Saved. It will sync once Vex can reach the sync server: ' + human(r.reason), 'error');
+        } catch (err) {
+          box.checked = !box.checked;
+          toast('Could not change it: ' + human(err && err.message), 'error');
+        } finally { box.disabled = false; }
+      });
+    });
+
+    document.getElementById('btn-sync-conflicts')?.addEventListener('click', () => showConflictsDialog());
+
     // The device list failed to load; let the user ask again without leaving.
     document.getElementById('btn-retry-devices')?.addEventListener('click', async () => {
       await renderSyncPanel(document.getElementById('sync-panel-content'));
     });
 
     document.getElementById('btn-show-recovery')?.addEventListener('click', async () => {
+      // The recovery code opens the whole synced account on any computer: ask
+      // again first (the Vex PIN if set), as for a saved password.
+      if (!await window.VexLock.recheck({ title: 'Show recovery code', message: 'Your recovery code lets anyone who sees it sign in to your synced data.', okLabel: 'Show code' })) return;
       const code = await SyncEngine.getRecoveryCode();
       if (code) showRecoveryCodeDialog(code);
       else toast('No recovery code stored', 'error');

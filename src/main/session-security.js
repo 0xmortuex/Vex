@@ -83,6 +83,72 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     catch (error) { console.error('[Vex] could not keep the tab\'s back list:', error.message); return; }
     pending.catch(error => { if (!/ERR_ABORTED/.test(error.message)) console.error('[Vex] could not keep the tab\'s back list:', error.message); });
   }
+  // Every tab's back list, not only a JavaScript-off one's: sleeping a tab,
+  // reopening a closed one and restoring tabs at start build its page again
+  // from the address alone, and Back went nowhere (found 2026-10-10). The
+  // window keeps each tab's list with the tab (js/webview.js asks for it after
+  // every navigation, it is saved with the tab), and hands it back here before
+  // the new page is made (carryHistory); restoreHistory above puts it in.
+  // Kept small, it is saved with every tab: at most SAVED_ENTRIES around the
+  // current page, an address and a short title each, no page state. Only what
+  // a tab can go back to: web pages and the New Tab page. The saved file can be
+  // edited by hand, so a carried list is checked here as strictly as one read.
+  const SAVED_ENTRIES = 12, SAVED_FORWARD = 4, SAVED_URL = 2048, SAVED_TITLE = 120, CARRIED_MAX = 50;
+  const startPage = path.resolve(root, 'renderer/start.html');
+  // Vex's own New Tab page as a file: address, and no other file that happens
+  // to be called renderer/start.html (a download, a network share). The IPC
+  // policy and the guest preload ask this too (audit SE6, 2026-10-10).
+  function isStartPageFile(url) {
+    let parsed;
+    try { parsed = url instanceof URL ? url : new URL(url); } catch { return false; }
+    if (parsed.protocol !== 'file:') return false;
+    try { return path.resolve(fileURLToPath(parsed)) === startPage; } catch { return false; }
+  }
+  function restorableEntry(url) {
+    if (typeof url !== 'string' || url.length > SAVED_URL) return false;
+    let parsed;
+    try { parsed = new URL(url); } catch { return false; }
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return true;
+    if (parsed.protocol === 'vex:') return parsed.hostname === 'start';
+    return isStartPageFile(parsed);
+  }
+  // { entries: [{ url, title }], index } or null when there is nothing to go
+  // back or forward to. A page that cannot be kept (a reading-mode data: page,
+  // an error page) is left out; the current one is then the last kept page
+  // before it, which is the address the tab itself keeps (js/webview.js).
+  function trimHistory(list) {
+    if (!list || typeof list !== 'object' || !Array.isArray(list.entries) || !Number.isInteger(list.index)) return null;
+    if (list.index < 0 || list.index >= list.entries.length || list.entries.length > 1000) return null;
+    const kept = [];
+    let index = -1;
+    list.entries.forEach((entry, at) => {
+      if (!entry || typeof entry !== 'object' || !restorableEntry(entry.url)) return;
+      kept.push({ url: entry.url, title: typeof entry.title === 'string' ? entry.title.slice(0, SAVED_TITLE) : '' });
+      if (at <= list.index) index = kept.length - 1;
+    });
+    if (index < 0 || kept.length < 2) return null;
+    const forward = Math.min(kept.length - 1 - index, SAVED_FORWARD);
+    const back = Math.min(index, SAVED_ENTRIES - 1 - forward);
+    return { entries: kept.slice(index - back, index + forward + 1), index: back };
+  }
+  function readHistory(guest) {
+    const nav = guest.navigationHistory;
+    return trimHistory({ entries: nav.getAllEntries(), index: nav.getActiveIndex() });
+  }
+  // A tab's saved list, for the page about to be made for it: the webview
+  // names it with vexHistoryFrom=<token>. Per window; taken once.
+  const carried = new Map();
+  function carryHistory(hostId, token, partition, list) {
+    if (typeof token !== 'string' || !/^c\d{1,9}$/.test(token)) throw new Error('Invalid history token');
+    const saved = trimHistory(list);
+    if (!saved) return false;
+    if (!carried.has(hostId)) carried.set(hostId, new Map());
+    const mine = carried.get(hostId);
+    mine.delete(token);
+    mine.set(token, { hostId, partition, ...saved });
+    while (mine.size > CARRIED_MAX) mine.delete(mine.keys().next().value);
+    return true;
+  }
   function owner(contents) {
     if (!contents || contents.isDestroyed?.()) return null;
     if (hosts.has(contents.id)) return hosts.get(contents.id);
@@ -127,6 +193,15 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
     const carries = new Map();
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.on('will-redirect', event => event.preventDefault());
+    // A target=_blank link or window.open in Vex's own interface (onboarding,
+    // the toolbox, the update notes) made a whole new window with this one's
+    // preload and <webview> rights, and a page reached in it could build a
+    // <webview> with Node in it (security scan H4). A web address opens as a
+    // tab of this window instead; nothing else opens at all.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url || '') && !win.isDestroyed()) win.webContents.send('tab:create-from-external', { url });
+      return { action: 'deny' };
+    });
     win.webContents.on('will-attach-webview', (event, prefs, params) => {
       try {
         const requested = params.partition || 'persist:main';
@@ -136,10 +211,26 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         // built again (renderer/js/webview.js), and names the guest it
         // replaces. Only that guest's back list, from this window and this
         // partition, is taken.
-        const from = Number(prefs.vexHistoryFrom);
+        // Or names the list it carried itself (carryHistory above).
+        const named = prefs.vexHistoryFrom;
         delete prefs.vexHistoryFrom;
-        const saved = Number.isInteger(from) ? histories.get(from) : null;
-        if (saved) histories.delete(from);
+        let saved = null;
+        if (typeof named === 'string' && /^c\d{1,9}$/.test(named)) {
+          const mine = carried.get(hostId);
+          saved = mine?.get(named) || null;
+          mine?.delete(named);
+          // Built again at the page it was on: the restore loads that page
+          // itself. Electron would load the webview's src as well, once the
+          // guest attaches, and that load landed as a second copy of the page
+          // after the restored ones and cut off the forward list (measured
+          // 2026-10-10). Built for another address, its load still lands
+          // after them, as a JavaScript-off tab's does.
+          if (saved && saved.hostId === hostId && saved.partition === partition && params && params.src === saved.entries[saved.index].url) params.src = '';
+        } else {
+          const from = Number(named);
+          saved = Number.isInteger(from) ? histories.get(from) : null;
+          if (saved) histories.delete(from);
+        }
         if (saved && saved.hostId === hostId && saved.partition === partition) {
           const entry = expecting = { saved, before: Math.max(0, ...webContents.getAllWebContents().map(c => c.id)) };
           queueMicrotask(() => {
@@ -158,6 +249,11 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
         prefs.contextIsolation = true;
         prefs.sandbox = true;
         prefs.webSecurity = true;
+        // A page's native alert/confirm box belongs to the whole Vex window
+        // and disabled all of it. The preload asks over the page's own tab
+        // instead (main/page-dialogs.js); this keeps any frame it does not
+        // reach from bringing the window-wide box back.
+        prefs.disableDialogs = true;
         prefs.partition = partition;
         // Explicit session wins over a conflicting renderer-provided partition.
         prefs.session = fromPartition(partition);
@@ -176,6 +272,7 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       hosts.delete(hostId);
       host.data = host.persist = null;
       for (const [id, saved] of histories) if (saved.hostId === hostId) histories.delete(id);
+      carried.delete(hostId);
       for (const [id, ownerId] of guestOwners) if (ownerId === hostId) {
         const guest = webContents.fromId(id);
         try { guest?.close(); } catch {}
@@ -205,8 +302,37 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
   function forgetHistories(hostId, ids) {
     for (const id of ids) if (histories.get(id)?.hostId === hostId) histories.delete(id);
   }
-  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories,
+  // For every webContents Vex makes (app.on('web-contents-created')): only a
+  // Vex window may hold a <webview>, and registerHost's own handler then
+  // strips its preload and turns Node off. Any other page — a popup, an app
+  // window, an extension page — trying to attach one is refused, so no page
+  // can build a webview with Node or a preload of its choosing (scan H4).
+  // A window that shows one web page and is not a Vex window (Open as App,
+  // the overlay). Its page runs the session's preloads as a tab's page does,
+  // and they asked for the ad blocker's cosmetic filters, the fingerprint
+  // and passkey settings and the page's alert/confirm answer, all of which
+  // were refused as "Untrusted IPC sender" (2026-10-08). It may use exactly
+  // those; page-dialogs.js answers it with the window's own box.
+  const webWindows = new Set();
+  const WEB_WINDOW_CHANNELS = new Set(['@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled',
+    'privacy:config-sync', 'compatibility:get', 'page-dialog']);
+  function registerWebWindow(contents) {
+    const id = contents.id;
+    webWindows.add(id);
+    contents.once('destroyed', () => webWindows.delete(id));
+  }
+  function guardWebviews(contents) {
+    contents.on('will-attach-webview', (event, prefs) => {
+      if (hosts.has(contents.id)) return;
+      event.preventDefault();
+      console.error('[Vex] refused a <webview> in a window that is not a Vex window' + (prefs && (prefs.preload || prefs.nodeIntegration) ? ' (it asked for a preload or Node)' : ''));
+    });
+  }
+  return { fromPartition, onSessionCreated, partitionOf, owner, isUiFrame, registerHost, linkGuest, ownsTarget, forgetHistories, guardWebviews, registerWebWindow,
+    readHistory, carryHistory, trimHistory, isStartPageFile,
     isAuxiliary(event, channel) {
+      // Any frame of an Open as App / overlay window: the ad blocker runs in its iframes too.
+      if (WEB_WINDOW_CHANNELS.has(channel) && webWindows.has(event.sender.id)) return true;
       if (event.senderFrame !== event.sender.mainFrame) return false;
       // The Picture-in-Picture pop-out, asked of the module that owns it. It
       // used to be recognised by its preload path — which this Electron does
@@ -218,8 +344,9 @@ function createSessionSecurity({ session, webContents, root, isPipContents }) {
       // only web pages and that extension's own pages. Or closing a tab
       // (tabs.remove); main.js closes only a Vex tab in its own session.
       // Or which tab is in front (tabs.query/get); main.js answers only with
-      // pages in the extension's own session.
-      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab' || channel === 'extensions:active-tabs') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
+      // pages in the extension's own session. Or its menu items, badge and
+      // shortcuts (extensions:api); main.js keeps them per extension.
+      if (channel === 'extensions:popup-tab' || channel === 'extensions:open-tab' || channel === 'extensions:close-tab' || channel === 'extensions:active-tabs' || channel === 'extensions:api') return /^chrome-extension:\/\//.test(event.senderFrame.url || '');
       try { return channel === 'popup-chrome:action' && fileURLToPath(event.senderFrame.url) === path.join(root, 'renderer/popup-chrome.html'); }
       catch { return false; }
     },

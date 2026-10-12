@@ -18,7 +18,7 @@ const HistoryPanel = {
     // and never look at storage again, so anything visited while it was closed
     // stayed invisible until the next restart.
     this._hydrate();
-    if (panel.dataset.rendered) { this.renderList(); return; }
+    if (panel.dataset.rendered) { this.renderList(); this.renderDeviceTabs(); return; }
     panel.dataset.rendered = 'true';
 
     panel.innerHTML = `
@@ -41,6 +41,7 @@ const HistoryPanel = {
             <button class="history-filter" data-filter="month">Last 30 days</button>
           </div>
         </div>
+        <section class="history-devices" id="history-devices" aria-label="Tabs from other devices" hidden></section>
         <div class="history-list" id="history-list"></div>
         <div class="history-footer">
           <button class="history-clear-btn" id="history-clear-btn">Clear History...</button>
@@ -97,6 +98,9 @@ const HistoryPanel = {
     document.getElementById('history-clear-btn')?.addEventListener('click', async () => {
       if (await vexConfirm({ title: 'Clear history', message: 'Clear all browsing history?', okLabel: 'Clear', danger: true })) {
         this.entries = [];
+        // Only recent history syncs (js/sync-engine.js historyWindow); this
+        // time tells your other devices to clear their older visits too.
+        localStorage.setItem('vex.historyClearedAt', new Date().toISOString());
         this.save();
         this.lastAISearch = null;
         this.renderList();
@@ -119,6 +123,48 @@ const HistoryPanel = {
     });
 
     this.renderList();
+    this.renderDeviceTabs();
+  },
+
+  // The tabs open on your other devices (Vex Sync), Chrome's "Tabs from other
+  // devices". They used to be one list every computer shared, applied to the
+  // open tabs on every pull; now each device lists its own here and nothing
+  // changes a tab you have open (js/sync-engine.js otherDeviceTabs).
+  renderDeviceTabs() {
+    const box = document.getElementById('history-devices');
+    if (!box) return;
+    const devices = typeof SyncEngine !== 'undefined' && SyncEngine.isEnabled() ? SyncEngine.otherDeviceTabs() : [];
+    box.hidden = !devices.length;
+    box.textContent = '';
+    if (!devices.length) return;
+    const heading = document.createElement('h3');
+    heading.className = 'history-devices-title';
+    heading.textContent = 'Tabs from other devices';
+    box.append(heading);
+    for (const device of devices) {
+      const group = document.createElement('details');
+      group.className = 'history-device';
+      group.open = true;
+      const summary = document.createElement('summary');
+      summary.innerHTML = VexIcons.svg('monitor', { size: 13 });
+      const name = document.createElement('span'); name.className = 'history-device-name'; name.textContent = device.name;
+      const count = document.createElement('span'); count.className = 'history-device-count'; count.textContent = String(device.tabs.length);
+      summary.append(name, count);
+      group.append(summary);
+      for (const tab of device.tabs) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'history-device-tab';
+        row.title = tab.url;
+        const title = document.createElement('span'); title.className = 'history-device-tab-title'; title.textContent = tab.title;
+        const host = document.createElement('span'); host.className = 'history-device-tab-url';
+        try { host.textContent = new URL(tab.url).hostname; } catch { host.textContent = tab.url; }
+        row.append(title, host);
+        row.addEventListener('click', () => { SidebarManager.hideActivePanel(); TabManager.createTab(tab.url, true); });
+        group.append(row);
+      }
+      box.append(group);
+    }
   },
 
   // The saved list is the source of truth. `entries` used to be filled only
@@ -126,14 +172,24 @@ const HistoryPanel = {
   // one-item array over everything saved before it — the whole history, lost
   // on the first visit of every session. Hydrating before any write (and at
   // load, at the bottom of this file) is what stops that.
+  //
+  // Read again only when the saved copy is not the one this list came from
+  // or last wrote (sync, Clear History, an import): every title change
+  // re-parsed and re-sorted the whole list, about 16 ms at 5,000 entries
+  // (found 2026-10-09).
   _hydrate() {
+    const raw = localStorage.getItem(this.STORAGE_KEY);
+    if (this._hydrated && raw === this._raw) return this.entries;
+    // A title waiting to be saved belonged to the list being replaced.
+    clearTimeout(this._titleTimer); this._titleTimer = null;
     let saved = [];
-    try { saved = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]'); } catch { saved = []; }
+    try { saved = JSON.parse(raw || '[]'); } catch { saved = []; }
     const list = Array.isArray(saved) ? saved.map(e => this._normalize(e)).filter(Boolean) : [];
     // Newest first, whatever order the writer — or a sync merge — left behind.
     list.sort((a, b) => this._when(b) - this._when(a));
     this.entries = list;
     this._hydrated = true;
+    this._raw = raw;
     return this.entries;
   },
 
@@ -146,7 +202,8 @@ const HistoryPanel = {
     return {
       id: e.id || 'h_' + (Date.parse(when || '') || Date.now()) + '_' + Math.random().toString(36).slice(2, 7),
       url: e.url,
-      title: typeof e.title === 'string' && e.title ? e.title : e.url,
+      // Capped like addEntry's: this list is saved back as read.
+      title: (typeof e.title === 'string' && e.title ? e.title : e.url).slice(0, 4096),
       favicon: this._safeFavicon(e.favicon),
       ...(e.ownSession === true ? { ownSession: true } : {}),
       visitedAt: when || new Date().toISOString(),
@@ -185,9 +242,25 @@ const HistoryPanel = {
   },
 
   save() {
+    clearTimeout(this._titleTimer); this._titleTimer = null;
     if (this.entries.length > this.MAX_ENTRIES) this.entries.length = this.MAX_ENTRIES;
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.entries));
+    this._raw = localStorage.getItem(this.STORAGE_KEY);
   },
+
+  // Titles are saved at most this often. Spotify, Discord and Gmail change
+  // theirs all the time, and each change rewrote the whole list.
+  TITLE_SAVE_MS: 30000,
+  _titleTimer: null,
+  _saveTitles() {
+    this._titleTimer = null;
+    // The saved list was replaced meanwhile (a sync pull): writing this one
+    // over it would lose what arrived. The title comes again on its next change.
+    if (localStorage.getItem(this.STORAGE_KEY) !== this._raw) { this._hydrate(); return; }
+    this.save();
+  },
+  // Before the window closes (js/storage.js).
+  flush() { if (this._titleTimer) { clearTimeout(this._titleTimer); this._saveTitles(); } },
 
   // The title is unknown when a visit is recorded: "Loading…" and the bare URL
   // are placeholders that updateTitle() replaces once the page says its name.
@@ -212,7 +285,11 @@ const HistoryPanel = {
     this.entries.unshift({
       id: existing?.id || 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
       url,
-      title: this._isPlaceholder(title, url) ? (existing?.title || url) : title,
+      // At most what the saved list takes (js/data-contracts.js): a page still
+      // "Loading…" is titled with its address, and one of 4097-8192
+      // characters made every later save of this list fail with "Invalid
+      // record text" (found 2026-10-10).
+      title: String(this._isPlaceholder(title, url) ? (existing?.title || url) : title).slice(0, 4096),
       // A visit from a tab in its own session keeps no icon address at all.
       favicon: ownSession ? '' : (this._safeFavicon(favicon) || existing?.favicon || ''),
       ...(ownSession ? { ownSession: true } : {}),
@@ -228,10 +305,12 @@ const HistoryPanel = {
   updateTitle(url, title) {
     if (!url || this._isPlaceholder(title, url)) return;
     this._hydrate();
+    // Cut as addEntry cuts it: a longer title failed every later save.
+    title = String(title).slice(0, 4096);
     const entry = this.entries.find(e => e.url === url);
     if (!entry || entry.title === title) return;
     entry.title = title;
-    this.save();
+    if (!this._titleTimer) this._titleTimer = setTimeout(() => this._saveTitles(), this.TITLE_SAVE_MS);
     this._refreshIfOpen();
   },
 
@@ -247,6 +326,24 @@ const HistoryPanel = {
     this._hydrate();
     const removed = this.entries.filter(e => e.id === id);
     this.entries = this.entries.filter(e => e.id !== id);
+    this.save();
+    this.renderList();
+    try {
+      await this._forgetVisits(removed);
+    } catch (err) {
+      console.error('[History] delete did not reach every copy:', err);
+      window.showToast?.(`Removed from the list, but not everywhere: ${err.message}`, 'error');
+    }
+  },
+
+  // Every visit to these exact addresses, as deleteEntry removes one row: the
+  // address bar's Shift+Delete on a suggestion (js/smart-searchbar.js).
+  async deleteUrls(urls) {
+    const gone = new Set(urls);
+    if (!gone.size) return;
+    this._hydrate();
+    const removed = this.entries.filter(e => gone.has(e.url));
+    this.entries = this.entries.filter(e => !gone.has(e.url));
     this.save();
     this.renderList();
     try {
@@ -279,36 +376,21 @@ const HistoryPanel = {
     }
   },
 
-  // History has two more copies: the file-store list (storage:history-add),
-  // which the command bar reads when this list is empty, and Recall's
-  // full-text index. Clearing only this list left visits in both (found
-  // 2026-09-29). `host` null means everything.
+  // History has one more copy: Recall's full-text index. Clearing only this
+  // list left visits there (found 2026-09-29). `host` null means everything.
+  // (The file-store list that was a second copy is gone: main/history-fold.js.)
   async _forgetElsewhere(host) {
-    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
-    const file = host ? await VexStorage.loadHistory() : [];
-    await VexStorage.save('history', file.filter(e => { try { return new URL(e.url).hostname !== host; } catch { return true; } }));
     const r = host ? await window.vex.recallForget({ host }) : await window.vex.recallClear();
     if (!r || !r.ok) throw new Error((r && r.error) || 'Recall still remembers these pages');
   },
 
-  // Deleting one row or one day left the same visits in the file copy and in
-  // Recall, like Clear History did before it was fixed (found 2026-09-29). A
-  // page no longer listed anywhere goes from every day of the file copy and
-  // from Recall; one still listed on another day only loses the removed
-  // days' visits, and Recall keeps it. `clearedDay` also takes every other
-  // visit the file copy holds for that day.
-  async _forgetVisits(removed, clearedDay) {
-    if (!removed.length && !clearedDay) return;
-    if (typeof VexStorage === 'undefined') throw new Error('the saved history file could not be reached');
+  // Deleting one row or one day left the same visits in Recall, like Clear
+  // History did before it was fixed (found 2026-09-29). A page no longer
+  // listed anywhere goes from Recall; one still listed on another day stays.
+  async _forgetVisits(removed) {
+    if (!removed.length) return;
     const urls = new Set(removed.map(e => e.url));
-    const days = new Set(removed.map(e => this._dayLabel(this._when(e))));
     const kept = new Set(this.entries.map(e => e.url));
-    const file = await VexStorage.loadHistory();
-    await VexStorage.save('history', file.filter(f => {
-      const day = this._dayLabel(this._when(f));
-      if (day === clearedDay) return false;
-      return !urls.has(f.url) || (kept.has(f.url) && !days.has(day));
-    }));
     for (const url of urls) {
       if (kept.has(url)) continue;
       const r = await window.vex.recallForget({ url });
@@ -324,7 +406,7 @@ const HistoryPanel = {
     this.save();
     this.renderList();
     try {
-      await this._forgetVisits(removed, label);
+      await this._forgetVisits(removed);
       window.showToast?.(`Cleared ${before - this.entries.length} from ${label}`);
     } catch (err) {
       console.error('[History] clearing the day did not reach every copy:', err);
@@ -613,6 +695,7 @@ window.addEventListener('vex-sync-data-applied', () => {
   HistoryPanel._hydrate();
   HistoryPanel.lastAISearch = null;
   HistoryPanel.renderList();
+  HistoryPanel.renderDeviceTabs();
 });
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { HistoryPanel };

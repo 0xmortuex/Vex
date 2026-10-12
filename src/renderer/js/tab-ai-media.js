@@ -9,7 +9,9 @@ const TabAI = {
 Return ONLY JSON, no fences: {"close":["tab-ids"],"groups":[{"name":"Group name","color":"indigo|cyan|green|amber|red|violet|rose|teal","ids":["tab-ids"]}],"explanation":"one short sentence"}.
 Rules: never close the active tab unless explicitly told; "keep only X" means close everything else except X and the active tab if X is the active tab; only group when asked to group/organize; ids must come from the list.`,
 
-  open() {
+  // `request`: what was already typed elsewhere (Ctrl+K "Ask Vex to do
+  // something…"), planned straight away instead of asked for again.
+  open(request) {
     document.getElementById('vex-tabai-modal')?.remove();
     const m = document.createElement('div');
     m.id = 'vex-tabai-modal';
@@ -21,7 +23,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       <div id="tai-out" style="font-size:12px;color:var(--text-muted);margin-top:10px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
         <button id="tai-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="tai-go" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Plan</button>
+        <button id="tai-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Plan</button>
       </div></div>`;
     document.body.appendChild(m);
     const q = m.querySelector('#tai-q'); q.focus();
@@ -42,6 +44,8 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     // A new instruction needs a new plan.
     q.addEventListener('input', () => { if (m._applyPlan) { m._applyPlan = null; m.querySelector('#tai-go').textContent = 'Plan'; } });
+    const said = String(request || '').trim();
+    if (said) { q.value = said; this._plan(m); }
   },
 
   async _plan(m) {
@@ -51,7 +55,9 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
     if (!want) return;
     btn.disabled = true; btn.textContent = 'Thinking…';
     try {
-      const tabs = TabManager.tabs.map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
+      // A Tor, off-the-record or private-window tab is not sent to the AI, so
+      // it is never closed or grouped from here either (found 2026-10-10).
+      const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)).map(t => ({ id: t.id, title: String(t.title || '').slice(0, 90), url: t.url, active: t.id === TabManager.activeTabId }));
       const data = await AIRouter.callAI('chat', {
         message: 'Instruction: ' + want + '\n\nOpen tabs:\n' + JSON.stringify(tabs),
         // As `persona`, the shape the router reads on every backend: a bare
@@ -63,7 +69,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       let plan = null;
       try { plan = JSON.parse(String(data.result).replace(/^```(json)?/i, '').replace(/```$/,'').trim()); } catch { const mm = String(data.result).match(/\{[\s\S]*\}/); if (mm) { try { plan = JSON.parse(mm[0]); } catch {} } }
       if (!plan) throw new Error('Could not understand the AI response');
-      const ids = new Set(TabManager.tabs.map(t => t.id));
+      const ids = new Set(tabs.map(t => t.id));
       // The tab you are on is never closed from here. It used to be dropped
       // silently while the model's explanation ("Closed the YouTube tab")
       // was shown, so it claimed a close that never happened (found

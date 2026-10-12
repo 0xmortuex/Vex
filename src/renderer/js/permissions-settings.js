@@ -122,7 +122,7 @@ const PermissionsSettings = (() => {
             const permission = idx >= 0 ? key.slice(idx + 2) : '';
             // 'media' is an answer saved before requests were told apart: it covers
             // the camera and the microphone, never a screen share.
-            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)' };
+            const NAMES = { media: 'camera and microphone', camera: 'camera', microphone: 'microphone', 'display-capture': 'screen sharing', geolocation: 'location', notifications: 'notifications', 'clipboard-read': 'reading the clipboard', midi: 'MIDI devices', midiSysex: 'MIDI devices (SysEx)', popups: 'pop-ups', 'automatic-downloads': 'automatic downloads' };
             const badge = decision === 'allow' ? VexIcons.svg('check', { size: 11 }) + ' Allowed' : VexIcons.svg('x', { size: 11 }) + ' Blocked';
             return `
               <div class="permission-row">
@@ -130,7 +130,7 @@ const PermissionsSettings = (() => {
                   <div class="perm-row-origin">${_esc(origin)}</div>
                   <div class="perm-row-detail">
                     <span class="perm-badge ${_esc(decision)}">${badge}</span>
-                    ${_esc(NAMES[permission] || permission)}
+                    ${_esc(NAMES[permission] || (/^external:/.test(permission) ? 'opening ' + permission.slice(9) + ': links in another program' : permission))}
                   </div>
                 </div>
                 <button class="btn-secondary-sm" data-perm-key="${_esc(key)}">Revoke</button>
@@ -188,11 +188,20 @@ const PermissionsSettings = (() => {
         render(container);
       });
     });
+    // Cleared at once; Undo on the toast puts every decision back (main keeps
+    // them, main.js permissions:clear-undo).
     document.getElementById('btn-clear-all-permissions')?.addEventListener('click', async () => {
-      if (!await vexConfirm({ title: 'Clear permissions', message: 'Clear all site permissions? Every site will need to ask again.', okLabel: 'Clear all', danger: true })) return;
-      await window.vex.permissionsClearAll();
-      _toast('All permissions cleared', 'success');
+      const r = await window.vex.permissionsClearAll();
+      if (!r || !r.ok) { _toast('Could not clear them: ' + ((r && r.error) || 'no answer'), 'error'); return; }
       render(container);
+      window.VexUndo.offer({
+        message: 'Cleared every site permission — sites will ask again',
+        undo: async () => {
+          const back = await window.vex.permissionsClearUndo(r.undo);
+          if (!back || !back.ok) throw new Error((back && back.error) || 'no answer');
+          if (container.isConnected) render(container);
+        },
+      });
     });
   }
 

@@ -24,6 +24,27 @@ const ReadLater = {
   },
   unread() { return this.items.filter(i => !i.read).length; },
 
+  // Gone at once, with Undo on the toast: back in their places (js/vex-undo.js).
+  // `redraw` paints the panel again after either.
+  removeWithUndo(match, label, redraw) {
+    const idOf = (x) => (x && x.id != null ? String(x.id) : null);
+    const removed = VexUndo.takeOutAll(this.items, match, idOf);
+    if (!removed.length) return 0;
+    this.save();
+    if (redraw) redraw();
+    VexUndo.offer({
+      message: label(removed.length, removed[0].item),
+      undo: () => {
+        VexUndo.putBackAll(this.items, removed, idOf);
+        this.items = window.CollectionStore.save(this.KEY, this._baseline, this.items, 0, merged => VexUndo.reposition(merged, removed, idOf));
+        this._baseline = this.items.slice();
+        this._badge();
+        if (redraw) redraw();
+      },
+    });
+    return removed.length;
+  },
+
   OLD_DAYS: 30,
   WORDS_PER_MINUTE: 220,
 
@@ -109,7 +130,7 @@ const ReadLater = {
     if (!dot) {
       dot = document.createElement('span');
       dot.className = 'rl-dot';
-      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
+      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:var(--on-primary,#fff);font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
       btn.style.position = 'relative';
       btn.appendChild(dot);
     }
@@ -121,10 +142,12 @@ const ReadLater = {
   // both are "the things in Vex you meant to come back to".
   TAB_KEY: 'vex.libraryTab',
 
-  tab() { try { return localStorage.getItem(this.TAB_KEY) === 'features' ? 'features' : 'saved'; } catch { return 'saved'; } },
+  // The third tab, Digest, is the saved articles summarised (js/reading-digest.js).
+  TABS: ['saved', 'digest', 'features'],
+  tab() { try { const t = localStorage.getItem(this.TAB_KEY); return this.TABS.includes(t) ? t : 'saved'; } catch { return 'saved'; } },
 
   showTab(which) {
-    try { localStorage.setItem(this.TAB_KEY, which === 'features' ? 'features' : 'saved'); } catch { /* the tab is a convenience */ }
+    try { localStorage.setItem(this.TAB_KEY, this.TABS.includes(which) ? which : 'saved'); } catch { /* the tab is a convenience */ }
     const panel = document.getElementById('panel-library');
     if (panel) this.renderPanel(panel);
   },
@@ -136,11 +159,17 @@ const ReadLater = {
     container.innerHTML = `<div class="panel-header"><h2>Library</h2></div>
       <div class="lib-tabs">
         <button data-tab="saved" class="${on === 'saved' ? 'on' : ''}">Saved</button>
+        <button data-tab="digest" class="${on === 'digest' ? 'on' : ''}">Digest</button>
         <button data-tab="features" class="${on === 'features' ? 'on' : ''}">Everything Vex can do</button>
       </div>
       <div id="lib-body" style="padding:0 10px 20px;overflow-y:auto;max-height:calc(100vh - 148px)"></div>`;
     container.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => this.showTab(b.dataset.tab)));
     const body = container.querySelector('#lib-body');
+    if (on === 'digest') {
+      if (typeof ReadingDigest === 'undefined') { body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">The reading digest is not available in this window.</div>'; return; }
+      ReadingDigest.render(body);
+      return;
+    }
     if (on === 'features') {
       if (typeof FeatureLibrary === 'undefined') { body.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:12px">The feature list is not available in this window.</div>'; return; }
       FeatureLibrary.render(body);
@@ -184,21 +213,19 @@ const ReadLater = {
       clear.className = 'btn-secondary';
       clear.style.cssText = 'margin-top:6px';
       clear.textContent = 'Clear the old ones';
-      clear.addEventListener('click', async () => {
-        if (!(await vexConfirm({ title: 'Clear ' + stale.length + ' old link' + (stale.length === 1 ? '' : 's') + '?', message: 'Saved over a month ago and still unread. The pages themselves are untouched.', okLabel: 'Clear them', danger: true }))) return;
+      clear.addEventListener('click', () => {
         const ids = new Set(stale.map(i => i.id));
-        this.items = this.items.filter(i => !ids.has(i.id));
-        this.save();
-        this.renderPanel(container);
+        this.removeWithUndo(i => ids.has(i.id), (n) => 'Cleared ' + n + ' old link' + (n === 1 ? '' : 's') + ' from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
       });
       nudge.appendChild(clear);
       body.appendChild(nudge);
     }
     if (!unread.length) body.insertAdjacentHTML('beforeend', window.VexUI ? VexUI.emptyState('inbox', 'Nothing saved yet', 'Ctrl+K → "Read Later" on any page') : '<div style="font-size:12px;color:var(--text-muted);padding:4px 8px">Empty — Ctrl+K → "Read Later" on any page.</div>');
-    unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+    const removeOne = (x) => this.removeWithUndo(i => i.id === x.id, (_n, it) => 'Removed “' + (it.title || it.url) + '” from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
+    unread.forEach(it => row(it, { open: (x) => { this.open(x); }, remove: removeOne }));
     if (read.length) {
       section('Done');
-      read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: (x) => { this.items = this.items.filter(i => i.id !== x.id); this.save(); this.renderPanel(container); } }));
+      read.forEach(it => row(it, { dim: true, open: (x) => this.open(x), remove: removeOne }));
     }
 
     // Snoozed tabs could not be seen or woken early: nothing listed them
@@ -281,7 +308,7 @@ const TabArchiver = {
     if (!container) return;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Close tabs untouched for this many days into the Library's archive (0 = off). Pinned tabs are never archived.</p>
-      <select id="arch-days" style="min-width:160px">
+      <select id="arch-days" aria-label="Archive tabs untouched for" style="min-width:160px">
         ${[0, 3, 7, 14, 30].map(d => `<option value="${d}" ${this.days() === d ? 'selected' : ''}>${d === 0 ? 'Off' : 'After ' + d + ' days'}</option>`).join('')}
       </select>`;
     container.querySelector('#arch-days').addEventListener('change', (e) => { this.setDays(parseInt(e.target.value, 10) || 0); window.showToast?.('Auto-archive updated'); });

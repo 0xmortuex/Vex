@@ -6,10 +6,11 @@
 //                       Cancel), check it against the release's checksum, then
 //                       close Vex (tabs saved) and install quietly; Vex opens
 //                       again on the new version by itself (src/main/updates.js);
-//   Later               nothing is remembered: asked again at the next start;
+//   Later               nothing is remembered: asked again at the next check
+//                       (the next start, or six hours on while Vex stays open);
 //   Skip this version   silent until a version newer than this one is out.
 // Settings › About › Check for Updates opens the same cover, and its "Check
-// for updates when Vex starts" switch turns the check at start off.
+// for updates automatically" switch turns both automatic checks off.
 // Only the main window shows it: a private window never checks.
 
 const UpdateNotifier = {
@@ -19,20 +20,38 @@ const UpdateNotifier = {
   SNOOZE_KEY: 'vex.updateSnoozeUntil',
   SKIP_KEY: 'vex.updateSkipVersion',
   SNOOZE_MS: 24 * 3600 * 1000,
-  // Channels. Latest: every release, as it comes out. Stable: only once the
-  // newest release has stood for two days — Vex can ship several a day, and
-  // a copy on Stable hears about the one they settle on, not each one.
+  // Channels. Latest: every release, as it comes out. Stable: once this copy
+  // has been behind for two days, counted from the first time Vex saw a newer
+  // version (or that version's release date, if earlier). It used to wait
+  // until the NEWEST release was two days old, and Vex ships several a day,
+  // so that almost never happened (one 48-hour gap in 222 releases).
   CHANNEL_KEY: 'vex.updateChannel',
   STABLE_MS: 2 * 24 * 3600 * 1000,
+  // { "<version>": <ms first seen> } for versions newer than the running one.
+  FIRST_SEEN_KEY: 'vex.updateFirstSeen',
 
-  // Settings › About › Check for updates when Vex starts. On unless turned
+  // Settings › About › Check for updates automatically. On unless turned
   // off; off, nothing is asked of GitHub until Check for Updates is pressed.
+  // The key keeps its old name (it was "when Vex starts") so a saved choice
+  // still holds.
   ON_START_KEY: 'vex.updateCheckOnStart',
+
+  // Vex is often left open for days: the owner's copy sat on 2.36.4 while
+  // 2.37.0, 2.38.0 and 2.38.1 shipped, because the only automatic check ran
+  // at start (found 2026-10-09). So it is asked again every six hours.
+  EVERY_MS: 6 * 3600 * 1000,
+  JOB_NAME: 'Update check',
 
   init() {
     if (window.VexTabPolicy?.isPrivateWindow) return;
     window.vex.updates?.onProgress?.((p) => this._progress(p));
     window.vex.updates?.onInstallFailed?.((p) => this._fail((p && p.error) || 'Vex did not close to install the update.'));
+    // On the shared job timer as a 'ui' job: held while Vex is hidden or a
+    // game is running, then run once when Vex is back on screen, so the cover
+    // never comes up where nobody sees it. Registered whatever the switch
+    // says; each run reads it, so turning it on or off applies at once.
+    if (typeof VexJobs === 'undefined') window.VexProblems?.note('Updates', 'The update check while Vex stays open could not start: the job timer is not loaded', new Error('VexJobs is missing'));
+    else VexJobs.every(this.JOB_NAME, this.EVERY_MS, () => this.checkWhileOpen());
     if (!this.checksOnStart()) return;
     // A few seconds after launch, so the window and its tabs are up first.
     setTimeout(() => this.checkOnStartup(), 4000);
@@ -56,10 +75,40 @@ const UpdateNotifier = {
     return 0;
   },
 
+  _firstSeen() {
+    const raw = localStorage.getItem(this.FIRST_SEEN_KEY);
+    if (!raw) return {};
+    const map = JSON.parse(raw);
+    return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  },
+
+  // Remember when each newer version was first seen. Versions at or below the
+  // running one are dropped, so after an update the clock starts again.
+  noteSeen(info, now = Date.now()) {
+    if (!info || !info.ok || !info.hasUpdate || !info.latest) return;
+    const map = this._firstSeen();
+    for (const v of Object.keys(map)) {
+      if (info.current && this.cmpVersion(v, info.current) <= 0) delete map[v];
+    }
+    if (!Number.isFinite(map[info.latest])) map[info.latest] = now;
+    this._remember(this.FIRST_SEEN_KEY, JSON.stringify(map));
+  },
+
+  // Since when this copy has been behind: the earliest first-seen time of any
+  // newer version, or the newest release's date if that is earlier.
+  behindSince(info, now = Date.now()) {
+    let since = now;
+    for (const [v, t] of Object.entries(this._firstSeen())) {
+      if (Number.isFinite(t) && (!info.current || this.cmpVersion(v, info.current) > 0)) since = Math.min(since, t);
+    }
+    if (Number.isFinite(info.releasedAt)) since = Math.min(since, info.releasedAt);
+    return since;
+  },
+
   // Should the cover come up by itself for this check result?
   shouldAnnounce(info, now = Date.now()) {
     if (!info || !info.ok || !info.hasUpdate) return false;
-    if (this.channel() === 'stable' && info.releasedAt && now - info.releasedAt < this.STABLE_MS) return false;
+    if (this.channel() === 'stable' && now - this.behindSince(info, now) < this.STABLE_MS) return false;
     const skipped = this.skippedVersion();
     if (skipped && info.latest && this.cmpVersion(info.latest, skipped) <= 0) return false;
     if (now < this.snoozedUntil()) return false;
@@ -75,6 +124,21 @@ const UpdateNotifier = {
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    this.noteSeen(r);
+    if (this.shouldAnnounce(r)) this.showCover(r);
+  },
+
+  // The six-hourly check. Same rules as the one at start (channel, skipped
+  // version, roll-back pause), and it leaves a cover that is already up
+  // alone: one asking, downloading or installing stays exactly as it is.
+  async checkWhileOpen() {
+    if (window.VexTabPolicy?.isPrivateWindow || !this.checksOnStart() || this._el) return;
+    let r;
+    try { r = await window.vex.checkForUpdates(); }
+    catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
+    this.noteSeen(r);
+    // A cover opened from Settings while the check was out wins.
+    if (this._el) return;
     if (this.shouldAnnounce(r)) this.showCover(r);
   },
 
@@ -88,6 +152,7 @@ const UpdateNotifier = {
     let result;
     try { result = await window.vex.checkForUpdates(); }
     catch (err) { result = { ok: false, error: err.message }; }
+    this.noteSeen(result);
     if (result?.ok && result.hasUpdate) this.showCover(result);
     else if (result?.ok) window.showToast?.('You\'re running the latest version');
     else window.showToast?.('Couldn\'t check for updates: ' + (result?.error || 'network error'), 'error', 5000);
@@ -322,7 +387,7 @@ const UpdateNotifier = {
   },
 
   // Before Vex closes to install: the same backup Settings › Backup saves
-  // (js/backup.js), kept in userData/backups by Vex itself (newest three) and
+  // (js/backup.js), kept in userData/backups by Vex itself (newest five) and
   // listed in Settings › Backup with a Restore button. If it cannot be made,
   // nothing installs until the person chooses.
   async _backup(info) {
@@ -343,17 +408,14 @@ const UpdateNotifier = {
   async _install(info, backedUp) {
     this._setPhase('installing', 'Closing Vex to install the update. Your tabs are saved, and Vex opens again by itself when it is done.'
       + (backedUp ? ' Your data was backed up first: Settings › Backup lists it.' : ''));
-    // The notes were just read here: the What's New window would open them
-    // again on the new version (update-log.js compares vex.lastSeenVersion).
-    let seenBefore = null;
-    try { seenBefore = localStorage.getItem('vex.lastSeenVersion'); localStorage.setItem('vex.lastSeenVersion', info.latest); }
-    catch (err) { console.error('[Update] could not note the notes as read:', err); }
+    // vex.lastSeenVersion is left as it is: on the new version, the short
+    // "What's new" card (update-log.js) names the highlights once the
+    // features are there to try. It used to be set here, so an update from
+    // this cover never showed anything afterwards.
     let done;
     try { done = await window.vex.updates.install(info.latest); }
     catch (err) { done = { ok: false, error: err.message }; }
     if (!done?.ok) {
-      try { if (seenBefore == null) localStorage.removeItem('vex.lastSeenVersion'); else localStorage.setItem('vex.lastSeenVersion', seenBefore); }
-      catch (err) { console.error('[Update] could not restore the notes marker:', err); }
       if (this._info === info) this._fail(done?.error || 'The update could not be installed.');
     }
   },

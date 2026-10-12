@@ -70,7 +70,17 @@ function persist() {
   writeState(state);
 }
 
-function createPipWindow(url) {
+// ses: the session of the tab the video comes from. The pop-out loaded the
+// page (or its video) in the default session — direct and in the main
+// profile — so a Tor tab's video was fetched from the real address and a
+// private tab's page left its cookies and cache behind (security scan H3).
+// A pop-out already open in another session is closed and made again.
+function createPipWindow(url, ses) {
+  if (!ses) throw new Error('PiP needs the session of the tab it comes from');
+  if (pipWindow && !pipWindow.isDestroyed() && pipWindow.webContents.session !== ses) {
+    try { pipWindow.destroy(); } catch (e) { console.error('[Vex PiP] could not close the pop-out of another tab:', e.message); }
+    pipWindow = null;
+  }
   if (pipWindow && !pipWindow.isDestroyed()) {
     pipWindow.loadURL(url);
     pipWindow.show();
@@ -104,11 +114,14 @@ function createPipWindow(url) {
     backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload-pip.js'),
+      session: ses,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true
     }
   });
+  // A link or window.open in the floating page opens nothing.
+  pipWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   applyOnTop();
   // applyOnTop() above runs before the page exists, so its pin-state message is
@@ -154,10 +167,12 @@ function createPipWindow(url) {
   });
 
   pipWindow.on('close', persist);
+  const made = pipWindow;
   pipWindow.on('closed', () => {
     clearTimeout(saveTimer);
     saveTimer = null;
-    pipWindow = null;
+    // One closed to make a pop-out in another session leaves the new one be.
+    if (pipWindow === made) pipWindow = null;
     const reason = closeReason;
     const at = closePosition;
     closeReason = 'closed';
@@ -182,12 +197,12 @@ function createPipWindow(url) {
 // Source Extensions (YouTube, Netflix) has a blob: source that is meaningless
 // outside the page that built it, so the caller keeps the whole-page fallback
 // for those.
-function createPipPlayer(media) {
+function createPipPlayer(media, ses) {
   if (!media || typeof media.src !== 'string' || !/^https?:\/\//i.test(media.src)) {
     throw new Error('PiP player needs a direct http(s) media URL');
   }
   const playerPath = path.join(__dirname, 'renderer', 'pip-player.html');
-  const win = createPipWindow(pathToFileURL(playerPath).toString());
+  const win = createPipWindow(pathToFileURL(playerPath).toString(), ses);
   const hand = () => {
     try { win.webContents.send('pip:media', media); }
     catch (e) { console.error('[Vex PiP] could not hand the video to the player:', e.message); }

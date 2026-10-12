@@ -160,10 +160,53 @@ describe('dismissal', () => {
     expect(AIPanel.isOpen()).toBe(true);
   });
 
+  // AI audit 2026-10-10: answering a dialog the panel opened (a setting
+  // change, the agent's Paused prompt) closed the panel.
+  it('stays open when you answer a dialog it opened, and Escape in the dialog leaves it open', async () => {
+    await openPanel();
+    const overlay = document.createElement('div');
+    overlay.className = 'vex-dialog-overlay';
+    overlay.innerHTML = '<div class="vex-dialog"><button id="dlg-ok">OK</button></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('dlg-ok').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(AIPanel.isOpen()).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(AIPanel.isOpen()).toBe(true);
+    overlay.remove();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(AIPanel.isOpen()).toBe(false);
+  });
+
   it('stops listening once closed', async () => {
     await openPanel();
     AIPanel.close();
     expect(AIPanel._onDocDown).toBe(null);
+  });
+});
+
+// AI audit 2026-10-10: "@co" while typing an email switched persona and
+// "bob@company.com" became "bobmpany.com".
+describe('@persona mentions', () => {
+  it('only a whole @word after a space, ended by a space', () => {
+    expect(AIPanel._takeMention('write to bob@co')).toBe(null);
+    expect(AIPanel._takeMention('write to bob@company.com')).toBe(null);
+    expect(AIPanel._takeMention('write to bob@company.com ')).toBe(null);
+    expect(AIPanel._takeMention('ask @co')).toBe(null);
+    expect(AIPanel._takeMention('@coder fix this')).toEqual({ word: 'coder', rest: 'fix this' });
+    expect(AIPanel._takeMention('please @coder fix bob@x.com')).toEqual({ word: 'coder', rest: 'please fix bob@x.com' });
+  });
+});
+
+// AI audit 2026-10-10: AI Translate always went to English.
+describe('AI Translate language', () => {
+  it('uses the language chosen for translating pages', () => {
+    expect(AIPanel.translateTarget()).toBe('English');
+    localStorage.setItem('vex.translateLang', 'tr');
+    globalThis.Translator = { languages: [{ code: 'tr', name: 'Turkish' }] };
+    expect(AIPanel.translateTarget()).toBe('Turkish');
+    delete globalThis.Translator;
+    localStorage.setItem('vex.translateLang', 'nl');
+    expect(AIPanel.translateTarget()).toBe('Dutch');
   });
 });
 
@@ -455,6 +498,15 @@ describe('chats outlive their tabs', () => {
     expect(AIPanel._getConv()[0].content).toBe('earlier');
     AIPanel._viewingId = null;
     expect(AIPanel._getConv()[0].content).toBe('current');
+  });
+
+  // AI audit 2026-10-10: Clear while a past chat was showing emptied this tab's chat instead.
+  it('Clear empties the chat on screen, not the active tab\'s', () => {
+    AIPanel._conversations = { 'tab-1': [{ role: 'user', content: 'current' }], old: [{ role: 'user', content: 'earlier' }] };
+    AIPanel._viewingId = 'old';
+    AIPanel._clearChat();
+    expect(AIPanel._conversations.old).toEqual([]);
+    expect(AIPanel._conversations['tab-1'][0].content).toBe('current');
   });
 
   it('says which chat is on screen, with a way back', () => {

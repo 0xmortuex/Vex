@@ -8,13 +8,19 @@ const PanelBadges = {
   _timer: null,
   _total: 0,
 
-  _unreadFromTitle(title) {
-    if (!title) return 0;
-    const m = /(^|[^\d])\((\d+)\)/.exec(title)        // "(5) Discord", "WhatsApp (3)"
-           || /(\d+)\s+(?:new|unread)/i.exec(title)   // "3 new messages"
-           || /•\s*(\d+)/.exec(title);                // "• 3"
+  // Panels whose title is never a message count: Spotify's is "Song • Artist"
+  // while it plays.
+  NO_COUNT: ['spotify'],
+
+  // Only the forms a message count takes: a LEADING "(5)" — "(5) Discord" —
+  // or "3 new" / "3 unread". A number in brackets anywhere ("Thriller (1982)")
+  // or after a bullet ("In Da Club • 50 Cent", Spotify) is part of a name.
+  _unreadFromTitle(title, panel) {
+    if (!title || (panel && this.NO_COUNT.includes(panel))) return 0;
+    const m = /^\s*\((\d+)\)/.exec(title)
+           || /(?:^|[^\w])(\d+)\s+(?:new|unread)\b/i.exec(title);
     if (!m) return 0;
-    const n = parseInt(m[m.length - 1], 10);
+    const n = parseInt(m[1], 10);
     return Number.isFinite(n) && n > 0 && n < 100000 ? n : 0;
   },
 
@@ -49,9 +55,14 @@ const PanelBadges = {
         const wv = SidebarManager.panelWebviews[panel];
         let title = '';
         try { title = (wv && typeof wv.getTitle === 'function') ? wv.getTitle() : ''; } catch {}
-        const n = this._unreadFromTitle(title);
+        const n = this._unreadFromTitle(title, panel);
         this._setBadge(panel, n);
         total += n;
+      });
+      // A slept (or closed) panel has no page to count from: its last count
+      // stayed on the icon for good.
+      document.querySelectorAll('.sidebar-icon[data-panel] > .panel-badge').forEach(b => {
+        if (!SidebarManager.panelWebviews[b.parentElement.dataset.panel]) b.remove();
       });
       this._total = total;
       window.dispatchEvent(new CustomEvent('vex:panel-unread', { detail: { total } }));
@@ -62,6 +73,7 @@ const PanelBadges = {
     this._injectStyle();
     if (this._timer) return;
     this.sweep();
+    document.addEventListener('vex:panel-slept', () => this.sweep());
     this._timer = VexJobs.every('Panel badges', 5000, () => this.sweep());
   },
 };

@@ -16,6 +16,7 @@ const WorkspaceSnapshots = {
   init() {
     if (window.VexTabPolicy?.isPrivateWindow) return;
     if (this._timer) return;
+    this.compact();
     // First capture a minute after launch (once tabs have restored), then on a
     // steady cadence. Auto-snapshots that match the previous one are skipped.
     this._startup = setTimeout(() => { this._startup = null; this.snapshot(true); }, 60 * 1000);
@@ -31,11 +32,51 @@ const WorkspaceSnapshots = {
     try { return (WorkspaceManager.getActive && WorkspaceManager.getActive().name) || 'Workspace'; } catch { return 'Workspace'; }
   },
 
+  // What a snapshot keeps of a tab: what restore and the list use. Each one
+  // used to keep the whole saved tab (scroll position, sleep state, memory
+  // figure, note) and `sig`, a JSON copy of all of that again, so 31
+  // snapshots of 18 tabs were 650 KB of vex-persist.json, the file every
+  // setting rewrites (found 2026-10-09).
+  _slim(t) {
+    return { url: String(t.url), title: String(t.title || t.url), partition: t.partition || null, pinned: !!t.pinned };
+  },
+
+  // Same tab set, same split: a tab falling asleep or scrolling is not a new
+  // snapshot.
+  _sig(tabs, split) {
+    return JSON.stringify([(tabs || []).map(t => [t.url, t.partition || null, !!t.pinned]), (split && split.urls) || null]);
+  },
+
   _currentTabs() {
     if (typeof TabManager === 'undefined') return [];
     return window.VexTabPolicy.snapshot(TabManager.tabs || [])
       .filter(t => t.url && !/^about:/i.test(t.url) && !(typeof isStartPage === 'function' && isStartPage(t.url)))
-      .map(t => ({ ...t, title: t.title || t.url }));
+      .map(t => this._slim(t));
+  },
+
+  // Snapshots saved before _slim: cut down to the same four fields, and a run
+  // of them that differ only in what _sig ignores kept once (the newest).
+  // Idempotent; writes only when it changed something.
+  compact() {
+    const all = this._all();
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return false;
+    const before = JSON.stringify(all);
+    for (const wsId of Object.keys(all)) {
+      const list = Array.isArray(all[wsId]) ? all[wsId] : [];
+      const out = [];
+      for (const s of list) {
+        if (!s || !Array.isArray(s.tabs)) continue;
+        const snap = { ts: s.ts, tabs: s.tabs.filter(t => t && t.url).map(t => this._slim(t)) };
+        if (s.split) snap.split = s.split;
+        const prev = out[out.length - 1];
+        if (prev && this._sig(prev.tabs, prev.split) === this._sig(snap.tabs, snap.split)) continue;
+        out.push(snap);
+      }
+      all[wsId] = out.slice(0, this.MAX);
+    }
+    if (JSON.stringify(all) === before) return false;
+    this._save(all);
+    return true;
   },
 
   snapshot(auto) {
@@ -46,9 +87,10 @@ const WorkspaceSnapshots = {
     const list = all[wsId] || [];
     // The split screen too, so a layout comes back as it was arranged.
     const split = typeof SplitScreen !== 'undefined' ? SplitScreen.arrangement() : null;
-    const sig = JSON.stringify([tabs, split && split.urls]);
-    if (auto && list[0] && list[0].sig === sig) return; // unchanged → skip dupe
-    list.unshift({ ts: Date.now(), sig, tabs, split });
+    if (auto && list[0] && this._sig(list[0].tabs, list[0].split) === this._sig(tabs, split)) return; // unchanged → skip dupe
+    const snap = { ts: Date.now(), tabs };
+    if (split) snap.split = split;
+    list.unshift(snap);
     all[wsId] = list.slice(0, this.MAX);
     this._save(all);
     if (!auto) { window.showToast?.(`Snapshot saved · ${tabs.length} tab${tabs.length > 1 ? 's' : ''}`); this._repaint(); }
@@ -119,7 +161,7 @@ const WorkspaceSnapshots = {
           <div style="font-size:12.5px;color:var(--text);font-weight:600">${this._rel(s.ts)} · ${s.tabs.length} tab${s.tabs.length > 1 ? 's' : ''}${s.split ? ' · split ' + s.split.urls.length + ' ways' : ''}</div>
           <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${titles}${more}</div>
         </div>
-        <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>
+        <button data-restore="${s.ts}" style="padding:5px 11px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:7px;cursor:pointer;font-size:11.5px">Restore</button>
         <button data-del="${s.ts}" title="Delete" style="padding:5px 8px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11.5px"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="vertical-align:-2px"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
       </div>`;
     }).join('');

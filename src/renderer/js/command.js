@@ -32,6 +32,9 @@ const CommandBar = {
     { id: 'dictation-settings', label: 'Dictation Settings', hint: 'Speech model, the language you speak, remove the downloaded model', icon: 'mic', action: () => Dictation.openSettings() },
     { id: 'do-again', label: 'Do That Again', shortcut: 'Ctrl+Alt+A', icon: 'history', isPrimary: true,
       get hint() { const c = CommandBar.lastCommand(); return c ? 'Again: ' + c.label : 'Runs the last command you used here once more'; },
+      // Not offered when the last command cannot run here (its when() says
+      // no — Send to My Devices on a private tab, for one).
+      when: () => { const c = CommandBar.lastCommand(); return !c || CommandBar._shown(c); },
       action: () => CommandBar.doAgain() },
     { id: 'new', label: 'New Tab', hint: 'Open a new tab', shortcut: 'Ctrl+T', icon: 'plus', action: () => TabManager.createTab(START_URL, true) },
     { id: 'discover', label: 'Discover — everything Vex can do', hint: 'Every feature, by category, with "show me" on the real button', icon: 'compass', isPrimary: true, action: () => { if (typeof VexDiscover !== 'undefined') VexDiscover.open(); } },
@@ -65,21 +68,24 @@ const CommandBar = {
       const t = TabManager.getActiveTab();
       if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want floating first', 'error'); return; }
       const o = Number(localStorage.getItem('vex.overlayOpacity')) || 0.92;
-      await window.vex.overlayOpen(t.url, o);
+      // The tab's partition goes with it: main refuses a private, OTR or Tor
+      // tab rather than reopen its page in the main profile.
+      try { await window.vex.overlayOpen(t.url, o, t.partition); }
+      catch (err) { console.error('[Command] overlay refused:', err); window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error'); return; }
       window.showToast?.('Floating over other windows — Esc closes it, Ctrl+Up/Down changes how see-through it is, Ctrl+P stops it floating', 'info', 8000);
     } },
     { id: 'lock-vex', label: 'Lock Vex', hint: 'A PIN screen over everything until you come back — Ctrl+Alt+L', icon: 'lock', action: () => VexLock.lock() },
     { id: 'cleanwindow', label: 'Share this page in a clean window', hint: 'A private window with only this page: no bookmarks, sidebar or other tabs, streamer mode on', icon: 'eye', action: async () => {
       const t = TabManager.getActiveTab();
       if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open the page you want to share first', 'error'); return; }
-      await window.vex.openCleanWindow(t.url, VexGuiStyle.get());
+      await window.vex.openCleanWindow(t.url, VexGuiStyle.get(), VexSimpleMode.mode());
     } },
     { id: 'readlater-next', label: 'Next from Read Later', hint: 'The oldest link you saved, in this tab — read them one at a time', icon: 'book', action: () => ReadLater.next() },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } ReadLater.add(t.url, t.title); } },
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },
-    { id: 'browser-import', label: 'Import from Another Browser', hint: 'Bookmarks and history from Chrome, Edge, Brave or Firefox — and passwords from a file you export there', icon: 'download', action: () => { if (typeof BrowserImport !== 'undefined') BrowserImport.open(); } },
+    { id: 'browser-import', label: 'Import from Another Browser', hint: 'Bookmarks and history from Chrome, Edge, Brave, Opera, Vivaldi, Firefox, LibreWolf or another Chromium or Firefox browser — and passwords from a file you export there', icon: 'download', action: () => { if (typeof BrowserImport !== 'undefined') BrowserImport.open(); } },
     { id: 'keys-sheet', label: 'What You Can Press — Shortcut Sheet', hint: 'Every key Vex answers to, over whatever you are doing, with the ones that matter here first', icon: 'keyboard', shortcut: 'Ctrl+Shift+K', action: () => { if (typeof KeysSheet !== 'undefined') KeysSheet.open(); } },
     { id: 'report-problem', label: 'Report a Problem', hint: 'A GitHub issue with your versions, look and Vex’s recent problems filled in — shown to you first, to edit; nothing is sent until you press Open on GitHub', icon: 'flag', action: () => { if (typeof VexReport !== 'undefined') VexReport.open().catch(e => window.showToast?.(e.message, 'error')); } },
     { id: 'why-slow', label: 'Why Is Vex Slow Right Now?', hint: 'One screen: what is holding the processor, what is holding the memory, whether a route is on and whether a game has the card', icon: 'activity', isPrimary: true, action: () => { if (typeof WhySlow !== 'undefined') WhySlow.open(); } },
@@ -127,7 +133,7 @@ const CommandBar = {
     { id: 'translate-selection', label: 'Translate Selection', hint: 'Translate the highlighted text into your language', icon: 'globe', action: () => { if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.translateSelection(); } },
     { id: 'tabai', label: 'AI Tab Command', hint: 'Tell AI what to do with your tabs — "close all YouTube tabs", "group my shopping tabs"', icon: 'tabs', action: () => TabAI.open() },
     { id: 'wsnap', label: 'Workspace Time-Travel', hint: 'Restore a past set of open tabs for this workspace', icon: 'history', action: () => { if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.open(); } },
-    { id: 'catchup', label: 'Catch Me Up', hint: 'AI digest of your RSS feeds + unread Read Later', icon: 'coffee', action: () => { if (typeof CatchMeUp !== 'undefined') CatchMeUp.open(); } },
+    { id: 'catchup', label: 'Reading digest (Catch me up)', hint: 'Your Read Later articles summarised by the local AI, in the Library', icon: 'coffee', action: () => { if (typeof ReadingDigest !== 'undefined') ReadingDigest.open({ build: true }); } },
     { id: 'otr', label: 'New Off-the-Record Tab', hint: 'Ephemeral tab: no history, cookies vanish when closed', icon: 'incognito', action: () => TabManager.createTab(START_URL, true, null, { partition: 'otr-' + Date.now() }) },
     { id: 'tor', label: 'New Tor Tab', hint: 'Maximum-security private tab routed through Tor (Vex downloads and starts Tor the first time)', icon: 'onion', action: () => { if (typeof TorSession !== 'undefined') TorSession.open(); } },
     { id: 'identity', label: 'New Identity Tab', hint: 'Fresh isolated session + a new browser fingerprint — no carry-over from your logins', icon: 'mask', action: async () => {
@@ -164,12 +170,15 @@ const CommandBar = {
     { id: 'editlayout', label: 'Edit Layout', hint: 'Rearrange or hide the toolbar buttons and sidebar icons in place', icon: 'puzzle', action: () => { if (typeof LayoutEditor !== 'undefined') LayoutEditor.enter(); } },
     { id: 'resmon', label: 'Resource Monitor', hint: 'Live CPU / memory per browser process', icon: 'chart-bar', action: () => ResourceMonitor.open() },
     { id: 'tabhealth', label: 'Tab Health', hint: 'Every tab by state (awake / kept-awake / sleeping) + memory + controls', icon: 'stethoscope', action: () => { if (typeof TabHealth !== 'undefined') TabHealth.open(); } },
-    { id: 'siteprofiles', label: 'Site Settings', hint: 'Per-site zoom, dark mode, reader, and tweaks — all in one place', icon: 'globe', action: () => { if (typeof SiteProfiles !== 'undefined') SiteProfiles.open(); } },
+    { id: 'siteprofiles', label: 'Site Settings', hint: 'Everything about this site in one panel — permissions, zoom, blocking, sleep, translation, where it opens, its data', icon: 'globe', action: () => { try { SitePanel.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'loginshub', label: 'Logins & Codes', hint: 'Saved passwords, 2FA authenticator codes, and email-code autofill in one hub', icon: 'lock', action: () => { if (typeof LoginsHub !== 'undefined') LoginsHub.open(); } },
-    { id: 'fillemailcode', label: 'Fill code from email', hint: 'Read the newest verification code from your Gmail and fill it now', icon: 'mail', action: () => { try { const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (wv && typeof EmailCodeAutofill !== 'undefined') { EmailCodeAutofill.tryFill(wv, wv.getURL()); window.showToast?.('Looking for your code…'); } } catch (err) { _commandFailed(err); } } },
+    { id: 'fillemailcode', label: 'Fill code from email', hint: 'Read the newest verification code from your Gmail and fill it now', icon: 'mail', action: () => { try { const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (wv && typeof EmailCodeAutofill !== 'undefined') { EmailCodeAutofill.tryFill(wv, wv.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } } catch (err) { _commandFailed(err); } } },
+    { id: 'filltotp', label: 'Fill code from authenticator', hint: 'Type the current code of your authenticator account for this site into the code field (asks which account if several, or lets you pick one)', icon: 'key', action: async () => { try { const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (!wv || typeof TotpAutofill === 'undefined') { window.showToast?.('Open a web page first'); return; } await TotpAutofill.fillFromAuthenticator(wv); } catch (err) { _commandFailed(err); } } },
+    { id: 'savepassword', label: 'Save a password for this site', hint: 'Save a login for this site yourself, when Vex did not offer to (with a generator for a strong password)', icon: 'key', action: async () => { try { const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (!wv || typeof VexPasswordManual === 'undefined') { window.showToast?.('Open a web page first'); return; } await VexPasswordManual.saveForSite(wv); } catch (err) { _commandFailed(err); } } },
+    { id: 'genpassword', label: 'Generate a strong password', hint: 'Fill the password field on this page (and its confirm box) with a new strong password, then offer to save it', icon: 'key', action: async () => { try { const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (!wv || typeof VexPasswordManual === 'undefined') { window.showToast?.('Open a web page first'); return; } await VexPasswordManual.generateInField(wv); } catch (err) { _commandFailed(err); } } },
     { id: 'bgcodereader', label: 'Background email-code reading (toggle)', hint: 'Read verification codes from a hidden Gmail — no tab open or awake needed', icon: 'mail', action: () => { try { const on = localStorage.getItem('vex.emailCodeHiddenReader') === '1'; localStorage.setItem('vex.emailCodeHiddenReader', on ? '0' : '1'); window.showToast?.('Background code reading ' + (on ? 'turned off' : 'turned on')); } catch (err) { _commandFailed(err); } } },
     { id: 'setupgallery', label: 'Setup Gallery', hint: 'Save, share, and switch whole Vex setups (panels, shortcuts, theme) via codes', icon: 'palette', action: () => { if (typeof SetupGallery !== 'undefined') SetupGallery.open(); } },
-    { id: 'pwhealth', label: 'Password Health', hint: 'Find reused, weak, or 2FA-less saved passwords — analyzed locally', icon: 'shield', action: async () => { try { await VexLazy.ensure('js/password-health.js'); PasswordHealth.open(); } catch (err) { _commandFailed(err); } } },
+    { id: 'pwhealth', label: 'Password Health', hint: 'Find reused, weak, or 2FA-less saved passwords, and breached ones if you turn that check on', icon: 'shield', action: async () => { try { await VexLazy.ensure('js/password-health.js'); PasswordHealth.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'askvex', label: 'Ask Vex to do something…', hint: 'Type a request in plain English — "close all YouTube tabs", "group my shopping tabs"', icon: 'sparkles', action: () => { if (typeof AgentCommand !== 'undefined') AgentCommand.open(); } },
     { id: 'routing', label: 'Route Through Tor / Proxy', hint: 'Send this container through Tor or a custom proxy, or open a fresh Tor container', icon: 'onion', action: () => { if (typeof ContainerRouting !== 'undefined') ContainerRouting.open(); } },
     { id: 'shortcutsguide', label: 'Shortcuts & Gestures', hint: 'Cheat-sheet of every keyboard shortcut, mouse gesture, and right-click action', icon: 'keyboard', action: async () => { try { await VexLazy.ensure('js/shortcuts-guide.js'); ShortcutsGuide.open(); } catch (err) { _commandFailed(err); } } },
@@ -178,10 +187,10 @@ const CommandBar = {
     { id: 'pasteandgo', label: 'Paste & Go', hint: 'Open the URL (or search) currently on your clipboard in a new tab', icon: 'clipboard', action: async () => { try { const text = ((await navigator.clipboard.readText()) || '').trim(); if (!text) { window.showToast?.('Clipboard is empty'); return; } TabManager.createTab(_typedAddress().addressFor(text) || _typedAddress().searchUrl(text), true); } catch (err) { window.showToast?.('Could not read the clipboard: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'print', label: 'Print…', hint: 'Print this page, or save it as a PDF', shortcut: 'Ctrl+P', icon: 'file', action: () => WebviewManager.printPage() },
     { id: 'viewsource', label: 'View Page Source', hint: 'Show this page’s HTML in a new tab', shortcut: 'Ctrl+U', icon: 'code', action: () => WebviewManager.viewSource() },
-    { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: 'copy', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } },
+    { id: 'duplicatetab', label: 'Duplicate Tab', hint: 'Open a copy of the current tab', icon: 'copy', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) TabManager.duplicateTab(t); } },
     { id: 'copyalltabs', label: 'Copy All Tab URLs', hint: 'Copy every open tab’s URL to the clipboard', icon: 'link', action: async () => { try { const urls = (TabManager.tabs || []).map(t => t.url).filter(u => /^https?:/i.test(u)); if (!urls.length) { window.showToast?.('No tabs to copy'); return; } await navigator.clipboard.writeText(urls.join('\n')); window.showToast?.(`Copied ${urls.length} tab URL${urls.length === 1 ? '' : 's'}`); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: 'refresh', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch (err) { _commandFailed(err); } } },
-    { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: 'window', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title); else window.showToast?.('Open a web page first'); } catch (err) { _commandFailed(err); } } },
+    { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: 'window', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title, t.partition).then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open it as an app', 'error'); }, _commandFailed); else window.showToast?.('Open a web page first'); } catch (err) { _commandFailed(err); } } },
     { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: 'note', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'closeduplicates', label: 'Close Duplicate Tabs', hint: 'Close tabs pointing to the same page, keeping one of each', icon: 'broom', action: () => { try { TabManager.closeDuplicateTabs(); } catch (err) { _commandFailed(err); } } },
     { id: 'toolbox', label: 'Toolbox', hint: 'Your built-in tools — regex, JSON, hashes, color, word count, and more', icon: 'toolbox', action: () => { try { if (window.Toolbox) Toolbox.open(); } catch (err) { _commandFailed(err); } } },
@@ -203,12 +212,12 @@ const CommandBar = {
     { id: 'formatjson', label: 'Format JSON (this tab)', hint: 'Pretty-print the current raw-JSON page as a collapsible tree', icon: 'braces', action: () => { if (typeof JsonApiViewer !== 'undefined') JsonApiViewer.formatCurrentPage(); } },
     { id: 'responsive', label: 'Responsive Preview', hint: 'See this page side-by-side at phone / tablet / desktop widths', icon: 'phone', action: () => { const t = TabManager.getActiveTab(); if (typeof ResponsivePreview !== 'undefined') ResponsivePreview.open(t && t.url); } },
     { id: 'screenshot-code', label: 'Screenshot → Code', hint: 'Capture this page and have AI rebuild it as HTML/Tailwind/React', icon: 'image', action: () => { if (typeof ScreenshotToCode !== 'undefined') ScreenshotToCode.start(); } },
-    { id: 'watch', label: 'Watch This Page', hint: 'Get alerted when this page changes (restocks, docs, status pages)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof PageMonitor !== 'undefined') PageMonitor.add(t.url, t.title); } },
-    { id: 'watches', label: 'Watched Pages', hint: 'Manage the pages Vex is monitoring for changes', icon: 'eye', isPrimary: true, action: () => { if (typeof PageMonitor !== 'undefined') PageMonitor.showManager(); } },
+    { id: 'watch', label: 'Watch This Page', hint: 'Get alerted when this page changes (restocks, docs, status pages)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a website first', 'error'); return; } PageWatch.watchPage(t.url, t.title, { partition: t.partition || null }); } },
+    { id: 'watches', label: 'Watched Pages', hint: 'Manage the pages Vex is monitoring for changes', icon: 'eye', isPrimary: true, action: () => { if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } PageWatch.showManager(); } },
     { id: 'wayback-save', label: 'Save to Wayback Machine', hint: 'Archive this page on web.archive.org', icon: 'box', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.saveToWayback(t.url); } },
     { id: 'wayback-view', label: 'View Archived Version', hint: 'Open the latest Wayback snapshot of this page (recover dead links)', icon: 'history', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.viewArchived(t.url); } },
     { id: 'readfree', label: 'Read Free (bypass paywall)', hint: 'Reset a metered paywall (clear this site’s data + reload) or open a free archived copy', icon: 'newspaper', action: () => { if (typeof ReadFree !== 'undefined') ReadFree.run(); } },
-    { id: 'clearsite', label: "Clear This Site's Data & Reload", hint: 'Wipe this site’s cookies, storage & cached responses and hard-reload — fixes stale “unsupported browser”, login, or paywall glitches', icon: 'broom', action: async () => { try { const t = TabManager.getActiveTab(); const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (!t || !wv || !/^https?:/i.test((wv.getURL && wv.getURL()) || t.url || '')) { window.showToast?.('Open a website first'); return; } const url = (wv.getURL && wv.getURL()) || t.url; const partition = t.partition || 'persist:main'; window.showToast?.('Clearing site data…'); try { if (window.vex && window.vex.clearSiteData) await window.vex.clearSiteData({ partition, url }); } catch {} try { if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache(); else wv.reload(); } catch {} window.showToast?.('Cleared — reloading', 'success'); } catch (err) { _commandFailed(err); } } },
+    { id: 'clearsite', label: "Clear This Site's Data & Reload", hint: 'Wipe this site’s cookies, storage & cached responses and hard-reload — fixes stale “unsupported browser”, login, or paywall glitches', icon: 'broom', action: async () => { try { const t = TabManager.getActiveTab(); const wv = WebviewManager.webviews.get(TabManager.activeTabId); if (!t || !wv || !/^https?:/i.test((wv.getURL && wv.getURL()) || t.url || '')) { window.showToast?.('Open a website first'); return; } const url = (wv.getURL && wv.getURL()) || t.url; const partition = t.partition || 'persist:main'; window.showToast?.('Clearing site data…'); const cleared = await window.vex.clearSiteData({ partition, url }); if (!cleared || !cleared.ok) throw new Error((cleared && cleared.error) || 'The site\'s data could not be cleared'); try { if (typeof wv.reloadIgnoringCache === 'function') wv.reloadIgnoringCache(); else wv.reload(); } catch {} window.showToast?.('Cleared — reloading', 'success'); } catch (err) { _commandFailed(err); } } },
     { id: 'sitedata', label: "Cookies & Storage for This Site", hint: 'See every cookie and stored item this site keeps, change one, or remove one — instead of clearing the lot', icon: 'shield', action: () => { try { SiteData.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'pagediff', label: 'What’s New Since I Was Last Here', hint: 'Marks the paragraphs that were not on this page last time you read it — threads, changelogs, wiki pages', icon: 'eye', isPrimary: true, action: async () => { try { await WhatsNew.run(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'pagediff-stop', label: 'Stop Marking What’s New Here', hint: 'Forget this page, and clear the marks it left', icon: 'x', action: async () => { try { await WhatsNew.stop(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
@@ -216,6 +225,8 @@ const CommandBar = {
     { id: 'tabtrail', label: 'How I Got Here', hint: 'The page this tab was opened from, and the one before that — jump back to any of them', icon: 'compass', isPrimary: true, action: () => { try { TabTrail.show(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'dictionary', label: 'Double-Click a Word for Its Meaning', hint: 'Turns the dictionary on or off — with it on, double-clicking a word on any page shows what it means', icon: 'book', isPrimary: true, action: () => Dictionary.toggle() },
     { id: 'switchtoopen', label: 'Switch to a Page I Already Have Open', hint: 'Turns on or off going to the tab you already have instead of opening the same page twice', icon: 'tabs', action: () => DuplicateTabs.toggle() },
+    // The owner's separate app; main finds it (main/game-control-center.js).
+    { id: 'game-control-center', label: 'Open Game Control Center', hint: 'Bypass, game boost, network, overlay and gamma light', icon: 'gamepad', action: async () => { try { if (typeof GameMode === 'undefined') throw new Error('Game Control Center cannot be started from this window'); await GameMode.openControlCenter(); } catch (err) { _commandFailed(err); } } },
     { id: 'latency', label: 'Is It Me or the Server?', hint: 'Times your own connection and the game and chat services, and says which one is the slow part', icon: 'activity', isPrimary: true, action: async () => { try { await LatencyCheck.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'siterules', label: 'What This Site Is Allowed', hint: 'Switch JavaScript, cookies or content from other sites off for this site alone', icon: 'sliders', isPrimary: true, action: () => { try { SiteRulesUI.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'meeting', label: 'Meeting Mode', hint: 'Holds your reminders, mutes other tabs and opens a note for this meeting — run again to end it', icon: 'users', isPrimary: true, action: () => { try { MeetingMode.toggle(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
@@ -234,7 +245,7 @@ const CommandBar = {
     { id: 'triage', label: 'What My Inbox Actually Wants', hint: 'Sorts your unread mail into what wants an answer, what is worth a look, and bulk grouped by sender', icon: 'mail', isPrimary: true, action: async () => { try { await InboxTriage.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'smallmodel', label: 'Small Model for Routine Jobs', hint: 'Pick a quick local model for tab grouping, indexing and sorting, while chat and the agent keep yours', icon: 'cpu', action: async () => { try { const models = await Ollama.listModels(); if (!models || !models.length) { window.showToast?.('No local models installed — Settings › AI has the model manager', 'error'); return; } const names = models.map(m => m.name || m.model).filter(Boolean); const now = AIRouter.getSmallModel(); const pick = await window.vexPrompt({ title: 'Small model for routine jobs', message: 'Installed: ' + names.join(', ') + '. Leave it empty to use one model for everything.', label: 'Model name', value: now, okLabel: 'Use it' }); if (pick === null) return; AIRouter.setSmallModel(pick); window.showToast?.(pick.trim() ? 'Routine jobs now go to ' + pick.trim() : 'One model for everything again'); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'forget-routing', label: 'Forget What Vex Learned About My Phrasing', hint: 'Empties the corrections Vex learned from your /chat and /agent overrides', icon: 'undo', action: async () => { const n = RouteLearn.size(); if (!n) { window.showToast?.('Nothing learned yet'); return; } if (await vexConfirm({ title: 'Forget the ' + n + ' words it learned?', message: 'Vex goes back to deciding chat or task from its own rules alone.', okLabel: 'Forget them', danger: true })) { RouteLearn.forget(); window.showToast?.('Forgotten'); } } },
-    { id: 'memceiling', label: 'Set the Memory Ceiling from This Machine', hint: 'Works out a ceiling from what this machine actually has, instead of the same number for everyone', icon: 'cpu', isPrimary: true, action: async () => { try { const r = await window.vex.systemMemory(); if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not read this machine’s memory', 'error'); return; } const ok = await vexConfirm({ title: 'Set the ceiling to ' + r.ceilingMB + ' MB?', message: 'Vex sleeps idle tabs once it goes over the ceiling. Suggested because ' + r.why + '.', okLabel: 'Set it' }); if (!ok) return; const st = (await VexStorage.loadSettings()) || {}; st.memCeilingMB = r.ceilingMB; await VexStorage.saveSettings(st); TabManager.startMemoryGuard(r.ceilingMB); const sel = document.getElementById('setting-mem-ceiling'); if (sel) sel.value = String(r.ceilingMB); window.showToast?.('Ceiling set to ' + r.ceilingMB + ' MB', 'success'); } catch (err) { window.showToast?.(err.message, 'error'); } } },
+    { id: 'memceiling', label: 'Set the Memory Ceiling from This Machine', hint: 'Works out a ceiling from what this machine actually has, instead of the same number for everyone', icon: 'cpu', isPrimary: true, action: async () => { try { const r = await window.vex.systemMemory(); if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not read this machine’s memory', 'error'); return; } const ok = await vexConfirm({ title: 'Set the ceiling to ' + r.ceilingMB + ' MB?', message: 'Vex sleeps idle tabs once it goes over the ceiling. Suggested because ' + r.why + '.', okLabel: 'Set it' }); if (!ok) return; if (typeof window.vexSetMemCeiling !== 'function') throw new Error('Settings are still loading — try again in a moment'); const used = await window.vexSetMemCeiling(r.ceilingMB); window.showToast?.('Ceiling set to ' + r.ceilingMB + ' MB' + (used !== r.ceilingMB ? ' — Memory Saver holds it at ' + used + ' MB while it is on' : ''), 'success'); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'live', label: 'Who Is Live', hint: 'The Twitch and YouTube channels you follow, and which are streaming now — no account needed', icon: 'tv', isPrimary: true, action: async () => { try { await LiveChannels.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'media', label: 'Download Media on Page', hint: 'Find video/audio playing on this page and save it (progressive files; copy link for HLS)', icon: 'video', action: () => { if (typeof MediaGrabber !== 'undefined') MediaGrabber.run(); } },
     { id: 'focus', label: 'Focus 25', hint: 'Hide all chrome + block distracting sites for 25 minutes (run again to stop)', icon: 'target', action: () => FocusMode.toggle(25) },
@@ -247,24 +258,25 @@ const CommandBar = {
     { id: 'bookmark', label: 'Bookmark This Page', hint: 'Star/unstar the current page', icon: 'star', action: () => { const t = TabManager.getActiveTab(); if (t && t.url) Bookmarks.toggle(t.url, t.title); } },
     { id: 'bookmarks', label: 'Bookmarks', hint: 'Open the bookmarks panel', icon: 'bookmark', isPrimary: true, action: () => SidebarManager.openPanel ? SidebarManager.openPanel('bookmarks') : SidebarManager.showPanel('bookmarks') },
     { id: 'feeds', label: 'Feeds (RSS)', hint: 'Open your feed reader', icon: 'newspaper', isPrimary: true, action: () => SidebarManager.openPanel ? SidebarManager.openPanel('feeds') : SidebarManager.showPanel('feeds') },
+    { id: 'feed-subscribe', label: "Subscribe to this page's feed", hint: 'Add the RSS or Atom feed this page names to your Feeds', icon: 'newspaper', action: () => { if (typeof VexFeeds === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } VexFeeds.subscribeToPage(); } },
     { id: 'container-work', label: 'New Work Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-work' }) },
     { id: 'container-personal', label: 'New Personal Container Tab', hint: 'Isolated cookies — log into a second account', icon: 'archive', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-personal' }) },
     { id: 'container-shopping', label: 'New Shopping Container Tab', hint: 'Isolated cookies — tracked separately from your main session', icon: 'cart', action: () => TabManager.createTab(START_URL, true, null, { partition: 'persist:container-shopping' }) },
-    { id: 'handoff', label: 'Send to My Devices', hint: 'Hand this tab off to your other Vex devices (needs Vex Sync)', icon: 'phone', action: async () => {
-      const t = TabManager.getActiveTab();
-      if (!t || !t.url) { window.showToast?.('No active page to send'); return; }
-      try { await SyncEngine.dropSend(t.url, t.title || ''); window.showToast?.('Sent — it will appear on your other devices'); }
-      // A down server showed the browser's raw "Failed to fetch" (found 2026-09-29).
-      catch (err) { window.showToast?.(SyncSettings.human(err.message || 'Send failed'), 'error'); }
-    } },
+    // The same menu as the tab menu and the address bar's send button
+    // (js/handoff.js). Not offered for a private or Tor tab or a Vex page.
+    { id: 'handoff', label: 'Send to My Devices', hint: 'Send this tab to your phone or your other computers (Vex Sync)', icon: 'send',
+      when: () => typeof Handoff !== 'undefined' && typeof TabManager !== 'undefined' && Handoff.sendable(TabManager.getActiveTab()).ok,
+      action: () => Handoff.openMenu(TabManager.getActiveTab()) },
     { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: 'message', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: 'sparkles', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
     { id: 'spotify', label: 'Spotify', hint: 'Open Spotify panel', icon: 'music', isPrimary: true, action: () => SidebarManager.openPanel('spotify') },
     { id: 'roblox', label: 'Roblox Hub', hint: 'Open Roblox panel', icon: 'gamepad', isPrimary: true, action: () => SidebarManager.openPanel('roblox') },
+    // A web panel's page as a tab, still signed in (js/panel-to-tab.js).
+    ...((typeof PanelToTab !== 'undefined') ? PanelToTab.commands() : []),
     { id: 'github', label: 'GitHub', hint: 'Open GitHub panel', icon: 'git', isPrimary: true, action: () => SidebarManager.openPanel('github') },
-    { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: 'refresh', action: () => WebviewManager.reload() },
-    { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: 'refresh', action: () => WebviewManager.hardReload() },
+    { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: 'refresh', action: () => NavLock.run('reload') },
+    { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: 'refresh', action: () => NavLock.run('hardReload') },
     { id: 'history-overlay', label: 'History (quick view)', hint: 'View browsing history in an overlay', icon: 'clipboard', action: () => CommandBar.showHistory() },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: 'settings', action: () => SidebarManager.openPanel('settings') },
     { id: 'tools', label: 'Tools', hint: 'Open your tools', icon: 'wrench', action: () => CommandBar.showTools() },
@@ -309,23 +321,55 @@ const CommandBar = {
     { id: 'markup', label: 'Mark Up This Page', hint: 'Draw, highlight, add text, or redact private details on a picture of the page, then save or copy it', icon: 'edit', action: async () => { try { await ScreenshotTool.markUp(); } catch (e) { window.showToast?.(e.message, 'error'); } } },
     { id: 'screenshot-full', label: 'Screenshot the Whole Page', hint: 'Top to bottom in one image, not just the part on screen', icon: 'camera', action: () => ScreenshotTool.captureFull() },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', hint: 'View all shortcuts', icon: 'keyboard', action: () => SidebarManager.openPanel('shortcuts') },
-    { id: 'theme', label: 'Choose Theme', hint: 'Pick a theme (Ctrl+Shift+Y)', icon: 'palette', action: () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null) },
+    { id: 'theme', label: 'Choose Theme', hint: 'Pick a theme', shortcut: 'Ctrl+Shift+Y', icon: 'palette', action: () => (typeof ThemePicker !== 'undefined' ? ThemePicker.open() : null) },
     { id: 'zoom-in', label: 'Zoom In', hint: 'Zoom in 10%', icon: 'search', action: () => WebviewManager.zoomIn() },
     { id: 'zoom-out', label: 'Zoom Out', hint: 'Zoom out 10%', icon: 'search', action: () => WebviewManager.zoomOut() },
     { id: 'zoom-reset', label: 'Reset Zoom', hint: 'Reset to 100%', icon: 'search', action: () => WebviewManager.zoomReset() },
     // Phase 6 commands
     { id: 'fullscreen', label: 'Toggle Fullscreen', hint: 'Enter/exit fullscreen', shortcut: 'F11', icon: 'maximize', action: () => window.vex.toggleFullscreen?.() },
-    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Shift+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get()) },
+    { id: 'private', label: 'Private Window', hint: 'Open incognito window', shortcut: 'Ctrl+Alt+N', icon: 'incognito', action: () => window.vex.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')) },
     { id: 'mute', label: 'Mute Tab', hint: 'Mute/unmute current tab', shortcut: 'Ctrl+M', icon: 'mute', action: () => TabManager.toggleMuteTab() },
     { id: 'mute-all', label: 'Mute All Others', hint: 'Mute all except active tab', icon: 'mute', action: () => TabManager.muteAllOtherTabs() },
+    // The same slider as Quick Tools > Master Volume (js/master-volume.js); it
+    // had no command, so the Library could only describe it.
+    { id: 'master-volume', label: 'Master Volume', hint: 'One slider, 0 to 500%, for the sound of every tab', icon: 'sliders', action: () => { if (typeof MasterVolume === 'undefined') throw new Error('Master Volume is not available in this window'); MasterVolume.show(); } },
     { id: 'pin', label: 'Pin/Unpin Tab', hint: 'Toggle pin on current tab', icon: 'pin', action: () => TabManager.togglePinTab() },
+    // Ctrl+S, as in every browser: one file or a PDF (found missing
+    // 2026-10-10). A page with a save of its own keeps Ctrl+S (page first).
+    { id: 'save-as', label: 'Save Page As…', hint: 'The whole page in one file that opens offline, or a PDF', icon: 'save', action: async () => {
+      if (!window.PageExport) throw new Error('Saving pages is not available in this window');
+      const pdf = () => window.PageExport.savePage('pdf').catch(e => window.showToast?.(e.message, 'error'));
+      const one = await window.vexConfirm({ title: 'Save this page', message: 'As one file (.mhtml) with its pictures and styles, which opens offline, or as a PDF.', okLabel: 'One file', extra: { label: 'PDF', run: pdf } });
+      if (one) await window.PageExport.savePage('mhtml');
+    } },
+    // Settings had the only way in (found 2026-10-10); Ctrl+Shift+Delete too.
+    { id: 'clear-data', label: 'Clear Browsing Data', hint: 'Cookies, cache, history, Recall and saved sessions — asks first', icon: 'trash', action: () => {
+      const btn = document.getElementById('setting-clear-data');
+      if (!btn) throw new Error('Clearing browsing data is not available in this window');
+      btn.click();
+    } },
     { id: 'export-data', label: 'Export All Data', hint: 'Download all Vex data as JSON', icon: 'save', action: () => { document.getElementById('setting-export')?.click(); } },
+    // The documents you agreed to, to read again at any time (js/legal.js).
+    ...[
+      ['legal-privacy', 'Privacy Policy', 'Legal: what Vex sends, where and when, and the switch that turns each thing off', 'PRIVACY.md'],
+      ['legal-terms', 'Terms of Use', 'Legal: the terms you agreed to when you started Vex', 'TERMS.md'],
+      ['legal-license', 'License (MIT)', 'Legal: the open-source license Vex is released under', 'LICENSE'],
+      ['legal-notices', 'Third-party Notices', 'Legal: licenses of the open-source parts Vex is built with', 'THIRD_PARTY_NOTICES.md'],
+    ].map(([id, label, hint, doc]) => ({ id, label, hint, icon: 'file', action: () => {
+      if (typeof VexLegal === 'undefined') throw new Error('Vex’s documents are not available in this window');
+      return VexLegal.openDoc(doc);
+    } })),
     // Phase 7A: AI commands
     { id: 'tabs-toggle', label: 'Toggle Tabs Sidebar', hint: 'Show/hide tabs panel', shortcut: 'Ctrl+B', icon: 'sidebar', action: () => window.toggleTabsSidebar?.() },
     { id: 'dev-mode', label: 'Developer mode', hint: 'Show the developer dashboard and its shortcuts', icon: 'terminal', action: () => {
       if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
       if (!VexDevMode.toggle()) { window.showToast?.('Could not save that preference', 'error'); return; }
       window.showToast?.(VexDevMode.isOn() ? 'Developer mode on' : 'Developer mode off');
+    } },
+    { id: 'simple-mode', label: 'Simple mode', hint: 'Show only the everyday buttons, panels and settings — or all of them again', icon: 'grid', action: () => {
+      if (typeof VexSimpleMode === 'undefined') { window.showToast?.('Simple mode is not available in this build', 'error'); return; }
+      const mode = VexSimpleMode.toggle();
+      window.showToast?.(mode === 'simple' ? 'Simple mode on — All features in the toolbar shows everything' : 'All features are on');
     } },
     { id: 'dev-dashboard', label: 'Developer dashboard', hint: 'Diagnostics and the quick actions for working on Vex', icon: 'terminal', action: () => {
       if (typeof VexDevMode === 'undefined') { window.showToast?.('Developer mode is not available in this build', 'error'); return; }
@@ -334,7 +378,7 @@ const CommandBar = {
     } },
     { id: 'ai', label: 'Vex AI', hint: 'Open AI assistant panel', shortcut: 'Ctrl+Shift+A', icon: 'sparkles', isPrimary: true, action: () => AIPanel.toggle() },
     { id: 'summarize-ai', label: 'Summarize Page', hint: 'AI summary of current page', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('summarize'); } },
-    { id: 'translate-ai', label: 'AI Translate', hint: 'Translate page content with AI', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { targetLanguage: 'English' }); } },
+    { id: 'translate-ai', label: 'AI Translate', hint: 'Translate page content with AI', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { targetLanguage: AIPanel.translateTarget() }); } },
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
     { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
@@ -378,9 +422,9 @@ const CommandBar = {
       if (!choice) { window.showToast?.(`Choose a number from 1 to ${PageWatch.EVERY.length}`, 'error'); return; }
       const every = choice.ms;
       try {
-        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target });
-        window.showToast?.('Watching — Vex will say when it changes');
-        PageWatch.checkOne(w.id);                 // the first look sets the baseline
+        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target, byUser: true });
+        window.showToast?.('Watching — Vex will say when it changes' + (w.local ? '. ' + PageWatch.localNote(w) : ''));
+        PageWatch.firstLook(w);                   // the first look sets the baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },
     { id: 'watchgithub', label: 'Tell me when this GitHub run finishes', hint: 'Or when this repository has a new release — asked of GitHub, told on your desktop', icon: 'alarm', isPrimary: true, action: async () => {
@@ -424,7 +468,9 @@ const CommandBar = {
       const n = parseInt(pick, 10);
       const chosen = options[n - 1];
       if (!chosen) return;
-      TabManager.navigateTo ? TabManager.navigateTo(chosen.url) : TabManager.createTab(chosen.url, true);
+      // The tab you are on moves; it called a TabManager.navigateTo that
+      // does not exist, so it always opened a new tab (found 2026-10-10).
+      WebviewManager.navigate(chosen.url);
     } },
     { id: 'setenv', label: 'Set environments', hint: 'Tell Vex this site\u2019s staging and local addresses', icon: 'code', action: async () => {
       if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
@@ -454,7 +500,7 @@ const CommandBar = {
       const chosen = servers[parseInt(pick, 10) - 1];
       if (chosen) TabManager.createTab(chosen.url, true);
     } },
-    { id: 'capture', label: 'Quick capture', hint: 'A box over everything for a note, a reminder or a timer — give it a hotkey in Settings › Privacy', icon: 'clipboard', isPrimary: true, action: async () => {
+    { id: 'capture', label: 'Quick capture', hint: 'A box over everything for a note, a reminder or a timer — give it a hotkey in Settings › Privacy Hardening › Gaming and streaming', icon: 'clipboard', isPrimary: true, action: async () => {
       if (!window.vex || typeof window.vex.captureOpen !== 'function') { window.showToast?.('Quick capture is not available in this build', 'error'); return; }
       try { await window.vex.captureOpen(); } catch (err) { window.showToast?.((err && err.message) || 'Could not open it', 'error'); }
     } },
@@ -635,7 +681,7 @@ const CommandBar = {
       if (calc) {
         this.results.push({
           id: 'calc', isPrimary: !calc.unavailable, icon: 'calculator',
-          label: window.escapeHtml ? window.escapeHtml(calc.text) : calc.text,
+          label: calc.text,
           hint: calc.unavailable ? '' : 'Press Enter to copy the result',
           action: async () => { if (calc.unavailable) return; try { await navigator.clipboard.writeText(calc.value || calc.text); window.showToast?.('Copied ' + calc.text); } catch (err) { _commandFailed(err); } },
         });
@@ -643,9 +689,14 @@ const CommandBar = {
 
       // Is it an address? Read from what was typed, not the lower-cased copy
       // used for matching: "…watch?v=dQw4w9WgXcQ" opened "…v=dqw4w9wgxcq".
-      const url = _typedAddress().addressFor(query);
+      // The address bar's answer (js/typed-address.js resolve), so keywords
+      // and the engine are the same here (found 2026-10-10).
+      const where = _typedAddress().resolve(query);
+      const url = where && where.kind === 'address' ? where.url : null;
       if (url) {
-        const shown = window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim();
+        // As text: renderResults sets labels with textContent, so escaping
+        // here showed "a&amp;b" (found 2026-10-10).
+        const shown = query.trim();
         this.results.push({
           id: 'url',
           label: `Go to ${shown}`,
@@ -655,7 +706,7 @@ const CommandBar = {
           action: () => {
             const tab = TabManager.getActiveTab();
             if (tab && isStartPage(tab.url)) {
-              WebviewManager.navigate(url);
+              WebviewManager.navigate(url, { httpFallback: !!where.guessedHttps });
             } else {
               TabManager.createTab(url, true);
             }
@@ -683,14 +734,19 @@ const CommandBar = {
       this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
       this.results.push(...quickAfter);
 
-      // Search action
+      // Search action: "@yt cats" on YouTube, as in the address bar. It used
+      // to open a new tab beside the empty New Tab you were in.
+      const searched = where && where.kind === 'keyword' ? where
+        : { url: _typedAddress().searchUrl(query), name: _typedAddress().engineInfo().name, query: query.trim() };
       this.results.push({
         id: 'search',
-        label: `Search "${window.escapeHtml ? window.escapeHtml(query.trim()) : query.trim()}"`,
-        hint: _typedAddress().SEARCH_ENGINES[_typedAddress().currentEngine()].name + ' Search',
+        label: `Search "${searched.query}"`,
+        hint: searched.name + ' Search',
         icon: 'search',
         action: () => {
-          TabManager.createTab(_typedAddress().searchUrl(query), true);
+          const tab = TabManager.getActiveTab();
+          if (tab && isStartPage(tab.url)) WebviewManager.navigate(searched.url);
+          else TabManager.createTab(searched.url, true);
         }
       });
 
@@ -829,7 +885,6 @@ const CommandBar = {
   _clipResults(q) {
     if (!q || !window.ClipboardHistory || !window.ClipboardHistory.enabled()) return [];
     try {
-      const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
       const needle = q.toLowerCase();
       const out = [];
       for (const item of window.ClipboardHistory.list()) {
@@ -839,7 +894,7 @@ const CommandBar = {
         out.push({ score: (at === 0 ? 60 : 45) + (item.pinned ? 5 : 0), r: {
           id: 'clip:' + item.id,
           icon: this._icon(item.pinned ? 'pin' : 'clipboard'),
-          label: esc(window.ClipboardHistory.preview(item, 64)),
+          label: window.ClipboardHistory.preview(item, 64),
           hint: (item.pinned ? 'Kept · ' : 'Copied · ') + (item.host || 'a page') + ' · copies it again',
           action: () => { window.ClipboardHistory.use(item.id).catch(e => window.showToast?.(e.message, 'error')); },
         } });
@@ -874,9 +929,13 @@ const CommandBar = {
             // Run it where it can be run; otherwise show it in the Library,
             // which is where its explanation lives.
             try {
-              if ((f.cmd || f.panel) && typeof VexGuide !== 'undefined') { VexGuide.run(f); return; }
+              // Anything with a way to open it (command, panel, Settings
+              // switch, control) opens; the rest show their "How it works".
+              if (VexFeatures.actions(f).length && typeof VexGuide !== 'undefined') { VexGuide.run(f); return; }
             } catch (err) { window.showToast?.(err.message, 'error'); return; }
             try {
+              // At this entry, so its "How it works" is the first thing seen.
+              if (typeof FeatureLibrary !== 'undefined' && FeatureLibrary.openAt) { FeatureLibrary.openAt(f.id); return; }
               if (typeof ReadLater !== 'undefined') ReadLater.showTab('features');
               SidebarManager.openPanel('library');
             } catch (err) { window.showToast?.(err.message || 'That could not be opened', 'error'); }
@@ -977,6 +1036,9 @@ const CommandBar = {
   doAgain() {
     const c = this.lastCommand();
     if (!c) { window.showToast?.('Nothing to do again yet — run something from Ctrl+K first'); return false; }
+    // Ctrl+Alt+A comes here without the list: the command's own when() still
+    // decides (it repeated Send to My Devices on a private tab).
+    if (!this._shown(c)) { window.showToast?.(c.label + ' cannot run here', 'warn'); return false; }
     this._execute(c);
     return true;
   },
@@ -1090,11 +1152,10 @@ const CommandBar = {
   async showHistory() {
     this.close();
     // One list. The History panel and the address-bar suggestions read
-    // HistoryPanel's store; this used to read the separate file-backed copy,
-    // which has a different shape and a smaller cap, so the two disagreed.
-    const history = (typeof HistoryPanel !== 'undefined' && HistoryPanel.list().length)
-      ? HistoryPanel.list()
-      : await VexStorage.loadHistory();
+    // HistoryPanel's store, the only copy since the file-backed one was
+    // folded into it (main/history-fold.js).
+    if (typeof HistoryPanel === 'undefined') throw new Error('The history list is not loaded');
+    const history = HistoryPanel.list();
     this.open();
     this.results = history.slice(0, 15).map(h => ({
       id: 'hist-' + (h.id || h.visitedAt || h.time),
@@ -1117,8 +1178,49 @@ const CommandBar = {
       icon: t.icon,
       action: () => VexTools.openTool(t)
     }));
+    // A fresh profile has no tools, and this said only "No results found"
+    // (walkthrough M4, 2026-10-07): say what a tool is and how to add one.
+    if (!this.results.length) {
+      this.results = [
+        { id: 'tool-add', label: 'Add a tool…', hint: 'You have no tools yet. A tool is a site you use often, kept one click away — give it a name and an address', icon: 'plus',
+          action: () => { if (typeof VexTools === 'undefined') throw new Error('Tools are not available right now'); VexTools.showEditModal(); } },
+        { id: 'tool-toolbox', label: 'Open the Toolbox', hint: 'The built-in tools — regex, JSON, hashes, colours — and your tools once you add them', icon: 'toolbox',
+          action: () => { if (!window.Toolbox) throw new Error('The Toolbox is not available right now'); Toolbox.open(); } },
+      ];
+    }
     this.renderResults();
   }
 };
+
+// The key a command shows is the key that runs it, read from the shortcut
+// registry each time. They were typed in by hand: Private Window said
+// Ctrl+Shift+N, which opens Notes, and a key moved in Settings › Shortcuts
+// still showed the old one (found 2026-10-10). Command id -> registry id; a
+// registry entry that names its command (`cmd`) and a key you gave a command
+// yourself ('cmd:<id>') are found without being listed here.
+const COMMAND_SHORTCUT_IDS = {
+  dictate: 'dictate', 'do-again': 'do-again', new: 'new-tab', 'keys-sheet': 'keys-sheet',
+  print: 'print-page', viewsource: 'view-source', close: 'close-tab', reload: 'reload',
+  'hard-reload': 'hard-reload', pip: 'pip', split: 'split-screen', 'session-load': 'sessions',
+  reopen: 'reopen-tab', history: 'history-panel', memory: 'memory-panel', sleep: 'sleep-tab',
+  read: 'reading-mode', screenshot: 'screenshot', fullscreen: 'fullscreen', private: 'private-window',
+  mute: 'mute-tab', 'tabs-toggle': 'tabs-sidebar', ai: 'ai-panel', schedules: 'schedules',
+  remember: 'history-ai', 'group-tabs': 'group-tabs', theme: 'toggle-theme', 'lock-vex': 'lock-vex',
+  bookmark: 'bookmark', 'zoom-reset': 'zoom-reset',
+};
+CommandBar._keyFor = function (c, typed) {
+  if (typeof ShortcutsRegistry === 'undefined') return typed;
+  const rid = COMMAND_SHORTCUT_IDS[c.id];
+  if (rid) return ShortcutsRegistry.getShortcut(rid) || typed;
+  const all = ShortcutsRegistry.getAllShortcuts();
+  const own = all['cmd:' + c.id];
+  if (own && own.current) return own.current;
+  for (const id in all) if (all[id].cmd === c.id && all[id].current) return all[id].current;
+  return typed;
+};
+for (const c of CommandBar.commands) {
+  const typed = c.shortcut;
+  Object.defineProperty(c, 'shortcut', { get() { return CommandBar._keyFor(c, typed); }, enumerable: true, configurable: true });
+}
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { CommandBar };

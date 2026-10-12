@@ -16,6 +16,7 @@ const settle = async () => { for (let i = 0; i < 30 && AIPanel._sending; i++) aw
 beforeEach(() => {
   document.body.innerHTML = `
     <button id="btn-toggle-ai"></button>
+    <div id="main-layout"></div>
     <div id="ai-panel" class="open">
       <div id="ai-current-tab"></div>
       <div id="ai-messages"></div>

@@ -1,12 +1,47 @@
 const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permission', 'geolocation:get', 'privacy:config-sync', 'screen-share:get-quality',
-  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut']);
+  '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog', 'start-page:is-own',
+  // A page's passkey request and the list for a field's chooser, from the page
+  // preload (preload-passkeys.js); main takes the site from the asking frame.
+  'passkeys:request', 'passkeys:cancel', 'passkeys:conditional-list']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon']);
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history',
+  // The site panel's per-page permissions and certificate (main.js): a private
+  // window's page keeps its answers in memory, so these stay allowed there.
+  'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate',
+  // Which address one of Vex's own pages in a tab stands for (main/vex-page-address.js).
+  'tabs:vex-page-address',
+  // A page saved or captured by its id: only one of the asking window's own
+  // (security scan L1).
+  'page:save', 'page:capture-full',
+  // A picture for the AI, fetched through that page's own session (main.js).
+  'image:for-ai']);
 // siterules:set: a private window starts with an empty list, and saving it
 // wiped every per-site rule. adblocker-set-state: main keeps one switch, so a
 // private window turned blocking off for every window (both found 2026-09-29).
 // routing:forget/prune follow the main window's site rules, as routing:set does.
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|site:clear-data|sync-|recall:|vault:save|vault:delete|totp:add|totp:delete|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:)/;
+// site:clear-data is allowed: main clears the private window's own session
+// (main.js, _siteSessionFor). Writes that would land in the main profile are
+// not: restoring saved settings, reminders, mail accounts, and a page opened as
+// an app or an overlay, which live in persist:main (security scan L2, L3).
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|mcp:auth-set|downloads:(?:choose-folder|set-ask|reset-prefs))/;
+// Channels only Vex's own window may use — never a page, an extension, the
+// Picture-in-Picture pop-out or any other auxiliary window, whatever
+// isAuxiliary comes to allow. clipboard:write-secret puts a password on the
+// system clipboard (main/secret-clipboard.js). theme:read-wallpaper hands
+// back the owner's desktop picture (main/wallpaper.js).
+// The sync-secrets-* channels read and write saved passwords and authenticator
+// accounts for Vex Sync (main/sync-secrets.js).
+const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
+  'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
+  // The agreement at start (js/legal.js): its documents, its "Quit Vex", and
+  // whether it is up (main holds its keys back meanwhile).
+  'legal:read', 'app:quit', 'legal:gate',
+  // Starting the owner's Game Control Center and choosing where it is
+  // (main/game-control-center.js): launching a program is never a page's call.
+  'gcc:launch', 'gcc:get', 'gcc:pick', 'gcc:clear',
+  // Passkeys (main/passkeys.js): answering the sheet, Settings' list and a
+  // field's chooser pick are never a page's call.
+  'passkeys:answer', 'passkeys:list', 'passkeys:delete', 'passkeys:undo-delete', 'passkeys:rename', 'passkeys:conditional-choose']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -15,8 +50,13 @@ function validatePayload(channel, args) {
   if (channel === 'persist-set' && /^vex\.(bookmarks|sessions|history|workspaces|groups|stacks|shortcuts)$/.test(args[0])) {
     dataContracts.storage(args[0].slice(4), JSON.parse(args[1]));
   }
+  if (channel === 'persist-apply') {
+    for (const [key, value] of args[0]) {
+      if (!/^(?:vex[._-])[\w.:-]{1,160}$/.test(key)) throw new Error('Invalid preference key');
+      if (value !== null && /^vex\.(bookmarks|sessions|history|workspaces|groups|stacks|shortcuts)$/.test(key)) dataContracts.storage(key.slice(4), JSON.parse(value));
+    }
+  }
   const contracts = require('./contracts');
-  if (channel === 'storage:history-add') contracts.assertHistoryEntry(args[0]);
   if (channel === 'storage-save' && args[0] === 'tabs') contracts.assertTabs(args[1]);
   const encoded = JSON.stringify(args);
   if (encoded.length > 12 * 1024 * 1024) throw new Error('IPC payload too large');
@@ -44,12 +84,15 @@ function installIpcPolicy(ipcMain, security) {
       // nothing else (renderer/capture.html, preload-capture.js).
       const senderUrl = event.senderFrame?.url || '';
       if (/^file:.*\/renderer\/capture\.html(?:[?#]|$)/i.test(senderUrl) && ['capture:submit', 'capture:close'].includes(channel)) return host;
-      // Start page preloads expose only these two read-only features.
-      const start = senderUrl;
-      if (!(host && /^file:.*\/renderer\/start\.html(?:[?#]|$)/i.test(start) && ['web-suggest', 'theme:get-custom-image'].includes(channel))) {
+      // Start page preloads expose only these two read-only features. Vex's
+      // own start.html, by its whole path: any file named renderer/start.html
+      // passed before (audit SE6, 2026-10-10).
+      if (!(host && ['web-suggest', 'theme:get-custom-image'].includes(channel) && security.isStartPageFile(senderUrl))) {
         throw new Error('Untrusted IPC sender');
       }
     }
+    // Past the general rule above, a UI-only channel still needs Vex's own window.
+    if (UI_ONLY_CHANNELS.has(channel) && !ui) throw new Error('Not available outside Vex’s own window');
     // A <webview> that has just attached reports its id as -1; the DevTools
     // opener then matches the page by URL and checks ownership itself, so the
     // id check only applies when there is an id to check.
@@ -74,10 +117,11 @@ function installIpcPolicy(ipcMain, security) {
     if (host?.privatePartition) {
       if (channel === 'storage-load') return host.data[args[0]] ?? null;
       if (channel === 'storage-save') { host.data[args[0]] = structuredClone(args[1]); return true; }
-      if (channel === 'storage:history-add' || channel === 'storage:flush') return true;
+      if (channel === 'storage:flush') return true;
       if (channel === 'persist-get-all') return { ...host.persist };
       if (channel === 'persist-set') { host.persist[args[0]] = args[1]; return true; }
       if (channel === 'persist-delete') { delete host.persist[args[0]]; return true; }
+      if (channel === 'persist-apply') { for (const [key, value] of args[0]) { if (value === null) delete host.persist[key]; else host.persist[key] = value; } return true; }
       if (channel === 'sync-load-key' || channel === 'sync-load-meta') return null;
       // A private window neither reads nor writes the recall index.
       if (channel === 'recall:search') return { total: 0, hits: [], terms: [], took: 0, private: true };
@@ -99,6 +143,15 @@ function installIpcPolicy(ipcMain, security) {
     catch (err) {
       if (channel === 'privacy:config-sync') { event.returnValue = { farble: false }; return; }
       if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
+      // A page's alert / confirm / prompt waits on this answer (sendSync), so a
+      // refused one still answers: as cancelled, never left waiting for ever.
+      // The start-page check waits on this one (sendSync): refused, it is told no.
+      if (channel === 'start-page:is-own') { try { event.returnValue = false; } catch (replyErr) { console.error('[IPC] could not answer "' + channel + '":', replyErr.message); } return; }
+      if (channel === 'page-dialog') {
+        console.warn('[IPC] refused "page-dialog": %s', (err && err.message) || err);
+        try { event.returnValue = null; } catch (replyErr) { console.error('[IPC] could not answer "page-dialog":', replyErr.message); }
+        return;
+      }
       // Everything else used to be swallowed without a word, which is how a
       // refused message from the Picture-in-Picture pop-out looked exactly
       // like a button that did nothing. Say which channel was refused and why
@@ -107,4 +160,4 @@ function installIpcPolicy(ipcMain, security) {
     }
   });
 }
-module.exports = { installIpcPolicy, validatePayload };
+module.exports = { installIpcPolicy, validatePayload, UI_ONLY_CHANNELS };

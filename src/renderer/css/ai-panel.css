@@ -19,7 +19,9 @@
 #ai-panel {
   --ai-gap: 14px;
   --ai-col: 720px;            /* readable column width in focus mode */
-  position: fixed; right: 0; top: 0; bottom: 0;
+  /* --ai-top: where the page area starts (ai-panel.js _placeBelowChrome), so
+     the panel never covers the tab strip, toolbar or window buttons. */
+  position: fixed; right: 0; top: var(--ai-top, 0px); bottom: 0;
   width: 420px; max-width: 100vw;
   background: var(--bg-2);
   border-left: 1px solid var(--border);
@@ -31,10 +33,11 @@
 }
 #ai-panel.open { transform: translateX(0); }
 
-/* Focus mode: take the window. Rounded and inset slightly so it reads as a
+/* Focus mode: take the page area (the tabs, toolbar and window buttons stay
+   usable above it). Rounded and inset slightly so it reads as a
    surface over Vex rather than a second application. */
 #ai-panel.expanded {
-  right: 0; left: 0; top: 0; bottom: 0;
+  right: 0; left: 0; top: var(--ai-top, 0px); bottom: 0;
   width: 100vw;
   border-left: none;
   background: var(--bg);
@@ -46,7 +49,7 @@
 /* The dimmer behind focus mode. Clicking it closes, same as clicking away
    from the docked panel. */
 #ai-backdrop {
-  position: fixed; inset: 0; z-index: 999;
+  position: fixed; inset: 0; top: var(--ai-top, 0px); z-index: 999;
   background: color-mix(in srgb, var(--vex-bg-deep, #000) 55%, transparent);
   backdrop-filter: blur(2px);
   opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
@@ -155,7 +158,7 @@
 
 .ai-msg.user {
   align-self: flex-end; max-width: 85%;
-  background: var(--primary); color: #fff;
+  background: var(--primary); color: var(--on-primary, #fff);
   border-bottom-right-radius: 5px;
 }
 .ai-msg.assistant {
@@ -271,7 +274,7 @@
 }
 .ai-msg-act:hover { color: var(--text); border-color: var(--primary); }
 .ai-msg-act.done { color: var(--success, #22c55e); border-color: var(--success, #22c55e); }
-.ai-msg.user .ai-msg-act { background: var(--primary-hover, var(--primary)); border-color: rgba(255,255,255,0.35); color: #fff; }
+.ai-msg.user .ai-msg-act { background: var(--primary-hover, var(--primary)); border-color: rgba(255,255,255,0.35); color: var(--on-primary, #fff); }
 
 /* The old single copy button, kept for anything still rendering it. */
 .ai-copy-btn {
@@ -292,7 +295,7 @@
   padding: 4px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
   font-family: inherit; white-space: nowrap;
 }
-.ai-feature-chip:hover { background: var(--primary); color: #fff; }
+.ai-feature-chip:hover { background: var(--primary); color: var(--on-primary, #fff); }
 
 .ai-msg .follow-ups { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; user-select: none; }
 .ai-msg .follow-up-btn {
@@ -339,7 +342,7 @@
   padding: 6px 11px; border-radius: 999px; font-size: 12px; cursor: pointer;
   font-family: inherit; transition: all 0.15s;
 }
-.ai-quick-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+.ai-quick-btn:hover { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
 .persona-prompts-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .persona-prompt {
@@ -372,7 +375,7 @@
 #ai-stop-agent { display: none; }
 #ai-stop-agent.visible { display: inline-block; }
 #ai-send {
-  background: var(--primary); color: #fff; border: none;
+  background: var(--primary); color: var(--on-primary, #fff); border: none;
   width: 32px; height: 32px; border-radius: 9px; cursor: pointer; flex: none;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.15s ease, opacity 0.15s ease;
@@ -442,7 +445,7 @@
   background: var(--surface); border: 1px solid var(--border); color: var(--text);
   padding: 5px 9px; border-radius: 8px; font-size: 11.5px; cursor: pointer; font-family: inherit;
 }
-.selector-mode.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.selector-mode.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 #selector-tab-list { max-height: 180px; overflow-y: auto; margin-top: 6px; }
 #selector-summary { font-size: 11px; color: var(--text-muted); padding: 6px 4px 2px; }
 
@@ -455,7 +458,7 @@
   padding: 3px 10px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
   font-family: inherit; transition: all 0.15s;
 }
-.mode-btn.active { background: var(--primary); color: #fff; }
+.mode-btn.active { background: var(--primary); color: var(--on-primary, #fff); }
 .mode-btn:not(.active):hover { color: var(--text); }
 
 .ai-footer {

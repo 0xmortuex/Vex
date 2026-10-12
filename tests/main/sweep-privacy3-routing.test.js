@@ -51,13 +51,18 @@ describe('main wiring', () => {
     expect(fn).not.toMatch(/proxyRules: String\(custom\)/);
   });
   it('the private session obeys the third-party and cookie switches', () => {
-    const fn = main.slice(main.indexOf('function openPrivateWindow'), main.indexOf('const privWin = new BrowserWindow'));
-    expect(fn).toMatch(/SiteRules\.blocksThirdParty\(/);
+    // Wired by _wireEphemeralBrowsing, which off-the-record tabs get too.
+    const open = main.slice(main.indexOf('function openPrivateWindow'), main.indexOf('const privWin = new BrowserWindow'));
+    expect(open).toMatch(/_wireEphemeralBrowsing\(privSession, 'private'\)/);
+    const fn = main.slice(main.indexOf('function _wireEphemeralBrowsing'), main.indexOf('function openPrivateWindow'));
+    // The third-party switch is asked through the shared verdict (src/main/ad-verdict.js), which honours it unless told not to.
+    expect(fn).toMatch(/_adVerdict\.judge\(details, ses\);/);
     expect(fn).toMatch(/SiteRules\.blocksCookies\(/);
   });
   it('Clear History has a channel that erases the backup copies', () => {
     const fn = main.slice(main.indexOf("ipcMain.handle('browsing:clear-history'"), main.indexOf("ipcMain.handle('open-pip-window'"));
-    expect(fn).toMatch(/dataStore\.clear\('history', \[\]\)/);
+    // The old second copy (history.json) and its backup are removed outright.
+    expect(fn).toMatch(/dataStore\.remove\('history'\)/);
     expect(fn).toMatch(/preferences\.clearKeys\(\['vex\.history', 'vex\.recentlyClosed'\]\)/);
     const { schemas } = require('../../src/main/ipc-schemas.js');
     expect(schemas.has('browsing:clear-history')).toBe(true);

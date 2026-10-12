@@ -22,12 +22,23 @@ html[data-vex-scale] #top-bar,
 html[data-vex-scale] #top-tab-bar,
 html[data-vex-scale] #icon-sidebar,
 html[data-vex-scale] #tabs-sidebar,
-html[data-vex-scale] #gui-shortcuts,
+html[data-vex-scale] #gui-shortcuts-bar,
 html[data-vex-scale] #ai-panel,
 html[data-vex-scale] #command-bar,
 html[data-vex-scale] .tab-context-menu,
 html[data-vex-scale] .vex-dialog,
-html[data-vex-scale] .panel:not(:has(webview)) {
+html[data-vex-scale] .panel:not(:has(webview)),
+/* Larger and Largest missed these (cat-themes TH5). The overflow menu and the
+   toasts are placed from JS in viewport pixels, so their CONTENT grows and the
+   box stays where the script put it; the pickers and the keys sheet grow as
+   the centred box inside their full-window backdrop. */
+html[data-vex-scale] .toast-item,
+html[data-vex-scale] #find-bar,
+html[data-vex-scale] #look-sb-head,
+html[data-vex-scale] .vex-theme-picker,
+html[data-vex-scale] .vexfont,
+html[data-vex-scale] .vexkeys,
+html[data-vex-scale] .tb-overflow-menu > * {
   zoom: var(--vex-ui-scale);
 }
 
@@ -57,3 +68,10 @@ html[data-vex-density="tight"] .tab-item + .tab-item,
 html[data-vex-density="tight"] .setting-toggle-row + .setting-toggle-row {
   border-top: 1px solid var(--vex-border-subtle, var(--border));
 }
+
+/* A zoomed box's own vh/vw caps are zoomed with it: at Largest the theme
+ * picker and the keys sheet ran 130% of the window tall, top and bottom cut
+ * off. The caps are divided back so the box still fits the window. */
+html[data-vex-scale] .vex-theme-picker { width: min(840px, calc(92vw / var(--vex-ui-scale))); max-height: calc(86vh / var(--vex-ui-scale)); }
+html[data-vex-scale] .vexfont { max-width: calc(100vw / var(--vex-ui-scale)); max-height: calc(88vh / var(--vex-ui-scale)); }
+html[data-vex-scale] .vexkeys { max-width: calc(94vw / var(--vex-ui-scale)); max-height: calc(84vh / var(--vex-ui-scale)); }

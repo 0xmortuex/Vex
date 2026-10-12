@@ -7,7 +7,7 @@
 // to say why.
 
 import { describe, it, expect, vi } from 'vitest';
-const { createGpuProbe, parse, roomFor } = require('../../src/main/gpu.js');
+const { createGpuProbe, parse } = require('../../src/main/gpu.js');
 
 const REAL = 'NVIDIA GeForce RTX 4060, 92, 7708, 8188\n';
 
@@ -49,16 +49,5 @@ describe('reading nvidia-smi', () => {
   it('no NVIDIA card, no driver, or a tool that is not there: null, and Vex says nothing about it', async () => {
     const probe = createGpuProbe({ execFile: (c, a, o, cb) => cb(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })) });
     expect(await probe.read()).toBe(null);
-  });
-});
-
-describe('roomFor', () => {
-  it('says yes, no, or "no idea" — never a refusal on no information', () => {
-    const busy = parse(REAL);
-    expect(roomFor(busy, 5500)).toBe(false);             // a 5.5 GB model on 480 MB free
-    expect(roomFor(parse('GPU, 5, 500, 8188'), 5500)).toBe(true);
-    expect(roomFor(null, 5500)).toBe(null);
-    expect(roomFor(busy)).toBe(false);                   // no figure given: is there room at all
-    expect(roomFor(parse('GPU, 5, 500, 8188'))).toBe(true);
   });
 });

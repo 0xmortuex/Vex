@@ -13,10 +13,10 @@ const { vexGuestEval } = require('../../src/renderer/js/vex-utils.js');
 const source = readFileSync('src/renderer/js/dom-extractor.js', 'utf8');
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 it('keeps private highlights on the page without adding them to saved annotations', async () => {
-  const wv = { getURL: () => 'https://example.test', executeJavaScript: vi.fn(async () => 'Private selection') };
+  const wv = { getURL: () => 'https://example.test', executeJavaScript: vi.fn(async () => JSON.stringify({ text: 'Private selection', quote: { exact: 'Privateselection', prefix: '', suffix: '' } })) };
   vi.stubGlobal('WebviewManager', { getActiveWebview: () => wv });
   vi.stubGlobal('TabManager', { getActiveTab: () => ({ url: wv.getURL() }) });
-  window.VexTabPolicy = { canReadWebview: () => false };
+  window.VexTabPolicy = { canReadWebview: () => false, canFillWebview: () => false };
   Annotations.store = {};
   try {
     await Annotations.highlight('yellow');

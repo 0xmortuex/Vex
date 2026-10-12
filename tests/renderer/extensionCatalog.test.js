@@ -32,9 +32,16 @@ describe('extension catalogue', () => {
 
   it('lists the limits a user would otherwise blame on themselves', () => {
     const text = VexExtensionCatalog.UNSUPPORTED.join(' ').toLowerCase();
-    for (const missing of ['contextmenus', 'commands', 'storage.sync', 'cookies', 'tor']) {
+    for (const missing of ['storage.sync', 'cookies', 'tor', 'global shortcuts', 'seticon']) {
       expect(text, missing).toContain(missing);
     }
+  });
+
+  // Right-click menu items, shortcuts and badges work since 2026-10-08
+  // (src/main/extension-ui.js, src/main/extension-commands.js).
+  it('no longer lists right-click menus, shortcuts or badges as missing', () => {
+    const text = VexExtensionCatalog.UNSUPPORTED.join(' ').toLowerCase();
+    expect(text).not.toMatch(/contextmenus|right-click|badge text|keyboard shortcuts \(commands\)/);
   });
 
   // tabs.create works through Vex's stand-in (preload-webview.js), so it is

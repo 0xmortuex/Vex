@@ -48,7 +48,7 @@ const ExtensionsSettings = (() => {
         background:var(--surface,rgba(255,255,255,0.04));}
       .ext-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;font-size:10px;
         font-weight:600;vertical-align:middle;}
-      .ext-badge.ok{background:color-mix(in srgb, #22c55e 20%, transparent);color:#22c55e;}
+      .ext-badge.ok{background:color-mix(in srgb, var(--success) 20%, transparent);color:var(--success);}
       .ext-badge.off{background:color-mix(in srgb, #9a9aa5 22%, transparent);color:var(--text-muted,#9a9aa5);}
       .ext-badge.bad{background:color-mix(in srgb, #ef4444 20%, transparent);color:#ef4444;}
       .ext-error{color:#ef4444;font-size:11px;margin-top:4px;line-height:1.35;word-break:break-word;}
@@ -89,6 +89,28 @@ const ExtensionsSettings = (() => {
       .ext-webstore-note{font-size:11px;color:var(--text-muted,#9a9aa5);margin-top:5px;line-height:1.4;}
       .ext-scope{font:inherit;font-size:11px;padding:2px 6px;border-radius:6px;background:var(--surface,rgba(255,255,255,0.04));
         color:var(--text,#e9e9ee);border:1px solid var(--border,rgba(255,255,255,0.12));cursor:pointer;}
+      .ext-updates{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px;font-size:12px;color:var(--text,#e9e9ee);}
+      .ext-updates-status{flex-basis:100%;font-size:11px;color:var(--text-muted,#9a9aa5);line-height:1.4;}
+      .ext-source{margin-top:4px;font-size:11px;color:var(--text-muted,#9a9aa5);line-height:1.4;}
+      .ext-pending{margin-top:6px;padding:6px 8px;border-radius:7px;font-size:11.5px;line-height:1.45;
+        border:1px solid color-mix(in srgb, #f59e0b 55%, transparent);background:color-mix(in srgb, #f59e0b 10%, transparent);color:var(--text,#e9e9ee);}
+      .ext-pending ul{margin:3px 0 4px;padding-left:16px;}
+      .ext-fileaccess{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;font-size:11px;color:var(--text-muted,#9a9aa5);}
+      .ext-commands{margin-top:7px;display:flex;flex-direction:column;gap:4px;font-size:11px;}
+      .ext-commands-title{display:flex;align-items:center;gap:5px;color:var(--text-muted,#9a9aa5);font-weight:600;}
+      .ext-command{display:grid;grid-template-columns:minmax(0,1fr) minmax(96px,auto) auto;align-items:center;gap:6px;color:var(--text,#e9e9ee);}
+      .ext-command-what{min-width:0;overflow-wrap:anywhere;}
+      .ext-command-btns{display:flex;gap:6px;justify-content:flex-start;min-width:118px;}
+      .ext-command-key{font:inherit;font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer;text-align:center;
+        border:1px solid var(--border,rgba(255,255,255,0.12));background:var(--surface,transparent);color:var(--text,#e9e9ee);font-family:ui-monospace,Consolas,monospace;}
+      .ext-command-key.unset{color:var(--text-muted,#9a9aa5);font-family:inherit;}
+      .ext-command-key.capturing{border-color:var(--primary,#6366f1);}
+      .ext-command-note{grid-column:1 / -1;color:var(--vex-warning,#d97706);}
+      @media (max-width: 760px) {
+        .ext-command{display:flex;flex-wrap:wrap;gap:4px 6px;}
+        .ext-command-what{flex:1 1 100%;}
+        .ext-command-btns{min-width:0;}
+      }
     `;
     document.head.appendChild(st);
   }
@@ -115,6 +137,141 @@ const ExtensionsSettings = (() => {
       </div>`;
   }
 
+  // What will not work here: the install dialog said it once, and the card
+  // never did again (EX7).
+  function _cautionsHtml(e) {
+    const list = (e && Array.isArray(e.cautions)) ? e.cautions : [];
+    if (!list.length) return '';
+    return `<details class="ext-cautions"><summary>What will not work in Vex (${list.length})</summary>
+      <ul class="ext-powers">${list.map(c => `<li>${_esc(c)}</li>`).join('')}</ul></details>`;
+  }
+
+  // Where it came from, and so whether Vex can update it.
+  function _sourceHtml(e) {
+    const s = e.source;
+    let says;
+    if (s && s.kind === 'webstore') says = 'From the Chrome Web Store. Vex keeps it up to date from there.';
+    else if (s && s.kind === 'catalog') {
+      says = `From its publisher's GitHub releases${s.repo ? ` (${_esc(s.repo)}${s.tag ? ', ' + _esc(s.tag) : ''})` : ''}. Vex keeps it up to date from there. `
+        + (s.digestChecked ? 'The download matched the digest GitHub published for it.' : 'GitHub published no digest for this file, so the download could not be checked against one.')
+        + ' These releases are not signed or reviewed by any store.';
+    } else says = 'Installed from a file or a folder: not from the Chrome Web Store, and Vex cannot update it by itself.';
+    return `<div class="ext-source">${says}</div>`;
+  }
+
+  // A newer version that asks for more waits for the person; the last
+  // update and the last failed check are said too.
+  function _updateHtml(e) {
+    const u = e.update;
+    if (!u) return '';
+    const out = [];
+    if (u.pending) {
+      out.push(`<div class="ext-pending"><strong>Update needs approval:</strong> version ${_esc(u.pending.version)} asks for more than this one:
+        <ul>${(u.pending.added || []).map(a => `<li>${_esc(a.says)}</li>`).join('')}</ul>
+        <button class="ext-open-btn" data-update-approve="${_esc(e.folder)}" data-name="${_esc(e.name)}" data-version="${_esc(u.pending.version)}">Update</button></div>`);
+    }
+    if (u.last) {
+      const when = new Date(u.last.at).toLocaleDateString();
+      out.push(`<div class="ext-source">Updated ${{ approved: 'with your approval ', auto: 'automatically ', check: 'by "Check now" ' }[u.last.how] || ''}from v${_esc(u.last.from)} to v${_esc(u.last.to)} on ${_esc(when)}.</div>`);
+    }
+    if (u.error) out.push(`<div class="ext-error">Last update check failed: ${_esc(u.error)}</div>`);
+    return out.join('');
+  }
+
+  // Chrome's "Allow access to file URLs": off unless switched on here.
+  function _fileAccessHtml(e) {
+    let note = '';
+    if (e.fileAccessKept) note = 'Left on when Vex made this a choice: its manifest names file:// pages, so working on your files is part of its job.';
+    else if (e.fileUrls && !e.fileAccess) note = 'Its manifest names file:// pages; it cannot run on files on this computer until you allow this.';
+    return `<div class="ext-fileaccess"><label class="ext-toggle"><input type="checkbox" data-file-access="${_esc(e.folder)}"${e.fileAccess ? ' checked' : ''}> Allow access to file URLs</label>${note ? `<span>${_esc(note)}</span>` : ''}</div>`;
+  }
+
+  // An extension's keyboard shortcuts (chrome.commands): its own suggested
+  // keys, or the ones you chose; a key Vex or another extension already
+  // answers is shown as taken, not active (main.js, extensions:commands).
+  function _commandsHtml(e, commands) {
+    if (!commands || !e.loaded) return '';
+    const rows = (commands.byFolder || {})[e.folder] || [];
+    if (!rows.length) return '';
+    return `<div class="ext-commands"><div class="ext-commands-title">${VexIcons.svg('keyboard', { size: 12 })} Keyboard shortcuts</div>
+      ${rows.map(r => {
+        const what = /^_execute_(browser_|page_)?action$/.test(r.name) ? (e.hasPopup ? 'Open its toolbar popup' : 'Click its toolbar button') : (r.description || r.name);
+        const key = r.shortcut ? _esc(r.shortcut) : 'Not set';
+        let note = '';
+        if (r.conflict === 'vex') note = `Its key is taken by Vex (${_esc(r.conflictWith)}), so it has none here. Choose another.`;
+        else if (r.conflict === 'extension') note = `Its key is already ${_esc(r.conflictWith)}'s shortcut, so it has none here. Choose another.`;
+        else if (r.suggestedError) note = `Its own key cannot be used here: ${_esc(r.suggestedError)}.`;
+        const data = `data-cmd-folder="${_esc(e.folder)}" data-cmd-name="${_esc(r.name)}"`;
+        return `<div class="ext-command">
+          <span class="ext-command-what">${_esc(what)}</span>
+          <button class="shortcut-key ext-command-key${r.shortcut ? '' : ' unset'}" ${data} data-cmd-record title="Press to choose a key">${key}</button>
+          <span class="ext-command-btns">
+          ${r.shortcut ? `<button class="ext-open-btn" ${data} data-cmd-remove title="Take the key away">Remove</button>` : ''}
+          ${r.source === 'user' || r.source === 'removed' ? `<button class="ext-open-btn" ${data} data-cmd-reset title="Back to the extension's own key">Reset</button>` : ''}
+          </span>
+          ${note ? `<div class="ext-command-note">${note}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Record a key for a command: the key goes to main as pressed (its physical
+  // key, so Ctrl+Shift+1 is not Ctrl+Shift+!), and main decides.
+  let _cancelCmdCapture = null;
+  function _captureCommandKey(btn, container) {
+    if (_cancelCmdCapture) _cancelCmdCapture();
+    const original = btn.innerHTML;
+    btn.classList.add('capturing');
+    btn.textContent = 'Press keys… (Esc to cancel)';
+    const onKey = async (ev) => {
+      if (!btn.isConnected) { stop(); return; }
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === 'Escape') { stop(); return; }
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(ev.key)) return;
+      stop();
+      const r = await window.vex.extensionsSetCommandKey({ folder: btn.dataset.cmdFolder, command: btn.dataset.cmdName,
+        key: { key: ev.key, code: ev.code, ctrl: ev.ctrlKey || ev.metaKey, alt: ev.altKey, shift: ev.shiftKey } });
+      if (r && r.ok) _toast(r.shortcut ? `Set to ${r.shortcut}` : 'Saved', 'success');
+      else _toast((r && r.error) || 'That key could not be set', 'warn');
+      render(container);
+    };
+    const onDown = (ev) => { if (ev.target !== btn) stop(); };
+    const onBlur = () => stop();
+    const keep = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
+    function stop() {
+      if (_cancelCmdCapture === stop) _cancelCmdCapture = null;
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('blur', onBlur);
+      clearInterval(keep);
+      btn.classList.remove('capturing');
+      btn.innerHTML = original;
+      window.vex?.setShortcutCapturing?.(false);
+    }
+    _cancelCmdCapture = stop;
+    // While recording, main lets every key through to here (Ctrl+T would
+    // open a tab, an extension's own key would fire).
+    window.vex?.setShortcutCapturing?.(true);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('blur', onBlur);
+  }
+
+  function _ago(ms) {
+    const m = Math.round((Date.now() - ms) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    const h = Math.round(m / 60);
+    return h < 48 ? h + ' h ago' : Math.round(h / 24) + ' days ago';
+  }
+  function _updatesStatusText(s) {
+    if (!s || !s.ok) return (s && s.error) || 'Could not read the update state.';
+    if (s.checking) return 'Checking now…';
+    if (!s.lastCheck) return (s.lastOutcome ? s.lastOutcome + ' ' : '') + 'Not checked yet: the first check runs two minutes after Vex starts, then every six hours.';
+    return `Last checked ${_ago(s.lastCheck)}. ${s.lastOutcome || ''}`;
+  }
+
   async function render(container) {
     if (!container) container = document.getElementById('extensions-panel-content');
     if (!container) return;
@@ -124,6 +281,14 @@ const ExtensionsSettings = (() => {
     let listError = null;
     try { extensions = await window.vex.extensionsList(); }
     catch (err) { listError = (err && err.message) || String(err); }
+    let updates = null;
+    try { updates = await window.vex.extensionsUpdateStatus(); }
+    catch (err) { updates = { ok: false, error: (err && err.message) || String(err) }; }
+    let commands = null, commandsError = null;
+    if (typeof window.vex.extensionsCommands === 'function') {
+      try { commands = await window.vex.extensionsCommands(); if (commands && commands.error) commandsError = commands.error; }
+      catch (err) { commandsError = (err && err.message) || String(err); }
+    }
 
     // The ones that can read everything come first: this list is read to
     // check, and what you are checking for should not be at the bottom.
@@ -144,11 +309,18 @@ const ExtensionsSettings = (() => {
 
         ${listError ? `<div class="ext-state-error">Couldn't read the installed extensions: ${_esc(listError)}</div>` : ''}
         ${stateError ? `<div class="ext-state-error">${_esc(stateError)}</div>` : ''}
+        ${commandsError ? `<div class="ext-state-error">Extension shortcuts: ${_esc(commandsError)}</div>` : ''}
 
         <div class="extensions-actions">
           <button class="btn-primary" id="btn-install-zip">${VexIcons.svg('box', { size: 14 })} Install from .zip / .crx</button>
           <button class="btn-secondary" id="btn-install-folder">${VexIcons.svg('folder', { size: 14 })} Install from folder</button>
           <button class="btn-link" id="btn-open-ext-folder">Open extensions folder</button>
+        </div>
+
+        <div class="ext-updates">
+          <label class="ext-toggle" style="font-size:12px;color:var(--text,#e9e9ee)"><input type="checkbox" id="ext-auto-update"${updates && updates.ok && updates.auto ? ' checked' : ''}${updates && updates.ok ? '' : ' disabled'}> Update extensions automatically</label>
+          <button class="ext-open-btn" id="btn-ext-check-updates"${updates && updates.checking ? ' disabled' : ''}>${VexIcons.svg('refresh', { size: 12 })} Check now</button>
+          <div class="ext-updates-status" id="ext-updates-status">${_esc(_updatesStatusText(updates))} Extensions from the Chrome Web Store or the list below are checked; a new version that asks for more waits for your approval. Not on a metered connection, and never from a private window.</div>
         </div>
 
         <div class="ext-webstore">
@@ -177,7 +349,7 @@ const ExtensionsSettings = (() => {
                 <li>Extract it, locate the folder containing <code>manifest.json</code></li>
                 <li>Click &quot;Install from folder&quot; &rarr; pick that folder</li>
               </ol>
-              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code> (<code>storage.sync</code> is kept on this machine, not synced), <code>chrome.tabs</code> (including opening and closing tabs), <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, <code>chrome.permissions</code>, options pages and toolbar popups.</p>
+              <p><strong>What works here:</strong> content scripts (page tweaks, themes, readers), <code>chrome.storage</code> (<code>storage.sync</code> is kept on this machine, not synced), <code>chrome.tabs</code> (including opening and closing tabs), <code>chrome.scripting</code>, <code>chrome.alarms</code>, <code>chrome.i18n</code>, <code>chrome.permissions</code>, options pages and toolbar popups, right-click menu items (<code>chrome.contextMenus</code>, in the page's menu and on the extension's row in the extensions menu), keyboard shortcuts (<code>chrome.commands</code>, changeable on the extension's card below) and badge text on its icon in the extensions menu.</p>
               <p><strong>What Electron can't do:</strong></p>
               <ul class="ext-unsupported">${VexExtensionCatalog.UNSUPPORTED.map(u => `<li>${_esc(u)}</li>`).join('')}</ul>
             </div>
@@ -188,7 +360,7 @@ const ExtensionsSettings = (() => {
           <details data-ext-catalog${extensions.length === 0 || catalogWasOpen ? ' open' : ''}>
             <summary>Extensions worth installing</summary>
             <div class="help-content">
-              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. <strong>Install</strong> fetches the latest release from the publisher's own GitHub and installs it; press it again later to update.</p>
+              <p class="setting-info muted" style="margin:0 0 8px">Each of these was checked against what Electron actually supports. <strong>Install</strong> fetches the latest release from the publisher's own GitHub and installs it; Vex then keeps it up to date from there (or press it again to update now).</p>
               ${VexExtensionCatalog.ENTRIES.map(x => {
                 const have = extensions.find(e => String(e.name || '').toLowerCase() === x.name.toLowerCase());
                 return `
@@ -230,14 +402,20 @@ const ExtensionsSettings = (() => {
                       <option value="auto"${e.scope !== 'everywhere' ? ' selected' : ''}>where it applies</option>
                       <option value="everywhere"${e.scope === 'everywhere' ? ' selected' : ''}>everywhere — every app panel too</option>
                     </select></div>` : ''}
+                  ${_sourceHtml(e)}
+                  ${_updateHtml(e)}
                   ${_auditHtml(e)}
-                  ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements — and its background page costs about 85 MB for that.</div>` : ''}
+                  ${_fileAccessHtml(e)}
+                  ${_commandsHtml(e, commands)}
+                  ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements${e.persistentBackground ? ' — and its background page stays loaded for that, about 85 MB' : ''}.</div>` : ''}
+                  ${_cautionsHtml(e)}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>
                 <div class="ext-card-actions">
                   ${e.hasPopup && e.loaded ? `<button class="ext-open-btn" data-popup="${_esc(e.folder)}">Popup</button>` : ''}
                   ${e.optionsUrl ? `<button class="ext-open-btn" data-options="${_esc(e.optionsUrl)}">Options</button>` : ''}
                   ${e.webstore ? `<button class="ext-open-btn" data-webstore-update="${_esc(e.webstore)}" title="Download the newest version from the Chrome Web Store">Update from Web Store</button>` : ''}
+                  <label class="ext-toggle" title="Its own button on the toolbar, beside the extensions button"><input type="checkbox" data-pin="${_esc(e.folder)}" ${e.pinned ? 'checked' : ''}> Pinned</label>
                   <label class="ext-toggle"><input type="checkbox" data-toggle="${_esc(e.folder)}" ${e.enabled ? 'checked' : ''}> On</label>
                   <button class="btn-danger-sm" data-folder="${_esc(e.folder)}" data-name="${_esc(e.name || e.folder)}">Uninstall</button>
                 </div>
@@ -303,17 +481,83 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-webstore-update]').forEach(btn => {
       btn.addEventListener('click', () => webStoreInstall(btn.dataset.webstoreUpdate, btn));
     });
-    document.getElementById('btn-install-zip')?.addEventListener('click', async () => {
-      const r = await window.vex.extensionsInstallZip();
-      if (r.cancelled) return;
-      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
-      else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
+    // A .zip, .crx or folder: main checks it and says what it asks for (a
+    // .crx through the same signature checks as a Web Store install); the
+    // same dialog as a Web Store install; then main installs that one.
+    const pickAndInstall = async (pick) => {
+      const p = await pick();
+      if (!p || p.cancelled) return;
+      if (!p.ok) { _toast('Could not install: ' + (p.error || 'unknown'), 'error'); return; }
+      // A Chrome theme's .crx becomes one of your themes (js/chrome-theme.js).
+      if (p.isTheme && typeof ChromeTheme !== 'undefined' && await ChromeTheme.offer(p) !== 'extension') return;
+      if (p.refuse) { await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse }); return; }
+      if (typeof VexWebStore === 'undefined') { _toast('The install dialog is not available in this window', 'error'); return; }
+      const yes = await vexConfirm({ ...VexWebStore.confirmWords(p), html: VexWebStore.dialogHtml(p) });
+      if (!yes) return;
+      const r = await window.vex.extensionsInstallPicked(p.token);
+      if (r && r.ok) { _toast(_installedText(r), 'success'); render(container); }
+      else _toast('Install failed: ' + ((r && r.error) || 'unknown'), 'error');
+    };
+    document.getElementById('btn-install-zip')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallZip()).catch(err => _toast('Could not install: ' + ((err && err.message) || err), 'error')));
+    document.getElementById('btn-install-folder')?.addEventListener('click', () => pickAndInstall(() => window.vex.extensionsInstallFolder()));
+    container.querySelector('#ext-auto-update')?.addEventListener('change', async (ev) => {
+      const box = ev.currentTarget;
+      const r = await window.vex.extensionsSetAutoUpdate(box.checked);
+      if (!r || !r.ok) { box.checked = !box.checked; _toast('Could not change it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+      _toast(r.auto ? 'Extensions are updated automatically' : 'Extensions are no longer updated automatically', 'success');
     });
-    document.getElementById('btn-install-folder')?.addEventListener('click', async () => {
-      const r = await window.vex.extensionsInstallFolder();
-      if (r.cancelled) return;
-      if (r.ok) { _toast(_installedText(r), 'success'); render(container); }
-      else _toast('Install failed: ' + (r.error || 'unknown'), 'error');
+    container.querySelector('#btn-ext-check-updates')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      const status = container.querySelector('#ext-updates-status');
+      if (status) status.textContent = 'Checking now…';
+      const r = await window.vex.extensionsUpdateCheck();
+      if (!r || !r.ok) _toast('Could not check for updates: ' + ((r && r.error) || 'unknown'), 'error');
+      else _toast(r.lastOutcome || 'Checked', (r.failed && r.failed.length) ? 'error' : 'success');
+      render(container);
+    });
+    container.querySelectorAll('[data-update-approve]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!await vexConfirm({ title: `Update "${btn.dataset.name}"?`, message: `Version ${btn.dataset.version} gets the extra permissions listed on its card.`, okLabel: 'Update' })) return;
+        btn.disabled = true;
+        const r = await window.vex.extensionsUpdateApprove(btn.dataset.updateApprove);
+        if (r && r.ok) _toast(r.current ? `${btn.dataset.name} is already up to date` : `Updated ${r.name || btn.dataset.name} to v${r.version}`, 'success');
+        else _toast('Update failed: ' + ((r && r.error) || 'unknown'), 'error');
+        render(container);
+      });
+    });
+    container.querySelectorAll('[data-file-access]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetFileAccess(box.dataset.fileAccess, wanted);
+        if (!r || !r.ok) { _toast('Could not change file access: ' + ((r && r.error) || 'unknown'), 'error'); }
+        else _toast(wanted ? 'It can now open files on this computer (file:// pages)' : 'It can no longer open files on this computer', 'success');
+        render(container);
+      });
+    });
+    // Pinned to the toolbar (main.js, extensions:set-pinned; js/extensions-menu.js draws it).
+    container.querySelectorAll('[data-pin]').forEach(box => {
+      box.addEventListener('change', async () => {
+        const wanted = box.checked;
+        const r = await window.vex.extensionsSetPinned(box.dataset.pin, wanted);
+        if (!r || !r.ok) { box.checked = !wanted; _toast('Could not ' + (wanted ? 'pin' : 'unpin') + ' it: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        _toast(wanted ? 'Pinned to the toolbar' : 'No longer pinned', 'success');
+      });
+    });
+    container.querySelectorAll('[data-cmd-record]').forEach(btn => {
+      btn.addEventListener('click', () => _captureCommandKey(btn, container));
+    });
+    const setKey = async (btn, request, done) => {
+      const r = await window.vex.extensionsSetCommandKey({ folder: btn.dataset.cmdFolder, command: btn.dataset.cmdName, ...request });
+      if (r && r.ok) _toast(done(r), 'success');
+      else _toast((r && r.error) || 'That could not be changed', 'error');
+      render(container);
+    };
+    container.querySelectorAll('[data-cmd-remove]').forEach(btn => {
+      btn.addEventListener('click', () => setKey(btn, { key: null }, () => 'The shortcut is off'));
+    });
+    container.querySelectorAll('[data-cmd-reset]').forEach(btn => {
+      btn.addEventListener('click', () => setKey(btn, { reset: true }, (r) => r.shortcut ? `Back to ${r.shortcut}` : (r.conflict ? 'Its own key is taken, so it has none' : 'It has no key of its own')));
     });
     document.getElementById('btn-open-ext-folder')?.addEventListener('click', () => {
       window.vex.extensionsOpenFolder();
@@ -371,12 +615,26 @@ const ExtensionsSettings = (() => {
     container.querySelectorAll('[data-folder]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const folder = btn.dataset.folder;
+        // Switched off and gone from the list at once; its folder (and so its
+        // data) is removed only when the Undo toast goes, so Undo brings it
+        // back as it was, toolbar pin included (main.js, uninstall-later).
+        const r = await window.vex.extensionsUninstallLater(folder);
+        if (!r || !r.ok) { _toast('Uninstall failed: ' + ((r && r.error) || 'unknown'), 'error'); return; }
+        render(container);
         // The extension's name, not its install folder ("devforum-plus-1790659315165")
         // (found 2026-09-29).
-        if (!await vexConfirm({ title: 'Uninstall extension', message: `Uninstall "${btn.dataset.name || folder}"? Restart Vex to fully unload from running tabs.`, okLabel: 'Uninstall', danger: true })) return;
-        const r = await window.vex.extensionsUninstall(folder);
-        if (r.ok) { _toast('Uninstalled — restart Vex to fully remove', 'success'); render(container); }
-        else _toast('Uninstall failed: ' + (r.error || 'unknown'), 'error');
+        window.VexUndo.offer({
+          message: `Uninstalled “${btn.dataset.name || folder}”`,
+          undo: async () => {
+            const back = await window.vex.extensionsUninstallUndo(folder);
+            if (!back || !back.ok) throw new Error((back && back.error) || 'no answer');
+            window.dispatchEvent(new CustomEvent('vex-extensions-changed'));
+          },
+          commit: async () => {
+            const done = await window.vex.extensionsUninstall(folder);
+            if (!done || (!done.ok && done.error !== 'Not found')) throw new Error('Could not remove its files: ' + ((done && done.error) || 'no answer'));
+          },
+        });
       });
     });
   }

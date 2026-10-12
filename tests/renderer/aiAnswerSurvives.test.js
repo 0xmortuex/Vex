@@ -20,6 +20,7 @@ const { AIPanel } = require('../../src/renderer/js/ai-panel.js');
 beforeEach(() => {
   document.body.innerHTML = `
     <button id="btn-toggle-ai" title="Toggle AI Panel"></button>
+    <div id="main-layout"></div>
     <div id="ai-panel">
       <div class="ai-messages" id="ai-messages"></div>
       <textarea id="ai-input"></textarea>

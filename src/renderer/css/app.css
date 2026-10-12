@@ -126,6 +126,17 @@ body {
   cursor: not-allowed;
 }
 
+/* Back / Forward / Reload with nowhere to go, or locked under a side panel
+   (js/nav-lock.js): aria-disabled, so the tooltip saying why still shows.
+   The muted text colour is too close to the buttons' own in some themes;
+   their colour thinned stays readable (3:1, check:ui). */
+#nav-buttons .nav-btn[aria-disabled="true"],
+#nav-buttons .nav-btn[aria-disabled="true"]:hover {
+  color: color-mix(in srgb, var(--vex-text-secondary) 88%, transparent);
+  background: transparent;
+  cursor: default;
+}
+
 /* URL Bar */
 #url-bar-wrapper {
   flex: 1;
@@ -204,6 +215,66 @@ body {
   font-size: 12px;
 }
 
+/* Page zoom when it is not 100% (js/zoom-indicator.js); click to reset. */
+#url-zoom {
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--vex-border-medium, var(--border));
+  background: transparent;
+  color: var(--vex-text-secondary, var(--text-muted));
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#url-zoom:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
+#url-zoom:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+
+/* "Pop-up blocked" when the blocker refused one on this page
+   (js/popup-blocked.js); opens the site panel to allow them. */
+#url-popups {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--vex-border-medium, var(--border));
+  background: transparent;
+  color: var(--vex-text-secondary, var(--text-muted));
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#url-popups[hidden] { display: none; }
+#url-popups:hover { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary, var(--text)); }
+#url-popups:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+
+/* "<site> is full screen — press Esc to exit" (js/fullscreen-notice.js). A
+   popover in the top layer, over the page's own fullscreen; dark like
+   Chrome's, since it sits on the page (often a video), not on Vex. */
+#vex-fullscreen-notice {
+  inset: 24px auto auto 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(24, 24, 28, 0.88);
+  color: #fff;
+  font: 500 14px/1.4 var(--vex-font-base, system-ui, sans-serif);
+  text-align: center;
+  box-shadow: 0 8px 30px var(--vex-shadow-color, rgba(0,0,0,0.5));
+  pointer-events: none;
+}
+
 #url-input::placeholder {
   color: var(--vex-text-muted);
 }
@@ -222,6 +293,62 @@ body {
   overflow-x: clip;
   -webkit-app-region: no-drag;
 }
+
+/* Toolbar overflow (js/toolbar-overflow.js). When the bar does not fit it goes
+   compact first, then moves buttons into the chevron's menu (the address bar's
+   own buttons too), then goes tight (no logo, smaller gaps); a moved button
+   that is clicked from the menu stands in, invisible, where the chevron is, so
+   the menu it opens under itself lands there (walkthrough H1, 2026-10-07). */
+#top-bar.tb-compact #vex-logo > span { display: none; }
+#top-bar.tb-compact #vex-logo { padding: 0 4px; }
+#top-bar.tb-compact #workspace-btn { font-size: 0; gap: 4px; padding: 4px 7px; }
+#top-bar.tb-tight #vex-logo { display: none; }
+#top-bar.tb-tight #top-bar-left { gap: 4px; }
+#top-bar.tb-tight #url-bar { gap: 6px; padding-left: 8px; padding-right: 8px; }
+body:not([data-gui-family="browser"]) #top-bar.tb-compact #url-bar-wrapper { padding: 0 6px; }
+#top-bar .tb-overflowed:not(.tb-overflow-proxy) { display: none !important; }
+#top-bar .tb-overflow-proxy {
+  position: fixed !important;
+  left: var(--tb-proxy-left) !important;
+  top: var(--tb-proxy-top) !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#btn-toolbar-overflow { flex: 0 0 auto; }
+#btn-toolbar-overflow[aria-expanded="true"] { background: var(--vex-hover-fill, rgba(255,255,255,0.06)); color: var(--vex-text-primary); }
+.tb-overflow-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+  background: var(--surface, var(--vex-bg-elevated, #1b1b24));
+  border: 1px solid var(--border, var(--vex-border-subtle));
+  box-shadow: 0 14px 44px var(--vex-shadow-color, rgba(0,0,0,0.40));
+}
+.tb-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, var(--vex-text-primary));
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.tb-overflow-item:hover,
+.tb-overflow-item:focus-visible { background: var(--vex-hover-fill, color-mix(in srgb, var(--primary, #6366f1) 16%, transparent)); outline: none; }
+.tb-overflow-ico { width: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.tb-overflow-ico svg { width: 16px; height: 16px; }
+.tb-overflow-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* A top-bar item of its own: never shrinks, and order keeps it last even
    after the layout editor re-appends the bar's regions. */
@@ -529,6 +656,9 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   display: inline-block;
   width: 40px;
   height: 22px;
+  /* Never narrower: in a row with a long label (Settings in columns, full
+     screen) a shrinking switch became a circle with its knob outside it. */
+  flex-shrink: 0;
 }
 
 .toggle input {
@@ -570,6 +700,19 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
 .toggle input:checked + .toggle-slider::before {
   transform: translateX(18px);
   background: var(--vex-accent);
+}
+
+/* Windows contrast themes (forced colours) drop every background, the knob's
+   included, so on and off looked the same (cat-themes TH7). Here the switch
+   draws itself in the system's own colours: an outlined track with a
+   ButtonText knob when off, a Highlight track with a HighlightText knob on. */
+@media (forced-colors: active) {
+  .toggle-slider { forced-color-adjust: none; background: Canvas; border: 1px solid ButtonText; }
+  .toggle-slider::before { background: ButtonText; }
+  /* !important: Settings paints its on-track as a gradient (settings-redesign.css). */
+  .toggle input:checked + .toggle-slider { background: Highlight !important; border-color: Highlight; box-shadow: none !important; }
+  .toggle input:checked + .toggle-slider::before { background: HighlightText; }
+  .toggle input:focus-visible + .toggle-slider { outline: 2px solid Highlight; outline-offset: 2px; }
 }
 
 .setting-info {
@@ -707,10 +850,15 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
 /* Toast container */
 #toast-container {
   position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column;
-  gap: 8px; z-index: 100000; pointer-events: none;
+  /* Above panels and their modals (100000-100070), so the Undo for something
+     deleted inside one can be pressed; under the in-app dialogs, the update
+     cover and the lock screen. */
+  gap: 8px; z-index: 2147483450; pointer-events: none;
 }
 .toast-item {
-  background: var(--vex-glass-strong);
+  /* The frosted layer over the theme's own raised colour: on its own it is
+     10% white in Glass, so a toast over a white page was white on white. */
+  background: linear-gradient(var(--vex-glass-strong), var(--vex-glass-strong)), var(--vex-bg-elevated, var(--surface));
   backdrop-filter: var(--vex-blur-heavy);
   -webkit-backdrop-filter: var(--vex-blur-heavy);
   border: 1px solid var(--vex-border-accent);
@@ -724,9 +872,25 @@ body:not([data-sb-side]) #panels-container[data-split] :is(.panel.sb-primary, .p
   pointer-events: none; font-size: 13px; color: var(--vex-text-primary);
 }
 .toast-item.show { transform: translateX(0); }
+/* A panel with no room beside the toasts ends above them (app.js placeToasts);
+   stronger than the max-height its own placing writes inline. */
+[data-avoid-toasts].toast-capped { max-height: var(--toast-cap) !important; }
 .toast-item.success { border-left-color: var(--vex-success); }
 .toast-item.error { border-left-color: var(--vex-danger); }
 .toast-item.warn { border-left-color: var(--vex-warning); }
+/* A toast with a button (Undo, js/vex-undo.js) is there to be used, so it
+   takes the pointer; it holds still while hovered or focused (app.js). */
+.toast-item.has-action { pointer-events: auto; padding: 6px 6px 6px 14px; }
+.toast-item .toast-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast-item .toast-action {
+  flex: none; padding: 5px 12px; border-radius: var(--vex-radius-sm, 6px);
+  border: 1px solid transparent; background: var(--primary); color: var(--on-primary, #fff);
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.toast-item .toast-action:hover { filter: brightness(1.08); }
+/* A second button on the same toast (Let it sleep beside Reload). */
+.toast-item .toast-action.secondary { background: transparent; color: var(--vex-text-primary); border-color: var(--vex-border-accent); }
+.toast-item .toast-action:focus-visible { outline: 2px solid var(--vex-text-primary); outline-offset: 2px; }
 
 /* === Fullscreen Mode === */
 body.fullscreen #top-bar { display: none; }
@@ -751,7 +915,7 @@ body.fullscreen #tabs-sidebar:hover { transform: translateX(0); }
   cursor: pointer; transition: all var(--transition); -webkit-app-region: no-drag;
 }
 #btn-toggle-tabs:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
-#btn-toggle-tabs.active { background: var(--primary); color: white; border-color: var(--primary); }
+#btn-toggle-tabs.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 
 /* Hidden tabs sidebar */
 #tabs-sidebar { transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease, padding 0.2s ease, margin 0.2s ease; }
@@ -789,7 +953,7 @@ body.tabs-hidden #icon-sidebar:hover::after { opacity: 0.4; }
   transition: all var(--transition); -webkit-app-region: no-drag;
 }
 #btn-toggle-ai:hover { background: var(--surface); color: var(--text); border-color: var(--primary); }
-#btn-toggle-ai.active { background: var(--primary); color: white; border-color: var(--primary); }
+#btn-toggle-ai.active { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
 /* Still answering, with the panel shut. A closed panel used to look exactly
    like a stopped answer, so the button says otherwise. */
 #btn-toggle-ai { position: relative; }
@@ -1062,7 +1226,7 @@ body.private-mode #vex-logo::after {
   padding: 4px 10px; border-radius: var(--vex-radius-sm); cursor: pointer; font: inherit;
   border: 1px solid var(--vex-border-medium); background: transparent; color: inherit;
 }
-.tab-mem-banner .tmb-reload { background: var(--vex-accent); color: #fff; border-color: transparent; }
+.tab-mem-banner .tmb-reload { background: var(--vex-accent); color: var(--on-primary, #fff); border-color: transparent; }
 
 /* Safe mode — why this launch left things out */
 .safe-mode-banner {
@@ -1192,5 +1356,5 @@ body.vex-locked webview { visibility: hidden !important; }
 .vex-lock-icon { color: var(--primary, #4c8dff); }
 .vex-lock-title { font-size: 16px; font-weight: 650; color: var(--text, #eee); }
 .vex-lock-card input { width: 180px; text-align: center; font-size: 18px; letter-spacing: 0.3em; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border, #444); background: var(--bg, #111); color: var(--text, #eee); }
-.vex-lock-card button { padding: 8px 22px; border-radius: 8px; border: none; background: var(--primary, #4c8dff); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.vex-lock-card button { padding: 8px 22px; border-radius: 8px; border: none; background: var(--primary, #4c8dff); color: var(--on-primary, #fff); font: inherit; font-weight: 600; cursor: pointer; }
 .vex-lock-msg { min-height: 16px; font-size: 12px; color: var(--danger, #e5484d); }

@@ -72,7 +72,9 @@ const TabTrail = {
     const tab = typeof TabManager !== 'undefined' ? TabManager.getActiveTab() : null;
     if (!tab) throw new Error('Open a tab first');
     const hops = this.chain(tab.id);
-    if (!hops.length) throw new Error('This tab was not opened from another page — it is where you started');
+    // Not a failure: a tab you opened yourself has no trail. This was a red
+    // error toast (walkthrough L7, 2026-10-07); it is a plain note now.
+    if (!hops.length) { window.showToast?.('This tab is where you started — it was not opened from another page', 'info'); return; }
 
     document.querySelector('.vex-trail-overlay')?.remove();
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));

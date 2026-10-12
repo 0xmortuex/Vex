@@ -27,10 +27,15 @@ describe('Vencord reinstall updates in place', () => {
   });
 
   it('the installed build is handed down to the in-place replace', () => {
-    expect(between('async function _installExtFromZipBuffer', '\n}\n')).toMatch(/_activateInstalledFolder\(destFolder, copyToUpdate\)/);
-    expect(between('async function _activateInstalledFolder', '\n}\n')).toMatch(/previous = copyToUpdate \|\| _installedCopyOf\(destFolder\)/);
+    expect(between('async function _installExtFromZipBuffer', '\n}\n')).toMatch(/_activateInstalledFolder\(destFolder, copyToUpdate, opts\.match\)/);
+    // The copy handed down is the one updated; none handed down, the same
+    // extension by key or source record, never by name alone (EX1).
+    expect(between('async function _activateInstalledFolder', '\n}\n')).toMatch(/if \(copyToUpdate !== undefined\) previous = copyToUpdate;/);
     const find = between('function _installedVencord', '\n}\n');
-    expect(find).toMatch(/_extEntriesOnDisk\(\)/);
+    // Every folder on disk (safe mode or not), less one being uninstalled
+    // with its Undo still on screen.
+    expect(find).toMatch(/_installedEntries\(\)/);
+    expect(between('function _installedEntries', '\n}\n')).toMatch(/_extEntriesOnDisk\(\)\.filter\(e => !removing\[e\.folder\]\)/);
     expect(find).toMatch(/\^vencord-/);
   });
 });

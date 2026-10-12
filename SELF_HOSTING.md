@@ -7,8 +7,25 @@ that **you deploy yourself**. Nothing in the app points at anyone else's backend
 so you never spend someone else's API credits or store your data on their server.
 
 Both workers require the `VEX_STATE` Durable Object binding and SQLite migration
-in their checked-in Wrangler configuration. Provider usage and model requests
+in their checked-in Wrangler configuration; the sync worker also requires
+`VEX_ACCOUNTS` (one object per account) and its `v2` migration. Provider usage and model requests
 may incur charges; this repository does not establish a deployment cost ceiling.
+
+**Names.** The folders are `vex-ai-worker` and `vex-sync-worker`; the Workers they
+deploy are named `vex-ai` and `vex-sync` (the `name` in each `wrangler.toml`) —
+those are the names the Cloudflare dashboard and `wrangler tail` use.
+
+**The KV ids in the checked-in `wrangler.toml` files are the author's own
+namespaces, not placeholders.** They are useless without the author's Cloudflare
+account (they are not secrets), but a deployment on your account cannot bind
+them: remove the `kv_namespaces` block for a fresh deployment, as below.
+
+**Order on a brand-new account: deploy first, then add the secrets.** Before the
+Worker exists, `wrangler secret put` stops to ask whether to create it, and a
+piped value (as in the `EMAIL_HASH_SECRET` line below) cannot answer that
+question. A deployed Worker without its secrets answers every request with
+HTTP 503, so nothing is exposed in between. Secrets take effect as soon as they
+are set — no second deploy is needed.
 
 ---
 
@@ -26,15 +43,18 @@ cd workers/vex-ai-worker
 # 1. Remove the unused legacy kv_namespaces block for a fresh deployment.
 # Keep the durable_objects and migrations sections.
 
-# 2. Add your OpenRouter key as a secret (never commit it)
+# 2. Deploy (it answers 503 until the secrets below exist)
+wrangler deploy
+
+# 3. Add your OpenRouter key as a secret (never commit it)
 wrangler secret put OPENROUTER_API_KEY
 
-# Add a JSON object mapping client names to random access tokens.
-# Example shape: {"desktop":"<random token of at least 24 characters>"}
+# 4. Make an access token for each client (a desktop, a laptop...):
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# then store them as a JSON object mapping a client name to its token, e.g.
+#   {"desktop":"<token 1>","laptop":"<token 2>"}
+# (each token at least 24 characters)
 wrangler secret put VEX_CLIENT_TOKENS
-
-# 3. Deploy
-wrangler deploy
 ```
 
 Wrangler prints a URL like `https://vex-ai.<your-subdomain>.workers.dev`. Put it
@@ -44,9 +64,18 @@ using OS encryption and attaches it to cloud requests in the main process.
 
 The worker requires a valid bearer token. Quotas use durable storage and fail
 closed when unavailable. `DAILY_REQUEST_LIMIT` defaults to 200 per client name
-and accepts an integer from 1 through 1000; per-IP limits also apply. Request
-counts limit usage but do not guarantee a monetary cap. Tokens with the same
-client name share its quota; never embed the OpenRouter key in the desktop app.
+and accepts an integer from 1 through 1000; set it as a plain variable in
+`wrangler.toml`:
+
+```toml
+[vars]
+DAILY_REQUEST_LIMIT = "100"
+```
+
+The daily quota and the per-minute rate limit are counted per client name (per
+token), not per IP address: every device using the same token shares them.
+Request counts limit usage but do not guarantee a monetary cap. Never embed the
+OpenRouter key in the desktop app.
 
 ---
 
@@ -69,28 +98,46 @@ cd workers/vex-sync-worker
 # For an upgrade, retain your existing VEX_SYNC_KV and VEX_AUTH_KV IDs.
 # In both cases keep the durable_objects and migrations sections.
 
-# 2. Configure production email delivery
-wrangler secret put RESEND_API_KEY
-# Set your provider-authorized sender, e.g. Vex Sync <sync@your-domain.example>
-wrangler secret put RESEND_FROM
+# 2. Deploy (on a new account, before the secrets — see the note at the top).
+# Until EMAIL_HASH_SECRET is set, every sync request returns 503.
+wrangler deploy
 
-# 3. The key accounts are stored under (an HMAC of the email address). Set it
-# BEFORE deploying: without it every sync request returns 503. Never change it
-# afterwards — a new value loses every account. Accounts made before this
-# secret existed move to it the next time they sign in.
+# 3. The key accounts are stored under (an HMAC of the email address).
+# Required. Never change it afterwards — a new value loses every account.
+# Accounts made before this secret existed move to it the next time they
+# sign in.
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" | wrangler secret put EMAIL_HASH_SECRET
 
-# 4. Deploy
-wrangler deploy
+# 4. Configure email delivery (see "Who can receive login codes" below)
+wrangler secret put RESEND_API_KEY
+# A sender on a domain you verified in Resend, e.g. Vex Sync <sync@your-domain.example>
+wrangler secret put RESEND_FROM
 ```
+
+### Who can receive login codes
+
+Without `RESEND_FROM`, the worker sends from Resend's shared test sender
+`onboarding@resend.dev`. **Resend delivers mail from that sender only to the
+email address that owns the Resend account.** Signing in with any other address
+fails ("Could not deliver verification email", HTTP 502). To send codes to
+anyone else:
+
+1. Add and verify your own domain in Resend (Domains → Add domain, then the DNS
+   records it lists).
+2. Set `RESEND_FROM` to an address on that domain, e.g.
+   `Vex Sync <sync@your-domain.example>`.
+
+Check delivery after setting it up: run `wrangler tail vex-sync` in one window
+and request a code from Vex in another. "Email delivery is not configured"
+(HTTP 503) means `RESEND_API_KEY` is not set; HTTP 502 means Resend refused
+the request — the tail and the Resend dashboard's log say why (most often an
+unverified sender domain).
 
 Put the printed URL in Vex under **Settings → Cloud Services (self-hosted) →
 Sync Worker URL**, then enable Sync in Settings.
 
-Auth uses a six-digit email code with a five-attempt cap and rate limiting.
-`RESEND_FROM` defaults to the provider's onboarding sender; configure an
-authorized sender for your deployment and test delivery to intended recipients.
-Only local development requests with `DEVELOPMENT_MODE=true` may return a
+Auth uses a six-digit email code with a five-attempt cap and rate limiting
+(per email address and per IP). Only local development requests with `DEVELOPMENT_MODE=true` may return a
 `devCode` without email. Do not rely on this path for a deployed service.
 
 On upgrade, durable storage imports legacy sync records and eligible sessions
@@ -100,7 +147,87 @@ encrypted records with revisions, tombstones, and retained conflict variants.
 An outdated push receives HTTP 409; pull and merge before retrying. A failed
 decryption blocks uploads until a successful pull, preventing a wrong local key
 from overwriting cloud data. Back up local data and recovery codes before an
-upgrade; deployed multi-device migration has not yet been integration-tested.
+upgrade.
+
+### Where the worker keeps things
+
+- **`VEX_STATE`** — one object for what has to be shared: login codes and
+  their wrong-guess counters, the rate limits, and which account each session
+  token belongs to (a `/sync/` request carries only its token). It also keeps
+  every account exactly as workers up to v2.37.0 stored it.
+- **`VEX_ACCOUNTS`** — one object per account, named by the account's key (the
+  HMAC of the address). It holds that account's encrypted data and revision,
+  device list, handoff mailbox and sessions. A request for one account never
+  runs in another account's object, and an object refuses any session that is
+  not its own.
+
+The HTTP protocol is the same as before (`docs/SYNC_PROTOCOL.md`); clients
+need no update.
+
+### Upgrading from v2.37.0 or earlier
+
+Keep the new `wrangler.toml` as it is: the `VEX_ACCOUNTS` binding and the `v2`
+migration (`new_sqlite_classes = ["VexSyncAccount"]`) are required, and the
+`v1` migration must stay. Then:
+
+```bash
+cd workers/vex-sync-worker
+wrangler deploy
+wrangler tail vex-sync     # leave it open while your devices sync
+```
+
+**What happens.** Nothing is copied at deploy time. The first request for an
+account (any device's pull or push, or a sign-in) copies that account out of
+`VEX_STATE` into its own object: the encrypted data with its revision, the
+device list, the handoff mailbox and its sessions. Signed-in devices stay
+signed in, revisions continue where they were, and a stale push still gets 409.
+The copy runs inside the account's object with every other request for the
+account waiting, so two devices arriving at once copy it once; if it is cut
+off, the next request finishes it (a key already copied is never rewritten);
+the account counts as moved only after every copied key has been read back.
+**The old copy in `VEX_STATE` is not deleted** — except by "Delete all cloud
+data" (`DELETE /sync/all`), which removes both. An account made before
+`EMAIL_HASH_SECRET` existed keeps syncing under its old key and is taken over
+by its HMAC key at its next sign-in, with everything synced in between.
+
+**How to verify.** In `wrangler tail`, each account logs once:
+
+```
+[vex-sync] account moved to its own object: <n> records, revision <r>
+```
+
+(`<r>` is the revision it had; no account or address is logged.) Then in Vex,
+**Settings › Vex Sync › Sync Now** on each device: it should say Done, list
+the same devices, and no device should be signed out. Problems log as
+`[vex-sync] account request failed: …` or `[vex-sync] request failed: …`
+(the device sees HTTP 500 and retries on its next sync; nothing is lost).
+An account from before the HMAC key also logs
+`[vex-sync] account from before the HMAC key taken over: <n> records`.
+
+**How to roll back.** `wrangler rollback` may be refused because this deploy
+applied a Durable Object migration (not checked against Cloudflare). This
+always works: keep the new `wrangler.toml`, put back the v2.37.0 worker, add an
+empty `VexSyncAccount` class (a class that has a migration must stay exported),
+and deploy.
+
+```bash
+git show v2.37.0:workers/vex-sync-worker/worker.js > worker.js
+echo 'export class VexSyncAccount { fetch() { return new Response(null, { status: 503 }); } }' >> worker.js
+wrangler deploy
+```
+
+The v2.37.0 worker then serves the copy it left in `VEX_STATE`, as it was at
+the upgrade. Whatever changed since lives only in the account objects: devices
+that signed in since the upgrade must sign in again, devices removed since are
+listed again, and the newest pushes are not on the server until a device pushes
+again (each desktop keeps its own merged copy, gets 409, pulls, merges and
+pushes). Deploying the new worker again picks the account objects up where
+they were.
+
+**Cleaning up.** The old copies stay in `VEX_STATE` (and in the legacy
+`VEX_SYNC_KV`/`VEX_AUTH_KV` namespaces for a deployment older than
+2026-09-07) until a later release removes them. Leave them until every device
+has synced on the new worker; they are encrypted like everything else.
 
 ---
 

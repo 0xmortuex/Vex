@@ -38,6 +38,7 @@ function fakeWindow(id) {
     isDestroyed: () => false,
     send: vi.fn(),
     on: (event, fn) => { handlers['wc:' + event] = fn; },
+    setWindowOpenHandler: (fn) => { handlers.windowOpen = fn; },
     session: {},
   };
   const win = {

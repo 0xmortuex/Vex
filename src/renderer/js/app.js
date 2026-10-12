@@ -29,16 +29,21 @@ function vexOwnTextFocused(doc) {
   // New privacy defaults reach new profiles only; an existing one keeps what
   // it had, and is told once what changed (js/onboarding.js).
   Onboarding.migratePrivacyDefaults();
+  // Simple mode is for new profiles: one that existed before it stays Full
+  // (js/simple-mode.js). Before the sidebar reads the mode.
+  VexSimpleMode.migrate();
 
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {
-    try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '["*"]').join(', '); } catch {}
+    try { passkeyHosts.value = JSON.parse(localStorage.getItem('vex.passkeySuppressedHosts') || '[]').join(', '); } catch {}
     passkeyHosts.addEventListener('change', () => {
       const hosts = passkeyHosts.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
       if (hosts.some(s => s !== '*' && !/^[a-z0-9.-]+$/.test(s))) { window.showToast?.('Enter hostnames without URLs or paths, or * for every site'); return; }
       localStorage.setItem('vex.passkeySuppressedHosts', JSON.stringify([...new Set(hosts)]));
     });
   }
+  // Sites allowed from the "asked for a passkey" bar (js/passwords.js).
+  PasswordVault.renderPasskeyAllowed(document.getElementById('setting-passkey-allowed'));
 
   // The stored Tab Layout choice, resolved against the active GUI style
   // (SettingsUI.resolveTabLayout owns that rule).
@@ -71,6 +76,7 @@ function vexOwnTextFocused(doc) {
 
   // Init modules
   SidebarManager.init();
+  VexSimpleMode.init();
   VexTools.init();
   CommandBar.init();
   StartPageManager.init();
@@ -81,6 +87,11 @@ function vexOwnTextFocused(doc) {
   const tabsAt = performance.now();
   await TabManager.init();
   timed('tabs', tabsAt);
+  // The split screen as it was left (js/split.js).
+  if (!window.VexTabPolicy.isPrivateWindow) {
+    try { SplitScreen.restoreSaved(); }
+    catch (err) { window.VexProblems?.note('Split screen', 'Could not put the split back at start', err); }
+  }
   // A private window takes the look of the window it was opened from.
   if (window.VexTabPolicy.isPrivateWindow) {
     const look = new URLSearchParams(location.search).get('look');
@@ -100,6 +111,8 @@ function vexOwnTextFocused(doc) {
 
   // Horizontal tab bar (wraps TabManager methods to auto-refresh)
   if (typeof HorizontalTabs !== 'undefined') HorizontalTabs.init();
+  // A link or a file dropped on either tab strip opens there (js/tab-strip-drop.js).
+  if (typeof TabStripDrop !== 'undefined') TabStripDrop.install();
 
   // Init tab preview (deferred to avoid slowing startup)
   setTimeout(() => TabPreview.init(), 1000);
@@ -131,16 +144,11 @@ function vexOwnTextFocused(doc) {
     val = (val || '').trim();
     if (!val) return;
 
-    // An address, or words for the chosen engine (js/typed-address.js).
-    // Keyword engines ("yt cats") and DDG bangs ("!w einstein") take
-    // precedence over the default engine.
-    let url = VexTypedAddress.addressFor(val);
-    if (!url) {
-      const shortcut = (typeof SearchShortcuts !== 'undefined') ? SearchShortcuts.resolve(val) : null;
-      // The saved choice, read each time: an engine picked in the setup wizard
-      // or on the New Tab page was ignored until a restart (found 2026-09-29).
-      url = shortcut || VexTypedAddress.searchUrl(val);
-    }
+    // An address, a keyword search ("@yt cats", "!w einstein") or words for
+    // the chosen engine, read each time (js/typed-address.js resolve, the
+    // same answer Ctrl+K and the New Tab box give).
+    const where = VexTypedAddress.resolve(val);
+    const url = where.url;
 
     // If sidebar panel is open, close it first
     SidebarManager.hideActivePanel();
@@ -150,7 +158,7 @@ function vexOwnTextFocused(doc) {
     } else {
       const activeTab = TabManager.getActiveTab();
       if (activeTab) {
-        WebviewManager.navigate(url);
+        WebviewManager.navigate(url, { httpFallback: !!where.guessedHttps });
       } else {
         // No active tab — fall back to creating one so the URL doesn't drop.
         TabManager.createTab(url, true);
@@ -159,6 +167,17 @@ function vexOwnTextFocused(doc) {
 
     urlInput.blur();
   }
+  // Ctrl+Enter makes "example" www.example.com, as in every browser; it
+  // opened a new tab instead (found 2026-10-10). Alt+Enter is the new tab.
+  function completeWithCtrlEnter(val, e) {
+    const word = String(val || '').trim();
+    if (!e.ctrlKey || e.altKey || !/^[a-z0-9][a-z0-9-]*$/i.test(word)) return val;
+    return 'www.' + word + '.com';
+  }
+
+  // The New Tab box hands what was typed here (webview.js, 'typed'), so it
+  // goes where the address bar would send it.
+  window.VexSubmitTyped = submitUrlBar;
 
   // Smart Searchbar: local-only suggestion dropdown (open tabs, history,
   // bookmarks). Selecting a suggestion routes through submitUrlBar so it
@@ -166,6 +185,8 @@ function vexOwnTextFocused(doc) {
   if (typeof SmartSearchbar !== 'undefined') {
     SmartSearchbar.init(urlInput, { onSubmit: (url, newTab) => submitUrlBar(url, newTab) });
   }
+  // Cut, Copy, Paste, Paste and go, Select all (js/url-bar-menu.js).
+  UrlBarMenu.init(urlInput, { onPasteAndGo: (text) => submitUrlBar(text, false) });
 
   urlInput.addEventListener('keydown', (e) => {
     // Let the Smart Searchbar consume arrow-nav / Enter-on-highlight / Esc-
@@ -177,10 +198,24 @@ function vexOwnTextFocused(doc) {
     }
 
     if (e.key === 'Enter') {
-      submitUrlBar(urlInput.value, e.ctrlKey || e.altKey);
+      submitUrlBar(completeWithCtrlEnter(urlInput.value, e), e.altKey);
     } else if (e.key === 'Escape') {
-      urlInput.blur();
+      // As in Chrome: the first Esc undoes what you typed and keeps the bar;
+      // with nothing to undo it stops a page still loading; after that it
+      // lets go of the bar. Esc never stopped a load (found 2026-10-10).
       const tab = TabManager.getActiveTab();
+      if (tab && urlInput.value !== TabManager.urlBarText(tab)) {
+        urlInput.value = TabManager.urlBarText(tab);
+        urlInput.select();
+        return;
+      }
+      if (tab && tab.loading) {
+        WebviewManager.stop();
+        urlInput.value = TabManager.urlBarText(tab);
+        urlInput.select();
+        return;
+      }
+      urlInput.blur();
       if (tab) TabManager.updateUrlBar(tab);
     }
   });
@@ -201,9 +236,15 @@ function vexOwnTextFocused(doc) {
   });
 
   // === Navigation Buttons ===
-  document.getElementById('btn-back').addEventListener('click', () => WebviewManager.goBack());
-  document.getElementById('btn-forward').addEventListener('click', () => WebviewManager.goForward());
-  document.getElementById('btn-reload').addEventListener('click', () => WebviewManager.reload());
+  // The website's, so they stand still while a side panel is in front
+  // (js/nav-lock.js), and so do their keys below.
+  NavLock.init();
+  document.getElementById('btn-back').addEventListener('click', () => NavLock.run('back'));
+  document.getElementById('btn-forward').addEventListener('click', () => NavLock.run('forward'));
+  // Stop while the page loads, Reload otherwise (TabManager.syncReloadButton).
+  document.getElementById('btn-reload').addEventListener('click', (e) => {
+    NavLock.run(e.currentTarget.dataset.state === 'stop' ? 'stop' : 'reload');
+  });
   document.getElementById('btn-onboarding')?.addEventListener('click', () => { if (typeof Onboarding !== 'undefined') Onboarding.relaunch(); });
   // Restart Vex from the toolbar. Confirm first: a restart closes every tab, and
   // this button sits next to one that only opens a wizard, so a mis-click is easy.
@@ -235,10 +276,11 @@ function vexOwnTextFocused(doc) {
     const tab = TabManager.getActiveTab();
     if (tab) TabManager.closeTab(tab.id);
   });
-  window.vex.onReloadTab(() => WebviewManager.reload());
-  window.vex.onHardReloadTab?.(() => WebviewManager.hardReload());
-  window.vex.onNavigateBack(() => WebviewManager.goBack());
-  window.vex.onNavigateForward(() => WebviewManager.goForward());
+  // From a page, main names it: a side panel's page never moves the website.
+  window.vex.onReloadTab((from) => NavLock.run('reload', from));
+  window.vex.onHardReloadTab?.((from) => NavLock.run('hardReload', from));
+  window.vex.onNavigateBack((from) => NavLock.run('back', from));
+  window.vex.onNavigateForward((from) => NavLock.run('forward', from));
   window.vex.onZoomIn(() => WebviewManager.zoomIn());
   window.vex.onZoomOut(() => WebviewManager.zoomOut());
   window.vex.onZoomReset(() => WebviewManager.zoomReset());
@@ -252,8 +294,10 @@ function vexOwnTextFocused(doc) {
   // Counted the way the tabs stand on screen, and Ctrl+9 is the last tab, as
   // in every browser: it took the ninth tab of the internal list (found
   // 2026-09-29).
+  // Only tabs drawn on screen count: Ctrl+9 picked a tab inside a folded
+  // stack, Ctrl+2 one in a collapsed group (found 2026-10-10).
   const jumpToTab = (n) => {
-    const order = TabManager.displayOrder();
+    const order = TabManager.shownOrder();
     const t = n === 9 ? order[order.length - 1] : order[n - 1];
     if (t) TabManager.switchTab(t.id);
   };
@@ -267,14 +311,16 @@ function vexOwnTextFocused(doc) {
   // decides — the same path as pressing it with Vex's own interface focused.
   window.vex.onGuestShortcut?.((combo) => {
     if (!combo || !combo.key) return;
-    document.dispatchEvent(new KeyboardEvent('keydown', {
+    // The page it came from is named for the registry's F5 / Ctrl+F5 /
+    // Shift+F5, which go through NavLock (a panel's page reloads no website).
+    NavLock.fromPage(combo.from, () => document.dispatchEvent(new KeyboardEvent('keydown', {
       key: combo.key,
       ctrlKey: !!combo.ctrl,
       shiftKey: !!combo.shift,
       altKey: !!combo.alt,
       bubbles: true,
       cancelable: true,
-    }));
+    })));
   });
   window.vex.onNextTab?.(() => cycleTab(1));
   window.vex.onPrevTab?.(() => cycleTab(-1));
@@ -297,22 +343,76 @@ function vexOwnTextFocused(doc) {
   const handFindToActivePage = () =>
     typeof handFindToPage === 'function' && handFindToPage(WebviewManager.getActiveWebview());
 
+  // The count is read from whichever page is searched, bound the first time
+  // it is searched: only the tab in front when its page was made was bound
+  // before, so a tab opened in the background never showed a count (found
+  // 2026-10-10). A result from a page no longer in front is not shown.
+  function findOnActive(text, options) {
+    const wv = WebviewManager.getActiveWebview();
+    if (!wv || !text) return;
+    if (!wv._findBound) {
+      wv.addEventListener('found-in-page', (e) => {
+        if (e.result && WebviewManager.getActiveWebview() === wv) {
+          findCount.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
+        }
+      });
+      wv._findBound = true;
+    }
+    wv.findInPage(text, options);
+  }
+
+  // Each tab has its own find bar, as in Chrome and Firefox: switching tabs
+  // hides it on a tab where it was not open and brings it back, searched
+  // again, on one where it was. It used to stay open over every tab with the
+  // last tab's "2/5" (found 2026-10-10).
+  const findOpenIn = new Map();   // tab id -> the text its open bar held
+  let findTabId = TabManager.activeTabId;
+
+  function showFindBar() {
+    const wasOpen = findBar.style.display !== 'none';
+    findBar.style.display = 'flex';
+    findInput.focus();
+    findInput.select();
+    if (wasOpen) return;
+    findCount.textContent = '';
+    if (findInput.value) findOnActive(findInput.value);
+  }
+
+  function hideFindBar() {
+    findBar.style.display = 'none';
+    findCount.textContent = '';
+    WebviewManager.stopFindInPage();
+  }
+
   function toggleFindBar() {
     if (findBar.style.display === 'none' && handFindToActivePage()) return;
-    if (findBar.style.display === 'none') {
+    if (findBar.style.display === 'none') showFindBar();
+    else hideFindBar();
+  }
+
+  window.addEventListener('vex:tab-activated', (e) => {
+    const id = e.detail && e.detail.tabId;
+    if (id === findTabId) return;
+    if (findTabId != null) {
+      if (findBar.style.display !== 'none') findOpenIn.set(findTabId, findInput.value);
+      else findOpenIn.delete(findTabId);
+    }
+    findTabId = id;
+    findCount.textContent = '';
+    if (findOpenIn.has(id)) {
       findBar.style.display = 'flex';
-      findInput.focus();
-      findInput.select();
+      findInput.value = findOpenIn.get(id);
+      if (findInput.value) findOnActive(findInput.value);
     } else {
       findBar.style.display = 'none';
-      WebviewManager.stopFindInPage();
     }
-  }
+  });
+  document.addEventListener('vex:tab-closed', (e) => { findOpenIn.delete(e.detail && e.detail.tabId); });
 
   findInput.addEventListener('input', () => {
     const text = findInput.value;
     if (text) {
-      WebviewManager.findInPage(text);
+      findOnActive(text);
     } else {
       WebviewManager.stopFindInPage();
       findCount.textContent = '';
@@ -321,41 +421,16 @@ function vexOwnTextFocused(doc) {
 
   findInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      findBar.style.display = 'none';
-      WebviewManager.stopFindInPage();
+      hideFindBar();
     } else if (e.key === 'Enter') {
-      WebviewManager.findInPage(findInput.value);
+      // Shift+Enter goes back, as in every browser; it went forward.
+      findOnActive(findInput.value, { forward: !e.shiftKey });
     }
   });
 
-  document.getElementById('find-prev').addEventListener('click', () => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && findInput.value) wv.findInPage(findInput.value, { forward: false });
-  });
-
-  document.getElementById('find-next').addEventListener('click', () => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && findInput.value) wv.findInPage(findInput.value, { forward: true });
-  });
-
-  document.getElementById('find-close').addEventListener('click', () => {
-    findBar.style.display = 'none';
-    WebviewManager.stopFindInPage();
-  });
-
-  // Listen for found-in-page results on active webview
-  const observer = new MutationObserver(() => {
-    const wv = WebviewManager.getActiveWebview();
-    if (wv && !wv._findBound) {
-      wv.addEventListener('found-in-page', (e) => {
-        if (e.result) {
-          findCount.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
-        }
-      });
-      wv._findBound = true;
-    }
-  });
-  observer.observe(document.getElementById('webviews-container'), { childList: true });
+  document.getElementById('find-prev').addEventListener('click', () => findOnActive(findInput.value, { forward: false }));
+  document.getElementById('find-next').addEventListener('click', () => findOnActive(findInput.value, { forward: true }));
+  document.getElementById('find-close').addEventListener('click', hideFindBar);
 
   // === Settings Panel ===
   const searchEngineSelect = document.getElementById('setting-search-engine');
@@ -380,21 +455,33 @@ function vexOwnTextFocused(doc) {
       .catch(err => console.error('[AdBlocker] could not read the state:', err));
   } else window.vex.setAdBlockerState(adBlockerToggle.checked);
 
+  // Settings › General › Search keywords (js/search-keywords-ui.js).
+  SearchKeywordsUI.init();
+  // Settings › General › Default search engine › Add your own….
+  CustomSearchEngineUI.init();
+
   // An engine chosen anywhere else (setup wizard, New Tab page) reaches the
   // Settings list too (Onboarding._setStart announces it).
   window.addEventListener('vex-search-engine-changed', (e) => {
     const id = e.detail && e.detail.id;
-    if (!id || !VexTypedAddress.SEARCH_ENGINES[id] || settings.searchEngine === id) return;
+    if (!id || VexTypedAddress.engineOf(id) !== id || settings.searchEngine === id) return;
     settings.searchEngine = id;
     searchEngineSelect.value = id;
     VexStorage.saveSettings(settings);
   });
 
   searchEngineSelect.addEventListener('change', () => {
+    // "Add your own…" (js/search-engine-custom.js) asks first; it chooses
+    // the new engine here once it is saved.
+    if (searchEngineSelect.value === CustomSearchEngineUI.ADD) {
+      CustomSearchEngineUI.add(settings.searchEngine).catch(err => showToast(err.message, 'error'));
+      return;
+    }
     settings.searchEngine = searchEngineSelect.value;
     VexStorage.saveSettings(settings);
     // Mirror to the start page (separate session) so its search box matches.
     if (typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', searchEngineSelect.value);
+    CustomSearchEngineUI.pushStartPages();
   });
 
   // Search suggestions: main reads this from the main window's settings for
@@ -453,7 +540,7 @@ function vexOwnTextFocused(doc) {
         // Not in a private window: its tabs are never saved, and the save
         // refuses there (found 2026-09-29).
         ? (window.VexTabPolicy?.isPrivateWindow ? null : setInterval(() => {
-          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString());
+          SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString(), null, { auto: true });
         }, 10 * 60 * 1000))
         : null;
     };
@@ -469,6 +556,18 @@ function vexOwnTextFocused(doc) {
   // Settings buttons
   document.getElementById('setting-open-sessions')?.addEventListener('click', () => SessionManager.showOverlay());
   document.getElementById('setting-open-workspaces')?.addEventListener('click', () => WorkspaceManager.showModal());
+  // What a workspace switch does with private and Tor tabs (js/workspaces.js).
+  const wsPrivateSelect = document.getElementById('setting-ws-private-tabs');
+  if (wsPrivateSelect) {
+    wsPrivateSelect.value = WorkspaceManager.ephemeralChoice();
+    wsPrivateSelect.addEventListener('change', () => {
+      try { WorkspaceManager.setEphemeralChoice(wsPrivateSelect.value); }
+      catch (err) { showToast(err.message, 'error'); wsPrivateSelect.value = WorkspaceManager.ephemeralChoice(); }
+    });
+    // "Always close them" picked in the question while Settings is open.
+    document.addEventListener('vex:ws-private-choice', () => { wsPrivateSelect.value = WorkspaceManager.ephemeralChoice(); });
+  }
+  DownloadsPanel.bindSettings();
   document.getElementById('setting-github-link')?.addEventListener('click', (e) => {
     e.preventDefault();
     TabManager.createTab('https://github.com/0xmortuex/Vex', true);
@@ -505,6 +604,8 @@ function vexOwnTextFocused(doc) {
     bind('setting-ai-worker-url', 'vex.aiWorkerUrl', refreshStatus);
     bind('setting-sync-worker-url', 'vex.syncWorkerUrl', refreshStatus);
     refreshStatus();
+    VexConfig.watchWorkerField(document.getElementById('setting-ai-worker-url'), 'ai', document.getElementById('setting-ai-worker-url-check'));
+    VexConfig.watchWorkerField(document.getElementById('setting-sync-worker-url'), 'sync', document.getElementById('setting-sync-worker-url-check'));
 
     // Theme — open the visual picker.
     document.getElementById('setting-open-theme-picker')?.addEventListener('click', () => {
@@ -561,20 +662,10 @@ function vexOwnTextFocused(doc) {
   })();
 
   // Export all data
+  // Secrets (the Lock PIN hash, MCP tokens ...) are left out, as in a backup
+  // (VexBackup.exportAll, js/backup.js).
   document.getElementById('setting-export')?.addEventListener('click', () => {
-    const data = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('vex.')) data[key] = localStorage.getItem(key);
-    }
-    // Notes, chats and history are kept on disk rather than in browser storage.
-    for (const [key, value] of PersistentStorage.fileOnlyEntries()) data[key] = value;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'vex-data-export.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    VexBackup.exportAll();
     showToast('Data exported');
   });
 
@@ -586,31 +677,75 @@ function vexOwnTextFocused(doc) {
   // control in this panel writes; anything not on it is user content and stays.
   const SETTINGS_PREF_KEYS = [
     'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors',
-    'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette',
+    'vex.theme', 'vex.customThemeImage', 'vex.lookName', 'vex.lookPalette', 'vex.themeAuto',
     'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
-    'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
+    'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
     'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
-    'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
+    'vex.passkeySuppressedHosts', 'vex.passkeyAllowedHosts', 'vex.a11y', 'vex.recall.enabled',
     'vex.autoArchiveDays', 'vex.locationMode', 'vex.manualLocation',
     'vex.userName', 'vex.githubUsername', 'vex.weatherLoc',
     'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
     'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
     'vex.preferOnDeviceAI', 'vex.webllmModel',
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
+    // Written by Settings controls but missing from this list until v2.36.5.
+    'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
+    'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
+    'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.pipButton', 'vex.pipButtonOff', 'vex.agentShowCursor',
+    'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
+    'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',
+    'vex.font', 'vex.fontMono', 'vex.fontCss', 'vex.uiScale', 'vex.uiDensity', 'vex.sitePanels',
+    // Settings > Appearance (js/appearance-prefs.js).
+    'vex.websiteAppearance', 'vex.reduceMotion',
+    // The sleep model (js/sleep-consent.js) and Discord's memory rows.
+    'vex.sleepConsent', 'vex.sleepAlways', 'vex.panelAutoSleep', 'vex.panelSleepMinutes',
+    'vex.panelSleepExempt', 'vex.panelKeepAwake', 'vex.memoryNoticeMB',
+    'vex.discordIdleSleepMin', 'vex.discordMemoryLimitMB', 'vex.discordRestHidden',
+    'vex.discordLite', 'vex.discordMode', 'vex.autoSleepPrefs',
+    // Library › Digest: show today's digest on the New Tab page.
+    'vex.readingDigest.newTab',
+    // Settings › General › Simple mode (js/simple-mode.js); a reset is Full.
+    'vex.uiMode',
+    // Settings › General › Workspaces: private and Tor tabs on a switch.
+    'vex.workspacePrivateTabs',
+    // Settings › General › Default search engine › Add your own….
+    'vex.customSearchEngine',
+    // Settings › Appearance › Settings layout (js/settings-ui.js).
+    'vex.settingsLayout',
   ];
+  const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
     if (!await vexConfirm({
       title: 'Reset settings',
-      message: 'Put every Vex setting back to its default? Your bookmarks, notes, passwords, history, sessions and saved pages are kept. This cannot be undone.',
+      message: 'Put every Vex setting back to its default, the theme included? Your bookmarks, notes, passwords, history, sessions and saved pages are kept, and so is the AI access token. This cannot be undone.',
       okLabel: 'Reset', danger: true,
     })) return;
     try {
       SETTINGS_PREF_KEYS.forEach(k => localStorage.removeItem(k));
+      // Back to Full at once, so the restart button the toast names is in view.
+      VexSimpleMode.apply();
+      // And Settings back to its own layout at once: automatic columns, chips.
+      SettingsUI.applyLayoutPrefs();
       // The settings the panel actually reads live in settings.json, not
-      // localStorage — clearing the keys above alone reset nothing.
-      await VexStorage.saveSettings({ searchEngine: 'google', adBlocker: true, tabsVisible: true });
+      // localStorage — clearing the keys above alone reset nothing. The
+      // in-memory copy is replaced too: any later change saved it whole, which
+      // wrote every old value back over the reset.
+      Object.keys(settings).forEach(k => { delete settings[k]; });
+      Object.assign(settings, SETTINGS_DEFAULTS());
+      await VexStorage.saveSettings(settings);
+      // The theme's own copy (ThemeManager reads it, not the vex.theme mirror).
+      if (typeof ThemeManager !== 'undefined') ThemeManager.applyTheme(ThemeManager.DEFAULT_THEME);
+      // Fingerprint protection, DNS-over-HTTPS and HTTPS-only live in main.
+      if (window.vex && typeof window.vex.privacySetConfig === 'function') {
+        await window.vex.privacySetConfig({ farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false });
+      }
+      // Where downloads go, and "Ask where to save each file", live in main too.
+      const dl = await window.vex.downloadsResetPrefs();
+      if (!dl || !dl.ok) throw new Error('the download folder was not reset: ' + ((dl && dl.error) || 'Vex did not answer'));
+      DownloadsPanel.showPrefs(dl);
       await PersistentStorage._flush();
-      showToast('Settings reset. Restart Vex.');
+      window.vexRestartNeeded?.();
+      showToast('Settings reset — restart Vex to finish (the button is under Performance).');
     } catch (error) { showToast('Could not reset settings: ' + error.message, 'error'); }
   });
 
@@ -662,7 +797,11 @@ function vexOwnTextFocused(doc) {
       const v = e.target.value;
       const label = e.target.selectedOptions[0]?.textContent || v;
       Promise.resolve(VexGuiStyle.set(v)).then(
-        () => showToast('GUI Style: ' + label, 'info'),
+        () => {
+          const meta = ThemeManager.THEMES.find(t => t.id === ThemeManager.getCurrentTheme());
+          const own = typeof ThemeAuto !== 'undefined' && !!meta && VexGuiStyle.pickedByHand(v, ThemeAuto.isLightTheme(meta));
+          showToast('GUI Style: ' + label + (own ? ' in its own colours — Browser look colours switches back' : ''), 'info');
+        },
         (err) => {
           console.error('[Settings] GUI style switch failed:', err);
           guiSel.value = VexGuiStyle.get();
@@ -742,16 +881,26 @@ function vexOwnTextFocused(doc) {
   document.getElementById('btn-group-tabs-now')?.addEventListener('click', () => {
     TabGrouper?.analyzeAndPropose();
   });
-  document.getElementById('btn-clear-patterns')?.addEventListener('click', async () => {
-    if (!await vexConfirm({ title: 'Clear group patterns', message: 'Clear all remembered group patterns? New tabs won\u2019t auto-join groups anymore.', okLabel: 'Clear', danger: true })) return;
-    TabGrouper?.clearPatterns();
-    showToast('Patterns cleared', 'success');
+  // Both clear at once, with Undo on the toast (js/vex-undo.js).
+  document.getElementById('btn-clear-patterns')?.addEventListener('click', () => {
+    if (!window.TabGrouper) return;
+    const before = TabGrouper.getPatterns();
+    TabGrouper.clearPatterns();
     updateGroupPatternsCount();
+    VexUndo.offer({
+      message: 'Group patterns cleared \u2014 new tabs no longer join groups by themselves',
+      undo: () => { TabGrouper.restorePatterns(before); updateGroupPatternsCount(); },
+    });
   });
   document.getElementById('btn-clear-rejected')?.addEventListener('click', () => {
-    TabGrouper?.clearRejectedPatterns?.();
-    showToast('Rejected suggestions cleared \u2014 AI will suggest all types of groups again', 'success');
+    if (!window.TabGrouper) return;
+    const before = TabGrouper.getRejectedPatterns();
+    TabGrouper.clearRejectedPatterns();
     updateGroupPatternsCount();
+    VexUndo.offer({
+      message: 'Rejected suggestions cleared \u2014 AI will suggest all types of groups again',
+      undo: () => { TabGrouper.restoreRejectedPatterns(before); updateGroupPatternsCount(); },
+    });
   });
   function updateGroupPatternsCount() {
     const el = document.getElementById('group-patterns-count');
@@ -774,9 +923,34 @@ function vexOwnTextFocused(doc) {
     settings.autoSleepExcludePinned = settings.autoSleepExcludePinned ?? true;
     await VexStorage.saveSettings(settings);
   }
+  // Vex Sync carries auto-sleep as vex.autoSleepPrefs (js/sync-engine.js
+  // SYNC_KEYS): a copy that differs from settings.json came from another
+  // device, so it is adopted here; every change below writes it.
+  const writeAutoSleepMirror = () => {
+    try { localStorage.setItem('vex.autoSleepPrefs', JSON.stringify({ enabled: !!settings.autoSleepEnabled, minutes: settings.autoSleepMinutes || 30, excludePinned: settings.autoSleepExcludePinned !== false })); }
+    catch (err) { console.error('[settings] auto-sleep could not be mirrored for sync:', err.message); }
+  };
+  try {
+    const m = JSON.parse(localStorage.getItem('vex.autoSleepPrefs') || 'null');
+    if (m && typeof m === 'object' && (m.enabled !== !!settings.autoSleepEnabled || m.minutes !== settings.autoSleepMinutes || m.excludePinned !== (settings.autoSleepExcludePinned !== false))) {
+      settings.autoSleepEnabled = !!m.enabled;
+      if ([5, 10, 15, 30, 60].includes(m.minutes)) settings.autoSleepMinutes = m.minutes;
+      settings.autoSleepExcludePinned = m.excludePinned !== false;
+      await VexStorage.saveSettings(settings);
+    }
+  } catch (err) { console.error('[settings] the synced auto-sleep choice could not be read:', err.message); }
+  writeAutoSleepMirror();
   // Email-code autofill: read verification codes from a hidden background Gmail
   // (no tab needed). Stored in localStorage so it's the same flag the autofill
   // and the Logins & Codes hub read.
+  // The master switch for the whole feature; on unless turned off.
+  const emailAutofillToggle = document.getElementById('setting-emailcode-autofill');
+  if (emailAutofillToggle) {
+    emailAutofillToggle.checked = localStorage.getItem('vex.emailCodeAutofill') !== '0';
+    emailAutofillToggle.addEventListener('change', () => {
+      localStorage.setItem('vex.emailCodeAutofill', emailAutofillToggle.checked ? '1' : '0');
+    });
+  }
   const emailHiddenToggle = document.getElementById('setting-emailcode-hidden');
   if (emailHiddenToggle) {
     try { emailHiddenToggle.checked = localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch {}
@@ -798,8 +972,15 @@ function vexOwnTextFocused(doc) {
   // the memory ceiling while Memory Saver was on silently switched Memory Saver
   // back off in everything but the toggle.
   const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
-  const effectiveSleepMinutes = () => (memorySaverOn() ? 10 : (settings.autoSleepMinutes || 30));
-  const effectiveMemCeiling = () => (memorySaverOn() ? Math.min(settings.memCeilingMB || 1200, 900) : (settings.memCeilingMB ?? 1200));
+  const effectiveSleepMinutes = () => (memorySaverOn() ? Math.min(settings.autoSleepMinutes || 30, 10) : (settings.autoSleepMinutes || 30));
+  // A guard set to Off stays off under Memory Saver (it used to run at 900 MB
+  // while the select said Off).
+  const effectiveMemCeiling = () => {
+    const mb = settings.memCeilingMB ?? 1200;
+    return memorySaverOn() && mb ? Math.min(mb, 900) : mb;
+  };
+  // Panels sleep after the same idle time as tabs (js/sidebar.js).
+  window.vexTabSleepMinutes = effectiveSleepMinutes;
 
   const autosleepToggle = document.getElementById('setting-autosleep');
   const autosleepMinutes = document.getElementById('setting-autosleep-minutes');
@@ -814,9 +995,10 @@ function vexOwnTextFocused(doc) {
       settings.autoSleepMinutes = parseInt(autosleepMinutes?.value || '30');
       settings.autoSleepExcludePinned = autosleepExcludePinned?.checked !== false;
       VexStorage.saveSettings(settings);
+      writeAutoSleepMirror();
       if (settings.autoSleepEnabled) {
         TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned);
-        if (memorySaverOn() && settings.autoSleepMinutes !== 10) {
+        if (memorySaverOn() && effectiveSleepMinutes() !== settings.autoSleepMinutes) {
           showToast('Saved — Memory Saver keeps tabs sleeping after 10 minutes until you turn it off', 'info');
         }
       } else {
@@ -836,8 +1018,33 @@ function vexOwnTextFocused(doc) {
   // === Memory guard (adaptive — sleeps idle tabs only under memory pressure) ===
   if (settings.memCeilingMB === undefined) { settings.memCeilingMB = 1200; await VexStorage.saveSettings(settings); }
   const memCeilingSel = document.getElementById('setting-mem-ceiling');
+  // A ceiling that is not one of the offered values (the "from this machine"
+  // command rounds to 100 MB) gets its own option, so the select never shows blank.
+  const showMemCeiling = (mb) => {
+    if (!memCeilingSel) return;
+    const v = String(mb);
+    if (![...memCeilingSel.options].some(o => o.value === v)) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = (mb >= 1000 ? (mb / 1000).toFixed(1).replace(/\.0$/, '') + ' GB' : mb + ' MB') + ' (from this machine)';
+      memCeilingSel.appendChild(o);
+    }
+    memCeilingSel.value = v;
+  };
+  // The one writer of the ceiling: the select and the Ctrl+K command
+  // (js/command.js) both come here, so app.js's settings copy is never stale
+  // and Memory Saver's 900 MB cap applies to both.
+  window.vexSetMemCeiling = async (mb) => {
+    const v = Math.round(Number(mb));
+    if (!Number.isFinite(v) || v < 0) throw new Error('The memory ceiling is a number of megabytes');
+    settings.memCeilingMB = v;
+    await VexStorage.saveSettings(settings);
+    showMemCeiling(v);
+    TabManager.startMemoryGuard(effectiveMemCeiling());
+    return effectiveMemCeiling();
+  };
   if (memCeilingSel) {
-    memCeilingSel.value = String(settings.memCeilingMB ?? 1200);
+    showMemCeiling(settings.memCeilingMB ?? 1200);
     const applyMemGuard = () => {
       settings.memCeilingMB = parseInt(memCeilingSel.value || '0', 10);
       VexStorage.saveSettings(settings);
@@ -861,7 +1068,9 @@ function vexOwnTextFocused(doc) {
   // the auto-sleep settings above so both paths agree on the numbers.
   const applyMemorySaver = (on) => {
     TabManager.startIdleDiscard(on);
-    if (on || settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
+    // Memory Saver shortens auto-sleep; it does not switch on a toggle that
+    // shows off.
+    if (settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
     else TabManager.stopAutoSleep();
     TabManager.startMemoryGuard(effectiveMemCeiling());
   };
@@ -946,6 +1155,9 @@ function vexOwnTextFocused(doc) {
   if (channelSel) { channelSel.value = UpdateNotifier.channel(); channelSel.addEventListener('change', () => UpdateNotifier.setChannel(channelSel.value)); }
   const updateOnStart = document.getElementById('setting-update-on-start');
   if (updateOnStart) { updateOnStart.checked = UpdateNotifier.checksOnStart(); updateOnStart.addEventListener('change', () => UpdateNotifier.setChecksOnStart(updateOnStart.checked)); }
+  // The "What's new" card after an update (js/update-log.js).
+  const whatsNewCard = document.getElementById('setting-whats-new-card');
+  if (whatsNewCard && window.VexWhatsNew) { whatsNewCard.checked = window.VexWhatsNew.cardEnabled(); whatsNewCard.addEventListener('change', () => window.VexWhatsNew.setCardEnabled(whatsNewCard.checked)); }
 
   // Downloads: subscribe to events at startup so downloads before panel-open
   // still register (toast + badge).
@@ -1072,20 +1284,21 @@ function vexOwnTextFocused(doc) {
   // Privacy hardening (fingerprint farbling / DoH / tracker report)
   if (typeof PrivacyPack !== 'undefined') PrivacyPack.init();
 
-  // Page-change monitor (polls watched pages on their own intervals)
-  if (typeof PageMonitor !== 'undefined') PageMonitor.init();
-
   // Persistent AI memory (facts injected into chat system context)
   if (typeof AIMemory !== 'undefined') AIMemory.init();
 
   // On-device AI (WebLLM/WebGPU) — reads prefs only; never downloads on launch
   if (typeof WebLLM !== 'undefined') WebLLM.init();
 
-  // MCP client (loads configured servers; connects on demand only)
+  // MCP client: loads the saved servers and connects to each one again in the
+  // background at every start (McpClient.connectSaved)
   if (typeof McpClient !== 'undefined') McpClient.init();
 
   // First-run setup wizard (shows once on a fresh install only)
   if (typeof Onboarding !== 'undefined') Onboarding.maybeStart();
+  // The privacy policy and terms, for a profile past first run that has not
+  // accepted this version (a new profile is asked by the wizard's first step).
+  if (typeof VexLegal !== 'undefined') VexLegal.maybeAsk();
 
   // Quick slots: Ctrl+Alt+1..3 run your first three command chains.
   window.addEventListener('keydown', (e) => {
@@ -1130,22 +1343,10 @@ function vexOwnTextFocused(doc) {
     });
   }
 
-  // Cross-device handoff: receive tabs sent from other Vex devices (mobile).
-  // Polls on focus + every 2 minutes when Vex Sync is signed in.
-  const checkDrops = async () => {
-    try {
-      if (typeof SyncEngine === 'undefined' || !SyncEngine.isEnabled?.()) return;
-      const items = await SyncEngine.dropFetch();
-      items.forEach(item => {
-        if (!item || !item.url) return;
-        try { TabManager.createTab(item.url, false); } catch {}
-        window.showToast?.(`Tab from ${item.fromDeviceName || 'another device'}: ${item.title || item.url}`);
-      });
-    } catch {}
-  };
-  window.addEventListener('focus', checkDrops);
-  VexJobs.every('Tabs sent from other devices', 2 * 60 * 1000, checkDrops, { when: 'background' });
-  setTimeout(checkDrops, 8000); // shortly after launch
+  // Send to your devices, and tabs sent here from them (js/handoff.js): the
+  // address bar button, and checking the Vex Sync mailbox on focus, every
+  // 2 minutes and shortly after launch.
+  if (typeof Handoff !== 'undefined') Handoff.init();
 
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {
@@ -1153,10 +1354,16 @@ function vexOwnTextFocused(doc) {
     console.log('[Tabs] external link -> new tab:', data.url, 'background:', !!data.background);
     // Tab-Islands-style ambient grouping: a tab opened FROM a grouped tab
     // joins that tab's group automatically.
-    const opener = TabManager.getActiveTab();
-    const inheritGroup = (opener && opener.groupId) || null;
+    // A link or window.open in a tab names that tab's page (main.js), and the
+    // new tab goes next to it (TabManager._insertIndexFor). From anywhere else
+    // (another app, an extension) it goes at the end. One in a side panel's
+    // page (Discord, a sidebar site) goes next to the tab in front.
+    // Only a tab it came from passes on its group: a link from another app
+    // joined whatever group the tab in front was in (found 2026-10-10).
+    const linked = Number.isSafeInteger(data.opener) ? TabManager.openerForPage(data.opener) : null;
+    const inheritGroup = (linked && linked.groupId) || null;
     let created;
-    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition }); }
+    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition, openerTabId: linked ? linked.id : null }); }
     catch (err) {
       console.error('[Tabs] createTab failed:', err.message);
       if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
@@ -1248,6 +1455,9 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('free-memory',    () => { if (typeof MemoryPanel !== 'undefined') MemoryPanel.freeNow().catch(err => showToast(err.message, 'error')); });
     // A tab past its memory ceiling gets a notice with Reload (tabs.js).
     if (typeof TabManager !== 'undefined' && TabManager.startHeavyTabWatch) TabManager.startHeavyTabWatch();
+    // A tab or panel kept awake by choice that grows past 1.5 GB says so once,
+    // even with the memory notice off (js/kept-awake-memory.js).
+    if (typeof KeptAwakeMemory !== 'undefined') KeptAwakeMemory.init();
     ShortcutsRegistry.register('schedules',      () => SidebarManager?.openPanel('schedules'));
     ShortcutsRegistry.register('tabs-sidebar',   () => window.toggleTabsSidebar?.());
     ShortcutsRegistry.register('split-screen',   () => SplitScreen?.toggle?.());
@@ -1270,29 +1480,38 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
     ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
-    ShortcutsRegistry.register('reload',         () => WebviewManager?.reload?.());
-    ShortcutsRegistry.register('hard-reload',    () => WebviewManager?.hardReload?.());
+    ShortcutsRegistry.register('reload',         () => NavLock.run('reload'));
+    ShortcutsRegistry.register('hard-reload',    () => NavLock.run('hardReload'));
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
     ShortcutsRegistry.register('lock-vex', () => VexLock.lock());
-    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get()));
+    // Refused while Vex is locked, or before this profile has agreed to the
+    // privacy policy and terms (main.js): said, not dropped.
+    ShortcutsRegistry.register('private-window', () => window.vex?.openPrivateWindow?.(VexGuiStyle.get(), VexSimpleMode.mode())
+      ?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
     ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
     ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
+    // The other keys browsers have for these (F5, Ctrl+F5, Shift+F5, F6,
+    // Alt+D, Ctrl+PageUp/PageDown).
+    ShortcutsRegistry.register('reload-f5',            () => NavLock.run('reload'));
+    ShortcutsRegistry.register('hard-reload-ctrl-f5',  () => NavLock.run('hardReload'));
+    ShortcutsRegistry.register('hard-reload-shift-f5', () => NavLock.run('hardReload'));
+    ShortcutsRegistry.register('focus-url-f6',         focusAddressBar);
+    ShortcutsRegistry.register('focus-url-alt-d',      focusAddressBar);
+    ShortcutsRegistry.register('next-tab-pagedown',    () => cycleTab(1));
+    ShortcutsRegistry.register('prev-tab-pageup',      () => cycleTab(-1));
+    ShortcutsRegistry.register('move-tab-left',        () => { const t = TabManager.getActiveTab(); if (t) TabManager.moveTab(t.id, -1); });
+    ShortcutsRegistry.register('move-tab-right',       () => { const t = TabManager.getActiveTab(); if (t) TabManager.moveTab(t.id, 1); });
     ShortcutsRegistry.register('bookmark',       bookmarkCurrent);
     ShortcutsRegistry.register('print-page',     () => WebviewManager.printPage());
     ShortcutsRegistry.register('view-source',    () => WebviewManager.viewSource());
-    ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; const bar = document.getElementById('find-bar'); if (bar) { bar.style.display = 'flex'; document.getElementById('find-input')?.focus(); } });
+    ShortcutsRegistry.register('find-in-page',   () => { if (handFindToActivePage()) return; showFindBar(); });
   }
 
   // === Phase 16: Tab auto-grouping ===
+  // Its key is 'group-tabs' in the shortcut registry, so a rebinding holds.
   if (typeof TabGrouper !== 'undefined') TabGrouper.init();
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && (e.key === 'G' || e.key === 'g')) {
-      e.preventDefault();
-      TabGrouper?.analyzeAndPropose();
-    }
-  });
 
   // === Phase 14: AI Router — detect Ollama, load routing prefs ===
   if (typeof AIRouter !== 'undefined') {
@@ -1316,13 +1535,19 @@ function vexOwnTextFocused(doc) {
       if (!indicator) return;
       const s = SyncEngine.getState();
       indicator.hidden = !s.enabled;
-      indicator.classList.toggle('active', s.enabled && !s.syncing);
+      // "Active" (the green dot) only when there is a sync server to talk to
+      // and the last round did not fail; signed in alone is not syncing.
+      const hasServer = !!VexConfig.syncWorkerUrl();
+      indicator.classList.toggle('active', s.enabled && !s.syncing && hasServer && !s.lastError);
       indicator.classList.toggle('syncing', !!s.syncing);
       if (s.enabled) {
         const push = s.lastPushAt ? new Date(s.lastPushAt).toLocaleString() : 'never';
         const pull = s.lastPullAt ? new Date(s.lastPullAt).toLocaleString() : 'never';
         indicator.title = `Vex Sync — pushed ${push} · pulled ${pull}${s.lastError ? ' · error: ' + s.lastError : ''}`;
       }
+      // A private window never syncs (sync-engine.js).
+      const off = SyncEngine.offInThisWindow ? SyncEngine.offInThisWindow() : '';
+      if (off) indicator.title = off;
     };
     window.addEventListener('vex-sync-state', drawSyncIndicator);
     drawSyncIndicator();
@@ -1354,7 +1579,7 @@ function vexOwnTextFocused(doc) {
       const ok = /ready|loaded/.test(s);
       const failed = /failed|timed out/i.test(s);
       wvEl.textContent = s;
-      wvEl.style.color = ok ? '#22c55e' : 'var(--danger)';
+      wvEl.style.color = ok ? 'var(--success)' : 'var(--danger)';
       // Offer the button ONLY when the CDM actually failed/timed out — never on a
       // healthy CDM. Resetting a working CDM is destructive (it clears/reprovisions
       // Widevine and can fail to re-download), and the "provider blocked the device
@@ -1427,22 +1652,33 @@ function vexOwnTextFocused(doc) {
   document.getElementById('setting-issues-link')?.addEventListener('click', (e) => {
     e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/issues', true); SidebarManager.hideActivePanel();
   });
+  // Every shipped document (privacy, terms, licence, notices) opens inside
+  // Vex from the copy it ships (js/legal.js), also offline.
   document.querySelectorAll('#setting-legal-links [data-legal-doc]').forEach((link) => link.addEventListener('click', (e) => {
-    e.preventDefault(); TabManager.createTab('https://github.com/0xmortuex/Vex/blob/main/' + link.dataset.legalDoc, true); SidebarManager.hideActivePanel();
+    e.preventDefault();
+    const doc = link.dataset.legalDoc;
+    VexLegal.openDoc(doc).catch(err => { console.error('[legal] could not open ' + doc + ':', err); window.showToast?.('Could not open ' + doc + ': ' + (err && err.message), 'error'); });
   }));
+  VexLegal.renderAbout();
+  window.addEventListener('vex-legal-accepted', () => VexLegal.renderAbout());
 
   // === Default browser: handle incoming URLs from external apps ===
   console.log('[Vex URL] renderer: registering onOpenUrl handler. window.vex present?', !!window.vex, 'onOpenUrl present?', !!window.vex?.onOpenUrl);
   window.vex.onOpenUrl?.((url) => {
     console.log('[Vex URL] renderer: handler invoked with URL:', url);
     console.log('[Vex URL] renderer: TabManager present?', !!window.TabManager || typeof TabManager !== 'undefined', 'createTab type:', typeof TabManager?.createTab);
-    try {
-      const tab = TabManager.createTab(url, true);
-      console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
-    } catch (err) {
-      console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);
-    }
-    window.showToast?.('Opened link: ' + url.substring(0, 50));
+    // While the agreement is outstanding the link waits, and opens right
+    // after "I agree" (js/legal.js).
+    const held = !VexLegal.openFromOutside(url, (link) => {
+      try {
+        const tab = TabManager.createTab(link, true);
+        console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);
+      } catch (err) {
+        console.error('[Vex URL] renderer: TabManager.createTab threw:', err && err.stack || err);
+      }
+      window.showToast?.('Opened link: ' + link.substring(0, 50));
+    });
+    if (held) console.log('[Vex URL] renderer: held until the privacy policy and terms are agreed to');
   });
 
   // Set as default browser button (in settings)
@@ -1460,7 +1696,7 @@ function vexOwnTextFocused(doc) {
     const el = document.getElementById('default-browser-status');
     if (el) {
       el.textContent = isDefault ? 'Vex is your default browser' : 'Vex is not the default browser';
-      el.style.color = isDefault ? '#22c55e' : 'var(--text-muted)';
+      el.style.color = isDefault ? 'var(--success)' : 'var(--text-muted)';
     }
   });
 
@@ -1691,9 +1927,17 @@ function vexOwnTextFocused(doc) {
   // DownloadsPanel (js/downloads-panel.js) and DownloadToast — no
   // duplicate toasts here.
 
-  function showToast(message, type, duration) {
+  // opts.action = { label, title, run }: one button on the toast (the Undo of
+  // js/vex-undo.js); opts.actions = [action, …] for more than one, the first
+  // the main one. Such a toast takes clicks, holds still while the pointer
+  // or the focus is on it, and calls opts.onExpire when it goes without being
+  // used — on time, pushed out by newer toasts, or Escape. Returns
+  // { el, dismiss } so its owner can take it down.
+  function showToast(message, type, duration, opts) {
     type = type || 'info';
     duration = duration || 3000;
+    const actions = opts && (Array.isArray(opts.actions) && opts.actions.length ? opts.actions : (opts.action ? [opts.action] : null));
+    const action = actions && actions[0];
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -1702,22 +1946,145 @@ function vexOwnTextFocused(doc) {
       container.setAttribute('role', 'status');
       container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
+      watchToastPlacement(container);
     }
-    // Skip exact duplicates of a toast that is still visible.
-    for (const t of container.children) {
-      if (t.textContent === message) return;
+    // Skip exact duplicates of a toast that is still visible. One with a
+    // button is about one thing that happened, so two of them are two things.
+    if (!action) {
+      for (const t of container.children) {
+        if (t.textContent === message) return null;
+      }
     }
-    // Cap visible toasts at 4 — drop the oldest first.
-    while (container.children.length >= 4) container.firstElementChild.remove();
+    // Cap visible toasts at 4 — drop the oldest first, a plain one before one
+    // with a button; one with a button that has to go counts as expired. One
+    // already fading out does not count, and a dropped one goes at once (the
+    // count has to fall, or this loop never ends).
+    for (;;) {
+      const shown = Array.from(container.children).filter(t => !t.dataset.leaving);
+      if (shown.length < 4) break;
+      const old = shown.find(t => !t._vexToast) || shown[0];
+      if (old._vexToast) old._vexToast.expire();
+      old.remove();
+    }
     const el = document.createElement('div');
     el.className = 'toast-item ' + type;
-    el.textContent = message;
-    container.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
+    let gone = false, timer = null, left = duration, startedAt = 0;
+    let hoverHold = null;
+    const takeDown = () => {
+      if (gone) return;
+      gone = true;
+      el.dataset.leaving = '1';
+      clearTimeout(timer);
+      clearTimeout(hoverHold);
       el.classList.remove('show');
       setTimeout(() => el.remove(), 300);
-    }, duration);
+    };
+    if (!action) {
+      el.textContent = message;
+      container.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      timer = setTimeout(takeDown, duration);
+      return { el, dismiss: takeDown };
+    }
+    const text = document.createElement('span');
+    text.className = 'toast-text';
+    text.textContent = message;
+    const buttons = actions.map((a, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action' + (i ? ' secondary' : '');
+      b.textContent = a.label;
+      if (a.title) b.title = a.title;
+      return b;
+    });
+    el.classList.add('has-action');
+    el.append(text, ...buttons);
+    const handle = {
+      el,
+      dismiss: takeDown,
+      expire() {
+        if (gone) return;
+        takeDown();
+        if (opts.onExpire) opts.onExpire();
+      },
+    };
+    el._vexToast = handle;
+    buttons.forEach((b, i) => b.addEventListener('click', () => { if (gone) return; takeDown(); actions[i].run(); }));
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); handle.expire(); }
+    });
+    // Time stands still while you are reading it or about to press it. The
+    // pointer leaving it straight onto the page (a <webview>) never tells this
+    // window it left (measured 2026-10-08), so a hover holds it 15 s at most;
+    // the keyboard's focus holds it until the focus goes.
+    const pause = () => { if (gone || !timer) return; clearTimeout(timer); timer = null; left -= Date.now() - startedAt; };
+    const resume = (ignoreHover) => {
+      if (gone || timer || el.contains(document.activeElement) || (!ignoreHover && el.matches(':hover'))) return;
+      startedAt = Date.now();
+      timer = setTimeout(() => handle.expire(), Math.max(1500, left));
+    };
+    el.addEventListener('mouseenter', () => {
+      pause();
+      clearTimeout(hoverHold);
+      hoverHold = setTimeout(() => resume(true), 15000);
+    });
+    el.addEventListener('focusin', pause);
+    el.addEventListener('mouseleave', () => { clearTimeout(hoverHold); setTimeout(() => resume(false), 0); });
+    el.addEventListener('focusout', () => setTimeout(() => resume(false), 0));
+    container.appendChild(el);
+    // Slid in by a forced layout rather than the next animation frame, which
+    // does not come while the window is not being drawn; until then its Undo
+    // sat off screen, out of reach.
+    void el.offsetWidth;
+    el.classList.add('show');
+    startedAt = Date.now();
+    timer = setTimeout(() => handle.expire(), duration);
+    return handle;
+  }
+
+  // Toasts keep clear of an open panel or menu that asks for it
+  // ([data-avoid-toasts]: the site panel, More tools). In a narrow window a
+  // toast sat on the site panel's "Site settings" link (final review,
+  // 2026-10-09). The stack moves beside the panel when there is room;
+  // otherwise the panel ends above the stack (.toast-capped, app.css) and its
+  // body scrolls, so every row stays in reach. Worked out again whenever a
+  // toast or a panel comes or goes, and on resize.
+  function placeToasts() {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const panels = [...document.querySelectorAll('[data-avoid-toasts]')];
+    panels.forEach(p => p.classList.remove('toast-capped'));
+    container.style.right = '';
+    container.style.bottom = '';
+    const live = [...container.children].some(t => !t.dataset.leaving);
+    if (!live) return;
+    const GAP = 8, EDGE = 20;
+    for (const p of panels) {
+      if (!p.getClientRects().length) continue;
+      const c = container.getBoundingClientRect(), r = p.getBoundingClientRect();
+      if (!r.width || !r.height) continue;   // an empty card stack
+      if (!(c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top)) continue;
+      // Docked in the same corner (the download cards, data-avoid-toasts=
+      // "above"): the stack sits on top of it. An Undo toast takes clicks, so
+      // over a card it hid that card's Open and Show for ten seconds.
+      if (p.dataset.avoidToasts === 'above') { container.style.bottom = (window.innerHeight - r.top + GAP) + 'px'; continue; }
+      if (r.left - GAP - EDGE >= c.width) { container.style.right = (window.innerWidth - r.left + GAP) + 'px'; continue; }
+      p.style.setProperty('--toast-cap', Math.max(96, c.top - GAP - r.top) + 'px');
+      p.classList.add('toast-capped');
+    }
+  }
+  function watchToastPlacement(container) {
+    new MutationObserver(placeToasts).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-leaving'] });
+    // What sits in the corner grows and shrinks as its cards come and go.
+    const watchAbove = (el) => new ResizeObserver(placeToasts).observe(el);
+    document.querySelectorAll('[data-avoid-toasts="above"]').forEach(watchAbove);
+    new MutationObserver((records) => {
+      const added = records.flatMap(m => [...m.addedNodes]).filter(n => n.nodeType === 1 && n.getAttribute('data-avoid-toasts') === 'above');
+      added.forEach(watchAbove);
+      if (records.some(m => [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1 && n.hasAttribute('data-avoid-toasts')))) placeToasts();
+    }).observe(document.body, { childList: true });
+    // After the panels' own resize handlers have placed them.
+    window.addEventListener('resize', () => setTimeout(placeToasts, 0));
   }
 
   window.showToast = showToast;

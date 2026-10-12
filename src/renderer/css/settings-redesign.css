@@ -3,10 +3,14 @@
    building on the --primary / --surface / --border / --text tokens, with a
    per-category accent (--cat-color, set by settings-ui.js). */
 
+/* The scroll area is the whole panel, so the wheel scrolls Settings over the
+   empty sides too (it was a 780px box in the middle, and the wheel did nothing
+   beside it — the owner, 2026-10-11). The side padding keeps the same centred
+   column it had. */
 .settings-content {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 26px 26px 90px;
+  max-width: none;
+  margin: 0;
+  padding: 26px max(26px, calc((100% - 780px) / 2 + 26px)) 90px;
 }
 
 .settings-content > h2 {
@@ -58,7 +62,19 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 2px 4px 2px 0;
 }
+/* Every chip shows at the normal size, with no scroll box (the owner, 2026-10-09:
+   a two-row cap there hid Personalization and Cloud behind a scrollbar). Only
+   where the rows really crowd the panel — a short window, or Larger/Largest,
+   where wrapped in full they took 428 of a 623px panel (walkthrough M2,
+   2026-10-07) — is it one row that scrolls with the wheel. */
+@media (max-height: 760px) {
+  .set-nav { max-height: 34px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+}
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-nav { max-height: 34px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-toolbar { padding-top: 10px; padding-bottom: 8px; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { margin-bottom: 6px; padding-top: 6px; padding-bottom: 6px; }
 /* The scroll area keeps its full-height scroll (from app.css); padding-top is set
    in JS to match the absolute toolbar so the first group clears it. */
 .set-nav-chip {
@@ -76,15 +92,33 @@
   transition: all .14s ease;
   white-space: nowrap;
 }
+/* A category's mark is its colour mixed toward the theme's text: the fixed
+   colours alone were 1.1-2.5:1 on light themes (Cyan on EzLight). Mixed, every
+   mark reads at 3:1 in every theme, darker on light ones and lighter on dark
+   ones, and the hovered chip's name is the text colour (cat-themes TH8). */
 .set-nav-chip .set-cat-icon {
   flex: 0 0 auto;
-  color: var(--chip-color, var(--primary));
+  color: color-mix(in srgb, var(--chip-color, var(--primary)) 40%, var(--text));
 }
 .set-nav-chip:hover {
-  color: var(--chip-color, var(--primary));
+  color: var(--text);
   border-color: var(--chip-color, var(--primary));
   background: color-mix(in srgb, var(--chip-color, var(--primary)) 12%, var(--surface));
   transform: translateY(-1px);
+}
+/* A group's own row of smaller chips (the AI sections, 2026-10-10), above its
+   first section in the scroll area. It wraps; never a scroll box. */
+.settings-content > .set-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.set-subnav .set-subnav-chip {
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
 }
 
 /* Each setting-group becomes a vivid category card */
@@ -138,7 +172,7 @@
   flex: 0 0 auto;
   /* The mark is an inline SVG stroked with currentColor, so the category colour
      is set here rather than baked into the markup. */
-  color: var(--cat-color, var(--primary));
+  color: color-mix(in srgb, var(--cat-color, var(--primary)) 40%, var(--text));
   background: color-mix(in srgb, var(--cat-color, var(--primary)) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--cat-color, var(--primary)) 35%, transparent);
 }
@@ -148,6 +182,36 @@
   color: var(--text-muted);
   margin-bottom: 7px;
   font-weight: 500;
+}
+
+/* A label inside a setting row is a title over its hint, not a category
+   header: the header's flex put the title beside the hint, and the selects'
+   width:100% took the whole row, so "Local Model" and "Agent context size"
+   were squeezed into a column a word wide (2026-10-08). The label keeps at
+   least 220px; when the control does not fit next to it, it wraps below.
+   A group's own title-over-hint label ("Your local models") is the same. */
+.settings-content .setting-row { flex-wrap: wrap; row-gap: 10px; }
+.settings-content .setting-row > .setting-label,
+.settings-content .setting-label:has(> strong + .setting-hint) {
+  display: block;
+  flex: 1 1 220px;
+  min-width: 0;
+  margin-bottom: 0;
+  font-size: 13px;
+  font-weight: 400;
+}
+.settings-content .setting-group > .setting-label:has(> strong + .setting-hint) { margin-bottom: 10px; }
+.settings-content .setting-label:has(> strong + .setting-hint) > strong {
+  display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px; color: var(--text);
+}
+.settings-content .setting-label:has(> strong + .setting-hint) > .setting-hint {
+  display: block; font-size: 11px; line-height: 1.4; color: var(--text-muted);
+}
+.settings-content .setting-row > select {
+  width: auto;
+  flex: 0 1 280px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Inputs / selects */
@@ -218,7 +282,7 @@
 :where(.settings-content) .btn-primary {
   padding: 8px 16px;
   background: var(--primary);
-  color: white;
+  color: var(--on-primary, #fff);
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
@@ -270,4 +334,212 @@
 .settings-anchor-flash {
   animation: settings-anchor-flash 1.2s ease-out;
   border-radius: 10px;
+}
+
+/* === Side by side on a wide window ======================================
+   SettingsUI._layout sets data-set-cols (2 or 3) when the panel has room for
+   columns of at least 600px, and places every block itself (placeBlocks:
+   its column, and its height in 4px grid rows), so the next section goes
+   into whichever column frees up first and the order stays top to bottom.
+   The heading and "No settings match" span every column; a group's chip
+   row stays above its first section, and Show advanced settings ends the
+   column that ends first. The rules below
+   only hold a block until it is placed. Narrower windows, and Larger and
+   Largest text, keep the one centred column above. */
+#panel-settings[data-set-cols] .settings-content {
+  display: grid;
+  grid-template-columns: repeat(var(--set-cols, 2), minmax(0, 1fr));
+  grid-auto-rows: 4px;
+  column-gap: 18px;
+  row-gap: 0;
+  align-items: start;
+  align-content: start;
+  padding-left: max(32px, calc((100% - var(--set-grid-max, 1658px)) / 2));
+  padding-right: max(32px, calc((100% - var(--set-grid-max, 1658px)) / 2));
+}
+#panel-settings[data-set-cols] .settings-content > * {
+  grid-column: 1 / -1;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+#panel-settings[data-set-cols] .settings-content > :is(.setting-group, .set-subnav, .set-advanced-toggle) { grid-column: auto; }
+/* The search box and the chips line up with the columns. */
+#panel-settings[data-set-cols] .set-toolbar-inner { max-width: var(--set-grid-max, 1658px); }
+
+/* "One column, full width": one column whose sections run from the left
+   edge to the right edge. The centred 780px column is the side padding on
+   .settings-content (top of this file), so that is what is replaced. */
+#panel-settings[data-set-wide] .settings-content { padding-left: 32px; padding-right: 32px; }
+#panel-settings[data-set-wide] .settings-content > * { max-width: none; margin-left: 0; margin-right: 0; }
+#panel-settings[data-set-wide] .set-toolbar-inner { max-width: none; }
+
+/* === Settings layout (SettingsUI.LAYOUT_*) ==============================
+   The user's own choice of columns, category menu and density, from the
+   button beside the search box or Settings › Appearance. The defaults
+   (automatic columns, chips, comfortable) are the rules above, untouched. */
+.set-search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.set-toolbar .set-search-row > .set-search { flex: 1; min-width: 0; margin-bottom: 0; }
+html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row { margin-bottom: 6px; }
+.set-layout-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.set-layout-btn:hover,
+.set-layout-btn[aria-expanded="true"] { color: var(--text); border-color: var(--primary); }
+.set-layout-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 300px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px var(--vex-shadow-color, rgba(0, 0, 0, 0.3));
+}
+.set-layout-pop[hidden] { display: none; }
+.set-layout-pop-title { font-size: 13px; font-weight: 700; }
+.set-layout-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.set-layout-field select {
+  flex: 0 0 168px;
+  width: 168px;
+  min-height: 28px;
+  padding: 4px 8px;
+  background: var(--bg, var(--surface));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.set-layout-hint { font-size: 11.5px; color: var(--text-muted); }
+.set-layout-note { display: block; margin-top: 3px; font-size: 11.5px; color: var(--text); }
+.set-layout-note[hidden] { display: none; }
+.set-layout-heading > span { font-weight: 600; }
+#settings-layout-setting select { width: auto; flex: 0 1 230px; min-width: 0; max-width: 100%; }
+
+/* The category menu as a list down the left side, like Chrome's and
+   Firefox's settings. SettingsUI turns it back into chips (no
+   data-set-nav) when the panel is narrower than SIDE_MIN. */
+#panel-settings[data-set-nav="side"] { flex-direction: row; }
+#panel-settings[data-set-nav="side"] .set-toolbar {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  flex: 0 0 232px;
+  width: 232px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 12px 12px;
+  border-bottom: none;
+  border-right: 1px solid var(--border);
+}
+#panel-settings[data-set-nav="side"] .set-toolbar-inner {
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#panel-settings[data-set-nav="side"] .set-nav {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  /* Its own scroll box: at its top or bottom the wheel stops here and never
+     carries on into the settings beside it (SettingsUI._keepsWheel). */
+  overscroll-behavior: contain;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+#panel-settings[data-set-nav="side"] .set-nav-chip {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: transparent;
+  white-space: normal;
+  text-align: left;
+}
+#panel-settings[data-set-nav="side"] .set-nav-chip:hover { transform: none; }
+#panel-settings[data-set-nav="side"] .set-nav-chip[aria-current="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--chip-color, var(--primary)) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--chip-color, var(--primary)) 45%, var(--border));
+  box-shadow: inset 3px 0 0 var(--chip-color, var(--primary));
+}
+#panel-settings[data-set-nav="side"] .settings-content { flex: 1; width: auto; min-width: 0; }
+
+/* Compact: more on the screen. The spacing shrinks, the text does not, and
+   nothing you click is under 24px (a 22px switch reaches 26 with its rim). */
+#panel-settings[data-set-density="compact"] .set-toolbar { padding-top: 10px; padding-bottom: 8px; }
+#panel-settings[data-set-density="compact"] .set-search { padding-top: 6px; padding-bottom: 6px; }
+#panel-settings[data-set-density="compact"] .set-search-row { margin-bottom: 7px; }
+#panel-settings[data-set-density="compact"] .set-nav { gap: 6px; }
+#panel-settings[data-set-density="compact"] .set-nav-chip { padding-top: 4px; padding-bottom: 4px; }
+#panel-settings[data-set-density="compact"] .settings-content .setting-group {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-group > label.setting-label {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  gap: 8px;
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-label .set-emoji { width: 26px; height: 26px; border-radius: 8px; }
+#panel-settings[data-set-density="compact"] .settings-content .setting-toggle-row {
+  padding-top: calc(5px * var(--vex-density, 1));
+  padding-bottom: calc(5px * var(--vex-density, 1));
+}
+#panel-settings[data-set-density="compact"] .settings-content .setting-row { padding-top: 7px; padding-bottom: 7px; }
+#panel-settings[data-set-density="compact"] .settings-content :is(select, input[type="text"], input.set-input) { padding-top: 6px; padding-bottom: 6px; }
+#panel-settings[data-set-density="compact"] .settings-content input:is([type="text"], [type="password"], [type="search"], [type="number"], [type="url"], [type="email"], :not([type])) {
+  min-height: 26px;
+  box-sizing: border-box;
+}
+#panel-settings[data-set-density="compact"] .settings-content input[type="range"] { min-height: 24px; }
+#panel-settings[data-set-density="compact"] .settings-content > .set-subnav { margin-bottom: 8px; }
+#panel-settings[data-set-density="compact"] .settings-content .toggle::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  cursor: pointer;
 }

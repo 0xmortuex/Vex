@@ -39,7 +39,8 @@ describe('extensions:open-tab', () => {
 describe('main.js extension rules', () => {
   it('an update goes into the installed copy’s folder, so its id and storage stay', () => {
     const activate = between('async function _activateInstalledFolder', '\n}\n');
-    expect(activate).toMatch(/_installedCopyOf\(destFolder\)/);
+    // The same extension (key or source record), never one matched by name alone (EX1).
+    expect(activate).toMatch(/_sameExtensionAs\(\{ \.\.\.match, key: manifest\.key, exceptFolder: destFolder \}\)/);
     expect(activate).toMatch(/return _replaceInPlace\(previous, destFolder\)/);
     const replace = between('async function _replaceInPlace', '\n}\n');
     // The new files take the old folder's path; the old ones come back if the new fail.

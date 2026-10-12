@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 
 async function load() {
-  const mod = await import('../../src/renderer/js/webview.js');
+  const mod = await import('../../src/renderer/js/start-page-trust.js');
   return mod._isTrustedStartPage;
 }
 
@@ -21,15 +21,15 @@ describe('_isTrustedStartPage — accepts the real start page', () => {
 
   it('accepts the file:// start page at /renderer/start.html', async () => {
     const f = await load();
-    expect(f('file:///C:/Claude%20code%20free/vex/src/renderer/start.html')).toBe(true);
-    expect(f('file:///home/user/vex/src/renderer/start.html')).toBe(true);
+    expect(f('file:///C:/Claude%20code%20free/vex/src/renderer/start.html', 'file:///C:/Claude%20code%20free/vex/src/renderer/index.html?private=true')).toBe(true);
+    expect(f('file:///home/user/vex/src/renderer/start.html', 'file:///home/user/vex/src/renderer/index.html')).toBe(true);
   });
 
   it('accepts the file:// start page even with a ?theme= query', async () => {
     const f = await load();
     // startUrlWithTheme appends ?theme=… to the file:// start page; the query
     // is not part of pathname, so the match still holds.
-    expect(f('file:///x/renderer/start.html?theme=oxford')).toBe(true);
+    expect(f('file:///x/renderer/start.html?theme=oxford', 'file:///x/renderer/index.html')).toBe(true);
   });
 });
 
@@ -56,8 +56,21 @@ describe('_isTrustedStartPage — rejects everything else', () => {
 
   it('rejects a file:// path that is not the start page', async () => {
     const f = await load();
-    expect(f('file:///x/renderer/index.html')).toBe(false);
-    expect(f('file:///x/elsewhere/start.html.evil')).toBe(false);
+    expect(f('file:///x/renderer/index.html', 'file:///x/renderer/index.html')).toBe(false);
+    expect(f('file:///x/elsewhere/start.html.evil', 'file:///x/renderer/index.html')).toBe(false);
+  });
+
+  // Audit SE6: any file named renderer/start.html was trusted.
+  it("rejects a file of the same name that is not Vex's own", async () => {
+    const f = await load();
+    const own = 'file:///C:/Program%20Files/Vex/resources/app.asar/src/renderer/index.html';
+    expect(f('file:///C:/Program%20Files/Vex/resources/app.asar/src/renderer/start.html', own)).toBe(true);
+    expect(f('file:///c:/program%20files/vex/resources/app.asar/src/renderer/start.html', own)).toBe(true);
+    expect(f('file:///C:/Users/someone/Downloads/kit/renderer/start.html', own)).toBe(false);
+    expect(f('file://attacker.example/share/renderer/start.html', own)).toBe(false);
+    expect(f('file:///C:/Program%20Files/Vex/resources/app.asar/src/renderer/../../../../../Users/x/renderer/start.html', own)).toBe(false);
+    // Only the start.html beside the window's own page.
+    expect(f('file:///x/renderer/start.html', 'https://example.com/renderer/index.html')).toBe(false);
   });
 
   it('rejects empty, null, and non-string input', async () => {

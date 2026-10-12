@@ -3,7 +3,7 @@
 Vex is made by 0xmortuex and is released under the MIT License (see [LICENSE](LICENSE)).
 Vex is built on, and ships with, software made by other people. This file lists that software and its licences.
 
-This list was generated on 2026-10-02 from the production dependencies of Vex 2.35.2 as installed in `node_modules` — the same set electron-builder packs into the app. Development tools (test runners, linters, the build tool) are not shipped and are not listed.
+This list was generated on 2026-10-07 from the production dependencies of Vex 2.36.4 as installed in `node_modules` — the same set electron-builder packs into the app. Development tools (test runners, linters, the build tool) are not shipped and are not listed.
 
 ## Contents
 
@@ -42,11 +42,11 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 ## Code copied into the Vex source
 
 - **jsQR** (`src/renderer/vendor/jsQR.js`) — QR code reader used by the Authenticator to read 2FA QR codes. Apache License 2.0. Copyright 2017 Cosmo Wolfe. https://github.com/cozmo/jsQR. The file is the published `dist/jsQR.js` build and has no version header. Apache-2.0 text below.
-- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers` and `onnxruntime-web` into this folder (with their licence files) so the app can load them in its pages. They are the same packages listed below under their own licences.
+- **Runtime copies of shipped packages** (`src/renderer/vendor/runtime/`) — at build time Vex copies the browser builds of `@mlc-ai/web-llm`, `tesseract.js`, `tesseract.js-core`, `@huggingface/transformers` and `onnxruntime-web` into this folder (with their licence files) so the app can load them in its pages. Their npm packages are build-time only and are not otherwise packed; they and the packages their builds draw on are listed in [Packages inside the runtime copies](#packages-inside-the-runtime-copies), and their licence texts are below.
 
 ## npm packages shipped with Vex
 
-148 packages. Licence names are as each package declares them in its `package.json`.
+96 packages. Licence names are as each package declares them in its `package.json`.
 
 | Package | Version | Licence |
 |---|---|---|
@@ -56,21 +56,8 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | @ghostery/adblocker-electron-preload | 2.18.0 | MPL-2.0 |
 | @ghostery/adblocker-extended-selectors | 2.18.0 | MPL-2.0 |
 | @ghostery/url-parser | 1.3.1 | MPL-2.0 |
-| @huggingface/jinja | 0.5.10 | MIT |
-| @huggingface/tokenizers | 0.2.0 | Apache-2.0 |
-| @huggingface/transformers | 4.3.0 | Apache-2.0 |
 | @isaacs/fs-minipass | 4.0.1 | ISC |
-| @mlc-ai/web-llm | 0.2.84 | Apache-2.0 |
 | @pinojs/redact | 0.4.0 | MIT |
-| @protobufjs/aspromise | 1.1.2 | BSD-3-Clause |
-| @protobufjs/base64 | 1.1.2 | BSD-3-Clause |
-| @protobufjs/codegen | 2.0.5 | BSD-3-Clause |
-| @protobufjs/eventemitter | 1.1.1 | BSD-3-Clause |
-| @protobufjs/fetch | 1.1.1 | BSD-3-Clause |
-| @protobufjs/float | 1.0.2 | BSD-3-Clause |
-| @protobufjs/path | 1.1.2 | BSD-3-Clause |
-| @protobufjs/pool | 1.1.0 | BSD-3-Clause |
-| @protobufjs/utf8 | 1.1.2 | BSD-3-Clause |
 | @remusao/guess-url-type | 2.1.0 | MPL-2.0 |
 | @remusao/small | 2.1.0 | MPL-2.0 |
 | @remusao/smaz | 2.2.0 | MPL-2.0 |
@@ -78,13 +65,11 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | @remusao/smaz-decompress | 2.2.0 | MPL-2.0 |
 | @remusao/trie | 2.1.0 | MPL-2.0 |
 | @selderee/plugin-htmlparser2 | 0.12.0 | MIT |
-| @types/node | 26.4.1 | MIT |
 | @zone-eu/mailsplit | 5.4.17 | (MIT OR EUPL-1.1+) |
 | adm-zip | 0.6.1 | MIT |
 | ansi-regex | 5.0.1 | MIT |
 | ansi-styles | 4.3.0 | MIT |
 | atomic-sleep | 1.0.0 | MIT |
-| bmp-js | 0.1.0 | MIT |
 | camelcase | 5.0.0 | MIT |
 | chownr | 3.0.0 | BlueOak-1.0.0 |
 | cliui | 6.0.0 | ISC |
@@ -92,9 +77,6 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | color-name | 1.1.4 | MIT |
 | decamelize | 1.2.0 | MIT |
 | deepmerge-ts | 8.0.2 | BSD-3-Clause |
-| define-data-property | 1.1.4 | MIT |
-| define-properties | 1.2.1 | MIT |
-| detect-libc | 2.1.2 | Apache-2.0 |
 | dijkstrajs | 1.0.3 | MIT |
 | dom-serializer | 2.0.0 | MIT |
 | domelementtype | 2.3.0 | BSD-2-Clause |
@@ -104,46 +86,26 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | encoding-japanese | 2.4.0 | MIT |
 | entities | 4.5.0 | BSD-2-Clause |
 | entities | 7.0.1 | BSD-2-Clause |
-| es-define-property | 1.0.1 | MIT |
-| es-errors | 1.3.0 | MIT |
-| escape-string-regexp | 4.0.0 | MIT |
 | find-up | 4.1.0 | MIT |
-| flatbuffers | 25.9.23 | Apache-2.0 |
 | get-caller-file | 2.0.5 | ISC |
-| global-agent | 4.1.3 | BSD-3-Clause |
-| globalthis | 1.0.4 | MIT |
-| gopd | 1.2.0 | MIT |
-| guid-typescript | 1.0.9 | ISC |
-| has-property-descriptors | 1.0.2 | MIT |
 | he | 1.2.0 | MIT |
 | html-to-text | 10.0.1 | MIT |
 | htmlparser2 | 10.1.0 | MIT |
 | iconv-lite | 0.7.3 | MIT |
-| idb-keyval | 6.3.0 | Apache-2.0 |
 | imapflow | 2.0.5 | MIT |
 | ip-address | 10.7.2 | MIT |
 | is-fullwidth-code-point | 3.0.0 | MIT |
-| is-url | 1.2.4 | MIT |
 | leac | 0.7.0 | MIT |
 | libbase64 | 1.3.0 | MIT |
 | libmime | 5.4.4 | MIT |
 | libqp | 2.1.1 | MIT |
 | linkify-it | 5.0.2 | MIT |
 | locate-path | 5.0.0 | MIT |
-| loglevel | 1.9.2 | MIT |
-| long | 5.3.2 | Apache-2.0 |
 | mailparser | 3.9.28 | MIT |
-| matcher | 4.0.0 | MIT |
 | minipass | 7.1.3 | BlueOak-1.0.0 |
 | minizlib | 3.1.0 | MIT |
-| node-fetch | 2.7.0 | MIT |
 | nodemailer | 10.0.10 | MIT-0 |
-| object-keys | 1.1.1 | MIT |
 | on-exit-leak-free | 2.1.2 | MIT |
-| onnxruntime-common | 1.30.0 | MIT |
-| onnxruntime-common | 1.31.0-dev.20260911-2a43ec07e | MIT |
-| onnxruntime-web | 1.31.0-dev.20260914-8d85527a0 | MIT |
-| opencollective-postinstall | 2.0.3 | MIT |
 | p-limit | 2.3.0 | MIT |
 | p-locate | 4.1.0 | MIT |
 | p-try | 2.2.0 | MIT |
@@ -153,23 +115,18 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | pino | 10.3.1 | MIT |
 | pino-abstract-transport | 3.0.0 | MIT |
 | pino-std-serializers | 7.1.0 | MIT |
-| platform | 1.3.6 | MIT |
 | pngjs | 5.0.0 | MIT |
 | process-warning | 5.1.0 | MIT |
-| protobufjs | 7.6.6 | BSD-3-Clause |
 | punycode.js | 2.3.1 | MIT |
 | qrcode | 1.5.4 | MIT |
 | quick-format-unescaped | 4.0.4 | MIT |
 | real-require | 0.2.0 | MIT |
 | real-require | 1.0.0 | MIT |
-| regenerator-runtime | 0.13.11 | MIT |
 | require-directory | 2.1.1 | MIT |
 | require-main-filename | 2.0.0 | ISC |
 | safe-stable-stringify | 2.5.0 | MIT |
 | safer-buffer | 2.1.2 | MIT |
 | selderee | 0.12.0 | MIT |
-| semver | 7.8.5 | ISC |
-| serialize-error | 8.1.0 | MIT |
 | set-blocking | 2.0.0 | ISC |
 | smart-buffer | 4.2.0 | MIT |
 | socks | 2.8.10 | MIT |
@@ -178,25 +135,59 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | string-width | 4.2.3 | MIT |
 | strip-ansi | 6.0.1 | MIT |
 | tar | 7.5.22 | BlueOak-1.0.0 |
-| tesseract.js | 7.0.0 | Apache-2.0 |
-| tesseract.js-core | 7.0.0 | Apache-2.0 |
 | thread-stream | 4.2.0 | MIT |
 | tlds | 1.261.0 | MIT |
 | tldts-core | 7.4.2 | MIT |
 | tldts-experimental | 7.4.2 | MIT |
-| tr46 | 0.0.3 | MIT |
-| type-fest | 0.20.2 | (MIT OR CC0-1.0) |
 | uc.micro | 2.1.0 | MIT |
-| undici-types | 8.3.0 | MIT |
-| wasm-feature-detect | 1.9.0 | Apache-2.0 |
-| webidl-conversions | 3.0.1 | BSD-2-Clause |
-| whatwg-url | 5.0.0 | MIT |
 | which-module | 2.0.1 | ISC |
 | wrap-ansi | 6.2.0 | MIT |
 | y18n | 4.0.3 | ISC |
 | yallist | 5.0.0 | BlueOak-1.0.0 |
 | yargs | 15.4.1 | MIT |
 | yargs-parser | 18.1.3 | ISC |
+
+### Packages inside the runtime copies
+
+36 packages whose browser builds (or code bundled into them) ship in `src/renderer/vendor/runtime/`. Licence names are as each package declares them in its `package.json`.
+
+| Package | Version | Licence |
+|---|---|---|
+| @huggingface/jinja | 0.5.10 | MIT |
+| @huggingface/tokenizers | 0.2.0 | Apache-2.0 |
+| @huggingface/transformers | 4.3.0 | Apache-2.0 |
+| @mlc-ai/web-llm | 0.2.84 | Apache-2.0 |
+| @protobufjs/aspromise | 1.1.2 | BSD-3-Clause |
+| @protobufjs/base64 | 1.1.2 | BSD-3-Clause |
+| @protobufjs/codegen | 2.0.5 | BSD-3-Clause |
+| @protobufjs/eventemitter | 1.1.1 | BSD-3-Clause |
+| @protobufjs/fetch | 1.1.1 | BSD-3-Clause |
+| @protobufjs/float | 1.0.2 | BSD-3-Clause |
+| @protobufjs/path | 1.1.2 | BSD-3-Clause |
+| @protobufjs/pool | 1.1.0 | BSD-3-Clause |
+| @protobufjs/utf8 | 1.1.2 | BSD-3-Clause |
+| @types/node | 26.4.1 | MIT |
+| bmp-js | 0.1.0 | MIT |
+| flatbuffers | 25.9.23 | Apache-2.0 |
+| guid-typescript | 1.0.9 | ISC |
+| idb-keyval | 6.3.0 | Apache-2.0 |
+| is-url | 1.2.4 | MIT |
+| loglevel | 1.9.2 | MIT |
+| long | 5.3.2 | Apache-2.0 |
+| node-fetch | 2.7.0 | MIT |
+| onnxruntime-common | 1.31.0-dev.20260911-2a43ec07e | MIT |
+| onnxruntime-web | 1.31.0-dev.20260914-8d85527a0 | MIT |
+| opencollective-postinstall | 2.0.3 | MIT |
+| platform | 1.3.6 | MIT |
+| protobufjs | 7.6.6 | BSD-3-Clause |
+| regenerator-runtime | 0.13.11 | MIT |
+| tesseract.js | 7.0.0 | Apache-2.0 |
+| tesseract.js-core | 7.0.0 | Apache-2.0 |
+| tr46 | 0.0.3 | MIT |
+| undici-types | 8.3.0 | MIT |
+| wasm-feature-detect | 1.9.0 | Apache-2.0 |
+| webidl-conversions | 3.0.1 | BSD-2-Clause |
+| whatwg-url | 5.0.0 | MIT |
 | zlibjs | 0.3.1 | MIT |
 
 ## Licence texts
@@ -205,30 +196,19 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 
 Used by Electron, castLabs Electron and the packages below. Each package's copyright line(s) are listed; the licence text that applies to all of them follows.
 
-- **@huggingface/jinja@0.5.10** — Copyright (c) 2023 Hugging Face
 - **@pinojs/redact@0.4.0** — Copyright (c) 2025 pinojs contributors
 - **@selderee/plugin-htmlparser2@0.12.0** — Copyright (c) 2021-2026 KillyMXI <killy@mxii.eu.org>
-- **@types/node@26.4.1** — Copyright (c) Microsoft Corporation.
 - **adm-zip@0.6.1** — Copyright (c) 2012 Another-D-Mention Software and other contributors
 - **ansi-regex@5.0.1** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **ansi-styles@4.3.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **atomic-sleep@1.0.0** — Copyright (c) 2020 David Mark Clements
-- **bmp-js@0.1.0** — Copyright (c) 2014 @丝刀口
 - **camelcase@5.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **color-convert@2.0.1** — Copyright (c) 2011-2016 Heather Arthur <fayearthur@gmail.com>
 - **color-name@1.1.4** — Copyright (c) 2015 Dmitry Ivanov
 - **decamelize@1.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-- **define-data-property@1.1.4** — Copyright (c) 2023 Jordan Harband
-- **define-properties@1.2.1** — Copyright (C) 2015 Jordan Harband
 - **emoji-regex@8.0.0** — Copyright Mathias Bynens <https://mathiasbynens.be/>
 - **encoding-japanese@2.4.0** — Copyright (c) 2012-present polygonplanet; Copyright (c) Microsoft Corporation.
-- **es-define-property@1.0.1** — Copyright (c) 2024 Jordan Harband
-- **es-errors@1.3.0** — Copyright (c) 2024 Jordan Harband
-- **escape-string-regexp@4.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - **find-up@4.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-- **globalthis@1.0.4** — Copyright (c) 2016 Jordan Harband
-- **gopd@1.2.0** — Copyright (c) 2022 Jordan Harband
-- **has-property-descriptors@1.0.2** — Copyright (c) 2022 Inspect JS
 - **he@1.2.0** — Copyright Mathias Bynens <https://mathiasbynens.be/>
 - **html-to-text@10.0.1** — Copyright (c) Malte Legenhausen <legenhausen@werk85.de>
 - **htmlparser2@10.1.0** — Copyright 2010, 2011, Chris Winberry <chris@winberry.net>. All rights reserved.
@@ -236,24 +216,15 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **imapflow@2.0.5** — Copyright (c) 2020-2024 Postal Systems OÜ
 - **ip-address@10.7.2** — Copyright (C) 2011 by Beau Gunderson
 - **is-fullwidth-code-point@3.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-- **is-url@1.2.4** — (no copyright line in the package; see its repository)
 - **leac@0.7.0** — Copyright (c) 2021-2025 KillyMXI <killy@mxii.eu.org>
 - **libbase64@1.3.0** — Copyright (c) 2014-2017 Andris Reinman
 - **libmime@5.4.4** — Copyright (c) 2014-2016 Andris Reinman
 - **libqp@2.1.1** — Copyright (c) 2014-2022 Andris Reinman
 - **linkify-it@5.0.2** — Copyright (c) 2015 Vitaly Puzrin.
 - **locate-path@5.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-- **loglevel@1.9.2** — Copyright (c) 2013 Tim Perry
 - **mailparser@3.9.28** — Copyright (c) 2020 - 2025 Andris Reinman
-- **matcher@4.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - **minizlib@3.1.0** — Copyright (c) 2017-2023 Isaac Z. Schlueter and Contributors; Copyright (c) 2017-2023 Node.js contributors. All rights reserved.; Copyright (c) 2017-2023 Joyent, Inc. and other Node contributors. All rights reserved.
-- **node-fetch@2.7.0** — Copyright (c) 2016 David Frank
-- **object-keys@1.1.1** — Copyright (C) 2013 Jordan Harband
 - **on-exit-leak-free@2.1.2** — Copyright (c) 2021 Matteo Collina
-- **onnxruntime-common@1.30.0** — Copyright (c) fs-eire
-- **onnxruntime-common@1.31.0-dev.20260911-2a43ec07e** — Copyright (c) fs-eire
-- **onnxruntime-web@1.31.0-dev.20260914-8d85527a0** — Copyright (c) fs-eire
-- **opencollective-postinstall@2.0.3** — Copyright (c) 2018 Open Collective
 - **p-limit@2.3.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **p-locate@4.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **p-try@2.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
@@ -263,7 +234,6 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **pino@10.3.1** — Copyright (c) 2016-2025 Matteo Collina, David Mark Clements and the Pino contributors listed at <https://github.com/pinojs/pino#the-team> and in the README file.
 - **pino-abstract-transport@3.0.0** — Copyright (c) 2021 pino
 - **pino-std-serializers@7.1.0** — Copyright Mateo Collina, David Mark Clements, James Sumners
-- **platform@1.3.6** — Copyright 2014-2020 Benjamin Tan; Copyright 2011-2013 John-David Dalton
 - **pngjs@5.0.0** — (no copyright line in the package; see its repository)
 - **process-warning@5.1.0** — Copyright (c) 2020-present The Fastify team <https://github.com/fastify/fastify#team>
 - **punycode.js@2.3.1** — Copyright Mathias Bynens <https://mathiasbynens.be/>
@@ -271,12 +241,10 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **quick-format-unescaped@4.0.4** — Copyright (c) 2016-2019 David Mark Clements
 - **real-require@0.2.0** — Copyright (c) 2021 Paolo Insogna and the real-require contributors
 - **real-require@1.0.0** — Copyright (c) 2021 Paolo Insogna and the real-require contributors
-- **regenerator-runtime@0.13.11** — Copyright (c) 2014-present, Facebook, Inc.
 - **require-directory@2.1.1** — Copyright (c) 2011 Troy Goode <troygoode@gmail.com>
 - **safe-stable-stringify@2.5.0** — Copyright (c) Ruben Bridgewater
 - **safer-buffer@2.1.2** — Copyright (c) 2018 Nikita Skovoroda <chalkerx@gmail.com>
 - **selderee@0.12.0** — Copyright (c) 2021-2026 KillyMXI <killy@mxii.eu.org>
-- **serialize-error@8.1.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - **smart-buffer@4.2.0** — Copyright (c) 2013-2017 Josh Glazebrook
 - **socks@2.8.10** — Copyright (c) 2013 Josh Glazebrook
 - **sonic-boom@4.2.1** — Copyright (c) 2017 Matteo Collina
@@ -286,12 +254,23 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **tlds@1.261.0** — Copyright (c) 2013 Stephen Mathieson and 2020 Richie Bendall
 - **tldts-core@7.4.2** — Copyright (c) 2017 Thomas Parisot, 2018 Rémi Berson
 - **tldts-experimental@7.4.2** — Copyright (c) 2017 Thomas Parisot, 2018 Rémi Berson
-- **tr46@0.0.3** — Copyright (c) Sebastian Mayr <npm@smayr.name>
 - **uc.micro@2.1.0** — Copyright Mathias Bynens <https://mathiasbynens.be/>
-- **undici-types@8.3.0** — Copyright (c) Matteo Collina and Undici contributors
-- **whatwg-url@5.0.0** — Copyright (c) 2015–2016 Sebastian Mayr
 - **wrap-ansi@6.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **yargs@15.4.1** — Copyright 2010 James Halliday (mail@substack.net); Modified work Copyright 2014 Contributors (ben@npmjs.com)
+- **@huggingface/jinja@0.5.10** — Copyright (c) 2023 Hugging Face
+- **@types/node@26.4.1** — Copyright (c) Microsoft Corporation.
+- **bmp-js@0.1.0** — Copyright (c) 2014 @丝刀口
+- **is-url@1.2.4** — (no copyright line in the package; see its repository)
+- **loglevel@1.9.2** — Copyright (c) 2013 Tim Perry
+- **node-fetch@2.7.0** — Copyright (c) 2016 David Frank
+- **onnxruntime-common@1.31.0-dev.20260911-2a43ec07e** — Copyright (c) fs-eire
+- **onnxruntime-web@1.31.0-dev.20260914-8d85527a0** — Copyright (c) fs-eire
+- **opencollective-postinstall@2.0.3** — Copyright (c) 2018 Open Collective
+- **platform@1.3.6** — Copyright 2014-2020 Benjamin Tan; Copyright 2011-2013 John-David Dalton
+- **regenerator-runtime@0.13.11** — Copyright (c) 2014-present, Facebook, Inc.
+- **tr46@0.0.3** — Copyright (c) Sebastian Mayr <npm@smayr.name>
+- **undici-types@8.3.0** — Copyright (c) Matteo Collina and Undici contributors
+- **whatwg-url@5.0.0** — Copyright (c) 2015–2016 Sebastian Mayr
 
 ```
 MIT License
@@ -320,14 +299,13 @@ SOFTWARE.
 - **@isaacs/fs-minipass@4.0.1** — Copyright (c) Isaac Z. Schlueter and Contributors
 - **cliui@6.0.0** — Copyright (c) 2015, Contributors
 - **get-caller-file@2.0.5** — Copyright 2018 Stefan Penner
-- **guid-typescript@1.0.9** — Copyright (c) nicolas
 - **require-main-filename@2.0.0** — Copyright (c) 2016, Contributors
-- **semver@7.8.5** — Copyright (c) Isaac Z. Schlueter and Contributors
 - **set-blocking@2.0.0** — Copyright (c) 2016, Contributors
 - **split2@4.2.0** — Copyright (c) 2014-2018, Matteo Collina <hello@matteocollina.com>
 - **which-module@2.0.1** — Copyright (c) 2016, Contributors
 - **y18n@4.0.3** — Copyright (c) 2015, Contributors
 - **yargs-parser@18.1.3** — Copyright (c) 2016, Contributors
+- **guid-typescript@1.0.9** — Copyright (c) nicolas
 
 ```
 ISC License
@@ -352,7 +330,6 @@ Used by jsQR and the packages below. Any NOTICE file a package ships is reproduc
 - **@huggingface/tokenizers@0.2.0** — by Hugging Face (https://github.com/huggingface/tokenizers.js)
 - **@huggingface/transformers@4.3.0** — by Hugging Face (https://github.com/huggingface/transformers.js)
 - **@mlc-ai/web-llm@0.2.84** (https://github.com/mlc-ai/web-llm)
-- **detect-libc@2.1.2** — by Lovell Fuller <npm@lovell.info> (git://github.com/lovell/detect-libc)
 - **flatbuffers@25.9.23** — by The FlatBuffers project (https://github.com/google/flatbuffers)
 - **idb-keyval@6.3.0** — Copyright 2016, Jake Archibald (https://github.com/jakearchibald/idb-keyval)
 - **long@5.3.2** — by Daniel Wirtz <dcode@dcode.io> (https://github.com/dcodeIO/long.js)
@@ -1319,37 +1296,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 ```
 
-#### @protobufjs/aspromise@1.1.2, @protobufjs/base64@1.1.2, @protobufjs/codegen@2.0.5, @protobufjs/eventemitter@1.1.1, @protobufjs/fetch@1.1.1, @protobufjs/float@1.0.2, @protobufjs/path@1.1.2, @protobufjs/pool@1.1.0, @protobufjs/utf8@1.1.2 — BSD-3-Clause
-
-```
-Copyright (c) 2016, Daniel Wirtz  All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-* Redistributions of source code must retain the above copyright
-  notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimer in the
-  documentation and/or other materials provided with the distribution.
-* Neither the name of its author, nor the names of its contributors
-  may be used to endorse or promote products derived from this software
-  without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
 #### @remusao/guess-url-type@2.1.0, @remusao/small@2.1.0, @remusao/smaz@2.2.0, @remusao/smaz-compress@2.2.0, @remusao/smaz-decompress@2.2.0, @remusao/trie@2.1.0 — MPL-2.0
 
 ```
@@ -2072,35 +2018,6 @@ THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRE
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-#### global-agent@4.1.3 — BSD-3-Clause
-
-```
-Copyright (c) 2026, Gajus Kuizinas (https://gajus.com/)
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the Gajus Kuizinas (https://gajus.com/) nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL ANUARY BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
 #### minipass@7.1.3, tar@7.5.22 — BlueOak-1.0.0
 
 ```
@@ -2182,6 +2099,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+#### @protobufjs/aspromise@1.1.2, @protobufjs/base64@1.1.2, @protobufjs/codegen@2.0.5, @protobufjs/eventemitter@1.1.1, @protobufjs/fetch@1.1.1, @protobufjs/float@1.0.2, @protobufjs/path@1.1.2, @protobufjs/pool@1.1.0, @protobufjs/utf8@1.1.2 — BSD-3-Clause
+
+```
+Copyright (c) 2016, Daniel Wirtz  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+* Neither the name of its author, nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 #### protobufjs@7.6.6 — BSD-3-Clause
 
 ```
@@ -2224,20 +2172,6 @@ Code generated by the command line utilities is owned by the owner
 of the input file used when generating it. This code is not
 standalone and requires a support library to be linked with it. This
 support library is itself covered by the above license.
-```
-
-#### type-fest@0.20.2 — (MIT OR CC0-1.0)
-
-```
-MIT License
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https:/sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 #### webidl-conversions@3.0.1 — BSD-2-Clause

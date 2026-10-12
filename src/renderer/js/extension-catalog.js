@@ -119,9 +119,7 @@ const VexExtensionCatalog = {
   // rather than leaving someone guessing why their extension is quiet.
   UNSUPPORTED: [
     'Blocking requests (declarativeNetRequest, blocking webRequest) — ad blockers cannot block',
-    'Right-click menu items (contextMenus)',
-    'Keyboard shortcuts (commands)',
-    'Toolbar badge text',
+    'Changing the toolbar icon or popup from code (action.setIcon, setPopup) and global shortcuts that work outside Vex',
     'Syncing settings between machines (storage.sync works, but stays on this machine)',
     'Reading or changing cookies (cookies)',
     'Navigation events (webNavigation)',

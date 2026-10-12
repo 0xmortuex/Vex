@@ -21,15 +21,14 @@ const AgentTools = {
 
   // ------------------------------------------------------------- fetching --
   // The agent is steered by text it reads, so it must not be talked into
-  // fetching the user's router or a service on this machine.
+  // fetching the user's router or a service on this machine. This is the
+  // early, friendly refusal; main makes the real decision on every redirect
+  // and on the resolved address (api:request publicOnly, main/public-fetch.js).
   isPrivateHost(host) {
-    const h = String(host || '').toLowerCase().replace(/^\[|\]$/g, '');
-    if (!h || h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.lan')) return true;
-    if (/^(127\.|10\.|0\.|169\.254\.|192\.168\.)/.test(h)) return true;
-    const m = h.match(/^172\.(\d+)\./);
-    if (m && Number(m[1]) >= 16 && Number(m[1]) <= 31) return true;
-    if (h === '::1' || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe80:/.test(h)) return true;
-    return false;
+    const pa = typeof VexPrivateAddress !== 'undefined' ? VexPrivateAddress
+      : (typeof require === 'function' ? require('./private-address.js') : null);
+    if (!pa) throw new Error('private-address.js is not loaded');
+    return pa.isPrivateHost(host);
   },
 
   _checkUrl(url) {
@@ -42,7 +41,7 @@ const AgentTools = {
 
   async _get(url) {
     if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
+    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
     if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
     if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
     return r;
@@ -161,7 +160,9 @@ const AgentTools = {
     return { url: 'https://www.youtube.com/watch?v=' + id, title: title.replace(/ - YouTube$/, ''), kind: 'video transcript', text: out.trim().slice(0, this.MAX_TEXT), truncated: out.length > this.MAX_TEXT };
   },
 
-  async readUrl(url) {
+  // maxText: how much of a page's text comes back (a page watch needs all of
+  // it to see a change at the bottom of a long page).
+  async readUrl(url, { maxText = this.MAX_TEXT } = {}) {
     // A video: read what was said in it, not the page around it.
     if (this.youtubeId(url)) return this.youtubeTranscript(url);
     const u = this._checkUrl(url);
@@ -174,9 +175,9 @@ const AgentTools = {
     if (/html|xml/.test(type) || /^\s*</.test(body)) {
       const { title, text } = this.htmlToText(body);
       if (text.length < 200) return { url: u.href, title, text, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
-      return { url: u.href, title, text: text.slice(0, this.MAX_TEXT), truncated: text.length > this.MAX_TEXT };
+      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText };
     }
-    return { url: u.href, title: '', text: body.slice(0, this.MAX_TEXT), truncated: body.length > this.MAX_TEXT };
+    return { url: u.href, title: '', text: body.slice(0, maxText), truncated: body.length > maxText };
   },
 
   // The words out of a PDF, without opening it.

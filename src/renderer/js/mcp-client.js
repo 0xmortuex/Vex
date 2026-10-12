@@ -16,19 +16,46 @@ const McpClient = (() => {
   let servers = [];
   const _sessions = Object.create(null); // serverId -> { sessionId, tools, info }
 
-  function load() { try { const a = JSON.parse(localStorage.getItem(KEY) || '[]'); servers = Array.isArray(a) ? a : []; } catch { servers = []; } return servers; }
+  // A server's token is kept encrypted in main (mcp:auth-set) and added to
+  // its requests there; this list only says whether it has one (hasAuth). It
+  // was kept here, in plain text in vex-persist.json and in every backup.
+  // A token saved the old way is handed to main once and dropped from here.
+  function load() {
+    try { const a = JSON.parse(localStorage.getItem(KEY) || '[]'); servers = Array.isArray(a) ? a : []; } catch { servers = []; }
+    for (const s of servers) {
+      if (!s || typeof s.auth !== 'string') continue;
+      const token = s.auth.trim();
+      if (!token) { delete s.auth; save(); continue; }
+      Promise.resolve(window.vex?.mcpAuthSet?.(s.id, token)).then((r) => {
+        if (!r || !r.ok) throw new Error('Vex did not keep the token');
+        delete s.auth; s.hasAuth = true; save();
+      }).catch(err => console.error('[MCP] could not move a server token into encrypted storage:', err && err.message));
+    }
+    return servers;
+  }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(servers)); } catch {} }
   function list() { return servers; }
   function session(id) { return _sessions[id]; }
 
-  function addServer(name, url, auth) {
+  async function addServer(name, url, auth) {
     url = (url || '').trim(); name = (name || '').trim();
     if (!/^https?:\/\//i.test(url)) { window.showToast?.('Enter a valid http(s) MCP URL'); return null; }
-    const s = { id: vexId('mcp'), name: name || url, url, auth: (auth || '').trim() };
+    const token = (auth || '').trim();
+    const s = { id: vexId('mcp'), name: name || url, url, hasAuth: !!token };
+    if (token) {
+      try {
+        const r = await window.vex.mcpAuthSet(s.id, token);
+        if (!r || !r.ok) throw new Error('Vex did not keep the token');
+      } catch (err) { window.showToast?.('Could not save the token: ' + ((err && err.message) || 'error'), 'error'); return null; }
+    }
     servers.push(s); save();
     return s;
   }
-  function removeServer(id) { servers = servers.filter(s => s.id !== id); delete _sessions[id]; save(); }
+  function removeServer(id) {
+    const gone = servers.find(s => s.id === id);
+    servers = servers.filter(s => s.id !== id); delete _sessions[id]; save();
+    if (gone && gone.hasAuth) Promise.resolve(window.vex?.mcpAuthSet?.(id, '')).catch(err => console.error('[MCP] could not delete the server token:', err && err.message));
+  }
 
   // Parse either a JSON body or an SSE stream ("event:"/"data:" lines) into the
   // first JSON-RPC object we can find.
@@ -48,12 +75,12 @@ const McpClient = (() => {
   async function _rpc(server, method, params, opts = {}) {
     if (!window.vex?.apiRequest) throw new Error('Bridge unavailable');
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
-    if (server.auth) headers['Authorization'] = /^bearer\s/i.test(server.auth) ? server.auth : ('Bearer ' + server.auth);
     const sess = _sessions[server.id];
     if (sess?.sessionId) headers['Mcp-Session-Id'] = sess.sessionId;
     const payload = { jsonrpc: '2.0', method, params: params || {} };
     if (!opts.notification) payload.id = ++_id;
-    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload) });
+    // Main adds the server's token (kept encrypted there) when it has one.
+    const res = await window.vex.apiRequest({ url: server.url, method: 'POST', headers, body: JSON.stringify(payload), ...(server.hasAuth ? { mcpServer: server.id } : {}) });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Request failed');
     if (res.status >= 400) throw new Error('Server returned ' + res.status + (res.body ? ': ' + res.body.slice(0, 200) : ''));
     // Capture a session id handed back on initialize.
@@ -85,7 +112,28 @@ const McpClient = (() => {
     return await _rpc(server, 'tools/call', { name, arguments: args || {} });
   }
 
-  function init() { load(); }
+  // Saved servers are connected again in the background at start: their tools
+  // were missing from the agent after every restart until the server was
+  // opened in Settings (found 2026-10-10). One that does not answer within
+  // the time is left for later and noted; start-up does not wait for any.
+  const CONNECT_TIMEOUT_MS = 10000;
+  function connectSaved(timeoutMs = CONNECT_TIMEOUT_MS) {
+    return Promise.all(servers.map(async (s) => {
+      let timer;
+      const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('no answer within ' + Math.round(timeoutMs / 1000) + ' s')), timeoutMs); });
+      try {
+        const sess = await Promise.race([connect(s), late]);
+        return { id: s.id, ok: true, tools: sess.tools.length };
+      } catch (err) {
+        const why = (err && err.message) || 'failed';
+        console.warn('[MCP] could not connect to ' + s.name + ': ' + why);
+        if (typeof VexProblems !== 'undefined') VexProblems.note('MCP', 'Could not connect to ' + s.name, why);
+        return { id: s.id, ok: false, error: why };
+      } finally { clearTimeout(timer); }
+    }));
+  }
+
+  function init() { load(); connectSaved(); }
 
   // ---------------- Agent integration ----------------
   // Expose connected servers' tools to the autonomous agent as tool defs shaped
@@ -134,7 +182,7 @@ const McpClient = (() => {
         <input id="mcp-name" placeholder="Name" style="width:120px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">
         <input id="mcp-url" placeholder="https://my-mcp-server/mcp" spellcheck="false" style="flex:1;min-width:180px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none">
         <input id="mcp-auth" placeholder="Token (optional)" spellcheck="false" style="width:140px;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">
-        <button id="mcp-add" style="padding:7px 15px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
+        <button id="mcp-add" style="padding:7px 15px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Add</button>
       </div>
       <div id="mcp-list"></div>`;
     const listEl = container.querySelector('#mcp-list');
@@ -145,7 +193,7 @@ const McpClient = (() => {
         const sess = _sessions[s.id];
         const r = document.createElement('div');
         r.style.cssText = 'display:flex;align-items:center;gap:9px;padding:8px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px';
-        r.innerHTML = `<div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);font-weight:600">${esc(s.name)}</div><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.url)}</div>${sess && sess.tools ? `<div style="font-size:10.5px;color:#22c55e;margin-top:2px">● connected · ${sess.tools.length} tools</div>` : ''}</div>
+        r.innerHTML = `<div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);font-weight:600">${esc(s.name)}</div><div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.url)}</div>${sess && sess.tools ? `<div style="font-size:10.5px;color:var(--success);margin-top:2px">● connected · ${sess.tools.length} tools</div>` : ''}</div>
           <button data-explore style="padding:6px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">${sess && sess.tools ? 'Tools' : 'Connect'}</button>
           <button data-x title="Remove" aria-label="Remove" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:none;background:none;color:var(--text-muted);cursor:pointer">${VexIcons.svg('x', { size: 13 })}</button>`;
         // One click used to remove it, with its sign-in, and no way back (found 2026-09-29).
@@ -164,8 +212,8 @@ const McpClient = (() => {
       });
     };
     renderList();
-    container.querySelector('#mcp-add').addEventListener('click', () => {
-      const s = addServer(container.querySelector('#mcp-name').value, container.querySelector('#mcp-url').value, container.querySelector('#mcp-auth').value);
+    container.querySelector('#mcp-add').addEventListener('click', async () => {
+      const s = await addServer(container.querySelector('#mcp-name').value, container.querySelector('#mcp-url').value, container.querySelector('#mcp-auth').value);
       if (s) { container.querySelector('#mcp-name').value = ''; container.querySelector('#mcp-url').value = ''; container.querySelector('#mcp-auth').value = ''; renderList(); window.showToast?.('MCP server added'); }
     });
   }
@@ -187,7 +235,7 @@ const McpClient = (() => {
         <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
           <div style="display:flex;gap:8px;align-items:center">
             <select id="mcp-tool" style="flex:1">${toolOpts || '<option>No tools</option>'}</select>
-            <button id="mcp-run" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Run</button>
+            <button id="mcp-run" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Run</button>
           </div>
           <div id="mcp-tool-desc" style="font-size:11.5px;color:var(--text-muted);margin:7px 0 4px"></div>
           <textarea id="mcp-args" spellcheck="false" placeholder='Arguments (JSON), e.g. {"query":"hello"}' style="width:100%;box-sizing:border-box;height:70px;resize:vertical;padding:7px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none"></textarea>
@@ -231,7 +279,7 @@ const McpClient = (() => {
     });
   }
 
-  return { load, save, list, addServer, removeServer, connect, callTool, session, init, renderSettings, openExplorer, agentToolDefs, agentCall, _parseBody };
+  return { load, save, list, addServer, removeServer, connect, connectSaved, callTool, session, init, renderSettings, openExplorer, agentToolDefs, agentCall, _parseBody };
 })();
 
 if (typeof window !== 'undefined') window.McpClient = McpClient;

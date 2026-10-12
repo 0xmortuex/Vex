@@ -218,13 +218,14 @@ describe('site settings: resetting a site actually resets it', () => {
     expect(SiteProfiles._neverSleepHosts().has('sleepy.test')).toBe(false);
   });
 
+  // The list lives in Settings › Site settings now (renderSettings).
   it('lists a site whose only customization is never-sleep', () => {
     SiteProfiles._saveNeverSleep(new Set(['sleepy.test']));
     const m = document.createElement('div');
-    m.innerHTML = '<div id="sp-body"></div>';
     document.body.appendChild(m);
-    SiteProfiles._paint(m);
+    SiteProfiles.renderSettings(m);
     expect(m.querySelector('[data-host="sleepy.test"]')).toBeTruthy();
+    expect(m.querySelector('[data-host="sleepy.test"]').textContent).toMatch(/never sleeps/);
   });
 
   it('names what could not be saved rather than reporting a clean reset', () => {

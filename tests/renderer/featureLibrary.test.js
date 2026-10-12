@@ -9,6 +9,8 @@ const { FeatureLibrary } = require('../../src/renderer/js/feature-library.js');
 const { VexFeatures } = require('../../src/renderer/js/feature-catalog.js');
 const { VexGuide } = require('../../src/renderer/js/vex-guide.js');
 const { FeatureDetails } = require('../../src/renderer/js/feature-details.js');
+// FeatureDetails.themes counts the themes ThemeManager really has.
+globalThis.ThemeManager = require('../../src/renderer/js/theme-manager.js').ThemeManager;
 
 beforeEach(() => {
   localStorage.clear();
@@ -115,6 +117,11 @@ describe('the three buttons', () => {
 });
 
 describe('every entry in the catalogue', () => {
+  it('counts the themes instead of naming a number that drifts', () => {
+    expect(FeatureDetails.themes).toContain('Vex has ' + globalThis.ThemeManager.THEMES.length + ' themes');
+    expect(FeatureDetails.reopen).toContain('one press at a time');
+  });
+
   it('has the long version written for it — all of them, not most', () => {
     const missing = VexFeatures.ITEMS.filter(f => !FeatureDetails[f.id]).map(f => f.id);
     expect(missing).toEqual([]);

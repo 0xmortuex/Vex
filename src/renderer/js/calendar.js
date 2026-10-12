@@ -201,7 +201,7 @@ const Calendar = {
       ${isPast ? '' : `<form data-remind style="display:flex;gap:6px;margin-top:6px">
         <input data-time type="time" value="09:00" aria-label="Time" style="${field}">
         <input data-text type="text" maxlength="2000" placeholder="Remind me to…" aria-label="Reminder" style="${field};flex:1">
-        <button type="submit" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add reminder</button>
+        <button type="submit" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add reminder</button>
       </form>`}`;
     const list = el.querySelector('[data-items]');
     for (const it of items) {

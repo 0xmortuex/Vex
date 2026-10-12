@@ -390,7 +390,7 @@ const DocExtract = {
           <strong style="font-size:15px;color:var(--text)">Extracted text</strong>
           <span style="font-size:11.5px;color:var(--text-muted)">${source} · ${text.length.toLocaleString()} chars · ${copyError ? 'not copied — use Copy' : 'copied to clipboard'}</span>
           <span style="flex:1"></span>
-          <button id="de-copy" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">${copyError ? 'Copy' : 'Copy again'}</button>
+          <button id="de-copy" style="padding:8px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">${copyError ? 'Copy' : 'Copy again'}</button>
           <button id="de-close" aria-label="Close" title="Close" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Close'}</button>
         </div>
         <textarea id="de-text" readonly spellcheck="false" style="flex:1;min-height:0;resize:none;border:none;outline:none;padding:16px;background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55"></textarea>

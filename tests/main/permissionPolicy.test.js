@@ -97,9 +97,20 @@ describe('the Discord panel exception', () => {
   // surfaces inside a panel webview. It must not quietly widen to everything.
   it('grants media there, and still not the clipboard', () => {
     const { ses } = service({ autoAllowMedia: true });
-    expect(decide(ses, 'microphone')).toBe(true);
-    expect(decide(ses, 'camera')).toBe(true);
-    expect(decide(ses, 'clipboard-read')).toBe('prompted');
+    expect(decide(ses, 'microphone', 'https://discord.com/channels/1')).toBe(true);
+    expect(decide(ses, 'camera', 'https://discord.com/channels/1')).toBe(true);
+    expect(decide(ses, 'clipboard-read', 'https://discord.com/channels/1')).toBe('prompted');
+  });
+
+  // Any frame or page in that session got the camera and microphone without a
+  // question (security scan M2): only Discord's own origin does now.
+  it('only for discord.com itself, not another site in the panel', () => {
+    const { ses } = service({ autoAllowMedia: true });
+    expect(decide(ses, 'microphone', 'https://ads.example/embed')).toBe('prompted');
+    expect(decide(ses, 'camera', 'https://discord.com.evil.example/')).toBe('prompted');
+    expect(decide(ses, 'camera', 'http://discord.com/')).toBe('prompted');
+    expect(ses.handlers.check({ session: {} }, 'media', 'https://evil.example', { mediaType: 'video' })).toBe(false);
+    expect(ses.handlers.check({ session: {} }, 'media', 'https://discord.com', { mediaType: 'audio' })).toBe(true);
   });
 });
 

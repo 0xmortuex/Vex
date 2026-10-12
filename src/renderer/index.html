@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/theme-tokens.css">
   <link rel="stylesheet" href="css/theme-extra.css">
   <link rel="stylesheet" href="css/theme-picker.css">
+  <link rel="stylesheet" href="css/theme-studio.css">
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/vex-dialog.css">
   <link rel="stylesheet" href="css/vex-ui.css">
@@ -43,6 +44,7 @@
   <link rel="stylesheet" href="css/agent.css">
   <link rel="stylesheet" href="css/schedules-panel.css">
   <link rel="stylesheet" href="css/update-notifier.css">
+  <link rel="stylesheet" href="css/update-log.css">
   <link rel="stylesheet" href="css/location-settings.css">
   <link rel="stylesheet" href="css/tour.css">
   <link rel="stylesheet" href="css/tasks.css">
@@ -65,6 +67,10 @@
   <link rel="stylesheet" href="css/clock-panel.css">
   <link rel="stylesheet" href="css/tor-indicator.css">
   <link rel="stylesheet" href="css/profiles.css">
+  <link rel="stylesheet" href="css/simple-mode.css">
+  <link rel="stylesheet" href="css/site-panel.css">
+  <link rel="stylesheet" href="css/legal.css">
+  <link rel="stylesheet" href="css/passkeys.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -123,7 +129,10 @@
 
     <div id="url-bar-wrapper">
       <div id="url-bar">
-        <svg id="url-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5V13.5M2.5 8H13.5M3.5 5H12.5M3.5 11H12.5" stroke="currentColor" stroke-width="1"/></svg>
+        <!-- The site icon: padlock, open lock or globe. Opens the site panel
+             (js/site-panel.js) — everything about the site in front. It is in
+             #url-bar, so the toolbar overflow never moves it. -->
+        <button id="url-site-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Site information and settings" title="Site information and settings"><svg id="url-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5V13.5M2.5 8H13.5M3.5 5H12.5M3.5 11H12.5" stroke="currentColor" stroke-width="1"/></svg></button>
         <input type="text" id="url-input" placeholder="Search or enter URL..." spellcheck="false" autocomplete="off">
         <!-- Only on an extension's page on the Chrome Web Store (js/web-store.js):
              installs it in Vex from Google's own server. Vex's button, nothing is
@@ -135,6 +144,9 @@
         <button id="btn-ai-summarize" class="nav-btn" title="Summarize with AI" style="width:24px;height:24px;flex-shrink:0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </button>
+        <!-- Send this tab to your devices (js/handoff.js fills the icon). Shown
+             only on a web page in a normal tab. -->
+        <button id="btn-send-device" type="button" class="nav-btn" title="Send this tab to your devices" aria-label="Send this tab to your devices" style="width:24px;height:24px;flex-shrink:0" hidden></button>
       </div>
     </div>
 
@@ -144,6 +156,9 @@
         <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
         <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
       </div>
+      <!-- Simple mode's one switch back to everything (js/simple-mode.js);
+           shown only while Simple mode is on. -->
+      <button id="btn-all-features" type="button" title="All features — show every panel, button and setting Vex has" aria-label="All features" hidden></button>
       <button id="btn-tor" class="nav-btn" title="New Tor tab — maximum-security private browsing over Tor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
       </button>
@@ -211,6 +226,7 @@
     <div class="top-tabs-list" id="top-tabs-list" role="tablist" aria-label="Tabs"></div>
     <div class="tab-bar-trailing">
       <button class="new-tab-btn" id="btn-new-tab-top" title="New Tab (Ctrl+T)" aria-label="New tab" aria-keyshortcuts="Control+T">+</button>
+      <button class="new-tab-btn list-all-tabs-btn" id="btn-list-all-tabs" title="List all tabs" aria-label="List all tabs" aria-haspopup="menu" aria-expanded="false"></button>
     </div>
   </div>
 
@@ -355,7 +371,7 @@
             <div class="setting-group">
               <label class="setting-label">General</label>
               <div class="setting-row-label">Default Search Engine</div>
-              <select id="setting-search-engine">
+              <select id="setting-search-engine" aria-label="Default Search Engine">
                 <option value="google">Google</option>
                 <option value="duckduckgo">DuckDuckGo</option>
                 <option value="brave">Brave Search</option>
@@ -363,9 +379,31 @@
                 <option value="startpage">Startpage</option>
                 <option value="ecosia">Ecosia</option>
               </select>
+              <!-- A search engine of your own (js/search-engine-custom.js). -->
+              <div id="setting-search-own" class="setting-toggle-row" hidden>
+                <span style="min-width:0"><span data-own-name></span> <span data-own-url style="color:var(--text-muted);font-size:11px;overflow-wrap:anywhere"></span></span>
+                <span style="display:flex;gap:6px;flex:none">
+                  <button type="button" class="btn-secondary" data-own-edit>Edit</button>
+                  <button type="button" class="btn-secondary" data-own-remove>Remove</button>
+                </span>
+              </div>
+              <!-- The same choice as the setup's language step (js/onboarding.js setLanguage). -->
+              <div class="setting-row-label" style="margin-top:10px">Language · Dil</div>
+              <select id="setting-language" aria-label="Language · Dil">
+                <option value="en">English</option>
+                <option value="tr">Türkçe</option>
+              </select>
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Search suggestions <span style="color:var(--text-muted);font-size:11px">· as you type in the address bar or the New Tab search box, the text goes to your search engine for suggestions — only that engine, and never from a private window, Tor tab or burner tab</span></span>
                 <label class="toggle"><input type="checkbox" id="setting-search-suggest" aria-label="Search suggestions" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-row-label" style="margin-top:12px">Search keywords</div>
+              <div style="color:var(--text-muted);font-size:11px">A keyword, a space and your words search that site: "@w hotels", or the keyword and Tab in the address bar. Your own keywords work without the @.</div>
+              <div id="setting-search-keywords"></div>
+              <button id="setting-search-keyword-add" class="btn-secondary" type="button" style="margin-top:6px">Add a keyword…</button>
+              <div class="setting-toggle-row" style="margin-top:8px">
+                <span>Simple mode <span style="color:var(--text-muted);font-size:11px">· a calm Vex: the everyday buttons, panels and settings only. Nothing is removed — Ctrl+K and the settings search still reach everything, and All features in the toolbar brings the rest back</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-simple-mode" aria-label="Simple mode"><span class="toggle-slider"></span></label>
               </div>
             </div>
 
@@ -405,14 +443,15 @@
               <div class="setting-toggle-row">
                 <span>Block ads and trackers</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-adblocker" checked>
+                  <input type="checkbox" id="setting-adblocker" aria-label="Block ads and trackers" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div style="margin-top:12px">
-                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Sites with passkey prompts disabled</label>
+                <label for="setting-passkey-hosts" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Don't offer Vex passkeys on these sites</label>
                 <input id="setting-passkey-hosts" class="set-input" placeholder="example.com, login.example.com">
-                <p class="setting-info muted" style="margin-top:6px">Stops Windows showing its passkey / security-key dialog over a password login. Defaults to <b>*</b> (every site). Replace it with exact hostnames to keep passkeys elsewhere, or clear the field to allow passkey prompts everywhere. Reload the site after changing this.</p>
+                <p class="setting-info muted" style="margin-top:6px">Vex signs you in with your passkeys (see Passkeys in Settings) wherever a site offers one. Sites listed here are told no passkey is available, so they never cover a password sign-in with a passkey prompt; sites that only sign in with a passkey will not work there. Type hostnames, or <b>*</b> to turn passkeys off on every site as older versions of Vex did. When a site on this list asks for one, Vex shows a bar with <b>Allow here</b>. Reload the site after changing this.</p>
+                <div id="setting-passkey-allowed" style="margin-top:6px"></div>
               </div>
               <div style="margin-top:12px">
                 <button id="setting-clear-data" class="btn-danger">Clear Browsing Data</button>
@@ -425,6 +464,7 @@
               <div id="privacy-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
+              <div id="discord-bypass-setting" style="margin-top:14px"></div>
               <div class="setting-group" id="game-mode-settings" style="margin-top:14px">
                 <div class="setting-label">
                   <strong>Gaming and streaming</strong>
@@ -435,7 +475,7 @@
                     <strong>Streamer mode</strong>
                     <span class="setting-hint">Blurs one-time codes, saved passwords and notification text so they cannot be read from a recording. Hover one to read it; copying still copies the real value.</span>
                   </div>
-                  <select id="setting-streamer-mode">
+                  <select id="setting-streamer-mode" aria-label="Streamer mode">
                     <option value="auto">While you share your screen (not during calls)</option>
                     <option value="on">Always on</option>
                     <option value="off">Off</option>
@@ -457,16 +497,23 @@
             <div class="setting-group">
               <label class="setting-label">Autofill</label>
               <div class="setting-toggle-row">
+                <span><span>Fill sign-in codes from your email</span> <span style="color:var(--text-muted);font-size:11px">· only a code the same site emailed you, read from your open webmail</span></span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-emailcode-autofill" aria-label="Fill sign-in codes from your email">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-toggle-row">
                 <span>Read email codes from a hidden Gmail <span style="color:var(--text-muted);font-size:11px">· fills verification codes with no Gmail tab open or awake, using your signed-in session</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-emailcode-hidden">
+                  <input type="checkbox" id="setting-emailcode-hidden" aria-label="Read email codes from a hidden Gmail">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row">
                 <span>Submit automatically after filling a code <span style="color:var(--text-muted);font-size:11px">· off by default — presses the form's submit/verify button</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-emailcode-autosubmit">
+                  <input type="checkbox" id="setting-emailcode-autosubmit" aria-label="Submit automatically after filling a code">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -477,7 +524,7 @@
               <div class="setting-toggle-row">
                 <span>Auto-save session every 10 minutes</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosave">
+                  <input type="checkbox" id="setting-autosave" aria-label="Auto-save session every 10 minutes">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -487,18 +534,49 @@
             </div>
 
             <div class="setting-group">
+              <label class="setting-label">Downloads</label>
+              <div class="setting-toggle-row">
+                <span><span>Location</span> <span id="setting-download-folder" class="setting-info muted"></span></span>
+                <button id="setting-download-folder-change" class="btn-secondary">Change</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Ask where to save each file before downloading</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-download-ask" aria-label="Ask where to save each file before downloading">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="setting-group">
               <label class="setting-label">Workspaces</label>
               <div style="margin-top:4px">
                 <button id="setting-open-workspaces" class="btn-secondary">Manage Workspaces</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Private and Tor tabs when you switch workspace</span>
+                <select id="setting-ws-private-tabs" aria-label="Private and Tor tabs when you switch workspace">
+                  <option value="ask">Ask each time</option>
+                  <option value="close">Always close them</option>
+                </select>
               </div>
             </div>
 
             <div class="setting-group">
               <label class="setting-label">Performance</label>
               <div class="setting-toggle-row">
-                <span>Memory Saver <span style="color:var(--text-muted);font-size:11px">· sleeps tabs sooner, discards them when minimized, and frees background caches. Restart to fully apply.</span></span>
+                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">The one switch for every tab or panel Vex would sleep, blank or refresh with nobody watching — idle tabs, idle panels, Discord’s idle sleep and refresh, gaming mode, the memory guard, and sleeping tabs while Vex sits behind another app. A tab or panel that sleeps behind your back has reloaded by the time you come back to it. Kept-awake tabs and panels are never slept. Vex still tells you when something has grown; buttons you press yourself always act at once.</span></span>
+                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
+                  <option value="never">never do it</option>
+                  <option value="ask">ask me first</option>
+                  <option value="auto">just do it</option>
+                </select>
+              </div>
+              <div id="sleep-consent-note" class="setting-info muted" style="font-size:11.5px;color:var(--text-muted);margin:4px 0 8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"></div>
+              <div class="setting-toggle-row">
+                <span>Memory Saver <span style="color:var(--text-muted);font-size:11px">· frees background caches and holds fewer pages in memory (restart to fully apply). When the choice above lets Vex sleep things, it also shortens auto-sleep to 10 minutes, holds the memory guard at 900 MB and sleeps background tabs when Vex is minimized — it never turns on a switch below that is off.</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-memory-saver">
+                  <input type="checkbox" id="setting-memory-saver" aria-label="Memory Saver">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -506,16 +584,17 @@
                 <button id="btn-restart-vex" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px">Restart Vex to apply</button>
                 <span style="color:var(--text-muted);font-size:11px;margin-left:8px">Your tabs are saved and will come back.</span>
               </div>
+              <div data-sleep-dependent>
               <div class="setting-toggle-row">
                 <span>Auto-sleep inactive tabs</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosleep">
+                  <input type="checkbox" id="setting-autosleep" aria-label="Auto-sleep inactive tabs">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div style="margin-top:8px">
                 <div class="setting-row-label">Sleep after (minutes)</div>
-                <select id="setting-autosleep-minutes">
+                <select id="setting-autosleep-minutes" aria-label="Sleep after (minutes)">
                   <option value="5">5 minutes</option>
                   <option value="10">10 minutes</option>
                   <option value="15">15 minutes</option>
@@ -526,33 +605,26 @@
               <div class="setting-toggle-row" style="margin-top:8px">
                 <span>Exclude pinned tabs from auto-sleep</span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-autosleep-exclude-pinned" checked>
+                  <input type="checkbox" id="setting-autosleep-exclude-pinned" aria-label="Exclude pinned tabs from auto-sleep" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Before Vex puts anything to sleep on its own<br><span style="font-size:11.5px;color:var(--text-muted)">A tab or panel that sleeps behind your back has reloaded by the time you come back to it. This covers every unattended one — idle tabs, idle panels, Discord’s memory watch, gaming mode, the memory ceiling, and the one that fired whenever Vex sat behind another app. Vex still tells you when something has grown; buttons you press yourself always act at once.</span></span>
-                <select id="setting-sleep-consent" aria-label="Before Vex puts anything to sleep on its own">
-                  <option value="never">never do it</option>
-                  <option value="ask">ask me first</option>
-                  <option value="auto">just do it</option>
-                </select>
-              </div>
-              <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Sleep hidden sidebar panels too <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same idle time; never one playing audio</span></span>
+                <span>Sleep hidden sidebar panels <span style="color:var(--text-muted);font-size:11px">· Claude, Spotify, GitHub… after the same “Sleep after” time as tabs (on its own switch, so it works with tab auto-sleep off); never one playing audio or kept awake</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-panel-autosleep" checked>
+                  <input type="checkbox" id="setting-panel-autosleep" aria-label="Sleep hidden sidebar panels" checked>
                   <span class="toggle-slider"></span>
                 </label>
+              </div>
               </div>
               <div style="margin-top:8px">
                 <div class="setting-row-label">Keep awake <span style="color:var(--text-muted);font-size:11px;font-weight:normal">· an hour, a day, never, or only while it is in a call — a sleeping panel hands back all of its memory but cannot show a new-message notification. Discord and WhatsApp never sleep unless you change them.</span></div>
                 <div id="setting-panel-keepawake" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:4px"></div>
               </div>
               <div style="margin-top:8px">
-                <div class="setting-row-label">Memory notices — a strip at the top of a tab or the Discord panel using more than</div>
-                <select id="setting-memory-notice">
-                  <option value="">Default (tabs 800 MB, Discord 1 GB)</option>
+                <div class="setting-row-label">Memory notices — a strip at the top of a tab using more than</div>
+                <select id="setting-memory-notice" aria-label="Memory notices">
+                  <option value="">Default (800 MB)</option>
                   <option value="0">Off</option>
                   <option value="800">800 MB</option>
                   <option value="1024">1 GB</option>
@@ -561,19 +633,19 @@
                 </select>
               </div>
               <div style="margin-top:8px">
-                <div class="setting-row-label" style="color:var(--text-muted);font-size:11px;font-weight:normal">Discord kept awake all day grows. Past this size Vex swaps in a fresh one — only while it is hidden, not in a call and silent. It stays signed in and keeps notifying.</div>
+                <div class="setting-row-label" style="color:var(--text-muted);font-size:11px;font-weight:normal">Discord kept awake all day grows. Past its limit below, Vex tells you once, with Refresh — never during a call. It stays signed in and keeps notifying.</div>
                 <div id="discord-memory-setting"></div>
               </div>
               <div class="setting-toggle-row" style="margin-top:8px">
-                <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· after two minutes out of sight it stops using the CPU; a call, or opening it, wakes it at once</span></span>
+                <span>Rest Discord when hidden and not in a call <span style="color:var(--text-muted);font-size:11px">· not a sleep: after two minutes out of sight it stops using the CPU but stays loaded and keeps notifying; a call, or opening it, wakes it at once. Runs whatever the choice at the top says.</span></span>
                 <label class="toggle">
-                  <input type="checkbox" id="setting-discord-rest" checked>
+                  <input type="checkbox" id="setting-discord-rest" aria-label="Rest Discord when hidden and not in a call" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
-              <div style="margin-top:12px">
+              <div style="margin-top:12px" data-sleep-dependent>
                 <div class="setting-row-label">Memory guard — sleep idle tabs when memory exceeds</div>
-                <select id="setting-mem-ceiling">
+                <select id="setting-mem-ceiling" aria-label="Memory guard">
                   <option value="0">Off</option>
                   <option value="900">900 MB (aggressive)</option>
                   <option value="1200" selected>1.2 GB (balanced)</option>
@@ -598,8 +670,8 @@
                 <button id="setting-export" class="btn-secondary">Export All Data</button>
                 <button id="setting-reset" class="btn-danger">Reset to Defaults</button>
               </div>
-              <div class="setting-hint" style="margin-top:10px">Your settings as they were before each update (the last five). Restoring copies today's aside first, then restarts Vex.</div>
-              <div id="settings-backups" style="margin-top:4px;font-size:12px"></div>
+              <div class="setting-hint" style="margin-top:10px">Vex backs up your settings and data by itself before each update and keeps the last five. The backup screen lists them, each with Restore, which asks first and can be undone.</div>
+              <div style="margin-top:6px"><button id="setting-open-update-backups" class="btn-secondary">Backups from before updates…</button></div>
             </div>
 
             <!-- Location (replaces Google Cloud geolocation) -->
@@ -649,13 +721,16 @@
                   <label><input type="radio" name="ai-mode" value="cloud"> Always cloud (max quality)</label>
                 </div>
               </div>
+              <!-- Under the row, not in it: as a third child of the row it took
+                   the row's width and squeezed the label and the choices. -->
+              <div class="setting-hint" style="display:block;margin-top:6px;font-size:12px;color:var(--text-muted)">Prefer local keeps every feature on your Ollama model while it is running — translate, history search, multi-tab AI and the agent included. When no local model is running, features set to Cloud below still use the AI Worker. Always cloud also overrides on-device AI.</div>
 
               <div class="setting-row" id="local-model-row" style="margin-top:14px">
                 <div class="setting-label">
                   <strong>Local Model</strong>
                   <span class="setting-hint">Pick which Ollama model to use</span>
                 </div>
-                <select id="local-model-select">
+                <select id="local-model-select" aria-label="Local model">
                   <option value="">Loading models...</option>
                 </select>
               </div>
@@ -688,7 +763,7 @@
                   <strong>Start Ollama when it is needed</strong>
                   <span class="setting-hint">If the local model is wanted and Ollama is not running, Vex starts it in the background — no window. It is left running, as Ollama's own app leaves it.</span>
                 </div>
-                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart"><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-ollama-autostart" aria-label="Start Ollama when it is needed"><span class="toggle-slider"></span></label>
               </div>
 
               <div class="setting-row" id="agent-numctx-row" style="margin-top:14px">
@@ -696,7 +771,7 @@
                   <strong>Agent context size</strong>
                   <span class="setting-hint">How much the local model can hold in mind during an agent run. Larger fits longer tasks and uses more memory.</span>
                 </div>
-                <select id="agent-numctx-select">
+                <select id="agent-numctx-select" aria-label="Agent context size">
                   <option value="8192">8K — small machines</option>
                   <option value="16384">16K — default</option>
                   <option value="32768">32K</option>
@@ -714,161 +789,6 @@
                 <summary>Advanced: Per-Feature Routing</summary>
                 <div class="routing-grid" id="routing-grid"></div>
               </details>
-            </div>
-
-            <!-- GUI Style (whole-UI look category) -->
-            <div class="setting-group">
-              <label class="setting-label">GUI Style</label>
-              <div class="setting-toggle-row">
-                <span>Overall look of the interface</span>
-                <select id="setting-gui-style" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
-                  <option value="classic">Classic (your themes)</option>
-                  <option value="glass">Glass (frosted · tabs on top · shortcuts bar)</option>
-                  <optgroup label="Browser looks">
-                    <option value="chrome">Chrome</option>
-                    <option value="chrome-dark">Chrome — dark</option>
-                    <option value="firefox">Firefox</option>
-                    <option value="firefox-dark">Firefox — dark</option>
-                    <option value="safari">Safari</option>
-                    <option value="xp">Internet Explorer · Windows XP</option>
-                    <option value="win98">Netscape · Windows 98</option>
-                  </optgroup>
-                  <optgroup label="Styles">
-                    <option value="fluent">Fluent · Windows 11</option>
-                    <option value="fluent-dark">Fluent · Windows 11 dark</option>
-                    <option value="glossy">Glossy · Aero</option>
-                    <option value="neobrutal">Neobrutal</option>
-                    <option value="terminal">Terminal</option>
-                  </optgroup>
-                </select>
-              </div>
-              <div class="setting-toggle-row" id="setting-gui-colors-row" style="display:none">
-                <span>Browser look colours</span>
-                <select id="setting-gui-colors" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
-                  <option value="look">The look's own colours</option>
-                  <option value="theme">Match my colour theme</option>
-                </select>
-              </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass moves tabs above the address bar, adds a shortcuts bar, and applies a frosted look. Your color themes still apply in Classic. A browser look keeps its own colours or matches your colour theme — picking a theme switches it to match.</div>
-            </div>
-
-            <!-- What Vex is made of. These four each open their own picker:
-                 the choices are visual ones and a drop-down of names cannot
-                 show a texture, a typeface or a palette. Settings is where
-                 people look for them, so this is the way in. -->
-            <div class="setting-group">
-              <label class="setting-label">Appearance</label>
-              <div class="setting-toggle-row">
-                <span>Colour theme<br><span style="font-size:11.5px;color:var(--text-muted)">Thirty-seven of them, including Firefox Light and Dark. Ctrl+Shift+Y.</span></span>
-                <button id="setting-open-theme" class="btn-secondary">Choose a theme…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Skin<br><span style="font-size:11.5px;color:var(--text-muted)">A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light — on top of any theme.</span></span>
-                <button id="setting-open-skin" class="btn-secondary">Choose a skin…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Font<br><span style="font-size:11.5px;color:var(--text-muted)">The typeface Vex itself wears, and the one used for code. Times New Roman by default.</span></span>
-                <button id="setting-open-font" class="btn-secondary">Choose a font…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Back up everything<br><span style="font-size:11.5px;color:var(--text-muted)">One file with your notes, sessions, keybindings, site rules, panels, theme, skin and typeface — and a way to put it all back. Saved logins are never in it.</span></span>
-                <button id="setting-open-backup" class="btn-secondary">Back up or restore…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Import from another browser<br><span style="font-size:11.5px;color:var(--text-muted)">Bookmarks with their folders and your history from Chrome, Edge, Brave or Firefox on this PC — and passwords from a file you export from that browser. Shows what it will add first, and can be undone.</span></span>
-                <button id="setting-open-browser-import" class="btn-secondary">Import…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All 222 features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
-                <button id="setting-open-library" class="btn-secondary">Open the Library…</button>
-              </div>
-            </div>
-
-            <!-- Private routing: what people mean by a VPN. -->
-            <div class="setting-group">
-              <label class="setting-label">Private routing</label>
-              <div class="setting-toggle-row">
-                <span>Send everything through Tor or a proxy<br><span style="font-size:11.5px;color:var(--text-muted)">Applies to every tab and container at once, survives a restart, and can be checked: Vex asks what address the internet sees with the route and without it.</span></span>
-                <button id="setting-open-routing" class="btn-secondary">Set it up…</button>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Sites that always go through a route<br><span style="font-size:11.5px;color:var(--text-muted)">Name a site and it opens in a routed session of its own, every time — without routing the rest of your browsing.</span></span>
-                <button id="setting-open-site-routes" class="btn-secondary">Site rules…</button>
-              </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Vex is not a VPN service and does not run one — this routes the browser through Tor or through a proxy you already have. Anything outside Vex goes the way it always did.</div>
-            </div>
-
-            <!-- Tab layout -->
-            <div class="setting-group">
-              <label class="setting-label">Tab Layout</label>
-              <div class="setting-toggle-row">
-                <span>Where tabs appear</span>
-                <select id="setting-tab-layout" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
-                  <option value="horizontal">Horizontal (top bar, like Chrome)</option>
-                  <option value="vertical">Vertical (left sidebar)</option>
-                </select>
-              </div>
-              <div id="setting-tab-layout-note" style="display:none;font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass and the browser looks put the tabs on top themselves, so this is locked while one of them is on. Switch GUI Style back to Classic to choose again.</div>
-            </div>
-
-            <!-- Layout (rearrange the toolbar + sidebar in place) -->
-            <div class="setting-group" id="setcat-layout">
-              <label class="setting-label">Layout</label>
-              <div class="setting-toggle-row">
-                <span>Rearrange or hide the toolbar buttons and sidebar icons, right where they live</span>
-                <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
-              </div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
-            </div>
-
-            <!-- Site Permissions (geolocation, mic, camera, notifications) -->
-            <div class="setting-group">
-              <label class="setting-label">Site Permissions</label>
-              <div id="permissions-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading permissions...</div>
-              </div>
-            </div>
-
-            <!-- Phase 18: Chrome Extensions -->
-            <div class="setting-group">
-              <label class="setting-label">Chrome Extensions</label>
-              <div id="extensions-panel-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading extensions...</div>
-              </div>
-            </div>
-
-            <!-- Phase 17: Customizable Keyboard Shortcuts -->
-            <div class="setting-group">
-              <label class="setting-label">Keyboard Shortcuts</label>
-              <div id="shortcuts-editor-content">
-                <div style="color:var(--text-muted);font-size:12px">Loading shortcuts...</div>
-              </div>
-            </div>
-
-            <!-- Phase 16: Smart Tab Grouping -->
-            <div class="setting-group">
-              <label class="setting-label">Smart Tab Grouping</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Vex AI clusters open tabs into named groups and remembers patterns so future matching tabs auto-join. Use Ctrl+Shift+G any time.</p>
-              <div class="setting-toggle-row">
-                <span>Auto-suggest when 12+ tabs are ungrouped</span>
-                <label class="toggle">
-                  <input type="checkbox" id="setting-auto-group-suggest" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div class="setting-toggle-row">
-                <span>Auto-add new tabs that match a remembered pattern</span>
-                <label class="toggle">
-                  <input type="checkbox" id="setting-auto-add-to-groups" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
-                <button id="btn-group-tabs-now" class="btn-primary">Organize My Tabs Now</button>
-                <button id="btn-clear-patterns" class="btn-secondary">Clear Remembered Patterns</button>
-                <button id="btn-clear-rejected" class="btn-secondary">Clear Rejected Suggestions</button>
-              </div>
-              <div id="group-patterns-count" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading...</div>
             </div>
 
             <!-- Phase 15: AI Personas -->
@@ -911,6 +831,248 @@
               </div>
             </div>
 
+            <!-- Phase 12: AI History Indexing -->
+            <div class="setting-group">
+              <label class="setting-label">AI History Indexing</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Summarize the pages you visit so AI history search can find them by meaning, not just title and address. <strong>Off by default:</strong> it runs the AI model (the local one, unless you route it to the cloud in the table above) for every page you open, which costs memory and graphics power while you browse. Only the summary is kept.</p>
+              <div class="setting-toggle-row">
+                <span>Enable AI history indexing</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-ai-indexing-enabled" aria-label="Enable AI history indexing">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button id="btn-reindex-open" class="btn-secondary">Re-index Open Tabs</button>
+                <button id="btn-clear-summaries" class="btn-danger">Clear AI Summaries</button>
+              </div>
+              <div id="indexing-stats" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading stats...</div>
+            </div>
+
+            <!-- GUI Style (whole-UI look category) -->
+            <div class="setting-group">
+              <label class="setting-label">GUI Style</label>
+              <div class="setting-toggle-row">
+                <span>Overall look of the interface</span>
+                <select id="setting-gui-style" aria-label="Overall look of the interface" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="classic">Classic (your themes)</option>
+                  <option value="glass">Glass (frosted · tabs on top · shortcuts bar)</option>
+                  <optgroup label="Browser looks">
+                    <option value="chrome">Chrome</option>
+                    <option value="chrome-dark">Chrome — dark</option>
+                    <option value="firefox">Firefox</option>
+                    <option value="firefox-dark">Firefox — dark</option>
+                    <option value="safari">Safari</option>
+                    <option value="xp">Internet Explorer · Windows XP</option>
+                    <option value="win98">Netscape · Windows 98</option>
+                  </optgroup>
+                  <optgroup label="Styles">
+                    <option value="fluent">Fluent · Windows 11</option>
+                    <option value="fluent-dark">Fluent · Windows 11 dark</option>
+                    <option value="glossy">Glossy · Aero</option>
+                    <option value="neobrutal">Neobrutal</option>
+                    <option value="terminal">Terminal</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="setting-toggle-row" id="setting-gui-colors-row" style="display:none">
+                <span>Browser look colours</span>
+                <select id="setting-gui-colors" aria-label="Browser look colours" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="look">The look's own colours</option>
+                  <option value="theme">Match my colour theme</option>
+                </select>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass moves tabs above the address bar, adds a shortcuts bar, and applies a frosted look. Your color themes still apply in Classic. A browser look keeps its own colours or matches your colour theme — picking a theme switches it to match.</div>
+            </div>
+
+            <!-- What Vex is made of. These four each open their own picker:
+                 the choices are visual ones and a drop-down of names cannot
+                 show a texture, a typeface or a palette. Settings is where
+                 people look for them, so this is the way in. -->
+            <div class="setting-group">
+              <label class="setting-label">Appearance</label>
+              <div class="setting-toggle-row">
+                <span>Colour theme<br><span style="font-size:11.5px;color:var(--text-muted)"><span data-count="themes">Dozens</span> of them, including Firefox Light and Dark. Ctrl+Shift+Y.</span></span>
+                <button id="setting-open-theme" class="btn-secondary">Choose a theme…</button>
+              </div>
+              <!-- Your own themes (js/theme-studio.js): make one from any theme,
+                   import or export a .vextheme file (drop one on Settings). -->
+              <div class="setting-toggle-row" id="custom-themes-row">
+                <span>Your themes<br><span style="font-size:11.5px;color:var(--text-muted)">Start from any theme and change its colours, with Vex showing it as you go. A theme travels as a small .vextheme file.</span></span>
+                <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+                  <button id="setting-theme-make" class="btn-secondary">Make your own…</button>
+                  <button id="setting-theme-from-picture" class="btn-secondary" title="Pick a picture or use your Windows wallpaper; Vex makes a theme that matches it">From a picture…</button>
+                  <button id="setting-theme-import" class="btn-secondary">Import…</button>
+                  <button id="setting-theme-chrome" class="btn-secondary" title="A theme from the Chrome Web Store, by its link or id, or its .crx file: Vex adds its colours and pictures as one of your themes">Chrome theme…</button>
+                </span>
+              </div>
+              <div id="custom-themes-list"></div>
+              <!-- Light and dark: a light and a dark theme, switched by Windows'
+                   app mode or the clock (js/theme-auto.js fills and runs it). -->
+              <div class="setting-toggle-row" id="theme-auto-row">
+                <span>Light and dark<br><span id="theme-auto-hint" style="font-size:11.5px;color:var(--text-muted)">Wear a light theme by day and a dark one at night, by Windows’ own setting or by the clock.</span></span>
+                <select id="setting-theme-auto-mode" aria-label="Light and dark" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="off">Off — one theme</option>
+                  <option value="system">Follow Windows</option>
+                  <option value="schedule">On a schedule</option>
+                  <option value="sun">Sunset to sunrise</option>
+                </select>
+              </div>
+              <div id="theme-auto-details" style="display:none">
+                <div class="setting-toggle-row">
+                  <span>Light theme</span>
+                  <select id="setting-theme-light" aria-label="Light theme" style="flex:0 1 260px;max-width:260px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px"></select>
+                </div>
+                <div class="setting-toggle-row">
+                  <span>Dark theme</span>
+                  <select id="setting-theme-dark" aria-label="Dark theme" style="flex:0 1 260px;max-width:260px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px"></select>
+                </div>
+                <div class="setting-toggle-row" id="theme-auto-schedule-row" style="display:none">
+                  <span>Dark from</span>
+                  <span style="display:flex;align-items:center;gap:8px">
+                    <input type="time" id="setting-theme-dark-from" aria-label="Dark from" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                    <span>to</span>
+                    <input type="time" id="setting-theme-dark-to" aria-label="Dark until" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  </span>
+                </div>
+                <div id="theme-auto-status" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:6px"></div>
+              </div>
+              <!-- Discord in the Vex theme, through Vencord (js/discord-theme.js). -->
+              <div id="discord-theme-setting"></div>
+              <!-- Website appearance and Reduce motion (js/appearance-prefs.js). -->
+              <div class="setting-toggle-row">
+                <span>Website appearance<br><span style="font-size:11.5px;color:var(--text-muted)">Whether websites show their light or dark design. Following Vex, a dark theme gets the dark version of a site that has one.<span style="display:block">Tor tabs always show sites light, like Tor Browser.</span></span></span>
+                <select id="setting-website-appearance" aria-label="Website appearance" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="vex">Follow Vex</option>
+                  <option value="windows">Follow Windows</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Reduce motion<br><span style="font-size:11.5px;color:var(--text-muted)">Nothing in Vex slides, spins or zooms. Off, Vex follows Windows’ own “Animation effects”.</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-reduce-motion" aria-label="Reduce motion"><span class="toggle-slider"></span></label>
+              </div>
+              <!-- Settings layout: columns, category menu, density (js/settings-ui.js). -->
+              <div id="settings-layout-setting"></div>
+              <div class="setting-toggle-row">
+                <span>Skin<br><span style="font-size:11.5px;color:var(--text-muted)">A texture on Vex’s own surfaces, the shape of its corners, and how it catches the light — on top of any theme.</span></span>
+                <button id="setting-open-skin" class="btn-secondary">Choose a skin…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Font<br><span style="font-size:11.5px;color:var(--text-muted)">The typeface Vex itself wears, and the one used for code. Times New Roman by default.</span></span>
+                <button id="setting-open-font" class="btn-secondary">Choose a font…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Back up everything<br><span style="font-size:11.5px;color:var(--text-muted)">One file with your notes, sessions, keybindings, site rules, panels, theme, skin and typeface — and a way to put it all back. Saved logins are never in it.</span></span>
+                <button id="setting-open-backup" class="btn-secondary">Back up or restore…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Import from another browser<br><span style="font-size:11.5px;color:var(--text-muted)">Bookmarks with their folders and your history from Chrome, Edge, Brave, Opera, Vivaldi, Firefox, LibreWolf and other browsers on this PC — and passwords from a file you export from that browser. Shows what it will add first, and can be undone.</span></span>
+                <button id="setting-open-browser-import" class="btn-secondary">Import…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Everything Vex can do<br><span style="font-size:11.5px;color:var(--text-muted)">All <span data-count="features">the</span> features, on shelves, with what each one is for — and somewhere to ask for what you cannot name.</span></span>
+                <button id="setting-open-library" class="btn-secondary">Open the Library…</button>
+              </div>
+            </div>
+
+            <!-- Private routing: what people mean by a VPN. -->
+            <div class="setting-group">
+              <label class="setting-label">Private routing</label>
+              <div class="setting-toggle-row">
+                <span>Send everything through Tor or a proxy<br><span style="font-size:11.5px;color:var(--text-muted)">Applies to every tab and container at once, survives a restart, and can be checked: Vex asks what address the internet sees with the route and without it.</span></span>
+                <button id="setting-open-routing" class="btn-secondary">Set it up…</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Sites that always go through a route<br><span style="font-size:11.5px;color:var(--text-muted)">Name a site and it opens in a routed session of its own, every time — without routing the rest of your browsing.</span></span>
+                <button id="setting-open-site-routes" class="btn-secondary">Site rules…</button>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Vex is not a VPN service and does not run one — this routes the browser through Tor or through a proxy you already have. Anything outside Vex goes the way it always did.</div>
+            </div>
+
+            <!-- Tab layout -->
+            <div class="setting-group">
+              <label class="setting-label">Tab Layout</label>
+              <div class="setting-toggle-row">
+                <span>Where tabs appear</span>
+                <select id="setting-tab-layout" aria-label="Where tabs appear" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  <option value="horizontal">Horizontal (top bar, like Chrome)</option>
+                  <option value="vertical">Vertical (left sidebar)</option>
+                </select>
+              </div>
+              <div id="setting-tab-layout-note" style="display:none;font-size:11.5px;color:var(--text-muted);margin-top:6px">Glass and the browser looks put the tabs on top themselves, so this is locked while one of them is on. Switch GUI Style back to Classic to choose again.</div>
+            </div>
+
+            <!-- Layout (rearrange the toolbar + sidebar in place) -->
+            <div class="setting-group" id="setcat-layout">
+              <label class="setting-label">Layout</label>
+              <div class="setting-toggle-row">
+                <span>Rearrange or hide the toolbar buttons and sidebar icons, right where they live</span>
+                <button id="btn-edit-layout" style="background:var(--primary,var(--accent));border:1px solid transparent;color:#111;padding:8px 14px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Edit layout</button>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Turns on customize mode: drag any toolbar button or sidebar icon to reorder it, or hit its red X to hide it. Hidden items can be restored from the bar at the bottom. Sidebar per-item resets stay in the Sidebar Buttons section.</div>
+            </div>
+
+            <!-- Site settings: every site with anything set (js/site-profiles.js),
+                 from the same stores the site panel changes. -->
+            <div class="setting-group" id="setting-site-settings">
+              <label class="setting-label">Site Settings</label>
+              <div id="site-settings-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Site Permissions (geolocation, mic, camera, notifications) -->
+            <div class="setting-group">
+              <label class="setting-label">Site Permissions</label>
+              <div id="permissions-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading permissions...</div>
+              </div>
+            </div>
+
+            <!-- Phase 18: Chrome Extensions -->
+            <div class="setting-group">
+              <label class="setting-label">Chrome Extensions</label>
+              <div id="extensions-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading extensions...</div>
+              </div>
+            </div>
+
+            <!-- Phase 17: Customizable Keyboard Shortcuts -->
+            <div class="setting-group">
+              <label class="setting-label">Keyboard Shortcuts</label>
+              <div id="shortcuts-editor-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading shortcuts...</div>
+              </div>
+            </div>
+
+            <!-- Phase 16: Smart Tab Grouping -->
+            <div class="setting-group">
+              <label class="setting-label">Smart Tab Grouping</label>
+              <p class="setting-info muted" style="margin-bottom:10px">Vex AI clusters open tabs into named groups and remembers patterns so future matching tabs auto-join. Use Ctrl+Shift+G any time.</p>
+              <div class="setting-toggle-row">
+                <span>Auto-suggest when 12+ tabs are ungrouped</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-auto-group-suggest" aria-label="Auto-suggest when 12+ tabs are ungrouped" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Auto-add new tabs that match a remembered pattern</span>
+                <label class="toggle">
+                  <input type="checkbox" id="setting-auto-add-to-groups" aria-label="Auto-add new tabs that match a remembered pattern" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+                <button id="btn-group-tabs-now" class="btn-primary">Organize My Tabs Now</button>
+                <button id="btn-clear-patterns" class="btn-secondary">Clear Remembered Patterns</button>
+                <button id="btn-clear-rejected" class="btn-secondary">Clear Rejected Suggestions</button>
+              </div>
+              <div id="group-patterns-count" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading...</div>
+            </div>
+
             <!-- Boosts — per-site customization -->
             <div class="setting-group">
               <label class="setting-label">Boosts</label>
@@ -924,6 +1086,14 @@
               <label class="setting-label">Passwords</label>
               <div id="passwords-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading passwords...</div>
+              </div>
+            </div>
+
+            <!-- Passkeys — kept by the main process, encrypted like the vault (js/passkeys.js) -->
+            <div class="setting-group" id="settings-passkeys">
+              <label class="setting-label">Passkeys</label>
+              <div id="passkeys-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading passkeys...</div>
               </div>
             </div>
 
@@ -972,43 +1142,37 @@
               <label class="setting-label">Browsing extras</label>
               <div class="setting-toggle-row">
                 <span>Mouse gestures (hold right button + drag)</span>
-                <label class="toggle"><input type="checkbox" id="setting-gestures" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-gestures" aria-label="Mouse gestures (hold right button + drag)" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Clipboard history (web pages only — never your other programs)</span>
-                <label class="toggle"><input type="checkbox" id="setting-clipboard-history" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-clipboard-history" aria-label="Clipboard history" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Auto-hide cookie consent banners</span>
-                <label class="toggle"><input type="checkbox" id="setting-consent" checked><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-consent" aria-label="Auto-hide cookie consent banners" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Always allow copy &amp; right-click (bypass site blocks)</span>
-                <label class="toggle"><input type="checkbox" id="setting-copyunlock"><span class="toggle-slider"></span></label>
+                <label class="toggle"><input type="checkbox" id="setting-copyunlock" aria-label="Always allow copy and right-click"><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-toggle-row">
                 <span>Float a playing video when you switch tabs (Picture-in-Picture)</span>
                 <label class="toggle"><input type="checkbox" id="setting-auto-pip" aria-label="Float a playing video when you switch tabs"><span class="toggle-slider"></span></label>
               </div>
-              <p class="setting-info muted" style="margin-top:6px">Re-enables text selection, copying, and right-click on sites that disable them. Applies on next page load. You can also unlock a single page on demand from the command bar (Ctrl+K → “Unlock Copy &amp; Right-Click”). Doesn’t work on canvas-based editors like Google Docs and never affects DRM-protected media.</p>
-            </div>
-
-            <!-- Phase 12: AI History Indexing -->
-            <div class="setting-group">
-              <label class="setting-label">AI History Indexing</label>
-              <p class="setting-info muted" style="margin-bottom:10px">Summarize the pages you visit so AI history search can find them by meaning, not just title and address. <strong>Off by default:</strong> it runs the AI model (the local one, unless you route it to the cloud in the table above) for every page you open, which costs memory and graphics power while you browse. Only the summary is kept.</p>
               <div class="setting-toggle-row">
-                <span>Enable AI history indexing</span>
-                <label class="toggle">
-                  <input type="checkbox" id="setting-ai-indexing-enabled">
-                  <span class="toggle-slider"></span>
-                </label>
+                <span>Picture-in-Picture button on videos</span>
+                <select id="setting-pip-button" aria-label="Picture-in-Picture button on videos">
+                  <option value="hover">When I hover a video</option>
+                  <option value="always">Always show</option>
+                  <option value="never">Never show (keyboard shortcut only)</option>
+                </select>
               </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                <button id="btn-reindex-open" class="btn-secondary">Re-index Open Tabs</button>
-                <button id="btn-clear-summaries" class="btn-danger">Clear AI Summaries</button>
+              <div class="setting-toggle-row" id="setting-pip-sites-row" style="display:none">
+                <span id="setting-pip-sites-text">Hidden on some sites</span>
+                <button id="setting-pip-sites-clear" class="btn-secondary">Show it on all sites again</button>
               </div>
-              <div id="indexing-stats" style="margin-top:10px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">Loading stats...</div>
+              <p class="setting-info muted" style="margin-top:6px">Re-enables text selection, copying, and right-click on sites that disable them. Applies on next page load. You can also unlock a single page on demand from the command bar (Ctrl+K → “Unlock Copy &amp; Right-Click”). Doesn’t work on canvas-based editors like Google Docs and never affects DRM-protected media.</p>
             </div>
 
             <div class="setting-group">
@@ -1047,6 +1211,7 @@
                 <div>
                   <label for="setting-ai-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">AI Worker URL</label>
                   <input type="text" id="setting-ai-worker-url" class="set-input" placeholder="https://your-vex-ai.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+                  <div id="setting-ai-worker-url-check" role="alert" hidden style="color:var(--danger,#e5484d);font-size:12px;margin-top:6px"></div>
                   <label for="setting-ai-worker-token" style="display:block;font-size:12px;color:var(--text-muted);margin:10px 0 4px">AI access token</label>
                   <input type="password" id="setting-ai-worker-token" class="set-input" autocomplete="new-password" placeholder="Stored with Windows encryption">
                   <button type="button" id="save-ai-worker-token" class="btn-secondary">Save access token</button>
@@ -1054,6 +1219,7 @@
                 <div>
                   <label for="setting-sync-worker-url" style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px">Sync Worker URL</label>
                   <input type="text" id="setting-sync-worker-url" class="set-input" placeholder="https://your-vex-sync.workers.dev" autocomplete="off" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:12px">
+                  <div id="setting-sync-worker-url-check" role="alert" hidden style="color:var(--danger,#e5484d);font-size:12px;margin-top:6px"></div>
                 </div>
                 <div id="cloud-config-status" style="font-size:11px;color:var(--text-muted)"></div>
               </div>
@@ -1078,12 +1244,16 @@
                 <span style="font-size:11px;color:var(--text-muted)">Opens a GitHub issue with your versions and Vex's recent problems filled in. You see and can edit all of it first.</span>
               </div>
               <div class="setting-toggle-row" style="margin-bottom:12px">
-                <span>Check for updates when Vex starts <span style="color:var(--text-muted);font-size:11px">· asks GitHub for the latest release; off, Vex only checks when you press Check for Updates</span></span>
-                <label class="toggle"><input type="checkbox" id="setting-update-on-start" aria-label="Check for updates when Vex starts" checked><span class="toggle-slider"></span></label>
+                <span>Check for updates automatically <span style="color:var(--text-muted);font-size:11px">· asks GitHub for the latest release when Vex starts and every six hours while it stays open; off, Vex only checks when you press Check for Updates</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-update-on-start" aria-label="Check for updates automatically" checked><span class="toggle-slider"></span></label>
+              </div>
+              <div class="setting-toggle-row" style="margin-bottom:12px">
+                <span>Show what is new after an update <span style="color:var(--text-muted);font-size:11px">· a small card with the highlights, once per version; Ctrl+K "What's New" always has the full notes</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-whats-new-card" aria-label="Show what is new after an update" checked><span class="toggle-slider"></span></label>
               </div>
               <div class="setting-row" style="margin-bottom:16px">
                 <div class="setting-label" style="display:block"><strong>Update channel</strong>
-                  <span class="setting-hint">Latest tells you about every release. Stable waits until the newest has been out two days, so a busy day of releases is one prompt, not several.</span></div>
+                  <span class="setting-hint">Latest tells you about every release. Stable tells you once your version has been behind for two days, so a busy day of releases is one prompt, not several.</span></div>
                 <select id="setting-update-channel" aria-label="Update channel" style="width:auto;flex:0 0 auto"><option value="latest">Latest</option><option value="stable">Stable</option></select>
               </div>
               <div style="background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:16px">
@@ -1104,6 +1274,7 @@
                 &middot; <a href="#" data-legal-doc="TERMS.md" style="color:var(--primary);text-decoration:none">Terms</a>
                 &middot; <a href="#" data-legal-doc="THIRD_PARTY_NOTICES.md" style="color:var(--primary);text-decoration:none">Third-party notices</a>
               </p>
+              <p class="setting-info muted" style="text-align:center;margin-top:4px;font-size:11px" id="setting-legal-accepted" aria-live="polite"></p>
             </div>
           </div>
         </div>
@@ -1144,22 +1315,23 @@
       </div>
 
       <!-- PiP Button -->
-      <button id="pip-btn" title="Picture-in-Picture (Ctrl+Shift+P)">
-        <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="8" y="7" width="6" height="5" rx="0.8" fill="currentColor" opacity="0.6"/></svg>
-        PiP
+      <!-- A small button drawn over the corner of a video (js/pip-manager.js
+           places it from what the page reports): only it takes the pointer. -->
+      <button id="pip-btn" title="Picture in Picture (Ctrl+Shift+P)" aria-label="Picture in Picture (Ctrl+Shift+P)">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1" y="2" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="8" y="7" width="6" height="5" rx="0.8" fill="currentColor" opacity="0.6"/></svg>
       </button>
 
       <!-- Find Bar -->
       <div id="find-bar" style="display: none;">
-        <input type="text" id="find-input" placeholder="Find in page...">
-        <span id="find-count"></span>
-        <button id="find-prev" class="find-btn">
+        <input type="text" id="find-input" placeholder="Find in page..." aria-label="Find in page">
+        <span id="find-count" role="status" aria-live="polite" aria-atomic="true"></span>
+        <button id="find-prev" class="find-btn" title="Previous match (Shift+Enter)" aria-label="Previous match">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M9 8L6 5L3 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
-        <button id="find-next" class="find-btn">
+        <button id="find-next" class="find-btn" title="Next match (Enter)" aria-label="Next match">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 4L6 7L9 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
-        <button id="find-close" class="find-btn">
+        <button id="find-close" class="find-btn" title="Close (Esc)" aria-label="Close find bar">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 3L9 9M9 3L3 9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -1357,6 +1529,10 @@
   <!-- Notification Toast -->
   <div id="toast" style="display: none;"></div>
 
+  <!-- The packaged app loads these scripts as a few concatenated chunks
+       (scripts/window-bundle.js), split at each "window-bundle: break". A file
+       that throws while loading stops the rest of its chunk, so the breaks
+       keep error reporting and start-up apart from the features. -->
   <script src="../diagnostics.js"></script>
   <!-- Shared with main.js: which sites own Ctrl+F, and handing it to them. -->
   <script src="../main/find-policy.js"></script>
@@ -1372,22 +1548,41 @@
   <script src="js/network.js"></script>
   <script src="js/data-contracts.js"></script>
   <script src="js/lifecycle.js"></script>
+  <!-- window-bundle: break - problems.js reports errors even if a library above fails to load -->
   <script src="js/problems.js"></script>
   <script src="js/jobs.js"></script>
   <script src="js/safe-mode-banner.js"></script>
   <script src="js/tab-policy.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/vex-dialog.js"></script>
+  <script src="js/vex-undo.js"></script>
   <script src="js/vex-utils.js"></script>
+  <script src="js/idn.js"></script>
   <script src="js/vex-markdown.js"></script>
+  <script src="js/theme-custom.js"></script>
   <script src="js/theme-manager.js"></script>
+  <script src="js/theme-auto.js"></script>
+  <script src="js/appearance-prefs.js"></script>
   <script src="js/theme-picker.js"></script>
+  <script src="js/theme-from-image.js"></script>
+  <script src="js/theme-studio.js"></script>
+  <script src="js/chrome-theme.js"></script>
+  <script src="js/start-page-trust.js"></script>
+  <!-- window-bundle: break - the browser itself -->
   <script src="js/tabs.js"></script>
   <script src="js/horizontal-tabs.js"></script>
+  <script src="js/tab-strip-drop.js"></script>
   <script src="js/a11y-keys.js"></script>
+  <script src="js/ext-menu-model.js"></script>
+  <script src="js/ext-ui.js"></script>
   <script src="js/webview.js"></script>
   <script src="js/discord-memory.js"></script>
+  <script src="js/discord-bypass.js"></script>
+  <script src="js/discord-tokens.js"></script>
+  <script src="js/discord-theme.js"></script>
   <script src="js/sidebar.js"></script>
+  <script src="js/nav-lock.js"></script>
+  <script src="js/panel-to-tab.js"></script>
   <script src="js/settings-ui.js"></script>
   <script src="js/settings-control.js"></script>
   <script src="js/tools.js"></script>
@@ -1463,6 +1658,7 @@
   <script src="js/web-store.js"></script>
   <script src="js/extensions-settings.js"></script>
   <script src="js/permission-prompts.js"></script>
+  <script src="js/page-dialogs.js"></script>
   <script src="js/hid-picker.js"></script>
   <script src="js/capture-history.js"></script>
   <script src="js/permissions-settings.js"></script>
@@ -1477,6 +1673,7 @@
   <script src="js/multi-tab-context.js"></script>
   <script src="js/tab-selector.js"></script>
   <script src="js/dom-extractor.js"></script>
+  <script src="js/private-address.js"></script>
   <script src="js/agent-tools.js"></script>
   <script src="js/video-chat.js"></script>
   <script src="js/agent-cursor.js"></script>
@@ -1495,7 +1692,9 @@
   <script src="js/update-notifier.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/send-to-phone.js"></script>
+  <script src="js/handoff.js"></script>
   <script src="js/auto-reload.js"></script>
+  <!-- window-bundle: break - tools and features -->
   <!-- The shared shell every workbench tool is built on; must load first. -->
   <script src="js/toolbox-workbench.js"></script>
   <script src="js/toolbox.js"></script>
@@ -1509,12 +1708,16 @@
   <script src="js/job-profiles.js"></script>
   <script src="js/job-setup.js"></script>
   <script src="js/job-work-panel.js"></script>
+  <script src="js/tld-list.js"></script>
   <script src="js/typed-address.js"></script>
   <script src="js/command.js"></script>
   <script src="js/report-problem.js"></script>
   <script src="js/ask-ai-bar.js"></script>
   <script src="js/smart-searchbar.js"></script>
+  <script src="js/url-bar-menu.js"></script>
   <script src="js/search-shortcuts.js"></script>
+  <script src="js/search-keywords-ui.js"></script>
+  <script src="js/search-engine-custom.js"></script>
   <script src="js/tour.js"></script>
   <script src="js/feature-catalog.js"></script>
   <script src="js/discover.js"></script>
@@ -1543,7 +1746,10 @@
   <script src="js/look-sidebar.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
+  <script src="js/password-gen.js"></script>
   <script src="js/passwords.js"></script>
+  <script src="js/password-manual.js"></script>
+  <script src="js/passkeys.js"></script>
   <script src="js/focus-mode.js"></script>
   <script src="js/page-extras.js"></script>
   <script src="js/gestures.js"></script>
@@ -1575,7 +1781,7 @@
   <script src="js/readlater.js"></script>
   <script src="js/tab-ai-media.js"></script>
   <script src="js/workspace-snapshots.js"></script>
-  <script src="js/catch-me-up.js"></script>
+  <script src="js/reading-digest.js"></script>
   <script src="js/tor-session.js"></script>
   <script src="js/accessibility.js"></script>
   <script src="js/annotations.js"></script>
@@ -1592,11 +1798,14 @@
   <script src="js/webllm.js"></script>
   <script src="js/mcp-client.js"></script>
   <script src="js/screenshot-to-code.js"></script>
+  <script src="js/legal.js"></script>
   <script src="js/onboarding.js"></script>
+<script src="js/simple-mode.js"></script>
   <script src="js/doc-extract.js"></script>
   <script src="js/extensions-menu.js"></script>
   <script src="js/layout-editor.js"></script>
   <script src="js/tab-health.js"></script>
+  <script src="js/kept-awake-memory.js"></script>
   <script src="js/site-profiles.js"></script>
   <script src="js/site-identity.js"></script>
   <script src="js/logins-hub.js"></script>
@@ -1619,6 +1828,12 @@
   <script src="js/automations.js"></script>
   <script src="js/pip-manager.js"></script>
   <script src="js/profiles-ui.js"></script>
+  <script src="js/toolbar-overflow.js"></script>
+  <script src="js/zoom-indicator.js"></script>
+  <script src="js/fullscreen-notice.js"></script>
+  <script src="js/popup-blocked.js"></script>
+  <script src="js/site-panel.js"></script>
+  <!-- window-bundle: break - start-up runs even if a feature above fails to load -->
   <script src="js/app.js"></script>
   <script src="js/i18n-ui.js"></script>
 </body>

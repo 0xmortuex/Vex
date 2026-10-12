@@ -303,7 +303,7 @@ describe('the import screen', () => {
   it('says so when no other browser is on the PC', async () => {
     window.vex = { browserImportSources: vi.fn(async () => []) };
     await BrowserImport.open();
-    expect(document.querySelector('#bi-msg').textContent).toMatch(/No Chrome, Edge, Brave or Firefox profile/);
+    expect(document.querySelector('#bi-msg').textContent).toMatch(/No profile of a browser Vex can import from/);
     expect(document.querySelector('#bi-look').disabled).toBe(true);
   });
 });

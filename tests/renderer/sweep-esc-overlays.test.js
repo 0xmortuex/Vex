@@ -79,10 +79,16 @@ describe('modal overlays close on Escape', () => {
     expect(cleared.mock.calls.length).toBe(1); // only the sleep itself; no tick re-armed
   });
 
+  // Site Settings is the site panel now (js/site-panel.js).
   it('site settings', async () => {
     require('../../src/renderer/js/site-profiles.js');
-    vi.spyOn(window.SiteProfiles, '_paint').mockImplementation(() => {});
-    await closesOnEscape(() => window.SiteProfiles.open(), '#vex-siteprofiles');
+    const { SitePanel } = require('../../src/renderer/js/site-panel.js');
+    globalThis.SitePanel = SitePanel;
+    globalThis._isTrustedStartPage = ((check) => (u) => check(u, 'file:///C:/vex/src/renderer/index.html'))(require('../../src/renderer/js/start-page-trust.js')._isTrustedStartPage);
+    globalThis.TabManager = { getActiveTab: () => ({ id: 't1', url: 'file:///C:/vex/src/renderer/start.html' }) };
+    globalThis.WebviewManager = { webviews: new Map() };
+    try { await closesOnEscape(() => window.SiteProfiles.open(), '#vex-site-panel'); }
+    finally { delete globalThis.SitePanel; delete globalThis.TabManager; delete globalThis.WebviewManager; }
   });
 
   it('logins hub, but not while Password Health is open on top of it', async () => {
@@ -127,10 +133,9 @@ describe('modal overlays close on Escape', () => {
   });
 
   it('watches list, also after a watch is removed and the list redrawn', async () => {
-    const { PageMonitor } = require('../../src/renderer/js/web-monitor.js');
-    PageMonitor.watches = [{ id: 'w1', url: 'https://example.com/', title: 'Ex', intervalMin: 30 }];
-    vi.spyOn(PageMonitor, 'remove').mockImplementation(function (id) { this.watches = this.watches.filter(w => w.id !== id); });
-    PageMonitor.showManager();
+    const { PageWatch } = require('../../src/renderer/js/page-watch.js');
+    localStorage.setItem('vex.pageWatches', JSON.stringify([{ id: 'w1', url: 'https://example.com/', title: 'Ex', every: 900000 }]));
+    PageWatch.showManager();
     document.querySelector('#vex-watches [data-x]').click();
     expect(live.size).toBe(1); // the old list's listener went with it
     escape();

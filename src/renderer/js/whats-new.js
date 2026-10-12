@@ -2,7 +2,7 @@
 //
 // A thread you keep coming back to, a changelog, a wiki page, a status page:
 // you have read it once, and on the next visit you are looking for the part
-// you have not. "Watch this page" (PageMonitor) answers a different question —
+// you have not. "Watch this page" (PageWatch) answers a different question —
 // it tells you a page changed while you were away from it. This one is for
 // pages you go back to yourself, and it shows you where the new parts are.
 //

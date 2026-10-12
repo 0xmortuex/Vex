@@ -315,36 +315,39 @@
 }
 
 /* PiP button */
+/* An icon over the corner of the video, put there by js/pip-manager.js from
+   what the page reports (left/top are set in px). It is below Vex's menus and
+   dialogs, only the button itself takes the pointer, and it is half
+   transparent until you reach for it. */
 #pip-btn {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
+  position: fixed;
+  left: 0;
+  top: 0;
   z-index: 40;
   display: none;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: var(--vex-accent);
   color: var(--vex-bg-deep);
   border: none;
   border-radius: var(--radius);
-  font-family: 'Outfit', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: all 0.15s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
-#pip-btn:hover {
-  background: var(--vex-accent);
-  transform: translateY(-1px);
+#pip-btn:hover,
+#pip-btn:focus-visible {
+  opacity: 1;
 }
 
 #pip-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 /* GitHub panel: the last CI run of a repository (js/github-panel.js). */

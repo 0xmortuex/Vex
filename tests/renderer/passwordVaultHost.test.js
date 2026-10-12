@@ -71,39 +71,5 @@ describe('password vault host handling', () => {
   });
 });
 
-describe('choosing between several saved logins', () => {
-  const creds = [{ username: 'alice@b.test', password: 'x' }, { username: 'bob@b.test', password: 'y' }];
-
-  it('does not ask on a page with no login form', async () => {
-    const webview = { _navigationGeneration: 1, getURL: () => 'https://example.com/articles', executeJavaScript: vi.fn(async () => false) };
-    window.vex.vaultGet = vi.fn(async () => creds);
-    await PasswordVault.autofill(webview, 'https://example.com/articles');
-    expect(document.getElementById('vex-pw-pick')).toBeNull();
-  });
-
-  it('asks with a real list once a login form is on screen', async () => {
-    const webview = { _navigationGeneration: 1, getURL: () => 'https://example.com/login', executeJavaScript: vi.fn(async () => true) };
-    window.vex.vaultGet = vi.fn(async () => creds);
-    const pending = PasswordVault.autofill(webview, 'https://example.com/login');
-    await vi.waitFor(() => expect(document.getElementById('vex-pw-pick')).not.toBeNull());
-    const options = [...document.querySelectorAll('#pwpick-list button')].map(b => b.textContent);
-    expect(options).toEqual(['alice@b.test', 'bob@b.test']);
-    document.querySelectorAll('#pwpick-list button')[1].click();
-    await pending;
-    // The injected filler carries the chosen account, and only that one.
-    const injected = webview.executeJavaScript.mock.calls.at(-1)[0];
-    expect(injected).toContain('bob@b.test');
-    expect(injected).not.toContain('alice@b.test');
-  });
-
-  it('fills nothing when the picker is dismissed', async () => {
-    const webview = { _navigationGeneration: 1, getURL: () => 'https://example.com/login', executeJavaScript: vi.fn(async () => true) };
-    window.vex.vaultGet = vi.fn(async () => creds);
-    const pending = PasswordVault.autofill(webview, 'https://example.com/login');
-    await vi.waitFor(() => expect(document.getElementById('vex-pw-pick')).not.toBeNull());
-    const callsBefore = webview.executeJavaScript.mock.calls.length;
-    document.getElementById('pwpick-cancel').click();
-    await pending;
-    expect(webview.executeJavaScript.mock.calls.length).toBe(callsBefore);
-  });
-});
+// Choosing between several saved logins: moved to loginFillGesture.test.js. The saved login is filled only
+// after a real click, from the guest preload (audit S5).

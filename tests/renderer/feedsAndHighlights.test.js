@@ -55,6 +55,11 @@ describe('feed parsing', () => {
     expect(items).toHaveLength(1);
     expect(items[0].link).toBe('https://a.test/1');
   });
+
+  it('an Atom entry whose first link is rel="replies" opens the article, not the comments', () => {
+    const xml = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>F</title><entry><title>T</title><link rel="replies" href="https://e.com/p/1#comments"/><link href="https://e.com/p/1"/><updated>2026-01-01T00:00:00Z</updated></entry></feed>`;
+    expect(VexFeeds.parse(xml, '', 'https://e.com/feed')[0].link).toBe('https://e.com/p/1');
+  });
 });
 
 describe('fetching feeds', () => {
@@ -64,6 +69,19 @@ describe('fetching feeds', () => {
     const { items, errors } = await VexFeeds.fetchAll();
     expect(items.map(i => i.title)).toEqual(['Two', 'One']);
     expect(errors).toEqual([{ url: 'https://dead.test/feed', title: 'Dead', error: 'could not be reached' }]);
+  });
+
+  // Found in the v19.1.7 check: the routing check ran only when subscribing;
+  // a site given a Tor rule afterwards was still read on every refresh.
+  it('does not read the feed of a site routed through Tor since it was added', async () => {
+    VexFeeds.feeds = [{ url: 'https://ok.test/feed', title: 'Good' }, { url: 'https://routed.test/feed', title: 'Routed' }];
+    window.vex.rssFetch = vi.fn(async () => RSS);
+    globalThis.TabManager = { mayAskSiteForIcon: (url) => !url.includes('routed') };
+    const { errors } = await VexFeeds.fetchAll();
+    expect(window.vex.rssFetch).toHaveBeenCalledTimes(1);
+    expect(window.vex.rssFetch).toHaveBeenCalledWith('https://ok.test/feed');
+    expect(errors).toEqual([{ url: 'https://routed.test/feed', title: 'Routed', error: expect.stringMatching(/Tor, a proxy or a container/) }]);
+    delete globalThis.TabManager;
   });
 
   it('surfaces a malformed feed as an error, not as zero items', async () => {
@@ -95,6 +113,77 @@ describe('fetching feeds', () => {
     release();
     await stale;
     expect(container.querySelector('#feed-list').textContent).toContain('Loading…');
+  });
+});
+
+describe('read and unread posts', () => {
+  it('shows unread posts as unread, and opening one marks it read for next time', async () => {
+    VexFeeds.feeds = [{ url: 'https://ok.test/feed', title: 'Good' }];
+    globalThis.SidebarManager = { hideActivePanel: vi.fn() };
+    globalThis.TabManager = { createTab: vi.fn() };
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    await VexFeeds.renderPanel(container);
+    expect(container.querySelectorAll('.feed-item.unread')).toHaveLength(2);
+    expect(container.querySelector('#feed-status').textContent).toContain('2 unread');
+    container.querySelector('.feed-item').click();
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://example.test/2', true);
+    await VexFeeds.renderPanel(container);
+    expect(container.querySelectorAll('.feed-item.unread')).toHaveLength(1);
+    expect(container.querySelectorAll('.feed-item.read')).toHaveLength(1);
+    container.querySelector('#feed-mark-all').click();
+    await vi.waitFor(() => expect(container.querySelectorAll('.feed-item.read')).toHaveLength(2));
+    expect(container.querySelector('#feed-status').textContent).toContain('All read');
+    delete globalThis.TabManager;
+  });
+});
+
+describe("subscribing to a page's own feed", () => {
+  const pageWith = (head) => {
+    document.head.innerHTML = head;
+    // eslint-disable-next-line no-eval
+    return { executeJavaScript: vi.fn(async (js) => (0, eval)(js)) };
+  };
+
+  it('finds the RSS and Atom feeds a page names, as full addresses', async () => {
+    const wv = pageWith('<link rel="alternate" type="application/rss+xml" title="Posts" href="/feed.xml"><link rel="alternate" type="application/atom+xml" href="https://ex.test/atom"><link rel="alternate" hreflang="fr" href="/fr/"><link rel="stylesheet" href="/a.css">');
+    const found = await VexFeeds.discover(wv);
+    expect(found).toEqual([{ url: new URL('/feed.xml', location.href).href, title: 'Posts' }, { url: 'https://ex.test/atom', title: '' }]);
+  });
+
+  it('subscribes to the one feed a page names', async () => {
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('<link rel="alternate" type="application/rss+xml" href="https://ex.test/rss">') };
+    const feed = await VexFeeds.subscribeToPage();
+    expect(feed).toMatchObject({ url: 'https://ex.test/rss', title: 'Test Feed' });
+    expect(JSON.parse(localStorage.getItem('vex.feeds'))).toEqual([{ url: 'https://ex.test/rss', title: 'Test Feed' }]);
+  });
+
+  it('says so when the page names no feed', async () => {
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('') };
+    expect(await VexFeeds.subscribeToPage()).toBeNull();
+    expect(window.showToast).toHaveBeenCalledWith('This page does not name a feed', 'error');
+  });
+
+  it('will not read a feed from your real connection for a site sent through Tor or a proxy', async () => {
+    globalThis.TabManager = { mayAskSiteForIcon: () => false };
+    const r = await VexFeeds.subscribe('https://hidden.test/rss');
+    expect(r.ok).toBe(false);
+    expect(window.vex.rssFetch).not.toHaveBeenCalled();
+    delete globalThis.TabManager;
+  });
+
+  // Found in the v19.1.7 check: the page open in a Tor or container tab is
+  // not a site rule, so its feed was read straight from your real connection.
+  it('will not read the feed of a page open in a Tor or container tab from your real connection', async () => {
+    globalThis.TabManager = {
+      getActiveTab: () => ({ id: 't', url: 'https://ex.test/', partition: 'persist:container-work' }),
+      mayAskSiteForIcon: (url, { partition = null } = {}) => !partition || partition === 'persist:main',
+    };
+    globalThis.WebviewManager = { getActiveWebview: () => pageWith('<link rel="alternate" type="application/rss+xml" href="https://ex.test/rss">') };
+    expect(await VexFeeds.subscribeToPage()).toBeNull();
+    expect(window.vex.rssFetch).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/real connection/), 'error');
+    delete globalThis.TabManager;
   });
 });
 

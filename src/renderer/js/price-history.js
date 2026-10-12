@@ -172,11 +172,17 @@ const PriceHistory = {
       <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text)"><input data-enabled type="checkbox" ${this.enabled() ? 'checked' : ''}>Note prices</label>
       <button data-forget type="button" style="${btn}">Forget all</button>`);
     head.querySelector('[data-enabled]').addEventListener('change', (e) => { this.setEnabled(e.target.checked); window.showToast?.(e.target.checked ? 'Vex will note prices on product pages you open' : 'Vex will not note prices any more'); });
-    head.querySelector('[data-forget]').addEventListener('click', async () => {
-      const ok = await window.vexConfirm({ title: 'Forget every price?', message: 'The history of every product Vex has noted is deleted.', okLabel: 'Forget all', danger: true });
-      if (!ok) return;
+    // Forgotten at once; Undo on the toast brings it back (prices noted since
+    // stay).
+    head.querySelector('[data-forget]').addEventListener('click', () => {
+      const before = this.all();
       localStorage.removeItem(this.KEY);
       draw();
+      if (!Object.keys(before).length) return;
+      window.VexUndo.offer({
+        message: 'Forgot the price history of ' + Object.keys(before).length + ' product' + (Object.keys(before).length === 1 ? '' : 's'),
+        undo: () => { this._save({ ...before, ...this.all() }); if (body.isConnected) draw(); },
+      });
     });
 
     const wv = (typeof WebviewManager !== 'undefined') ? WebviewManager.getActiveWebview() : null;

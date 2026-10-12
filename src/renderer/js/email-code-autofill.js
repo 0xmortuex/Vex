@@ -38,6 +38,61 @@ const EmailCodeAutofill = {
     return null;
   },
 
+  // Settings › Privacy › Autofill › "Fill sign-in codes from your email". On
+  // unless turned off; the right-click and Ctrl+K "Fill code from email" still
+  // work when it is off, because those are asked for by hand.
+  enabled() { return globalThis.localStorage?.getItem('vex.emailCodeAutofill') !== '0'; },
+
+  // --- Whose code is it? -----------------------------------------------------
+  // A code is only filled into the site its email came from. Nothing used to tie
+  // the two together, so a Discord code was filled into disc0rd-verify.example:
+  // a look-alike page that shows "enter the code we sent" while the attacker
+  // signs in to the real Discord gets the victim's real code.
+  //
+  // The sender's address is the evidence (Gmail puts it in the row's `email`
+  // attribute; the other providers in a `title`). Its registrable domain must be
+  // the page's: noreply@discord.com fits discord.com and accounts.discord.com,
+  // no-reply@accounts.google.com fits accounts.google.com, and nothing fits
+  // disc0rd-verify.example. A code whose sender cannot be read is not filled.
+  _SECOND_LEVEL: ['co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne', 'go'],
+  // Services that send their codes from one domain and sign you in on another.
+  // Only well-known pairs; any other site must match the sender's own domain.
+  _SENDER_FAMILIES: [
+    ['discord.com', 'discordapp.com'],
+    ['microsoft.com', 'live.com', 'microsoftonline.com', 'outlook.com', 'xbox.com'],
+    ['steampowered.com', 'steamcommunity.com'],
+    ['x.com', 'twitter.com'],
+    ['facebook.com', 'facebookmail.com'],
+    ['apple.com', 'icloud.com'],
+    ['battle.net', 'blizzard.com'],
+    ['playstation.com', 'sonyentertainmentnetwork.com'],
+  ],
+  // accounts.google.com -> google.com, mail.example.co.uk -> example.co.uk.
+  _site(host) {
+    const parts = String(host || '').toLowerCase().replace(/\.$/, '').split('.').filter(Boolean);
+    if (parts.length < 2 || parts.some(p => !/^[a-z0-9-]+$/.test(p)) || /^\d+$/.test(parts[parts.length - 1])) return '';
+    const n = parts.length;
+    const take = (n >= 3 && parts[n - 1].length === 2 && this._SECOND_LEVEL.includes(parts[n - 2])) ? 3 : 2;
+    return parts.slice(n - take).join('.');
+  },
+  _sameService(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return this._SENDER_FAMILIES.some(f => f.includes(a) && f.includes(b));
+  },
+  // `from` is the sender address (or a list of them, for a thread). True only
+  // when one of them belongs to the site of `pageUrl`.
+  _senderMatches(from, pageUrl) {
+    let page = '';
+    try { page = this._site(new URL(pageUrl).hostname); } catch { return false; }
+    if (!page) return false;
+    const list = Array.isArray(from) ? from : (from ? [from] : []);
+    return list.some((address) => {
+      const m = /@([a-z0-9.-]+)\s*>?\s*$/i.exec(String(address || '').trim());
+      return !!m && this._sameService(this._site(m[1]), page);
+    });
+  },
+
   // Supported webmail providers. `host` matches the real mail app URL; `rowSel`
   // selects inbox message rows; `isUnread` is a JS expression (over a row `el`)
   // that's true for unread rows. Gmail is the tested primary; the others are
@@ -95,7 +150,7 @@ const EmailCodeAutofill = {
       const T = this._tabs();
       if (T && Array.isArray(T.tabs)) {
         for (const p of this._PROVIDERS) {
-          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canPersist(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
+          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canShareTab(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
           if (!tab) continue;
           // If this tab was asleep/lazy, WE are waking it just to read a code —
           // remember that so we can put it back to sleep afterwards (see
@@ -186,11 +241,16 @@ const EmailCodeAutofill = {
   // so a backgrounded inbox scrapes to nothing with innerText. textContent is
   // populated regardless of render state, so this works on a hidden Gmail. Gmail
   // also puts the code in the row's subject/snippet, so the row text is enough.
-  async _readInbox(mailWv, provider) {
+  //
+  // With `pageUrl`, only a code whose sender belongs to that page's site counts
+  // (see _senderMatches): a newer code from another service is skipped, and
+  // `foreign` says one was seen. Without it (the Logins hub's self-test) the
+  // newest code of any sender is reported, for display only.
+  async _readInbox(mailWv, provider, pageUrl) {
     provider = provider || this._PROVIDERS[0];
     const mailUrl = mailWv.getURL?.() || '';
     const generation = mailWv._navigationGeneration;
-    const empty = { loaded: false, code: null, unread: false, strong: false };
+    const empty = { loaded: false, code: null, unread: false, strong: false, from: null, foreign: false };
     if (!this._matchesProvider(provider, mailUrl) || (globalThis.window?.VexTabPolicy && !globalThis.window?.VexTabPolicy.canReadWebview(mailWv))) return empty;
     // Each row: t = collapsed text, u = unread (per the provider's isUnread test —
     // Gmail marks unread rows with the 'zE' class). Unread + verification wording
@@ -201,16 +261,23 @@ const EmailCodeAutofill = {
       if(location.href!==${JSON.stringify(mailUrl)})return JSON.stringify({loaded:false,rows:[]});
       var rows=Array.prototype.slice.call(document.querySelectorAll(${JSON.stringify(provider.rowSel)}));
       var out=[];
-      for(var i=0;i<rows.length&&i<12;i++){var el=rows[i];out.push({t:(el.textContent||'').replace(/\\s+/g,' ').trim(), u:(function(){try{return !!(${provider.isUnread || 'false'});}catch(e){return false;}})()});}
+      function senders(el){var out=[];try{
+        var e=el.querySelectorAll('[email]');for(var k=0;k<e.length&&k<6;k++){var a=e[k].getAttribute('email');if(a)out.push(a);}
+        var t=el.querySelectorAll('[title]');for(var j=0;j<t.length&&j<24;j++){var v=(t[j].getAttribute('title')||'').trim();if(/^[^\\s@<>]+@[a-z0-9.-]+\\.[a-z]{2,}$/i.test(v))out.push(v);}
+      }catch(e){}return out;}
+      for(var i=0;i<rows.length&&i<12;i++){var el=rows[i];out.push({t:(el.textContent||'').replace(/\\s+/g,' ').trim(), f:senders(el), u:(function(){try{return !!(${provider.isUnread || 'false'});}catch(e){return false;}})()});}
       return JSON.stringify({loaded: rows.length>0, rows: out});
     }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
     let data;
-    try { data = JSON.parse(await mailWv.executeJavaScript(js)); } catch { return { loaded: false, code: null, unread: false, strong: false }; }
+    try { data = JSON.parse(await mailWv.executeJavaScript(js)); } catch { return empty; }
     if (mailWv.getURL?.() !== mailUrl || mailWv._navigationGeneration !== generation) return empty;
-    let code = null, unread = false, strong = false;
+    let code = null, unread = false, strong = false, from = null, foreign = false;
     for (const r of (data.rows || [])) {
       const c = this._extractCode(r.t);
-      if (c) { code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); break; }
+      if (!c) continue;
+      const senders = Array.isArray(r.f) ? r.f : [];
+      if (pageUrl && !this._senderMatches(senders, pageUrl)) { foreign = true; continue; }
+      code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); from = senders; break;
     }
     // Body fallback (Gmail hidden reader only): some services put the code only
     // in the email BODY, not the inbox subject/snippet. When the rows yield
@@ -220,10 +287,13 @@ const EmailCodeAutofill = {
     // body, and go back. Throttled so we don't thrash the reader every poll.
     if (!code && !!data.loaded && provider.id === 'gmail' && this._isHiddenReader(mailWv) && (Date.now() - (this._lastBodyRead || 0) > 8000)) {
       this._lastBodyRead = Date.now();
-      const bc = await this._readNewestUnreadBody(mailWv);
-      if (bc) return { loaded: true, code: bc, unread: true, strong: true };
+      const body = await this._readNewestUnreadBody(mailWv);
+      if (body && body.code) {
+        if (!pageUrl || this._senderMatches(body.from, pageUrl)) return { loaded: true, code: body.code, unread: true, strong: true, from: body.from, foreign };
+        foreign = true;
+      }
     }
-    return { loaded: !!data.loaded, code, unread, strong };
+    return { loaded: !!data.loaded, code, unread, strong, from, foreign };
   },
 
   _isHiddenReader(wv) { return !!(wv && wv.id === 'vex-gmail-reader'); },
@@ -253,8 +323,8 @@ const EmailCodeAutofill = {
   },
 
   // Open the newest UNREAD verification-looking email in the (hidden) reader,
-  // read its body text, then return to the inbox. Best-effort; returns a code or
-  // null. Only ever called on the hidden reader (see _readInbox).
+  // read its body text and sender, then return to the inbox. Best-effort; returns
+  // { code, from } or null. Only ever called on the hidden reader (see _readInbox).
   async _readNewestUnreadBody(gmailWv) {
     const generation = gmailWv._navigationGeneration;
     if (!this._isHiddenReader(gmailWv) || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
@@ -270,13 +340,16 @@ const EmailCodeAutofill = {
       var body=null;
       for(var w=0;w<24;w++){ await new Promise(function(r){setTimeout(r,150);}); body=document.querySelector('.a3s'); if(body) break; }
       var text=body?(body.innerText||body.textContent||''):'';
+      var sender=document.querySelector('.gD[email]');
+      var from=sender?(sender.getAttribute('email')||''):'';
       try{ var back=document.querySelector('[aria-label="Back to Inbox"],[data-tooltip="Back to Inbox"]'); if(back){back.click();} else {location.hash='#inbox';} }catch(e){}
-      return text;
+      return JSON.stringify({text:text, from:from});
     }catch(e){return '';}})()`;
-    let text = '';
-    try { text = await gmailWv.executeJavaScript(js); } catch { return null; }
-    if (gmailWv._navigationGeneration !== generation || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
-    return this._extractCode(text);
+    let read = null;
+    try { read = JSON.parse((await gmailWv.executeJavaScript(js)) || 'null'); } catch { return null; }
+    if (!read || gmailWv._navigationGeneration !== generation || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
+    const code = this._extractCode(read.text);
+    return code ? { code, from: read.from ? [String(read.from)] : [] } : null;
   },
 
   // Does the row's own text carry explicit verification wording (not just a bare
@@ -378,16 +451,41 @@ const EmailCodeAutofill = {
   //
   // Concurrency is still bounded, and the inbox-refresh throttle below is still
   // global, so several polls cannot hammer the mailbox.
-  _active: new Set(),
+  //
+  // The bound is on READING THE MAILBOX, not on watching a page. Every page load
+  // used to take one of the three slots on entry and hold it for up to three
+  // minutes while it waited to see whether a code field would ever appear, so
+  // any three sign-in-looking pages filled them and the page that really asked
+  // for a code was turned away as "busy" (the owner's log: 180 attempts, 0
+  // fills, 112 busy). Now a page only watches - a cheap DOM check every few
+  // seconds - and takes a slot when it actually shows an empty code field. If
+  // all slots are taken at that moment it keeps watching and takes one as soon
+  // as it frees, instead of giving up.
+  _watching: new Set(),   // pages being watched (one watch per page)
+  _active: new Set(),     // pages holding a mailbox-reading slot
   MAX_POLLS: 3,
 
-  // _running stays as a plain flag meaning "some poll is in flight", because the
-  // hidden-reader cleanup uses it to avoid tearing the reader down mid-poll.
-  _enter(webview) { this._active.add(webview); this._running = true; },
+  // _running stays as a plain flag meaning "some poll is reading mail", because
+  // the hidden-reader cleanup uses it to avoid tearing the reader down mid-poll.
+  _enter(webview) {
+    if (this._active.size >= this.MAX_POLLS) return false;
+    this._active.add(webview); this._running = true; return true;
+  },
   _exit(webview) { this._active.delete(webview); this._running = this._active.size > 0; },
-  async tryFill(loginWv, url) {
-    if (!loginWv || this._active.has(loginWv)) return;
-    if (this._active.size >= this.MAX_POLLS) { this._log(url, false, 'busy'); return; }
+  // manual: the person asked for it (right-click or Ctrl+K), so it runs even
+  // with the automatic fill turned off in Settings, and it fills the newest
+  // code from this site's own sender at once: no baseline, no 15-30 s grace.
+  // That wait is there so the automatic watch does not fill a code left over
+  // from an earlier attempt; asking by hand says the code in the inbox is the
+  // one wanted. When the automatic watch is already running on the page, the
+  // request tells that watch to fill now instead of being dropped.
+  async tryFill(loginWv, url, { manual = false } = {}) {
+    if (!loginWv) return;
+    // "Fill now" is set only on a page a watch runs on (this one, or the one
+    // that starts below): set before the early returns, it stayed on the tab
+    // and a later automatic watch there skipped its 15-30 s wait.
+    if (this._watching.has(loginWv)) { if (manual) loginWv._vexEmailCodeFillNow = true; return; }
+    if (!manual && !this.enabled()) return;
     try {
       if (!loginWv || !/^https:/i.test(url || '')) return;
       // Never poll the mailbox itself. Opening Gmail fires this like any other
@@ -419,95 +517,126 @@ const EmailCodeAutofill = {
         try { return new URL(this._webviewUrl(loginWv) || url).origin === origin; } catch { return false; }
       };
       if (!current()) return;
-      if (this._active.has(loginWv)) return;                     // one poll per page
-      this._enter(loginWv);
-      this._lastInboxRefresh = 0;                                // refresh throttle, per attempt
-      let sawField = false, plausible = false;
-      let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
-      let filled = false, sawMail = false, sawLoaded = false, authFlow = null;
-      // Up to ~3 minutes on a sign-in page: requesting a code, waiting for the
-      // mail to arrive and the code step to render routinely takes longer than
-      // the old 90s, and the clock starts at page load — before the user has even
-      // typed their address. An ordinary page still leaves after ~15s below.
-      for (let i = 0; i < 60; i++) {
-        if (!current()) break;
-        const hasField = await this._hasEmptyCodeField(loginWv);
-        if (hasField) { sawField = true; plausible = true; }
-        else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
-        if (!hasField && sawField) break;                        // field came and went
-        if (!plausible && i >= 4) {
-          // Not a code page (yet). Keep going only while this still looks like a
-          // sign-in that could produce one; probed once, not every tick.
-          if (authFlow === null) authFlow = await this._looksLikeAuthFlow(loginWv);
-          if (!authFlow) break;
-        }
-        if (hasField) {
-          const found = this._findMailWebview();
-          if (found && found.wv) {
-            sawMail = true;
-            const { loaded, code, unread, strong } = await this._readInbox(found.wv, found.provider);
-            if (!current()) break;
-            if (loaded) {
-              sawLoaded = true;
-              if (!baselineSet) {
-                // Snapshot the newest code the first time we see a loaded inbox.
-                baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
-              } else if (code && code !== baseline) {
-                // A DIFFERENT (newer) code arrived after we started — this is the
-                // one THIS attempt triggered. Fill it (the fast, reliable path).
-                const ok = await this._injectCode(loginWv, code, url);
-                this._log(url, ok, 'new-code'); filled = true;
-                if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
-              } else if (code && code === baseline && baselineStrong) {
-                // The code was already in the inbox when the page opened (so it
-                // became the baseline) — e.g. the mail synced a beat late, or the
-                // email landed as the page loaded. It's still the newest and
-                // clearly a verification code, with nothing newer superseding it.
-                // Fill it instead of skipping forever, after a grace so a genuine
-                // retry code can arrive first and win via the path above:
-                //  • ~15s if it's still flagged unread (strong signal it's fresh)
-                //  • ~30s even if unread detection is unreliable (Gmail's markup
-                //    varies, and the email may have been auto-marked read) — a
-                //    strong code sitting at the top this long is the one wanted.
-                unreadStable++;
-                const readyUnread = baselineUnread && unread && unreadStable >= 5;
-                const readyStrong = unreadStable >= 10;
-                if (readyUnread || readyStrong) {
+      if (this._watching.has(loginWv)) { if (manual) loginWv._vexEmailCodeFillNow = true; return; }   // one watch per page
+      if (manual) loginWv._vexEmailCodeFillNow = true;
+      this._watching.add(loginWv);
+      let slot = false, refusedBusy = false;
+      try {
+        let sawField = false, plausible = false;
+        let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
+        let filled = false, sawMail = false, sawLoaded = false, sawForeign = false, authFlow = null;
+        // Up to ~3 minutes on a sign-in page: requesting a code, waiting for the
+        // mail to arrive and the code step to render routinely takes longer than
+        // the old 90s, and the clock starts at page load — before the user has even
+        // typed their address. An ordinary page still leaves after ~15s below.
+        for (let i = 0; i < 60; i++) {
+          if (!current()) break;
+          const hasField = await this._hasEmptyCodeField(loginWv);
+          if (hasField) { sawField = true; plausible = true; }
+          else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
+          if (!hasField && sawField) break;                        // field came and went
+          if (!plausible && i >= 4) {
+            // Not a code page (yet). Keep going only while this still looks like a
+            // sign-in that could produce one; probed once, not every tick.
+            if (authFlow === null) authFlow = await this._looksLikeAuthFlow(loginWv);
+            if (!authFlow) break;
+          }
+          // Take a mailbox-reading slot only now that a code is really asked for.
+          // All taken: keep watching and try again next tick.
+          if (hasField && !slot) {
+            slot = this._enter(loginWv);
+            if (slot) this._lastInboxRefresh = 0;                  // refresh throttle, per attempt
+            else refusedBusy = true;
+          }
+          if (hasField && slot) {
+            const found = this._findMailWebview();
+            if (found && found.wv) {
+              sawMail = true;
+              const read = await this._readInbox(found.wv, found.provider, url);
+              const { loaded, unread, strong } = read;
+              // Only a code this site's own email carries is ever filled (or
+              // auto-submitted); one from another sender is ignored here too, not
+              // just skipped by _readInbox.
+              const code = (read.code && this._senderMatches(read.from, url)) ? read.code : null;
+              if (read.foreign || (read.code && !code)) sawForeign = true;
+              if (!current()) break;
+              if (loaded) {
+                sawLoaded = true;
+                if (code && loginWv._vexEmailCodeFillNow) {
+                  // Asked for by hand: the newest code from this site's sender, now.
+                  loginWv._vexEmailCodeFillNow = false;
                   const ok = await this._injectCode(loginWv, code, url);
-                  this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
+                  this._log(url, ok, 'manual'); filled = true;
                   if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                } else if (!baselineSet) {
+                  // Snapshot the newest code the first time we see a loaded inbox.
+                  baseline = code; baselineSet = true; baselineUnread = !!unread; baselineStrong = !!strong; unreadStable = 0;
+                } else if (code && code !== baseline) {
+                  // A DIFFERENT (newer) code arrived after we started — this is the
+                  // one THIS attempt triggered. Fill it (the fast, reliable path).
+                  const ok = await this._injectCode(loginWv, code, url);
+                  this._log(url, ok, 'new-code'); filled = true;
+                  if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                } else if (code && code === baseline && baselineStrong) {
+                  // The code was already in the inbox when the page opened (so it
+                  // became the baseline) — e.g. the mail synced a beat late, or the
+                  // email landed as the page loaded. It's still the newest and
+                  // clearly a verification code, with nothing newer superseding it.
+                  // Fill it instead of skipping forever, after a grace so a genuine
+                  // retry code can arrive first and win via the path above:
+                  //  • ~15s if it's still flagged unread (strong signal it's fresh)
+                  //  • ~30s even if unread detection is unreliable (Gmail's markup
+                  //    varies, and the email may have been auto-marked read) — a
+                  //    strong code sitting at the top this long is the one wanted.
+                  unreadStable++;
+                  const readyUnread = baselineUnread && unread && unreadStable >= 5;
+                  const readyStrong = unreadStable >= 10;
+                  if (readyUnread || readyStrong) {
+                    const ok = await this._injectCode(loginWv, code, url);
+                    this._log(url, ok, readyUnread ? 'unread-baseline' : 'strong-baseline'); filled = true;
+                    if (ok) { this._toast(); this._maybeAutoSubmit(loginWv, url, generation); break; }
+                  }
                 }
-              }
-              // Keep the inbox syncing so a freshly-sent code appears without the
-              // user refreshing Gmail. Whenever we've read a loaded inbox but
-              // nothing new has filled yet, prod it to fetch new mail (throttled,
-              // fire-and-forget — the next read a few seconds later sees the
-              // result). This is the core of "keep refreshing until the code
-              // arrives."
-              if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
-                this._lastInboxRefresh = Date.now();
-                this._refreshInbox(found.wv, found.provider);
+                // Keep the inbox syncing so a freshly-sent code appears without the
+                // user refreshing Gmail. Whenever we've read a loaded inbox but
+                // nothing new has filled yet, prod it to fetch new mail (throttled,
+                // fire-and-forget — the next read a few seconds later sees the
+                // result). This is the core of "keep refreshing until the code
+                // arrives."
+                if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
+                  this._lastInboxRefresh = Date.now();
+                  this._refreshInbox(found.wv, found.provider);
+                }
               }
             }
           }
+          await new Promise(r => setTimeout(r, 3000));
         }
-        await new Promise(r => setTimeout(r, 3000));
+        // Record a miss (with a reason) so a failure is diagnosable, not silent —
+        // and, when there really was an empty code field waiting, nudge the user
+        // toward the fix instead of failing silently.
+        if (!filled && (sawField || plausible)) {
+          const reason = (refusedBusy && !slot) ? 'busy'
+            : !sawMail ? 'no-mail'
+            : !sawLoaded ? 'mail-not-loaded'
+            : !baselineSet ? 'inbox-empty'
+            : sawForeign ? 'sender-mismatch'
+            : baseline === null ? 'no-code-arrived'
+            : 'no-new-code';
+          this._log(url, false, reason);
+          this._maybeMissToast(reason, sawField);
+        }
+      } finally {
+        this._watching.delete(loginWv);
+        loginWv._vexEmailCodeFillNow = false;
+        if (slot) {
+          this._exit(loginWv);
+          // The mail tab is shared by every reading poll: put it back only when
+          // the last one is done, not under another page that is still reading.
+          if (this._active.size === 0) this._restoreAutoWoken();
+        }
       }
-      // Record a miss (with a reason) so a failure is diagnosable, not silent —
-      // and, when there really was an empty code field waiting, nudge the user
-      // toward the fix instead of failing silently.
-      if (!filled && (sawField || plausible)) {
-        const reason = !sawMail ? 'no-mail'
-          : !sawLoaded ? 'mail-not-loaded'
-          : !baselineSet ? 'inbox-empty'
-          : baseline === null ? 'no-code-arrived'
-          : 'no-new-code';
-        this._log(url, false, reason);
-        this._maybeMissToast(reason, sawField);
-      }
-      this._exit(loginWv);
-      this._restoreAutoWoken();
-    } catch (e) { this._exit(loginWv); this._restoreAutoWoken(); }
+    } catch (e) { console.error('[email-code] autofill poll failed:', e); }
   },
 
   // If this poll woke a sleeping Gmail just to read a code, put it back to sleep

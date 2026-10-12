@@ -71,9 +71,9 @@ describe('downloads panel', () => {
   it('offers pause while running and resume once paused', async () => {
     start();
     const actions = () => [...document.querySelectorAll('.download-item .dl-btn')].map(b => b.dataset.action);
-    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'copy-link', 'remove']);
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 100, totalBytes: 1000, state: 'progressing', paused: true, canResume: true });
-    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'copy-link', 'remove']);
     expect(document.querySelector('.download-meta').textContent).toContain('paused');
     document.querySelector('[data-action="resume"]').click();
     await Promise.resolve();
@@ -83,10 +83,11 @@ describe('downloads panel', () => {
   it('offers retry on a failed download and passes its source URL back', async () => {
     start();
     DownloadsPanel._onComplete({ id: 'd1', state: 'interrupted', receivedBytes: 10, totalBytes: 1000 });
-    expect([...document.querySelectorAll('.dl-btn')].map(b => b.dataset.action)).toEqual(['retry', 'remove']);
+    expect([...document.querySelectorAll('.dl-btn')].map(b => b.dataset.action)).toEqual(['retry', 'copy-link', 'remove']);
     document.querySelector('[data-action="retry"]').click();
     await Promise.resolve();
-    expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin');
+    // With its id, so main retries it through the session the first try used.
+    expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin', expect.any(String));
   });
 
   it('cancels the transfer when a running download is removed from the list', () => {
@@ -242,5 +243,143 @@ describe('open it when it is done', () => {
     DownloadsPanel._onComplete({ id: 'd4', state: 'failed' });
     await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/did not finish/), 'info'));
     expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
+  });
+});
+
+// Audit RD12 (2026-10-10): a file deleted after it downloaded still said
+// "completed", and Open failed with "Failed to open path".
+describe('a finished download whose file has been deleted', () => {
+  const finish = (id, path) => { start({ id, path }); DownloadsPanel._onComplete({ id, state: 'completed', path, receivedBytes: 10, totalBytes: 10 }); };
+  const row = (id) => [...document.querySelectorAll('.download-item')].find(r => r.dataset.id === id);
+
+  it('says "deleted" and offers Retry, not Open, when the panel opens; a file put back shows Open again', async () => {
+    finish('k1', 'C:/dl/kept.pdf');
+    finish('g1', 'C:/dl/gone.pdf');
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(p => p !== 'C:/dl/gone.pdf') }));
+    DownloadsPanel.init();
+    await vi.waitFor(() => expect(row('g1').querySelector('.download-meta').textContent).toContain('deleted'));
+    expect(window.vex.downloadsExist).toHaveBeenCalledWith(['C:/dl/gone.pdf', 'C:/dl/kept.pdf']);
+    expect(row('g1').querySelector('[data-action="open-file"]')).toBeNull();
+    expect(row('g1').querySelector('[data-action="retry"]')).not.toBeNull();
+    expect(row('k1').querySelector('[data-action="open-file"]')).not.toBeNull();
+    expect(row('k1').querySelector('.download-meta').textContent).toContain('completed');
+    expect(JSON.parse(localStorage.getItem('vex.downloads')).find(d => d.id === 'g1').missing).toBe(true);
+    row('g1').querySelector('[data-action="retry"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsRetry).toHaveBeenCalledWith('https://example.test/thing.bin', 'g1'));
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => true) }));
+    await DownloadsPanel.checkDeleted();
+    expect(row('g1').querySelector('[data-action="open-file"]')).not.toBeNull();
+  });
+
+  it('Open on a file deleted since the panel was drawn says so and opens nothing', async () => {
+    finish('g2', 'C:/dl/gone2.pdf');
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => true) }));
+    DownloadsPanel.init();
+    await vi.waitFor(() => expect(window.vex.downloadsExist).toHaveBeenCalled());
+    window.vex.downloadsExist = vi.fn(async (paths) => ({ ok: true, exist: paths.map(() => false) }));
+    row('g2').querySelector('[data-action="open-file"]').click();
+    await vi.waitFor(() => expect(window.showToast).toHaveBeenCalledWith('thing.bin has been deleted — Retry downloads it again', 'info'));
+    expect(window.vex.downloadsOpenFile).not.toHaveBeenCalled();
+    expect(row('g2').querySelector('[data-action="retry"]')).not.toBeNull();
+  });
+
+  it('a file Vex cannot look for (null) is left as it is', async () => {
+    finish('n1', 'C:/dl/other.pdf');
+    window.vex.downloadsExist = vi.fn(async () => ({ ok: true, exist: [null] }));
+    expect(await DownloadsPanel.checkDeleted()).toEqual([]);
+    expect(row('n1').querySelector('[data-action="open-file"]')).not.toBeNull();
+  });
+});
+
+describe('a download whose connection dropped', () => {
+  const actions = () => [...document.querySelector('.download-item[data-id="d1"]').querySelectorAll('[data-action]')].map(b => b.dataset.action);
+  it('loses Pause, offers Resume and Cancel, and gets Pause back once it runs again', async () => {
+    start();
+    expect(actions()).toContain('pause');
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: true, state: 'interrupted' });
+    expect(actions()).toEqual(['resume', 'cancel', 'copy-link', 'remove']);
+    document.querySelector('.download-item[data-id="d1"] [data-action="resume"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsControl).toHaveBeenCalledWith('d1', 'resume'));
+    await vi.waitFor(() => expect(actions()).toContain('pause'));
+  });
+  it('without resume support offers only Cancel', () => {
+    start();
+    DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 300, totalBytes: 1000, paused: false, canResume: false, state: 'interrupted' });
+    expect(actions()).toEqual(['cancel', 'copy-link', 'remove']);
+  });
+});
+
+describe('search, copy link, delete file, drag out', () => {
+  const finished = (id, name, url) => {
+    DownloadsPanel._onStart({ id, fileName: name, url, totalBytes: 10, path: 'C:/dl/' + name, startedAt: '2026-01-01T00:00:00.000Z' });
+    DownloadsPanel._onComplete({ id, fileName: name, state: 'completed', path: 'C:/dl/' + name, url, receivedBytes: 10, totalBytes: 10 });
+  };
+  const rowOf = (id) => [...document.querySelectorAll('.download-item')].find(r => r.dataset.id === id);
+
+  it('search shows only the downloads whose name or address matches', () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    finished('b', 'photo.png', 'https://pics.example/y');
+    const box = document.getElementById('downloads-search');
+    box.value = 'pics';
+    box.dispatchEvent(new Event('input'));
+    expect(rowOf('a').hidden).toBe(true);
+    expect(rowOf('b').hidden).toBe(false);
+    // A row redrawn while searching keeps the search.
+    finished('c', 'invoice2.pdf', 'https://billing.example/z');
+    expect(rowOf('c').hidden).toBe(true);
+    box.value = 'nothing like it';
+    box.dispatchEvent(new Event('input'));
+    expect(document.querySelector('.downloads-no-match').textContent).toContain('No downloads match');
+    box.value = '';
+    box.dispatchEvent(new Event('input'));
+    expect(document.querySelectorAll('.download-item[hidden]')).toHaveLength(0);
+    expect(document.querySelector('.downloads-no-match')).toBeNull();
+  });
+
+  it('Copy download link puts the address on the clipboard', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    rowOf('a').querySelector('[data-action="copy-link"]').click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('https://billing.example/x'));
+    expect(window.showToast).toHaveBeenCalledWith('Download link copied');
+  });
+
+  it('Delete file asks first, and the row then says deleted', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    window.vex.downloadsDeleteFile = vi.fn(async () => ({ ok: true }));
+    globalThis.vexConfirm = vi.fn(async () => false);
+    rowOf('a').querySelector('[data-action="delete-file"]').click();
+    await vi.waitFor(() => expect(globalThis.vexConfirm).toHaveBeenCalled());
+    expect(window.vex.downloadsDeleteFile).not.toHaveBeenCalled();
+    globalThis.vexConfirm = vi.fn(async () => true);
+    rowOf('a').querySelector('[data-action="delete-file"]').click();
+    await vi.waitFor(() => expect(window.vex.downloadsDeleteFile).toHaveBeenCalledWith('C:/dl/invoice.pdf'));
+    await vi.waitFor(() => expect(rowOf('a').querySelector('.download-meta').textContent).toContain('deleted'));
+    expect(rowOf('a').querySelector('[data-action="open-file"]')).toBeNull();
+  });
+
+  it('a finished download can be dragged out; main starts the drag of its file', async () => {
+    finished('a', 'invoice.pdf', 'https://billing.example/x');
+    window.vex.downloadsStartDrag = vi.fn(async () => ({ ok: true }));
+    const row = rowOf('a');
+    expect(row.getAttribute('draggable')).toBe('true');
+    const ev = new Event('dragstart', { bubbles: true, cancelable: true });
+    row.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(window.vex.downloadsStartDrag).toHaveBeenCalledWith('C:/dl/invoice.pdf');
+  });
+});
+
+describe('the sorting-rule editor (RD8)', () => {
+  it('accepts ".pdf from https://github.com/" as pdf files from github.com', async () => {
+    const answers = ['add', '.pdf from https://github.com/', 'Invoices', ''];
+    globalThis.vexPrompt = vi.fn(async () => answers.shift());
+    globalThis.vexId = (p) => p + '1';
+    window.vex.downloadsSetRules = vi.fn(async () => ({ ok: true }));
+    const list = await DownloadsPanel.editRules();
+    expect(window.showToast).not.toHaveBeenCalledWith('Say a kind of file, a site, or both', 'error');
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ ext: 'pdf', site: 'github.com', folder: 'Invoices' });
   });
 });

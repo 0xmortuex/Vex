@@ -118,8 +118,14 @@ async function start(userDataDir, downloadBuffer, presetIndex, customFlags) {
     try {
       _proc = spawn(exe, ['-i', '127.0.0.1', '-p', String(port), ...flags], { windowsHide: true, stdio: ['ignore', logFd || 'ignore', logFd || 'ignore'] });
     } catch (e) { lastErr = 'spawn: ' + (e && e.message); continue; }
-    _proc.on('error', () => { _proc = null; _port = 0; });
-    _proc.on('exit', () => { _proc = null; _port = 0; });
+    // Only the process we are still tracking may clear the bookkeeping: an old
+    // one killed by stop() reports its exit after the next start() has already
+    // spawned its replacement, and that late exit used to forget the live
+    // process (isRunning false, port 0) — so the next stop() could not end it.
+    const child = _proc;
+    const gone = () => { if (_proc === child) { _proc = null; _port = 0; } };
+    child.on('error', gone);
+    child.on('exit', gone);
     _port = port;
     const up = await _waitListening(port, 3500);
     if (up && _proc) return port;

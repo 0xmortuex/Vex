@@ -22,8 +22,25 @@ const appSrc = readFileSync(resolve(process.cwd(), 'src/renderer/js/app.js'), 'u
 function settingsPrefKeys() {
   const m = appSrc.match(/const SETTINGS_PREF_KEYS = \[([\s\S]*?)\];/);
   if (!m) throw new Error('SETTINGS_PREF_KEYS not found in app.js — the reset allow-list is gone');
-  return [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  // Read as JavaScript, so a quote in a comment ("Discord's") cannot shift
+  // which strings count as keys: a quote-matching regex read 13 fewer keys
+  // than the list holds (found 2026-10-10).
+  // eslint-disable-next-line no-new-func
+  const keys = new Function('return [' + m[1] + '];')();
+  if (!keys.every(k => typeof k === 'string')) throw new Error('SETTINGS_PREF_KEYS holds something that is not a key');
+  return keys;
 }
+
+describe('reading the allow-list', () => {
+  it('reads every key in it, whatever its comments say', () => {
+    const keys = settingsPrefKeys();
+    const listed = appSrc.match(/const SETTINGS_PREF_KEYS = \[([\s\S]*?)\];/)[1]
+      .split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+    expect(keys).toHaveLength((listed.match(/'vex\.[^']*'/g) || []).length);
+    expect(keys.every(k => k.startsWith('vex.'))).toBe(true);
+    expect(keys).toEqual(expect.arrayContaining(['vex.sleepConsent', 'vex.discordMode', 'vex.uiMode']));
+  });
+});
 
 // Keys that hold things the user made or collected. A reset must never touch
 // these — losing them is not "back to defaults", it is data loss.
@@ -33,6 +50,8 @@ const USER_CONTENT_KEYS = [
   'vex.annotations', 'vex.pwNever', 'vex.aiMemory', 'vex.mcpServers',
   'vex.focusBlocklist', 'vex.shortcuts', 'vex.workspaceSnapshots', 'vex.downloads',
   'vex.autofillLog', 'vex.searchKeywords',
+  // The reading digest and its summaries are made content, not preferences.
+  'vex.readingDigest', 'vex.readingDigestCache',
 ];
 
 // Keys a control in the Settings panel writes; a reset that misses one leaves
@@ -40,13 +59,19 @@ const USER_CONTENT_KEYS = [
 const PREFERENCE_KEYS = [
   'vex.searchEngine', 'vex.tabLayout', 'vex.guiStyle', 'vex.guiColors', 'vex.theme',
   'vex.memorySaver', 'vex.autoGroupSuggest', 'vex.autoAddToGroups',
-  'vex.aiIndexingEnabled', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
+  'vex.aiIndexingEnabled', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeAutoSubmit',
   'vex.gesturesEnabled', 'vex.consentBlock', 'vex.copyUnlock',
   'vex.passkeySuppressedHosts', 'vex.a11y', 'vex.recall.enabled',
   'vex.autoArchiveDays', 'vex.locationMode', 'vex.userName', 'vex.githubUsername',
   'vex.weatherLoc', 'vex.aiWorkerUrl', 'vex.syncWorkerUrl',
   'vex.preferLocalAI', 'vex.forceCloudAI', 'vex.localAIModel', 'vex.aiRouting',
   'vex.preferOnDeviceAI', 'vex.webllmModel', 'vex.panelOverrides', 'vex.sidebarOrder',
+  'vex.whatsNewCard',
+  'vex.readingDigest.newTab',
+  // Settings › Appearance › Light and dark (js/theme-auto.js).
+  'vex.themeAuto',
+  // Settings › Appearance › Settings layout (js/settings-ui.js).
+  'vex.settingsLayout',
 ];
 
 describe('Reset to Defaults key policy', () => {

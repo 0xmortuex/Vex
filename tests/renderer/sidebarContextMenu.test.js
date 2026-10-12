@@ -26,6 +26,8 @@ function installGlobals() {
     _attachMenuDismissal: vi.fn(),
   };
   globalThis.WebviewManager = { showWebview: vi.fn() };
+  // The shared job timer (js/jobs.js), which init() registers Discord's checks on.
+  globalThis.VexJobs = { every: vi.fn(() => ({ stop: vi.fn() })) };
   // Custom panels' init() are referenced inside showPanel — guard with empty
   // stubs so a stray showPanel('claude') (which is not in customPanels) won't
   // accidentally reach into them.

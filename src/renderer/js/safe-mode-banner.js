@@ -17,7 +17,7 @@ const SafeModeBanner = {
     let info;
     try { info = await window.vex.safeMode(); }
     catch (err) { VexProblems?.note('Safe mode', 'Could not read the startup state', err); return false; }
-    this.renderBackups(info && info.snapshots);
+    if (info && info.updateBackupFailed) this.tellBackupFailed(info.updateBackupFailed);
     if (!info || !info.safeMode) return false;
     this.show(info);
     return true;
@@ -62,7 +62,7 @@ const SafeModeBanner = {
       if (typeof window.vex.restartApp === 'function') window.vex.restartApp();
       else window.showToast?.('Close and open Vex to start normally', 'info');
     });
-    el.querySelector('[data-act="restore"]').addEventListener('click', () => this.chooseSnapshot(info));
+    el.querySelector('[data-act="restore"]').addEventListener('click', () => this.openBackups());
     el.querySelector('[data-act="rollback"]')?.addEventListener('click', () => this.rollBack(info.brokenSinceUpdateFrom));
   },
 
@@ -88,49 +88,19 @@ Updates are paused for a day, so ${version} does not offer this update straight 
     TabManager.createTab(url, true);
   },
 
-  async chooseSnapshot(info) {
-    const list = Array.isArray(info.snapshots) ? info.snapshots : [];
-    if (!list.length) { window.showToast?.('There is no earlier copy of your settings to go back to', 'error'); return; }
-    return this.restore(list[0]);
+  // Earlier settings are the backups Vex keeps around updates (Settings ›
+  // Backup, src/main/update-backups.js): one list, one Restore, with Undo.
+  openBackups() {
+    if (typeof VexBackup === 'undefined') { window.showToast?.('The backup screen is not loaded', 'error'); return; }
+    VexBackup.open();
   },
 
-  // Settings › Data: the copies kept before each update, each one a click
-  // away without needing safe mode.
-  renderBackups(list) {
-    const host = document.getElementById('settings-backups');
-    if (!host) return;
-    host.innerHTML = '';
-    const snaps = Array.isArray(list) ? list : [];
-    if (!snaps.length) { host.textContent = 'No copies yet — one is kept the first time each new version starts.'; return; }
-    for (const snap of snaps) {
-      const row = document.createElement('div');
-      row.className = 'setting-toggle-row';
-      row.innerHTML = '<span></span><button type="button" class="btn-secondary">Restore</button>';
-      row.querySelector('span').textContent = this.backupName(snap.label) + ' — ' + new Date(snap.at).toLocaleString();
-      row.querySelector('button').addEventListener('click', () => this.restore(snap));
-      host.appendChild(row);
-    }
-  },
-
-  backupName(label) {
-    if (label === 'first-run') return 'From the first start';
-    if (label === 'before-restore') return 'From just before a restore';
-    return 'As they were in ' + label;
-  },
-
-  async restore(snap) {
-    const when = new Date(snap.at).toLocaleString();
-    const ok = await vexConfirm({
-      title: 'Restore earlier settings?',
-      message: `Your settings will go back to the copy kept under version ${snap.label} (${when}).\n\nThe settings you have now are copied aside first, so this can be undone. Vex then restarts.`,
-      okLabel: 'Restore and restart',
-      danger: true,
-    });
-    if (!ok) return;
-    const r = await window.vex.restoreSettings(snap.name);
-    if (!r || !r.ok) { window.showToast?.('Could not restore: ' + ((r && r.error) || 'unknown'), 'error'); return; }
-    if (typeof window.vex.restartApp === 'function') window.vex.restartApp();
-    else window.showToast?.('Restored — close and open Vex to finish', 'info');
+  // The first start of a new version could not back the settings up. Vex is
+  // already updated, so it cannot stop anything; it is said, not only logged.
+  tellBackupFailed(failed) {
+    const text = 'Vex could not back up your settings when ' + (failed.version || 'this version') + ' first started: ' + String(failed.error || 'unknown error').replace(/\.$/, '') + '. Settings › Back up or restore… can save one now.';
+    if (typeof VexProblems !== 'undefined') VexProblems.note('Backup', text);
+    window.showToast?.(text, 'error', 12000);
   },
 
   _esc(s) { return window.escapeHtml ? window.escapeHtml(String(s)) : String(s); },

@@ -27,6 +27,15 @@ function mediaParts(permission, details) {
 }
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// https://discord.com or one of its subdomains, and nothing that merely ends
+// in the same letters.
+function isDiscordOrigin(origin) {
+  try {
+    const u = new URL(String(origin || ''));
+    return u.protocol === 'https:' && /(^|\.)discord\.com$/i.test(u.hostname);
+  } catch { return false; }
+}
+
 // 'allow' only when every part is allowed; 'deny' when any part is denied.
 // An answer saved before this change sits under '::media'. Its prompt said
 // "camera and microphone", so it still counts for those two — never for a
@@ -59,14 +68,19 @@ function isVexUi(contents) {
   } catch { return false; }
 }
 
-function createPermissionService({ userDataPath, secureSessions, ipcMain, _markHidRequestActive }) {
+// isLocked: whether Vex is locked (js/vex-lock.js); a site's notification is
+// not shown then, or its text would be on screen for anyone at the computer.
+function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie. Kept per partition: one map for
 // every window let "Allow this visit" in a private window allow the same site
 // in the normal one too (found 2026-09-29).
 const sessionDecisions = new Map();
 function sessionDecisionsFor(contents) {
-  const partition = (contents && secureSessions.partitionOf(contents)) || 'persist:main';
+  return sessionDecisionsByPartition(contents && secureSessions.partitionOf(contents));
+}
+function sessionDecisionsByPartition(partition) {
+  partition = partition || 'persist:main';
   if (!sessionDecisions.has(partition)) sessionDecisions.set(partition, new Map());
   return sessionDecisions.get(partition);
 }
@@ -85,7 +99,10 @@ const containersFile = path.join(userDataPath, 'permissions-containers.json');
 let cachedContainers = null;
 const hasOwnStore = (partition) => /^persist:(?:container|route)-/.test(partition || '');
 function decisionsFor(contents) {
-  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  return decisionsIn(contents, (c) => secureSessions.partitionOf(c));
+}
+function decisionsIn(contents, partitionOf) {
+  const partition = contents ? partitionOf(contents) : 'persist:main';
   if (partition && !partition.startsWith('persist:')) {
     if (!ephemeralPermissions.has(contents.session)) ephemeralPermissions.set(contents.session, Object.create(null));
     return ephemeralPermissions.get(contents.session);
@@ -96,7 +113,10 @@ function decisionsFor(contents) {
 // Writes what decisionsFor(contents) handed out, back where it came from. A
 // private window's decisions were changed in place and are never written.
 function saveDecisionsFor(contents, data) {
-  const partition = contents ? secureSessions.partitionOf(contents) : 'persist:main';
+  return saveDecisionsIn(contents, (c) => secureSessions.partitionOf(c), data);
+}
+function saveDecisionsIn(contents, partitionOf, data) {
+  const partition = contents ? partitionOf(contents) : 'persist:main';
   if (partition && !partition.startsWith('persist:')) return writes;
   if (hasOwnStore(partition)) {
     const all = { ...loadContainerDecisions() };
@@ -215,6 +235,30 @@ function savePermissionDecisions(data) {
   return Promise.all([saveContainerDecisions(containers), saveMainDecisions(main)]);
 }
 
+// Settings' Clear all, and its Undo (js/vex-undo.js): every store cleared,
+// and what was in them kept here so Undo can put it back exactly. A decision
+// made since the clear wins over the one it replaced.
+async function clearAllDecisions() {
+  const before = JSON.parse(JSON.stringify({ main: loadMainDecisions(), containers: loadContainerDecisions() }));
+  await savePermissionDecisions({});
+  return before;
+}
+async function restoreDecisions(before) {
+  if (!before || typeof before !== 'object') throw new Error('Nothing to put back');
+  const mergeStore = (was, now) => {
+    const out = { ...(was || {}), ...(now || {}) };
+    const until = { ...((was && was.__until__) || {}), ...((now && now.__until__) || {}) };
+    if (Object.keys(until).length) out.__until__ = until; else delete out.__until__;
+    return out;
+  };
+  const containersNow = loadContainerDecisions();
+  const containers = {};
+  for (const partition of new Set([...Object.keys(before.containers || {}), ...Object.keys(containersNow)])) {
+    containers[partition] = mergeStore((before.containers || {})[partition], containersNow[partition]);
+  }
+  await Promise.all([saveContainerDecisions(containers), saveMainDecisions(mergeStore(before.main, loadMainDecisions()))]);
+}
+
 function wirePermissionsOnSession(ses, tag, opts) {
   if (!ses || ses.__vexPermsWired) return;
   ses.__vexPermsWired = true;
@@ -227,6 +271,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
     try { origin = new URL((details && details.requestingUrl) || webContents.getURL()).origin; } catch {}
 
     console.log(`[Permissions] (${tag}) ${origin} requests: ${permission}`);
+    // opts.denyOverTor: a burner put through Tor is a Tor tab, and a Tor tab
+    // is given no site permission at all (main.js, tor:create).
+    if (opts.denyOverTor && ses.__vexTor) return callback(false);
 
     // Standard browser auto-allow list. mediaKeySystem (EME/Widevine DRM, used by
     // Spotify, Netflix, etc.) is auto-allowed like a normal browser — prompting
@@ -260,7 +307,9 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // voice & screen-share work. The generic prompt never surfaces in a panel
     // webview (same reason mediaKeySystem is auto-allowed above), which left
     // Discord unable to see any input/output device.
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return callback(true);
+    // Only for Discord itself: any frame or page in that session got the camera
+    // and microphone without a question (security scan M2).
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(origin)) return callback(true);
 
     const NEEDS_PROMPT = new Set(['geolocation', 'media', 'midi', 'midiSysex', 'notifications', 'camera', 'microphone', 'display-capture', 'clipboard-read']);
     if (!NEEDS_PROMPT.has(permission)) {
@@ -308,23 +357,107 @@ function wirePermissionsOnSession(ses, tag, opts) {
   // sides to the same form before comparing.
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
     requestingOrigin = originKey(requestingOrigin);
-    // WebHID: keep navigator.hid available, and mark this origin as having a
-    // device request in flight — Chromium runs this 'hid' check at the start of
-    // requestDevice(), which lets the device-permission handler permit the
-    // chooser to enumerate/open for it (see wireWebHidOnSession). Per-device
-    // gating remains the interactive chooser.
-    if (permission === 'hid') { _markHidRequestActive(requestingOrigin); return true; }
+    if (opts.denyOverTor && ses.__vexTor) return false;
+    // Chromium asks this before it shows a site's notification: none while
+    // Vex is locked, whatever the site was allowed.
+    if (permission === 'notifications' && typeof isLocked === 'function' && isLocked()) return false;
+    // WebHID: keep navigator.hid available. Which device a site gets is the
+    // chooser's pick alone (main.js, wireWebHidOnSession).
+    if (permission === 'hid') return true;
     // DRM playback (EME) is auto-OK like a normal browser, so the sync check
     // Chromium runs during requestMediaKeySystemAccess() doesn't block Spotify.
     if (permission === 'mediaKeySystem' || permission === 'fullscreen' || permission === 'pointerLock') return true;
     if ((permission === 'display-capture' || permission === 'clipboard-read') && isVexUi(_wc)) return true;
-    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission)) return true;
+    if (opts.autoAllowMedia && MEDIA_PERMS.has(permission) && isDiscordOrigin(requestingOrigin)) return true;
     // The check names one device: details.mediaType is 'audio' or 'video'.
     const kind = details && details.mediaType;
     if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
+}
+
+// A page asking to open a program on the computer through a link (ms-word:,
+// steam://, vscode://…). Vex handed every such link to Windows at once, from
+// any page or ad frame, with no click and no question — from Tor tabs too, and
+// an Office link makes Word fetch a document from the internet outside Vex
+// (security scan H1). It is asked like a site permission now: per site and per
+// kind of link, saved in the same store (Settings > Site permissions lists and
+// revokes it) under "external:<scheme>". noRemember: an answer that opens
+// something is never kept, so the site asks every time (an Office link that
+// fetches a document from the internet); a Block is kept as usual.
+const _externalPending = new Map();   // contents id|origin|scheme -> Promise
+function askExternalApp(contents, origin, scheme, { app = scheme, detail = '', noRemember = false } = {}) {
+  const permission = 'external:' + scheme;
+  const saved = savedDecision(decisionsFor(contents), origin, [permission], sessionDecisionsFor(contents));
+  if (saved === 'deny') return Promise.resolve(false);
+  if (saved === 'allow' && !noRemember) return Promise.resolve(true);
+  const host = secureSessions.owner(contents);
+  if (!host) return Promise.resolve(false);
+  // A page firing the same link again while it is being asked is the one question.
+  const key = `${contents.id}|${origin}|${scheme}`;
+  if (_externalPending.has(key)) return Promise.resolve(false);
+  const answer = new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const callback = (ok) => resolve(!!ok);
+    Object.assign(callback, { _host: host, _contents: contents, _origin: origin, _permission: permission, _parts: [permission], _noRememberAllow: noRemember });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, origin, permission, app, detail, once: noRemember });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      resolve(false);
+      try { if (!host.win.isDestroyed()) host.win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  }).finally(() => _externalPending.delete(key));
+  _externalPending.set(key, answer);
+  return answer;
+}
+
+// A page starting another download by itself, with no click, moments after
+// the last (src/main/downloads.js): Chrome's "automatic downloads". Asked per
+// site, Allow or Block, kept in the site's permissions (the site panel and
+// Settings > Site permissions show it). remember false — a private window, a
+// Tor tab — keeps nothing anywhere but the tab, which is not asked twice: the
+// tab's answer holds while it is open, as Chrome's does. An answer already
+// known comes back at once as true or false, so a blocked download is refused
+// before Vex shows anything for it; a question comes back as a Promise.
+const AUTO_DOWNLOADS = 'automatic-downloads';
+const _autoDownloadPending = new Map();   // page id|origin -> Promise
+const _autoDownloadTab = new Map();       // page id|origin -> true | false
+function askAutomaticDownloads(contents, origin, { remember = true } = {}) {
+  origin = originKey(origin);
+  if (remember) {
+    const saved = savedDecision(decisionsFor(contents), origin, [AUTO_DOWNLOADS], sessionDecisionsFor(contents));
+    if (saved) return saved === 'allow';
+  }
+  const key = `${contents.id}|${origin}`;
+  if (_autoDownloadTab.has(key)) return _autoDownloadTab.get(key);
+  // More downloads while it is being asked wait for the one answer.
+  if (_autoDownloadPending.has(key)) return _autoDownloadPending.get(key);
+  const host = secureSessions.owner(contents);
+  if (!host) return false;
+  const answer = new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const callback = (ok) => {
+      if (!_autoDownloadTab.has(key)) contents.once('destroyed', () => _autoDownloadTab.delete(key));
+      _autoDownloadTab.set(key, !!ok);
+      resolve(!!ok);
+    };
+    Object.assign(callback, { _host: host, _contents: contents, _origin: origin, _permission: AUTO_DOWNLOADS, _parts: [AUTO_DOWNLOADS], _noRemember: !remember });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, origin, permission: AUTO_DOWNLOADS, choice: 'allow-block', remember });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      resolve(false);
+      try { if (!host.win.isDestroyed()) host.win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  }).finally(() => _autoDownloadPending.delete(key));
+  _autoDownloadPending.set(key, answer);
+  return answer;
 }
 
 ipcMain.handle('permission:respond', async (_e, payload) => {
@@ -338,7 +471,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   // closes; false = this once.
   // "Allow" used to mean for ever or not at all, and the box was ticked by
   // default — so agreeing to a microphone for one call agreed to it for good.
-  if (remember && cb._origin && cb._permission) {
+  if (remember && cb._origin && cb._permission && !cb._noRemember && !(decision === 'allow' && cb._noRememberAllow)) {
     const parts = cb._parts || [cb._permission];
     if (remember === 'session') {
       for (const part of parts) sessionDecisionsFor(cb._contents).set(`${cb._origin}::${part}`, decision);
@@ -358,7 +491,80 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
 });
 
 
-function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, permissionsReady, flushPermissions: () => writes };
+// The site panel (js/site-panel.js) sets one permission of the page in front:
+// 'allow' or 'deny' kept, 'ask' forgotten so the site asks again. Written to
+// the store that page is held to — its container's or route's, persist:main's,
+// or a private window's in-memory one (never to disk), which is exactly where
+// Settings › Site permissions lists it. A "just this visit" answer for the same
+// permission is dropped too, or it would go on overruling the choice.
+const PAGE_PERMISSIONS = new Set(['camera', 'microphone', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'midi', 'midiSysex', 'popups', AUTO_DOWNLOADS]);
+function setPageDecision(contents, origin, permission, decision) {
+  origin = originKey(origin);
+  if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
+  if (!PAGE_PERMISSIONS.has(permission) && !/^external:[a-z][a-z0-9+.-]{0,40}$/.test(permission)) throw new Error('Unknown permission: ' + permission);
+  if (!['allow', 'deny', 'ask'].includes(decision)) throw new Error('A permission is allowed, blocked or asked');
+  const d = decisionsFor(contents);
+  const until = { ...(d.__until__ || {}) };
+  const keys = [`${origin}::${permission}`];
+  // The old combined answer covers the camera and the microphone both:
+  // splitting it, the other half keeps it.
+  const media = `${origin}::media`;
+  if ((permission === 'camera' || permission === 'microphone') && d[media]) {
+    const other = `${origin}::${permission === 'camera' ? 'microphone' : 'camera'}`;
+    if (!d[other]) { d[other] = d[media]; if (until[media]) until[other] = until[media]; }
+    keys.push(media);
+  }
+  for (const key of keys) { delete d[key]; delete until[key]; sessionDecisionsFor(contents).delete(key); }
+  if (decision !== 'ask') d[keys[0]] = decision;
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  return saveDecisionsFor(contents, d);
 }
-module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi };
+// Every decision the page's site has, in the page's store: the panel's Reset.
+// What it took out is handed back for its Undo (restorePageDecisions), with
+// the store it came from: the page itself may be gone by then. A private
+// window's store is its session's, in memory, and is put back there.
+async function resetPageDecisions(contents, origin) {
+  origin = originKey(origin);
+  if (!/^https?:\/\//.test(origin)) throw new Error('Only a website has permissions');
+  const d = decisionsFor(contents);
+  const until = { ...(d.__until__ || {}) };
+  const prefix = origin + '::';
+  const removed = { decisions: {}, until: {}, visit: {} };
+  for (const key of Object.keys(d)) {
+    if (!key.startsWith(prefix)) continue;
+    removed.decisions[key] = d[key];
+    if (until[key] != null) removed.until[key] = until[key];
+    delete d[key]; delete until[key];
+  }
+  const visit = sessionDecisionsFor(contents);
+  for (const key of [...visit.keys()]) if (key.startsWith(prefix)) { removed.visit[key] = visit.get(key); visit.delete(key); }
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  await saveDecisionsFor(contents, d);
+  const store = { partition: contents ? secureSessions.partitionOf(contents) : 'persist:main', session: contents ? contents.session : null };
+  return { store, removed };
+}
+// The Reset's Undo: each answer back in the store it was taken from. One the
+// site was given since the reset wins over the one it replaced.
+async function restorePageDecisions(snapshot) {
+  if (!snapshot || !snapshot.store || !snapshot.removed) throw new Error('Nothing to put back');
+  const { store, removed } = snapshot;
+  // The store, found the way decisionsFor finds a page's.
+  const asContents = { session: store.session };
+  const partitionOf = () => store.partition;
+  const d = decisionsIn(asContents, partitionOf);
+  const until = { ...(d.__until__ || {}) };
+  for (const [key, value] of Object.entries(removed.decisions || {})) {
+    if (Object.hasOwn(d, key)) continue;
+    d[key] = value;
+    if (removed.until && removed.until[key] != null) until[key] = removed.until[key];
+  }
+  if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
+  const visit = sessionDecisionsByPartition(store.partition);
+  for (const [key, value] of Object.entries(removed.visit || {})) if (!visit.has(key)) visit.set(key, value);
+  await saveDecisionsIn(asContents, partitionOf, d);
+}
+
+function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
+return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, flushPermissions: () => writes };
+}
+module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

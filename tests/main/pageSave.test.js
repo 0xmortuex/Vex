@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 const { createPageSave, safeFileName } = require('../../src/main/page-save.js');
 
-function setup({ url = 'https://example.com/article', title = 'An article', savePath, destroyed = false } = {}) {
+function setup({ url = 'https://example.com/article', title = 'An article', savePath, destroyed = false, folder = null } = {}) {
   const wc = {
     isDestroyed: () => destroyed,
     getURL: () => url,
@@ -19,7 +19,7 @@ function setup({ url = 'https://example.com/article', title = 'An article', save
   const dialog = { showSaveDialog: vi.fn(async (_w, opts) => (savePath === null ? { canceled: true } : { canceled: false, filePath: savePath || path.join(os.tmpdir(), 'vex-ps-' + Date.now() + '-' + opts.filters[0].extensions[0]) })) };
   const ps = createPageSave({
     webContents: { fromId: (id) => (id === 7 ? wc : null) },
-    dialog, app: { getPath: () => 'C:/Users/me/Downloads' }, getWindow: () => null,
+    dialog, app: { getPath: () => 'C:/Users/me/Downloads' }, downloadFolder: () => folder,
   });
   return { ps, wc, dialog };
 }
@@ -41,6 +41,19 @@ describe('file names from page titles', () => {
 });
 
 describe('saving', () => {
+  // Audit RD9, RD10 (2026-10-10): the dialog opened in Downloads whatever
+  // folder was chosen, and over the main window when a private window asked.
+  it('opens in the folder chosen in Settings, over the window that asked', async () => {
+    const { ps, dialog } = setup({ folder: 'D:/Saved', savePath: null });
+    const privateWin = { isDestroyed: () => false };
+    await ps.save(7, 'pdf', 'An article', privateWin);
+    expect(dialog.showSaveDialog.mock.calls[0][0]).toBe(privateWin);
+    expect(dialog.showSaveDialog.mock.calls[0][1].defaultPath).toBe(path.join('D:/Saved', 'An article.pdf'));
+    const plain = setup({ savePath: null });
+    await plain.ps.save(7, 'pdf', 'An article');
+    expect(plain.dialog.showSaveDialog.mock.calls[0][1].defaultPath).toBe(path.join('C:/Users/me/Downloads', 'An article.pdf'));
+  });
+
   it('as a PDF, with backgrounds, to where the user chose', async () => {
     const { ps, wc, dialog } = setup();
     const r = await ps.save(7, 'pdf', 'An article');
@@ -81,5 +94,23 @@ describe('saving', () => {
   it('a closed tab, or Vex\'s own pages, are not saved', async () => {
     await expect(setup({ destroyed: true }).ps.save(7, 'pdf')).rejects.toThrow(/tab has closed/);
     await expect(setup({ url: 'file:///C:/app/start.html' }).ps.save(7, 'pdf')).rejects.toThrow(/Only a web page/);
+  });
+});
+
+// Audit RD9, RD10: the e-book, the calendar/text file, the page and the
+// recording are all saved through main.js the same way.
+describe('main.js', () => {
+  const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
+  const block = (start, len = 900) => MAIN.slice(MAIN.indexOf(start), MAIN.indexOf(start) + len);
+  it('every save dialog opens over the asking window, in the chosen folder', () => {
+    expect(MAIN).not.toMatch(/showSaveDialog\(mainWindow/);
+    for (const ch of ['page:save-epub', 'file:save-text']) {
+      const b = block("ipcMain.handle('" + ch + "'");
+      expect(b, ch).toContain('dialog.showSaveDialog(_askingWindow(_e),');
+      expect(b, ch).toContain("_chosenDownloadFolder() || app.getPath('downloads')");
+    }
+    expect(block("ipcMain.handle('page:save'", 200)).toContain('_askingWindow(_e)');
+    expect(block("ipcMain.handle('rec:finish'", 200)).toContain('_askingWindow(_e)');
+    expect(MAIN).toContain('const _askingWindow = (e) => BrowserWindow.fromWebContents(e.sender) || undefined;');
   });
 });

@@ -58,17 +58,40 @@ const PAGE_FIRST = {
     m: 'toggle-memory',
     l: 'toggle-schedules',
     h: 'toggle-history-ai',
+    // Notes and picture-in-picture are answered in main.js for Vex's own
+    // interface only, so from a page they did nothing (found 2026-10-10).
+    n: 'toggle-notes',
+    p: 'toggle-pip',
   },
 };
 
-// A report from the page preload → { channel }, or null. The action comes
-// from the table here, never from the page.
-function pageShortcut(report) {
+// A report from the page preload → { channel, args? }, or null. The action
+// comes from the table here, or is the registry's key (`wanted`, the keys the
+// window asked for), never from the page. Any other Ctrl or Ctrl+Shift letter
+// the registry answers, the shortcut sheet's Ctrl+Shift+K, AI full screen's
+// Ctrl+Shift+F or one you bound yourself, did nothing from a page
+// (found 2026-10-10); the page still has it first.
+function pageShortcut(report, { wanted = null } = {}) {
   if (!report || typeof report.key !== 'string' || report.key.length !== 1) return null;
-  const table = report.shift === true ? PAGE_FIRST.shifted : PAGE_FIRST.plain;
+  const shift = report.shift === true;
+  const table = shift ? PAGE_FIRST.shifted : PAGE_FIRST.plain;
   const lk = report.key.toLowerCase();
-  return Object.prototype.hasOwnProperty.call(table, lk) ? { channel: table[lk] } : null;
+  if (Object.prototype.hasOwnProperty.call(table, lk)) return { channel: table[lk] };
+  if (!/^[a-z0-9]$/.test(lk) || !wanted || !wanted.has('Ctrl+' + (shift ? 'Shift+' : '') + lk.toUpperCase())) return null;
+  return { channel: 'guest-shortcut', args: [{ key: lk, ctrl: true, shift, alt: false }] };
 }
+
+// Browser keys main answers before the page, which the user may move. Until
+// the window has said which keys it answers they do what they always did;
+// after that one goes up as the key while the registry wants it (whatever it
+// is now bound to) and is the page's once nothing is bound to it. They kept
+// focusing the bar, hard reloading and locking Vex inside pages after being
+// moved to another key (found 2026-10-10).
+const BROWSER_KEYS = {
+  'Ctrl+L': 'focus-address-bar',
+  'Ctrl+Shift+R': 'hard-reload-tab',
+  'Ctrl+Alt+L': 'lock-vex',
+};
 
 // Keys the renderer's own registry owns (and the user may have rebound): the
 // key travels, not a decision made here.
@@ -94,6 +117,14 @@ function comboOf(input) {
 function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   if (!input || input.type !== 'keyDown') return null;
   const ctrl = input.control || input.meta;
+
+  const browserCombo = comboOf(input);
+  if (Object.prototype.hasOwnProperty.call(BROWSER_KEYS, browserCombo)) {
+    if (!wanted || !wanted.size) return { channel: BROWSER_KEYS[browserCombo] };
+    if (!wanted.has(browserCombo)) return null;
+    const k = String(input.key || '').toLowerCase();
+    return { channel: 'guest-shortcut', args: [{ key: k, ctrl: true, shift: !!input.shift, alt: !!input.alt }] };
+  }
 
   // Anything the renderer's registry has a binding for goes up as the key
   // itself, so a shortcut works while you are reading a page and keeps
@@ -146,4 +177,18 @@ function shortcutFor(input, { ownsFind = false, wanted = null } = {}) {
   return null;
 }
 
-module.exports = { shortcutFor, comboOf, pageShortcut, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP };
+// Back, Forward and Reload from a page name the page (its webContents id),
+// and so does a key passed up to the registry (F5, Ctrl+F5, Shift+F5): the
+// window refuses them when that page is a side panel's, so a key pressed in
+// Discord's panel no longer moves the website beside or behind it
+// (js/nav-lock.js, found 2026-10-12).
+const FROM_PAGE = new Set(['navigate-back', 'navigate-forward', 'reload-tab', 'hard-reload-tab']);
+function withSource(hit, pageId) {
+  if (!hit) return hit;
+  if (!Number.isInteger(pageId)) throw new Error('withSource needs the page\'s webContents id');
+  if (FROM_PAGE.has(hit.channel)) return { channel: hit.channel, args: [pageId] };
+  if (hit.channel === 'guest-shortcut') return { channel: hit.channel, args: [{ ...hit.args[0], from: pageId }] };
+  return hit;
+}
+
+module.exports = { shortcutFor, comboOf, pageShortcut, withSource, PLAIN, SHIFTED, PAGE_FIRST, PASS_UP, BROWSER_KEYS };

@@ -49,3 +49,16 @@ describe('the new name', () => {
     expect(safeFolder('C:\\\\Windows')).not.toMatch(/^C:/);
   });
 });
+
+describe('rules typed the way people write them', () => {
+  it('a site given as a web address matches its host', () => {
+    const r = place([{ id: 'x', ext: 'pdf', site: 'https://github.com/', folder: 'Inv' }], { filename: 'a.pdf', url: 'https://github.com/o/r/a.pdf' });
+    expect(r.folder).toBe('Inv');
+    expect(matches({ site: 'https://www.github.com/x' }, PDF)).toBe(true);
+    expect(matches({ site: 'github.com/' }, PDF)).toBe(true);
+  });
+  it('a kind of file given with its dot still matches', () => {
+    expect(matches({ ext: '.pdf' }, PDF)).toBe(true);
+    expect(matches({ ext: '.zip, .pdf' }, PDF)).toBe(true);
+  });
+});

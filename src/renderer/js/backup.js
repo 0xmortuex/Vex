@@ -23,19 +23,32 @@
 const VexBackup = {
   VERSION: 1,
 
-  // Never leaves the machine, whatever it is called. Matched against the
-  // whole key, case-insensitively: a denylist of shapes rather than of names,
-  // so a key added next year is covered before anyone remembers this file.
+  // Never leaves the machine, whatever it is called: a denylist of shapes
+  // rather than of names, so a key added next year is covered before anyone
+  // remembers this file. Matched against the WORDS of the key (camelCase,
+  // dots and dashes split): as a bare substring, "pass" and "auth" also threw
+  // out ordinary settings — vex.discordBypassMode, vex.robloxBypass,
+  // vex.passkeySuppressedHosts (found 2026-10-10).
+  // Short stems must be a whole word (or its plural)...
+  NEVER_WORDS: ['pass', 'passwd', 'passphrase', 'password', 'secret', 'token', 'key', 'apikey', 'credential', 'vault', 'totp', 'otp', 'seed', 'auth', 'oauth'],
+  // ...long ones are unambiguous anywhere in a word (vex.synctoken, vex.aiapisecret).
+  NEVER_INSIDE: /password|passphrase|secret|token|credential/i,
   NEVER: [
-    /pass|secret|token|key\b|credential|vault|totp|otp|seed|auth/i,
     // Lock Vex's PIN hash, and its lock state and wrong-PIN count: a 4-digit
     // PIN is quick to try against a hash in a backup file (found 2026-09-29).
     /^vex\.lock(Pin|ed|Fails|WaitUntil)$/i,
+    // MCP servers: their tokens were kept here, and a server's address can
+    // carry one too (security scan S5-3). The tokens now live encrypted in main.
+    /^vex\.mcpServers$/i,
+    // Passkeys (main/passkeys.js) live encrypted in the main process and never
+    // in a preference; should a key with their name ever appear, it is a
+    // passkey store and stays out. Only the two site lists are settings.
+    /^vex\.passkey(?!(?:SuppressedHosts|AllowedHosts)$)/i,
   ],
 
   // True of this machine, not of this person.
   LOCAL: [
-    /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|notificationsChecked|defaultBrowserConfigured)$/,
+    /^vex\.(installedAt|hasRunBefore|lastUpdateCheck|lastSeenVersion|whatsNewPending|notificationsChecked|defaultBrowserConfigured)$/,
     /^vex\.(panelUsage|tabs|sleptAt|commandUsage|clipboard)/,
     // Only the bare key. As a prefix, `session` also caught `vex.sessions` —
     // the named sessions you saved — so the backup that promised "sessions"
@@ -101,7 +114,19 @@ const VexBackup = {
     this._undoStores = null;
   },
 
-  _blocked(key) { return this.NEVER.some(re => re.test(key)); },
+  _words(key) {
+    return String(key)
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+      .map(w => w.toLowerCase());
+  },
+  _blocked(key) {
+    if (this.NEVER_INSIDE.test(key)) return true;
+    if (this._words(key).some(w => this.NEVER_WORDS.includes(w) || (w.endsWith('s') && this.NEVER_WORDS.includes(w.slice(0, -1))))) return true;
+    return this.NEVER.some(re => re.test(key));
+  },
   _isLocal(key) { return this.LOCAL.some(re => re.test(key)); },
   _isOptional(key, what) { return (this.OPTIONAL[what] || []).some(re => re.test(key)); },
 
@@ -203,16 +228,36 @@ const VexBackup = {
   // the rest and needs no new privilege.
   async save(include = []) {
     const data = await this.snapshot(include);
-    const text = JSON.stringify(data, null, 2);
+    this._download(JSON.stringify(data, null, 2), this.fileName());
+    return data;
+  },
+
+  // The link's blob is let go of only after the download had time to start:
+  // revoked straight after click() the download can find nothing to save.
+  _download(text, name) {
     const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = this.fileName();
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    return data;
+  },
+
+  // Settings › Data › Export All Data: every vex.* key as it is, history and
+  // chats included, but through the same secret filter as a backup. It wrote
+  // the Lock PIN's hash and the MCP servers' tokens into Downloads (audit
+  // SET5, 2026-10-10). -> the number of keys left out.
+  exportAll() {
+    const data = {};
+    let skipped = 0;
+    for (const key of this._keys()) {
+      if (this._blocked(key)) { skipped++; continue; }
+      data[key] = localStorage.getItem(key);
+    }
+    this._download(JSON.stringify(data, null, 2), 'vex-data-export.json');
+    return skipped;
   },
 
   read(file) {
@@ -234,8 +279,8 @@ const VexBackup = {
     m.id = 'vex-backup';
     m.className = 'vexsr-ov';
     const now = this.collect([]);
-    m.innerHTML = '<div class="vexsr-card"><div class="vexsr-head">'
-      + '<span class="vexsr-title">Back up everything, or put it back</span>'
+    m.innerHTML = '<div class="vexsr-card" role="dialog" aria-modal="true" aria-labelledby="bk-title"><div class="vexsr-head">'
+      + '<span class="vexsr-title" id="bk-title">Back up everything, or put it back</span>'
       + '<button class="vexsr-x" id="bk-close" aria-label="Close" title="Close">' + VexIcons.svg('x', { size: 13 }) + '</button></div>'
       + '<div class="vexsr-sub">One file with everything Vex remembers about how you work — your notes, sessions, keybindings, site rules, panels, theme, skin and typeface. '
       + Object.keys(now.items).length + ' things right now.</div>'
@@ -244,15 +289,15 @@ const VexBackup = {
       + '<button id="bk-save" class="vexsr-go">Save a backup</button>'
       + '</div>'
       + '<div class="vexsr-row" style="margin-top:8px">'
-      + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input">'
+      + '<input type="file" id="bk-file" accept="application/json,.json" class="vexsr-input" aria-label="Backup file to restore">'
       + '<button id="bk-restore" class="vexsr-x">Restore</button>'
       + '</div>'
-      // Made by Vex itself right before each update installed (update-notifier.js).
-      + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one, and keeps the last three.</div>'
+      // Made by Vex itself around each update (src/main/update-backups.js).
+      + '<div id="bk-updates" hidden><div class="vexsr-sub" style="margin-top:12px">Saved before updates — Vex backs up by itself before it installs one (or when a new version first starts, if it was installed another way), and keeps the last five.</div>'
       + '<div id="bk-update-list" class="vexsr-list"></div></div>'
       + '<div id="bk-msg" class="vexsr-msg"></div>'
       + '<div class="vexsr-note">Saved logins and authenticator codes are never in the file. They are kept encrypted by Vex itself and cannot be read from here — a backup that contained them would be a password file sitting in your Downloads folder. '
-      + 'Restoring replaces what is in Vex now; it can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
+      + 'Restoring writes everything in the file over what Vex has now; what the file does not have is left as it is. It can be undone until you close Vex, and Vex has to be restarted for all of it to take.</div>'
       + '</div>';
     document.body.appendChild(m);
 
@@ -321,14 +366,15 @@ const VexBackup = {
       row.dataset.backup = item.name;
       const label = document.createElement('span');
       label.className = 'vexsr-host';
-      label.textContent = 'Before updating to ' + item.version;
+      const what = this.updateBackupName(item);
+      label.textContent = what;
       const when = document.createElement('span');
       when.className = 'vexsr-mode';
       when.textContent = new Date(item.at).toLocaleString() + ' · ' + Math.max(1, Math.round(item.bytes / 1024)) + ' KB';
       const btn = document.createElement('button');
       btn.className = 'vexsr-x';
       btn.textContent = 'Restore';
-      btn.setAttribute('aria-label', 'Restore the backup made before updating to ' + item.version);
+      btn.setAttribute('aria-label', 'Restore ' + (item.kind === 'settings' ? 'the copy: ' + what : 'the backup made before updating to ' + item.version));
       btn.addEventListener('click', async () => {
         let got;
         try { got = await api.readBackup(item.name); }
@@ -344,8 +390,17 @@ const VexBackup = {
     }
   },
 
+  // What a row in that list is. 'settings' rows are the copies the older
+  // first-start system kept (settings-backups), moved here once.
+  updateBackupName(item) {
+    if (item.kind !== 'settings') return 'Before updating to ' + item.version;
+    if (item.version === 'first-run') return 'Settings from the first start';
+    if (item.version === 'before-restore') return 'Settings from just before a restore';
+    return 'Settings as they were in ' + item.version;
+  },
+
   // Restore a backup's contents after asking, with Undo — from a chosen file
-  // or from one of the backups made before an update.
+  // or from one of the backups made around an update.
   async _restore(data, m, msg) {
     const seen = this.describe(data);
     if (!seen) { msg('That is not a Vex backup file', true); return; }
@@ -354,7 +409,7 @@ const VexBackup = {
       title: 'Restore this backup?',
       message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
         + (seen.chats ? '\n\nIt includes AI conversations.' : '')
-        + '\n\nThis replaces what is in Vex now. You can undo it until you close Vex.',
+        + '\n\nEverything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.',
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;
     if (!ok) return;

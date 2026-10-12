@@ -54,6 +54,19 @@ function _parseGroupsReply(result, toReal) {
   return _mapGroupIds(parsed, toReal);
 }
 
+// A New Tab (the start page) or a blank tab has nothing to cluster on: two of
+// them came back as an "Empty Tabs" group, and with "Remember these patterns"
+// on, every future New Tab would have joined it (walkthrough H2, 2026-10-07).
+function _isBlankTab(t) {
+  const url = String((t && t.url) || '').trim();
+  if (!url || url === 'about:blank') return true;
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'vex:' && u.hostname === 'start') ||
+      (u.protocol === 'file:' && /\/renderer\/start\.html$/i.test(u.pathname));
+  } catch { return false; }
+}
+
 function _mapGroupIds(parsed, toReal) {
   if (!toReal) return parsed;
   const real = (ids) => (Array.isArray(ids) ? ids : []).map(id => toReal.get(String(id))).filter(Boolean);
@@ -205,12 +218,28 @@ const TabGrouper = (() => {
   }
 
   // ---------- Analyze & propose ----------
-  async function analyzeAndPropose(onlyUngrouped = true) {
-    const all = _allTabs();
-    const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
-    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs to propose groupings', 'warn'); return; }
+  // One analysis at a time. A newer run, a Cancel, Escape, or the loading
+  // modal disappearing all make an older run's answer stale: it is dropped
+  // instead of popping up later over whatever the user is doing (H2).
+  let _runSeq = 0;
+  let _activeLoading = null;
 
-    const loading = showLoadingModal('Analyzing your tabs...');
+  async function analyzeAndPropose(onlyUngrouped = true) {
+    // A Tor, off-the-record or private-window tab is never sent to the AI
+    // (it went with the rest, found 2026-10-10).
+    const all = _allTabs().filter(t => !_isBlankTab(t) && (!window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)));
+    const tabsToAnalyze = onlyUngrouped ? all.filter(t => !t.groupId) : all;
+    if (tabsToAnalyze.length < 3) { _toast('Need at least 3 ungrouped tabs with a page open to propose groupings', 'warn'); return; }
+
+    const run = ++_runSeq;
+    if (_activeLoading) _activeLoading.close();
+    const ctl = new AbortController();
+    const loading = showLoadingModal('Analyzing your tabs...', () => {
+      ctl.abort();
+      _toast('Tab grouping cancelled', 'info', 2500);
+    });
+    _activeLoading = loading;
+    const stale = () => run !== _runSeq || ctl.signal.aborted || !loading.isOpen();
 
     try {
       // Compact payload: ~60-char title, bare hostname, ~100-char summary.
@@ -248,7 +277,12 @@ const TabGrouper = (() => {
 
       if (typeof AIRouter === 'undefined') throw new Error('AIRouter not loaded');
       const { tabs: shortTabs, toReal } = _shortIds(tabMeta);
-      const response = await AIRouter.callAI('groupTabs', { tabs: shortTabs });
+      const request = { tabs: shortTabs };
+      // Cancel aborts the request in flight. Not enumerable: the local
+      // prompt for this feature is JSON.stringify(request).
+      Object.defineProperty(request, 'signal', { value: ctl.signal, enumerable: false });
+      const response = await AIRouter.callAI('groupTabs', request);
+      if (stale()) return;
       const parsed = _parseGroupsReply(response.result, toReal);
 
       parsed.groups = (parsed.groups || []).filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
@@ -271,25 +305,57 @@ const TabGrouper = (() => {
 
       showPreviewModal(parsed, tabsToAnalyze);
     } catch (err) {
+      if (stale()) return;   // cancelled: already said so
       loading.close();
       _toast(`Grouping failed: ${err.message}`, 'error');
+    } finally {
+      if (_activeLoading === loading) _activeLoading = null;
     }
   }
 
   // ---------- Loading modal ----------
-  function showLoadingModal(message) {
+  // Cancel and Escape close it and call onCancel (which aborts the AI call).
+  function showLoadingModal(message, onCancel) {
     const overlay = document.createElement('div');
     overlay.className = 'sync-modal-overlay group-loading-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', message);
     overlay.innerHTML = `
       <div class="sync-modal-card loading-card">
         <div class="spinner"></div>
         <div class="loading-message">${_esc(message)}</div>
         <div class="loading-hint">This usually takes 3\u20138 seconds</div>
+        <button type="button" class="btn-secondary group-loading-cancel">Cancel</button>
       </div>
     `;
     document.body.appendChild(overlay);
+    let open = true;
+    const close = () => {
+      if (!open) return;
+      open = false;
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+    };
+    const cancel = () => {
+      if (!open) return;
+      close();
+      if (typeof onCancel === 'function') onCancel();
+    };
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancel();
+    }
+    document.addEventListener('keydown', onKey, true);
+    const btn = overlay.querySelector('.group-loading-cancel');
+    btn.addEventListener('click', cancel);
+    btn.focus();
     return {
-      close: () => overlay.remove(),
+      close,
+      cancel,
+      isOpen: () => open && overlay.isConnected,
       updateMessage: (m) => {
         const el = overlay.querySelector('.loading-message');
         if (el) el.textContent = m;
@@ -385,7 +451,7 @@ const TabGrouper = (() => {
         ` : ''}
         <div class="preview-options">
           <label>
-            <input type="checkbox" id="remember-patterns" checked>
+            <input type="checkbox" id="remember-patterns">
             Remember these patterns &mdash; auto-add matching future tabs to these groups
           </label>
         </div>
@@ -489,7 +555,20 @@ const TabGrouper = (() => {
       overlay.querySelectorAll('.group-preview').forEach(el => el.open = true);
     });
 
-    overlay.querySelector('#preview-cancel').addEventListener('click', () => overlay.remove());
+    // Escape closes it, same as Cancel.
+    const close = () => {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+    };
+    function onKey(e) {
+      if (e.key !== 'Escape' || !overlay.isConnected) return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+    document.addEventListener('keydown', onKey, true);
+
+    overlay.querySelector('#preview-cancel').addEventListener('click', close);
 
     overlay.querySelector('#preview-apply').addEventListener('click', async () => {
       const rememberPatterns = overlay.querySelector('#remember-patterns').checked;
@@ -499,12 +578,12 @@ const TabGrouper = (() => {
 
       if (!finalGroups.length) {
         _toast('All groups removed — nothing to apply', 'warn');
-        overlay.remove();
+        close();
         return;
       }
 
+      close();
       await applyGroups(finalGroups, rememberPatterns);
-      overlay.remove();
     });
   }
 
@@ -513,7 +592,9 @@ const TabGrouper = (() => {
     // Snapshot for undo
     const snapshotTabs = _allTabs().map(t => ({ id: t.id, groupId: t.groupId || null }));
     const snapshotGroupIds = new Set(_allGroups().map(g => g.id));
-    lastGroupedSnapshot = { tabs: snapshotTabs, originalGroupIds: snapshotGroupIds, timestamp: Date.now() };
+    // createdGroupIds: the groups this grouping made, and only those are
+    // taken back by Undo — not groups made by hand since (found 2026-10-10).
+    lastGroupedSnapshot = { tabs: snapshotTabs, originalGroupIds: snapshotGroupIds, createdGroupIds: new Set(), timestamp: Date.now() };
 
     let created = 0;
     for (const g of groupsToApply) {
@@ -525,6 +606,7 @@ const TabGrouper = (() => {
         : (COLOR_HEX[g.color] || '#6366f1');
       const newGroupId = _createGroup({ name: displayName, color });
       if (!newGroupId) continue;
+      lastGroupedSnapshot.createdGroupIds.add(newGroupId);
       for (const tabId of g.tabIds) _assignTabToGroup(tabId, newGroupId);
       if (rememberPatterns && g.pattern) {
         // Capture the domain + keyword signals so maybeAutoAssignToGroup can
@@ -549,43 +631,34 @@ const TabGrouper = (() => {
     if (created > 0) showUndoToast(created);
   }
 
+  // The shared Undo toast (js/vex-undo.js); Ctrl+K › Undo Last Grouping does
+  // the same later.
   function showUndoToast(groupCount) {
-    const existing = document.querySelector('.group-apply-toast');
-    if (existing) existing.remove();
-    const el = document.createElement('div');
-    el.className = 'group-apply-toast';
-    el.innerHTML = `
-      <span>${VexIcons.svg('check', { size: 13 })} Created ${groupCount} group${groupCount === 1 ? '' : 's'}</span>
-      <button class="undo-btn" id="undo-grouping">Undo</button>
-    `;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    el.querySelector('#undo-grouping').addEventListener('click', () => {
-      undoLastGrouping();
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 300);
+    const snapshot = lastGroupedSnapshot;
+    window.VexUndo.offer({
+      message: `Created ${groupCount} group${groupCount === 1 ? '' : 's'}`,
+      undo: () => { if (lastGroupedSnapshot === snapshot) undoLastGrouping(); else throw new Error('The tabs were grouped again since'); },
     });
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 300);
-    }, 10000);
   }
 
   function undoLastGrouping() {
     if (!lastGroupedSnapshot) { _toast('Nothing to undo', 'warn'); return; }
-    const { tabs: snap, originalGroupIds } = lastGroupedSnapshot;
+    const { tabs: snap, createdGroupIds } = lastGroupedSnapshot;
 
-    // Restore each tab's original groupId
-    for (const { id, groupId } of snap) _assignTabToGroup(id, groupId || null);
+    // A tab still in a group this grouping made goes back where it was; a tab
+    // moved by hand since stays where it was put.
+    const now = new Map(_allTabs().map(t => [t.id, t.groupId || null]));
+    for (const { id, groupId } of snap) {
+      if (createdGroupIds.has(now.get(id))) _assignTabToGroup(id, groupId || null);
+    }
 
-    // Delete groups created after the snapshot
-    const current = _allGroups();
-    for (const g of current) if (!originalGroupIds.has(g.id)) _deleteGroup(g.id);
+    // Only the groups this grouping made.
+    for (const g of _allGroups()) if (createdGroupIds.has(g.id)) _deleteGroup(g.id);
 
     // Drop patterns tied to deleted groups
     const kept = {};
     for (const [gid, p] of Object.entries(groupPatterns)) {
-      if (originalGroupIds.has(gid)) kept[gid] = p;
+      if (!createdGroupIds.has(gid)) kept[gid] = p;
     }
     groupPatterns = kept;
     _save('vex.groupPatterns', groupPatterns);
@@ -601,6 +674,17 @@ const TabGrouper = (() => {
   function removePattern(groupId) { delete groupPatterns[groupId]; _save('vex.groupPatterns', groupPatterns); }
   function getRejectedPatterns() { return _load('vex.rejectedGroupPatterns', []) || []; }
   function clearRejectedPatterns() { _save('vex.rejectedGroupPatterns', []); }
+  // Undo of the two clears (Settings): what was cleared comes back; anything
+  // learned since stays.
+  function restorePatterns(saved) {
+    groupPatterns = { ...(saved || {}), ...groupPatterns };
+    _save('vex.groupPatterns', groupPatterns);
+  }
+  function restoreRejectedPatterns(saved) {
+    const now = getRejectedPatterns();
+    const seen = new Set(now.map(p => JSON.stringify(p)));
+    _save('vex.rejectedGroupPatterns', (saved || []).filter(p => !seen.has(JSON.stringify(p))).concat(now));
+  }
 
   return {
     init,
@@ -608,12 +692,12 @@ const TabGrouper = (() => {
     maybeAutoAssignToGroup,
     undoLastGrouping,
     getPatterns, clearPatterns, removePattern,
-    getRejectedPatterns, clearRejectedPatterns,
+    getRejectedPatterns, clearRejectedPatterns, restorePatterns, restoreRejectedPatterns,
     THRESHOLD_UNGROUPED
   };
 })();
 
 if (typeof window !== 'undefined') window.TabGrouper = TabGrouper;
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply };
+  module.exports = { TabGrouper, _domain, _similarity, _shortIds, _parseGroupsReply, _isBlankTab };
 }

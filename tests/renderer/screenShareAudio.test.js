@@ -37,11 +37,25 @@ let given;
 function install(quality) {
   given = stream([track('video'), track('audio')]);
   Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getDisplayMedia: vi.fn(async () => given) } });
-  window.__vexShareBridge = { getQuality: typeof quality === 'function' ? quality : vi.fn(async () => quality), capture: vi.fn() };
-  (0, eval)(shimSource());
+  // Handed to the shim as executeInMainWorld hands it: an argument, never a
+  // window property a page could call (audit PA9).
+  const bridge = { getQuality: typeof quality === 'function' ? quality : vi.fn(async () => quality), capture: vi.fn() };
+  new Function('bridge', shimSource())(bridge);
+  return bridge;
 }
 
-beforeEach(() => { delete window.__vexShareBridge; });
+// Audit PA9 (2026-10-10): any page could call window.__vexShareBridge.capture('mic', true)
+// and be shown as using the microphone.
+describe('the capture reports', () => {
+  it('are not reachable from the page: the bridge is an argument of the shim, not on window', () => {
+    const section = preload.slice(preload.indexOf('// === Screen-share quality shim'), preload.indexOf('// === Where this tab'));
+    expect(section).not.toContain('exposeInMainWorld');
+    expect(section).not.toMatch(/window.__vexShareBridge/);
+    expect(section).toContain("contextBridge.executeInMainWorld({ func: new Function('bridge', shimSrc), args: [bridge] })");
+    install({});
+    expect(window.__vexShareBridge).toBeUndefined();
+  });
+});
 
 describe('the guest getDisplayMedia shim', () => {
   it('"Share audio" unticked: the audio track is stopped and gone before the page sees the stream', async () => {

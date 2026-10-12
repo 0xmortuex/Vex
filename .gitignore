@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# Throwaway builds (--config.directories.output=dist-<name>) and logs
+dist-*/
+*.log
 # Cloudflare Wrangler local state (workers/*/.wrangler)
 .wrangler/
 .claude/
@@ -21,7 +24,7 @@ Vex.bat
 Vex.vbs
 launch-vex.vbs
 create-shortcut.ps1
-# Vendored third-party runtimes (~50MB) copied out of node_modules by
+# Vendored third-party runtimes (~60MB) copied out of node_modules by
 # `npm run build:vendor`, which prestart/prepack/predist already run. Build
 # output, not source - the app boots without it and packaging regenerates it.
 src/renderer/vendor/runtime/
@@ -40,6 +43,10 @@ assets/cia-seal.png
 # param. Lives in <userData>/sidebar-config.json; copy sidebar-config.example.json
 # to set it up. The bare name matches the file at any depth (incl. repo root).
 sidebar-config.json
+
+# The packaged window's script chunks: written by scripts/window-bundle.js
+# (electron-builder's beforePack) and mapped over src/ in the package.
+build/window-bundle/
 
 # Generated at publish time from the CHANGELOG entry for the version being released.
 build/release-notes.md

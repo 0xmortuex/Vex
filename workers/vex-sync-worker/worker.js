@@ -7,12 +7,33 @@ import { boundedJson, durableKV, isDevelopment, expireRecords, parseCounter } fr
 //   GET    /sync/pull                                                     (Bearer token)
 //   GET    /sync/devices                                                  (Bearer token)
 //   DELETE /sync/devices/:id                                              (Bearer token)
-//   DELETE /sync/all                                                      (Bearer token)
+//   DELETE /sync/all                                                      (Bearer token, key proof)
+//   GET    /sync/challenge                                                (Bearer token)
+//   POST   /sync/prove                                                    (Bearer token, key proof)
+//   POST   /sync/reset              { confirm }                           (fresh sign-in, no key)
+//
+// Key proof (SYNC_PROTOCOL.md §2.7): an email code alone used to be enough to
+// overwrite or wipe the encrypted account (audit SY3, 2026-10-10). A push or
+// wipe now carries an HMAC, with a key derived from the sync key, over a
+// one-time nonce from /sync/challenge. The account keeps that derived key
+// (never the sync key) from the first proof it sees.
+//
+// Where things live (from the release after v2.37.0):
+//   VEX_STATE (one object, 'vex-sync')  — what has to be global: sign-in codes,
+//     wrong-guess counters, rate limits, and which account each session token
+//     belongs to (a token is all a /sync/ request carries). It also still holds
+//     every account as the previous worker left it, read once to move it.
+//   VEX_ACCOUNTS (one object per account, idFromName(<HMAC of the address>))
+//     — the account itself: its encrypted blob and revision, device list,
+//     handoff mailbox and sessions. One account's requests never touch
+//     another's object, and an object refuses any session not its own.
+// The first request for an account copies it out of VEX_STATE into its own
+// object (migrateAccount). The old copy is left where it was.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vex-Proof, X-Vex-Auth-Key",
   "Access-Control-Max-Age": "86400"
 };
 
@@ -90,6 +111,7 @@ async function legacyHashEmail(email) {
 
 const SESSION_TTL = 60 * 60 * 24 * 365; // 1 year
 const DROP_TTL = 60 * 60 * 24 * 7;
+const ACCOUNT_RE = /^[0-9a-f]{64}$/;
 
 // What is left of a session's year, for rewriting it without extending it.
 function sessionTtl(session) {
@@ -129,32 +151,24 @@ async function forgetSessions(env, emailHash, keep) {
   else await env.VEX_AUTH_KV.delete(`sessions:${emailHash}`);
 }
 
-// An account made before the HMAC key lives under the unsalted hash. The first
-// sign-in after the change moves it — the encrypted data, the device list and
-// the handoff mailbox — and leaves each of its devices a pointer, so a session
-// that still names the old key follows it instead of being signed out.
-async function moveLegacyAccount(env, oldHash, newHash) {
-  const S = env.VEX_SYNC_KV;
-  if (await S.get(`blob:${newHash}`) || await S.get(`devices:${newHash}`)) return;
-  const blob = await S.get(`blob:${oldHash}`);
-  const devices = await S.get(`devices:${oldHash}`);
-  if (!blob && !devices) return;
-  const drop = await S.get(`drop:${oldHash}`);
-  if (blob) await S.put(`blob:${newHash}`, blob);
-  if (devices) await S.put(`devices:${newHash}`, devices);
-  if (drop) await S.put(`drop:${newHash}`, drop, { expirationTtl: DROP_TTL });
-  for (const d of devices ? JSON.parse(devices) : []) {
-    await env.VEX_AUTH_KV.put(`moved:${d.deviceId}`, newHash, { expirationTtl: SESSION_TTL });
-  }
-  // Sessions seen on the old key since this worker was deployed.
-  const oldSessions = await accountSessions(env, oldHash);
-  if (oldSessions.length) {
-    await env.VEX_AUTH_KV.put(`sessions:${newHash}`, JSON.stringify([...await accountSessions(env, newHash), ...oldSessions]));
-    await env.VEX_AUTH_KV.delete(`sessions:${oldHash}`);
-  }
-  await S.delete(`blob:${oldHash}`);
-  await S.delete(`devices:${oldHash}`);
-  if (drop) await S.delete(`drop:${oldHash}`);
+// Every email the worker sends goes out here, through Resend, as the sign-in
+// code always has. `content` is { html } or { text }.
+async function sendEmail(env, to, subject, content) {
+  const response = await fetch('https://api.resend.com/emails', {
+    signal: AbortSignal.timeout(10000),
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM || 'Vex Sync <onboarding@resend.dev>',
+      to,
+      subject,
+      ...content
+    })
+  });
+  if (!response.ok) throw new Error('Email delivery failed');
 }
 
 async function sendMagicCode(email, code, env) {
@@ -164,17 +178,7 @@ async function sendMagicCode(email, code, env) {
 
   if (env.RESEND_API_KEY) {
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        signal: AbortSignal.timeout(10000),
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: env.RESEND_FROM || 'Vex Sync <onboarding@resend.dev>',
-          to: email,
-          subject: `Your Vex Sync code: ${code}`,
+      await sendEmail(env, email, `Your Vex Sync code: ${code}`, {
           html: `
             <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 500px; padding: 32px; background: #0a0c10; color: #e5e9f0;">
               <h1 style="color: #6366f1; margin: 0 0 16px;">Vex Sync</h1>
@@ -183,15 +187,17 @@ async function sendMagicCode(email, code, env) {
               <p style="color: #6b7482; font-size: 13px;">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
             </div>
           `
-        })
       });
-      if (!response.ok) throw new Error('Email delivery failed');
     } catch (err) {
       throw Object.assign(new Error('Could not deliver verification email'), { status: 502 });
     }
   }
 }
 
+// ====== The global object: sign-in codes, rate limits, token routing ======
+// On a successful verify-code it answers the entry worker (never a client
+// directly) with the new token and the account it belongs to; the entry
+// worker then has the account's own object open the session.
 const syncHandler = {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -281,194 +287,27 @@ const syncHandler = {
         await env.VEX_AUTH_KV.delete(`code:${emailHash}`);
         await env.VEX_AUTH_KV.delete(attemptsKey);
 
-        await moveLegacyAccount(env, await legacyHashEmail(email), emailHash);
-
-        // The device joins the account's list on its first successful push or
-        // pull, not here. Registering it before the app had decided anything
-        // left a ghost device whenever the sign-in was then refused (an
-        // account with data but no recovery code, a wrong recovery code)
-        // and the app could not remove it (found 2026-09-30).
+        // The session itself is written by the account's object
+        // (/internal/open-session); here only the route to it. The device
+        // joins the account's list on its first successful push or pull, not
+        // at sign-in: registering it before the app had decided anything left
+        // a ghost device whenever the sign-in was then refused (an account
+        // with data but no recovery code, a wrong recovery code) and the app
+        // could not remove it (found 2026-09-30).
         const sessionToken = randomId(32);
         const deviceId = randomId(16);
-        const session = {
-          emailHash,
+        await env.VEX_AUTH_KV.put(`route:${sessionToken}`, emailHash, { expirationTtl: SESSION_TTL });
+        return json({
+          ok: true,
+          sessionToken,
           deviceId,
+          emailHash,
+          // An account made before the HMAC key lives under this one; the
+          // account's object takes it over (VexSyncAccount.adoptLegacy).
+          legacyHash: await legacyHashEmail(email),
           deviceName: deviceName || 'Unknown device',
-          createdAt: new Date().toISOString(),
-          pending: true
-        };
-        await env.VEX_AUTH_KV.put(`sess:${sessionToken}`, JSON.stringify(session), {
-          expirationTtl: SESSION_TTL
+          createdAt: new Date().toISOString()
         });
-        await rememberSession(env, emailHash, sessionToken, deviceId);
-
-        const hasEncryptedData = !!(await env.VEX_SYNC_KV.get(`blob:${emailHash}`));
-        return json({ ok: true, sessionToken, deviceId, emailHash, hasEncryptedData });
-      }
-
-      // ====== SYNC (auth required) ======
-      if (path.startsWith('/sync/')) {
-        const auth = request.headers.get('Authorization') || '';
-        const token = auth.replace(/^Bearer\s+/, '');
-        if (!token) return json({ error: 'Unauthorized' }, 401);
-
-        const sessionRaw = await env.VEX_AUTH_KV.get(`sess:${token}`);
-        if (!sessionRaw) return json({ error: 'Invalid session' }, 401);
-        let session = JSON.parse(sessionRaw);
-        let devicesKey = `devices:${session.emailHash}`;
-        let existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
-        const listed = () => !!existingDevices && JSON.parse(existingDevices).some(x => x.deviceId === session.deviceId);
-
-        // A session that still names the account's old unsalted key, after a
-        // sign-in elsewhere moved the account (moveLegacyAccount).
-        if (!session.pending && !listed()) {
-          const moved = await env.VEX_AUTH_KV.get(`moved:${session.deviceId}`);
-          if (moved) {
-            session = { ...session, emailHash: moved };
-            await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(session), { expirationTtl: sessionTtl(session) });
-            await env.VEX_AUTH_KV.delete(`moved:${session.deviceId}`);
-            devicesKey = `devices:${session.emailHash}`;
-            existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
-          }
-        }
-
-        // Not yet in the device list (see verify-code): it may push or pull,
-        // which registers it, or remove itself when the app gives up on the
-        // sign-in. Nothing else until then.
-        const pendingOk = (request.method === 'POST' && path === '/sync/push') || (request.method === 'GET' && path === '/sync/pull');
-        if (session.pending) {
-          if (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`) {
-            await env.VEX_AUTH_KV.delete(`sess:${token}`);
-            await forgetSessions(env, session.emailHash, s => s.token !== token);
-            return json({ ok: true });
-          }
-          if (!pendingOk) return json({ error: 'This device has not synced yet' }, 403);
-        } else if (!listed()) {
-          // Removed from another device, or the account was wiped: the
-          // session goes too. It used to stay when the whole list was gone.
-          await env.VEX_AUTH_KV.delete(`sess:${token}`);
-          await forgetSessions(env, session.emailHash, s => s.token !== token);
-          return json({ error: 'Device revoked' }, 401);
-        } else {
-          // Touch lastSeenAt
-          const devices = JSON.parse(existingDevices);
-          devices.find(x => x.deviceId === session.deviceId).lastSeenAt = new Date().toISOString();
-          await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
-          await rememberSession(env, session.emailHash, token, session.deviceId);
-        }
-
-        // A pending device's first successful push or pull puts it in the list.
-        const registerPending = async () => {
-          if (!session.pending) return;
-          const devices = existingDevices ? JSON.parse(existingDevices) : [];
-          devices.push({ deviceId: session.deviceId, deviceName: session.deviceName, createdAt: session.createdAt, lastSeenAt: new Date().toISOString() });
-          await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
-          const settled = { ...session };
-          delete settled.pending;
-          await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(settled), { expirationTtl: sessionTtl(settled) });
-        };
-
-        if (path === '/sync/push' && request.method === 'POST') {
-          const { encryptedBlob, updatedAt, baseRevision } = await boundedJson(request);
-          if (!encryptedBlob || typeof encryptedBlob !== 'string') {
-            return json({ error: 'Missing encryptedBlob' }, 400);
-          }
-          if (encryptedBlob.length > 5 * 1024 * 1024) {
-            return json({ error: 'Blob too large (max 5 MB)' }, 413);
-          }
-          const blobKey = `blob:${session.emailHash}`;
-          const previous = await env.VEX_SYNC_KV.get(blobKey);
-          const revision = previous ? (JSON.parse(previous).revision || 0) : 0;
-          if (!Number.isSafeInteger(baseRevision) || baseRevision !== revision) return json({ error: 'Sync conflict: pull and merge before pushing', revision }, 409);
-          const data = {
-            revision: revision + 1,
-            encryptedBlob,
-            updatedAt: updatedAt || new Date().toISOString(),
-            pushedBy: session.deviceId,
-            pushedAt: new Date().toISOString()
-          };
-          await env.VEX_SYNC_KV.put(blobKey, JSON.stringify(data));
-          await registerPending();
-          return json({ ok: true, savedAt: data.pushedAt, revision: data.revision });
-        }
-
-        if (path === '/sync/pull' && request.method === 'GET') {
-          const blobKey = `blob:${session.emailHash}`;
-          const existing = await env.VEX_SYNC_KV.get(blobKey);
-          await registerPending();
-          if (!existing) return json({ ok: true, blob: null });
-          const data = JSON.parse(existing);
-          return json({ ok: true, ...data });
-        }
-
-        if (path === '/sync/devices' && request.method === 'GET') {
-          const existing = await env.VEX_SYNC_KV.get(devicesKey);
-          const devices = existing ? JSON.parse(existing) : [];
-          return json({ ok: true, devices, currentDeviceId: session.deviceId });
-        }
-
-        const devMatch = path.match(/^\/sync\/devices\/([a-f0-9]+)$/);
-        if (devMatch && request.method === 'DELETE') {
-          const targetDeviceId = devMatch[1];
-          const existing = await env.VEX_SYNC_KV.get(devicesKey);
-          if (existing) {
-            const devices = JSON.parse(existing);
-            const filtered = devices.filter(d => d.deviceId !== targetDeviceId);
-            await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(filtered));
-          }
-          await forgetSessions(env, session.emailHash, s => s.deviceId !== targetDeviceId);
-          return json({ ok: true });
-        }
-
-        if (path === '/sync/all' && request.method === 'DELETE') {
-          const blobKey = `blob:${session.emailHash}`;
-          await env.VEX_SYNC_KV.delete(blobKey);
-          await env.VEX_SYNC_KV.delete(devicesKey);
-          await env.VEX_SYNC_KV.delete(`drop:${session.emailHash}`);
-          await forgetSessions(env, session.emailHash, () => false);
-          return json({ ok: true });
-        }
-
-        // ====== DROP — cross-device tab handoff ("Send to Phone/Desktop") ======
-        // A small mailbox per account: POST adds {url,title} stamped with the
-        // sending device; GET delivers (and consumes) every item that was NOT
-        // sent by the requesting device. Each item is encrypted on the sending
-        // device (a URL and title inside); the server keeps only that
-        // ciphertext, the sending device and the time it was sent.
-        if (path === '/sync/drop' && request.method === 'POST') {
-          const { encryptedBlob } = await boundedJson(request);
-          if (typeof encryptedBlob !== 'string' || !encryptedBlob || encryptedBlob.length > 16384) {
-            return json({ error: 'Encrypted handoff required (max 16 KB)' }, 400);
-          }
-          const dropKey = `drop:${session.emailHash}`;
-          const existing = await env.VEX_SYNC_KV.get(dropKey);
-          let items = [];
-          try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
-          items.push({
-            id: randomId(8),
-            encryptedBlob,
-            fromDeviceId: session.deviceId,
-            fromDeviceName: session.deviceName,
-            at: new Date().toISOString()
-          });
-          if (items.length > 20) items = items.slice(-20);
-          await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(items), { expirationTtl: DROP_TTL });
-          return json({ ok: true });
-        }
-
-        if (path === '/sync/drop' && request.method === 'GET') {
-          const dropKey = `drop:${session.emailHash}`;
-          const existing = await env.VEX_SYNC_KV.get(dropKey);
-          let items = [];
-          try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
-          const mine = items.filter(i => i.fromDeviceId !== session.deviceId);
-          const rest = items.filter(i => i.fromDeviceId === session.deviceId);
-          if (mine.length) {
-            if (rest.length) await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(rest), { expirationTtl: DROP_TTL });
-            else await env.VEX_SYNC_KV.delete(dropKey);
-          }
-          return json({ ok: true, items: mine });
-        }
       }
 
       return json({ error: 'Not found' }, 404);
@@ -478,22 +317,764 @@ const syncHandler = {
   }
 };
 
+// ====== Calls between the worker's own objects ======
+// Paths under /internal/ are refused at the entry worker, so only this code
+// can reach them.
+function internalRequest(path, body, account) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (account) headers['X-Vex-Account'] = account;
+  return new Request('https://vex-sync.internal' + path, { method: 'POST', headers, body: JSON.stringify(body) });
+}
+
+async function callInternal(stub, path, body, account) {
+  const response = await stub.fetch(internalRequest(path, body, account));
+  const data = await response.json();
+  if (!response.ok) throw new Error(`${path} answered ${response.status}: ${data && data.error}`);
+  return data;
+}
+
+const globalStub = env => env.VEX_STATE.get(env.VEX_STATE.idFromName('vex-sync'));
+const accountStub = (env, account) => env.VEX_ACCOUNTS.get(env.VEX_ACCOUNTS.idFromName(account));
+
+function withAccount(request, account) {
+  const headers = new Headers(request.headers);
+  headers.set('X-Vex-Account', account);
+  return new Request(request, { headers });
+}
+
+// The keys one account has in storage. Sessions are keyed by token.
+const accountKeys = account => [`sync:blob:${account}`, `sync:devices:${account}`, `sync:drop:${account}`, `auth:sessions:${account}`, `sync:keycheck:${account}`];
+
+function live(record) {
+  return !!record && !record.deleted && typeof record.value === 'string' && !(record.expires && record.expires <= Date.now());
+}
+
+// A stored session, rewritten to name the account it now belongs to.
+function sessionFor(record, account) {
+  if (!live(record)) return record || null;
+  return { ...record, value: JSON.stringify({ ...JSON.parse(record.value), emailHash: account }) };
+}
+
+// The object storage API takes at most 128 keys per put.
+async function putAll(storage, entries) {
+  const keys = Object.keys(entries);
+  for (let i = 0; i < keys.length; i += 100) {
+    const chunk = {};
+    for (const key of keys.slice(i, i + 100)) chunk[key] = entries[key];
+    await storage.put(chunk);
+  }
+}
+
+// Reads every key back and compares it with what was meant to be written.
+async function verifyAll(storage, entries) {
+  for (const [key, record] of Object.entries(entries)) {
+    if (JSON.stringify(await storage.get(key)) !== JSON.stringify(record)) throw new Error(`Copy of ${key.split(':').slice(0, 2).join(':')} did not read back`);
+  }
+}
+
+// ====== The global object's internal side ======
+class GlobalStore {
+  constructor(state, env) {
+    this.storage = state.storage;
+    // Reading through durableKV also imports what a worker from before the
+    // Durable Object (2026-09-07) left in Workers KV.
+    this.auth = durableKV(state.storage, 'auth:', env.VEX_AUTH_KV);
+    this.sync = durableKV(state.storage, 'sync:', env.VEX_SYNC_KV);
+  }
+
+  async record(key) {
+    const store = key.startsWith('auth:') ? this.auth : this.sync;
+    await store.get(key.slice(5));
+    return (await this.storage.get(key)) ?? null;
+  }
+
+  // Which account a session token belongs to, or null.
+  async resolve(token) {
+    let account = await this.auth.get(`route:${token}`);
+    if (!account) {
+      // A session from before per-account objects: the account is in it.
+      const raw = await this.auth.get(`sess:${token}`);
+      if (!raw) return null;
+      const session = JSON.parse(raw);
+      account = session.emailHash;
+      // Moved by a sign-in to the HMAC key while this device was away
+      // (the previous worker's moveLegacyAccount left it a pointer).
+      if (!session.pending) {
+        const devices = await this.sync.get(`devices:${account}`);
+        const listed = !!devices && JSON.parse(devices).some(d => d.deviceId === session.deviceId);
+        const moved = listed ? null : await this.auth.get(`moved:${session.deviceId}`);
+        if (moved) account = moved;
+      }
+      if (!ACCOUNT_RE.test(account || '')) return null;
+      await this.auth.put(`route:${token}`, account, { expirationTtl: sessionTtl(session) });
+    }
+    return (await this.auth.get(`alias:${account}`)) || account;
+  }
+
+  // Everything the previous worker kept for one account.
+  async exportAccount(account) {
+    const records = [];
+    for (const key of accountKeys(account)) {
+      const record = await this.record(key);
+      if (record) records.push([key, record]);
+    }
+    const list = await this.auth.get(`sessions:${account}`);
+    for (const { token } of list ? JSON.parse(list) : []) {
+      const record = await this.exportSession(account, token);
+      if (record) records.push([`auth:sess:${token}`, record]);
+    }
+    return records;
+  }
+
+  async exportSession(account, token) {
+    if (await this.resolve(token) !== account) return null;
+    const record = await this.record(`auth:sess:${token}`);
+    return record ? sessionFor(record, account) : null;
+  }
+
+  async hasAccount(account) {
+    return !!(await this.sync.get(`blob:${account}`) || await this.sync.get(`devices:${account}`));
+  }
+
+  // DELETE /sync/all: the copy kept here goes too.
+  async forgetAccount(account) {
+    const list = await this.auth.get(`sessions:${account}`);
+    for (const { token } of list ? JSON.parse(list) : []) await this.storage.put(`auth:sess:${token}`, { deleted: true, expires: 0 });
+    for (const key of accountKeys(account)) await this.storage.put(key, { deleted: true, expires: 0 });
+  }
+
+  async handle(path, body) {
+    if (path === '/internal/route') return { account: await this.resolve(String(body.token)) };
+    if (!ACCOUNT_RE.test(body.account || '')) throw new Error('Invalid account');
+    if (path === '/internal/export-account') return { records: await this.exportAccount(body.account) };
+    if (path === '/internal/export-session') return { record: await this.exportSession(body.account, String(body.token)) };
+    if (path === '/internal/has-account') return { exists: await this.hasAccount(body.account) };
+    if (path === '/internal/forget-account') { await this.forgetAccount(body.account); return { ok: true }; }
+    if (path === '/internal/alias') {
+      if (!ACCOUNT_RE.test(body.to || '')) throw new Error('Invalid account');
+      await this.auth.put(`alias:${body.account}`, body.to);
+      return { ok: true };
+    }
+    throw Object.assign(new Error('Not found'), { status: 404 });
+  }
+}
+
+// ====== One account's object ======
+// Its storage: like durableKV, but with the global object as the place an
+// unknown session is looked up. A session it has deleted is kept as a
+// tombstone so it is never looked up again.
+function accountKV(storage, prefix, importSession) {
+  return {
+    async get(key) {
+      let record = await storage.get(prefix + key);
+      if (record === undefined && importSession && key.startsWith('sess:')) {
+        record = (await importSession(key.slice(5))) || { deleted: true, expires: 0 };
+        await storage.put(prefix + key, record);
+      }
+      if (!live(record)) return null;
+      return record.value;
+    },
+    async put(key, value, options = {}) {
+      await storage.put(prefix + key, { value: String(value), expires: options.expirationTtl ? Date.now() + options.expirationTtl * 1000 : 0 });
+      if (options.expirationTtl && storage.setAlarm && !(await storage.getAlarm())) await storage.setAlarm(Date.now() + 60000);
+    },
+    async delete(key) {
+      if (importSession && key.startsWith('sess:')) await storage.put(prefix + key, { deleted: true, expires: 0 });
+      else await storage.delete(prefix + key);
+    },
+  };
+}
+
+// ====== Proof of the sync key (SYNC_PROTOCOL.md §2.7) ======
+// The account's key check: { key: <hex of the auth key>, setAt, setBy }. The
+// auth key is HKDF(sync key, info "vex-sync auth key v1"); it opens nothing,
+// so the server may hold it. A nonce is good for one request by the device
+// that asked for it, within CHALLENGE_TTL.
+const CHALLENGE_TTL = 5 * 60;
+const CHALLENGES_MAX = 20;
+// A sign-in at most this old may start the account over without the key.
+const RESET_WINDOW_MS = 10 * 60 * 1000;
+const RESET_CONFIRM = 'erase my synced data';
+const HEX64 = /^[0-9a-f]{64}$/;
+
+const KEY_REQUIRED = 'This sync account is locked to its sync key, and this device did not prove it has the key. Update Vex on this device, or sign in again with your recovery code.';
+const KEY_MISMATCH = 'This device’s sync key does not match the key this account is locked to. Sign out, then sign in again with the recovery code from a device that still syncs.';
+const PROOF_STALE = 'The sync key check expired or was already used — try again.';
+
+const refuse = (error, code, status = 403) => ({ refused: json({ error, code }, status) });
+
+async function sha256Hex(text) {
+  return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+
+async function proofValid(keyHex, mac, message) {
+  const bytes = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const key = await crypto.subtle.importKey('raw', bytes(keyHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  return crypto.subtle.verify('HMAC', key, bytes(mac), new TextEncoder().encode(message));
+}
+
+async function readKeyCheck(env, account) {
+  const raw = await env.VEX_SYNC_KV.get(`keycheck:${account}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+// One nonce for this session's device. The list is pruned of expired ones
+// and never holds more than CHALLENGES_MAX.
+async function issueChallenge(env, deviceId) {
+  const raw = await env.VEX_AUTH_KV.get('challenges');
+  const now = Date.now();
+  const list = (raw ? JSON.parse(raw) : []).filter(c => c.exp > now).slice(-(CHALLENGES_MAX - 1));
+  const nonce = randomId(16);
+  list.push({ nonce, deviceId, exp: now + CHALLENGE_TTL * 1000 });
+  await env.VEX_AUTH_KV.put('challenges', JSON.stringify(list), { expirationTtl: CHALLENGE_TTL + 60 });
+  return nonce;
+}
+
+// Removes the nonce whatever the outcome, so it is never accepted twice.
+async function takeChallenge(env, nonce, deviceId) {
+  const raw = await env.VEX_AUTH_KV.get('challenges');
+  if (!raw) return false;
+  const list = JSON.parse(raw);
+  const found = list.find(c => c.nonce === nonce);
+  if (!found) return false;
+  const rest = list.filter(c => c !== found);
+  if (rest.length) await env.VEX_AUTH_KV.put('challenges', JSON.stringify(rest), { expirationTtl: CHALLENGE_TTL + 60 });
+  else await env.VEX_AUTH_KV.delete('challenges');
+  return found.deviceId === deviceId && found.exp > Date.now();
+}
+
+// Checks the X-Vex-Proof header for `action`. No header: allowed only while
+// the account has no key check (older clients), as { legacy: true }. A valid
+// proof on an account without one sets it from X-Vex-Auth-Key (trust on
+// first use) and marks the session proven. -> { ok, legacy?, set? } or { refused }.
+async function checkProof(request, env, account, session, token, action, details) {
+  const keyCheck = await readKeyCheck(env, account);
+  const header = request.headers.get('X-Vex-Proof');
+  if (!header) return keyCheck ? refuse(KEY_REQUIRED, 'key-required') : { ok: true, legacy: true };
+  const [nonce, mac] = header.split('.');
+  if (!/^[0-9a-f]{32}$/.test(nonce || '') || !HEX64.test(mac || '')) return refuse('Malformed X-Vex-Proof header', 'proof-malformed', 400);
+  if (!(await takeChallenge(env, nonce, session.deviceId))) return refuse(PROOF_STALE, 'proof-stale');
+  let key = keyCheck && keyCheck.key;
+  if (!key) {
+    key = request.headers.get('X-Vex-Auth-Key') || '';
+    if (!HEX64.test(key)) return refuse('This account has no key check yet: send X-Vex-Auth-Key with the first proof', 'auth-key-missing', 400);
+  }
+  const message = `vex-sync-proof/1\n${nonce}\n${session.deviceId}\n${action}\n${details}`;
+  if (!(await proofValid(key, mac, message))) return refuse(KEY_MISMATCH, 'key-mismatch');
+  let set = false;
+  if (!keyCheck) {
+    await env.VEX_SYNC_KV.put(`keycheck:${account}`, JSON.stringify({ key, setAt: new Date().toISOString(), setBy: session.deviceId }));
+    console.log('[vex-sync] account locked to its sync key (first proof)');
+    set = true;
+  }
+  if (!session.proven) {
+    session.proven = true;
+    await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(session), { expirationTtl: sessionTtl(session) });
+  }
+  return { ok: true, set };
+}
+
+const keyCheckInfo = keyCheck => (keyCheck ? { setAt: keyCheck.setAt } : null);
+// A pull names the key check only when there is one (the reply stays as it was).
+const lockedSince = keyCheck => (keyCheck ? { keyCheck: keyCheckInfo(keyCheck) } : {});
+
+// /sync/* for one account. `env` holds this account's own stores.
+async function handleSync(request, env, account, path) {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace(/^Bearer\s+/, '');
+  if (!token) return json({ error: 'Unauthorized' }, 401);
+
+  const sessionRaw = await env.VEX_AUTH_KV.get(`sess:${token}`);
+  if (!sessionRaw) return json({ error: 'Invalid session' }, 401);
+  const session = JSON.parse(sessionRaw);
+  // Never serve a session that is not this account's, whatever routed it here.
+  if (session.emailHash !== account) return json({ error: 'Invalid session' }, 401);
+  const devicesKey = `devices:${account}`;
+  const existingDevices = await env.VEX_SYNC_KV.get(devicesKey);
+  const listed = () => !!existingDevices && JSON.parse(existingDevices).some(x => x.deviceId === session.deviceId);
+
+  // Not yet in the device list (see verify-code): it may push or pull,
+  // which registers it, or remove itself when the app gives up on the
+  // sign-in. Nothing else until then.
+  const pendingOk = (request.method === 'POST' && path === '/sync/push') || (request.method === 'GET' && path === '/sync/pull')
+    || (request.method === 'GET' && path === '/sync/challenge') || (request.method === 'POST' && path === '/sync/prove')
+    || (request.method === 'POST' && path === '/sync/reset') || (request.method === 'DELETE' && path === '/sync/all');
+  // An account locked to its sync key: a session that has not proven the key
+  // may read (the data is encrypted), list the devices, ask for a nonce, prove,
+  // push or wipe with a proof, and remove itself. Nothing else.
+  const keyCheck = await readKeyCheck(env, account);
+  const unprovenOk = pendingOk || (request.method === 'GET' && path === '/sync/devices')
+    || (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`);
+  if (keyCheck && !session.proven && !unprovenOk) return json({ error: KEY_REQUIRED, code: 'key-required' }, 403);
+  if (session.pending) {
+    if (request.method === 'DELETE' && path === `/sync/devices/${session.deviceId}`) {
+      await env.VEX_AUTH_KV.delete(`sess:${token}`);
+      await forgetSessions(env, account, s => s.token !== token);
+      return json({ ok: true });
+    }
+    if (!pendingOk) return json({ error: 'This device has not synced yet' }, 403);
+  } else if (!listed()) {
+    // Removed from another device, or the account was wiped: the
+    // session goes too. It used to stay when the whole list was gone.
+    await env.VEX_AUTH_KV.delete(`sess:${token}`);
+    await forgetSessions(env, account, s => s.token !== token);
+    return json({ error: 'Device revoked' }, 401);
+  } else {
+    // Touch lastSeenAt
+    const devices = JSON.parse(existingDevices);
+    devices.find(x => x.deviceId === session.deviceId).lastSeenAt = new Date().toISOString();
+    await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
+    await rememberSession(env, account, token, session.deviceId);
+  }
+
+  // A pending device's first successful push or pull puts it in the list. On
+  // an account locked to its sync key, only once it has proven the key.
+  const registerPending = async () => {
+    if (!session.pending) return;
+    if (!session.proven && await readKeyCheck(env, account)) return;
+    const devices = existingDevices ? JSON.parse(existingDevices) : [];
+    devices.push({ deviceId: session.deviceId, deviceName: session.deviceName, createdAt: session.createdAt, lastSeenAt: new Date().toISOString() });
+    await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(devices));
+    const settled = { ...session };
+    delete settled.pending;
+    await env.VEX_AUTH_KV.put(`sess:${token}`, JSON.stringify(settled), { expirationTtl: sessionTtl(settled) });
+  };
+
+  if (path === '/sync/push' && request.method === 'POST') {
+    const { encryptedBlob, updatedAt, baseRevision } = await boundedJson(request);
+    if (!encryptedBlob || typeof encryptedBlob !== 'string') {
+      return json({ error: 'Missing encryptedBlob' }, 400);
+    }
+    if (encryptedBlob.length > 5 * 1024 * 1024) {
+      return json({ error: 'Blob too large (max 5 MB)' }, 413);
+    }
+    // The proof comes before the revision check: the 409 below used to hand
+    // a key-less session the revision it needed to overwrite the account.
+    const proof = await checkProof(request, env, account, session, token, 'push', `${baseRevision}\n${await sha256Hex(encryptedBlob)}`);
+    if (proof.refused) return proof.refused;
+    const blobKey = `blob:${account}`;
+    const previous = await env.VEX_SYNC_KV.get(blobKey);
+    const revision = previous ? (JSON.parse(previous).revision || 0) : 0;
+    if (!Number.isSafeInteger(baseRevision) || baseRevision !== revision) return json({ error: 'Sync conflict: pull and merge before pushing', revision, ...(proof.set ? { keyCheckSet: true } : {}) }, 409);
+    const data = {
+      revision: revision + 1,
+      encryptedBlob,
+      updatedAt: updatedAt || new Date().toISOString(),
+      pushedBy: session.deviceId,
+      pushedAt: new Date().toISOString()
+    };
+    await env.VEX_SYNC_KV.put(blobKey, JSON.stringify(data));
+    await registerPending();
+    return json({ ok: true, savedAt: data.pushedAt, revision: data.revision, ...(proof.set ? { keyCheckSet: true } : {}) });
+  }
+
+  if (path === '/sync/pull' && request.method === 'GET') {
+    const existing = await env.VEX_SYNC_KV.get(`blob:${account}`);
+    await registerPending();
+    if (!existing) return json({ ok: true, blob: null, ...lockedSince(keyCheck) });
+    const data = JSON.parse(existing);
+    return json({ ok: true, ...data, ...lockedSince(keyCheck) });
+  }
+
+  if (path === '/sync/challenge' && request.method === 'GET') {
+    const nonce = await issueChallenge(env, session.deviceId);
+    return json({ ok: true, nonce, expiresIn: CHALLENGE_TTL, keyCheck: keyCheckInfo(keyCheck) });
+  }
+
+  // Proves the key without uploading: enrols a pending device, and sets the
+  // account's key check if it has none.
+  if (path === '/sync/prove' && request.method === 'POST') {
+    if (!request.headers.get('X-Vex-Proof')) return json({ error: 'X-Vex-Proof header required', code: 'proof-malformed' }, 400);
+    const proof = await checkProof(request, env, account, session, token, 'prove', '');
+    if (proof.refused) return proof.refused;
+    await registerPending();
+    return json({ ok: true, ...(proof.set ? { keyCheckSet: true } : {}) });
+  }
+
+  // Starting over without the key (it is lost on every device): only from a
+  // sign-in at most RESET_WINDOW_MS old that has not synced, with the words
+  // RESET_CONFIRM. Everything goes, as for DELETE /sync/all, except this
+  // session, which then pushes a new account. Every other device is signed
+  // out (401), so nothing is replaced unseen.
+  if (path === '/sync/reset' && request.method === 'POST') {
+    const { confirm, email } = await boundedJson(request);
+    if (confirm !== RESET_CONFIRM) return json({ error: `Send {"confirm":"${RESET_CONFIRM}"} to erase the account`, code: 'confirm-required' }, 400);
+    const age = Date.now() - Date.parse(session.createdAt);
+    if (!session.pending || !(age >= 0 && age <= RESET_WINDOW_MS)) return json({ error: 'Starting over needs a sign-in code from the last 10 minutes: send a new code and try again', code: 'fresh-sign-in-required' }, 403);
+    await env.forgetElsewhere();
+    await wipeAccount(env, account, token);
+    console.log('[vex-sync] account erased by a fresh sign-in without the key');
+    return json({ ok: true, notice: await sendErasedNotice(env, account, email, 'reset', session) });
+  }
+
+  if (path === '/sync/devices' && request.method === 'GET') {
+    const existing = await env.VEX_SYNC_KV.get(devicesKey);
+    const devices = existing ? JSON.parse(existing) : [];
+    return json({ ok: true, devices, currentDeviceId: session.deviceId });
+  }
+
+  const devMatch = path.match(/^\/sync\/devices\/([a-f0-9]+)$/);
+  if (devMatch && request.method === 'DELETE') {
+    const targetDeviceId = devMatch[1];
+    const existing = await env.VEX_SYNC_KV.get(devicesKey);
+    if (existing) {
+      const devices = JSON.parse(existing);
+      const filtered = devices.filter(d => d.deviceId !== targetDeviceId);
+      await env.VEX_SYNC_KV.put(devicesKey, JSON.stringify(filtered));
+    }
+    await forgetSessions(env, account, s => s.deviceId !== targetDeviceId);
+    return json({ ok: true });
+  }
+
+  if (path === '/sync/all' && request.method === 'DELETE') {
+    // The address for the email afterwards (§2.9); older clients send no body.
+    const { email } = request.body ? await boundedJson(request, 4096) : {};
+    const proof = await checkProof(request, env, account, session, token, 'wipe', '');
+    if (proof.refused) return proof.refused;
+    // A pending session may wipe only with a proof.
+    if (proof.legacy && session.pending) return json({ error: 'This device has not synced yet' }, 403);
+    // The copy the previous worker kept goes first, so a failure leaves the
+    // account as it was rather than half wiped.
+    await env.forgetElsewhere();
+    await wipeAccount(env, account);
+    return json({ ok: true, notice: await sendErasedNotice(env, account, email, 'wipe', session) });
+  }
+
+  // ====== DROP — cross-device tab handoff ("Send to Phone/Desktop") ======
+  // A small mailbox per account: POST adds {url,title} stamped with the
+  // sending device; GET delivers (and consumes) every item that was NOT
+  // sent by the requesting device. Each item is encrypted on the sending
+  // device (a URL and title inside); the server keeps only that
+  // ciphertext, the sending device and the time it was sent.
+  if (path === '/sync/drop' && request.method === 'POST') {
+    const { encryptedBlob } = await boundedJson(request);
+    if (typeof encryptedBlob !== 'string' || !encryptedBlob || encryptedBlob.length > 16384) {
+      return json({ error: 'Encrypted handoff required (max 16 KB)' }, 400);
+    }
+    const dropKey = `drop:${account}`;
+    const existing = await env.VEX_SYNC_KV.get(dropKey);
+    let items = [];
+    try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
+    items.push({
+      id: randomId(8),
+      encryptedBlob,
+      fromDeviceId: session.deviceId,
+      fromDeviceName: session.deviceName,
+      at: new Date().toISOString()
+    });
+    if (items.length > 20) items = items.slice(-20);
+    await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(items), { expirationTtl: DROP_TTL });
+    return json({ ok: true });
+  }
+
+  if (path === '/sync/drop' && request.method === 'GET') {
+    const dropKey = `drop:${account}`;
+    const existing = await env.VEX_SYNC_KV.get(dropKey);
+    let items = [];
+    try { items = existing ? JSON.parse(existing) : []; } catch { items = []; }
+    const mine = items.filter(i => i.fromDeviceId !== session.deviceId);
+    const rest = items.filter(i => i.fromDeviceId === session.deviceId);
+    if (mine.length) {
+      if (rest.length) await env.VEX_SYNC_KV.put(dropKey, JSON.stringify(rest), { expirationTtl: DROP_TTL });
+      else await env.VEX_SYNC_KV.delete(dropKey);
+    }
+    return json({ ok: true, items: mine });
+  }
+
+  return json({ error: 'Not found' }, 404);
+}
+
+// ====== The email after an account is erased (SYNC_PROTOCOL.md §2.9) ======
+// POST /sync/reset and DELETE /sync/all tell the account's address, so an
+// erase the owner did not do does not go unnoticed. The worker keeps no
+// address (accounts are an HMAC of it): the client sends it with the request,
+// and it is used only if its HMAC is this account, and never stored. Limited
+// like the sign-in codes: three per address in 15 minutes. Plain text, with
+// no data, keys or codes in it.
+const NOTICE_LIMIT = 3;
+const NOTICE_WINDOW = 900;
+
+function noticeDevice(name) {
+  const clean = String(name || '').replace(/[\x00-\x1f\x7f\p{Zl}\p{Zp}]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return !clean || clean === 'Unknown device' ? 'a device' : `a device named "${clean}"`;
+}
+
+function erasedNotice(kind, atIso, deviceName) {
+  const when = atIso.slice(0, 16).replace('T', ' ') + ' UTC';
+  const device = noticeDevice(deviceName);
+  const signInAgain = 'On one of your own devices, open Vex, go to Settings › Vex Sync and sign in again with this address. '
+    + (kind === 'reset'
+      ? 'Vex will find an account you have no recovery code for: choose "I lost my recovery code: start over". That erases what was put there and uploads this device\'s data with a new recovery code.'
+      : 'Vex starts a new account with a new recovery code and uploads this device\'s data. If it says the account already has data you have no recovery code for, choose "I lost my recovery code: start over".');
+  const what = kind === 'reset'
+    ? `At ${when}, ${device} signed in to Vex Sync with a code sent to this address, erased everything synced to this account and started the account over with a new recovery code. Every other device was signed out of sync.`
+    : `At ${when}, ${device}, signed in to this account with its sync key, erased everything synced to it. Every device was signed out of sync.`;
+  const how = kind === 'reset'
+    ? 'Secure this email account first (change its password): starting over needs a code sent to this address, so whoever did it could read your email.'
+    : 'Check who can use your devices, and keep your recovery code private: erasing needs a device that has your sync key. Secure this email account too (change its password), since signing in needs a code sent to it.';
+  return [
+    'Your Vex Sync data was erased.',
+    '',
+    what + ' What is on each device was not touched.',
+    '',
+    'If this was you, there is nothing to do' + (kind === 'reset' ? ': join your other devices with the new recovery code.' : '.'),
+    '',
+    'If it was not you:',
+    '1. ' + how,
+    '2. ' + signInAgain,
+    '3. Join your other devices with the new recovery code.',
+    '',
+    'The erased data was end-to-end encrypted: it could not be read without your recovery code.',
+    '',
+    '— Vex Sync',
+  ].join('\n');
+}
+
+// -> 'sent' | 'no-address' | 'not-configured' | 'rate-limited' | 'failed'.
+// Never throws: the account is already erased when this runs.
+async function sendErasedNotice(env, account, email, kind, session) {
+  if (typeof email !== 'string' || !email.includes('@') || email.length > 320) return 'no-address';
+  if (await hashEmail(email, env.EMAIL_HASH_SECRET) !== account) return 'no-address';
+  if (!env.RESEND_API_KEY) return 'not-configured';
+  if (await rateLimited(env, `notice:email:${account}`, NOTICE_LIMIT, NOTICE_WINDOW)) {
+    console.warn('[vex-sync] erase notice not sent: rate limited');
+    return 'rate-limited';
+  }
+  try {
+    await sendEmail(env, email.trim(), 'Your Vex Sync data was erased', { text: erasedNotice(kind, new Date().toISOString(), session.deviceName) });
+    console.log('[vex-sync] erase notice sent');
+    return 'sent';
+  } catch (err) {
+    console.error('[vex-sync] erase notice could not be sent:', err.message);
+    return 'failed';
+  }
+}
+
+// `keepToken`: the one session that stays (POST /sync/reset).
+async function wipeAccount(env, account, keepToken = null) {
+  await env.VEX_SYNC_KV.delete(`blob:${account}`);
+  await env.VEX_SYNC_KV.delete(`devices:${account}`);
+  await env.VEX_SYNC_KV.delete(`drop:${account}`);
+  await env.VEX_SYNC_KV.delete(`keycheck:${account}`);
+  await env.VEX_AUTH_KV.delete('challenges');
+  await forgetSessions(env, account, s => s.token === keepToken);
+}
+
+export class VexSyncAccount {
+  constructor(state, env) { this.state = state; this.env = env; }
+
+  stores(account) {
+    const storage = this.state.storage;
+    const importSession = async token => (await callInternal(globalStub(this.env), '/internal/export-session', { account, token })).record;
+    return {
+      ...this.env,
+      VEX_AUTH_KV: accountKV(storage, 'auth:', importSession),
+      VEX_SYNC_KV: accountKV(storage, 'sync:', null),
+      forgetElsewhere: () => this.forgetElsewhere(account),
+    };
+  }
+
+  async fetch(request) {
+    const account = request.headers.get('X-Vex-Account') || '';
+    if (!ACCOUNT_RE.test(account)) return json({ error: 'Sync request failed' }, 500);
+    const path = new URL(request.url).pathname;
+    const outcome = await this.state.blockConcurrencyWhile(async () => {
+      try {
+        // An account made before the HMAC key that has since been taken over
+        // by its HMAC-keyed object sends its devices' requests on.
+        const forward = path.startsWith('/sync/') ? await this.state.storage.get('meta:forward') : null;
+        if (forward) return { forward: forward.to };
+        const bound = await this.state.storage.get('meta:account');
+        if (bound && bound !== account) throw new Error('Request for another account');
+        if (!bound) await this.state.storage.put('meta:account', account);
+        await this.migrate(account);
+        await this.finishAdoption(account);
+        return { response: await this.handle(request, account, path) };
+      } catch (err) {
+        if (!err.status) console.error('[vex-sync] account request failed:', err.message);
+        return { response: json({ error: err.status ? err.message : 'Sync request failed' }, err.status || 500) };
+      }
+    });
+    // Outside the lock: the target may itself be waiting on this object.
+    if (outcome.forward) return accountStub(this.env, outcome.forward).fetch(withAccount(request, outcome.forward));
+    return outcome.response;
+  }
+
+  async handle(request, account, path) {
+    const env = this.stores(account);
+    if (path.startsWith('/sync/')) return handleSync(request, env, account, path);
+    const body = await request.json();
+    if (path === '/internal/open-session') return json(await this.openSession(env, account, body));
+    if (path === '/internal/handover') return json({ records: await this.handover(account, body.to) });
+    if (path === '/internal/wipe') {
+      await this.forgetElsewhere(account);
+      await wipeAccount(env, account);
+      return json({ ok: true });
+    }
+    return json({ error: 'Not found' }, 404);
+  }
+
+  // The first request for an account copies what the previous worker kept
+  // for it in the global object. Safe to repeat: a key already here is never
+  // overwritten, and the account counts as moved only once every copied key
+  // has been read back. Nothing is deleted from the global object.
+  async migrate(account) {
+    const storage = this.state.storage;
+    if (await storage.get('meta:migrated')) return;
+    const { records } = await callInternal(globalStub(this.env), '/internal/export-account', { account });
+    const allowed = new Set(accountKeys(account));
+    const entries = {};
+    const expected = {};
+    for (const [key, record] of records) {
+      if (!allowed.has(key) && !/^auth:sess:[^:]+$/.test(key)) throw new Error('Unexpected key in an exported account');
+      const here = await storage.get(key);
+      if (here === undefined) entries[key] = record;
+      expected[key] = here === undefined ? record : here;
+    }
+    await putAll(storage, entries);
+    await verifyAll(storage, expected);
+    const blob = records.find(([key]) => key === `sync:blob:${account}`);
+    const revision = live(blob?.[1]) ? JSON.parse(blob[1].value).revision || 0 : null;
+    await storage.put('meta:migrated', { at: new Date().toISOString(), records: records.length, revision });
+    if (records.length) console.log(`[vex-sync] account moved to its own object: ${records.length} records, revision ${revision}`);
+  }
+
+  async openSession(env, account, body) {
+    const storage = this.state.storage;
+    if (body.legacyHash && body.legacyHash !== account && !(await storage.get('meta:legacyChecked'))) {
+      const own = await env.VEX_SYNC_KV.get(`blob:${account}`) || await env.VEX_SYNC_KV.get(`devices:${account}`);
+      if (!own && (await callInternal(globalStub(this.env), '/internal/has-account', { account: body.legacyHash })).exists) {
+        await storage.put('meta:adopting', { from: body.legacyHash, stage: 'handover' });
+        await this.finishAdoption(account);
+      }
+      await storage.put('meta:legacyChecked', { at: new Date().toISOString() });
+    }
+    const session = { emailHash: account, deviceId: body.deviceId, deviceName: body.deviceName, createdAt: body.createdAt, pending: true };
+    await env.VEX_AUTH_KV.put(`sess:${body.sessionToken}`, JSON.stringify(session), { expirationTtl: SESSION_TTL });
+    await rememberSession(env, account, body.sessionToken, body.deviceId);
+    return { hasEncryptedData: !!(await env.VEX_SYNC_KV.get(`blob:${account}`)) };
+  }
+
+  // Taking over an account made before the HMAC key (it lives in the object
+  // named by the unsalted hash, which may have synced since this worker was
+  // deployed). The old object hands over a snapshot and from then on sends
+  // its devices' requests here; the snapshot is copied and read back; then
+  // the global object routes the old key here. Each stage is recorded, so an
+  // interrupted takeover finishes on the next request.
+  async finishAdoption(account) {
+    const storage = this.state.storage;
+    let job = await storage.get('meta:adopting');
+    if (!job) return;
+    if (job.stage === 'handover') {
+      const from = job.from;
+      const { records } = await callInternal(accountStub(this.env, from), '/internal/handover', { to: account }, from);
+      const entries = {};
+      for (const [key, record] of records) {
+        if (key.startsWith('auth:sess:')) { entries[key] = sessionFor(record, account); continue; }
+        const kind = accountKeys(from).indexOf(key);
+        if (kind < 0) throw new Error('Unexpected key in a handed-over account');
+        entries[accountKeys(account)[kind]] = record;
+      }
+      // Sessions this account already had (sign-ins that never synced) stay.
+      const sessionsKey = `auth:sessions:${account}`;
+      const mine = await storage.get(sessionsKey);
+      if (live(mine)) {
+        const theirs = live(entries[sessionsKey]) ? JSON.parse(entries[sessionsKey].value) : [];
+        const merged = [...theirs, ...JSON.parse(mine.value).filter(s => !theirs.some(t => t.token === s.token))];
+        entries[sessionsKey] = { value: JSON.stringify(merged), expires: 0 };
+      }
+      await putAll(storage, entries);
+      await verifyAll(storage, entries);
+      job = { from, stage: 'alias', moved: records.length };
+      await storage.put('meta:adopting', job);
+    }
+    if (job.moved) {
+      await callInternal(globalStub(this.env), '/internal/alias', { account: job.from, to: account });
+      await storage.put('meta:adopted', { from: job.from, at: new Date().toISOString() });
+      console.log(`[vex-sync] account from before the HMAC key taken over: ${job.moved} records`);
+    }
+    await storage.delete('meta:adopting');
+  }
+
+  async handover(account, to) {
+    if (!ACCOUNT_RE.test(to || '') || to === account) throw new Error('Invalid handover');
+    const storage = this.state.storage;
+    const forward = await storage.get('meta:forward');
+    if (forward && forward.to !== to) throw new Error('Already handed over elsewhere');
+    const records = [];
+    for (const key of accountKeys(account)) {
+      const record = await storage.get(key);
+      if (record !== undefined) records.push([key, record]);
+    }
+    if (!records.some(([key, record]) => live(record) && /^sync:(blob|devices):/.test(key))) return [];
+    for (const [key, record] of await storage.list({ prefix: 'auth:sess:' })) records.push([key, record]);
+    // From here on this object only forwards; its own copy stays.
+    if (!forward) await storage.put('meta:forward', { to, at: new Date().toISOString() });
+    return records;
+  }
+
+  // DELETE /sync/all reaches every copy of the account.
+  async forgetElsewhere(account) {
+    await callInternal(globalStub(this.env), '/internal/forget-account', { account });
+    const adopted = await this.state.storage.get('meta:adopted');
+    if (adopted) await callInternal(accountStub(this.env, adopted.from), '/internal/wipe', {}, adopted.from);
+  }
+
+  alarm() { return expireRecords(this.state.storage); }
+}
+
 // Named exports for unit tests (no effect on the Worker runtime, which only
 // uses the default export's fetch()).
 export { genNumericCode, timingSafeEqual, rateLimited, hashEmail, legacyHashEmail };
 
 export { syncHandler };
 export class VexSyncState {
-  constructor(state, env) { this.state = state; this.env = env; }
+  constructor(state, env) { this.state = state; this.env = env; this.store = new GlobalStore(state, env); }
   fetch(request) {
-    return this.state.blockConcurrencyWhile(() => syncHandler.fetch(request, { ...this.env, VEX_AUTH_KV: durableKV(this.state.storage, 'auth:', this.env.VEX_AUTH_KV), VEX_SYNC_KV: durableKV(this.state.storage, 'sync:', this.env.VEX_SYNC_KV) }));
+    const path = new URL(request.url).pathname;
+    if (path.startsWith('/internal/')) {
+      // Only the worker's own objects call these; they never call out, so
+      // holding the lock cannot wait on another object.
+      return this.state.blockConcurrencyWhile(async () => {
+        try { return json(await this.store.handle(path, await request.json())); }
+        catch (err) {
+          if (!err.status) console.error('[vex-sync] global request failed:', err.message);
+          return json({ error: err.status ? err.message : 'Sync request failed' }, err.status || 500);
+        }
+      });
+    }
+    return this.state.blockConcurrencyWhile(() => syncHandler.fetch(request, { ...this.env, VEX_AUTH_KV: this.store.auth, VEX_SYNC_KV: this.store.sync }));
   }
   alarm() { return expireRecords(this.state.storage); }
 }
+
+async function route(request, env) {
+  const path = new URL(request.url).pathname;
+  if (path.startsWith('/internal/')) return json({ error: 'Not found' }, 404);
+  if (path.startsWith('/sync/')) {
+    const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/, '');
+    if (!token) return json({ error: 'Unauthorized' }, 401);
+    const { account } = await callInternal(globalStub(env), '/internal/route', { token });
+    if (!account) return json({ error: 'Invalid session' }, 401);
+    return accountStub(env, account).fetch(withAccount(request, account));
+  }
+  const response = await globalStub(env).fetch(request);
+  if (path !== '/auth/verify-code' || request.method !== 'POST' || response.status !== 200) return response;
+  const signedIn = await response.json();
+  const { hasEncryptedData } = await callInternal(accountStub(env, signedIn.emailHash), '/internal/open-session', signedIn, signedIn.emailHash);
+  return json({ ok: true, sessionToken: signedIn.sessionToken, deviceId: signedIn.deviceId, emailHash: signedIn.emailHash, hasEncryptedData });
+}
+
 export default {
-  fetch(request, env) {
+  async fetch(request, env) {
     if (request.method === 'OPTIONS') return syncHandler.fetch(request, env);
-    if (!env.VEX_STATE) return Promise.resolve(json({ error: 'Durable state is not configured' }, 503));
-    return env.VEX_STATE.get(env.VEX_STATE.idFromName('vex-sync')).fetch(request);
+    if (!env.VEX_STATE || !env.VEX_ACCOUNTS) return json({ error: 'Durable state is not configured' }, 503);
+    if (hashSecretMissing(env)) return syncHandler.fetch(request, env);
+    try {
+      return await route(request, env);
+    } catch (err) {
+      console.error('[vex-sync] request failed:', err.message);
+      return json({ error: 'Sync request failed' }, 500);
+    }
   }
 };

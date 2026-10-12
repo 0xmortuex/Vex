@@ -18,6 +18,13 @@ async function run() {
     ['onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm','ort-wasm-simd-threaded.asyncify.wasm'],
   ]) await fs.copyFile(path.join(root, 'node_modules', source), path.join(dest, name));
   const core = path.join(root, 'node_modules/tesseract.js-core');
-  for (const file of await fs.readdir(core)) if (/\.(?:wasm|js)$/.test(file) || file === 'LICENSE') await fs.copyFile(path.join(core,file), path.join(dest,file));
+  // In the browser, worker.min.js loads only the base64-inlined
+  // tesseract-core*.wasm.js builds. The plain .wasm files, the Node builds
+  // (tesseract-core*.js) and index.js are never requested, so they are not
+  // copied, and copies left by an older run of this script are removed.
+  for (const file of await fs.readdir(core)) {
+    if (file.endsWith('.wasm.js') || file === 'LICENSE') await fs.copyFile(path.join(core, file), path.join(dest, file));
+    else if (/\.(?:wasm|js)$/.test(file)) await fs.rm(path.join(dest, file), { force: true });
+  }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

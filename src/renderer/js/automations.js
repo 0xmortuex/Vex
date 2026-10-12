@@ -157,14 +157,21 @@ const Automations = {
       this._save(list); this.open();
     });
     // A rule went at one click, with no way back (found 2026-09-29).
-    m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
-      const r = this._load()[parseInt(b.dataset.del, 10)];
-      if (!r) return;
-      if (!await vexConfirm({ title: 'Delete automation', message: 'Delete "' + (r.name || 'Rule') + '"? This cannot be undone.', okLabel: 'Delete', danger: true })) return;
+    // Gone at once, with Undo on the toast (js/vex-undo.js).
+    m.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
       const list = this._load();
-      const i = list.findIndex((x) => JSON.stringify(x) === JSON.stringify(r));   // the list may have changed while asking
-      if (i >= 0) { list.splice(i, 1); this._save(list); }
+      const removed = window.VexUndo.takeOut(list, (_x, i) => i === parseInt(b.dataset.del, 10));
+      if (!removed || !this._save(list)) return;
       this.open();
+      window.VexUndo.offer({
+        message: 'Deleted the automation “' + (removed.item.name || 'Rule') + '”',
+        undo: () => {
+          const now = this._load();
+          window.VexUndo.putBack(now, removed);
+          if (!this._save(now)) throw new Error('It could not be saved');
+          if (document.getElementById('vex-automations')) this.open();
+        },
+      });
     }));
     m.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('change', () => { const list = this._load(); const i = parseInt(b.dataset.tog, 10); if (list[i]) { list[i].enabled = b.checked; this._save(list); } }));
   },

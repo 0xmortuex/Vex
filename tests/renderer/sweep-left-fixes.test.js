@@ -33,26 +33,25 @@ describe('History: deleting a row or a day reaches every copy', () => {
   const MODULE = '../../src/renderer/js/history-panel.js';
   const load = () => { vi.resetModules(); delete require.cache[require.resolve(MODULE)]; return require(MODULE).HistoryPanel; };
   const iso = (y, m, d, h = 12) => new Date(y, m - 1, d, h).toISOString();
-  const ms = (y, m, d, h = 12) => new Date(y, m - 1, d, h).getTime();
-  let file;
 
+  // The file copy (history.json) is gone (main/history-fold.js): the list
+  // and Recall are every copy, and nothing writes a second one.
   beforeEach(() => {
-    file = [];
-    globalThis.VexStorage = { loadHistory: vi.fn(async () => file), save: vi.fn(async (k, v) => { file = v; return true; }) };
+    globalThis.VexStorage = { save: vi.fn(async () => true) };
     window.vex = { recallForget: vi.fn(async () => ({ ok: true, removed: 1 })) };
   });
 
-  it('a deleted row leaves the file copy and Recall', async () => {
+  it('a deleted row leaves the list and Recall', async () => {
     const H = load();
     H.renderList = () => {};
     localStorage.setItem('vex.history', JSON.stringify([
       { id: 'a', url: 'https://gone.example/', visitedAt: iso(2026, 9, 28) },
       { id: 'b', url: 'https://stays.example/', visitedAt: iso(2026, 9, 28) },
     ]));
-    file = [{ url: 'https://gone.example/', time: ms(2026, 9, 27) }, { url: 'https://gone.example/', time: ms(2026, 9, 28) }, { url: 'https://stays.example/', time: ms(2026, 9, 28) }];
     await H.deleteEntry('a');
     expect(H.entries.map(e => e.id)).toEqual(['b']);
-    expect(file).toEqual([{ url: 'https://stays.example/', time: ms(2026, 9, 28) }]);
+    expect(JSON.parse(localStorage.getItem('vex.history')).map(e => e.id)).toEqual(['b']);
+    expect(VexStorage.save).not.toHaveBeenCalled();
     expect(window.vex.recallForget).toHaveBeenCalledTimes(1);
     expect(window.vex.recallForget).toHaveBeenCalledWith({ url: 'https://gone.example/' });
   });
@@ -65,16 +64,10 @@ describe('History: deleting a row or a day reaches every copy', () => {
       { id: 'b', url: 'https://once.example/', visitedAt: iso(2026, 9, 28) },
       { id: 'c', url: 'https://both.example/', visitedAt: iso(2026, 9, 26) },
     ]));
-    file = [
-      { url: 'https://both.example/', time: ms(2026, 9, 28) },
-      { url: 'https://once.example/', time: ms(2026, 9, 28) },
-      { url: 'https://file-only.example/', time: ms(2026, 9, 28) },
-      { url: 'https://both.example/', time: ms(2026, 9, 26) },
-    ];
     const label = H._dayLabel(new Date(iso(2026, 9, 28)));
     await H.deleteDay(label);
     expect(H.entries.map(e => e.id)).toEqual(['c']);
-    expect(file).toEqual([{ url: 'https://both.example/', time: ms(2026, 9, 26) }]);
+    expect(VexStorage.save).not.toHaveBeenCalled();
     expect(window.vex.recallForget.mock.calls).toEqual([[{ url: 'https://once.example/' }]]);
     expect(window.showToast).toHaveBeenLastCalledWith('Cleared 2 from ' + label);
   });
@@ -104,34 +97,9 @@ describe('Backup carries saved sessions', () => {
   });
 });
 
-describe('Restoring a session loads its kept-awake tabs', () => {
-  it('materializes kept-awake lazy tabs other than the active one, like start-up does', async () => {
-    const { SessionManager } = await import('../../src/renderer/js/sessions.js');
-    const made = [];
-    globalThis.TabManager = {
-      tabs: [], groups: [], activeTabId: null,
-      createTab: vi.fn(),
-      createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
-      _persistableFavicon: (f) => f || null,
-      renderTabUpdate: vi.fn(), persistTabs: vi.fn(async () => {}),
-      switchTab: vi.fn((id) => { TabManager.activeTabId = id; }),
-      _isKeptAwake: (t) => t.keepAwakeUntil > Date.now(),
-      _materializeTab: vi.fn((t) => { t._lazy = false; }),
-    };
-    window.VexTabPolicy = { canRestore: () => true };
-    SessionManager.hideOverlay = vi.fn();
-    const later = Date.now() + 3600000;
-    SessionManager.sessions = [{ id: 's1', name: 'S', activeTabIndex: 0, tabs: [
-      { url: 'https://active.example/', title: 'Active', keepAwakeUntil: later },
-      { url: 'https://awake.example/', title: 'Awake', keepAwakeUntil: later },
-      { url: 'https://asleep.example/', title: 'Asleep' },
-    ] }];
-    await SessionManager.restoreSession('s1', false);
-    expect(TabManager._materializeTab.mock.calls.map(c => c[0].title)).toEqual(['Awake']);
-    expect(made.find(t => t.title === 'Asleep')._lazy).toBe(true);
-    delete globalThis.TabManager; delete window.VexTabPolicy;
-  });
-});
+// Restoring a session loads its kept-awake tabs: checked against the real
+// TabManager in sessionRestore.test.js since sessions restore through
+// TabManager.addSavedTabs (2026-10-10).
 
 describe('Automations: a daily rule runs once a day', () => {
   it('does not run twice in its minute, even when the rule list is rewritten between ticks', async () => {

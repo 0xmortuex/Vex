@@ -1,0 +1,81 @@
+/* The agreement at start and the documents it opens (js/legal.js). The same
+   body also fills the setup wizard's first step. Above every other overlay
+   but the Vex dialogs (2147483600), the lock screen and the agent cursor. */
+
+.vex-legal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483550;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--vex-font-base, 'Outfit', sans-serif);
+}
+
+.vex-legal-doc-overlay { z-index: 2147483580; }
+
+.vex-legal-card {
+  width: 560px;
+  max-width: 94vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--vex-radius-lg, 14px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  padding: 22px 24px 16px;
+  box-sizing: border-box;
+}
+.vex-legal-card:focus { outline: none; }
+.vex-legal-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.vex-legal-title { font-size: 19px; font-weight: 700; margin: 0 0 10px; color: var(--text); }
+.vex-legal-body { overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px; }
+.vex-legal-sub { font-size: 13px; font-weight: 700; margin: 10px 0 6px; color: var(--text); }
+.vex-legal-intro { font-size: 13px; line-height: 1.5; color: var(--text-muted); margin: 0 0 8px; }
+.vex-legal-list { margin: 0 0 12px; padding-left: 20px; font-size: 12.5px; line-height: 1.55; color: var(--text); }
+.vex-legal-list li { margin-bottom: 5px; }
+.vex-legal-docs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.vex-legal-version { font-size: 11px; color: var(--text-muted); margin: 6px 0 0; }
+
+.vex-legal-doc-btn,
+.vex-legal-btn {
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.vex-legal-doc-btn { color: var(--primary); }
+.vex-legal-doc-btn:hover,
+.vex-legal-btn:hover { background: var(--vex-hover-fill, color-mix(in srgb, var(--text) 8%, var(--bg))); }
+.vex-legal-btn.primary {
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+  border-color: var(--primary);
+  font-weight: 600;
+  padding: 9px 22px;
+}
+.vex-legal-actions { display: flex; align-items: center; gap: 8px; padding-top: 14px; margin-top: 10px; border-top: 1px solid var(--border); }
+
+/* A document: wide and tall enough to read. */
+.vex-legal-doc { width: 820px; height: 86vh; }
+.vex-legal-doc-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.vex-legal-doc-head .vex-legal-title { margin: 0; }
+.vex-legal-doc-body { overflow-y: auto; flex: 1; min-height: 0; padding: 12px 6px 4px 0; font-size: 13.5px; line-height: 1.6; }
+.vex-legal-doc-body:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vex-legal-doc-body .vex-md-h1 { font-size: 22px; margin: 4px 0 10px; }
+.vex-legal-doc-body .vex-md-h2 { font-size: 17px; margin: 18px 0 8px; }
+.vex-legal-doc-body .vex-md-h3 { font-size: 15px; margin: 14px 0 6px; }
+.vex-legal-doc-body .vex-md-list { padding-left: 22px; margin: 0 0 10px; }
+.vex-legal-doc-body .vex-md-table-wrap { overflow-x: auto; margin: 0 0 12px; }
+.vex-legal-doc-body .vex-md-table { border-collapse: collapse; font-size: 12.5px; }
+.vex-legal-doc-body .vex-md-table th,
+.vex-legal-doc-body .vex-md-table td { border: 1px solid var(--border); padding: 5px 8px; vertical-align: top; text-align: left; }
+.vex-legal-doc-body .vex-md-quote { border-left: 3px solid var(--border); margin: 0 0 10px; padding: 2px 12px; color: var(--text-muted); }

@@ -177,6 +177,53 @@ function verifyCrx3(buf, { expectedId, publisherKeySha256 = WEBSTORE_PUBLISHER_K
   return { id: expectedId, publicKey: Buffer.from(developer.publicKey), archive: Buffer.from(crx.archive) };
 }
 
+// ---- a .crx picked from disk ---------------------------------------------------
+// Settings › Extensions › "Install from .zip / .crx". The file names its own
+// id (the signed crx_id), so there is no id to expect; otherwise the same
+// rules as above: every proof verifies and one is the developer's, whose key
+// hashes to that id. fromWebStore says whether the Web Store's own key signed
+// it too. A CRX2 file is refused by parseCrx3.
+function verifyLocalCrx(buf, { publisherKeySha256 = WEBSTORE_PUBLISHER_KEY_SHA256 } = {}) {
+  const crx = parseCrx3(buf);
+  const failed = (why) => new WebStoreError('bad-signature', `This package's signature does not check out (${why}). It may have been changed after it was made. Nothing was installed.`);
+  if (!crx.signedHeaderData || !crx.crxId || crx.crxId.length !== 16) throw failed('it names no extension id');
+  const id = idFromHex(crx.crxId.toString('hex'));
+  const proofs = [...crx.rsa, ...crx.ecdsa];
+  if (!proofs.length) throw failed('it is not signed');
+  const message = signedMessage(crx.signedHeaderData, crx.archive);
+  for (const proof of proofs) {
+    if (!verifyProof(proof, message)) throw failed('a signature does not match its contents');
+  }
+  const developer = proofs.find(p => idFromPublicKey(p.publicKey) === id);
+  if (!developer) throw failed('it is not signed by the extension\'s own key');
+  const fromWebStore = !!publisherKeySha256 && proofs.some(p => crypto.createHash('sha256').update(p.publicKey).digest('hex') === publisherKeySha256);
+  return { id, publicKey: Buffer.from(developer.publicKey), archive: Buffer.from(crx.archive), fromWebStore };
+}
+
+// Whether a package presents itself as a Chrome Web Store one: the store
+// writes its update address into the manifest and its hashes into
+// _metadata/verified_contents.json. Such a package must carry the store's
+// signature; a developer's own .crx has neither.
+function claimsWebStore(manifest, entryNames) {
+  const u = manifest && typeof manifest.update_url === 'string' ? manifest.update_url : '';
+  // No update_url, or not an address: no claim by it.
+  const url = URL.canParse(u) ? new URL(u) : null;
+  const fromGoogle = !!url && /(^|\.)google\.com$/i.test(url.hostname) && /\/service\/update2\/crx/.test(url.pathname);
+  return fromGoogle || (Array.isArray(entryNames) && entryNames.includes('_metadata/verified_contents.json'));
+}
+
+// The whole check of a picked .crx: signatures, the store claim, the manifest.
+// Returns what the permissions dialog shows plus what installing needs.
+function inspectLocalCrx(buf, { AdmZip, validateZip, publisherKeySha256 = WEBSTORE_PUBLISHER_KEY_SHA256 }) {
+  const verified = verifyLocalCrx(buf, { publisherKeySha256 });
+  const pkg = readPackage(verified.archive, { AdmZip, validateZip });
+  const names = new AdmZip(verified.archive).getEntries().map(e => e.entryName);
+  if (!verified.fromWebStore && claimsWebStore(pkg.manifest, names)) {
+    throw new WebStoreError('bad-signature', 'This package says it comes from the Chrome Web Store, but the Chrome Web Store did not sign it. It may have been changed after it was downloaded. Nothing was installed.');
+  }
+  return { ...verified, manifest: pkg.manifest, messages: pkg.messages, info: describe(pkg.manifest, pkg.messages) };
+}
+
 // ---- downloading -------------------------------------------------------------
 // fetch is Vex's bounded net.fetch (src/renderer/js/network.js): it follows
 // redirects and stops at maxBytes and timeoutMs.
@@ -238,31 +285,56 @@ const strings = (v) => (Array.isArray(v) ? v.filter(s => typeof s === 'string') 
 
 // What may not work here, in words, from the manifest. Checked against what
 // Vex's stand-ins really provide (src/preload-webview.js,
-// src/preload-extension-sw.js): tabs.create/remove, storage.sync and
-// permissions work; these do not.
+// src/preload-extension-sw.js) and what Electron has: tabs, storage (sync
+// too), permissions, alarms, cookies, contextMenus, commands, the toolbar
+// button, windows, notifications and downloads work, some in part (said
+// below); the namespaces in ABSENT are not there at all (measured
+// 2026-10-10: the list missed most of them, EX7).
+const ABSENT = [
+  ['history', 'your browsing history'], ['bookmarks', 'your bookmarks'], ['tabGroups', 'tab groups'],
+  ['topSites', 'your most visited sites'], ['sessions', 'recently closed tabs'], ['tts', 'reading text aloud'],
+  ['ttsEngine', 'being a text-to-speech voice'], ['fontSettings', 'font settings'], ['privacy', 'privacy settings'],
+  ['proxy', 'proxy settings'], ['browsingData', 'clearing browsing data'], ['search', 'searching'],
+  ['contentSettings', 'site settings'], ['pageCapture', 'saving pages'], ['tabCapture', 'capturing a tab'],
+  ['desktopCapture', 'capturing the screen'], ['debugger', 'the debugger'], ['readingList', 'the reading list'],
+  ['declarativeContent', 'showing its button by page'], ['gcm', 'push messages'], ['printerProvider', 'printers'],
+  ['webAuthenticationProxy', 'passkey requests'], ['dns', 'DNS lookups'], ['processes', 'the task list'],
+  ['sidePanel', 'its side panel'], ['identity', 'signing in through it'], ['nativeMessaging', 'talking to programs on this computer'],
+  ['userScripts', 'its user scripts'],
+];
 function cautions(manifest) {
   const m = manifest || {};
   const perms = new Set([...strings(m.permissions), ...strings(m.optional_permissions)]);
   const has = (...names) => names.some(n => perms.has(n));
   const out = [];
-  if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback', 'webRequestBlocking')) {
-    out.push('It cannot block or redirect requests here (declarativeNetRequest, blocking webRequest): Electron gives extensions no request blocking. Vex\'s own blocker does that.');
+  if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback')) {
+    out.push('Its blocking rules (declarativeNetRequest) are accepted but block nothing here: Electron gives extensions no request blocking. Vex\'s own blocker does that.');
   }
-  if (has('contextMenus', 'menus')) out.push('Its right-click menu items will not appear (contextMenus).');
-  if (m.commands && typeof m.commands === 'object' && Object.keys(m.commands).length) out.push('Its keyboard shortcuts are not bound (commands).');
-  if (has('userScripts')) out.push('Its user scripts will not run: Electron has no chrome.userScripts.');
-  if (has('cookies')) out.push('It cannot read or change cookies here (cookies).');
+  if (has('webRequestBlocking')) out.push('It cannot block or redirect requests here (blocking webRequest). Vex\'s own blocker does that.');
+  else if (has('webRequest')) out.push('It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.');
+  if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
+  if (has('cookies')) out.push('It can read and change cookies, but is not told when one changes (cookies.onChanged).');
   if (has('webNavigation')) out.push('It is not told when pages navigate (webNavigation).');
-  if (has('sidePanel') || m.side_panel) out.push('Its side panel will not open (sidePanel).');
-  if (has('nativeMessaging')) out.push('It cannot talk to programs on this machine (nativeMessaging).');
-  if (has('identity')) out.push('Signing in through it (identity) will not work.');
+  if (has('notifications')) out.push('Its notifications show as Windows notifications without buttons or pictures, and it cannot take one back.');
+  if (has('downloads')) out.push('It can start, list, pause and cancel downloads, but cannot name the file, open it, show it or delete it.');
+  if (m.side_panel) perms.add('sidePanel');
+  const missing = ABSENT.filter(([name]) => perms.has(name));
+  if (missing.length) {
+    out.push(`It cannot use ${missing.map(([name, what]) => `${what} (${name})`).join(', ')}: Vex does not have ${missing.length === 1 ? 'that' : 'those'} for extensions.`);
+  }
   return out;
 }
 
 // Why Vex will not install it at all, or null.
+// A Chrome theme is never loaded as an extension: Vex adds it to the user's
+// themes instead (main/chrome-theme.js). One whose manifest also declares
+// extension parts (a background script, content scripts…) is an extension
+// as well, and may be installed as one; its theme is then not used.
 function refusal(manifest) {
   const m = manifest || {};
-  if (m.theme) return 'This is a Chrome theme, not an extension. Vex has its own looks and themes (Settings › Appearance).';
+  if (m.theme && !require('./chrome-theme').codeIn(m, []).keys.length) {
+    return 'This is a Chrome theme, not an extension. Vex adds it to your themes instead: use Add to Vex on its Web Store page, or Settings › Appearance › Chrome theme.';
+  }
   if (m.app) return 'This is a Chrome app, not an extension. Chrome apps do not run in Vex.';
   if (m.manifest_version !== 2 && m.manifest_version !== 3) return `This package's manifest version (${m.manifest_version}) is not one Vex can load.`;
   return null;
@@ -285,6 +357,7 @@ function describe(manifest, messages, { audit } = {}) {
     version: typeof m.version === 'string' ? m.version : '',
     description: localize(m.description, messages) || '',
     manifestVersion: m.manifest_version,
+    isTheme: !!(m.theme && typeof m.theme === 'object'),
     permissions,
     optionalPermissions: strings(m.optional_permissions),
     hostPermissions,
@@ -330,11 +403,20 @@ function createWebStoreInstaller({ fetch, chromeVersion, AdmZip, validateZip, no
       if (e.info.refuse) throw new WebStoreError('incompatible', e.info.refuse);
       return e;
     },
+    // A theme's colours and pictures, read from the same verified package
+    // (main/chrome-theme.js themePreview). Nothing is installed here: the
+    // window makes it one of the user's themes.
+    async theme(input) {
+      const e = await load(input);
+      if (!e.info.isTheme) throw new WebStoreError('not-theme', 'This package is not a Chrome theme.');
+      return require('./chrome-theme').themePreview(e.archive, { AdmZip, validateZip });
+    },
   };
 }
 
 module.exports = {
   WEBSTORE_PUBLISHER_KEY_SHA256, MAX_CRX_BYTES, PREVIEW_TTL_MS, WebStoreError,
   extensionIdFrom, updateUrl, idFromPublicKey, parseCrx3, verifyCrx3, signedMessage,
+  verifyLocalCrx, claimsWebStore, inspectLocalCrx,
   downloadCrx, readPackage, cautions, refusal, describe, createWebStoreInstaller,
 };

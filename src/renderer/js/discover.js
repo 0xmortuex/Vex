@@ -257,16 +257,12 @@ const VexDiscover = {
       SidebarManager.openPanel(f.panel);
       return;
     }
-    if (f.setting && f.setting.section) {
+    if (f.setting && (f.setting.id || f.setting.section)) {
       this.close();
-      if (window.SettingsUI?.openSection) SettingsUI.openSection(f.setting.section);
-      else SidebarManager.openPanel('settings');
-      return;
-    }
-    if (f.setting && f.setting.id) {
-      this.close();
-      SidebarManager.openPanel('settings');
-      document.getElementById(f.setting.id)?.scrollIntoView({ block: 'center' });
+      // openSection opens Settings, waits for the control to exist and keeps
+      // it in view while the panel settles; a bare scrollIntoView ran before
+      // the section had rendered and landed nowhere.
+      SettingsUI.openSection(f.setting.id || f.setting.section);
       return;
     }
     throw new Error(VexFeatures.nameOf(f) + ' has nothing to open — it is always on');

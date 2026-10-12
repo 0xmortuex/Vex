@@ -289,8 +289,8 @@ const SidebarManager = {
     // Hidden panels give their process back after a while; Discord is watched.
     this._wirePanelSleepSettings();
     this.startPanelAutoSleep();
-    this.startDiscordMemoryWatch();
-    // Past its limit, a hidden idle Discord is swapped for a fresh one (js/discord-memory.js).
+    // Discord's one memory watch: past its limit, a notice (or, if allowed, a
+    // fresh Discord swapped in) — js/discord-memory.js.
     if (window.DiscordMemory) window.DiscordMemory.start();
     this.startDiscordRest();
     this.startGpuCourtesy();
@@ -347,18 +347,16 @@ const SidebarManager = {
     this.applySidebarOrder();
     this.renderSidebarManager();
 
-    // Discord block-bypass: main defaults to 'light'; re-apply the user's saved
-    // On ('auto') / Off choice on startup.
-    try {
-      const m = localStorage.getItem('vex.discordBypassMode');
-      if (window.vex?.setDiscordBypassMode && (m === 'auto' || m === 'off')) {
-        // Re-run the sweep on startup; when it lands on a working mode, reload the
-        // Discord panel (if already open) so it picks up the proxy — no blank flash.
-        Promise.resolve(window.vex.setDiscordBypassMode(m, {})).then((r) => {
-          if (r && r.ok) { const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} } }
-        }).catch(() => {});
-      }
-    } catch {}
+    // Discord block-bypass: main starts on 'light'; replay the user's saved
+    // choice (js/discord-bypass.js) — a preset, custom flags or off. A sweep
+    // is never re-run at start: its result was saved when it ran. Once it is
+    // in effect, reload Discord (if already open) so it picks up the proxy.
+    if (window.DiscordBypass && window.vex?.setDiscordBypassMode && !window.VexTabPolicy?.isPrivateWindow) {
+      DiscordBypass.replay().then((r) => {
+        if (r && r.ok) this.reloadDiscordForBypass();
+        else if (r) window.showToast?.('Discord bypass (' + DiscordBypass.label() + ') did not start: ' + (r.error || 'unknown') + ' — Settings › Privacy changes it', 'error', 9000);
+      }).catch((err) => window.VexProblems?.note('Discord bypass', 'The saved bypass could not be put back', err));
+    }
     // Live progress for the auto-configure sweep → update the progress card.
     try { window.vex?.onDiscordBypassProgress?.((p) => { if (p && p.phase === 'testing') this._updateDiscordProgress(`Testing ${p.label}… (${p.i}/${p.total})`); }); } catch {}
     // Re-apply the saved Roblox bypass (shares Discord's ByeDPI) on startup.
@@ -370,8 +368,8 @@ const SidebarManager = {
       }
     } catch {}
 
-    // Ctrl+Shift+J is now handled in main.js as a globalShortcut that calls
-    // openDevTools on webContents.getFocusedWebContents(). The previous
+    // Ctrl+Shift+J is now handled in main.js (before-input-event on the page
+    // with the focus, src/main/window-keys.js), which opens its DevTools. The previous
     // renderer-side `document.addEventListener('keydown', ...)` listener
     // never fired for normal tabs because keydown events inside a guest
     // <webview> (OOPIF) don't bubble to the host doc. Moving to main fixes
@@ -546,6 +544,12 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof PrivacyPack !== 'undefined') {
       PrivacyPack.renderSettings(document.getElementById('privacy-panel-content'));
     }
+    if (panelName === 'settings' && window.DiscordBypass) {
+      DiscordBypass.renderSetting(document.getElementById('discord-bypass-setting'));
+    }
+    if (panelName === 'settings' && window.DiscordTheme) {
+      DiscordTheme.renderSetting(document.getElementById('discord-theme-setting'));
+    }
     if (panelName === 'settings' && typeof AIMemory !== 'undefined') {
       AIMemory.renderSettings(document.getElementById('ai-memory-panel-content'));
     }
@@ -598,9 +602,37 @@ const SidebarManager = {
     wv.addEventListener('ipc-message', (e) => {
       // The picture under a right-click, for the menu (js/webview.js contextImage).
       if (e.channel === 'vex-ctx-image') { if (typeof WebviewManager !== 'undefined') WebviewManager.noteContextImage(wv, e.args && e.args[0]); return; }
+      // One of its desktop notifications was clicked (preload-webview.js):
+      // bring Vex up with this panel open.
+      if (e.channel === 'vex-notification-click') { this.openFromNotification(panelName); return; }
+      // Its video, for the toolbar's Picture-in-Picture button, and its own PiP
+      // overlay button asking for the pop-out (preload-webview.js). Only tabs
+      // relayed these, so a video in a panel never showed the button and its
+      // overlay did nothing when the page refused native PiP.
+      if (e.channel === 'vex-pip-geometry') {
+        if (typeof PiPManager !== 'undefined') PiPManager.noteGeometry(wv, (e.args && e.args[0]) || null, panelName);
+        return;
+      }
+      if (e.channel === 'vex-video-detected') {
+        wv._vexHasVideo = !!(e.args && e.args[0] && e.args[0].hasVideo);
+        if (typeof PiPManager !== 'undefined') PiPManager._showButton();
+        return;
+      }
+      if (e.channel === 'vex-pip-fallback') {
+        if (typeof PiPManager !== 'undefined') PiPManager.popoutPanel(panelName, wv, e.args && e.args[0]);
+        return;
+      }
       if (e.channel !== 'vex-media-capture') return;
       const d = (e.args && e.args[0]) || {};
       this.setPanelCapturing(panelName, d.kind, d.active);
+    });
+    // The page called window.close(). A panel is not the page's window: it
+    // stays open and on its page (a question the page asked stays with it),
+    // and the attempt is noted in Problems so it can be seen afterwards.
+    wv.addEventListener('close', () => {
+      let origin = '';
+      try { origin = new URL(wv.getURL()).host; } catch { /* no page */ }
+      window.VexProblems?.note('Panels', this.panelLabel(panelName) + '\'s page tried to close itself; the panel stays open', origin);
     });
     wv.style.width = '100%';
     wv.style.height = '100%';
@@ -623,6 +655,8 @@ const SidebarManager = {
     // the Spotify panel never offered to save and never autofilled (the
     // vault was only wired in WebviewManager.createWebview for tabs).
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(wv);
+    // Passkeys: the list under a field marked autocomplete="webauthn".
+    if (window.PasskeyUI) window.PasskeyUI.attach(wv);
     // Apply the saved Master Volume level to this panel's media (Spotify,
     // Netflix, etc.) on load + as media appears, like tab webviews do.
     wv.addEventListener('dom-ready', () => {
@@ -630,6 +664,7 @@ const SidebarManager = {
       if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
       if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
+      if (window.DiscordTheme) DiscordTheme.onPageReady(wv);
     });
     // ---- brought back when Windows kills it --------------------------------
     // A game wants the memory, Windows takes it from the biggest processes,
@@ -671,7 +706,9 @@ const SidebarManager = {
     // Discord: if the page fails to connect (it's blocked), offer the bypass.
     if (panelName === 'discord') {
       wv.addEventListener('did-fail-load', (e) => {
-        if (!e.isMainFrame || e.errorCode === -3) return; // ignore aborts
+        // Only the failures blocking looks like (js/discord-bypass.js) —
+        // not being offline, which no bypass can help with.
+        if (!e.isMainFrame || !window.DiscordBypass || !DiscordBypass.looksBlocked(e.errorCode)) return;
         this._showDiscordBlockedPrompt(wv, panelEl);
       });
       wv.addEventListener('did-finish-load', () => this._hideDiscordBlockedPrompt());
@@ -682,7 +719,39 @@ const SidebarManager = {
     // drive them. Give every web panel (Spotify, Claude, Discord, pinned
     // sites, …) its own slim back/forward/reload bar.
     this._addPanelNav(panelEl, wv, panelName);
+    this._wirePanelLoading(panelEl, wv, panelName);
     return wv;
+  },
+
+  // A web panel showed nothing while its page loaded — Roblox Hub sat white
+  // for 20s with no sign anything was happening (walkthrough M7,
+  // 2026-10-07). A bar runs along the top while the page loads, and on the
+  // first load a spinner with the panel's name covers the still-blank page
+  // until the page's document is ready. Neither takes clicks.
+  _wirePanelLoading(panelEl, wv, panelName) {
+    let ind = panelEl.querySelector(':scope > .panel-loading');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.className = 'panel-loading';
+      ind.setAttribute('role', 'status');
+      ind.innerHTML = '<div class="panel-loading-bar"></div><div class="panel-loading-first"><div class="panel-loading-spinner"></div><div class="panel-loading-label"></div></div>';
+      panelEl.appendChild(ind);
+    }
+    ind.querySelector('.panel-loading-label').textContent = 'Loading ' + this.panelLabel(panelName) + '…';
+    const live = () => panelEl.querySelector('webview') === wv;
+    panelEl.classList.add('panel-is-loading', 'panel-first-load');
+    wv.addEventListener('did-start-loading', () => { if (live()) panelEl.classList.add('panel-is-loading'); });
+    wv.addEventListener('did-stop-loading', () => { if (live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load'); });
+    wv.addEventListener('dom-ready', () => { if (live()) panelEl.classList.remove('panel-first-load'); });
+    // A page can draw long before its document is ready; the cover lifts 8s
+    // after the page arrives at the latest, and the bar carries on.
+    wv.addEventListener('did-navigate', () => {
+      setTimeout(() => { if (live()) panelEl.classList.remove('panel-first-load'); }, 8000);
+    }, { once: true });
+    wv.addEventListener('did-fail-load', (e) => {
+      if (e.isMainFrame && e.errorCode !== -3 && live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load');
+    });
+    wv.addEventListener('render-process-gone', () => { if (live()) panelEl.classList.remove('panel-is-loading', 'panel-first-load'); });
   },
 
   // ---- Two panels at once -------------------------------------------------
@@ -859,8 +928,11 @@ const SidebarManager = {
     return !!(c && c.url) && !this.customPanels.includes(name);
   },
 
-  // vex.panelAutoSleep ('0' = off), vex.panelSleepMinutes (default 30, capped
-  // at 10 under Memory Saver like tabs), vex.panelSleepExempt — the panels
+  // vex.panelAutoSleep ('0' = off); the idle time is the SAME as tabs'
+  // "Sleep after" (app.js publishes it as window.vexTabSleepMinutes, Memory
+  // Saver's 10 minutes included) — vex.panelSleepMinutes, which had no
+  // control anywhere, is read only when that is not there (tests, early
+  // boot), capped at 10 under Memory Saver; vex.panelSleepExempt — the panels
   // kept awake. Discord and WhatsApp by default: a sleeping panel cannot show
   // a new-message notification.
   KEEP_AWAKE_DEFAULT: ['discord', 'whatsapp'],
@@ -869,7 +941,8 @@ const SidebarManager = {
     // exempt for that hour and not a minute longer, and one set to 'only
     // during a call' is never exempt (panelBusy holds the call open).
     const exempt = Object.keys(this.panelConfigs).filter(n => this.keptAwakeNow(n));
-    let minutes = Number(localStorage.getItem('vex.panelSleepMinutes'));
+    let minutes = typeof window !== 'undefined' && typeof window.vexTabSleepMinutes === 'function'
+      ? Number(window.vexTabSleepMinutes()) : Number(localStorage.getItem('vex.panelSleepMinutes'));
     if (!Number.isFinite(minutes) || minutes <= 0) minutes = 30;
     if (localStorage.getItem('vex.memorySaver') === '1') minutes = Math.min(minutes, 10);
     return { enabled: localStorage.getItem('vex.panelAutoSleep') !== '0', minutes, exempt };
@@ -905,13 +978,25 @@ const SidebarManager = {
     return back;
   },
 
-  sleepPanel(name) {
+  // A panel in a call (microphone, camera, screen share, or making a sound)
+  // is refused with the reason: sleeping it ends the call. Only a caller that
+  // has asked the user first passes { evenIfBusy: true }.
+  sleepPanel(name, { evenIfBusy = false } = {}) {
     const wv = this.panelWebviews[name];
     if (!wv) throw new Error(this.panelLabel(name) + ' is not loaded');
     if (name === this.activePanel || name === this.sidePanel) throw new Error(this.panelLabel(name) + ' is open — close it first');
+    const busy = this.panelBusy(name);
+    if (busy && !evenIfBusy) throw new Error(this.panelLabel(name) + ' is in use — ' + busy + '. Sleeping it would cut that off.');
     try { wv.remove(); } catch {}
     delete this.panelWebviews[name];
     document.querySelectorAll('.panel-navbar[data-panel="' + name + '"]').forEach(n => n.remove());
+    // Its page is gone, and with it the microphone, camera or screen share:
+    // the capture state used to stay set for ever, holding the badge and
+    // keeping the panel "busy" so no memory limit ever applied to it again.
+    const c = this.panelCapture[name];
+    if (c) for (const kind of ['mic', 'camera', 'screen']) if (c[kind]) this.setPanelCapturing(name, kind, false);
+    delete this.panelCapture[name];
+    document.querySelectorAll('.sidebar-icon[data-panel="' + name + '"] .icon-badge.discord-call').forEach(n => n.remove());
     this.sleptPanels[name] = Date.now();
     document.dispatchEvent(new CustomEvent('vex:panel-slept', { detail: { panel: name } }));
     document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Slept panel: ' + this.panelLabel(name) } }));
@@ -1008,7 +1093,7 @@ const SidebarManager = {
       const names = due.map(n => this.panelLabel(n));
       const said = names.length === 1 ? names[0] + ' has'
         : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have';
-      SleepConsent.ask({
+      SleepConsent.gate({
         id: 'panels',
         title: said + ' been idle for a while. Let ' + (names.length === 1 ? 'it' : 'them') + ' sleep?',
         detail: 'Asleep ' + (names.length === 1 ? 'it uses' : 'they use') + ' no memory and come'
@@ -1027,7 +1112,7 @@ const SidebarManager = {
       consent.value = SleepConsent.mode();
       consent.addEventListener('change', () => {
         try {
-          SleepConsent.set(consent.value);
+          SleepConsent.set(consent.value);   // redraws the greyed-out rows (vex:sleep-consent)
           window.showToast?.(consent.value === 'ask' ? 'Vex will ask before anything sleeps by itself'
             : consent.value === 'auto' ? 'Vex will sleep idle tabs and panels by itself'
               : 'Nothing will sleep unless you ask it to');
@@ -1047,6 +1132,7 @@ const SidebarManager = {
       keep.addEventListener('change', () => this.setKeepAwake('discord', keep.checked));
     }
     this.renderKeepAwakeList();
+    if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState();
     const rest = document.getElementById('setting-discord-rest');
     if (rest) {
       rest.checked = this.discordRestPrefs().enabled;
@@ -1058,11 +1144,7 @@ const SidebarManager = {
     const notice = document.getElementById('setting-memory-notice');
     if (notice) {
       notice.value = localStorage.getItem('vex.memoryNoticeMB') || '';
-      notice.addEventListener('change', () => {
-        this.setMemoryNoticeCeiling(notice.value);
-        this._discordBannerSnoozedUntil = 0;
-        this.checkDiscordMemory().catch(() => {});
-      });
+      notice.addEventListener('change', () => this.setMemoryNoticeCeiling(notice.value));
     }
   },
 
@@ -1234,15 +1316,10 @@ const SidebarManager = {
     }
   },
 
-  // ---- Discord memory watch -------------------------------------------------
-  // Discord runs fully awake and a long session grows (1.4 GB seen). Past the
-  // ceiling (vex.discordMemoryWarnMB, 1024) it gets a notice with a Reload —
-  // never automatic: a reload drops a voice call.
-  _fmtMB(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; },
-
-  // Memory notices (Discord's, and a heavy tab's — tabs.js) share one
-  // ceiling, vex.memoryNoticeMB: unset means each keeps its own default,
-  // 0 means off. Settings › Performance, or Don't show again on the notice.
+  // The heavy-tab memory notice's ceiling (tabs.js), vex.memoryNoticeMB:
+  // unset means its own default, 0 means off. Settings › Performance, or
+  // Don't show again on the notice. Discord has its own limit and its own
+  // notice (js/discord-memory.js) since the three Discord watches merged.
   memoryNoticeCeiling(defaultMB) {
     const raw = localStorage.getItem('vex.memoryNoticeMB');
     if (raw === null || raw === '') return defaultMB;
@@ -1256,74 +1333,6 @@ const SidebarManager = {
     if (sel) sel.value = mb === null || mb === '' ? '' : String(mb);
   },
 
-  async checkDiscordMemory() {
-    const wv = this.panelWebviews.discord;
-    if (!wv || typeof wv.getWebContentsId !== 'function') return null;
-    if (!window.vex || typeof window.vex.tabMemory !== 'function') return null;
-    let id;
-    try { id = wv.getWebContentsId(); } catch { return null; }
-    const mem = await window.vex.tabMemory([id]);
-    const row = mem && mem.byId && mem.byId[id];
-    if (!row) return null;
-    const mb = Math.round(row.memKB / 1024);
-    // Off (0) is a real setting; Later is four hours of quiet for the notice.
-    const ceiling = this.memoryNoticeCeiling(Number(localStorage.getItem('vex.discordMemoryWarnMB')) || 1024);
-    if (!ceiling) { this._discordMemBanner(0); return { mb, over: false, off: true }; }
-    const over = mb >= ceiling;
-    const quiet = (this._discordBannerSnoozedUntil || 0) > Date.now();
-    this._discordMemBanner(over && !quiet ? mb : 0);
-    if (over && !quiet && Date.now() - (this._discordWarnedAt || 0) > 30 * 60000) {
-      this._discordWarnedAt = Date.now();
-      window.showToast?.('Discord is using ' + this._fmtMB(mb) + ' — reload it from the notice in the Discord panel or the Memory panel', 'warn');
-    }
-    return { mb, over };
-  },
-
-  _discordMemBanner(mb) {
-    const panel = document.getElementById('panel-discord');
-    if (!panel) return;
-    let b = panel.querySelector('.discord-mem-banner');
-    if (!mb) { if (b) b.remove(); return; }
-    if (!b) {
-      b = document.createElement('div');
-      b.className = 'discord-mem-banner';
-      b.innerHTML = '<span></span><button class="dmb-reload">Reload Discord</button><button class="dmb-calls" title="Discord sleeps when you have not used it for a while, and wakes for a call — a call in progress is never slept">Only during calls</button><button class="dmb-later" title="Quiet for four hours">Later</button><button class="dmb-never" title="Turn memory notices off (Settings › Performance turns them back on)">Don\'t show again</button>';
-      b.querySelector('.dmb-reload').addEventListener('click', () => {
-        try { this.panelWebviews.discord?.reload(); } catch {}
-        document.dispatchEvent(new CustomEvent('vex:memory-event', { detail: { note: 'Discord reloaded' } }));
-        b.remove();
-      });
-      // Later used to silence only the toast: the notice came straight back on
-      // the next minute's check, over the message box. Four hours of quiet.
-      // The notice is the moment this is worth offering: the gigabyte is on
-      // the screen, and this is the setting that gives it back.
-      b.querySelector('.dmb-calls').addEventListener('click', () => {
-        this.setKeepAwakeMode('discord', 'call');
-        window.showToast?.('Discord will sleep when idle and stay awake for calls — Settings › Performance changes it back');
-        b.remove();
-      });
-      b.querySelector('.dmb-later').addEventListener('click', () => {
-        b.remove();
-        this._discordWarnedAt = Date.now();
-        this._discordBannerSnoozedUntil = Date.now() + 4 * 3600000;
-      });
-      b.querySelector('.dmb-never').addEventListener('click', () => {
-        b.remove();
-        this.setMemoryNoticeCeiling(0);
-        window.showToast?.('Memory notices are off — Settings › Performance turns them back on');
-      });
-      panel.appendChild(b);
-    }
-    b.querySelector('span').textContent = 'Discord is using ' + this._fmtMB(mb) + '. Reloading frees it — a voice call would drop.';
-  },
-
-  startDiscordMemoryWatch() {
-    if (this._discordMemTimer) clearInterval(this._discordMemTimer);
-    this._discordMemTimer = setInterval(() => {
-      this.checkDiscordMemory().catch(err => console.error('[Sidebar] Discord memory check failed:', err.message));
-    }, 60000);
-  },
-
   // ---- Microphone / camera in a panel -----------------------------------------
   panelCapture: {},
 
@@ -1335,14 +1344,20 @@ const SidebarManager = {
     const btn = document.querySelector('.sidebar-icon[data-panel="' + name + '"]');
     if (btn) {
       let b = btn.querySelector('.icon-badge.capture');
-      if (!c.mic && !c.camera) { if (b) b.remove(); }
+      if (!c.mic && !c.camera && !c.screen) { if (b) b.remove(); }
       else {
         if (!b) { b = document.createElement('span'); b.className = 'icon-badge capture'; btn.appendChild(b); }
-        b.innerHTML = VexIcons.svg(c.camera ? 'camera' : 'mic', { size: 10 });
-        b.title = c.camera && c.mic ? 'Using the camera and microphone' : c.camera ? 'Using the camera' : 'Using the microphone';
+        // A screen share is the one to see first: it shows what is on screen.
+        b.innerHTML = VexIcons.svg(c.screen ? 'monitor' : c.camera ? 'camera' : 'mic', { size: 10 });
+        const uses = c.camera && c.mic ? 'the camera and microphone' : c.camera ? 'the camera' : c.mic ? 'the microphone' : '';
+        b.title = c.screen ? 'Sharing your screen' + (uses ? ', and using ' + uses : '') : 'Using ' + uses;
       }
     }
-    if (name === 'discord') this.checkDiscordThrottle().catch(() => {});
+    if (name === 'discord') {
+      this.checkDiscordThrottle().catch(() => {});
+      // A call starting or ending shows on the icon at once.
+      this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
+    }
   },
 
   // Is this panel doing something that sleeping would interrupt — a voice
@@ -1423,17 +1438,26 @@ const SidebarManager = {
     return { visible, inCall, throttled: !inCall };
   },
 
+  // Both on the shared job timer (js/jobs.js). Resting Discord matters most
+  // while Vex is minimised, so it runs then too ('background'); the call
+  // badge is for the eye only ('ui'), and is not read while the Discord
+  // panel is on screen, where its own buttons say the same.
   startDiscordRest() {
-    if (this._discordRestTimer) clearInterval(this._discordRestTimer);
-    this._discordRestTimer = setInterval(() => {
-      this.checkDiscordThrottle().catch(err => console.error('[Sidebar] Discord rest check failed:', err.message));
-    }, 30000);
-    // The call, on the Discord icon: muted or live, and sharing — without
-    // opening the panel. A cheap look at Discord's own buttons every 10 s.
-    if (this._discordStateTimer) clearInterval(this._discordStateTimer);
-    this._discordStateTimer = setInterval(() => {
-      this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
-    }, 10000);
+    if (this._discordRestJob) this._discordRestJob.stop();
+    this._discordRestJob = VexJobs.every('Discord rest', 30000, () => this.checkDiscordThrottle(), { when: 'background' });
+    if (this._discordStateJob) this._discordStateJob.stop();
+    this._discordStateJob = VexJobs.every('Discord call badge', 10000, () => {
+      if (this.activePanel === 'discord' || this.sidePanel === 'discord') return null;
+      return this.updateDiscordBadge();
+    });
+    // Leaving the panel: the badge is read now, not up to 10 s later.
+    if (!this._discordBadgeWired) {
+      this._discordBadgeWired = true;
+      document.addEventListener('vex:panel-changed', () => {
+        if (this.activePanel === 'discord' || this.sidePanel === 'discord') return;
+        this.updateDiscordBadge().catch(err => console.warn('[Sidebar] Discord call state:', err.message));
+      });
+    }
   },
 
   // ---- Discord call state on its icon --------------------------------------------
@@ -1465,12 +1489,19 @@ const SidebarManager = {
     };
   },
 
+  // Discord's page is only looked into when something says a call may be on
+  // (it holds the microphone, camera or screen, or it is making a sound):
+  // this ran a script in the hidden page every 10 s all day for nothing.
   async updateDiscordBadge() {
     const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
     const btn = document.querySelector('.sidebar-icon[data-panel="discord"]');
     if (!btn) return null;
     let state = null;
-    if (wv && typeof wv.executeJavaScript === 'function') {
+    let maybeCall = this.isPanelCapturing('discord');
+    if (!maybeCall && wv && typeof wv.isCurrentlyAudible === 'function') {
+      try { maybeCall = wv.isCurrentlyAudible(); } catch { maybeCall = false; }   // still attaching: nothing playing yet
+    }
+    if (maybeCall && wv && typeof wv.executeJavaScript === 'function') {
       try { state = await wv.executeJavaScript(this.DISCORD_STATE_SCRIPT, true); } catch { state = null; }   // still loading
     }
     const badge = this.discordBadgeFor(state);
@@ -1664,10 +1695,13 @@ const SidebarManager = {
       const o = ov[panel] || {};
       if (o.url && this.panelConfigs[panel]) this.panelConfigs[panel].url = o.url;
     });
+    // Simple mode (js/simple-mode.js) keeps some buttons out of sight as well,
+    // without touching the overrides, so turning it off restores them as set.
+    const simpleHides = (panel) => typeof VexSimpleMode !== 'undefined' && VexSimpleMode.hidesPanel(panel);
     document.querySelectorAll('.sidebar-icon[data-panel]').forEach(btn => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
-      btn.style.display = o.hidden ? 'none' : '';
+      btn.style.display = (o.hidden || simpleHides(panel)) ? 'none' : '';
       if (o.name) btn.title = o.name;
       if (o.icon && SIDEBAR_ICONS[o.icon]) btn.innerHTML = SIDEBAR_ICONS[o.icon];
     });
@@ -1783,12 +1817,24 @@ const SidebarManager = {
     if (!host) return;
     const ov = loadPanelOverrides();
     const btns = this._topButtons();
+    // Every action re-renders the list. The button that had the focus gets it
+    // back afterwards (Move up/down used to drop it on the page), in its row's
+    // new place.
+    const focused = host.contains(document.activeElement) ? document.activeElement.closest('[data-panel-row]') : null;
+    const refocus = focused ? { panel: focused.dataset.panelRow, act: document.activeElement.dataset.act } : null;
     host.innerHTML = '';
     const hint = document.createElement('p');
     hint.className = 'sidebar-manager-hint';
     hint.style.cssText = 'margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--text-muted)';
     hint.textContent = 'Two at once: Shift+click a button (or right-click it → Open beside) to open that panel beside the one already open. In the Chrome, Safari and IE looks use the + in the panel header. Drag the divider to resize; double-click it to swap sides.';
     host.appendChild(hint);
+    if (typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple()) {
+      const simpleHint = document.createElement('p');
+      simpleHint.className = 'sidebar-manager-hint sidebar-manager-simple';
+      simpleHint.style.cssText = 'margin:0 0 8px;font-size:12px;line-height:1.5;color:var(--text-muted)';
+      simpleHint.textContent = 'Simple mode is on, so only Start, Bookmarks, History, Downloads, Notes, Privacy, Settings and your pinned sites are on the sidebar. What you set here is kept, and shows as soon as Simple mode is off (Settings › General, or All features in the toolbar).';
+      host.appendChild(simpleHint);
+    }
     btns.forEach((btn) => {
       const panel = btn.dataset.panel;
       const o = ov[panel] || {};
@@ -1796,18 +1842,44 @@ const SidebarManager = {
       const name = o.name || btn.title || panel;
       const isUrl = this._isUrlPanel(panel);
       const row = document.createElement('div');
+      row.dataset.panelRow = panel;
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', name);
       row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 2px;border-bottom:1px solid var(--border)';
       const btnCss = 'background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;width:26px;height:26px;display:grid;place-items:center;font-size:12px;padding:0';
+      // Each button says which row it acts on ("Move Notes up"), not just "Move up".
+      const n = this._esc(name);
+      const mk = (act, title, label, icon, size) => '<button data-act="' + act + '" title="' + title + '" aria-label="' + label + '" style="' + btnCss + '">' + VexIcons.svg(icon, { size }) + '</button>';
       row.innerHTML =
         '<span style="width:22px;height:22px;display:grid;place-items:center;opacity:' + (hidden ? '0.4' : '1') + '">' + btn.innerHTML + '</span>' +
-        '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + this._esc(name) + '</span>' +
-        '<button data-act="up"     title="Move up"     aria-label="Move up"   style="' + btnCss + '">' + VexIcons.svg('chevron-up', { size: 12 }) + '</button>' +
-        '<button data-act="down"   title="Move down"   aria-label="Move down" style="' + btnCss + '">' + VexIcons.svg('chevron-down', { size: 12 }) + '</button>' +
-        '<button data-act="rename" title="Rename"      style="' + btnCss + '">' + VexIcons.svg('edit', { size: 13 }) + '</button>' +
-        '<button data-act="icon"   title="Change icon" style="' + btnCss + '">' + VexIcons.svg('star', { size: 13 }) + '</button>' +
-        (isUrl ? '<button data-act="link" title="Change link" style="' + btnCss + '">' + VexIcons.svg('link', { size: 13 }) + '</button>' : '') +
-        '<button data-act="toggle" title="' + (hidden ? 'Show' : 'Hide') + '" aria-label="' + (hidden ? 'Show' : 'Hide') + '" style="' + btnCss + '">' + VexIcons.svg(hidden ? 'plus' : 'minus', { size: 12 }) + '</button>' +
-        (panel.startsWith('site_') ? '' : '<button data-act="reset" title="Reset to default" aria-label="Reset to default" style="' + btnCss + '">' + VexIcons.svg('undo', { size: 12 }) + '</button>');
+        '<span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (hidden ? 'opacity:0.5;text-decoration:line-through' : '') + '">' + n + '</span>' +
+        mk('up', 'Move up', 'Move ' + n + ' up', 'chevron-up', 12) +
+        mk('down', 'Move down', 'Move ' + n + ' down', 'chevron-down', 12) +
+        mk('rename', 'Rename', 'Rename ' + n, 'edit', 13) +
+        mk('icon', 'Change icon', 'Change the icon of ' + n, 'star', 13) +
+        (isUrl ? mk('link', 'Change link', 'Change the link of ' + n, 'link', 13) : '') +
+        mk('toggle', hidden ? 'Show' : 'Hide', (hidden ? 'Show ' : 'Hide ') + n, hidden ? 'plus' : 'minus', 12) +
+        (panel.startsWith('site_') ? '' : mk('reset', 'Reset to default', 'Reset ' + n + ' to default', 'undo', 12));
+      // One Tab stop per row (there were 150 in the list): Left/Right, Home and
+      // End move inside the row, Up/Down to the same button in the next row.
+      const rowBtns = [...row.querySelectorAll('button[data-act]')];
+      rowBtns.forEach((x, i) => { x.tabIndex = i === 0 ? 0 : -1; });
+      row.addEventListener('keydown', (ev) => {
+        const i = rowBtns.indexOf(document.activeElement);
+        if (i < 0) return;
+        let to = null;
+        if (ev.key === 'ArrowRight') to = rowBtns[Math.min(rowBtns.length - 1, i + 1)];
+        else if (ev.key === 'ArrowLeft') to = rowBtns[Math.max(0, i - 1)];
+        else if (ev.key === 'Home') to = rowBtns[0];
+        else if (ev.key === 'End') to = rowBtns[rowBtns.length - 1];
+        else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          const other = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+          if (other && other.dataset.panelRow) to = other.querySelector('button[data-act="' + rowBtns[i].dataset.act + '"]') || other.querySelector('button[data-act]');
+        }
+        if (!to) return;
+        ev.preventDefault();
+        this._rowFocus(to);
+      });
       row.querySelectorAll('button[data-act]').forEach(b => {
         b.addEventListener('click', (ev) => {
           const act = b.dataset.act;
@@ -1824,6 +1896,19 @@ const SidebarManager = {
       });
       host.appendChild(row);
     });
+    if (refocus) {
+      const row = [...host.querySelectorAll('[data-panel-row]')].find(r => r.dataset.panelRow === refocus.panel);
+      const to = row && (row.querySelector('button[data-act="' + refocus.act + '"]') || row.querySelector('button[data-act]'));
+      if (to) this._rowFocus(to);
+    }
+  },
+
+  // Roving focus inside a Sidebar Buttons row: the focused button is the
+  // row's one Tab stop.
+  _rowFocus(btn) {
+    const row = btn.closest('[data-panel-row]');
+    row.querySelectorAll('button[data-act]').forEach(x => { x.tabIndex = x === btn ? 0 : -1; });
+    btn.focus();
   },
 
   switchPanelService(panel, key) {
@@ -1902,16 +1987,82 @@ const SidebarManager = {
 
   // Auto-configure: run the main-side sweep (built-in + every ByeDPI desync mode,
   // each rigorously tested) with a live progress card, keeping the first that works.
+  // The result is saved (js/discord-bypass.js): the preset that got through,
+  // or light when nothing did — so the next launch replays it rather than
+  // sweeping again.
   async _enableBypassAuto() {
     try { this.showPanel('discord'); } catch {}   // ensure the panel (and its progress card) is visible
     const wv = this.panelWebviews['discord'];
-    try { localStorage.setItem('vex.discordBypassMode', 'auto'); } catch {}
     this._showDiscordProgress('Setting up bypass…', 'Trying connection methods…');
     try {
-      const r = await window.vex?.setDiscordBypassMode?.('auto', {});
+      const { result: r } = await DiscordBypass.sweep();
       if (r && r.ok) { this._hideDiscordBlockedPrompt(); if (wv) { try { wv.reload(); } catch {} } else this.showPanel('discord'); }
       else this._showDiscordFailCard();
-    } catch { this._showDiscordFailCard(); }
+    } catch (err) {
+      window.VexProblems?.note('Discord bypass', 'Auto-configure failed', err);
+      this._showDiscordFailCard();
+    }
+  },
+
+  // One-click Vencord: the official build into the Discord panel, then
+  // Discord reloaded so it runs. Resolves true when it is installed (also
+  // when it loads only after a restart), false when it failed — said in a toast.
+  async installVencord() {
+    window.showToast?.('Downloading Vencord…');
+    try {
+      const r = await window.vex?.installVencord?.();
+      if (r && r.ok) {
+        // In safe mode it is put in place, not loaded (found 2026-09-29).
+        if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return true; }
+        window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
+        if (this._reopenDiscordTab()) return true;
+        const wv = this.panelWebviews['discord'];
+        if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
+        return true;
+      }
+      window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
+      return false;
+    } catch (e) {
+      window.showToast?.('Vencord install failed', 'error');
+      return false;
+    }
+  },
+
+  // Discord set to open as a tab (js/discord-memory.js): a just-installed
+  // Vencord build only runs in a fresh page, and showPanel('discord') merely
+  // switched to the old tab, still on the previous build. The tab is closed
+  // and opened again. Returns false when Discord is a panel.
+  _reopenDiscordTab() {
+    if (!window.DiscordMemory || DiscordMemory.mode() !== 'tab') return false;
+    const t = DiscordMemory.discordTab();
+    if (t) TabManager.closeTab(t.id);
+    DiscordMemory.openTab();
+    return true;
+  },
+
+  // A desktop notification from a panel was clicked: Vex to the front, and
+  // the panel open (Discord as a tab: its tab).
+  openFromNotification(panelName) {
+    if (window.vex && typeof window.vex.focusWindow === 'function') {
+      window.vex.focusWindow().then((r) => { if (r && r.ok === false) window.VexProblems?.note('Panels', 'Vex could not come to the front for a notification', r.error); },
+        (err) => window.VexProblems?.note('Panels', 'Vex could not come to the front for a notification', err));
+    }
+    if (this.activePanel === panelName || this.sidePanel === panelName) return;
+    this.showPanel(panelName);
+  },
+
+  // Turn the bypass off (for Zapret or a VPN), saved.
+  async _bypassOff() {
+    DiscordBypass.save({ mode: 'off' });
+    const r = await DiscordBypass.apply({ mode: 'off' });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The bypass could not be turned off');
+  },
+
+  // Discord picks up a changed proxy only on a fresh load — the panel, or the
+  // tab when Discord opens as a tab.
+  reloadDiscordForBypass() {
+    const wv = window.DiscordMemory ? DiscordMemory.webview() : this.panelWebviews.discord;
+    if (wv && typeof wv.reload === 'function') wv.reload();
   },
 
   _showDiscordProgress(title, sub) {
@@ -1954,7 +2105,11 @@ const SidebarManager = {
     ov.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
       const a = b.dataset.act;
       if (a === 'retry') this._enableBypassAuto();
-      else if (a === 'off') { try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {} try { window.vex?.setDiscordBypassMode?.('off', {}); } catch {} this._hideDiscordBlockedPrompt(); window.showToast?.('Bypass off — start Zapret, then reload Discord'); }
+      else if (a === 'off') {
+        this._hideDiscordBlockedPrompt();
+        this._bypassOff().then(() => window.showToast?.('Bypass off — start Zapret, then reload Discord'),
+          (err) => window.showToast?.(err.message, 'error'));
+      }
       else { this._discordPromptDismissed = true; this._hideDiscordBlockedPrompt(); }
     }));
   },
@@ -1974,7 +2129,7 @@ const SidebarManager = {
       .dbo-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
       .dbo-btn{border:1px solid var(--border,rgba(255,255,255,0.14));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 13px;font-size:12.5px;font-family:inherit;cursor:pointer;}
       .dbo-btn:hover{background:color-mix(in srgb,var(--primary,#6366f1) 16%,transparent);}
-      .dbo-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:#fff;font-weight:600;}
+      .dbo-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:var(--on-primary,#fff);font-weight:600;}
       .dbo-btn.ghost{border-color:transparent;color:var(--text-muted,#9a9aa5);}
     `;
     document.head.appendChild(st);
@@ -2000,7 +2155,7 @@ const SidebarManager = {
         border:1px solid var(--vex-border-subtle, rgba(255,255,255,0.16));
         background:transparent; color:var(--vex-text-primary, #e9e9ee); cursor:pointer; font-size:15px; line-height:1;
         display:grid; place-items:center; padding:0; }
-      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:#fff; }
+      .panel-navbar .pnav-btn:hover:not(:disabled) { background:var(--vex-accent, #6366f1); color:var(--on-primary, #fff); }
       .panel-navbar .pnav-btn:disabled { opacity:0.3; cursor:default; }
     `;
     document.head.appendChild(st);
@@ -2023,6 +2178,8 @@ const SidebarManager = {
     const back = nav.querySelector('.pnav-back');
     const fwd = nav.querySelector('.pnav-fwd');
     const reload = nav.querySelector('.pnav-reload');
+    // Its page as a tab, still signed in (js/panel-to-tab.js).
+    if (typeof PanelToTab !== 'undefined') PanelToTab.decorateNav(nav, panelName);
     // Always drive the LIVE <webview> in the panel — the captured `wv` can go
     // stale after a service switch / re-mount, and back/reload on a detached
     // node silently does nothing (the "back & refresh don't work" this fixes).
@@ -2064,6 +2221,11 @@ const SidebarManager = {
       items.push({ label: 'Open beside ' + this.panelLabel(this.activePanel), action: () => this.openBeside(panelName) });
       items.push({ separator: true });
     }
+    // The page a web panel is showing, as a tab or a link (js/panel-to-tab.js).
+    if (isUrl && typeof PanelToTab !== 'undefined') {
+      const pageItems = PanelToTab.menuItems(panelName);
+      if (pageItems.length) items.push(...pageItems, { separator: true });
+    }
     items.push(
       { label: 'Rename…', action: () => this.renamePanel(panelName) },
       { label: 'Change icon…', action: () => this.showIconPicker(e, panelName) },
@@ -2083,22 +2245,20 @@ const SidebarManager = {
         // One-click Vencord (plugins/themes) install into the Discord panel.
         items.push({
           label: 'Install / Update Vencord',
-          action: async () => {
-            window.showToast?.('Downloading Vencord…');
-            try {
-              const r = await window.vex?.installVencord?.();
-              if (r && r.ok) {
-                // In safe mode it is put in place, not loaded (found 2026-09-29).
-                if (r.afterRestart) { window.showToast?.('Vencord installed — it loads when Vex restarts normally'); return; }
-                window.showToast?.(`Vencord ${r.version || ''} installed — reloading Discord`);
-                const wv = this.panelWebviews['discord'];
-                if (wv) { try { wv.reload(); } catch {} } else { this.showPanel('discord'); }
-              } else {
-                window.showToast?.('Vencord install failed: ' + ((r && r.error) || 'unknown'), 'error');
-              }
-            } catch (e) { window.showToast?.('Vencord install failed', 'error'); }
-          }
+          action: () => { this.installVencord(); }
         });
+        // Discord in the Vex colour theme, through Vencord (js/discord-theme.js).
+        if (window.DiscordTheme) {
+          const matchOn = DiscordTheme.isOn();
+          items.push({
+            label: matchOn ? 'Match my Vex theme: On' : 'Match my Vex theme: Off',
+            action: () => {
+              DiscordTheme.setOn(!matchOn).then((now) => {
+                if (now !== matchOn) window.showToast?.(now ? 'Discord now follows your Vex theme' : 'Discord keeps its own look');
+              }, (err) => window.showToast?.('Discord theme not changed — ' + err.message, 'error'));
+            }
+          });
+        }
         // Install YOUR local Vencord build (custom userplugins that aren't in the
         // official devbuild). Point Vex at the extension-chrome.zip from `pnpm buildWeb`.
         items.push({
@@ -2115,6 +2275,11 @@ const SidebarManager = {
                 // Vencord build, so an updated plugin wouldn't show up. A brand-new
                 // webview binds the freshly-installed extension. Then switch to it
                 // so the result is unmissable, and say where the feature lives.
+                // Discord opening as a tab: that tab is the one made fresh.
+                if (this._reopenDiscordTab()) {
+                  window.showToast?.(`Vencord ${r.version || ''} installed. In Discord, right-click a server → “Bulk Export Servers”.`, 'success');
+                  return;
+                }
                 try {
                   const old = this.panelWebviews['discord'];
                   if (old) { try { old.remove(); } catch {} }
@@ -2138,20 +2303,23 @@ const SidebarManager = {
         });
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
-        // and an off switch (for people running Zapret).
-        const bypassOn = ((localStorage.getItem('vex.discordBypassMode') || 'light') !== 'off');
-        items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
-        if (bypassOn) {
+        // and an off switch (for people running Zapret). js/discord-bypass.js
+        // is loaded in every window, but main refuses the bypass from a
+        // private one, so the items are left out there.
+        const bypass = window.VexTabPolicy?.isPrivateWindow ? null : window.DiscordBypass;
+        if (bypass) items.push({ label: 'Auto-configure bypass', action: () => this._enableBypassAuto() });
+        if (bypass && bypass.choice().mode !== 'off') {
           items.push({
             label: 'Turn bypass off (use Zapret)',
             action: async () => {
-              try { localStorage.setItem('vex.discordBypassMode', 'off'); } catch {}
-              try { await window.vex?.setDiscordBypassMode?.('off', {}); } catch {}
-              const wv = this.panelWebviews['discord']; if (wv) { try { wv.reload(); } catch {} }
+              try { await this._bypassOff(); }
+              catch (err) { window.showToast?.(err.message, 'error'); return; }
+              this.reloadDiscordForBypass();
               window.showToast?.('Bypass off');
             }
           });
         }
+        if (bypass) items.push({ label: 'Bypass settings…', action: () => SettingsUI.openSection('discord-bypass-setting') });
       } else if (panelName === 'roblox') {
         // Roblox is blocked by the same ISP/DPI as Discord — share the bypass.
         const robloxOn = (localStorage.getItem('vex.robloxBypass') === 'on');
@@ -2189,8 +2357,20 @@ const SidebarManager = {
       if (this.panelWebviews[panelName] && panelName !== this.activePanel && panelName !== this.sidePanel) {
         items.push({
           label: 'Sleep panel (frees its memory)',
-          action: () => {
-            try { this.sleepPanel(panelName); window.showToast?.(this.panelLabel(panelName) + ' is asleep'); }
+          action: async () => {
+            // In a call: ask, because sleeping it hangs up.
+            const busy = this.panelBusy(panelName);
+            if (busy) {
+              const ok = await window.vexConfirm({
+                title: 'Sleep ' + this.panelLabel(panelName) + '?',
+                message: this.panelLabel(panelName) + ' is in use — ' + busy + '. Sleeping it ends that.',
+                okLabel: 'Sleep it anyway',
+                cancelLabel: 'Keep it awake',
+                danger: true,
+              });
+              if (!ok) return;
+            }
+            try { this.sleepPanel(panelName, { evenIfBusy: !!busy }); window.showToast?.(this.panelLabel(panelName) + ' is asleep'); }
             catch (err) { window.showToast?.(err.message, 'error'); }
           }
         });

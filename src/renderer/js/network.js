@@ -2,8 +2,11 @@
 (function () {
   function createBoundedFetch(fetchImpl) {
     return async function boundedFetch(url, options = {}) {
-      const { maxBytes = 32 * 1024 * 1024, maxRequestBytes = 16 * 1024 * 1024, timeoutMs = 30000, stream = false, ...init } = options;
-      if (!Number.isFinite(maxBytes) || maxBytes < 1 || !Number.isFinite(timeoutMs) || timeoutMs < 1) throw new Error('Invalid request limits');
+      // idleTimeoutMs (streams only): once the body flows, the deadline is
+      // this long after the last piece instead of timeoutMs from the start, so
+      // a slow answer that keeps arriving is not cut off.
+      const { maxBytes = 32 * 1024 * 1024, maxRequestBytes = 16 * 1024 * 1024, timeoutMs = 30000, idleTimeoutMs = 0, stream = false, ...init } = options;
+      if (!Number.isFinite(maxBytes) || maxBytes < 1 || !Number.isFinite(timeoutMs) || timeoutMs < 1 || !Number.isFinite(idleTimeoutMs) || idleTimeoutMs < 0) throw new Error('Invalid request limits');
       if (typeof init.body === 'string' && new TextEncoder().encode(init.body).byteLength > maxRequestBytes) throw new Error('Request too large');
       if (init.body?.byteLength > maxRequestBytes || init.body?.size > maxRequestBytes) throw new Error('Request too large');
       const controller = new AbortController();
@@ -13,7 +16,8 @@
       aborted.catch(() => {});
       const onAbort = () => rejectAbort(controller.signal.reason || new Error('Request cancelled'));
       controller.signal.addEventListener('abort', onAbort, { once: true });
-      const timer = setTimeout(() => controller.abort(new Error('Request timed out')), timeoutMs);
+      const timedOut = () => controller.abort(new Error('Request timed out'));
+      let timer = setTimeout(timedOut, timeoutMs);
       if (init.signal?.aborted) abort(); else init.signal?.addEventListener('abort', abort, { once: true });
       let reader, completed = false;
       const cleanup = () => { clearTimeout(timer); init.signal?.removeEventListener('abort', abort); controller.signal.removeEventListener('abort', onAbort); };
@@ -27,7 +31,10 @@
         let size = 0;
         const read = async () => {
           const part = await Promise.race([reader.read(), aborted]);
-          if (!part.done) { size += part.value.byteLength; if (size > maxBytes) throw new Error('Response too large'); }
+          if (!part.done) {
+            size += part.value.byteLength; if (size > maxBytes) throw new Error('Response too large');
+            if (stream && idleTimeoutMs) { clearTimeout(timer); timer = setTimeout(timedOut, idleTimeoutMs); }
+          }
           return part;
         };
         const headers = new Headers(response.headers);

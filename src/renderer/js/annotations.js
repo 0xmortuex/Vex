@@ -4,10 +4,104 @@
 // URL and re-applied every time you revisit (host → guest on dom-ready, like
 // Boosts/Accessibility). Optional per-highlight note. A sidebar panel lists all
 // highlights across every page. Storage: localStorage 'vex.annotations' =
-//   { [url]: [ { id, text, color, note, at } ] }
-// Highlights are matched back onto the page by their exact text (first unmarked
-// occurrence within a text node) — robust enough for articles without needing
-// fragile DOM offsets.
+//   { [url]: [ { id, text, quote, color, note, at, title, url } ] }
+// Highlights are matched back onto the page by a text-quote anchor
+// ({ exact, prefix, suffix }, whitespace removed) over the page's text as a
+// whole, so a highlight that crosses bold, a link or a paragraph comes back
+// (it used to be looked for inside ONE text node and never was; found
+// 2026-10-10). Each text node it covers gets its own <mark>.
+
+// Runs inside the page (injected as source, like vexReaderPageLib), so it uses
+// only the DOM. Kept a real function so tests can run it under jsdom.
+function vexHighlightPageLib() {
+  var SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/;
+  var CTX = 32;
+  var WS = /\s/;
+  // The page's text with all whitespace left out, and for each character the
+  // text node and offset it came from. Whitespace-free so a selection's own
+  // newlines between paragraphs and the page's markup indentation cannot
+  // stop a match.
+  function textMap(root) {
+    var chars = [], nodes = [], offs = [];
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+      var p = n.parentNode; return p && !SKIP.test(p.nodeName) ? 1 : 2;
+    } });
+    var n;
+    while ((n = w.nextNode())) {
+      var v = n.nodeValue;
+      for (var i = 0; i < v.length; i++) if (!WS.test(v[i])) { chars.push(v[i]); nodes.push(n); offs.push(i); }
+    }
+    return { text: chars.join(''), nodes: nodes, offs: offs };
+  }
+  // The anchor of a live selection range: which characters of the map it covers.
+  function anchorOf(map, range) {
+    var start = -1, end = -1, inside = new Map();
+    for (var i = 0; i < map.nodes.length; i++) {
+      var node = map.nodes[i];
+      if (!inside.has(node)) inside.set(node, range.intersectsNode(node));
+      if (!inside.get(node)) continue;
+      var off = map.offs[i];
+      if (range.comparePoint(node, off) === 0 && range.comparePoint(node, off + 1) === 0) { if (start < 0) start = i; end = i; }
+    }
+    if (start < 0) return null;
+    return {
+      start: start, end: end,
+      quote: {
+        exact: map.text.slice(start, end + 1),
+        prefix: map.text.slice(Math.max(0, start - CTX), start),
+        suffix: map.text.slice(end + 1, end + 1 + CTX),
+      },
+    };
+  }
+  function inMark(node) { var p = node.parentNode; return !!(p && p.closest && p.closest('mark.vexhl')); }
+  // Where a stored anchor lands now: the occurrence of exact whose
+  // surroundings agree best with prefix/suffix, skipping text another
+  // highlight already covers.
+  function find(map, quote) {
+    var exact = String((quote && quote.exact) || '').replace(/\s+/g, '');
+    if (exact.length < 2) return null;
+    var prefix = String(quote.prefix || '').replace(/\s+/g, '');
+    var suffix = String(quote.suffix || '').replace(/\s+/g, '');
+    var full = prefix.length + suffix.length;
+    var best = -1, bestScore = -1;
+    for (var at = map.text.indexOf(exact); at >= 0; at = map.text.indexOf(exact, at + 1)) {
+      if (inMark(map.nodes[at])) continue;
+      var score = 0, k;
+      for (k = 1; k <= prefix.length && at - k >= 0 && map.text[at - k] === prefix[prefix.length - k]; k++) score++;
+      var after = at + exact.length;
+      for (k = 0; k < suffix.length && after + k < map.text.length && map.text[after + k] === suffix[k]; k++) score++;
+      if (score > bestScore) { best = at; bestScore = score; if (score === full) break; }
+    }
+    return best < 0 ? null : { start: best, end: best + exact.length - 1 };
+  }
+  function style(m, h) {
+    m.style.cssText = 'background:' + h.color + ';color:inherit;border-radius:2px;padding:0 1px;box-decoration-break:clone';
+    if (h.note) { m.title = 'Note: ' + h.note; m.style.cursor = 'help'; m.style.boxShadow = 'inset 0 -2px 0 rgba(0,0,0,0.35)'; } else m.removeAttribute('title');
+  }
+  // Wraps characters start..end of the map, one <mark> per text node.
+  function wrap(map, start, end, h) {
+    var segs = [];
+    for (var i = start; i <= end; i++) {
+      var last = segs[segs.length - 1];
+      if (last && last.node === map.nodes[i]) last.b = map.offs[i] + 1;
+      else segs.push({ node: map.nodes[i], a: map.offs[i], b: map.offs[i] + 1 });
+    }
+    segs.forEach(function (s) {
+      var mid = s.node;
+      if (s.a > 0) mid = mid.splitText(s.a);
+      if (s.b - s.a < mid.nodeValue.length) mid.splitText(s.b - s.a);
+      var m = document.createElement('mark');
+      m.className = 'vexhl'; m.setAttribute('data-vexhl', h.id); style(m, h);
+      mid.parentNode.insertBefore(m, mid); m.appendChild(mid);
+    });
+    return segs.length;
+  }
+  function marks(id) { return Array.prototype.filter.call(document.querySelectorAll('mark.vexhl'), function (el) { return el.getAttribute('data-vexhl') === id; }); }
+  function unwrap(id) {
+    marks(id).forEach(function (m) { var p = m.parentNode; while (m.firstChild) p.insertBefore(m.firstChild, m); p.removeChild(m); if (p.normalize) p.normalize(); });
+  }
+  return { textMap: textMap, anchorOf: anchorOf, find: find, wrap: wrap, style: style, marks: marks, unwrap: unwrap };
+}
 
 const Annotations = {
   KEY: 'vex.annotations',
@@ -17,8 +111,62 @@ const Annotations = {
   init() {
     try { const s = JSON.parse(localStorage.getItem(this.KEY) || '{}'); if (s && typeof s === 'object') this.store = s; } catch { this.store = {}; }
     this._baseline = window.CollectionStore.snapshotMap(this.store);
+    if (this._migrate()) this.save();
     this._badge();
   },
+
+  // Whitespace-free text-quote anchor for a highlight saved before anchors
+  // existed: its whole text is the exact quote.
+  _quoteOf(h) {
+    if (h && h.quote && h.quote.exact) return h.quote;
+    return { exact: String((h && h.text) || '').replace(/\s+/g, ''), prefix: '', suffix: '' };
+  },
+
+  // One-time repairs, true when anything changed:
+  //  - a highlight made in reading mode was keyed on the reader's whole
+  //    data: page (tens of KB per key, and never re-applied); it moves to the
+  //    page the reader was made from, or goes if that cannot be read.
+  //  - a highlight without a text-quote anchor gets one from its text.
+  _migrate() {
+    let changed = false;
+    const isReaderKey = (k) => /^(data:|nulltext\/html)/i.test(k);
+    for (const k of Object.keys(this.store)) {
+      const list = Array.isArray(this.store[k]) ? this.store[k] : [];
+      if (isReaderKey(k)) {
+        delete this.store[k];
+        changed = true;
+        for (const h of list) {
+          const src = window.ReadingMode ? window.ReadingMode.sourceOf(h && h.url) : '';
+          if (!src) continue;
+          const dest = this._key(src);
+          if (!this.store[dest]) this.store[dest] = [];
+          if (!this.store[dest].some(x => x.id === h.id)) this.store[dest].push({ ...h, url: src });
+        }
+      }
+    }
+    for (const list of Object.values(this.store)) {
+      if (!Array.isArray(list)) continue;
+      for (const h of list) if (h && !(h.quote && h.quote.exact)) { h.quote = this._quoteOf(h); changed = true; }
+    }
+    return changed;
+  },
+
+  // The address a highlight belongs to: the page itself, or for a Vex reader
+  // page the page it was made from (its own data: address is the whole
+  // article, and changes with every reader setting).
+  _pageUrl(loc) {
+    const src = window.ReadingMode ? window.ReadingMode.sourceOf(loc) : '';
+    return src || loc;
+  },
+  // The location.href the page must have for a highlight on `url` to be
+  // applied: the reader page's own address when the tab is reading `url`.
+  _liveLocation(webview, url) {
+    let loc = '';
+    try { loc = (webview && webview.getURL && webview.getURL()) || ''; } catch { loc = ''; }
+    const src = window.ReadingMode && loc ? window.ReadingMode.sourceOf(loc) : '';
+    return src && this._key(src) === this._key(url) ? loc : url;
+  },
+  _lib() { return '(' + vexHighlightPageLib.toString() + ')()'; },
   // Delta-merged per page so a second window's highlights are not erased by our
   // in-memory snapshot (see collection-store.js).
   save() {
@@ -46,28 +194,22 @@ const Annotations = {
 
   // --- Apply all stored highlights for a page (called on dom-ready) ---
   applyTo(webview, url) {
-    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview)) return;
+    if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
     const list = this.forUrl(url);
     if (!list.length) return;
-    const data = list.map(h => ({ id: h.id, text: h.text, color: this.COLORS[h.color] || this.COLORS.yellow, note: h.note || '' }));
+    const loc = this._liveLocation(webview, url);
+    const data = list.map(h => ({ id: h.id, quote: this._quoteOf(h), color: this.COLORS[h.color] || this.COLORS.yellow, note: h.note || '' }));
+    // A highlight already on the page is restyled rather than skipped, so a
+    // note added from the panel shows on it at once (it used to need a reload).
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return;
+      if(location.href!==${JSON.stringify(loc)})return;
+      var L=${this._lib()};
       var hs=${JSON.stringify(data)};
-      function wrap(node,start,len,h){
-        var rng=document.createRange();rng.setStart(node,start);rng.setEnd(node,start+len);
-        var m=document.createElement('mark');m.className='vexhl';m.setAttribute('data-vexhl',h.id);
-        m.style.cssText='background:'+h.color+';color:inherit;border-radius:2px;padding:0 1px;box-decoration-break:clone';
-        if(h.note){m.title='Note: '+h.note;m.style.cursor='help';m.style.boxShadow='inset 0 -2px 0 rgba(0,0,0,0.35)';}
-        try{m.appendChild(rng.extractContents());rng.insertNode(m);return true;}catch(e){return false;}
-      }
       hs.forEach(function(h){
-        if(!h.text||document.querySelector('mark.vexhl[data-vexhl="'+h.id+'"]'))return;
-        var t=h.text.trim();if(t.length<2)return;
-        var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
-          var p=n.parentNode;if(!p)return 2;if(p.closest&&p.closest('mark.vexhl'))return 2;
-          if(/SCRIPT|STYLE|NOSCRIPT|TEXTAREA/.test(p.nodeName))return 2;
-          return n.nodeValue.indexOf(t)>=0?1:2;}});
-        var node=w.nextNode();if(node){wrap(node,node.nodeValue.indexOf(t),t.length,h);}
+        var have=L.marks(h.id);
+        if(have.length){have.forEach(function(m){L.style(m,h);});return;}
+        var map=L.textMap(document.body);var r=L.find(map,h.quote);
+        if(r)L.wrap(map,r.start,r.end,h);
       });
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
@@ -86,32 +228,37 @@ const Annotations = {
     const wv = WebviewManager.getActiveWebview();
     const t = TabManager.getActiveTab();
     if (!wv || !t || !t.url) { window.showToast?.('Open a page first'); return; }
-    const url = wv.getURL?.() || t.url;
+    // In reading mode the tab shows a data: page; the highlight belongs to the
+    // page the reader was made from (it used to be keyed on the whole data:
+    // page, tens of KB, and never came back).
+    const loc = wv.getURL?.() || t.url;
+    const url = this._pageUrl(loc);
     const generation = wv._navigationGeneration;
-    const persist = !window.VexTabPolicy || window.VexTabPolicy.canReadWebview(wv);
+    const persist = !window.VexTabPolicy || window.VexTabPolicy.canFillWebview(wv);
     const id = 'hl' + Date.now().toString(36) + Math.floor(performance.now() % 1000);
     const hex = this.COLORS[color];
     const js = `(function(){try{
-      if(location.href!==${JSON.stringify(url)})return '';
+      if(location.href!==${JSON.stringify(loc)})return '';
       var s=getSelection();if(!s||s.isCollapsed||!s.rangeCount)return '';
       var rng=s.getRangeAt(0);var text=s.toString();if(!text.trim())return '';
-      var m=document.createElement('mark');m.className='vexhl';m.setAttribute('data-vexhl',${JSON.stringify(id)});
-      m.style.cssText='background:${hex};color:inherit;border-radius:2px;padding:0 1px;box-decoration-break:clone';
-      try{m.appendChild(rng.extractContents());rng.insertNode(m);}catch(e){return '';}
-      s.removeAllRanges();return text.substring(0,2000);
+      var L=${this._lib()};
+      var map=L.textMap(document.body);var a=L.anchorOf(map,rng);if(!a)return '';
+      L.wrap(map,a.start,a.end,{id:${JSON.stringify(id)},color:${JSON.stringify(hex)},note:''});
+      s.removeAllRanges();return JSON.stringify({text:text.substring(0,2000),quote:a.quote});
     }catch(e){return ''}})();`;
-    let text = '';
-    try { text = await wv.executeJavaScript(js); } catch {}
-    if (wv._navigationGeneration !== generation || (wv.getURL && wv.getURL() !== url)) return;
-    if (!text) { window.showToast?.('Select some text first'); return; }
+    let out = '';
+    try { out = await wv.executeJavaScript(js); } catch {}
+    if (wv._navigationGeneration !== generation || (wv.getURL && wv.getURL() !== loc)) return;
+    if (!out) { window.showToast?.('Select some text first'); return; }
+    const { text, quote } = JSON.parse(out);
     if (!persist) { window.showToast?.('Highlighted for this private page only'); return; }
     const k = this._key(url);
     if (!this.store[k]) this.store[k] = [];
     // Keep the real page URL alongside the key: the key is normalized (trailing
     // slash dropped) and the panel should reopen exactly what was highlighted.
-    this.store[k].push({ id, text, color, note: '', at: Date.now(), title: t.title || t.url, url });
+    this.store[k].push({ id, text, quote, color, note: '', at: Date.now(), title: t.title || url, url });
     this.save();
-    window.showToast?.('Highlighted (' + this.forUrl(t.url).length + ' on this page)');
+    window.showToast?.('Highlighted (' + this.forUrl(url).length + ' on this page)');
   },
 
   // Which stored bucket actually holds this highlight — the current key, or the
@@ -130,7 +277,8 @@ const Annotations = {
     const wv = WebviewManager.getActiveWebview();
     const t = TabManager.getActiveTab();
     if (wv && t && t.url === url) {
-      try { await wv.executeJavaScript(`(function(){if(location.href!==${JSON.stringify(url)})return;var id=${JSON.stringify(id)};var m=Array.from(document.querySelectorAll('mark.vexhl')).find(el=>el.getAttribute('data-vexhl')===id);if(m){var p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize&&p.normalize();}})();`); } catch {}
+      // Every mark of it: a highlight across bold or paragraphs is one mark per text node.
+      try { await wv.executeJavaScript(`(function(){if(location.href!==${JSON.stringify(this._liveLocation(wv, url))})return;${this._lib()}.unwrap(${JSON.stringify(id)});})();`); } catch {}
     }
   },
 
@@ -155,7 +303,7 @@ const Annotations = {
     if (!dot) {
       dot = document.createElement('span');
       dot.className = 'an-dot';
-      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
+      dot.style.cssText = 'position:absolute;top:4px;right:4px;min-width:14px;height:14px;border-radius:7px;background:var(--primary);color:var(--on-primary,#fff);font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px';
       btn.style.position = 'relative';
       btn.appendChild(dot);
     }
@@ -203,4 +351,4 @@ const Annotations = {
 };
 
 if (typeof window !== 'undefined') window.Annotations = Annotations;
-if (typeof module !== 'undefined' && module.exports) module.exports = { Annotations };
+if (typeof module !== 'undefined' && module.exports) module.exports = { Annotations, vexHighlightPageLib };

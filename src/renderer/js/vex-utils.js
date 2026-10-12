@@ -105,15 +105,17 @@
   // the next thing you paste into gets it — a chat box, an address bar, a page
   // with a paste listener. It is emptied after a while, but only if it is still
   // the secret: overwriting something the user copied since would be worse.
+  // The main process does the writing and the clearing (main/secret-clipboard.js):
+  // reading the clipboard back from here is refused once Vex has lost the
+  // focus, so the old in-page clear silently never happened when you switched
+  // to the app you were pasting into.
   async function vexCopySecret(text, label, seconds = 30) {
     const secret = String(text == null ? '' : text);
     if (!secret) throw new Error('There is nothing to copy');
-    await navigator.clipboard.writeText(secret);
-    window.showToast?.(`${label || 'Copied'} — clears in ${seconds}s if unchanged`);
-    setTimeout(async () => {
-      try { if (await navigator.clipboard.readText() === secret) await navigator.clipboard.writeText(''); }
-      catch { /* the permission lapses once Vex loses focus; nothing to do */ }
-    }, seconds * 1000);
+    if (!window.vex || typeof window.vex.copySecret !== 'function') throw new Error('Copying a secret is not available in this window');
+    const result = await window.vex.copySecret(secret, seconds);
+    const wait = (result && result.seconds) || seconds;
+    window.showToast?.(`${label || 'Copied'} — clears in ${wait}s if unchanged`);
     return true;
   }
 

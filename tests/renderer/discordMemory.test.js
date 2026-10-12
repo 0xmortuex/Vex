@@ -5,6 +5,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { DiscordMemory } = require('../../src/renderer/js/discord-memory.js');
+const { SleepConsent } = require('../../src/renderer/js/sleep-consent.js');
+globalThis.SleepConsent = SleepConsent;
 
 let sb, sizeKB;
 function webview(id) {
@@ -16,17 +18,23 @@ function webview(id) {
 beforeEach(() => {
   vi.useRealTimers();
   localStorage.clear();
+  // Discord follows the one sleep choice (js/sleep-consent.js); these tests
+  // are about what it does once it may act, so it may ask.
+  SleepConsent.set('ask');
+  SleepConsent._quiet = {};
   // The refresh on its own: idle sleep (tested below) would otherwise act first.
   localStorage.setItem('vex.discordIdleSleepMin', '0');
   document.body.innerHTML = '<div id="panel-discord"></div>';
   DiscordMemory._lastRefresh = 0;
   DiscordMemory._raisedTo = 0;
   DiscordMemory._history = [];
+  DiscordMemory._toldMB = 0;
+  DiscordMemory._quietUntil = 0;
+  document.getElementById('vex-discord-ask')?.remove();
   sizeKB = 2150 * 1024;
   const panel = document.getElementById('panel-discord');
   const first = webview(11);
   panel.appendChild(first);
-  panel.insertAdjacentHTML('beforeend', '<div class="discord-mem-banner">Discord is using 2.1 GB</div>');
   let next = 12;
   sb = {
     panelWebviews: { discord: first },
@@ -59,14 +67,13 @@ describe('the limit', () => {
 
 describe('refreshing', () => {
   it('over the limit, hidden and quiet: a fresh Discord replaces it, still hidden', async () => {
-    DiscordMemory.setConsent('auto');
+    SleepConsent.set('auto');
     const r = await DiscordMemory.check();
     expect(r).toMatchObject({ action: 'refreshed', mb: 2150, limit: 1000 });
     expect(sb._createPanelWebview).toHaveBeenCalledWith('discord', document.getElementById('panel-discord'));
     expect(sb.panelWebviews.discord.getWebContentsId()).toBe(12);
     expect(document.querySelectorAll('#panel-discord webview')).toHaveLength(1);   // the old one is gone
     expect(sb.activePanel).toBe('claude');                                         // nothing was shown
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);             // its number was stale
   });
 
   it('under the limit, nothing happens', async () => {
@@ -92,7 +99,7 @@ describe('refreshing', () => {
   }
 
   it('at most once every 30 minutes', async () => {
-    DiscordMemory.setConsent('auto');
+    SleepConsent.set('auto');
     const t = Date.now();
     await DiscordMemory.check(t);
     const again = await DiscordMemory.check(t + 10 * 60000);
@@ -101,7 +108,7 @@ describe('refreshing', () => {
   });
 
   it('a fresh Discord already near the limit raises the limit once, instead of refreshing for ever', async () => {
-    DiscordMemory.setConsent('auto');
+    SleepConsent.set('auto');
     vi.useFakeTimers();
     DiscordMemory.setLimitMB(700);
     await DiscordMemory.check();
@@ -138,7 +145,7 @@ describe('asleep when idle', () => {
   });
 
   it('hidden and not in a call for 15 minutes: it sleeps', async () => {
-    DiscordMemory.setConsent('auto');
+    SleepConsent.set('auto');
     localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 16 * MIN }));
     expect(await DiscordMemory.check()).toEqual({ action: 'slept' });
     expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
@@ -173,6 +180,19 @@ describe('the limit, lowered once', () => {
     DiscordMemory.setLimitMB(1500);
     DiscordMemory.start();
     expect(DiscordMemory.limitMB()).toBe(1500);
+    clearInterval(DiscordMemory._timer);
+  });
+});
+
+describe('a private window', () => {
+  it('leaves Lighter Discord to the main window (main refuses it discord: channels)', () => {
+    window.vex.setDiscordLite = vi.fn(async () => true);
+    window.VexTabPolicy = { isPrivateWindow: true };
+    DiscordMemory.start();
+    expect(window.vex.setDiscordLite).not.toHaveBeenCalled();
+    delete window.VexTabPolicy;
+    DiscordMemory.start();
+    expect(window.vex.setDiscordLite).toHaveBeenCalledTimes(1);
     clearInterval(DiscordMemory._timer);
   });
 });
@@ -253,7 +273,7 @@ describe('asking before it frees Discord\u2019s memory', () => {
     b.click();
   };
 
-  it('asks by default, and touches nothing until it is answered', async () => {
+  it('asks when Vex is set to ask, and touches nothing until it is answered', async () => {
     expect(DiscordMemory.consent()).toBe('ask');
     const r = await DiscordMemory.check();
     expect(r.action).toBe('asked');
@@ -264,15 +284,15 @@ describe('asking before it frees Discord\u2019s memory', () => {
 
   it('yes does the thing that was described', async () => {
     await DiscordMemory.check();
-    press('Refresh it');
+    press('Refresh');
     expect(sb._createPanelWebview).toHaveBeenCalledWith('discord', document.getElementById('panel-discord'));
     expect(document.getElementById('vex-discord-ask')).toBe(null);
   });
 
   // The whole complaint: asked, and then done anyway.
-  it('"Not now" leaves Discord alone, and is not asked again for hours', async () => {
+  it('"Later" leaves Discord alone, and is not asked again for hours', async () => {
     await DiscordMemory.check();
-    press('Not now');
+    press('Later');
     expect(sb._createPanelWebview).not.toHaveBeenCalled();
     expect(sb.sleepPanel).not.toHaveBeenCalled();
     const again = await DiscordMemory.check();
@@ -300,14 +320,18 @@ describe('asking before it frees Discord\u2019s memory', () => {
     expect(document.querySelectorAll('#vex-discord-ask')).toHaveLength(1);
   });
 
-  it('"Always" does it and stops asking; "never" stops it happening at all', async () => {
+  it('"Always" (on the sleep question) does it and stops asking — for Discord only; "never" stops it happening at all', async () => {
+    localStorage.setItem('vex.discordIdleSleepMin', '15');
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 60 * 60000 }));
     await DiscordMemory.check();
     press('Always');
     expect(DiscordMemory.consent()).toBe('auto');
-    expect(sb._createPanelWebview).toHaveBeenCalled();
-    DiscordMemory.setConsent('never');
-    expect((await DiscordMemory.check()).action).toBe('off');
-    expect(() => DiscordMemory.setConsent('sideways')).toThrow(/ask, do it automatically, or never/);
+    expect(SleepConsent.modeFor('tabs')).toBe('ask');        // the rest still asks
+    expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
+    SleepConsent.set('never');
+    sb.sleepPanel.mockClear();
+    expect((await DiscordMemory.check()).action).not.toMatch(/slept|refreshed/);
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
   });
 
   it('asks about sleeping too, saying what sleeping costs', async () => {
@@ -319,5 +343,157 @@ describe('asking before it frees Discord\u2019s memory', () => {
     expect(said).toMatch(/cannot notify you/);
     press('Let it sleep');
     expect(sb.sleepPanel).toHaveBeenCalledWith('discord');
+  });
+});
+
+// The owner's bug: "never do it" in Settings, and Discord still slept, because
+// Discord had its own saved answer that won. There is one choice now.
+describe('one choice for everything', () => {
+  beforeEach(() => {
+    localStorage.setItem('vex.discordIdleSleepMin', '15');
+    localStorage.setItem('vex.panelUsage', JSON.stringify({ discord: Date.now() - 60 * 60000 }));
+    sb.sleepPanel = vi.fn();
+  });
+
+  it('"never" in Settings wins over an old Discord answer of "auto": nothing is slept or refreshed, only said', async () => {
+    SleepConsent.set('never');
+    localStorage.setItem('vex.discordMemoryConsent', 'auto');
+    expect(DiscordMemory.consent()).toBe('never');
+    expect(await DiscordMemory.check()).toMatchObject({ action: 'asked', what: 'refresh' });
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+  });
+
+  it('unknown is never: no SleepConsent, nothing is touched', async () => {
+    const saved = globalThis.SleepConsent;
+    delete globalThis.SleepConsent;
+    try { expect(DiscordMemory.consent()).toBe('never'); }
+    finally { globalThis.SleepConsent = saved; }
+  });
+
+  it('Discord kept awake is never put to sleep, even on "just do it"', async () => {
+    SleepConsent.set('auto');
+    sb.keptAwakeNow = vi.fn((name) => name === 'discord');
+    localStorage.setItem('vex.discordMemoryLimitMB', '0');
+    await DiscordMemory.check();
+    expect(sb.keptAwakeNow).toHaveBeenCalledWith('discord');
+    expect(sb.sleepPanel).not.toHaveBeenCalled();
+    sb.keptAwakeNow = () => false;
+    expect(await DiscordMemory.check()).toEqual({ action: 'slept' });
+  });
+
+  it('Settings shows no Discord consent of its own any more', () => {
+    document.body.innerHTML = '<div id="discord-memory-setting"></div>';
+    DiscordMemory.renderSetting();
+    expect(document.querySelector('#discord-memory-setting [data-consent]')).toBe(null);
+    expect(document.querySelector('#discord-memory-setting [data-sleep-dependent] [data-idle]')).not.toBe(null);
+  });
+});
+
+// There were three Discord memory watches — the panel strip (1 GB, or the
+// shared notice ceiling), this one (1 GB) and the kept-awake toast (1.5 GB):
+// three numbers, three notices, three settings. Now one of each.
+describe('one Discord memory watch', () => {
+  const press = (label) => {
+    const b = [...document.querySelectorAll('#vex-discord-ask button')].find(x => x.textContent === label);
+    if (!b) throw new Error('no button called ' + label);
+    b.click();
+  };
+
+  it('tells even when nothing may sleep on its own, and touches nothing', async () => {
+    SleepConsent.set('never');
+    const r = await DiscordMemory.check();
+    expect(r).toMatchObject({ action: 'asked', what: 'refresh', mb: 2150 });
+    expect(document.getElementById('vex-discord-ask').textContent).toMatch(/Discord is using 2\.1 GB/);
+    expect(sb._createPanelWebview).not.toHaveBeenCalled();
+  });
+
+  it('offers Refresh, During calls and Later — During calls only when Discord is kept awake all the time', async () => {
+    let mode = 'always';
+    sb.keepAwakeFor = () => ({ mode });
+    sb.setKeepAwakeMode = vi.fn((n, m) => { mode = m; return true; });
+    await DiscordMemory.check();
+    expect([...document.querySelectorAll('#vex-discord-ask button')].map(b => b.textContent)).toEqual(['Refresh', 'During calls', 'Later']);
+    press('During calls');
+    expect(sb.setKeepAwakeMode).toHaveBeenCalledWith('discord', 'call');
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+    DiscordMemory._toldMB = 0;
+    await DiscordMemory.check();
+    expect([...document.querySelectorAll('#vex-discord-ask button')].map(b => b.textContent)).toEqual(['Refresh', 'Later']);
+  });
+
+  it('is said once per growth past the limit, not every two minutes', async () => {
+    vi.useFakeTimers();
+    await DiscordMemory.check();
+    await vi.advanceTimersByTimeAsync(31000);            // unanswered: gone, and a no
+    expect((await DiscordMemory.check()).action).toBe('told');
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+    sizeKB = (2150 + 600) * 1024;                         // grown a good deal more
+    expect((await DiscordMemory.check()).action).toBe('asked');
+    vi.useRealTimers();
+  });
+
+  it('back under the limit, the notice goes and the next growth is told again', async () => {
+    await DiscordMemory.check();
+    sizeKB = 500 * 1024;
+    expect((await DiscordMemory.check()).action).toBe('fine');
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+    sizeKB = 2150 * 1024;
+    expect((await DiscordMemory.check()).action).toBe('asked');
+  });
+
+  it('never during a call', async () => {
+    sb.isPanelCapturing = () => true;
+    expect((await DiscordMemory.check()).action).toBe('waiting');
+    expect(document.getElementById('vex-discord-ask')).toBe(null);
+  });
+});
+
+describe('merging the three watches keeps the number a profile was told at', () => {
+  beforeEach(() => { localStorage.removeItem(DiscordMemory.MERGED_KEY); });
+
+  it('the owner: memory notices off, Discord awake for calls -> 1.5 GB, the kept-awake toast that still spoke', () => {
+    localStorage.setItem('vex.memoryNoticeMB', '0');
+    expect(DiscordMemory.mergeOnce()).toBe(1500);
+    expect(DiscordMemory.limitMB()).toBe(1500);
+    expect(localStorage.getItem('vex.memoryNoticeMB')).toBe('0');   // the tabs' setting is theirs
+  });
+
+  it('a strip number of its own wins, to the nearest choice', () => {
+    localStorage.setItem('vex.discordMemoryWarnMB', '800');
+    localStorage.setItem('vex.memoryNoticeMB', '0');
+    expect(DiscordMemory.mergeOnce()).toBe(700);
+    expect(localStorage.getItem('vex.discordMemoryWarnMB')).toBe(null);
+  });
+
+  it('a shared ceiling of 2 GB -> 2 GB', () => {
+    localStorage.setItem('vex.memoryNoticeMB', '2048');
+    expect(DiscordMemory.mergeOnce()).toBe(2000);
+  });
+
+  it('a saved Discord limit is kept; nothing saved keeps the default', () => {
+    localStorage.setItem(DiscordMemory.KEY, '700');
+    localStorage.setItem('vex.memoryNoticeMB', '0');
+    expect(DiscordMemory.mergeOnce()).toBe(null);
+    expect(DiscordMemory.limitMB()).toBe(700);
+    localStorage.clear();
+    expect(DiscordMemory.mergeOnce()).toBe(null);
+    expect(DiscordMemory.limitMB()).toBe(1000);
+  });
+
+  it('runs once: a choice made after it is kept', () => {
+    localStorage.setItem('vex.memoryNoticeMB', '0');
+    DiscordMemory.mergeOnce();
+    DiscordMemory.setLimitMB(700);
+    expect(DiscordMemory.mergeOnce()).toBe(null);
+    expect(DiscordMemory.limitMB()).toBe(700);
+  });
+
+  it('the limit can be changed whatever the sleep choice is (it is a notice, not a sleep)', () => {
+    SleepConsent.set('never');
+    document.body.innerHTML = '<div id="discord-memory-setting"></div>';
+    DiscordMemory.renderSetting();
+    expect(document.querySelector('#discord-memory-setting [data-sleep-dependent] [data-limit]')).toBe(null);
+    expect(document.querySelector('#discord-memory-setting [data-limit]').disabled).toBe(false);
   });
 });

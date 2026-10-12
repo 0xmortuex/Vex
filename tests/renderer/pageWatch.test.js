@@ -5,7 +5,7 @@
 // remembering to check. A watch reads the page quietly, compares it with what
 // was there before, and speaks only when it is different.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const { PageWatch } = require('../../src/renderer/js/page-watch.js');
 
 let page;
@@ -137,5 +137,140 @@ describe('in plain words', () => {
     expect(PageWatch.parseWhen('rises')).toMatchObject({ direction: 'up' });
     expect(PageWatch.parseWhen('is back in stock')).toEqual({ kind: 'text', direction: 'any', target: null });
     expect(() => PageWatch.parseWhen('whenever')).toThrow(/Say what to watch for/);
+  });
+});
+
+describe('one watcher, not two (RD6)', () => {
+  it('moves the old "Watch This Page" list into this one, once, and drops the old key', () => {
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w_have', url: 'https://have.example/', title: 'Have', selector: '', every: 900000 }]));
+    localStorage.setItem('vex.watches', JSON.stringify([
+      { id: 'w1', url: 'https://stock.example/item', title: 'Stock', intervalMin: 60, lastHash: 1, changed: true, changedAt: 1234 },
+      { id: 'w2', url: 'https://have.example/', title: 'Have (old)', intervalMin: 30 },
+      { id: 'w3', url: 'file:///c:/x', title: 'Not a site' },
+    ]));
+    expect(PageWatch.migrateLegacy()).toBe(1);
+    const list = PageWatch.list();
+    expect(list.map(w => w.url)).toEqual(['https://have.example/', 'https://stock.example/item']);
+    expect(list[1]).toMatchObject({ title: 'Stock', kind: 'text', every: 3600000, lastChangedAt: 1234, lastValue: null });
+    expect(localStorage.getItem('vex.watches')).toBeNull();
+    expect(PageWatch.migrateLegacy()).toBe(0);
+    expect(PageWatch.list()).toHaveLength(2);
+  });
+
+  it('"Watch This Page" in Ctrl+K adds a PageWatch watch and takes its first look through the routing check', async () => {
+    globalThis.TabManager = { mayAskSiteForIcon: () => false, getActiveTab: () => ({ url: 'https://tor-routed.example/', title: 'Routed' }), tabs: [], activeTabId: null };
+    const w = await PageWatch.watchPage('https://tor-routed.example/', 'Routed');
+    expect(PageWatch.list().map(x => x.id)).toEqual([w.id]);
+    expect(AgentTools.readUrl).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/first look failed: .*Tor, a proxy or a container/), 'error');
+    delete globalThis.TabManager;
+  });
+
+  it('a page whose only change is "updated 3 minutes ago" or a clock time is not news', () => {
+    const w = { kind: 'text', lastValue: 'Status: all good. Updated 2 minutes ago at 10:41 AM' };
+    expect(PageWatch.judge(w, 'Status: all good. Updated 7 minutes ago at 10:46 AM').changed).toBe(false);
+    expect(PageWatch.judge(w, 'Status: outage. Updated 7 minutes ago at 10:46 AM').changed).toBe(true);
+  });
+
+  it('the Watched Pages list shows a change until it is opened', () => {
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w1', url: 'https://a.example/', title: 'A', every: 900000, lastChangedAt: 5 }]));
+    window.escapeHtml = (s) => String(s);
+    globalThis.TabManager = { createTab: vi.fn() };
+    PageWatch.showManager();
+    expect(document.querySelector('#vex-watches [data-id="w1"]').textContent).toContain('changed');
+    document.querySelector('#vex-watches [data-open]').click();
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://a.example/', true);
+    expect(PageWatch.isUnseen(PageWatch.list()[0])).toBe(false);
+    expect(document.getElementById('vex-watches')).toBeNull();
+    delete globalThis.TabManager;
+  });
+});
+
+// Found in the v19.1.7 check: an old "Watch This Page" on the router moved
+// over without the mark a home-network watch needs, so every check was refused.
+describe('an old watch on the home network, moved over', () => {
+  it('is still checked from this computer', async () => {
+    localStorage.setItem('vex.watches', JSON.stringify([{ id: 'w1', url: 'http://192.168.1.1/status', title: 'Router', intervalMin: 30 }]));
+    expect(PageWatch.migrateLegacy()).toBe(1);
+    const w = PageWatch.list()[0];
+    expect(w).toMatchObject({ url: 'http://192.168.1.1/status', local: true, byUser: true });
+    window.vex.apiRequest = vi.fn(async () => ({ ok: true, status: 200, headers: { 'content-type': 'text/plain' }, body: 'WAN up' }));
+    expect(await PageWatch.checkOne(w.id)).toMatchObject({ ok: true });
+    expect(window.vex.apiRequest).toHaveBeenCalled();
+  });
+});
+
+// Found in the v19.1.7 check: a page open in a Tor or container tab is not a
+// site rule, so the check at each look let it through and Vex polled it from
+// your real connection.
+describe('a page open in a tab of its own session', () => {
+  const tabs = (partition) => {
+    globalThis.TabManager = {
+      tabs: [{ id: 't1', url: 'https://news.example/', title: 'News', partition }], activeTabId: 't1',
+      windowMayAsk: (p) => !p || p === 'persist:main',
+      mayAskSiteForIcon: () => true,
+    };
+  };
+  afterEach(() => { delete globalThis.TabManager; });
+
+  it('"Watch This Page" in a Tor tab is refused and nothing is fetched', async () => {
+    tabs('tor:abc');
+    expect(await PageWatch.watchPage('https://news.example/', 'News', { partition: 'tor:abc' })).toBeNull();
+    expect(PageWatch.list()).toEqual([]);
+    expect(AgentTools.readUrl).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/real connection/), 'error');
+  });
+
+  it('"Tell me when this page changes" in a container tab is refused', () => {
+    tabs('persist:container-work');
+    expect(() => PageWatch.watchCurrent('changes', { byUser: true })).toThrow(/real connection/);
+    expect(PageWatch.list()).toEqual([]);
+  });
+
+  it('an ordinary tab is watched as before', async () => {
+    tabs('persist:main');
+    const r = PageWatch.watchCurrent('changes', { byUser: true });
+    expect(r.watch.url).toBe('https://news.example/');
+  });
+});
+
+// Found in the v19.1.7 check: "Watch This Page" compared only the first 4000
+// characters of a page, so "Out of stock" turning into "In stock" at the
+// bottom of a long product page was never seen.
+describe('a whole-page watch sees all of the page', () => {
+  const filler = Array.from({ length: 80 }, (_, i) => 'Paragraph ' + (i + 1) + ': the quick brown fox jumps over the lazy dog again.').join('\n');
+  beforeEach(() => {
+    // As the real one: the text is cut at maxText (12000 unless asked).
+    globalThis.AgentTools.readUrl = vi.fn(async (url, { maxText = 12000 } = {}) => ({ url, title: 'Shop', text: page.text.slice(0, maxText) }));
+  });
+
+  it('a change after the first 4000 characters is a change', async () => {
+    page.text = 'Widget\nUpdated 3 minutes ago at 10:03\n' + filler + '\nOut of stock';
+    expect(page.text.length).toBeGreaterThan(4000);
+    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'Widget' });
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ ok: true, changed: false });
+    page.text = page.text.replace('Out of stock', 'In stock — order now');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ ok: true, changed: true });
+    expect(window.showToast).toHaveBeenCalledWith('Widget changed', 'info', 8000);
+  });
+
+  it('a change past 12000 characters is seen too, and only the steady words count', async () => {
+    page.text = 'Updated 3 minutes ago at 10:03\n' + filler + filler + filler + '\nOut of stock';
+    expect(page.text.length).toBeGreaterThan(12000);
+    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'Widget' });
+    await PageWatch.checkOne(watch.id);
+    page.text = page.text.replace('Updated 3 minutes ago at 10:03', 'Updated 9 minutes ago at 10:09');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ changed: false });
+    page.text = page.text.replace('Out of stock', 'In stock');
+    expect(await PageWatch.checkOne(watch.id)).toMatchObject({ changed: true });
+    expect(String(PageWatch.list()[0].lastValue).length).toBeLessThan(300);   // not the whole page in localStorage
+  });
+
+  it('a watch saved before (plain text) takes a new baseline once, without a false alarm', async () => {
+    page.text = 'Widget\n' + filler;
+    localStorage.setItem(PageWatch.KEY, JSON.stringify([{ id: 'w_old', url: 'https://shop.example/item', title: 'Widget', selector: '', kind: 'text', direction: 'any', every: 900000, lastValue: page.text.slice(0, 4000), lastCheckedAt: 1 }]));
+    expect(await PageWatch.checkOne('w_old')).toMatchObject({ ok: true, changed: false, why: 'first look' });
+    expect(await PageWatch.checkOne('w_old')).toMatchObject({ ok: true, changed: false, why: 'no change' });
+    expect(window.showToast).not.toHaveBeenCalled();
   });
 });

@@ -44,7 +44,7 @@
   /* Text */
   --vex-text-primary: #1f1c18;   /* headings */
   --vex-text-secondary: #6a6253; /* body / secondary */
-  --vex-text-muted: #7a6e54;     /* muted / labels — ~4.5:1 on cream (was #a89a7d, 2.6:1) */
+  --vex-text-muted: #756a51;     /* muted / labels — ~4.5:1 on cream (was #a89a7d, 2.6:1) */
   --vex-text-accent: #1e3a5f;
 
   /* Semantic */
@@ -90,6 +90,9 @@
   --text-muted: #6a6253;
   --primary: #1e3a5f;
   --primary-hover: #2a4f7f;
+  /* Text on a --primary fill (primary buttons, selected chips). White, except
+     in a theme whose primary is too light for it (Dracula). */
+  --on-primary: #ffffff;
   --accent: #1e3a5f;
   --tab-active: #ffffff;
   --tab-hover: #f3ede0;
@@ -138,7 +141,7 @@
   --vex-accent-glow: rgba(30, 58, 95, 0.10);
   --vex-text-primary: #1f1c18;
   --vex-text-secondary: #6a6253;
-  --vex-text-muted: #7a6e54;
+  --vex-text-muted: #756a51;
   --vex-text-accent: #1e3a5f;
   --vex-success: #2f6b3f;
   --vex-danger: #9c2a1a;
@@ -187,6 +190,18 @@
    inherit Oxford's serif/flat look. The shared dark-theme typography block
    below applies to every dark theme via [data-theme] grouping.
    ══════════════════════════════════════════════════════════════════════════ */
+
+/* Native parts (scrollbars, selects, date/time inputs, the caret) follow the
+   theme: ThemeManager.applyTheme marks <html> data-scheme light or dark. With
+   none set they were light in every dark theme (cat-themes TH4). Glass is a
+   dark look whatever the theme. */
+:root { color-scheme: light; }
+html[data-scheme="dark"], html:has(> body[data-gui-style="glass"]) { color-scheme: dark; }
+/* A browser look in its own colours is light or dark whatever the theme: the
+   Firefox dark look over Oxford had light dropdowns, Firefox over Nord dark
+   ones on a white window (release check, 2026-10-11). The look decides. */
+html:has(> body[data-gui-family="browser"]:not([data-gui-colors="theme"])) { color-scheme: light; }
+html:has(> body[data-gui-family="browser"]:not([data-gui-colors="theme"]):is([data-gui-style="chrome-dark"], [data-gui-style="firefox-dark"], [data-gui-style="fluent-dark"], [data-gui-style="terminal"])) { color-scheme: dark; }
 
 /* Shared hover/elevation tokens for every dark theme (Oxford is the only
    light theme — it keeps the navy/warm values from :root above). */
@@ -279,10 +294,10 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-accent-glow: rgba(212, 165, 116, 0.18);
   --vex-text-primary: #e8e3d8;
   --vex-text-secondary: #aaa39a;
-  --vex-text-muted: #6a665e;
+  --vex-text-muted: #8f8a81;
   --vex-text-accent: #d4a574;
   --vex-success: #6fbf73;
-  --vex-danger: rgba(232, 104, 90, 0.85);
+  --vex-danger: #cf6e63;
   --vex-danger-hover: #ff8a7a;
   --vex-warning: rgba(232, 196, 90, 0.85);
   --vex-blur-heavy: blur(24px) saturate(140%);
@@ -290,7 +305,8 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-blur-light: blur(12px) saturate(120%);
   --bg: #0a0c10; --bg-2: #0f1218; --sidebar: #0d0f14; --surface: #151921;
   --border: #1f2530; --text: #e5e9f0; --text-muted: #818a97;
-  --primary: #6366f1; --primary-hover: #5558e6; --accent: #00b4d8;
+  --primary: #6366f1; --primary-hover: #6567e8; --accent: #00b4d8;
+  --on-primary: #000000;
   --tab-active: #1e2430; --tab-hover: #171c27;
   --danger: #ef4444; --success: #22c55e; --warning: #f59e0b;
 }
@@ -325,6 +341,7 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --bg: #05050a; --bg-2: #0a0a14; --sidebar: #05050a; --surface: #10101e;
   --border: #1a1a2e; --text: #e0e0f0; --text-muted: #7878b8;
   --primary: #8b5cf6; --primary-hover: #a78bfa; --accent: #c084fc;
+  --on-primary: #05050a;
   --tab-active: #1a1a2e; --tab-hover: #10101e;
   --danger: #f87171; --success: #4ade80; --warning: #fbbf24;
 }
@@ -359,6 +376,7 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --bg: #0a100e; --bg-2: #0e1512; --sidebar: #0a100e; --surface: #141e1a;
   --border: #1e2e28; --text: #d8ede4; --text-muted: #6b8a7e;
   --primary: #22c55e; --primary-hover: #4ade80; --accent: #4ade80;
+  --on-primary: #0a100e;
   --tab-active: #1e2e28; --tab-hover: #141e1a;
   --danger: #f87171; --success: #4ade80; --warning: #fbbf24;
 }
@@ -393,6 +411,7 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --bg: #080e14; --bg-2: #0c1420; --sidebar: #080e14; --surface: #121c2c;
   --border: #1c2c3e; --text: #d4e4f0; --text-muted: #6888a0;
   --primary: #0ea5e9; --primary-hover: #38bdf8; --accent: #38bdf8;
+  --on-primary: #080e14;
   --tab-active: #1c2c3e; --tab-hover: #121c2c;
   --danger: #f87171; --success: #34d399; --warning: #fbbf24;
 }
@@ -418,15 +437,18 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-accent-glow: #bd93f92e;
   --vex-text-primary: #f8f8f2;
   --vex-text-secondary: #9ba2c9;
-  --vex-text-muted: #7d8bb4;
+  --vex-text-muted: #8592b9;
   --vex-text-accent: #ff79c6;
   --vex-success: #50fa7b;
   --vex-danger: #ff5555;
   --vex-danger-hover: #ff7b7b;
   --vex-warning: #f1fa8c;
   --bg: #1e1f29; --bg-2: #21222c; --sidebar: #1e1f29; --surface: #282a36;
-  --border: #383a4c; --text: #f8f8f2; --text-muted: #7d8bb4;
+  --border: #383a4c; --text: #f8f8f2; --text-muted: #8592b9;
   --primary: #bd93f9; --primary-hover: #d6bbfb; --accent: #ff79c6;
+  /* White on #bd93f9 was 2.4:1 on every primary button (walkthrough M3,
+     2026-10-07); Dracula's own background on it is 6.7:1. */
+  --on-primary: #1e1f29;
   --tab-active: #383a4c; --tab-hover: #282a36;
   --danger: #ff5555; --success: #50fa7b; --warning: #f1fa8c;
 }
@@ -452,17 +474,18 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-accent-glow: #88c0d02e;
   --vex-text-primary: #eceff4;
   --vex-text-secondary: #cdd1dc;
-  --vex-text-muted: #a8b0c1;
-  --vex-text-accent: #81a1c1;
-  --vex-success: #a3be8c;
-  --vex-danger: #bf616a;
+  --vex-text-muted: #b7becc;
+  --vex-text-accent: #aac0d5;
+  --vex-success: #b4cf9c;
+  --vex-danger: #dfb1b5;
   --vex-danger-hover: #d3858d;
   --vex-warning: #ebcb8b;
   --bg: #2e3440; --bg-2: #3b4252; --sidebar: #2e3440; --surface: #434c5e;
-  --border: #4c566a; --text: #eceff4; --text-muted: #a8b0c1;
+  --border: #4c566a; --text: #eceff4; --text-muted: #b7becc;
   --primary: #88c0d0; --primary-hover: #8fbcbb; --accent: #81a1c1;
+  --on-primary: #2e3440;
   --tab-active: #4c566a; --tab-hover: #434c5e;
-  --danger: #bf616a; --success: #a3be8c; --warning: #ebcb8b;
+  --danger: #dfb1b5; --success: #b4cf9c; --warning: #ebcb8b;
 }
 
 /* ── CATPPUCCIN — soft mauve mocha ────────────────────────────────────────── */
@@ -486,15 +509,26 @@ html[data-theme]:not([data-theme="oxford"]) :is(.top-group-label, .top-tab.in-gr
   --vex-accent-glow: #c9cbff2e;
   --vex-text-primary: #d9e0ee;
   --vex-text-secondary: #b0a8c4;
-  --vex-text-muted: #988ba2;
+  --vex-text-muted: #a093a9;
   --vex-text-accent: #f5c2e7;
   --vex-success: #abe9b3;
   --vex-danger: #f28fad;
   --vex-danger-hover: #f5a3bd;
   --vex-warning: #fae3b0;
   --bg: #1e1e2e; --bg-2: #24243e; --sidebar: #1e1e2e; --surface: #302d41;
-  --border: #45425a; --text: #d9e0ee; --text-muted: #988ba2;
+  --border: #45425a; --text: #d9e0ee; --text-muted: #a093a9;
   --primary: #c9cbff; --primary-hover: #dadbff; --accent: #f5c2e7;
+  --on-primary: #1e1e2e;
   --tab-active: #45425a; --tab-hover: #302d41;
   --danger: #f28fad; --success: #abe9b3; --warning: #fae3b0;
+}
+
+/* Primary buttons built in JS carry their colours inline, spelled
+   "background:var(--primary);color:#fff", or in a <style> of their own
+   (Authenticator). They take the theme's text-on-primary too: the same white
+   everywhere --on-primary is white, dark in Dracula (walkthrough M3). */
+[style*="background:var(--primary);color:#fff"],
+[style*="background:var(--primary);color:white"],
+:is(.auth-add-btn, .auth-save) {
+  color: var(--on-primary, #fff) !important;
 }

@@ -81,6 +81,7 @@ const VexFonts = {
     if (density.id === 'normal') root.removeAttribute('data-vex-density');
     else root.setAttribute('data-vex-density', density.id);
     document.dispatchEvent(new CustomEvent('vex:ui-scale-changed', { detail: { size: size.id, density: density.id } }));
+    this.paintStartPages();
     return { size: size.id, density: density.id };
   },
 
@@ -220,10 +221,24 @@ const VexFonts = {
       let url = '';
       try { url = wv.getURL(); } catch { continue; }        // not attached yet; dom-ready paints it
       if (!/start\.html/.test(url)) continue;
-      try { wv.executeJavaScript(this.pageScript(css)); painted++; }
+      try { wv.executeJavaScript(this.pageScript(css) + ';' + this.scaleScript()); painted++; }
       catch (err) { console.warn('[fonts] could not paint a start page:', err && err.message); }
     }
     return painted;
+  },
+
+  // Larger and Largest reach the New Tab page too (cat-themes TH5): the size
+  // goes in as --vex-ui-scale with a copy in that page's storage, read before
+  // first paint like the font (start.html).
+  scaleScript() {
+    const size = this.size();
+    const scale = size.id === 'normal' ? '' : String(size.scale);
+    return `(() => {
+      const scale = ${JSON.stringify(scale)};
+      const root = document.documentElement;
+      if (scale) { root.style.setProperty('--vex-ui-scale', scale); root.setAttribute('data-vex-scale', ''); localStorage.setItem('vex.uiScale', scale); }
+      else { root.style.removeProperty('--vex-ui-scale'); root.removeAttribute('data-vex-scale'); localStorage.removeItem('vex.uiScale'); }
+    })()`;
   },
 
   pageScript(css) {

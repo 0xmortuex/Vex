@@ -25,6 +25,10 @@ const Onboarding = {
   done() { try { return localStorage.getItem(this.KEY) === 'true'; } catch { return true; } },
   finish() {
     try { localStorage.setItem(this.KEY, 'true'); } catch {}
+    // A new profile that left setup before the starting-point step gets what
+    // that step pre-selects. One that chose, or that existed before Simple
+    // mode (marked Full by VexSimpleMode.migrate), keeps its mode.
+    if (!window.VexTabPolicy?.isPrivateWindow && VexSimpleMode.stored() == null) this._startSimple();
     // The wizard is now the single first-run welcome and owns the tour entry
     // point (its final step's "Take a tour" button). Mark the tour as seen so
     // app.js never auto-offers it separately; launch it only if asked.
@@ -73,7 +77,7 @@ const Onboarding = {
       const TA = window.VexTypedAddress;
       const engine = TA.currentEngine();
       if (engine !== 'google' && TA.suggestionsOn(localStorage.getItem(TA.SUGGEST_KEY))) {
-        told = 'Search suggestions now come from ' + TA.SEARCH_ENGINES[engine].name + ', the search engine you chose, instead of Google. Settings › General can turn them off.';
+        told = 'Search suggestions now come from ' + TA.engineInfo(engine).name + ', the search engine you chose, instead of Google. Settings › General can turn them off.';
       }
     }
     localStorage.setItem(this.PRIVACY_DEFAULTS_KEY, '1');
@@ -135,8 +139,17 @@ const Onboarding = {
     this._pendingLoc = null;
     this._session = {};
     this._wantTour = false;
+    // What an earlier run in this session chose is not what Settings holds
+    // now: start from the controls again (it re-applied the old values).
+    this._perf = null;
+    this._weatherCountry = null;
+    this._weatherHits = null;
     this._render();
   },
+
+  // The privacy policy and terms not yet accepted in this profile (js/legal.js,
+  // loaded before this file). A private window never asks.
+  _legalNeeded() { return typeof VexLegal !== 'undefined' && !window.VexTabPolicy?.isPrivateWindow && VexLegal.needed(); },
 
   _has(k) { try { const v = localStorage.getItem(k); return v != null && v !== ''; } catch { return false; } },
   // Steps have recorded "done" as 'true' in some places and '1' in others
@@ -148,6 +161,7 @@ const Onboarding = {
   // setting up cloud AI doesn't mark the Ollama / on-device steps as done.
   _isStepDone(key) {
     switch (key) {
+      case 'legal':          return !this._legalNeeded();
       case 'setupstyle':     return this._has('vex.setupProfile');
       case 'language':       return this._has('vex.lang');
       case 'wisdom':         return this._has('vex.wisdomSource');
@@ -187,11 +201,45 @@ const Onboarding = {
       : `try{localStorage.setItem(${JSON.stringify(key)},${JSON.stringify(String(value))})}catch(e){}`;
     for (const wv of WebviewManager.webviews.values()) {
       let url = ''; try { url = wv.getURL(); } catch {}
-      if (url && (url.startsWith('vex://start') || /\/renderer\/start\.html/i.test(url))) {
+      // Vex's own start page only (js/webview.js): your weather place and
+      // shortcuts went to any page at /renderer/start.html (audit SE6).
+      if (url && _isTrustedStartPage(url)) {
         try { wv.executeJavaScript(js).catch(() => {}); } catch {}
       }
     }
   },
+  async _onEscape(e, overlay) {
+    const t = e.target instanceof Element ? e.target : null;
+    // A drop-down that has the focus: Escape is for it (Chromium closes an
+    // open one itself), not for the whole setup.
+    if (t && t.tagName === 'SELECT') return;
+    const open = overlay.querySelector('[aria-expanded="true"]');
+    if (open) { open.click(); open.focus(); return; }
+    if (this._askingSkip) return;
+    this._askingSkip = true;
+    let skip;
+    try {
+      skip = await vexConfirm({
+        title: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
+        message: window.VexI18n?.t('skipSetupAsk', '') || 'Skip the rest of setup? What you have chosen so far is kept, everything else keeps its default, and Settings has all of it.',
+        okLabel: window.VexI18n?.t('skipSetup', 'Skip setup') || 'Skip setup',
+      });
+    } finally { this._askingSkip = false; }
+    if (skip && document.getElementById('vex-onboarding')) this.finish();
+  },
+
+  // The language step, and Settings › General › Language (js/settings-ui.js).
+  // Mirrored into start-page storage; the toolbar, sidebar and Settings follow
+  // at once (js/i18n-ui.js listens to vex-lang-changed), and the open start
+  // pages reload to redraw their greeting, labels and verse.
+  LANGS: ['en', 'tr'],
+  setLanguage(lang, { reloadStartPages = true } = {}) {
+    if (!this.LANGS.includes(lang)) throw new Error('Vex has no "' + lang + '" translation');
+    this._setStart('vex.lang', lang);
+    window.dispatchEvent(new CustomEvent('vex-lang-changed'));
+    if (reloadStartPages) this._reloadStartPages();
+  },
+
   _reloadStartPages() {
     if (typeof WebviewManager === 'undefined' || !WebviewManager.webviews) return;
     for (const wv of WebviewManager.webviews.values()) {
@@ -206,15 +254,18 @@ const Onboarding = {
 
   STEPS() {
     return [
-      { key: 'welcome',        title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
-      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; every choice here can be changed later in Settings → Sidebar.' , quick: true, secs: 40},
+      // The agreement comes first and cannot be skipped (js/legal.js). It is
+      // left out once this version of the documents is accepted.
+      ...(this._legalNeeded() ? [{ key: 'legal', title: 'Before you start', sub: 'Vex does some things by itself. Read what they are, then agree to the privacy policy and terms to use Vex.', quick: true, secs: 30 }] : []),
+      { key: 'welcome',       title: 'Welcome to Vex',                sub: 'A couple of questions and Vex is yours. Pick the short version or the full one below — and skip anything you like; the sparkles button by reload brings this back whenever you want it.', quick: true, secs: 20 },
+      { key: 'setupstyle',     title: 'Choose your starting point', sub: 'Vex ships fully loaded — but it doesn’t have to be. Pick how much you want; Simple mode is a switch in Settings › General, and the panels are in Settings › Sidebar.' , quick: true, secs: 40},
       { key: 'theme',          title: 'Pick a theme',             sub: 'You can change this anytime from the start page or Settings.' , quick: true, secs: 20},
       { key: 'look',           title: 'Pick a look',              sub: 'The shape of the browser itself — Vex’s own, frosted Glass, a look borrowed from Chrome, Firefox, Safari, Internet Explorer or Netscape, or a Fluent, Glossy, Neobrutal or Terminal style. Your theme colours can be kept on top of any of them.' , quick: true, secs: 25},
       { key: 'performance',    title: 'Speed, memory & privacy',  sub: 'The settings that decide how Vex actually behaves. Pick the one that fits how you work — or open the list and set all nine yourself.' , secs: 40},
       { key: 'browsing',       title: 'How the browser behaves',  sub: 'Everyday behaviour: where tabs sit, mouse gestures, cookie banners, sites that block copying, saving your session. Each one is a switch in Settings later.' , secs: 40},
       { key: 'aidata',         title: 'What Vex may read',        sub: 'Two features read your own data to work: AI history indexing (so Vex AI can recall pages you visited) and email-code autofill (so a sign-in code is filled from your inbox). Both stay on this machine. Choose now; change later in Settings.' , secs: 30},
       { key: 'job',            title: 'A Vex built for your work', sub: 'Optional — pick your profession and Vex applies a fitting theme and the built-in tools you use daily (you choose exactly which). Change or remove it anytime.' , secs: 40},
-      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, menus, panels and setup, and of the start page and the daily verse. Some parts are still in English.' , secs: 15},
+      { key: 'language',       title: 'Language · Dil',           sub: 'Sets the language of Vex’s toolbar, sidebar and setup, and of the start page and the daily verse. Most panels and Settings stay in English for now.' , secs: 15},
       { key: 'wisdom',         title: 'Daily wisdom',             sub: 'A short verse or quote on your start page each day. Pick your tradition — or turn it off entirely.' , secs: 20},
       { key: 'name',           title: 'What should we call you?', sub: 'Used only for the start-page greeting. Press Skip for none.' , quick: true, secs: 15},
       { key: 'weather',        title: 'Weather location',         sub: 'Choose your country, then search for a city, district or postcode and pick it from the list.' , secs: 40},
@@ -222,7 +273,7 @@ const Onboarding = {
       { key: 'search',         title: 'Default search engine',    sub: 'Which search engine the URL bar and start page use.' , quick: true, secs: 15},
       { key: 'privacy',        title: 'Privacy choices',          sub: 'Three features that ask a service on the internet. Each is yours to choose, and each is a switch in Settings later.' , quick: true, secs: 20},
       { key: 'defaultbrowser', title: 'Make Vex your default',    sub: 'So links from Discord, email, and other apps open in Vex.' , quick: true, secs: 15},
-      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL for the most capable AI. See SELF_HOSTING.md. Skip if you’ll use local AI instead.' , secs: 45},
+      { key: 'aicloud',        title: 'Cloud AI (Claude)',        sub: 'Paste your self-hosted Vex AI Worker URL and its access token for the most capable AI (both are kept in Settings › Cloud). Skip if you’ll use local AI instead.' , secs: 45},
       { key: 'ollama',         title: 'Local AI (Ollama)',        sub: 'Run models locally with Ollama — private and free. We’ll detect a running Ollama for you.' , secs: 45},
       { key: 'ondevice',       title: 'On-device AI (WebGPU)',    sub: 'Run a small model fully inside Vex — private, offline, no install. Great if you don’t have Ollama.' , secs: 45},
       { key: 'sync',           title: 'Vex Sync',                 sub: 'End-to-end encrypted sync of your tabs, bookmarks, history & settings across devices — optional, set it up now or later.' , secs: 45},
@@ -235,6 +286,7 @@ const Onboarding = {
   _close() {
     document.getElementById('vex-onboarding')?.remove();
     if (this._keyHandler) { document.removeEventListener('keydown', this._keyHandler); this._keyHandler = null; }
+    if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
   },
 
   // Snapshot whatever's typed on the current step so Back/Skip navigation
@@ -270,7 +322,7 @@ const Onboarding = {
           <div style="height:4px;background:var(--border);border-radius:999px;overflow:hidden;margin-top:6px"><div id="ob-progress-fill" style="height:100%;width:${pct}%;background:var(--primary);border-radius:999px;transition:width 0.25s ease"></div></div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:21px;font-weight:700;color:var(--text)">${this._esc(s.title)}</span>
-            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.4);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' already set</span>' : ''}
+            ${this._isStepDone(s.key) ? '<span style="font-size:11px;font-weight:600;color:var(--success);background:color-mix(in srgb, var(--success) 12%, transparent);border:1px solid color-mix(in srgb, var(--success) 40%, transparent);padding:3px 9px;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px">' + VexIcons.svg('check', { size: 11 }) + ' ' + window.escapeHtml(window.VexI18n?.t('configured', 'Already set') || 'Already set') + '</span>' : ''}
           </div>
           <div style="font-size:13px;color:var(--text-muted);margin-top:6px;line-height:1.5">${this._esc(s.sub)}</div>
         </div>
@@ -280,7 +332,7 @@ const Onboarding = {
           <span style="flex:1"></span>
           ${this.step > 0 ? `<button id="ob-back" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Back</button>` : ''}
           ${!isLast ? `<button id="ob-skip" style="padding:9px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px">Skip</button>` : ''}
-          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
+          <button id="ob-next" style="padding:9px 22px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${this.step === 0 ? 'Get started' : isLast ? 'Finish' : 'Save &amp; continue'}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -291,14 +343,37 @@ const Onboarding = {
     for (const [id, [key, fallback]] of Object.entries(labels)) { const button = overlay.querySelector('#' + id); if (button) button.textContent = window.VexI18n?.t(key, fallback) || fallback; }
     overlay.querySelector('#ob-progress-label').textContent =
       `${window.VexI18n?.t('step', 'Step') || 'Step'} ${this.step + 1} ${window.VexI18n?.t('of', 'of') || 'of'} ${steps.length} · ${this._timeLeft(steps)}`;
-    overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
+    // The agreement: "I agree" or "Quit Vex", and nothing that skips past it.
+    const legal = s.key === 'legal';
+    if (legal) {
+      // No Vex key or command works behind it (js/legal.js, isUp).
+      overlay.dataset.vexLegal = '';
+      overlay.querySelector('#ob-skip')?.remove();
+      overlay.querySelector('#ob-back')?.remove();
+      const quit = overlay.querySelector('#ob-skipall');
+      quit.id = 'ob-quit';
+      quit.textContent = window.VexI18n?.t('legalQuit', 'Quit Vex') || 'Quit Vex';
+      quit.addEventListener('click', () => {
+        VexLegal.quit().catch(err => {
+          console.error('[setup] could not quit:', err);
+          window.showToast?.('Vex could not quit: ' + (err && err.message), 'error');
+        });
+      });
+      overlay.querySelector('#ob-next').textContent = window.VexI18n?.t('legalAgree', 'I agree') || 'I agree';
+      overlay.firstElementChild.setAttribute('aria-describedby', 'vex-legal-intro');
+    }
+    else overlay.querySelector('#ob-skipall').addEventListener('click', () => this.finish());
+    if (typeof VexLegal !== 'undefined') VexLegal.gateChanged();
     overlay.querySelector('#ob-back')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step--; this._render(); });
     overlay.querySelector('#ob-skip')?.addEventListener('click', () => { this._stash(s.key, overlay); this.step++; this._render(); });
     overlay.querySelector('#ob-next').addEventListener('click', () => this._commitAndNext(s.key, overlay));
-    // Escape = the same bail-out as the "Skip setup" button.
+    // Escape closes what is open first (a drop-down, an opened list), and
+    // only then asks whether to skip the rest of setup. It used to finish the
+    // whole setup at once — also when it was pressed to close a drop-down.
     this._keyHandler = (e) => {
       if (e.defaultPrevented) return;
-      if (e.key === 'Escape') { e.preventDefault(); this.finish(); }
+      // On the agreement Escape does nothing: it must not skip past it.
+      if (e.key === 'Escape') { e.preventDefault(); if (!legal) this._onEscape(e, overlay); }
       if (e.key === 'Tab') {
         const nodes = [...overlay.querySelectorAll('button,input,select,a[href]')].filter(node => !node.disabled && !node.hidden);
         const first = nodes[0], last = nodes[nodes.length - 1];
@@ -385,7 +460,7 @@ const Onboarding = {
     const chips = (n) => Array.from({ length: n }, (_, i) =>
       `<rect x="${17 + i * 14}" y="6" width="11" height="4.5" rx="2.25" fill="${i === 0 ? P : M}" opacity="${i === 0 ? 0.9 : 0.45}"/>`).join('');
     if (kind === 'owner') return frame(`${chips(4)}${rail(6)}<rect x="17" y="14" width="53" height="32" rx="3" fill="${P}" opacity="0.14"/><rect x="21" y="19" width="30" height="3" rx="1.5" fill="${M}" opacity="0.6"/><rect x="21" y="26" width="42" height="3" rx="1.5" fill="${M}" opacity="0.35"/>`);
-    if (kind === 'minimal') return frame(`${rail(3)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.08"/><rect x="30" y="24" width="27" height="3.5" rx="1.75" fill="${M}" opacity="0.5"/>`);
+    if (kind === 'simple') return frame(`${rail(3)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.08"/><rect x="30" y="24" width="27" height="3.5" rx="1.75" fill="${M}" opacity="0.5"/>`);
     if (kind === 'custom') return frame(`${rail(4)}<rect x="17" y="8" width="53" height="38" rx="3" fill="${M}" opacity="0.06"/>
       <rect x="22" y="14" width="8" height="8" rx="2" stroke="${P}" stroke-width="1.5" fill="none"/><path d="M24 18l2 2 3-3.5" stroke="${P}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
       <rect x="34" y="14" width="8" height="8" rx="2" stroke="${M}" stroke-width="1.5" fill="none" opacity="0.5"/>
@@ -504,21 +579,32 @@ const Onboarding = {
       if (d.font.mono) { try { VexFonts.setMono(d.font.mono); } catch (err) { console.warn('[setup] code font:', err.message); } }
     }
     try { localStorage.setItem('vex.setupProfile', 'imported'); } catch {}
+    // A shared setup is somebody's whole Vex, so all of it shows.
+    VexSimpleMode.set('full');
   },
 
   _renderSetupStyle(body) {
     const APP = this._APP_PANELS();
     const SC = this._shortcutDefaults();
     // Session state survives Back/Skip; first open pre-selects the saved
-    // profile (relaunch) or Full Vex (fresh install — matches what they see).
+    // profile (relaunch), Simple on a new profile (a calm browser first; one
+    // switch shows the rest), or the full setup on one that was already Full.
     if (!this._session.setup) {
       let saved = null; try { saved = localStorage.getItem('vex.setupProfile'); } catch {}
+      // 'minimal' was the old name of the Simple card.
+      const fromSaved = { imported: 'code', minimal: 'simple' }[saved] || saved;
+      const fresh = VexSimpleMode.stored() === 'full' ? 'owner' : VexSimpleMode.DEFAULT_FOR_NEW;
       this._session.setup = {
-        profile: (saved === 'imported' ? 'code' : saved) || 'owner',
+        profile: fromSaved || fresh,
         panels: APP.map(p => p.id),
         shortcuts: SC.map(s => s.name),
         glass: (() => { try { return (window.VexGuiStyle?.get?.() || 'classic') === 'glass'; } catch { return false; } })(),
         code: '',
+        // Re-opening the wizard pre-selects the saved profile; pressing Save
+        // & continue on that must change nothing (it re-applied the profile:
+        // hidden panels came back, shortcuts reset, Firefox became Glass).
+        // A first run has nothing saved, so its default is applied as before.
+        chosen: !saved,
       };
     }
     const sel = this._session.setup;
@@ -537,7 +623,7 @@ const Onboarding = {
     body.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:9px">
         ${card('owner', 'The Mortuex Setup', 'Vex fully loaded — every app panel (WhatsApp, Discord, Spotify, Netflix…), the full shortcut bar, the Glass look. Exactly how Vex’s creator runs it.')}
-        ${card('minimal', 'Minimal', 'Just a fast, clean browser: tabs, downloads, history, bookmarks, settings. No app panels, an empty shortcut bar. Add features whenever you want them.')}
+        ${card('simple', 'Simple', 'A calm browser: tabs, the address bar, bookmarks, history, downloads, notes and settings. The power tools are tucked away, not removed — one All features button in the toolbar shows everything, any time.')}
         ${card('custom', 'Custom', 'Pick exactly which app panels and shortcuts you keep — check what you want, uncheck the rest.')}
         ${card('code', 'Use a shared setup', 'Got a setup code from a friend or a creator? Paste it and Vex arranges itself to match — panels, shortcuts, theme, look.')}
         <div id="ob-setup-custom" style="display:${sel.profile === 'custom' ? 'flex' : 'none'};flex-direction:column;gap:10px;padding:12px;border:1px dashed var(--border);border-radius:12px">
@@ -578,6 +664,7 @@ const Onboarding = {
     validateCode();
     body.querySelectorAll('[data-profile]').forEach(b => b.addEventListener('click', () => {
       sel.profile = b.dataset.profile;
+      sel.chosen = true;
       body.querySelectorAll('[data-profile]').forEach(x => x.style.borderColor = x.dataset.profile === sel.profile ? 'var(--primary)' : 'var(--border)');
       const z = body.querySelector('#ob-setup-custom');
       if (z) z.style.display = sel.profile === 'custom' ? 'flex' : 'none';
@@ -585,7 +672,7 @@ const Onboarding = {
       if (c) c.style.display = sel.profile === 'code' ? 'flex' : 'none';
       if (sel.profile === 'code') body.querySelector('#ob-setup-code-input')?.focus();
     }));
-    body.addEventListener('change', updateCount);
+    body.addEventListener('change', () => { sel.chosen = true; updateCount(); });
     body.querySelector('#ob-setup-code-input')?.addEventListener('input', validateCode);
     body.querySelector('#ob-setup-export')?.addEventListener('click', async (e) => {
       const code = this._encodeSetupCode();
@@ -608,12 +695,28 @@ const Onboarding = {
     if (c) sel.code = c.value;
   },
 
+  // A new profile going Simple — from the card, or by leaving setup before
+  // the card. Bookmarks is in Simple's set but off in a new profile's sidebar
+  // (SidebarManager.DEFAULT_HIDDEN_PANELS), so it is shown.
+  _startSimple() {
+    const ov = JSON.parse(localStorage.getItem('vex.panelOverrides') || '{}') || {};
+    ov.bookmarks = Object.assign({}, ov.bookmarks, { hidden: false });
+    localStorage.setItem('vex.panelOverrides', JSON.stringify(ov));
+    VexSimpleMode.set('simple');
+  },
+
   _applySetupProfile(sel) {
+    // Simple is a view, not a rewrite (js/simple-mode.js): the panels and the
+    // shortcuts stay as they are, so All features gives the whole Vex back.
+    if (sel.profile === 'simple') {
+      if (!this._flag('vex.guiStyleChosen')) window.VexGuiStyle.set('classic');
+      localStorage.setItem('vex.setupProfile', 'simple');
+      this._startSimple();
+      return;
+    }
     const APP = this._APP_PANELS().map(p => p.id);
     let hidden, shortcuts, glass;
-    if (sel.profile === 'minimal') {
-      hidden = APP; shortcuts = []; glass = false;
-    } else if (sel.profile === 'custom') {
+    if (sel.profile === 'custom') {
       hidden = APP.filter(p => !sel.panels.includes(p));
       shortcuts = this._shortcutDefaults().filter(s => sel.shortcuts.includes(s.name));
       glass = !!sel.glass;
@@ -635,13 +738,21 @@ const Onboarding = {
     // key, mirrored into start-page storage). null = stock set.
     this._setStart('vex.shortcuts', shortcuts == null ? null : JSON.stringify(shortcuts));
     try { window.VexGuiStyle?.render?.(); } catch {}
-    try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
+    // Once a look has been chosen (the Look step, or Settings › GUI Style),
+    // this step leaves it alone: Owner/Minimal know only Glass and Classic,
+    // and a Firefox look became one of those.
+    if (!this._flag('vex.guiStyleChosen')) {
+      try { window.VexGuiStyle?.set?.(glass ? 'glass' : 'classic'); } catch {}
+    }
     try { localStorage.setItem('vex.setupProfile', sel.profile); } catch {}
+    VexSimpleMode.set('full');
   },
 
   _renderBody(key, body) {
     const input = (id, ph, val) => this._input(id, ph, val);
-    if (key === 'welcome') {
+    if (key === 'legal') {
+      VexLegal.renderInto(body);
+    } else if (key === 'welcome') {
       this._renderPace(body);
     } else if (key === 'setupstyle') {
       this._renderSetupStyle(body);
@@ -669,7 +780,7 @@ const Onboarding = {
       body.innerHTML = `
         <div style="font-size:13px;color:var(--text);line-height:1.6">Vex can reshape itself around what you do — a fitting theme, the built-in tools your job uses daily (regex, JSON, color, word count…), and quick buttons next to the Tor button. You choose exactly which tools you want, and can change or remove this anytime.</div>
         <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button id="ob-job-open" style="padding:11px 18px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${curName ? 'Change job…' : 'Choose my job →'}</button>
+          <button id="ob-job-open" style="padding:11px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">${curName ? 'Change job…' : 'Choose my job →'}</button>
           ${curName ? `<span style="font-size:12.5px;color:var(--text-muted)">Current: <b style="color:var(--text)">${this._esc(curName)}</b></span>` : '<span style="font-size:12px;color:var(--text-muted)">Optional — Skip to keep the default Vex.</span>'}
         </div>`;
       body.querySelector('#ob-job-open')?.addEventListener('click', () => { try { window.JobSetup && JobSetup.open(); } catch {} });
@@ -741,7 +852,7 @@ const Onboarding = {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
           <div id="ob-db-status" style="font-size:13px;color:var(--text-muted)">Checking current default…</div>
-          <button id="ob-db-btn" style="padding:11px 18px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Make Vex my default browser</button>
+          <button id="ob-db-btn" style="padding:11px 18px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Make Vex my default browser</button>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">Windows opens its Default Apps screen — choose Vex under “Web browser”, then come back here.</p>
         </div>`;
       const st = body.querySelector('#ob-db-status');
@@ -761,22 +872,25 @@ const Onboarding = {
           API key, so you fully own it and there's no middleman.
         </p>
         <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
-          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → AI.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
-          <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings › Cloud.</b> Prefer zero setup? Use <b>Local AI (Ollama)</b> or <b>On-device AI</b> on the next two steps instead.
+          <div style="margin-top:7px;color:var(--text)">To turn it on now, 4 steps:</div>
           <ol style="margin:5px 0 0;padding-left:18px">
             <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>, and grab a free <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" style="color:var(--primary)">OpenRouter API key</a> (this is what talks to Claude).</li>
             <li>Open the <a href="https://github.com/0xmortuex/Vex/blob/main/SELF_HOSTING.md#1-ai-assistant-worker-vex-ai-worker" target="_blank" rel="noopener" style="color:var(--primary)">step-by-step deploy guide</a> — a few <code>wrangler</code> commands (~2 min) that take your API key and print a URL.</li>
-            <li>Paste that URL below (it looks like <code>https://vex-ai.<i>you</i>.workers.dev</code>) and continue.</li>
+            <li>Give the worker an access token: <code>wrangler secret put VEX_CLIENT_TOKENS</code>, with a long random string (24 characters or more). The worker refuses every request without one.</li>
+            <li>Paste the URL it printed (it looks like <code>https://vex-ai.<i>you</i>.workers.dev</code>) and the same token below, and continue.</li>
           </ol>
         </div>
         <label style="font-size:12.5px;color:var(--text)">Cloud AI Worker URL <span style="color:var(--text-muted)">— paste it from step 2, or leave blank</span></label>
         ${input('ob-ai-url', 'https://vex-ai.your-name.workers.dev', cur)}
-        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Cloud AI off — you can still use Local or On-device AI, and add this anytime in Settings → AI.</p>
+        <label style="font-size:12.5px;color:var(--text)" for="ob-ai-token">AI access token <span style="color:var(--text-muted)">— the one from step 3; leave it blank to keep one you saved before</span></label>
+        <input id="ob-ai-token" type="password" autocomplete="off" placeholder="paste the token" style="padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:inherit;font-size:13px">
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0">Blank keeps Cloud AI off — you can still use Local or On-device AI, and add the URL and token anytime in Settings › Cloud.</p>
       </div>`;
     } else if (key === 'ollama') {
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button id="ob-ollama" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Detect running Ollama</button>
+          <button id="ob-ollama" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Detect running Ollama</button>
           <span id="ob-ollama-status" style="font-size:12.5px;color:var(--text-muted)"></span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">No Ollama yet? The button opens the install guide. After installing, run a model (e.g. <code>ollama run llama3.2</code>) and click Detect again.</p>
         </div>`;
@@ -801,7 +915,7 @@ const Onboarding = {
           it. It runs on <i>your own</i> free Cloudflare account, so you fully own your data.
         </p>
         <div style="background:rgba(127,127,127,.09);border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.6">
-          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later in Settings → Sync.</b>
+          <b style="color:var(--text)">This step is a bit technical — it's optional, and you can set it up anytime later: the URL goes in Settings › Cloud, then you sign in under Settings › Vex Sync.</b>
           <div style="margin-top:7px;color:var(--text)">To turn it on now, 3 steps:</div>
           <ol style="margin:5px 0 0;padding-left:18px">
             <li>Create a free <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener" style="color:var(--primary)">Cloudflare account</a>.</li>
@@ -819,7 +933,7 @@ const Onboarding = {
           ${input('ob-pw-host', 'Website (e.g. github.com)')}
           ${input('ob-pw-user', 'Username or email')}
           <div style="position:relative">${input('ob-pw-pass', 'Password')}</div>
-          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
+          <button id="ob-pw-save" style="padding:10px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Save this login</button>
           <span id="ob-pw-status" style="font-size:12.5px;color:var(--text-muted)"></span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0">Stored encrypted with your OS keychain. Optional — you can also let Vex offer to save logins as you sign in.</p>
         </div>`;
@@ -870,7 +984,7 @@ const Onboarding = {
       // nothing ever checked. This is the check, on day one.
       body.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
-          <button id="ob-notify-test" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Send a test notification</button>
+          <button id="ob-notify-test" style="padding:11px 16px;align-self:flex-start;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Send a test notification</button>
           <span id="ob-notify-status" role="status" style="font-size:12.5px;line-height:1.5;color:var(--text-muted)">Nothing sent yet.</span>
           <p style="font-size:11.5px;color:var(--text-muted);margin:0;line-height:1.5">If nothing appears: Windows Settings › System › Notifications — make sure notifications are on, Vex is allowed, and Focus assist / Do not disturb is off. Alarm sound and volume live in the Clock panel.</p>
         </div>`;
@@ -1034,23 +1148,23 @@ const Onboarding = {
     return [
       {
         id: 'balanced', name: 'Balanced', tag: 'recommended',
-        desc: 'Tabs sleep after 30 minutes, ads and trackers blocked, pages loaded over HTTPS only.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        desc: 'Vex asks before a tab idle for 30 minutes sleeps; ads and trackers blocked, pages loaded over HTTPS only.',
+        values: { sleep: 'ask', memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'memory', name: 'Save memory',
-        desc: 'Tabs sleep after 10 minutes and are discarded when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
-        values: { memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
+        desc: 'Tabs sleep by themselves after 10 minutes, without asking, and when the window is minimized. For a machine with 8 GB, or for forty open tabs.',
+        values: { sleep: 'auto', memorySaver: true, autosleep: true, minutes: 10, excludePinned: true, memCeiling: 900, adblock: true, farble: false, doh: 'off', httpsOnly: true },
       },
       {
         id: 'privacy', name: 'Maximum privacy',
-        desc: 'Everything above, plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
-        values: { memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
+        desc: 'Balanced (Vex asks before anything sleeps), plus fingerprint randomization and encrypted DNS. A few sites misbehave under it — you can switch it back off.',
+        values: { sleep: 'ask', memorySaver: false, autosleep: true, minutes: 30, excludePinned: true, memCeiling: 1200, adblock: true, farble: true, doh: 'auto', httpsOnly: true },
       },
       {
         id: 'nothing', name: 'Leave it all off',
-        desc: 'No sleeping, no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
-        values: { memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, doh: 'off', httpsOnly: false },
+        desc: 'Nothing sleeps by itself — no tabs, no panels, no Discord — and no blocking, no extras. Vex behaves like a plain browser and uses the memory that implies.',
+        values: { sleep: 'never', memorySaver: false, autosleep: false, minutes: 30, excludePinned: true, memCeiling: 0, adblock: false, farble: false, doh: 'off', httpsOnly: false },
       },
     ];
   },
@@ -1059,7 +1173,8 @@ const Onboarding = {
   PERF_FIELDS() {
     return [
       { key: 'autosleep', label: 'Sleep tabs I stop using', help: 'The single biggest thing you can do about memory.' },
-      { key: 'minutes', label: 'Sleep after', help: '', select: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours']] },
+      { key: 'sleep', label: 'Before Vex puts anything to sleep on its own', help: 'Covers idle tabs and panels, Discord, the memory guard and gaming mode. Under “never” the sleep settings here wait.', select: [['never', 'Never do it'], ['ask', 'Ask me first'], ['auto', 'Just do it']] },
+      { key: 'minutes', label: 'Sleep after', help: '', select: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour']] },
       { key: 'memorySaver', label: 'Memory Saver', help: 'Sleeps sooner, discards tabs when minimized, frees background caches.' },
       { key: 'adblock', label: 'Block ads and trackers', help: 'Full filter lists — blocks the request, and hides what it left behind.' },
       { key: 'httpsOnly', label: 'HTTPS-only', help: 'Refuse to load a page over an unencrypted connection.' },
@@ -1074,6 +1189,7 @@ const Onboarding = {
   _perfCurrent() {
     const v = { memorySaver: false, autosleep: true, minutes: 30, adblock: true, farble: false, doh: 'off', httpsOnly: false };
     const box = (id) => document.getElementById(id);
+    v.sleep = typeof SleepConsent !== 'undefined' ? SleepConsent.mode() : 'never';
     if (box('setting-memory-saver')) v.memorySaver = box('setting-memory-saver').checked;
     if (box('setting-autosleep')) v.autosleep = box('setting-autosleep').checked;
     if (box('setting-autosleep-minutes')) v.minutes = parseInt(box('setting-autosleep-minutes').value, 10) || 30;
@@ -1098,13 +1214,26 @@ const Onboarding = {
     const el = document.getElementById(id);
     if (!el) return false;
     if (el.type === 'checkbox') { if (el.checked === value) return true; el.checked = value; }
-    else { if (String(el.value) === String(value)) return true; el.value = String(value); }
+    else {
+      if (String(el.value) === String(value)) return true;
+      el.value = String(value);
+      // A value the control does not offer leaves it blank, and its change
+      // handler then saved a default instead ("2 hours" became 30 minutes).
+      if (String(el.value) !== String(value)) { console.error('[setup] ' + id + ' has no option ' + value); return false; }
+    }
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return true;
   },
 
   async _perfApply(v) {
     const set = (id, value) => this._setControl(id, value);
+    // The one sleep choice (js/sleep-consent.js) — a preset that sleeps tabs
+    // and left this at "never" did nothing.
+    if (v.sleep && typeof SleepConsent !== 'undefined') {
+      SleepConsent.set(v.sleep);
+      const c = document.getElementById('setting-sleep-consent');
+      if (c) c.value = v.sleep;
+    }
     set('setting-memory-saver', !!v.memorySaver);
     set('setting-autosleep', !!v.autosleep);
     set('setting-autosleep-minutes', v.minutes);
@@ -1143,7 +1272,7 @@ const Onboarding = {
   // engine only; weather off until a city is set; SponsorBlock off.
   PRIVACY_FIELDS() {
     const TA = window.VexTypedAddress;
-    const engine = TA.SEARCH_ENGINES[TA.currentEngine()].name;
+    const engine = TA.engineInfo().name;
     return [
       { key: 'suggest', label: 'Search suggestions', help: 'Suggestions as you type, from ' + engine + ' — only the search engine you already search with. Never from a private window.' },
       { key: 'weather', label: 'Weather on the New Tab page', help: 'Asks for your city, then gets its forecast from Open-Meteo. Nothing is looked up until you set one.' },
@@ -1304,7 +1433,7 @@ const Onboarding = {
       + '<label for="ob-city" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">City, district or postcode</label>'
       + '<div style="display:flex;gap:8px">'
       + '<div style="flex:1">' + this._input('ob-city', 'e.g. Ataşehir · Manchester · 34750', this._session.weatherText || '') + '</div>'
-      + '<button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>'
+      + '<button id="ob-city-search" style="padding:0 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">Search</button>'
       + '</div>'
       + '<div id="ob-city-results-wrap" style="display:none;margin-top:10px">'
       + '<label for="ob-city-results" style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px">Pick the exact place</label>'
@@ -1409,7 +1538,7 @@ const Onboarding = {
       <div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="ob-wl-model" style="min-width:180px">${opts}</select>
-          <button id="ob-wl-dl" style="padding:8px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Download now</button>
+          <button id="ob-wl-dl" style="padding:8px 14px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600">Download now</button>
         </div>
         <div id="ob-wl-prog" style="display:none;margin-top:8px"><div style="height:7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;overflow:hidden"><div id="ob-wl-bar" style="height:100%;width:0%;background:var(--primary)"></div></div><div id="ob-wl-ptext" style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'JetBrains Mono',monospace"></div></div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:6px">First download is a few minutes (cached after). You can skip and do this later.</p>
@@ -1522,7 +1651,16 @@ const Onboarding = {
   },
 
   async _commitAndNext(key, overlay) {
-    this._stash(key, overlay);   // so Back onto this step re-shows exactly what was typed
+    if (key === 'legal') {
+      // Agreed: the step leaves the walk, so Back from the next one cannot
+      // land on it, and the rest starts at the welcome.
+      VexLegal.accept();
+      this.activeSteps = (this.activeSteps || this.STEPS()).filter(step => step.key !== 'legal');
+      this.step = 0;
+      this._render();
+      return;
+    }
+    this._stash(key, overlay);  // so Back onto this step re-shows exactly what was typed
     const problem = this._validate(key, overlay);
     if (problem) { this._showError(overlay, problem); return; }
     if (key === 'setupstyle') {
@@ -1536,13 +1674,12 @@ const Onboarding = {
           return;
         }
         this._applySetupCode(d);
-      } else if (sel) {
+      } else if (sel && sel.chosen) {
         this._applySetupProfile(sel);
       }
     } else if (key === 'language') {
-      // Mirrored into start-page storage; the greeting/labels/verse re-read it
-      // on the reload that finish() triggers.
-      this._setStart('vex.lang', this._pendingLang || 'en');
+      // The start pages re-read it on the reload that finish() triggers.
+      this.setLanguage(this._pendingLang || 'en', { reloadStartPages: false });
     } else if (key === 'wisdom') {
       this._setStart('vex.wisdomSource', this._pendingWisdom || 'quran');
       // The Qur'an cache is per-edition; drop it so a language/source change
@@ -1568,6 +1705,14 @@ const Onboarding = {
       this._applyPrivacy();
     } else if (key === 'aicloud') {
       const v = overlay.querySelector('#ob-ai-url')?.value.trim() || '';
+      const token = overlay.querySelector('#ob-ai-token')?.value.trim() || '';
+      if (v && token) {
+        // Saved encrypted by main (the same call as Settings › Cloud's field).
+        try {
+          if (!window.vex || typeof window.vex.saveCloudToken !== 'function') throw new Error('Vex cannot save the token here');
+          await window.vex.saveCloudToken(token);
+        } catch (err) { this._showError(overlay, 'The token was not saved: ' + ((err && err.message) || err)); return; }
+      }
       try { v ? localStorage.setItem('vex.aiWorkerUrl', v) : localStorage.removeItem('vex.aiWorkerUrl'); } catch {}
     } else if (key === 'sync') {
       const v = overlay.querySelector('#ob-sync-url')?.value.trim() || '';

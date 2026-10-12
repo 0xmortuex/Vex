@@ -204,14 +204,23 @@ const ClipboardHistory = {
     // it first and closed the history along with the dialog (found 2026-09-29).
     const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); close(); } };
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-clear]').addEventListener('click', async () => {
-      if (!(await vexConfirm({
-        title: 'Clear the clipboard history?',
-        message: 'This forgets everything copied this session, and anything you pinned. What is on the clipboard right now is not touched.',
-        okLabel: 'Clear it', danger: true,
-      }))) return;
+    // Cleared at once; Undo on the toast brings back the copies and the pins
+    // (anything copied since stays on top). Nothing leaves this window.
+    overlay.querySelector('[data-clear]').addEventListener('click', () => {
+      const recent = this.recent.slice(), pinned = this.pinned.slice();
       this.clear();
       draw();
+      if (!recent.length && !pinned.length) return;
+      window.VexUndo.offer({
+        message: 'Cleared the clipboard history',
+        undo: () => {
+          const has = (list, x) => list.some(y => y.id === x.id || y.text === x.text);
+          this.recent = this.recent.concat(recent.filter(x => !has(this.recent, x))).slice(0, this.MAX);
+          this.pinned = this.pinned.concat(pinned.filter(x => !has(this.pinned, x)));
+          this._savePins();
+          if (overlay.isConnected) draw();
+        },
+      });
     });
     document.addEventListener('keydown', onKey, true);
     draw();

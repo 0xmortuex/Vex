@@ -2,7 +2,7 @@
 //
 // Two layers, both renderer-side:
 //   1. VexStorage — structured per-key JSON files (tabs, groups, settings,
-//      history, shortcuts) via window.vex.{saveData,loadData}.
+//      shortcuts) via window.vex.{saveData,loadData}.
 //   2. PersistentStorage — localStorage shim backed by a single JSON file
 //      (vex-persist.json) in userData. Hydrates localStorage on startup and
 //      mirrors every setItem/removeItem call to disk. Data survives
@@ -61,6 +61,14 @@ const PersistentStorage = {
           }
         }
 
+        // A problem noted while this was loading was saved over an empty
+        // list, and the key, waiting to be written, was skipped above: the
+        // problem list merges the file's copy back in instead of losing it.
+        if (typeof VexProblems !== 'undefined') {
+          const saved = fileKeys.length ? fileData[VexProblems.KEY] : undefined;
+          VexProblems.restored(saved == null ? undefined : (typeof saved === 'string' ? saved : JSON.stringify(saved)));
+        }
+
         this._ready = true;
         this.warnIfNearlyFull();
         await this._flush();
@@ -102,7 +110,12 @@ const PersistentStorage = {
     return true;
   },
 
+  // Told the key of every preference that changes (js/sync-engine.js pushes
+  // a synced one a few seconds later).
+  onChange: null,
+
   _enqueue(op, key, value) {
+    if (typeof this.onChange === 'function') this.onChange(key);
     const version = (this._versions.get(key) || 0) + 1;
     this._versions.set(key, version);
     this._queue.set(key, { op, value, version });
@@ -110,27 +123,42 @@ const PersistentStorage = {
     this._timer = setTimeout(() => this._flush().catch(() => {}), 300);
   },
 
+  // One save carries at most this much text; past it the batch is split (the
+  // IPC refuses a message over 12 MB).
+  APPLY_CHUNK_CHARS: 8 * 1024 * 1024,
+
   async _flush() {
     if (this._timer) clearTimeout(this._timer);
     this._timer = null;
-    if (!window.vex || !window.vex.persistSet) return;
+    if (!window.vex || !window.vex.persistApply) return;
     const batch = Array.from(this._queue.entries());
     this._queue.clear();
     // Keep batches in invocation order even if an earlier IPC is slow.
     const previous = this._flushPending || Promise.resolve();
     this._flushPending = previous.catch(() => {}).then(async () => {
     let failure = null;
-    for (const [key, { op, value, version }] of batch) {
+    // The whole batch in one write. Each key used to be a call of its own,
+    // and each call rewrote the whole of vex-persist.json and its .bak
+    // (found 2026-10-09). Values go as raw strings — an exact byte-for-byte
+    // round-trip through the file — and null deletes.
+    const chunks = [];
+    let chunk = [], size = 0;
+    for (const entry of batch) {
+      const { op, value } = entry[1];
+      const text = op === 'set' ? (typeof value === 'string' ? value : String(value)) : null;
+      const length = entry[0].length + (text ? text.length : 0);
+      if (chunk.length && size + length > this.APPLY_CHUNK_CHARS) { chunks.push(chunk); chunk = []; size = 0; }
+      chunk.push([entry, text]); size += length;
+    }
+    if (chunk.length) chunks.push(chunk);
+    for (const part of chunks) {
       try {
-        if (op === 'set') {
-          // Store as raw string — exact byte-for-byte round-trip through the file.
-          if (await window.vex.persistSet(key, typeof value === 'string' ? value : String(value)) === false) throw new Error('Save was not acknowledged');
-        } else {
-          if (await window.vex.persistDelete(key) === false) throw new Error('Delete was not acknowledged');
-        }
+        if (await window.vex.persistApply(part.map(([[key], text]) => [key, text])) === false) throw new Error('Save was not acknowledged');
       } catch (e) {
         failure = e;
-        if (this._versions.get(key) === version) this._queue.set(key, { op, value, version });
+        for (const [[key, { op, value, version }]] of part) {
+          if (this._versions.get(key) === version) this._queue.set(key, { op, value, version });
+        }
       }
     }
     if (failure) {
@@ -193,11 +221,18 @@ _storageMethods.setItem = function (key, value) {
   // so a full store meant notes, chats and settings quietly failing to save.
   // Now it is recorded, said once, and the value still goes to the file store,
   // which has no such cap — so nothing is lost even when the cap is reached.
+  // A value saved unchanged is not sent to the file again: most setItem calls
+  // in Vex save what is already there (a sync pull re-applies every key).
+  // Only once the file has been read: before that, browser storage may hold
+  // an older copy that the file's is about to replace.
+  const unchanged = this === localStorage && PersistentStorage._ready && !PersistentStorage._queue.has(String(key))
+    && (FILE_ONLY_KEYS.has(String(key)) || _fileOnly.has(String(key)) ? _fileOnly.get(String(key)) : _origGetItem.call(this, key)) === String(value);
   if (this === localStorage && FILE_ONLY_KEYS.has(String(key))) {
     _fileOnly.set(String(key), String(value));
-    PersistentStorage._enqueue('set', String(key), String(value));
+    if (!unchanged) PersistentStorage._enqueue('set', String(key), String(value));
     return;
   }
+  if (unchanged) return;
   let quota = null;
   try { _origSetItem.call(this, key, value); }
   catch (err) { quota = err; }
@@ -255,11 +290,16 @@ window.vex?.onFlushRequested?.(async () => {
   // storage first.
   if (typeof NotesPanel !== 'undefined') { NotesPanel.flush(); NotesPanel._flushSticky(); }
   if (typeof StickyNotes !== 'undefined') StickyNotes.flush();
+  // History titles wait up to 30 seconds (js/history-panel.js).
+  if (typeof HistoryPanel !== 'undefined') HistoryPanel.flush();
   if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.saveCurrentState();
-  if (typeof TabManager !== 'undefined') await TabManager.persistTabs();
+  if (typeof TabManager !== 'undefined') await TabManager.persistTabs({ now: true });
   await PersistentStorage._flush();
   await VexStorage.retryFailed();
   await window.vex.flushStorage?.();
+  // Last: what changed since the last sync goes up before the window closes.
+  // Bounded, and never a reason not to close (js/sync-engine.js).
+  if (typeof SyncEngine !== 'undefined') await SyncEngine.pushBeforeClose();
 });
 
 // Mirrors VexTabPolicy.sleepMemory for the fallback serializer below, which
@@ -273,7 +313,10 @@ const sleepMemory = tab => {
 const VexStorage = {
   _failed: new Map(),
   _versions: new Map(),
+  // Told the key of every store saved (js/sync-engine.js, as PersistentStorage.onChange).
+  onChange: null,
   async save(key, data) {
+    if (typeof this.onChange === 'function') this.onChange(key);
     const version = (this._versions.get(key) || 0) + 1;
     this._versions.set(key, version);
     try {
@@ -299,7 +342,7 @@ const VexStorage = {
   },
 
   async saveTabs(tabs) {
-    if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs));
+    if (window.VexTabPolicy) return this.save('tabs', window.VexTabPolicy.snapshot(tabs, { history: true }));
     const serialized = tabs
       // Ephemeral tabs (Tor , off-the-record) live in an in-memory partition
       // that's wiped on close — NEVER persist them. Restoring one would resurrect
@@ -361,35 +404,12 @@ const VexStorage = {
   async loadSettings() {
     return (await this.load('settings')) || {
       searchEngine: 'google',
-      adBlocker: true,
-      tabsVisible: true
+      adBlocker: true
     };
   },
 
-  async addHistory(entry) {
-    if (window.vex.addHistory) return window.vex.addHistory(entry);
-    // Serialize read-modify-write operations: simultaneous tab loads must not
-    // both read the same history and overwrite one another's new entry.
-    const next = (this._historyWrite || Promise.resolve()).then(() => this._addHistory(entry));
-    this._historyWrite = next.catch(() => {});
-    return next;
-  },
-
-  async _addHistory(entry) {
-    const history = await this.loadHistory();
-    history.unshift({
-      url: entry.url,
-      title: entry.title,
-      time: Date.now()
-    });
-    // Keep last 500
-    if (history.length > 500) history.length = 500;
-    return this.save('history', history);
-  },
-
-  async loadHistory() {
-    return (await this.load('history')) || [];
-  },
+  // Browsing history is not kept here: the History panel's list (vex.history)
+  // is the one copy (main/history-fold.js).
 
   async saveShortcuts(shortcuts) {
     return this.save('shortcuts', shortcuts);

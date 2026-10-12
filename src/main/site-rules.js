@@ -17,7 +17,11 @@
 //                from it is dropped (main, per request)
 //   thirdParty   requests a page of that site makes to other hosts are
 //                refused (main, needs to know the page)
+//   ads          the ad and tracker blocker leaves the pages of that site
+//                alone (main, needs to know the page) — the site panel's
+//                "Block ads and trackers on this site" switch
 const OFF = 'off';
+const SWITCHES = ['js', 'cookies', 'thirdParty', 'ads'];
 
 function host(url) {
   try { return new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
@@ -56,6 +60,10 @@ function blocksThirdParty(rules, pageUrl, requestUrl) {
   return !(req === page || req.endsWith('.' + page) || page.endsWith('.' + req));
 }
 
+// The blocker is off for the page a request comes from. A request with no
+// page behind it (a service worker's own) is blocked as usual.
+const allowsAds = (rules, pageUrl) => !!pageUrl && isOff(rules, pageUrl, 'ads');
+
 // What the renderer sends is a person's typing; keep it to the shape above.
 function clean(rules) {
   const out = {};
@@ -63,11 +71,11 @@ function clean(rules) {
     const h = String(key || '').trim().replace(/^www\./, '').toLowerCase();
     if (!h || h.length > 253 || !/^[a-z0-9.-]+$/.test(h)) continue;
     const kept = {};
-    for (const what of ['js', 'cookies', 'thirdParty']) if (rule && rule[what] === OFF) kept[what] = OFF;
+    for (const what of SWITCHES) if (rule && rule[what] === OFF) kept[what] = OFF;
     if (Object.keys(kept).length) out[h] = kept;
     if (Object.keys(out).length >= 200) break;
   }
   return out;
 }
 
-module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, clean };
+module.exports = { host, ruleFor, blocksCookies, blocksScripts, blocksThirdParty, allowsAds, clean };

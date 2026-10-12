@@ -91,18 +91,18 @@ const VexMail = {
     // the call was refused with a raw "Error invoking remote method 'mail:add'"
     // (found 2026-09-29).
     body.innerHTML = `
-      <form data-setup style="display:grid;gap:10px;padding:16px;max-width:520px">
+      <form data-setup style="display:grid;gap:10px;padding:16px;max-width:520px;margin:0 auto;box-sizing:border-box">
         <div style="font-size:13px;color:var(--text)">Read your newest mail here. Reading in Vex never marks anything read or changes your mailbox; to reply, open the message in your webmail.</div>
         <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Email address<input data-email type="email" maxlength="320" autocomplete="off" spellcheck="false" style="${field}"></label>
-        <div data-help style="font-size:11.5px;color:var(--text-muted);min-height:15px"></div>
-        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"></label>
-        <div data-custom hidden style="display:grid;grid-template-columns:1fr 90px 110px;gap:8px">
+        <div data-help hidden style="font-size:11.5px;color:var(--text-muted);margin-top:-4px"></div>
+        <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">App password<input data-pass type="password" maxlength="512" autocomplete="off" style="${field}"><span style="font-size:11px;color:var(--text-muted)">Not the password you sign in with: most providers make you create an app password in your account's security settings.</span></label>
+        <div data-custom hidden style="display:none;grid-template-columns:1fr 90px 110px;gap:8px">
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">IMAP server<input data-host type="text" maxlength="255" placeholder="imap.example.com" spellcheck="false" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Port<input data-port type="number" value="993" min="1" max="65535" style="${field}"></label>
           <label style="display:grid;gap:4px;font-size:12px;color:var(--text)">Security<select data-security style="${field}"><option value="tls" selected>TLS</option><option value="starttls">STARTTLS</option></select></label>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button type="submit" style="font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Sign in</button>
+          <button type="submit" style="font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Sign in</button>
           ${canCancel ? '<button data-back type="button" style="font:inherit;font-size:12.5px;padding:7px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back</button>' : ''}
           <span data-status style="font-size:12px;color:var(--text-muted)"></span>
         </div>
@@ -112,7 +112,11 @@ const VexMail = {
     email.addEventListener('input', () => {
       const domain = (email.value.split('@')[1] || '').trim().toLowerCase();
       help.textContent = this.PROVIDER_HELP[domain] || (domain.includes('.') && !this.KNOWN.includes(domain) ? 'Enter your provider\'s IMAP server below, and an app password if it issues them.' : '');
+      help.hidden = !help.textContent;
       custom.hidden = !(domain.includes('.') && !this.KNOWN.includes(domain) && !this.PROVIDER_HELP[domain]);
+      // Its inline display beat the hidden attribute, so the server row
+      // showed for every address (walkthrough L5, 2026-10-07).
+      custom.style.display = custom.hidden ? 'none' : 'grid';
     });
     // The security followed the port (TLS only on 993), so a server with TLS on
     // another port could not be added (found 2026-09-29). The port still picks
@@ -138,6 +142,7 @@ const VexMail = {
         btn.disabled = false; status.textContent = '';
         window.showToast?.(err.message, 'error');
         help.textContent = err.message;
+        help.hidden = false;
       }
     });
     email.focus();
@@ -250,7 +255,7 @@ const VexMail = {
     reader.innerHTML = `
       <div style="font-size:15px;font-weight:650;color:var(--text);margin-bottom:6px">${esc(msg.subject || '(no subject)')}</div>
       <div style="font-size:11.5px;color:var(--text-muted);line-height:1.5">From ${esc(msg.from)}<br>To ${esc(msg.to)}${msg.cc ? '<br>Cc ' + esc(msg.cc) : ''}<br>${esc(msg.date ? new Date(msg.date).toLocaleString() : '')}</div>
-      ${msg.webmail ? `<div style="margin:10px 0"><button data-reply type="button" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Reply in ${esc(name)}</button></div>` : ''}
+      ${msg.webmail ? `<div style="margin:10px 0"><button data-reply type="button" style="font:inherit;font-size:12px;padding:5px 11px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Reply in ${esc(name)}</button></div>` : ''}
       ${msg.attachments.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin:8px 0">Attached: ${msg.attachments.map(a => esc(a.filename) + ' (' + esc(this.size(a.size)) + ')').join(', ')} — ${msg.webmail ? 'download them from ' + esc(name) : 'download them in your mail program'}.</div>` : ''}
       <div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:var(--text);border-top:1px solid var(--border);padding-top:10px;margin-top:6px">${text ? this.linkify(text) : '<span style="color:var(--text-muted)">This message has no text.</span>'}</div>
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:12px">Shown as text: pictures and other remote content are not loaded, so nothing reports that you opened it. Reading here did not mark it read.</div>`;
@@ -277,7 +282,7 @@ const VexMail = {
       });
       list.appendChild(row);
     }
-    list.insertAdjacentHTML('beforeend', `<div style="display:flex;gap:8px;margin-top:6px"><button data-add type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add an account</button><button data-back type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back to the inbox</button></div>`);
+    list.insertAdjacentHTML('beforeend', `<div style="display:flex;gap:8px;margin-top:6px"><button data-add type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add an account</button><button data-back type="button" style="font:inherit;font-size:12.5px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Back to the inbox</button></div>`);
     list.querySelector('[data-add]').addEventListener('click', () => this._drawSetup(true));
     list.querySelector('[data-back]').addEventListener('click', () => this.open());
   },

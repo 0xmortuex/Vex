@@ -126,3 +126,75 @@ describe('construction', () => {
     expect(() => bare.stop()).not.toThrow();
   });
 });
+
+// Turning Discord's bypass off (or to light) used to stop the shared process
+// for Roblox too, while Roblox's menu still said "On".
+describe('Discord letting go while Roblox rides the shared process', () => {
+  it('keeps the process and Roblox on its bypass', async () => {
+    const { share, byedpi, proxySet, told } = harness();
+    share.attachRoblox(true);
+    await share.start('ud', null, 0);
+    const before = proxySet.length;
+    expect(share.releaseDiscord()).toBe(false);
+    expect(byedpi.stop).not.toHaveBeenCalled();
+    expect(share.isRobloxAttached()).toBe(true);
+    expect(proxySet.length).toBe(before);
+    expect(told).toEqual([]);
+  });
+
+  it('stops it when Discord was the only one using it', async () => {
+    const { share, byedpi } = harness();
+    await share.start('ud', null, 0);
+    expect(share.releaseDiscord()).toBe(true);
+    expect(byedpi.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('main.js lets Discord go through releaseDiscord, never a bare stop', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    const start = src.indexOf('async function _applyDiscordBypass(');
+    const end = src.indexOf('// Start the built-in JS proxy', start);
+    expect(end).toBeGreaterThan(start);
+    const body = src.slice(start, end);
+    expect(body).not.toMatch(/_share\.stop\(|_byedpi\.stop\(/);
+    expect(src).toMatch(/const _byedpiStop = \(\) => _share\.releaseDiscord\(\);/);
+  });
+});
+
+// Found in the v19.1.7 check: Discord to Light with Roblox riding the process
+// (it rightly stays), then Roblox's bypass off — and ciadpi.exe kept running
+// with nobody on it until Vex quit.
+describe('Roblox letting go', () => {
+  it('stops the process when Discord had already let go of it', async () => {
+    const { share, byedpi, proxySet } = harness();
+    await share.startForDiscord('ud', null, 2);    // Discord: Strong
+    share.reuseExisting();                         // Roblox rides it
+    expect(share.releaseDiscord()).toBe(false);    // Discord: Light — kept for Roblox
+    expect(share.releaseRoblox()).toBe(true);      // Roblox: off
+    expect(byedpi.stop).toHaveBeenCalledTimes(1);
+    expect(byedpi.isRunning()).toBe(false);
+    expect(proxySet[proxySet.length - 1]).toBe(null);
+    expect(share.isRobloxAttached()).toBe(false);
+  });
+
+  it('keeps the process while Discord is still using it', async () => {
+    const { share, byedpi, proxySet } = harness();
+    await share.startForDiscord('ud', null, 2);
+    share.reuseExisting();
+    expect(share.releaseRoblox()).toBe(false);
+    expect(byedpi.stop).not.toHaveBeenCalled();
+    expect(byedpi.isRunning()).toBe(true);
+    expect(proxySet[proxySet.length - 1]).toBe(null);   // Roblox itself goes direct
+  });
+
+  it('main.js starts it for Discord through startForDiscord and turns Roblox off through releaseRoblox', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    expect(src).toMatch(/const _byedpiStart = \([^)]*\) => _share\.startForDiscord\(/);
+    const start = src.indexOf('async function _applyRobloxBypass(');
+    const end = src.indexOf('async function _applyDiscordBypass(', start);
+    const body = src.slice(start, end);
+    expect(body).not.toMatch(/_byedpiStart\(|_byedpi\.stop\(/);
+    expect(body).toMatch(/if \(!on\) \{ _share\.releaseRoblox\(\);/);
+  });
+});

@@ -80,38 +80,7 @@ describe('autofill leaves a login alone once the person types', () => {
     expect(e.isTrusted).toBe(true);
   };
 
-  it('does not refill a field the person cleared, or move the cursor', async () => {
-    window.vex = { vaultGet: async () => [{ username: 'saved@example.test', password: 'Saved-Pass-1' }] };
-    const { webview, location } = page('<input type="email" id="email"><input type="password" id="pw"><button id="other">x</button>');
-    await PasswordVault.autofill(webview, location.href);
-    const email = document.getElementById('email'), pw = document.getElementById('pw');
-    expect(email.value).toBe('saved@example.test');
-    expect(document.activeElement).not.toBe(email);            // an automatic fill takes no focus
-    typed(pw, ''); typed(email, '');
-    pw.focus(); pw.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(email.value).toBe('');
-    expect(pw.value).toBe('');
-    expect(document.activeElement).toBe(pw);
-    typed(email, 'other@example.test');
-    email.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(email.value).toBe('other@example.test');
-    expect(pw.value).toBe('');
-  });
-
-  it('still fills a password step the person has not touched', async () => {
-    window.vex = { vaultGet: async () => [{ username: 'saved@example.test', password: 'Saved-Pass-1' }] };
-    const { webview, location } = page('<input type="email" id="email">');
-    await PasswordVault.autofill(webview, location.href);
-    document.body.insertAdjacentHTML('beforeend', '<input type="password" id="pw">');
-    const pw = document.getElementById('pw');
-    pw.getBoundingClientRect = () => ({ width: 100, height: 20 });
-    pw.dispatchEvent(new Event('focusin', { bubbles: true }));
-    await vi.advanceTimersByTimeAsync(10);
-    expect(pw.value).toBe('Saved-Pass-1');
-  });
-
+  // The saved-password cases moved to loginFillGesture.test.js (audit S5).
   it('the remembered-email fill stops too once the person types', async () => {
     const { webview, location } = page('<input type="email" id="email">');
     PasswordVault._rememberedEmail = () => 'me@example.test';
@@ -147,7 +116,8 @@ describe('Clear History clears the closed-tab list and the backups', () => {
     for (let i = 0; i < 5; i++) await tick();
     expect(localStorage.getItem('vex.recentlyClosed')).toBe(null);
     expect(H.entries).toEqual([]);
-    expect(calls).toEqual(['save', 'recall', 'clearHistory']);
+    // No 'save' first: the file copy of history is gone (main/history-fold.js).
+    expect(calls).toEqual(['recall', 'clearHistory']);
     expect(window.showToast).toHaveBeenLastCalledWith('History cleared');
     delete globalThis.VexStorage; delete globalThis.vexConfirm;
   });
@@ -168,7 +138,7 @@ describe('Clear History clears the closed-tab list and the backups', () => {
 
 describe('the wrong-PIN wait survives a restart', () => {
   const { VexLock: L } = require('../../src/renderer/js/vex-lock.js');
-  beforeEach(() => { L.unlock(); L._waitUntil = 0; });
+  beforeEach(() => { L._open(); L._waitUntil = 0; });
 
   it('keeps the wrong-try count and the wait in storage', () => {
     L._fails = 3;
@@ -179,7 +149,7 @@ describe('the wrong-PIN wait survives a restart', () => {
     // A restart: nothing in memory, only what was stored.
     expect(L._fails).toBe(3);
     expect(L._waitUntil).toBe(until);
-    L.unlock();
+    L._open();
     expect(localStorage.getItem(L.FAILS_KEY)).toBe(null);
   });
 
@@ -198,6 +168,6 @@ describe('the wrong-PIN wait survives a restart', () => {
     await tick();
     expect(L.locked()).toBe(true);
     expect(document.querySelector('.vex-lock-msg').textContent).toMatch(/Too many tries — wait \d+ s/);
-    L.unlock();
+    L._open();
   });
 });

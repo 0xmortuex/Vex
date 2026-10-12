@@ -38,6 +38,21 @@ const ShortcutsRegistry = (() => {
     'hard-reload':    { default: 'Ctrl+Shift+R', label: 'Hard Reload (clear cache)',  category: 'Navigation' },
     'find-in-page':   { default: 'Ctrl+F',       label: 'Find in Page',               category: 'Navigation' },
     'zoom-reset':     { default: 'Ctrl+0',       label: 'Reset Zoom',                 category: 'Navigation' },
+    // The other keys every browser has for these, which Vex lacked (found
+    // 2026-10-10). Each is a key of its own, so each can be moved or kept
+    // apart from Ctrl+R, Ctrl+Tab and Ctrl+L. Like Chrome, they are Vex's
+    // even inside a page (main/guest-shortcuts.js passes them up).
+    'reload-f5':      { default: 'F5',           label: 'Reload Page (second key)',   category: 'Navigation' },
+    'hard-reload-ctrl-f5':  { default: 'Ctrl+F5',  label: 'Hard Reload (second key)', category: 'Navigation' },
+    'hard-reload-shift-f5': { default: 'Shift+F5', label: 'Hard Reload (third key)',  category: 'Navigation' },
+    'focus-url-f6':   { default: 'F6',           label: 'Focus URL Bar (second key)', category: 'Navigation' },
+    'focus-url-alt-d': { default: 'Alt+D',       label: 'Focus URL Bar (third key)',  category: 'Navigation' },
+    'next-tab-pagedown': { default: 'Ctrl+PageDown', label: 'Next Tab (second key)',  category: 'Tabs' },
+    'prev-tab-pageup':   { default: 'Ctrl+PageUp',   label: 'Previous Tab (second key)', category: 'Tabs' },
+    // Moving the tab in front along the strip from the keyboard, as in Chrome
+    // and Firefox; drag was the only way (found 2026-10-10).
+    'move-tab-left':     { default: 'Ctrl+Shift+PageUp',   label: 'Move Tab Left',  category: 'Tabs' },
+    'move-tab-right':    { default: 'Ctrl+Shift+PageDown', label: 'Move Tab Right', category: 'Tabs' },
 
     // Panels
     'history-panel':  { default: 'Ctrl+H',       label: 'History Panel',              category: 'Panels' },
@@ -77,6 +92,10 @@ const ShortcutsRegistry = (() => {
     'toolbox':        { default: 'Ctrl+Alt+X',   label: 'Toolbox',                    category: 'Tools',      cmd: 'toolbox' },
     'read-later':     { default: 'Ctrl+Alt+K',   label: 'Save this page to Read Later', category: 'Tools',    cmd: 'readlater' },
     'translate-page': { default: 'Ctrl+Alt+G',   label: 'Translate this page',        category: 'Tools',      cmd: 'translate' },
+    // As in Chrome and Firefox (found missing 2026-10-10). Ctrl+S reaches
+    // Vex from a page only when the page left it alone (main/guest-shortcuts.js).
+    'save-page':      { default: 'Ctrl+S',       label: 'Save page as…',              category: 'Tools',      cmd: 'save-as' },
+    'clear-data':     { default: 'Ctrl+Shift+Delete', label: 'Clear browsing data',  category: 'Tools',      cmd: 'clear-data' },
     // Alt+Tab's useful half, for tabs: one press and you are back on the tab
     // you were on before this one. Alt+Q because Alt+Tab itself belongs to
     // Windows and can never be taken from it.
@@ -152,6 +171,7 @@ const ShortcutsRegistry = (() => {
     const all = getAllShortcuts();
     // A key saved before the rule in whyNotAKey is never handed to main.
     const combos = Object.values(all).filter(d => d.current && d.hasHandler && !whyNotAKey(d.current)).map(d => d.current);
+    combos.push(...Object.keys(WINDOW_KEYS));
     try { window.vex.setGuestShortcutKeys([...new Set(combos)]); return true; }
     catch (err) { console.warn('[Shortcuts] could not hand the keys to the window:', err && err.message); return false; }
   }
@@ -237,6 +257,12 @@ const ShortcutsRegistry = (() => {
   };
   for (let n = 1; n <= 8; n++) FIXED_KEYS['Ctrl+' + n] = 'Go to tab ' + n;
   FIXED_KEYS['Ctrl+9'] = 'Go to the last tab';
+  // Answered in this window outside the registry (app.js, the first three
+  // command chains). The editor gave them away with no warning, and from
+  // inside a page they did nothing (found 2026-10-10): they are handed to
+  // main with the registry's own keys.
+  const WINDOW_KEYS = { 'Ctrl+Alt+1': 'Run command chain 1', 'Ctrl+Alt+2': 'Run command chain 2', 'Ctrl+Alt+3': 'Run command chain 3' };
+  Object.assign(FIXED_KEYS, WINDOW_KEYS);
 
   function setShortcut(id, combo) {
     const why = whyNotAKey(combo);
@@ -282,6 +308,15 @@ const ShortcutsRegistry = (() => {
     return ok;
   }
   function resetAll() { userShortcuts = {}; const ok = _save(); _tellMain(); return ok; }
+  // The custom bindings as they are, and putting them back (Reset all's Undo).
+  function customBindings() { return JSON.parse(JSON.stringify(userShortcuts)); }
+  function restoreBindings(saved) {
+    if (!saved || typeof saved !== 'object') throw new Error('Nothing to put back');
+    userShortcuts = JSON.parse(JSON.stringify(saved));
+    const ok = _save();
+    _tellMain();
+    return ok;
+  }
 
   function register(id, handler) {
     if (!DEFAULT_SHORTCUTS[id]) {
@@ -357,7 +392,7 @@ const ShortcutsRegistry = (() => {
 
   return {
     init, getShortcut, getAllShortcuts, assignable,
-    setShortcut, resetShortcut, removeShortcut, resetAll,
+    setShortcut, resetShortcut, removeShortcut, resetAll, customBindings, restoreBindings,
     register, eventToShortcut, _tellMain
   };
 })();

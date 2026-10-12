@@ -1,4 +1,12 @@
-# Vex Sync Protocol (v2.35.2)
+# Vex Sync Protocol (v2.35.2, wire protocol unchanged through the release after v2.37.0; §8 source list as of the release after v2.36.4; level-2 markers, clean-up and the history window from the release after v14.72.3; key proof, protocol version 1 of §2.7, from the release after v14.72.3)
+
+> **Release after v18.59.3 — an email after an erase (server and client change, §2.9).** After `POST /sync/reset` or `DELETE /sync/all` the worker emails the account's address in plain text: what was erased, when (UTC), from which device, and what to do if it was not them. The worker keeps no address, so the client sends `email` in those two requests' JSON bodies (`DELETE /sync/all` now has a body); it is used only if its HMAC is the account, and is never stored. Both replies gain `notice` (§2.9). Older clients keep working; they get no email. **The worker must be redeployed for this.**
+
+> **Release after v14.72.3 — key proof (server and client change, §2.7, §2.8).** Up to now one sign-in email code was enough to overwrite or erase an account without its sync key (push with `baseRevision: 0`, read the revision from the 409, push again; or `DELETE /sync/all`). A worker from this release keeps, per account, a key check derived from the sync key, and from then on refuses a push or wipe that does not prove the key with an HMAC over a one-time nonce (`GET /sync/challenge`, header `X-Vex-Proof`). New: `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`; status **403** with a `code` field on refusals; `keyCheck` in the pull and challenge replies; `keyCheckSet` in the push reply. An account without a key check (every account until a current client syncs) works exactly as before, so **older clients keep working until the first current client locks the account**; after that they can still pull (and list devices), but their pushes and wipes get 403 (§2.7.5). A current client talking to an older worker sees `/sync/challenge` answer 404 (or 403 "This device has not synced yet") and syncs without proofs.
+
+> **Release after v14.72.3 — document contents only, no server change.** Each desktop sends its own open tabs as `sync:tabs:<deviceId>` and no longer writes or applies the shared `storage:tabs`, `storage:groups` and `storage:stacks` (§4.8). The desktop writes its marker as `{"level":2,"revision":<int>}` (§4.6), clears deleted records and retired sources out of the document once every device is at level 2 (§4.7), and sends only its newest 1,000 history visits from the last 90 days (§8.1). Older clients keep working; a client that wants the clean-up to run follows §4.7 and writes level 2.
+
+> **Release after v2.37.0 — server-internal change only.** The worker keeps each account in its own Durable Object instead of one shared object (§1.2). Every endpoint, request, response, status code and token format in this document is unchanged; no client change is needed.
 
 This is the wire and data contract between Vex clients and a self-hosted Vex Sync worker. A third-party or mobile client can follow it and sync with desktop Vex without losing or corrupting another device's data.
 
@@ -12,7 +20,7 @@ Everything here comes from the code at Vex v2.35.2, and was checked by running i
 | Encryption | `src/renderer/js/sync-crypto.js` |
 | Validation the desktop applies to the sources it reads from a pull | `src/renderer/js/data-contracts.js` |
 | Worker URL setting | `src/renderer/js/vex-config.js` |
-| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `sync-protocol-compat.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js` |
+| Behaviour pinned by tests | `tests/renderer/syncRecords.test.js`, `sweep-fin5-sync.test.js`, `sweep-r2-sync-lists.test.js`, `sweep-r4-sync-tiles.test.js`, `sync-protocol-compat.test.js`, `tests/workers/syncAuth.test.js`, `durableSecurity.test.js`, `syncAccountIsolation.test.js` |
 
 The test vector (§3.6) came from running the real `sync-crypto.js` and `sync-records.js` under Node's WebCrypto, and Node's own `crypto` module was used to check it. The HTTP examples (§1, §2, §9) are real responses from the real worker code, run through a local Node stand-in for its Durable Object.
 
@@ -43,11 +51,11 @@ A sync round is **pull → merge → push**. A push carries `baseRevision`. The 
 
 - Every request and response body is JSON (`Content-Type: application/json`). Every response, errors included, is `application/json` with a body like `{"error": "<message>"}` or `{"ok": true, ...}`. The only exception is `OPTIONS`, which returns 204 with no body.
 - Authenticated endpoints (`/sync/*`) need `Authorization: Bearer <sessionToken>`. The server strips the prefix with `/^Bearer\s+/`.
-- **Request body cap: 4 MiB** (`boundedJson`, 4·1024·1024 bytes). The cap is checked against `Content-Length` first and then while streaming. Over the cap the server returns **413** `{"error":"Request too large"}`. The worker's own `encryptedBlob.length > 5 MB → 413 "Blob too large (max 5 MB)"` check can never fire, because the 4 MiB body cap is reached first. **The effective limit for a push is the entire JSON body ≤ 4 MiB**, and base64 adds about 33%, so the plaintext document must stay under roughly 3 MiB.
+- **Request body cap: 4 MiB** (`boundedJson`, 4·1024·1024 bytes). The cap is checked against `Content-Length` first and then while streaming. Over the cap the server returns **413** `{"error":"Request too large"}`. (The desktop says "Your synced data is too big for the sync server (over 4 MB), so nothing was uploaded…" from the release after v14.72.3.) The worker's own `encryptedBlob.length > 5 MB → 413 "Blob too large (max 5 MB)"` check can never fire, because the 4 MiB body cap is reached first. **The effective limit for a push is the entire JSON body ≤ 4 MiB**, and base64 adds about 33%, so the plaintext document must stay under roughly 3 MiB.
 - If the request body is not read within 10 s, the server returns **408** `{"error":"Body read timed out"}`.
 - A body that is not JSON gets **400** `{"error":"Invalid JSON"}`. A missing body gets **400** `{"error":"JSON body required"}`.
 - Unknown paths get **404** `{"error":"Not found"}`. An unexpected server exception gets **500** `{"error":"Sync request failed"}`.
-- All state lives in one Durable Object (`idFromName('vex-sync')`), and every request runs inside `blockConcurrencyWhile`. **Requests are serialised, so the revision check on push is atomic.**
+- Each account lives in its own Durable Object (`VEX_ACCOUNTS`, `idFromName(<account key>)`), and every request for it runs inside that object's `blockConcurrencyWhile`. **Requests for one account are serialised, so the revision check on push is atomic.** Requests for different accounts run in different objects. (Server-internal, from the release after v2.37.0: a shared object, `VEX_STATE`, keeps login codes, rate limits and which account each session token belongs to. Up to v2.37.0 everything was in that one object; the server copies each account out of it on the account's first request. Clients see no difference.)
 - The desktop client limits responses to 32 MiB and times out after 30 s (`network.js` `createBoundedFetch`).
 
 ### 1.3 Server-wide error states
@@ -56,7 +64,7 @@ A sync round is **pull → merge → push**. A push carries `baseRevision`. The 
 |---|---|---|
 | 503 | `Sync server is misconfigured: EMAIL_HASH_SECRET is not set` | `EMAIL_HASH_SECRET` is missing or shorter than 32 characters. **Every** non-OPTIONS request gets this. |
 | 503 | `Email delivery is not configured` | `/auth/*` only, when `RESEND_API_KEY` is unset and the worker is not in dev mode. Dev mode needs `DEVELOPMENT_MODE === 'true'` **and** a request host of `localhost`, `127.0.0.1` or `[::1]`. |
-| 503 | `Durable state is not configured` | The `VEX_STATE` binding is missing. |
+| 503 | `Durable state is not configured` | The `VEX_STATE` or `VEX_ACCOUNTS` binding is missing. |
 
 A client SHOULD show 503 as "the sync server is not set up" and MUST NOT treat it as signed-out.
 
@@ -76,7 +84,7 @@ Request: `{ "email": string }`. The address must contain `@`.
 Each new code replaces the previous one and resets the wrong-guess counter. A code is valid for 10 minutes and is 6 decimal digits, zero-padded.
 
 #### `POST /auth/verify-code`
-Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. The server compares `String(code)`, so a number works. `deviceName` defaults to `"Unknown device"` and is **not validated**. A client SHOULD send a short human-readable string; desktop sends e.g. `Windows-7K2Q`.
+Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. The server compares `String(code)`, so a number works. `deviceName` defaults to `"Unknown device"` and is **not validated**. A client SHOULD send a short human-readable string; desktop sends the name the user typed at sign-in (by default e.g. `Windows-7K2Q`). A later rename travels only in the device's marker (§4.6).
 
 | Status | Body |
 |---|---|
@@ -94,20 +102,23 @@ Request: `{ "email": string, "code": string|number, "deviceName"?: string }`. Th
 | 200, account has data | `{"ok":true,"revision":int,"encryptedBlob":string,"updatedAt":string,"pushedBy":"<deviceId>","pushedAt":"<ISO>"}` |
 | 401 | see §2.6 |
 
-A pull by a pending session **registers the device** in the device list. This happens even if the client then fails to decrypt the blob (§2.3).
+From the release after v14.72.3 both 200 replies also carry `"keyCheck":{"setAt":"<ISO>"}` when the account is locked to its sync key (§2.7); the field is absent otherwise, and absent on older workers.
 
-#### `POST /sync/push`  (Bearer)
-Request: `{ "encryptedBlob": string, "updatedAt"?: string (ISO), "baseRevision": int }`.
+A pull by a pending session **registers the device** in the device list. This happens even if the client then fails to decrypt the blob (§2.3). On an account locked to its sync key it does **not** (from the release after v14.72.3): the device is registered by its first proof (§2.7.4).
+
+#### `POST /sync/push`  (Bearer; key proof, §2.7)
+Request: `{ "encryptedBlob": string, "updatedAt"?: string (ISO), "baseRevision": int }`, plus the headers `X-Vex-Proof` (and, on the first proof, `X-Vex-Auth-Key`) from §2.7.
 
 | Status | Body |
 |---|---|
-| 200 | `{"ok":true,"savedAt":"<ISO>","revision":int}`. The new revision is `baseRevision + 1`. |
-| 400 | `{"error":"Missing encryptedBlob"}` |
-| 409 | `{"error":"Sync conflict: pull and merge before pushing","revision":int}`. `baseRevision` is missing, is not a safe integer, or does not equal the server's current revision. **An omitted `baseRevision` always gets 409.** |
+| 200 | `{"ok":true,"savedAt":"<ISO>","revision":int}`. The new revision is `baseRevision + 1`. With `"keyCheckSet":true` when this proof locked the account (§2.7.3). |
+| 400 | `{"error":"Missing encryptedBlob"}`; or a malformed proof (§2.7.6) |
+| 403 | a refused proof: `{"error":"<sentence for the user>","code":"key-required"|"key-mismatch"|"proof-stale"}` (§2.7.6). The proof is checked **before** the revision, so a refused push learns no revision. |
+| 409 | `{"error":"Sync conflict: pull and merge before pushing","revision":int}` (plus `"keyCheckSet":true` as for 200). `baseRevision` is missing, is not a safe integer, or does not equal the server's current revision. **An omitted `baseRevision` always gets 409.** |
 | 413 | `{"error":"Request too large"}` |
 | 401 | see §2.6 |
 
-A successful push replaces the account's blob **entirely**, and it registers a pending device. `updatedAt` is stored and returned by pull, but no client reads it.
+A successful push replaces the account's blob **entirely**, and it registers a pending device (on a locked account, through its proof). `updatedAt` is stored and returned by pull, but no client reads it.
 
 #### `GET /sync/devices`  (Bearer, registered devices only)
 200: `{"ok":true,"devices":[{"deviceId","deviceName","createdAt","lastSeenAt"}...],"currentDeviceId":"<yours>"}`. A pending session gets **403** `{"error":"This device has not synced yet"}`. Every authenticated non-pending request updates the caller's `lastSeenAt`.
@@ -117,8 +128,13 @@ A successful push replaces the account's blob **entirely**, and it registers a p
 - A registered device may remove **any** device, itself included. The server deletes the target from the list and deletes every session of the target. It returns 200 `{"ok":true}` even when the id is unknown.
 - A **pending** session may remove **only itself** (`/sync/devices/<its own deviceId>`), which deletes its session. Anything else gets 403.
 
-#### `DELETE /sync/all`  (Bearer, registered)
-Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, and **every session of the account, including the caller's**. Returns 200 `{"ok":true}`. The caller's next request gets 401.
+#### `DELETE /sync/all`  (Bearer, registered; key proof, §2.7)
+Deletes the blob (the revision goes back to 0), the device list, the handoff mailbox, the key check (§2.7), and **every session of the account, including the caller's**. Returns 200 `{"ok":true}` (from the release after v18.59.3: `{"ok":true,"notice":…}`, §2.9). The caller's next request gets 401. On a locked account it needs a proof for the action `wipe` (403 as for push without one); a pending session may wipe only with a valid proof.
+
+From the release after v18.59.3 the request MAY carry a JSON body `{"email":"<the address signed in with>"}` (with `Content-Type: application/json`), for the email of §2.9. The body is not part of the proof. A request without a body is still accepted.
+
+#### `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`  (Bearer; from the release after v14.72.3)
+See §2.7 and §2.8. Older workers answer 404 (or 403 "This device has not synced yet" to a pending session).
 
 #### `POST /sync/drop`, `GET /sync/drop`  (Bearer, registered)
 The "Send to My Devices" mailbox. See §7.
@@ -130,9 +146,10 @@ What the worker sends, exactly (constant `CORS_HEADERS`). These are on **every**
 ```
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Vex-Proof, X-Vex-Auth-Key
 Access-Control-Max-Age: 86400
 ```
+(`X-Vex-Proof` and `X-Vex-Auth-Key` from the release after v14.72.3, §2.7. Up to then: `Content-Type, Authorization`.)
 
 `OPTIONS` (on any path) returns **204** with those headers. It is answered before the secret check and before the Durable Object, so preflight works even on a misconfigured worker. Verified:
 
@@ -145,7 +162,7 @@ OPTIONS /sync/push  (Origin: https://pwa.example, ACR-Method: POST, ACR-Headers:
 **Conclusion: a browser-based or PWA client works without any worker change.**
 - The token goes in the `Authorization` header and no cookies are used, so the request is not a "credentialed" CORS request in the cookie sense, and `Allow-Origin: *` is accepted. Do **not** set `credentials: 'include'`. With credentials, `*` would be rejected.
 - The client only reads JSON bodies, so no `Access-Control-Expose-Headers` is needed.
-- Every method used (GET, POST, DELETE) and every request header used (Content-Type, Authorization) is allowed.
+- Every method used (GET, POST, DELETE) and every request header used (Content-Type, Authorization, and the §2.7 proof headers) is allowed.
 
 Caveats (not worker bugs):
 1. A PWA served over HTTPS needs an `https://` worker URL, or the browser blocks it as mixed content. `*.workers.dev` is HTTPS.
@@ -174,14 +191,15 @@ Accounts are keyed by `hex(HMAC-SHA256(key = UTF-8(EMAIL_HASH_SECRET), msg = UTF
   - `GET /sync/pull`
   - `POST /sync/push`
   - `DELETE /sync/devices/<own deviceId>` (to abandon the sign-in)
+  - from the release after v14.72.3: `GET /sync/challenge`, `POST /sync/prove`, `POST /sync/reset`, and `DELETE /sync/all` with a valid proof (§2.7, §2.8)
   
-  Anything else gets **403** `{"error":"This device has not synced yet"}`. That includes `/sync/devices`, `/sync/drop` and `/sync/all`.
+  Anything else gets **403** `{"error":"This device has not synced yet"}`. That includes `/sync/devices` and `/sync/drop`, and `/sync/all` without a proof.
 - The **first successful pull or push** adds `{deviceId, deviceName, createdAt, lastSeenAt}` to the list and clears `pending`. A pull registers the device **before** the client has decrypted anything. A sign-in that then fails (wrong recovery code) therefore leaves a registered device behind, which the client MUST delete (§2.5).
 
 ### 2.4 Creating an account versus joining one
 The desktop uses `hasEncryptedData` like this (`sync-engine.js` `verifyCode` / `enrollWithRecoveryCode`):
 
-- **Create** (`verifyCode`): only when `hasEncryptedData === false`. If it is anything else, the desktop calls `DELETE /sync/devices/<deviceId>` with the new token and refuses with "This account already has encrypted data … Enroll with your recovery code."
+- **Create** (`verifyCode`): only when `hasEncryptedData === false`. If it is anything else, the desktop keeps the new session in memory and asks for the recovery code in place; with it, it joins (below) **using that session**, without a second `verify-code` (the email code is single-use). If the user leaves that sign-in (another address, a new code, or ten minutes), the desktop calls `DELETE /sync/devices/<deviceId>` with the new token. (Up to v2.38.x the desktop deleted the session at once and refused with "This account already has encrypted data … Enroll with your recovery code.")
   
   Otherwise the client generates a random 256-bit AES key, saves it, and immediately **pushes with `baseRevision: 0`** a document built from its local data plus its device marker. It shows the recovery code (§3.1) once. If that first push fails, it signs out with server removal.
 - **Join** (`enrollWithRecoveryCode`): the user enters email, code **and recovery code**. The recovery code is parsed and imported *before* verify. After verify the client pulls in **restore mode** (§5.4).
@@ -206,12 +224,99 @@ On any `/sync/*` call:
 
 The desktop treats every 401 from push, pull or the device list the same way: it signs out locally **without** a server call and shows "This device was signed out of Vex Sync — the server no longer recognises it … Sign in again". A client MUST NOT retry with the same token, MUST NOT delete local user data, and SHOULD discard its record document and revision. The next sign-in is a join (§5.4).
 
+### 2.7 Proof of the sync key (key proof version 1, from the release after v14.72.3)
+
+The email code says who you are; it says nothing about whether you hold the sync key. Up to v14.72.3 a session made from one email code could replace the account's blob (push with `baseRevision: 0`, take the `revision` from the 409, push again) or erase it (`DELETE /sync/all`), without ever having the key. It could not read anything, but it could destroy everything. From this release a worker locks each account to its sync key and asks for a proof before it changes the account.
+
+#### 2.7.1 The auth key
+```
+authKey = HKDF-SHA256(ikm = the 32 raw sync-key bytes (§3.1), salt = empty (zero bytes), info = UTF-8 "vex-sync auth key v1", length = 32 bytes)
+```
+Written as 64 lowercase hex characters. HKDF is one-way: the auth key does not decrypt anything and does not give the sync key back, so the server may keep it. **The sync key itself is never sent.** (Desktop: `SyncCrypto.authKeyHex`.)
+
+#### 2.7.2 A proof
+1. `GET /sync/challenge` (Bearer; any session, pending included) → `200 {"ok":true,"nonce":"<32 hex>","expiresIn":300,"keyCheck":{"setAt":"<ISO>"}|null}`. The nonce belongs to the caller's device, is good for **5 minutes** and **one** request, accepted or not. The server keeps at most 20 unused nonces per account (the oldest go first).
+2. Compute
+   ```
+   message = "vex-sync-proof/1\n" + nonce + "\n" + deviceId + "\n" + action + "\n" + details
+   mac     = hex( HMAC-SHA256(key = authKey bytes, message = UTF-8(message)) )
+   ```
+   `deviceId` is the caller's own (§2.3). `action` and `details`:
+
+   | Request | `action` | `details` |
+   |---|---|---|
+   | `POST /sync/push` | `push` | `<baseRevision as sent, decimal>` + `"\n"` + `hex(SHA-256(UTF-8(encryptedBlob)))` |
+   | `DELETE /sync/all` | `wipe` | empty string |
+   | `POST /sync/prove` | `prove` | empty string |
+3. Send header `X-Vex-Proof: <nonce>.<mac>`. When the challenge said `"keyCheck": null` (the account is not locked yet), also send `X-Vex-Auth-Key: <authKey hex>` (§2.7.3).
+
+A proof covers one action on one body by one device, once. It cannot be replayed (the nonce is spent), moved to another session (the nonce is the device's), or reused for another blob, revision or action (they are in the MAC).
+
+Vector (sync key of §3.6, `000102…1f`; nonce `00112233445566778899aabbccddeeff`; device `0123456789abcdef0123456789abcdef`; checked with WebCrypto and with Node's `crypto.hkdfSync`/`createHmac`):
+```
+authKey                 : 189392652584556749599e10df7683b887f593b65e96d70400072158154c72cc
+push, baseRevision 41, encryptedBlob "oKGio6Sl"
+  SHA-256(blob)         : b771b6fcbe1fb3c659f047d2417a51272b02932fec1faaf011567117ac7e5479
+  mac                   : 7212737d795bd6b54ded5b01ce84eb570e6e1efddd98a017d911b26ec49baae5
+wipe  mac               : 3b37c704c266d8bc3fb2a8e9229844c0e3d72a4c5edef19c16522a14be928c72
+prove mac               : b0cf29d8d2ca3be6bd099bd947e0494b8b9a107a038275ceb14231dec3efda38
+```
+
+#### 2.7.3 Locking an account (trust on first use)
+The account's **key check** is `{key: <authKey hex>, setAt, setBy: <deviceId>}`, kept in the account's storage. A new account gets it from its first push. **An account from before this release has none**; the first valid proof that carries `X-Vex-Auth-Key` sets it, and the reply says `"keyCheckSet": true`. From then on every proof is checked against it, and `X-Vex-Auth-Key` is ignored. A key check is removed only with the account (`DELETE /sync/all`, `POST /sync/reset`).
+
+**The window that stays open:** until a current client has proved the key once, the account is as open as before: whoever has an email code can replace or erase it, and could even lock it to a key of their own (the real devices' proofs then fail with `key-mismatch`, and the user has to start over, §2.8). The window closes the first time a current desktop pushes (it pushes within seconds of a change and at least every two minutes while open). The desktop says in Settings › Vex Sync whether the account is locked (`keyCheck` in pull and challenge), and shows "Your sync account is now locked to your sync key …" once, on the device that locked it.
+
+#### 2.7.4 What a session may do on a locked account
+A session that has not made a valid proof (a new sign-in, or a device on an older client) may only: `GET /sync/pull`, `GET /sync/challenge`, `POST /sync/prove`, `GET /sync/devices` (if it is already listed), `DELETE /sync/devices/<own id>`, and push or wipe **with** a proof. It is not registered by a pull; its first valid proof (a push, or `POST /sync/prove` for a client that only reads) registers it and marks the session proven. Anything else gets **403** `{"error":"<KEY_REQUIRED sentence>","code":"key-required"}`, including `/sync/drop` and removing another device.
+
+`POST /sync/prove` (Bearer, `X-Vex-Proof` for the action `prove`) → `200 {"ok":true}` (`"keyCheckSet":true` if it locked the account).
+
+#### 2.7.5 Older clients
+- **Before the account is locked:** nothing changes. Pushes and wipes without `X-Vex-Proof` are accepted as before.
+- **After:** an older client can still sign in, pull and decrypt (it has the key), and list devices if it was already listed. Its pushes and wipes get **403** with `code: "key-required"` and the sentence "This sync account is locked to its sync key, and this device did not prove it has the key. Update Vex on this device, or sign in again with your recovery code." Desktops up to v14.72.3 do not read that body: they show "Push returned 403" (Settings › Vex Sync: "Not syncing — the last sync failed"), keep pulling, and keep their own unsent changes locally until they are updated; nothing is lost and nothing is signed out. A new sign-in by an older desktop joins and pulls, but is never registered.
+- Why refuse rather than keep older devices writing: letting every session that existed before the lock keep writing without a proof would keep the hole open for any session an attacker had made before it, for a year (the session lifetime). Old devices lose uploads, not data, until they are updated.
+
+#### 2.7.6 Refusals
+
+| Status | `code` | When |
+|---|---|---|
+| 403 | `key-required` | The account is locked and the request has no `X-Vex-Proof`, or the session has not proved the key and asked for something else (§2.7.4). |
+| 403 | `key-mismatch` | The MAC does not verify with the account's key check: this device's key is not the account's, or the MAC covers another action, body or revision. |
+| 403 | `proof-stale` | The nonce is unknown, already used, older than 5 minutes, or was asked for by another device. Ask for a new one. |
+| 400 | `proof-malformed` | `X-Vex-Proof` is not `<32 hex>.<64 hex>` (or `/sync/prove` without it). |
+| 400 | `auth-key-missing` | The account is not locked and the first proof has no valid `X-Vex-Auth-Key`. |
+
+A client SHOULD show `error` to the user as it is. On `key-mismatch` it MUST NOT retry with another key or "repair" anything (§6 rule 12 applies in spirit): sign out, and join again with a recovery code that works (§5.4), or start over (§2.8).
+
+#### 2.7.7 Talking to an older worker
+A worker from before this release answers `GET /sync/challenge` with 404 (a registered session) or 403 "This device has not synced yet" (a pending one). A client then sends its requests without proof headers, and SHOULD tell the user the account is not protected until the worker is redeployed. The desktop does both (Settings › Vex Sync).
+
+### 2.8 Starting over without the key (from the release after v14.72.3)
+A user who has lost the recovery code on every device cannot read the account, and with §2.7 cannot erase it with a proof either. `POST /sync/reset` erases it on purpose:
+
+- Request: `{"confirm":"erase my synced data"}` exactly, else **400** `code: "confirm-required"`. From the release after v18.59.3 the body SHOULD also carry `"email"`, the address the sign-in used, for the email of §2.9; the reply is then `{"ok":true,"notice":…}`.
+- Only from a **pending** session made **at most 10 minutes ago**, i.e. straight after a fresh email code; anything else gets **403** `code: "fresh-sign-in-required"`.
+- It deletes what `DELETE /sync/all` deletes (blob, devices, mailbox, key check, sessions), except the caller's own session, which stays pending. Every other device's next request gets 401 and it signs out with "… the cloud data was wiped". **Data on the devices is not touched.**
+- The caller then creates a new account as in §2.4 (new key, push with `baseRevision: 0`), which locks it to the new key.
+
+The desktop offers this only on the sign-in that just found the account has data ("I lost my recovery code: start over"), after a confirmation that says what is erased; it then shows the new recovery code. It cannot replace the account's data unseen: the old data is erased (not overwritten with something the other devices would try to decrypt), and every other device is signed out with a message. **What stays possible:** someone who can read the user's email can still erase the synced copy this way (never read it, never change it while keeping it). The devices keep their data and can sign in again.
+
+### 2.9 The email after an erase (from the release after v18.59.3)
+So that an erase the owner did not do (§2.8: someone who can read the email; or a device with the sync key) does not go unnoticed, the worker writes to the account's address after `POST /sync/reset` and after `DELETE /sync/all`.
+
+- **The address.** Accounts are an HMAC of the address (§2.2), so the worker has none to write to. The client sends `email` in the request body. The worker uses it only if `HMAC(email.trim().toLowerCase())` is the account the session belongs to, sends to it, and does not store it anywhere. Any other address, or none (older clients), sends nothing.
+- **How it is sent.** The same way as the sign-in code (Resend, `RESEND_API_KEY`, from `RESEND_FROM`), no new provider or secret. Without `RESEND_API_KEY` (a development worker) nothing is sent.
+- **Limit.** Like the sign-in codes: at most 3 per address per 15 minutes. Past that the erase still happens; the email does not.
+- **What it says.** Plain text, subject `Your Vex Sync data was erased`: that the synced data was erased (and, for `/sync/reset`, the account started over with a new recovery code), the time in UTC to the minute, and the device, as `a device named "<deviceName>"` (control and line-break characters folded to spaces, at most 60 characters) or `a device` when it has no name. Then what to do if it was not them: secure the email account; on one of their own devices open Vex, Settings › Vex Sync, and sign in again with the address (after a reset Vex finds an account they have no recovery code for, and "I lost my recovery code: start over" erases it and uploads that device's data under a new recovery code; after a wipe Vex starts a new account); join the other devices with the new recovery code. **It never contains synced data, keys, codes, tokens or device ids.**
+- **The reply.** The erase is done before the email is tried, and a failed email does not undo it. The reply says what happened to the email in `notice`: `"sent"`, `"no-address"` (no or wrong address), `"not-configured"` (no `RESEND_API_KEY`), `"rate-limited"`, or `"failed"` (Resend refused or did not answer; also in the worker log). A client MAY show it; the desktop does not.
+
 ---
 
 ## 3. Encryption
 
 ### 3.1 Recovery code = the raw key
-There is **no key derivation**: no PBKDF2, no salt, no iterations, and the email is not involved. The AES key *is* the recovery code.
+There is **no key derivation**: no PBKDF2, no salt, no iterations, and the email is not involved. The AES key *is* the recovery code. (The only derived key is the auth key of §2.7.1, used for proofs, never for encryption.)
 
 - Key: 32 random bytes (`crypto.subtle.generateKey({name:'AES-GCM', length:256})`, exported raw).
 - Canonical form: 64 lowercase hex characters (`keyToHex`).
@@ -233,7 +338,9 @@ GCM tag verification fails, and WebCrypto rejects with `DOMException` name **`Op
 
 ### 3.4 What is encrypted, and what is not
 - Encrypted: the record document (`encryptedBlob` on push and pull) and each handoff item (§7).
+- Encrypted twice: saved passwords and authenticator accounts, when a desktop syncs them (§4.9). Each one is sealed on its own inside the document, so the desktop's own copy of the document holds none of them in readable form either.
 - Not encrypted (the server can see it): the email (at request time), `deviceName`, device timestamps, `updatedAt`, revision numbers, blob sizes, the sender of each handoff item and when it was sent.
+- The server also keeps each account's auth key (§2.7.1), derived one-way from the sync key. It decrypts nothing; anyone who could read the server's storage could forge proofs with it, but could already rewrite that storage directly.
 
 ### 3.5 Key storage
 The desktop keeps the key hex through `window.vex.syncSaveKey` in the main process, and the session metadata (`email, sessionToken, deviceId, emailHash, lastPushAt, lastPullAt, revision`) through `syncSaveMeta`. A mobile client SHOULD use the platform keystore (Keychain or Android Keystore) for the key and the token.
@@ -314,6 +421,8 @@ A **source** is one named value of app state:
 - `preference:<localStorage key>`, for example `preference:vex.bookmarks`. Lists are JSON arrays; all other preferences are carried as the **raw localStorage string**.
 - `storage:<file-store key>`, for example `storage:tabs`, `storage:settings`. These are JSON values, possibly `null`.
 - `sync:device:<deviceId>`, the device marker (§4.6).
+- `sync:tabs:<deviceId>`, that device's open tabs (§4.8), from the release after v14.72.3.
+- `secret:passwords` and `secret:authenticator`, saved passwords and authenticator (2FA) accounts as sealed items (§4.9), from the release after v18.59.3, and `secret:passkeys`, passkeys as sealed items (§4.9.1).
 
 ### 4.3 Record keys (flatten)
 A record key is the exact output of JavaScript `JSON.stringify` on an array:
@@ -341,7 +450,7 @@ A record written by `capture` has exactly this field order:
 { "clock": { "<deviceId>": <int>, ... }, "deleted": false, "value": <any>, "at": <ms epoch int>, "conflicts": [] }
 ```
 - `clock` is a version vector. Each device increments **its own** entry every time it changes the record. The entry key is the server-issued `deviceId`; the desktop's legacy conversion uses `legacy`.
-- `deleted: true` marks a tombstone, and its `value` is `null`. Tombstones are kept forever. Nothing garbage-collects them.
+- `deleted: true` marks a tombstone, and its `value` is `null`. Up to v14.72.3 tombstones were kept forever. From the release after it, they are cleared out once every device on the account has synced past them (§4.7).
 - `at` is `Date.now()` on the device that made the edit. It decides concurrent edits (§5.2).
 - `conflicts` holds the variants kept from a concurrent merge, each `{deleted, value, at}`. A new local edit clears it to `[]`.
 - A record produced by **merge** has field order `{deleted, value, at, clock, conflicts}` (`{...winner, clock, conflicts}`). Field order is not semantic, but see rule 9 in §6.
@@ -350,7 +459,7 @@ A record written by `capture` has exactly this field order:
 `flatten` turns **every** JSON array into item records, whatever its source. The lists that matter are:
 
 - **`LIST_PREFERENCES`** (`sync-engine.js`). The desktop always sends these as arrays, and refuses with "Invalid <name> data" when the local value is not an array:
-  `vex.bookmarks, vex.sessions, vex.history, vex.notes, vex.tools, vex.schedules, vex.personas, vex.reminders, vex.forceDarkHosts`
+  `vex.bookmarks, vex.sessions, vex.history, vex.notes, vex.tools, vex.schedules, vex.personas, vex.reminders, vex.forceDarkHosts, vex.neverSleepHosts, vex.translateAlwaysHosts, vex.customThemes, vex.pwNever`
 - **`TILE_LISTS`**: `vex.shortcuts`, `vex.startTiles`. These are item lists gated by device markers (§4.6).
 - **`storage:` arrays**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:history` are arrays, so they are itemised too.
 
@@ -367,12 +476,21 @@ Every other preference is a **scalar**: its value is the raw localStorage string
 `index` is just the position in the list at capture time. Inserting at the front (the desktop's bookmark add uses `unshift`) changes `index` on every later item, and each of those counts as an edit of that item's record. See §5.5.
 
 ### 4.6 Device markers and tile gating
-Every current client writes a scalar source `sync:device:<its deviceId>` with value `{"level": 1}`. That is two records:
+Every current client writes a scalar source `sync:device:<its deviceId>`. That is two records:
 ```
 ["sync:device:<id>","type"]  → "scalar"
-["sync:device:<id>","value"] → {"level":1}
+["sync:device:<id>","value"] → {"level":2,"revision":41}
 ```
-`SYNC_LEVEL = 1` means "understands shortcut tiles and the New Tab grid" (Vex 2.34.3+). Before writing tiles, each desktop runs `checkTileGate`:
+Levels:
+
+| Level | Value | Promises | Desktop |
+|---|---|---|---|
+| 1 | `{"level":1}` | understands shortcut tiles and the New Tab grid | Vex 2.34.3 to v14.72.3 |
+| 2 | `{"level":2,"revision":<int>}` | level 1, plus §6 rule 1 (copies every record it does not own verbatim), §4.7 (drops a tombstone the account no longer holds; never writes a retired source), and `revision` = the account revision of the document this push was built from | the release after v14.72.3 |
+
+A marker MAY carry `"name": <string ≤ 60, no control characters>`, the name the user gave the device (desktop: Settings › Vex Sync, at sign-in or with Rename, from the release after v14.72.3). The desktop shows it in place of the server's `deviceName`, which is only the name sent at sign-in; unlike that one, it is encrypted. A level-2 marker's `revision` only has to be at most the revision the device last merged; it may lag. The desktop rewrites it along with any other change, and on its own at most once a day (when the marker record's `at` is a day old), so two idle desktops do not keep pushing each other's revision back and forth. Other fields MAY be added to a marker later; a client MUST ignore fields it does not know and copy other devices' markers verbatim.
+
+Tile gating needs level ≥ 1 (`TILES_LEVEL`). Before writing tiles, each desktop runs `checkTileGate`:
 1. `GET /sync/devices`.
 2. For every listed device other than itself, it checks the cloud document for a non-deleted marker with `value.level >= 1`.
 3. If any listed device lacks one, the **gate is shut**. The desktop then leaves `preference:vex.shortcuts` and `preference:vex.startTiles` records exactly as it found them, and keeps its tiles local. A failed device-list call (or 403) also shuts the gate.
@@ -404,6 +522,58 @@ Vectors (from running the real `withTileIds`):
 | `https://x.test/😀` | `tile-4c794857` |
 
 Because it hashes code points rather than UTF-8 bytes, this is **not** standard FNV-1a for non-ASCII URLs. Implement it exactly as written.
+
+### 4.7 Clearing out deleted records and retired sources (from the release after v14.72.3)
+Tombstones used to be kept forever, so the document only grew: history alone turns over thousands of visits, each leaving a tombstone, toward the 30 000-record and 4 MiB limits. The desktop now clears them out, and only while **every** listed device (`GET /sync/devices`, the caller excluded) has a level-2 marker with an integer `revision`. One level-1 device, an older desktop or the phone, stops all clean-up for the account.
+
+- **Seen revision.** A device notes, for each tombstone, the first account revision it saw it in: the revision of a pulled document that held it, or of its own push that created it. This is local state, not on the wire.
+- **Floor.** `floor = min(own revision, every other listed device's marker revision)`.
+- **Clean-up.** When building a push, a tombstone whose seen revision is ≤ `floor` is left out of the document (not copied, not re-tombstoned). Every device on the account has merged a document holding it, so each already applied the deletion.
+- **Retired sources** (§8.1 "No longer synced": `storage:history`, `storage:tabs`, `storage:groups`, `storage:stacks`, `preference:vex.autosleep`, `preference:vex.autosleepMinutes`, `preference:vex.autosleepExcludePinned`, `preference:vex.customCommands`, `preference:vex.settings`, `preference:vex-theme`): every record of these is left out under the same condition.
+- **Drop on absence (MUST at level 2).** When a pull's document no longer holds a tombstone this device has seen in an earlier document, another device cleared it away: drop it from your own document before merging. Otherwise `merge` keeps the left-only record and your next push brings it back. A tombstone you made yourself and have not pushed yet is not "seen", and stays.
+- A client that never caches records outside the pulled document (the §9 "rebase" client) drops nothing by construction; it only has to keep its marker at level 2 with a `revision`.
+
+### 4.8 Open tabs per device (from the release after v14.72.3)
+Up to v14.72.3 the desktops shared one open-tab list, `storage:tabs` (with `storage:groups` and `storage:stacks`), merged across all of them and applied **to the open tabs** on every pull: a tab another computer had navigated or closed was navigated or closed under the user, typed text and all. Now:
+
+- Each desktop owns a scalar source `sync:tabs:<its deviceId>` = `{"tabs":[{"url":<http(s) URL>,"title":<string ≤ 300>}, ...]}`: its open, persistable tabs (no private, Tor or off-the-record tab; web addresses only), at most 100, in tab order. Two records, like a marker: `["sync:tabs:<id>","type"] → "scalar"` and `["sync:tabs:<id>","value"] → {...}`.
+- Other devices' `sync:tabs:*` are copied verbatim (§6 rule 1). The desktop shows them under History › Tabs from other devices, named after the device, and opens one as a new tab when clicked. A device no longer in `GET /sync/devices` is not shown. Nothing on a pull changes an open tab.
+- `storage:tabs`, `storage:groups` and `storage:stacks` are retired (§4.7): no longer written or applied, copied verbatim while an older desktop is on the account, and cleared out once every device is at level 2.
+- A phone or other client MAY write its own `sync:tabs:<deviceId>` the same way, so the desktops list its tabs. It MUST NOT write another device's.
+
+### 4.9 Saved passwords and authenticator accounts (from the release after v18.59.3)
+A desktop syncs its saved passwords and its authenticator (TOTP) accounts only when the person turns each on, on that device (Settings › Vex Sync › Choose what to sync, **off by default**; turning one on asks for the Vex PIN, or for a confirmation when no PIN is set). A device that has them off copies their records verbatim (§6 rule 1).
+
+Two list sources, item records only (§4.3), each item a **sealed item**:
+```
+["secret:passwords","type"]            → "array"
+["secret:passwords","item","<id>"]     → {"index":0,"item":{"id":"<id>","t":<ms int>,"s":"<base64>"}}
+["secret:authenticator","type"]        → "array"
+["secret:authenticator","item","<id>"] → {"index":0,"item":{"id":"<id>","t":<ms int>,"s":"<base64>"}}
+```
+- Keys, from the 32-byte sync key (§3.1) with HKDF-SHA-256, empty salt, 32-byte output: `enc` with info `vex-sync secrets v1 enc`, `iv` with info `vex-sync secrets v1 iv`, `idk` with info `vex-sync secrets v1 id`.
+- Payload: a login is `{"host","username","password","note"?,"updatedAt"?}` (`host` as the vault keys it: lower case, no `www.`; `updatedAt` an ISO time). An authenticator account is `{"id","label","issuer","secret","algorithm","digits","period","created"?}` (`secret` base32, `algorithm` one of `sha1`, `sha256`, `sha512`, `id` that device's own name for it). Fields in exactly this order, optional ones left out when absent.
+- `id` = the first 32 lowercase hex characters of HMAC-SHA-256(`idk`, `<kind>\n<identity>`), where `<kind>` is `passwords` or `authenticator` and `<identity>` is `host\nusername` for a login, `issuer\nlabel\nSECRET` for an account (`SECRET` upper-cased, without spaces or `=`). The same login on two devices is the same record; the id says nothing about the site to anyone without the key.
+- `s` = base64( `iv(12)` ‖ AES-256-GCM(`enc`, payload JSON) ‖ `tag(16)` ), with AAD `vex-secret/1\n<kind>\n<id>` and `iv` = the first 12 bytes of HMAC-SHA-256(`iv`, `<kind>\n<id>\n` ‖ payload JSON). The IV comes from the payload, so an unchanged item seals to the same text and is never seen as an edit; two equal payloads give equal text, which only a holder of the key can compare.
+- `t` = `updatedAt` (login) or `created` (account) in ms, else 0. A desktop sets the record's `at` (§4.4) to `t` when it writes the item, so between two concurrent edits of one login (§5.2) the later change of the login wins. The other version stays in `conflicts` and is listed under Sync conflicts by the site and username only.
+- `index` is always 0: the items are kept in id order, so adding one never re-indexes the others (§5.5).
+- A desktop opens an item only in its main process, checks that it decrypts, is a valid login or account, and that its `id` is the HMAC of its own identity (else the pull fails, §6 rule 11). It changes only the logins the merge changed since it read them, never one saved on the device during the round.
+- **Joining** (a recovery code, or the kind just turned on): a login both sides hold is merged as in §5.2 (newer change wins, the other kept as a conflict), not replaced by the account's copy, and a login this device holds that the account has deleted is kept and sent again: a join never removes a saved password.
+- **Locked:** while Vex is locked, a desktop that syncs either kind neither pulls nor pushes; it syncs as soon as it is unlocked.
+- Carried with them: `preference:vex.pwNever` (sites never offered a save, a list of host names like `vex.forceDarkHosts`) with passwords, and `preference:vex.totpSites` (sites an authenticator code is or is not filled on, a JSON object as a string) with the authenticator.
+- A phone or other client MUST copy these records verbatim (§6 rule 1) unless it implements this section exactly.
+
+#### 4.9.1 Passkeys (`secret:passkeys`)
+A third sealed kind, sealed exactly as above (same keys, same `s` layout, AAD `vex-secret/1\npasskeys\n<id>`), **off by default** on each device, turned on under Choose what to sync as `passkeys` (the same Vex PIN or confirmation first).
+```
+["secret:passkeys","type"]            → "array"
+["secret:passkeys","item","<id>"]     → {"index":0,"item":{"id":"<id>","t":<ms int>,"s":"<base64>"}}
+```
+- Payload, in exactly this order: `{"credentialId","rpId","rpName","userHandle","userName","userDisplayName","nickname"?,"privateKeyPkcs8","publicKeySpki","createdAt","updatedAt"?}`. `credentialId`, `userHandle`, `privateKeyPkcs8` (PKCS#8 DER of an ECDSA P-256 key) and `publicKeySpki` (SPKI DER) are base64url without padding; `createdAt` / `updatedAt` are ISO times. Where a passkey was last used and its signature counter are **not** part of it (a synced passkey reports a counter of 0), so using one is never a sync change.
+- `<identity>` for the id is `credentialId`; `t` is `updatedAt`, else `createdAt`, in ms.
+- A desktop opens an item only in its main process and additionally checks that the private key is the private half of `publicKeySpki` (else the pull fails, §6 rule 11). A deletion is a tombstone like any other item; renaming (`nickname`) is an edit.
+- Only passkeys **made while sync was on** (those that told the site they are backup eligible, the BE flag, which cannot change afterwards) are sealed; the others stay on the device that made them.
+- A phone or other client MUST copy these records verbatim (§6 rule 1) unless it implements this section exactly.
 
 ---
 
@@ -468,14 +638,16 @@ On the join pull (`restore: true`), the desktop does **not** call `merge`. Inste
 A device with no local data can just adopt the cloud document.
 
 ### 5.5 Deletes, concurrent edits and indexes
-- Delete on device A plus an edit of the same item on device B: the **delete wins**. The edit remains in `conflicts`, but no UI offers to recover it.
+- Delete on device A plus an edit of the same item on device B: the **delete wins**. The edit remains in `conflicts`. From the release after v14.72.3 the desktop lists such records under Settings › Vex Sync › Sync conflicts; putting a version back is an ordinary local edit (its own clock entry + 1, `conflicts: []`), which wins on every device.
 - Two concurrent edits: the newer `at` wins. Clock skew between devices therefore matters, and the device with the faster clock wins ties it should not.
 - Removing an item on A while B adds a different item: both stand (tested).
 - Inserting at the front re-indexes later items. If two devices do that concurrently, every shifted item becomes a "conflict" (same item, different `index`) and the desktop toasts "N sync conflicts retained in recovery data". The data is fine. A mobile client SHOULD append new list items **at the end** to keep this churn small. The desktop shows bookmarks grouped by folder and in stored order; notes and history are sorted by their timestamps, so the position barely matters there.
 
 ### 5.6 Timing (desktop)
-- Push every 2 minutes, pull every 5 minutes, pull 1.5 s after start, and "Sync Now" (pull, then push).
-- **The desktop pushes on its timer even when nothing changed**, so the revision rises by about 1 every 2 minutes per running desktop. Expect frequent 409s.
+- Push every 2 minutes, pull every 5 minutes, pull 1.5 s after start, and "Sync Now" (pull, then push). One push or pull runs at a time; one asked while another runs waits its turn.
+- From the release after v14.72.3 the desktop also pushes about **5 s after a synced setting or list changes** (several changes in a row make one push), and once more while its window closes (given at most 4 s). Expect more frequent revisions, and so more 409s, than before.
+- A timed push is sent only when the document differs from the one the server holds at the desktop's revision (the one it last pushed or pulled). Up to v2.38.1 the desktop pushed on its timer even when nothing changed, so the revision rose by about 1 every 2 minutes per running desktop; such desktops are still about, so expect 409s.
+- A pull that returns the revision the desktop already has is not applied again. Nothing on the wire changes: the pull is still made and returns the whole blob.
 - Handoff polling: on window focus, every 2 minutes, and 8 s after launch.
 
 ---
@@ -486,7 +658,7 @@ A device with no local data can just adopt the cloud document.
 
 1. A client **MUST NOT tombstone, drop or rewrite any record whose source it does not own.** Build the push document like this: take the last merged document, run `capture` only over the sources you own plus your marker, and copy **every other record verbatim** from that document. That includes tombstones, `conflicts`, `clock` and field order. In practice: build `values` as `values(before)` minus your owned sources, plus `flatten(ownedSources)`, run `capture`, and then put back every non-owned record from `before` untouched.
 
-   **What the desktop owns** (from v2.35.2, `sync-engine.js` `ownsRecord`): the record kinds `type`, `value` and `item` of `preference:<key>` for each preference in §8.1, `storage:<key>` for each storage key in §8.1, its own `sync:device:<id>`, and the two tile lists while the tile gate is open (§4.6). Every other record (another device's marker, a source a newer Vex or another client added, a record kind it does not know, tiles while the gate is shut) is copied verbatim from the document it pulled, tombstones included, and is not read, applied or validated. Deletions of what it owns still work: an item or key that is gone locally becomes a tombstone.
+   **What the desktop owns** (from v2.35.2, `sync-engine.js` `ownsRecord`): the record kinds `type`, `value` and `item` of `preference:<key>` for each preference in §8.1, `storage:<key>` for each storage key in §8.1, its own `sync:device:<id>`, and the two tile lists while the tile gate is open (§4.6). Every other record (another device's marker, a source a newer Vex or another client added, a record kind it does not know, tiles while the gate is shut) is copied verbatim from the document it pulled, tombstones included, and is not read, applied or validated. Deletions of what it owns still work: an item or key that is gone locally becomes a tombstone. From the release after v14.72.3 the user can leave kinds of data out on a desktop (Settings › Vex Sync › Choose what to sync); that desktop then owns none of their sources and copies them verbatim like any other. When a kind is turned back on, its first pull joins it as a new device does (§5.4): the account's records win, local-only records are added, nothing is tombstoned.
 
    **Older desktops:** Vex 2.34.3 to 2.35.1 pass through only other devices' markers and the tiles; every other source they do not know is tombstoned on their next push, and then removed everywhere. Their markers say level 1 just like v2.35.2's, so a client cannot tell them apart. A client SHOULD therefore write only sources listed in §8.1, never a source of its own invention.
 
@@ -497,7 +669,7 @@ A device with no local data can just adopt the cloud document.
 
 **Device markers**
 
-5. A client MUST write its own marker `sync:device:<deviceId>` = `{"level":1}` in **every** document it pushes, using the server-issued `deviceId`. It MUST NOT write a level higher than 1 until this spec says so: a higher level would promise it understands future features. It MUST copy other devices' markers verbatim.
+5. A client MUST write its own marker `sync:device:<deviceId>` in **every** document it pushes, using the server-issued `deviceId`: `{"level":1}`, or `{"level":2,"revision":<the revision the push is based on, or lower>}` once it follows everything level 2 promises (§4.6, §4.7). It MUST NOT write a higher level than the ones this spec defines: a higher level would promise it understands future features. It MUST copy other devices' markers verbatim.
 6. After any pull in which its own marker is absent or deleted, a client MUST push soon, on the next round at the latest. The desktop pushes immediately.
 7. A client SHOULD push its first document right after its first successful pull or verify. Until its marker is in the account, tile sync is shut for everyone.
 
@@ -523,9 +695,13 @@ A device with no local data can just adopt the cloud document.
 
 **Sources the phone must not write**
 
-19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. The desktop applies them live to its open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers.
+19. A client MUST NOT write `storage:tabs`, `storage:groups` or `storage:stacks`. Desktops up to v14.72.3 apply them live to their open tabs (`TabManager.applySyncedState`), so writing them opens and closes tabs on the user's computers. Newer desktops neither write nor apply them (§4.8).
 20. A client MUST NOT write tile sources (`preference:vex.shortcuts`, `preference:vex.startTiles`) while the tile gate is shut. That is, unless every listed device, the client included, has a marker with level ≥ 1. When writing tiles, it MUST give them the §4.6 ids and must not keep those ids in its local copy.
-21. A client SHOULD keep its document well under the size limit (§1.2). The desktop's history alone can be thousands of records.
+21. A client SHOULD keep its document well under the size limit (§1.2). The desktop sends at most 1,000 history visits (§8.1), and clears out tombstones while every device is at level 2 (§4.7).
+
+**Key proof**
+
+22. From the release after v14.72.3 a client MUST prove the key (§2.7) on every push and wipe when the worker offers `/sync/challenge`, with a fresh nonce for each request (a 409 or a refusal spends it). On **403** with a `code`, it shows `error` and stops; it never retries a `key-mismatch` with anything but the user's recovery code.
 
 ---
 
@@ -542,7 +718,8 @@ A small per-account mailbox, separate from the record document.
 - **Fetch**: `GET /sync/drop` returns 200 `{"ok":true,"items":[{id, encryptedBlob, fromDeviceId, fromDeviceName, at}, ...]}`. That is every item **not** sent by the caller.
   - Fetching **consumes** those items: they are deleted from the server. The caller's own items stay.
   - There is no addressing. Whichever other device fetches first gets the tab, whether that is the phone or one of several desktops.
-- **Receiving**: decrypt each item on its own and skip any that fail, because one bad item must not lose the others. Accept the item only if `payload.url` is a string with an `http:` or `https:` scheme, and use `String(payload.title || '')`. The desktop opens each one as a background tab and toasts "Tab from <fromDeviceName>: <title>".
+- **Receiving**: decrypt each item on its own and skip any that fail, because one bad item must not lose the others. Accept the item only if `payload.url` is a string with an `http:` or `https:` scheme, and use `String(payload.title || '')`. Because the fetch has already consumed the items, a client SHOULD keep what it accepted until the user acts on it (the wire format is unchanged). The desktop (from the release after v2.37.0, `js/handoff.js`) keeps each one on that computer, shows it as a card "From <fromDeviceName>: <title>" on the New Tab page with Open and Dismiss, and shows one desktop notification per check; a card goes when it is opened or dismissed. Earlier desktops opened each one as a background tab and toasted "Tab from <fromDeviceName>: <title>". A desktop never sends from a private, Off-the-Record or Tor tab or from a private window, and a private window never fetches.
+- **Open tabs per device**: from the release after v14.72.3 each device's open tabs are `sync:tabs:<deviceId>` in the document (§4.8). Before that the only open-tab list was `storage:tabs`, shared by the desktops, which a phone MUST NOT write (§6 rule 19).
 - Pending sessions get 403 on both endpoints.
 
 ---
@@ -550,13 +727,17 @@ A small per-account mailbox, separate from the record document.
 ## 8. Synced sources: what a mobile client can use
 
 ### 8.1 Complete list (from `SYNC_KEYS`, `preferenceKeys()`, `STORE_KEYS` and `TILE_LISTS`)
-- **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`.
-- **Scalar preferences** (raw localStorage strings): `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.customCommands`, `vex.zooms`, `vex.forceDarkSites`, `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex-theme`. All are prefixed `preference:`.
+- **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`, `vex.neverSleepHosts`, `vex.translateAlwaysHosts`, `vex.customThemes`, and from the release after v18.59.3 `vex.pwNever` (with passwords, §4.9).
+- **Scalar preferences** (raw localStorage strings): `vex.historyClearedAt`, `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto`, `vex.whatsNewCard`, and from the release after v14.72.3 `vex.guiStyle`, `vex.guiColors`, `vex.skinPattern`, `vex.skinShape`, `vex.skinGlow`, `vex.skinStrength`, `vex.font`, `vex.fontMono`, `vex.a11y` (the browser look, skin, fonts and reading aids; the interface size and spacing stay per device), and from the release after v18.59.3 `vex.totpSites` (with the authenticator, §4.9). All are prefixed `preference:`.
+- **History window** (from the release after v14.72.3): the desktop owns `preference:vex.history` but sends only its newest **1,000** visits, and none whose `visitedAt` is more than **90 days** old. A visit that falls out of that window becomes a tombstone once (and is cleared out later, §4.7); every desktop keeps its own older visits locally and does not delete them when they are missing from, or tombstoned in, the account. `vex.historyClearedAt` (an ISO time, written by History › Clear History) is how a clear reaches those older visits: a desktop removes every visit with `visitedAt` at or before it.
+- **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied. Once every device is at level 2 they are cleared out of the document (§4.7).
 - **Tile lists** (gated): `preference:vex.shortcuts`, `preference:vex.startTiles`.
-- **Storage**: `storage:tabs`, `storage:groups`, `storage:stacks`, `storage:history`, `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`.
+- **Storage**: `storage:settings`, `storage:shortcuts`, `storage:theme`. The desktop always sends these, possibly as `null`. `storage:tabs`, `storage:groups` and `storage:stacks` are no longer sent or applied from the release after v14.72.3 (§4.8): records an older desktop sends under them are copied verbatim. `storage:history` (a second, 500-visit copy of history) is no longer sent after v2.38.1: it was folded into `preference:vex.history` (`main/history-fold.js`). A newer desktop no longer owns it, so records an older desktop still sends under it are copied verbatim (§6 rule 1) and never applied.
 - **Markers**: `sync:device:<id>`.
+- **Open tabs**: `sync:tabs:<id>`, one per device, written only by that device (§4.8).
+- **Sealed secrets** (only on a desktop that turned them on, §4.9): `secret:passwords`, `secret:authenticator`, `secret:passkeys` (§4.9.1).
 
-`vex.tabs`, `vex.settings`, `vex.theme`, `vex.groups` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. They travel as `storage:*`, or for shortcuts as a tile list.
+`vex.theme` and `vex.shortcuts` are in `SYNC_KEYS` but are **not** sent as `preference:`: their names collide with `STORE_KEYS`. The theme travels as `storage:theme`, the shortcuts as a tile list. (`vex.tabs` and `vex.groups` were in the same position until the shared tab list was retired, §4.8.)
 
 ### 8.2 Sources a phone can sensibly read and write
 
@@ -564,15 +745,17 @@ A small per-account mailbox, separate from the record document.
 |---|---|---|---|
 | `preference:vex.bookmarks` | yes | **yes (recommended owned source)** | `{ "id": string, "url": http(s) string, "title": string, "folder": string ("" = Unsorted), "at": ms int, "ownSession"?: true }`. `id` matches `^[\w.:-]{1,160}$`. The desktop makes ids like `bm` + base36 time + base36 counter + 5 random base36, e.g. `bmmg5k2x01a3f9q`; any unique id matching the regex is fine. The desktop adds new bookmarks at the **front** and treats the URL as the identity for its star button. |
 | `preference:vex.notes` | yes | yes | `{ "id": string, "title": string, "content": markdown string, "pinned": bool, "tags": string[], "sourceUrl": string, "sourceTitle": string, "createdAt": ISO string, "updatedAt": ISO string }`. Desktop id format: `note_<ms>_<5 base36>`. Every field is optional on read (`NotesPanel.normalize`). Set `updatedAt` on every edit. Data-contracts does not validate notes beyond §8.4's generic rules. |
-| `preference:vex.history` | yes | SHOULD NOT (read-only) | `{ "id": "h_<ms>_<5 base36>", "url": http(s), "title": string, "favicon": http(s) URL or "", "visitedAt": ISO, "indexed": bool, "ownSession"?: true, "summary"?, "tags"?, "contentType"? }`. Up to 5000 entries, newest first. Owning it means holding and pushing the complete list (rule 2). |
+| `preference:vex.history` | yes | SHOULD NOT (read-only) | `{ "id": "h_<ms>_<5 base36>", "url": http(s), "title": string, "favicon": http(s) URL or "", "visitedAt": ISO, "indexed": bool, "ownSession"?: true, "summary"?, "tags"?, "contentType"? }`. Up to 5000 entries on a desktop, newest first; the account holds only the newest 1,000 from the last 90 days (§8.1). Owning it means holding and pushing that complete window (rule 2), and never deleting a local visit because it is outside the window. |
 | `preference:vex.forceDarkHosts` | yes | MAY | A list of host-name **strings**, e.g. `"example.com"`. The item id is the JSON string with quotes (§4.3). |
+| `preference:vex.customThemes` | yes | MAY | Your own colour themes: `{ "id": ^user-[a-z]{4,24}$, "name": string (1-40 chars), "colors": { background, surface, text, muted, primary, success, warning, danger, border: "#rrggbb" each, all nine }, "base"?: built-in theme id, "updated"?: ms int }`. No other fields: the desktop drops a record with any other field or a colour that is not `#rrggbb` (`theme-custom.js validateRecord`). Background images are **not** synced (they stay on each device). The colours, and the `.vextheme` file a theme is shared as, are described in [THEME_FORMAT.md](THEME_FORMAT.md). |
 | `preference:vex.reminders` | yes | add only, with care | A mirror of the desktop main process's reminders: `{ id: ^[A-Za-z0-9_-]{1,64}$, message: string (≤2000 used), at: ms|null, site: host|null, repeat: "daily"/"weekdays"/"weekly"/[0..6 ints]|null, time: "HH:MM"|null, url: http(s)|null, urgent: bool, kind: "reminder"/"alarm"/"timer"/"review", sound: bool, job, owner, ackedAt, createdAt, firedAt, lastFiredAt }`. Desktops **import** new ones (`reminders.js importList`): not `kind:"review"`, not `firedAt`, not older than 7 days. They fire while Vex is open, and only the `owner` machine wakes Windows. **A phone cannot delete a reminder:** the desktop rewrites the mirror from its own list every 5 minutes and after each sync, so a deletion comes straight back. A reminder the desktop refuses to import disappears from the account on that desktop's next push. |
 | `preference:vex.shortcuts` | yes | only with the gate open (rule 20) | Glass shortcut bar tiles: `{ "name": string, "url": string (http/https/about/file/vex) }`, plus account-only `id` (§4.6). A missing source means "show defaults"; `[]` means "no shortcuts". |
 | `preference:vex.startTiles` | yes | only with the gate open (rule 20) | New Tab grid: `{ "name": string, "url": string, ... }`. At most 500 (`webview.js _startTilesValid`), plus account-only `id`. **UNSURE:** which other fields the New Tab page stores on a tile. `_startTilesValid` only requires `name` and `url` to be strings. Carry unknown fields through. (`src/renderer/js/webview.js` `saveStartTiles`, and the start page itself.) |
-| `storage:tabs` | yes (e.g. a "tabs on my computers" view) | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. This is the open-tab set shared by desktops and **merged across all desktops**, not per device. |
+| `sync:tabs:<deviceId>` | yes (a "tabs on my computers" view) | only its own | `{ "tabs": [{ "url": http(s), "title": string }] }`, at most 100 (§4.8). |
+| `storage:tabs` | only from desktops up to v14.72.3 | **MUST NOT** | `{ id, partition, url, title, favicon, pinned, groupId, stackId, sleeping, originalUrl, scrollPosition, keepAwakeUntil, memBeforeSleep }`. The open-tab set those desktops shared, **merged across all of them**. Retired (§4.8). |
 
 ### 8.3 Desktop-only sources (copy verbatim, never write)
-`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.customCommands`, `vex.zooms`, `vex.forceDarkSites`, `vex.autosleep*`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex-theme`, `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, and every other device's `sync:device:*`.
+`preference:vex.sessions`, `vex.workspaces`, `vex.tools` (`{id,name,url,desc,svg}`), `vex.schedules` (agent tasks, `v:2`), `vex.personas`, `vex.activePersona`, `vex.aiMemory`, `vex.agentMode`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto` (Light and dark: `{mode, light, dark, ...}`), `vex.whatsNewCard`, the look keys (`vex.guiStyle`, `vex.guiColors`, `vex.skin*`, `vex.font`, `vex.fontMono`, `vex.a11y`), `vex.historyClearedAt`, `vex.neverSleepHosts` and `vex.translateAlwaysHosts` (lists of host-name strings, like `vex.forceDarkHosts`), `storage:groups`, `storage:stacks`, `storage:history` (`{url,title,time}` rows from the file store, ≤ 500), `storage:settings`, `storage:shortcuts`, `storage:theme`, every other device's `sync:device:*`, and `secret:passwords`, `secret:authenticator`, `secret:passkeys`, `vex.pwNever` and `vex.totpSites` (§4.9).
 
 ### 8.4 Validation every merged source must pass (`data-contracts.js` `sources()`)
 The desktop runs these checks on the **sources it owns** in the merged result (§6 rule 1; tile lists only while the gate is open). A failure aborts the pull. Sources it does not own are not checked (from v2.35.2; up to v2.35.1 the desktop checked the whole merged result, and any failure aborted the pull).
@@ -580,7 +763,7 @@ The desktop runs these checks on the **sources it owns** in the merged result (�
 - **Every value, recursively:** nesting depth ≤ 40; no non-finite numbers; strings ≤ 12 MiB; objects/arrays ≤ 30 000 keys; no property named `__proto__`, `constructor` or `prototype`.
 - **List preferences** (`LIST_PREFERENCES`): after `JSON.parse` if the value is a string, the value MUST be an array, else "Invalid synced list".
 - **Tile lists** (with the gate open): MUST be arrays.
-- **`preference:vex.bookmarks`, `preference:vex.history`** (and `storage:history`): an array of ≤ 10 000 items.
+- **`preference:vex.bookmarks`, `preference:vex.history`** (and `storage:history` on v2.38.1 and older): an array of ≤ 10 000 items.
   - Each item is a plain object.
   - `id`, `groupId`, `stackId`, when not null, match `^[\w.:-]+$`, are ≤ 160 characters, and are not one of the three unsafe names.
   - `title`, `name`, `label`, when not null, are strings ≤ 4096.
@@ -662,11 +845,12 @@ This first pull has now registered the device.
    - validate `next` (§4.1) and `unflatten(values(next))` (§8.4).
 
    Done this way, the only records that change are the new bookmark's item record and the marker's two records. This was verified with the real code.
-3. Encrypt `next` with a fresh IV, then push:
+3. Encrypt `next` with a fresh IV. Ask for a nonce (`GET /sync/challenge`) and compute the proof for `push` over `41` and the blob's SHA-256 (§2.7.2); add `X-Vex-Auth-Key` if the challenge said `"keyCheck": null`. Then push:
 ```http
 POST /sync/push
 Authorization: Bearer ab69c147…72bf8
 Content-Type: application/json
+X-Vex-Proof: <nonce>.<mac>
 
 {"encryptedBlob":"<base64>","updatedAt":"2026-10-01T20:52:00.000Z","baseRevision":41}
 ```
@@ -699,6 +883,7 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 | 400 | bad body or missing field; handoff too large | fix the request; do not retry unchanged |
 | 401 | wrong or expired code (auth); invalid, expired or revoked session (sync) | auth: re-enter the code; sync: sign out locally (§2.6) |
 | 403 | pending session used for anything other than pull, push or delete-self | pull or push first |
+| 403 + `code` | key proof refused or needed (§2.7.6), or `/sync/reset` from a sign-in that is not fresh (§2.8) | show `error`; `proof-stale`: ask for a new nonce |
 | 404 | unknown path, or a non-hex device id in DELETE | — |
 | 408 | body not received within 10 s | retry |
 | 409 | `baseRevision` missing or stale (`revision` in the body) | pull, merge or rebase, push again |
@@ -711,6 +896,6 @@ Go back to 9.3: pull revision 43, replay the queued operation onto the new docum
 ## Appendix B: UNSURE points
 1. **Cloudflare platform errors and CORS** (§1.5): responses generated outside `worker.js` probably lack CORS headers. This is general Cloudflare behaviour and cannot be checked in this repo.
 2. **Extra fields on New Tab tiles** (`preference:vex.startTiles`): `src/renderer/js/webview.js` `_startTilesValid` only checks `name` and `url`. What the start page actually stores beyond those was not traced. Carry unknown fields through.
-3. **Recovering conflict variants**: the desktop keeps them in `conflicts` and toasts about them, but no UI was found that lets the user restore a losing variant (`sync-engine.js` `applySyncData` only counts them). A client need not expose them, but MUST keep them on records it does not change.
+3. **Recovering conflict variants** (settled in the release after v14.72.3): the desktop lists records of sources it owns whose `conflicts` hold more than one version (`sync-engine.js` `conflicts`), and puts a chosen one back as a new local edit (`resolveConflict`). A client need not expose them, but MUST keep them on records it does not change.
 4. **`vex.reminders` items written by a non-desktop `owner`**: `reminders.js` `importList` accepts them, but sets `owner` to the value sent or `'unknown'`. What the desktop shows for a reminder whose `owner` is not a known machine was not checked (`src/main/reminders.js`).
-5. **Document growth**: tombstones are never removed and history can reach thousands of items. When an account would hit the 4 MiB body or 30 000 record limits was not measured. No compaction exists in the code.
+5. **Document growth** (settled in the release after v14.72.3): a 5,000-visit history was measured at about 3.8 MB of request body, and a busy week of browsing leaves about 1,000 tombstones. History is now limited to 1,000 visits (§8.1) and tombstones are cleared out while every device is at level 2 (§4.7). While a level-1 device stays on the account, tombstones still accumulate.

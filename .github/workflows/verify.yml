@@ -28,6 +28,9 @@ jobs:
         env:
           VEX_SECURITY_SMOKE: '1'
           VEX_UI_SMOKE: '1'
+      # Real rendered chrome in every look and a sample of themes (~30 s
+      # locally). The runner has a desktop, which the UI smoke above needs too.
+      - run: npm run check:ui
       - run: node scripts/build-icons.js scratchpad/ci-icons
       - run: npm audit --omit=dev --audit-level=high
       # The build tools: like `npm audit --audit-level=high`, but with the

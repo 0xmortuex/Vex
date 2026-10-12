@@ -88,6 +88,25 @@ const Snippets = {
     if (this.items.length !== before) this.save();
   },
 
+  // Gone from every tab at once, with Undo on the toast (js/vex-undo.js).
+  removeWithUndo(id, redraw) {
+    const removed = window.VexUndo.takeOut(this.items, s => s.id === id);
+    if (!removed) return false;
+    this.save();
+    if (redraw) redraw();
+    const abbr = removed.item.abbr;
+    window.VexUndo.offer({
+      message: 'Deleted the snippet “' + abbr + '”',
+      undo: () => {
+        if (this.items.some(s => s.abbr === abbr)) throw new Error('“' + abbr + '” is a snippet again already');
+        window.VexUndo.putBack(this.items, removed);
+        this.save();
+        if (redraw) redraw();
+      },
+    });
+    return true;
+  },
+
   // What the guest needs, and nothing else: no ids, no names, no timestamps.
   forGuest() { return this.items.map(s => ({ abbr: s.abbr, text: s.text })); },
 
@@ -158,7 +177,7 @@ const Snippets = {
           <button data-del type="button" title="Delete" style="background:none;border:none;cursor:pointer;padding:4px;color:var(--text-muted)">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : ''}</button>`;
         row.addEventListener('click', async (e) => {
           if (e.target.closest('[data-del]')) {
-            if (await vexConfirm({ title: 'Delete “' + item.abbr + '”?', message: 'The snippet is removed from every tab.', okLabel: 'Delete', danger: true })) { this.remove(item.id); draw(); }
+            this.removeWithUndo(item.id, () => { if (listEl.isConnected) draw(); });
             return;
           }
           await this._edit(item);
@@ -215,7 +234,7 @@ const Snippets = {
           <div data-err role="alert" style="display:none;font-size:11.5px;color:var(--danger,#e5534b)"></div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:2px">
             <button data-cancel type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:none;color:var(--text);cursor:pointer">Cancel</button>
-            <button data-save type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Save</button>
+            <button data-save type="button" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Save</button>
           </div>
         </div>`;
 

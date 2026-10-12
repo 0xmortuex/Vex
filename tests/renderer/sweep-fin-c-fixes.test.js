@@ -179,6 +179,22 @@ describe('with an earlier chat on screen', () => {
     expect(msgs().textContent).not.toContain('old answer');
   });
 
+  // AI audit 2026-10-10: a history search had no Stop.
+  it('Stop cancels a history search and says "Stopped."', async () => {
+    window.HistoryPanel = { entries: [{ id: 'h1', url: 'https://x.example/', title: 'X' }] };
+    let seen = null;
+    globalThis.AIRouter = { callAI: vi.fn((_f, req) => new Promise((_, reject) => { seen = req.signal; req.signal.addEventListener('abort', () => reject(new Error('Cancelled'))); })) };
+    const p = AIPanel._handleHistorySearch('that article');
+    await new Promise(r => setTimeout(r, 0));
+    expect(document.getElementById('ai-stop-agent').classList.contains('visible')).toBe(true);
+    expect(AIPanel._stopChat()).toBe(true);
+    expect(await p).toBe(true);
+    expect(seen.aborted).toBe(true);
+    expect(texts('tab-1')).toEqual(['that article', 'Stopped.']);
+    expect(AIPanel._sending).toBe(false);
+    expect(document.getElementById('ai-stop-agent').classList.contains('visible')).toBe(false);
+  });
+
   it('an agent task is drawn in this tab\'s chat, not under the earlier one', async () => {
     localStorage.setItem('vex.agentModeChosen', '1');
     globalThis.AgentLoop = { start: vi.fn(() => new Promise(() => {})), isRunning: () => false, lastRun: null, runs: () => [] };
@@ -233,8 +249,8 @@ describe('the shortcut editor while it records', () => {
     document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(window.vex.setShortcutCapturing).toHaveBeenLastCalledWith(false);
     document.querySelector('[data-add="zap"]').click();
-    key({ key: '1', ctrlKey: true, altKey: true });
-    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+1');
+    key({ key: '7', ctrlKey: true, altKey: true });
+    expect(ShortcutsRegistry.getShortcut('cmd:zap')).toBe('Ctrl+Alt+7');
     expect(window.vex.setShortcutCapturing).toHaveBeenLastCalledWith(false);
   });
 

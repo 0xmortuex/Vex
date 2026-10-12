@@ -162,6 +162,18 @@ describe('Mark up and the screenshot preview', () => {
     expect(document.getElementById('screenshot-overlay').classList.contains('visible')).toBe(false);
   });
 
+  it('a backdrop click listener is added once, not once per screenshot', () => {
+    ScreenshotTool.showPreview('data:image/png;base64,');
+    const overlay = document.getElementById('screenshot-overlay');
+    const spy = vi.spyOn(overlay, 'addEventListener');
+    ScreenshotTool.showPreview('data:image/png;base64,');
+    ScreenshotTool.showPreview('data:image/png;base64,');
+    expect(spy).not.toHaveBeenCalled();
+    const hide = vi.spyOn(ScreenshotTool, 'hidePreview');
+    try { overlay.click(); expect(hide).toHaveBeenCalledTimes(1); }
+    finally { hide.mockRestore(); spy.mockRestore(); }
+  });
+
   it('Escape closes the editor, and the text tool keeps focus for its prompt', async () => {
     window.vexPrompt = vi.fn(async () => null);
     const wrap = ScreenshotTool.annotate('data:image/png;base64,');

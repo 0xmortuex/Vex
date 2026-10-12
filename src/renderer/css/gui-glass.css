@@ -17,11 +17,14 @@
    actually recolors Glass instead of leaving it a fixed indigo.
    --primary / --accent are intentionally NOT overridden here: Glass inherits
    them from the active theme (set on <html>), and everything below reads them. */
+/* The theme's own accent, resolved on <html> where the theme sets it, so the
+   light-theme block below can lift body's --vex-accent without a var() cycle. */
+html { --g-src-accent: var(--vex-accent, var(--primary, #8b8bf5)); }
 body[data-gui-style="glass"] {
   /* The active theme's SIGNATURE color lives in --vex-accent (dark themes pin
      --primary to a fixed brand indigo, so --vex-accent is the reliable source).
      --g-accent is that color; --g-accent2 is a lighter tint for the 2nd glow. */
-  --g-accent:  var(--vex-accent, var(--primary, #8b8bf5));
+  --g-accent:  var(--g-src-accent);
   --g-accent2: color-mix(in srgb, var(--g-accent) 58%, #ffffff);
   /* legacy token family — a DARK, theme-tinted base so the chrome takes the hue */
   --bg:   color-mix(in srgb, var(--g-accent) 12%, #07080f);
@@ -37,10 +40,44 @@ body[data-gui-style="glass"] {
   --vex-glass-strong: rgba(255,255,255,0.10); --vex-glass-medium: rgba(255,255,255,0.07); --vex-glass-light: rgba(255,255,255,0.05);
   --vex-glass-tab-active: rgba(255,255,255,0.20); --vex-glass-tab-inactive: rgba(255,255,255,0.07); --vex-glass-input: rgba(255,255,255,0.12);
   --vex-border-subtle: rgba(255,255,255,0.12); --vex-border-medium: rgba(255,255,255,0.18); --vex-border-strong: rgba(255,255,255,0.26);
-  --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #9499c4;
-  /* The ACCENT tokens (--vex-accent, --vex-accent-dim/glow, --vex-border-accent*,
-     --vex-text-accent, --primary, --accent) are intentionally NOT overridden —
-     they inherit from the active theme, so Glass takes on the theme's color. */
+  /* Muted 4.5:1 on every Glass surface of every theme (was #9499c4, 3.0:1 over
+     Cyberpunk's yellow-tinted glass). */
+  --vex-text-primary: #eef0ff; --vex-text-secondary: #c4c8ec; --vex-text-muted: #b4b8e0;
+  /* Text in the accent, and danger text (Close in the tab menu, Clear
+     History), on the accent-tinted glass: a theme's own ones were made for its
+     darker page and fell to 3.3-4.4:1 here in 20 themes (check:ui surfaces).
+     The accent text is the accent lifted toward white (5.3:1 or more in every
+     theme); danger is one light red. */
+  --vex-text-accent: color-mix(in srgb, var(--g-src-accent) 45%, #ffffff);
+  --vex-danger: #fca5a5; --vex-danger-hover: #fecaca; --danger: #fca5a5;
+  /* The other ACCENT tokens (--vex-accent, --vex-accent-dim/glow,
+     --vex-border-accent*, --primary, --accent) are intentionally NOT overridden —
+     they inherit from the active theme, so Glass takes on the theme's color.
+     Except in a light theme, below. */
+}
+
+/* A LIGHT theme's accent and danger/success/warning are dark inks made for a
+   pale page; on Glass's dark frosted chrome they fell to 1.1-3.1:1 (Oxford's
+   navy links, Paper Red's errors). Glass lifts them to a light tint of the same
+   hue (4.5:1 on every Glass surface) and puts dark text on the lifted accent. */
+html[data-scheme="light"] body[data-gui-style="glass"] {
+  --g-lift: color-mix(in srgb, var(--g-src-accent) 30%, #ffffff);
+  --vex-accent: var(--g-lift); --vex-text-accent: var(--g-lift);
+  --vex-border-accent: var(--g-lift); --vex-border-accent-strong: var(--g-lift);
+  /* Oxford's chip fill is an opaque pale blue: under Glass it is a tint of the lift. */
+  --vex-accent-dim: color-mix(in srgb, var(--g-lift) 22%, transparent); --vex-accent-glow: color-mix(in srgb, var(--g-lift) 18%, transparent);
+  --primary: var(--g-lift); --primary-hover: color-mix(in srgb, var(--g-src-accent) 18%, #ffffff); --accent: var(--g-lift);
+  --on-primary: #0b0c15;
+  --vex-success: #34d399; --success: #34d399;
+  --vex-warning: #fbbf24; --warning: #fbbf24;
+  --vex-hover-fill: rgba(255, 255, 255, 0.06); --vex-shadow-color: rgba(0, 0, 0, 0.5);
+  --tab-active: rgba(255, 255, 255, 0.20); --tab-hover: rgba(255, 255, 255, 0.10);
+}
+/* Oxford's muted, cream-mixed group pills were dark ink on dark glass. */
+html[data-scheme="light"] body[data-gui-style="glass"] :is(.top-group-label, .top-tab.in-group, .tab-group) {
+  --group-pill-bg: var(--group-color, #6366f1);
+  --group-pill-fg: #ffffff;
+  --group-pill-strip: var(--group-color, #6366f1);
 }
 
 /* ---- 1. Layout: tabs on top → toolbar → shortcuts → content ---- */
@@ -114,6 +151,13 @@ body[data-gui-style="glass"] #nav-buttons button {
 }
 body[data-gui-style="glass"] .nav-btn:hover,
 body[data-gui-style="glass"] #top-bar-right button:hover { background: rgba(255,255,255,0.16) !important; }
+/* Back / Forward / Reload with nowhere to go, or locked under a side panel
+   (js/nav-lock.js): dimmed, no hover lift. */
+body[data-gui-style="glass"] #nav-buttons .nav-btn[aria-disabled="true"],
+body[data-gui-style="glass"] #nav-buttons .nav-btn[aria-disabled="true"]:hover {
+  background: rgba(255,255,255,0.04) !important;
+  color: rgba(238,240,255,0.5) !important;
+}
 
 /* Force the quick-tools / AI / split / command buttons to match (some carry
    their own styling that the generic rule above didn't beat). */
@@ -132,8 +176,11 @@ body[data-gui-style="glass"] #btn-toggle-ai svg,
 body[data-gui-style="glass"] #btn-command svg { stroke: #eef0ff !important; }
 
 /* Tool buttons sized to MATCH the shortcut chips (32px tall) so the chrome reads
-   consistently — not bigger, not smaller. */
-body[data-gui-style="glass"] #top-bar-right > button {
+   consistently — not bigger, not smaller. A hidden one stays hidden: this
+   rule's display beat app.css's [hidden] rule, so Glass showed the routing,
+   site-rules, developer and timer buttons and an empty "More tools" chevron.
+   (:where keeps the old specificity, so a moved button still hides.) */
+body[data-gui-style="glass"] #top-bar-right > button:where(:not([hidden])) {
   height: 32px !important; min-width: 32px !important;
   display: inline-flex !important; align-items: center; justify-content: center;
 }

@@ -90,6 +90,38 @@
     // yellow hue left the letter at 2.8:1.
     return `hsl(${h % 360}, 55%, 34%)`;
   }
+  // The letter's colour, from the chip's own: white where white reads, black
+  // where it does not. White on the darkened green host colours was
+  // 4.4:1 (check:ui), and a custom colour can be anything. Accepts the
+  // #rgb / #rrggbb a colour picker gives, and the hsl() of hostColor.
+  function chipRgb(color) {
+    const c = String(color || '').trim();
+    let m = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (m) {
+      const hex = m[1].length === 3 ? m[1].replace(/./g, ch => ch + ch) : m[1];
+      return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+    }
+    m = c.match(/^hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)$/i);
+    if (m) {
+      const h = Number(m[1]) / 360, s = Number(m[2]) / 100, l = Number(m[3]) / 100;
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      const hue = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+      return [hue(h + 1 / 3), hue(h), hue(h - 1 / 3)].map(v => Math.round(v * 255));
+    }
+    m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+    return null;
+  }
+  function chipInk(color) {
+    const rgb = chipRgb(color);
+    if (!rgb) return '#fff';
+    const lum = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const L = 0.2126 * lum(rgb[0]) + 0.7152 * lum(rgb[1]) + 0.0722 * lum(rgb[2]);
+    // White while it passes 4.5:1, else whichever of white and black reads
+    // better — one of the two always reaches at least 4.58:1.
+    const onWhite = 1.05 / (L + 0.05), onBlack = (L + 0.05) / 0.05;
+    return onWhite >= 4.5 || onWhite >= onBlack ? '#fff' : '#000';
+  }
   function labelFor(s) {
     if (s.name) return s.name;
     try { return new URL(s.url).hostname.replace(/^www\./, ''); } catch { return s.url; }
@@ -128,7 +160,7 @@
       el.title = (s.name ? s.name + ' — ' : '') + s.url + '  (right-click to edit)';
       const ic = document.createElement('span');
       ic.className = 'ic';
-      const letter = () => { ic.innerHTML = ''; ic.classList.remove('has-img'); ic.textContent = labelFor(s).slice(0, 1).toUpperCase(); ic.style.background = s.color || hostColor(s.url); };
+      const letter = () => { ic.innerHTML = ''; ic.classList.remove('has-img'); ic.textContent = labelFor(s).slice(0, 1).toUpperCase(); const bg = s.color || hostColor(s.url); ic.style.background = bg; ic.style.color = chipInk(bg); };
       if (s.color) { letter(); }                       // custom color overrides the logo
       else {
         const fav = faviconUrl(s.url);
@@ -144,13 +176,27 @@
       el.appendChild(ic); el.appendChild(label);
       el.addEventListener('click', () => navigate(s.url));
       el.addEventListener('contextmenu', (e) => { e.preventDefault(); editShortcut(i); });
+      keyboardChip(el, () => navigate(s.url), () => editShortcut(i));
       bar.appendChild(el);
     });
     const add = document.createElement('div');
     add.className = 'gsc gsc-add';
     add.innerHTML = '<span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span><span>Add shortcut</span>';
     add.addEventListener('click', () => editShortcut(-1));
+    keyboardChip(add, () => editShortcut(-1));
     bar.appendChild(add);
+  }
+
+  // The chips are divs; without this the editor (and the bar) could not be
+  // reached from the keyboard at all. Enter or Space opens; the context-menu
+  // key or Shift+F10 edits, as right-click does.
+  function keyboardChip(el, open, edit) {
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      else if (edit && (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) { e.preventDefault(); edit(); }
+    });
   }
 
   function injectEditorStyles() {
@@ -168,8 +214,8 @@
       .gsc-ed-clearcolor{background:transparent;border:1px solid var(--border,rgba(255,255,255,0.18));color:var(--text-muted,#9a9aa5);border-radius:8px;padding:7px 11px;font-size:12px;cursor:pointer;font-family:inherit;}
       .gsc-ed-row{display:flex;align-items:center;gap:8px;margin-top:18px;}
       .gsc-ed-row button{border:1px solid var(--border,rgba(255,255,255,0.18));background:transparent;color:var(--text,#e9e9ee);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit;}
-      .gsc-ed-save{background:var(--primary,#6366f1)!important;border-color:transparent!important;color:#fff!important;font-weight:600;}
-      .gsc-ed-del{color:#e0556a!important;border-color:rgba(224,85,106,0.4)!important;}
+      .gsc-ed-save{background:var(--primary,#6366f1)!important;border-color:transparent!important;color:var(--on-primary,#fff)!important;font-weight:600;}
+      .gsc-ed-del{color:var(--danger,#e0556a)!important;border-color:color-mix(in srgb,var(--danger,#e0556a) 40%,transparent)!important;}
     `;
     document.head.appendChild(st);
   }
@@ -180,17 +226,20 @@
     const isNew = index < 0;
     const cur = isNew ? { name: '', url: '', color: '' } : Object.assign({ name: '', url: '', color: '' }, arr[index]);
     document.querySelectorAll('.gsc-ed-ov').forEach(e => e.remove());
+    // A real dialog (cat-themes TH10): named, modal, Escape closes it, Enter
+    // saves, Tab stays inside, and focus goes back where it was.
+    const prevFocus = document.activeElement;
     const ov = document.createElement('div');
     ov.className = 'gsc-ed-ov';
-    ov.innerHTML = `<div class="gsc-ed">
-        <div class="gsc-ed-title">${isNew ? 'Add shortcut' : 'Edit shortcut'}</div>
-        <label>Name</label>
-        <input class="gsc-ed-name" type="text" value="${escAttr(cur.name)}" placeholder="e.g. Reddit">
-        <label>Link (URL)</label>
-        <input class="gsc-ed-url" type="text" value="${escAttr(cur.url)}" placeholder="https://www.reddit.com">
-        <label>Color <span style="opacity:.6">— optional, overrides the logo</span></label>
+    ov.innerHTML = `<div class="gsc-ed" role="dialog" aria-modal="true" aria-labelledby="gsc-ed-title">
+        <div class="gsc-ed-title" id="gsc-ed-title">${isNew ? 'Add shortcut' : 'Edit shortcut'}</div>
+        <label for="gsc-ed-name">Name</label>
+        <input class="gsc-ed-name" id="gsc-ed-name" type="text" value="${escAttr(cur.name)}" placeholder="e.g. Reddit">
+        <label for="gsc-ed-url">Link (URL)</label>
+        <input class="gsc-ed-url" id="gsc-ed-url" type="text" value="${escAttr(cur.url)}" placeholder="https://www.reddit.com">
+        <label for="gsc-ed-color">Color <span style="opacity:.6">— optional, overrides the logo</span></label>
         <div class="gsc-ed-colors">
-          <input class="gsc-ed-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(cur.color) ? cur.color : '#6366f1'}">
+          <input class="gsc-ed-color" id="gsc-ed-color" type="color" value="${/^#[0-9a-f]{6}$/i.test(cur.color) ? cur.color : '#6366f1'}">
           <button class="gsc-ed-clearcolor" type="button">Use logo instead</button>
         </div>
         <div class="gsc-ed-row">
@@ -205,9 +254,22 @@
     const colorInput = ov.querySelector('.gsc-ed-color');
     colorInput.addEventListener('input', () => { useColor = true; });
     ov.querySelector('.gsc-ed-clearcolor').addEventListener('click', () => { useColor = false; try { window.showToast?.('Will use the site logo'); } catch {} });
-    const close = () => ov.remove();
+    const close = () => {
+      ov.remove();
+      try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus(); } catch {}
+    };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     ov.querySelector('.gsc-ed-cancel').addEventListener('click', close);
+    ov.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type === 'text') { e.preventDefault(); ov.querySelector('.gsc-ed-save').click(); return; }
+      if (e.key === 'Tab') {
+        const f = [...ov.querySelectorAll('input, button')].filter(el => !el.disabled);
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
     const del = ov.querySelector('.gsc-ed-del');
     if (del) del.addEventListener('click', () => { arr.splice(index, 1); saveShortcuts(arr); close(); });
     ov.querySelector('.gsc-ed-save').addEventListener('click', () => {
@@ -259,6 +321,9 @@
   async function apply(style) {
     if (!STYLES[style]) style = 'classic';
     const def = STYLES[style];
+    // What the New Tab page is told (its own look: classic or glass) before
+    // and after; only a change there needs the open New Tabs reloaded.
+    const prevStart = (STYLES[document.body.dataset.guiStyle] || {}).startPage || 'classic';
     if (def.layout === 'top') {
       try {
         const cur = document.body.dataset.tabLayout || 'horizontal';
@@ -291,7 +356,12 @@
     // the file lands and stay on the old style. Only send a value it accepts:
     // anything else fails main's IPC schema.
     try { await window.vex?.setGuiStyle?.(def.startPage || 'classic'); } catch {}
-    try { window.Onboarding?._reloadStartPages?.(); } catch {}
+    // Between two looks the page wears the same way (Firefox and Firefox dark,
+    // which Light and dark swaps by itself) it is repainted in place below
+    // instead: a reload flashed every open New Tab.
+    if ((def.startPage || 'classic') !== prevStart) {
+      try { window.Onboarding?._reloadStartPages?.(); } catch {}
+    }
     paintStartPages();
     try { window.dispatchEvent(new CustomEvent('vex:gui-style', { detail: { style } })); } catch {}
   }
@@ -338,7 +408,7 @@
       --vex-text-primary: ${text}; --vex-text-secondary: ${dim}; --vex-text-muted: ${dim};
       --vex-blur-medium: none; --vex-blur-light: none;
     }
-    /* The Custom Image theme's darkened photo (an inline style) would sit under
+    /* A theme of your own's background photo (an inline style) would sit under
        the look's dark text on light looks - the look's page is plain. */
     html[data-look-palette] body { background-image: none !important; }`;
   }
@@ -353,6 +423,7 @@
     // theme. start.html styles html[data-look="chrome"] and friends.
     const look = isBrowserLook() ? document.body.dataset.guiStyle : '';
     const js = `(() => {
+      document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(current())});
       const look = ${JSON.stringify(look)};
       if (look) { document.documentElement.setAttribute('data-look', look); localStorage.setItem('vex.lookName', look); }
       else { document.documentElement.removeAttribute('data-look'); localStorage.removeItem('vex.lookName'); }
@@ -386,6 +457,22 @@
     window.showToast?.('The browser look now uses your theme colours — Settings › GUI Style switches back', 'info', 4000);
   });
 
+  // The looks that come as a light and a dark version. Under 'theme' colours
+  // both versions wear the colour theme, so picking Firefox — dark with a
+  // light theme on changed nothing on screen (final review, 2026-10-09). The
+  // newest pick wins, as a theme pick does the other way round: a version
+  // picked by hand that is the other lightness from the theme shows its own
+  // colours. Returns true when it switched them.
+  const LOOK_LIGHTNESS = { chrome: 'light', firefox: 'light', fluent: 'light', 'chrome-dark': 'dark', 'firefox-dark': 'dark', 'fluent-dark': 'dark' };
+  function pickedByHand(style, themeIsLight) {
+    if (typeof themeIsLight !== 'boolean') throw new Error('pickedByHand needs the colour theme\'s lightness');
+    const lightness = LOOK_LIGHTNESS[style];
+    if (!lightness || currentColors() !== 'theme') return false;
+    if ((lightness === 'light') === themeIsLight) return false;
+    applyColors('look');
+    return true;
+  }
+
   function init() {
     document.body.dataset.guiColors = currentColors();
     apply(current());
@@ -406,10 +493,15 @@
     isBrowserLook,
     setColors: applyColors,
     getColors: currentColors,
+    pickedByHand,
     paintStartPage,
     render: () => { const b = document.getElementById('gui-shortcuts-bar'); if (b) renderBar(b); },
     // The stock shortcut set — the onboarding setup-style step builds its
     // pick-and-choose list from this so the two never drift apart.
     defaults: () => DEFAULT_SHORTCUTS.map(s => ({ ...s })),
+    // A letter chip's text colour for its background (tests, and anything
+    // else that draws a chip).
+    chipInk,
+    hostColor,
   };
 })();

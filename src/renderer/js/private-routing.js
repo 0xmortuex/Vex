@@ -71,7 +71,7 @@ const PrivateRouting = {
         <div class="vexroute-head">
           <div style="flex:1">
             <h2>Private routing</h2>
-            <p>Send everything Vex does through Tor or through a proxy of your own. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
+            <p>Send everything Vex does through Tor or through a proxy of your own: every tab, container, private window, off-the-record tab, sidebar app and mail. A container or site with a route of its own keeps it, Tor tabs stay on Tor, and the network speed check stays direct, as it measures your own line. This routes the browser — Vex is not a VPN service and does not run one, and anything outside Vex goes the way it always did.</p>
           </div>
           <button class="vexroute-close" aria-label="Close" title="Close">${VexIcons.svg('x', { size: 18 })}</button>
         </div>

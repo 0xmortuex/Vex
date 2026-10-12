@@ -3,8 +3,8 @@
 // Everything else assumes Vex starts. When it does not — an extension that
 // breaks the session, a bad update — there is nothing to click, because the
 // thing you would click is what failed. Two launches that never finish put the
-// third into safe mode, and the first launch of a new version keeps a copy of
-// the settings as they were under the old one.
+// third into safe mode, and the first launch of a new version asks for a backup
+// of the settings as the old one left them (src/main/update-backups.js).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const fs = require('fs');
@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} });
 
-const guard = (over = {}) => createBootGuard({ dir, fs, argv: [], version: '2.31.90', settingsFile: settings, now: () => (clock += 1000), ...over });
+const guard = (over = {}) => createBootGuard({ dir, fs, argv: [], version: '2.31.90', now: () => (clock += 1000), ...over });
 
 describe('a launch that finishes', () => {
   it('is not safe mode, and leaves nothing to worry about for the next one', () => {
@@ -61,54 +61,58 @@ describe('launches that crash on the way up', () => {
   it('a state file that cannot be written does not stop Vex starting', () => {
     const readOnly = { ...fs, writeFileSync: () => { throw new Error('EACCES'); } };
     const log = [];
-    expect(() => createBootGuard({ dir, fs: readOnly, version: '1.0.0', settingsFile: settings, log: (m) => log.push(m) }).begin()).not.toThrow();
+    expect(() => createBootGuard({ dir, fs: readOnly, version: '1.0.0', log: (m) => log.push(m) }).begin()).not.toThrow();
     expect(log.join(' ')).toMatch(/could not record the boot state/);
   });
 });
 
-describe('the settings snapshot', () => {
-  it('the first launch of a new version keeps the settings as they were under the old one', () => {
+// The backup at the first start of a new version is update-backups.js's
+// (saveAtFirstStart); the boot guard decides when, and says how it went.
+describe('the backup at the first start of a new version', () => {
+  const backups = (impl = () => ({ name: 'before-x.json' })) => vi.fn(impl);
+
+  it('is asked for on the first launch of a new version, with the version before and when it started', () => {
     const g1 = guard({ version: '2.31.89' }); g1.begin(); g1.started();
-    fs.writeFileSync(settings, JSON.stringify({ 'vex.theme': 'broken-by-the-update' }));
-    guard({ version: '2.31.90' }).begin();
-    const kept = guard().snapshots();
-    expect(kept.map(s => s.label)).toContain('2.31.89');
-    expect(JSON.parse(fs.readFileSync(kept.find(s => s.label === '2.31.89').path, 'utf8'))).toEqual({ 'vex.theme': 'broken-by-the-update' });
+    const startedAt = clock;
+    const backupFirstStart = backups();
+    const r = guard({ version: '2.31.90', backupFirstStart }).begin();
+    expect(backupFirstStart).toHaveBeenCalledWith({ version: '2.31.90', from: '2.31.89', since: startedAt });
+    expect(r.updateBackup).toEqual({ ok: true, name: 'before-x.json', version: '2.31.90' });
   });
 
-  it('is not taken again on every launch of the same version', () => {
+  it('is not asked for again on every launch of the same version', () => {
     const g = guard(); g.begin(); g.started();
-    const first = guard().snapshots().length;
-    const g2 = guard(); g2.begin(); g2.started();
-    expect(guard().snapshots()).toHaveLength(first);
+    const backupFirstStart = backups();
+    const g2 = guard({ backupFirstStart }); expect(g2.begin().updateBackup).toBeNull(); g2.started();
+    expect(backupFirstStart).not.toHaveBeenCalled();
   });
 
-  it('keeps the five most recent', () => {
-    for (let i = 0; i < 9; i++) { const g = guard({ version: '2.31.' + i }); g.begin(); g.started(); }
-    expect(guard().snapshots().length).toBeLessThanOrEqual(5);
+  it('nothing to back up is not news', () => {
+    const r = guard({ backupFirstStart: backups(() => null) }).begin();
+    expect(r.updateBackup).toBeNull();
   });
 
-  it('restoring puts the file back, after copying aside what is there now', () => {
+  it('one that fails does not stop Vex starting, and is in what begin() returns, not only the log', () => {
     const g1 = guard({ version: '2.31.89' }); g1.begin(); g1.started();
-    fs.writeFileSync(settings, JSON.stringify({ 'vex.theme': 'after' }));
-    const g2 = guard({ version: '2.31.90' }); g2.begin();
-    fs.writeFileSync(settings, JSON.stringify({ 'vex.theme': 'now' }));
-
-    g2.restoreSettings('2.31.89');
-    expect(JSON.parse(fs.readFileSync(settings, 'utf8'))).toEqual({ 'vex.theme': 'after' });
-    const before = g2.snapshots().find(s => s.label === 'before-restore');
-    expect(JSON.parse(fs.readFileSync(before.path, 'utf8'))).toEqual({ 'vex.theme': 'now' });   // the restore is undoable
-    expect(() => g2.restoreSettings('nope')).toThrow(/No settings backup called "nope"/);
+    const log = [];
+    const r = guard({ version: '2.31.90', log: (m) => log.push(m), backupFirstStart: backups(() => { throw new Error('Vex could not save the backup in its backups folder (ENOSPC)'); }) }).begin();
+    expect(r).toMatchObject({ safeMode: false, updateBackup: { ok: false, version: '2.31.90', error: 'Vex could not save the backup in its backups folder (ENOSPC)' } });
+    expect(log.join(' ')).toMatch(/could not back up the settings at the first start of 2\.31\.90/);
   });
 
-  it('no settings file yet: nothing is kept and nothing throws', () => {
-    fs.rmSync(settings);
-    const g = guard();
-    expect(g.snapshotSettings('x')).toBe(null);
-    expect(g.snapshots()).toEqual([]);
+  it('end to end: the backup lands in the one backups folder, secrets left out', () => {
+    const { createUpdateBackups } = require('../../src/main/update-backups.js');
+    fs.writeFileSync(settings, JSON.stringify({ 'vex.theme': 'oxford', 'vex.lockPin': 'hash' }));
+    const store = createUpdateBackups({ fs, dir: path.join(dir, 'backups'), log: { warn() {} } });
+    const g1 = guard({ version: '2.31.89' }); g1.begin(); g1.started();
+    const r = guard({ version: '2.31.90', backupFirstStart: (o) => store.saveAtFirstStart({ ...o, persistFile: settings }) }).begin();
+    expect(r.updateBackup.ok).toBe(true);
+    const [only] = store.list();
+    expect(only).toMatchObject({ kind: 'before', version: '2.31.90', name: r.updateBackup.name });
+    expect(JSON.parse(store.read(only.name)).items).toEqual({ 'vex.theme': 'oxford' });
+    expect(fs.existsSync(path.join(dir, 'settings-backups'))).toBe(false);
   });
 });
-
 describe('an update that will not start', () => {
   it('names the version it replaced once safe mode kicks in, so it can be offered back', () => {
     const old = guard({ version: '2.32.36' }); old.begin(); old.started();

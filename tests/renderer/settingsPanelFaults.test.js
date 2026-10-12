@@ -14,7 +14,8 @@ beforeEach(() => {
   sessionStorage.clear();
   document.body.innerHTML = '';
   toasts = [];
-  window.showToast = (message, type, duration) => toasts.push({ message, type, duration });
+  // A toast with a button (the Undo of js/vex-undo.js) keeps its options.
+  window.showToast = (message, type, duration, opts) => { toasts.push({ message, type, duration, opts }); return { dismiss() {} }; };
   window.vexConfirm = vi.fn(async () => true);
 });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -37,7 +38,13 @@ describe('accessibility: the reading ruler cleans up after itself', () => {
   // Collects every script AccessibilityPack injects into a guest page.
   function fakeWebview() {
     const scripts = [];
-    return { scripts, executeJavaScript: (js) => { scripts.push(js); return Promise.resolve(); } };
+    const sheets = new Map(); let n = 0;
+    return {
+      scripts, sheets,
+      executeJavaScript: (js) => { scripts.push(js); return Promise.resolve(); },
+      insertCSS: (css) => { const k = 'k' + (++n); sheets.set(k, css); scripts.push(css); return Promise.resolve(k); },
+      removeInsertedCSS: (k) => { sheets.delete(k); return Promise.resolve(); },
+    };
   }
 
   it('removes the mousemove listener when the ruler is turned off, not just the bar', () => {
@@ -173,29 +180,61 @@ describe('boosts: turning one off actually un-injects it', () => {
 
   function fakeWebview() {
     const scripts = [];
-    return { scripts, executeJavaScript: (js) => { scripts.push(js); return Promise.resolve(); } };
+    const sheets = new Map(); let n = 0;
+    return {
+      scripts, sheets,
+      executeJavaScript: (js) => { scripts.push(js); return Promise.resolve(); },
+      insertCSS: (css) => { const k = 'k' + (++n); sheets.set(k, css); scripts.push(css); return Promise.resolve(k); },
+      removeInsertedCSS: (k) => { sheets.delete(k); return Promise.resolve(); },
+    };
   }
 
   beforeEach(() => { VexBoosts.boosts = {}; });
 
-  it('clears the injected stylesheet for a host that no longer has a boost', () => {
+  it('clears the injected stylesheet for a host that no longer has a boost', async () => {
     const wv = fakeWebview();
     VexBoosts.boosts['example.test'] = { zaps: ['h1'], css: 'body{color:red}', js: '' };
-    VexBoosts.applyTo(wv, 'https://example.test/');
-    expect(wv.scripts[0]).toContain('h1{display:none!important');
+    await VexBoosts.applyTo(wv, 'https://example.test/');
+    await wv._vexBoostCss;
+    expect([...wv.sheets.values()]).toHaveLength(1);
+    expect([...wv.sheets.values()][0]).toContain('h1{display:none!important');
 
     delete VexBoosts.boosts['example.test'];
     VexBoosts.applyTo(wv, 'https://example.test/');
-    // The second injection sets the tag's text to empty — it does NOT return
-    // early leaving the old rules in place, which is what made "delete" look
-    // like it had done nothing to pages that were already open.
-    expect(wv.scripts).toHaveLength(2);
-    expect(wv.scripts[1]).toContain('el.textContent=""');
-    expect(wv.scripts[1]).not.toContain('display:none');
+    await wv._vexBoostCss;
+    // The second apply takes the sheet out - it does NOT return early leaving
+    // the old rules in place, which is what made "delete" look like it had
+    // done nothing to pages that were already open.
+    expect(wv.sheets.size).toBe(0);
   });
 
-  it('refreshHost re-applies across every open tab on that host only', () => {
+  // A site with its JavaScript switched off got no Boost CSS: it was written
+  // by executeJavaScript, which cannot run there (final review, 2026-10-09).
+  it('puts the CSS in without the page JavaScript, and replaces it on the next apply', async () => {
+    const wv = fakeWebview();
+    wv.executeJavaScript = () => { throw new Error('JavaScript is off for this page'); };
+    VexBoosts.boosts['example.test'] = { zaps: [], css: 'body{color:red}', js: '' };
+    VexBoosts.applyTo(wv, 'https://example.test/');
+    VexBoosts.boosts['example.test'].css = 'body{color:blue}';
+    VexBoosts.applyTo(wv, 'https://example.test/');
+    await wv._vexBoostCss;
+    expect([...wv.sheets.values()]).toEqual(['body{color:blue}']);
+  });
+
+  it('says so when the stylesheet cannot go in', async () => {
+    const wv = fakeWebview();
+    wv.insertCSS = () => Promise.reject(new Error('guest gone'));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    VexBoosts.boosts['example.test'] = { zaps: [], css: 'a{}', js: '' };
+    VexBoosts.applyTo(wv, 'https://example.test/');
+    await wv._vexBoostCss;
+    expect(err.mock.calls.some(c => String(c[0]).includes('[Boosts]') && String(c[1]).includes('guest gone'))).toBe(true);
+    err.mockRestore();
+  });
+
+  it('refreshHost re-applies across every open tab on that host only', async () => {
     const a = fakeWebview(), b = fakeWebview(), other = fakeWebview();
+    VexBoosts.boosts['example.test'] = { zaps: [], css: 'a{}', js: '' };
     global.TabManager = { tabs: [
       { id: 't1', url: 'https://example.test/one' },
       { id: 't2', url: 'https://www.example.test/two' },
@@ -203,33 +242,47 @@ describe('boosts: turning one off actually un-injects it', () => {
     ] };
     global.WebviewManager = { webviews: new Map([['t1', a], ['t2', b], ['t3', other]]) };
     expect(VexBoosts.refreshHost('example.test')).toBe(2);
+    await a._vexBoostCss; await b._vexBoostCss;
     expect(a.scripts).toHaveLength(1);
     expect(b.scripts).toHaveLength(1);
     expect(other.scripts).toHaveLength(0);
     delete global.TabManager; delete global.WebviewManager;
   });
 
-  it('asks before deleting a boost and does nothing when the user says no', async () => {
-    VexBoosts.boosts['example.test'] = { zaps: [], css: 'body{color:red}', js: '' };
+  it('deletes a boost at once, and Undo brings it back whole', async () => {
+    require('../../src/renderer/js/vex-undo.js');
+    const boost = { zaps: ['#ad'], css: 'body{color:red}', js: '' };
+    VexBoosts.boosts['example.test'] = JSON.parse(JSON.stringify(boost));
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexBoosts.renderPanel(host);
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(VexBoosts.boosts['example.test']).toBeUndefined();
+    lastToast().opts.action.run();
     await new Promise(r => setTimeout(r, 0));
-    expect(window.vexConfirm).toHaveBeenCalled();
-    expect(VexBoosts.boosts['example.test']).toBeTruthy();
+    expect(VexBoosts.boosts['example.test']).toEqual(boost);
+    expect(host.textContent).toContain('example.test');
   });
 
-  it('deletes on confirmation and warns that custom JS needs a reload', async () => {
+  it('a deleted boost with custom JS says a reload is needed, and Undo does not run the JS again', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     VexBoosts.boosts['example.test'] = { zaps: [], css: '', js: 'window.x=1' };
+    const ran = [];
+    global.TabManager = { tabs: [{ id: 't1', url: 'https://example.test/' }] };
+    global.WebviewManager = { webviews: new Map([['t1', { executeJavaScript: (js) => { ran.push(js); return Promise.resolve(); } }]]) };
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexBoosts.renderPanel(host);
     host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
     expect(VexBoosts.boosts['example.test']).toBeUndefined();
     expect(lastToast().message).toMatch(/reload the page/i);
+    ran.length = 0;
+    lastToast().opts.action.run();
+    await new Promise(r => setTimeout(r, 0));
+    expect(VexBoosts.boosts['example.test'].js).toBe('window.x=1');
+    expect(ran.some(js => js.includes('window.x=1'))).toBe(false);
+    delete global.TabManager; delete global.WebviewManager;
   });
 
   it('uses an icon, not an emoji, for the delete control', () => {
@@ -244,25 +297,30 @@ describe('boosts: turning one off actually un-injects it', () => {
 });
 
 // ---------------------------------------------------------------------------
-describe('skills and chains: destructive buttons ask first', () => {
-  it('a skill is only deleted after confirmation', async () => {
+describe('skills and chains: deleting comes with Undo', () => {
+  it('a skill goes at once and Undo puts it back in its place', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     const { VexSkills } = require('../../src/renderer/js/skills.js');
-    VexSkills.skills = [{ id: 'sk_a', name: 'Mine', prompt: 'do it', icon: 'sparkles' }];
+    VexSkills.skills = [
+      { id: 'sk_a', name: 'Mine', prompt: 'do it', icon: 'sparkles' },
+      { id: 'sk_b', name: 'Other', prompt: 'do that', icon: 'sparkles' },
+    ];
     const host = document.createElement('div');
     document.body.appendChild(host);
     VexSkills.renderPanel(host);
 
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(VexSkills.skills.map(s => s.id)).toEqual(['sk_b']);
+    expect(lastToast().message).toBe('Deleted the skill “Mine”');
+    lastToast().opts.action.run();
     await new Promise(r => setTimeout(r, 0));
-    expect(VexSkills.skills).toHaveLength(1);
-
-    host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
-    expect(VexSkills.skills).toHaveLength(0);
+    expect(VexSkills.skills.map(s => s.id)).toEqual(['sk_a', 'sk_b']);
+    expect(JSON.parse(localStorage.getItem(VexSkills.KEY)).map(s => s.id)).toEqual(['sk_a', 'sk_b']);
   });
 
-  it('a chain is only deleted after confirmation', async () => {
+  it('a chain goes at once and Undo puts it back', async () => {
+    require('../../src/renderer/js/vex-undo.js');
     global.CommandBar = { commands: [] };
     const { CommandChains } = require('../../src/renderer/js/compose-chains.js');
     CommandChains.chains = [{ id: 'ch1', name: 'Read it', steps: ['read', 'aloud'] }];
@@ -270,14 +328,11 @@ describe('skills and chains: destructive buttons ask first', () => {
     document.body.appendChild(host);
     CommandChains.renderPanel(host);
 
-    window.vexConfirm.mockResolvedValueOnce(false);
     host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
-    expect(CommandChains.chains).toHaveLength(1);
-
-    host.querySelector('[data-del]').click();
-    await new Promise(r => setTimeout(r, 0));
     expect(CommandChains.chains).toHaveLength(0);
+    lastToast().opts.action.run();
+    await new Promise(r => setTimeout(r, 0));
+    expect(CommandChains.chains).toEqual([{ id: 'ch1', name: 'Read it', steps: ['read', 'aloud'] }]);
     delete global.CommandBar;
   });
 

@@ -57,10 +57,19 @@ function runInMainWorld(src) {
 //     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
 //     them "On" (2026-09-29).
 // Each gets an honest stand-in: permissions reports what the manifest granted
-// and Vex provides and grants nothing new; the toolbar and menu calls succeed
-// and change nothing (Vex has no per-extension button, badge or menu items);
-// no keys are bound to extension shortcuts; file access is allowed (Vex loads
-// extensions with allowFileAccess) and there is no incognito here.
+// and Vex provides and grants nothing new; there is no file access (an
+// extension's scripts never reach a file:// page here, measured 2026-10-10)
+// and no incognito.
+//
+// Right-click menu items, the toolbar button's badge and title, and keyboard
+// shortcuts are real (since 2026-10-08): extApi, where given, takes them to
+// main ({ op, args }), which keeps the items and the badge, draws them in
+// Vex's right-click menu and toolbar menu, and binds the keys
+// (src/main/extension-ui.js, src/main/extension-commands.js). onExtEvent,
+// where given, is called once with a function that main's events then reach
+// ({ type, args }): a menu click, a shortcut, a click on the toolbar button.
+// Every context of the extension that listens hears them, as in Chrome, and
+// an item's own onclick runs in the context that made it.
 //
 // It runs in the extension's own world: directly in a page without isolation
 // (a background page), through contextBridge.executeInMainWorld where the
@@ -81,7 +90,7 @@ function runInMainWorld(src) {
 //
 // askActiveTabs, where given, asks main which page is the tab in front in each
 // Vex window ({ ids }) and in the Vex window used last ({ current }).
-function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, extApi, onExtEvent) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -95,30 +104,139 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
   }
   function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
 
+  // Main's side of the menus, the badge and the shortcuts. A failure comes
+  // back in main's own words, without the wrapping Electron puts round it.
+  var api = typeof extApi === 'function' ? function (op, args) {
+    return Promise.resolve(extApi({ op: op, args: args || {} })).catch(function (err) {
+      throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+    });
+  } : null;
+  // With a callback a failure is what Chrome calls an unchecked
+  // runtime.lastError: said in the console, and the callback still runs.
+  function settle(p, cb, what) {
+    if (typeof cb !== 'function') return p;
+    p.then(function (v) { cb(v); }, function (err) { console.error('Unchecked runtime.lastError (' + what + '): ' + err.message); cb(); });
+    return undefined;
+  }
+  // Whether the person allowed this extension file:// pages (its card in the
+  // manager). With no main to ask, it is not.
+  function fileAccess() { return api ? api('extension.fileAccess').then(function (v) { return v === true; }) : Promise.resolve(false); }
+  var hubs = {};
+  var heard = false;
+  var ownClicks = {};
+  function deliver(msg) {
+    if (!msg || typeof msg.type !== 'string') return;
+    var args = Array.isArray(msg.args) ? msg.args : [];
+    var call = function (fn) { try { fn.apply(null, args); } catch (err) { setTimeout(function () { throw err; }, 0); } };
+    if (msg.type === 'menus.onClicked' && args[0] && Object.prototype.hasOwnProperty.call(ownClicks, String(args[0].menuItemId))) call(ownClicks[String(args[0].menuItemId)]);
+    (hubs[msg.type] || []).slice().forEach(call);
+  }
+  function listen() {
+    if (heard || typeof onExtEvent !== 'function') return;
+    heard = true;
+    onExtEvent(deliver);
+  }
+  function hubEvent(type) {
+    var fns = hubs[type] || (hubs[type] = []);
+    return {
+      addListener: function (fn) { if (typeof fn === 'function' && fns.indexOf(fn) === -1) fns.push(fn); listen(); },
+      removeListener: function (fn) { var i = fns.indexOf(fn); if (i !== -1) fns.splice(i, 1); },
+      hasListener: function (fn) { return fns.indexOf(fn) !== -1; },
+      hasListeners: function () { return fns.length > 0; },
+    };
+  }
+
   if (!c.permissions) {
-    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
-    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    var grantedPerms = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = grantedPerms.filter(function (p) { return /[:/*<]/.test(p); });
     // Permissions that never come with a chrome.<name> namespace of their own.
     var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
-    var apis = granted.filter(function (p) {
-      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
-    });
-    var has = function (q) {
+    // Asked when called, not now: the stand-ins below (contextMenus,
+    // commands, cookies, webNavigation, …) are not made yet, and a
+    // permission they provide was answered false (found 2026-10-10, EX12).
+    var apis = function () {
+      return grantedPerms.filter(function (p) {
+        return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+      });
+    };
+    // A file:// page only for an extension the person allowed on its card
+    // (main.js _fileAccessState); it was always said to be allowed (EX4).
+    var has = function (q, fileOk) {
       q = q || {};
-      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
-        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+      var own = apis();
+      return (q.permissions || []).every(function (p) { return own.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) {
+          if (/^file:/i.test(o) && !fileOk) return false;
+          return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1;
+        });
+    };
+    var askHas = function (q) {
+      var wantsFile = ((q || {}).origins || []).some(function (o) { return /^file:/i.test(o); });
+      return wantsFile ? fileAccess().then(function (ok) { return has(q, ok); }) : Promise.resolve(has(q, false));
     };
     c.permissions = {
-      contains: function (q, cb) { return done(has(q))(cb); },
-      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      contains: function (q, cb) { return settle(askHas(q), cb, 'permissions.contains'); },
+      getAll: function (cb) { return done({ permissions: apis(), origins: origins.slice() })(cb); },
       // Already granted: true. Anything more cannot be granted here: false.
-      request: function (q, cb) { return done(has(q))(cb); },
+      request: function (q, cb) { return settle(askHas(q), cb, 'permissions.request'); },
       remove: function (q, cb) { return done(false)(cb); },
       onAdded: noEvent(),
       onRemoved: noEvent(),
     };
   }
 
+  // The toolbar button: its badge and title are kept by main and drawn on the
+  // extension's icon in Vex's extensions menu and on its pinned toolbar
+  // button, for every tab or for one (details.tabId), and so are its icon
+  // and popup (setIcon, setPopup). Its on/off stays as the manifest says.
+  function actionApi() {
+    var setter = function (prop, key) {
+      return function (details, cb) {
+        var d = details || {};
+        return settle(api('action.set', { prop: prop, value: d[key], tabId: d.tabId }).then(function () { return undefined; }), cb, 'action.set');
+      };
+    };
+    var getter = function (prop) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        return settle(api('action.get', { prop: prop, tabId: (details || {}).tabId }), cb, 'action.get');
+      };
+    };
+    // setIcon's imageData (an ImageData, or one per size) as plain numbers
+    // main can take; of several sizes, the one nearest 32 px (a toolbar icon
+    // at 200%). A path, or one per size, is passed as it is.
+    var nearest = function (bySize) {
+      var sizes = Object.keys(bySize || {}).map(Number).filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      if (!sizes.length) return null;
+      var best = sizes.filter(function (n) { return n >= 32; })[0] || sizes[sizes.length - 1];
+      return bySize[best];
+    };
+    var iconValue = function (d) {
+      if (d.imageData) {
+        var img = d.imageData.data ? d.imageData : nearest(d.imageData);
+        if (!img || !img.data) throw new Error('setIcon: imageData must be an ImageData or a dictionary of them');
+        return { imageData: { width: img.width, height: img.height, data: Array.prototype.slice.call(img.data) } };
+      }
+      if (d.path) return { path: typeof d.path === 'string' ? d.path : nearest(d.path) };
+      throw new Error('setIcon needs imageData or a path');
+    };
+    return {
+      setBadgeText: setter('text', 'text'), getBadgeText: getter('text'),
+      setBadgeBackgroundColor: setter('bg', 'color'), getBadgeBackgroundColor: getter('bg'),
+      setBadgeTextColor: setter('color', 'color'), getBadgeTextColor: getter('color'),
+      setTitle: setter('title', 'title'), getTitle: getter('title'),
+      setPopup: setter('popup', 'popup'), getPopup: getter('popup'),
+      setIcon: function (details, cb) {
+        var d = details || {};
+        var p;
+        try { p = api('action.set', { prop: 'icon', value: iconValue(d), tabId: d.tabId }).then(function () { return undefined; }); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, 'action.setIcon');
+      },
+      enable: done(undefined), disable: done(undefined), isEnabled: done(true),
+      onClicked: hubEvent('action.onClicked'),
+    };
+  }
   function actionStub() {
     return {
       setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
@@ -128,31 +246,236 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       onClicked: noEvent(),
     };
   }
-  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
-  if (manifest.action && !c.action) c.action = actionStub();
+  // Electron 42 has a chrome.action of its own in a service worker, which
+  // keeps a badge nobody can see (found 2026-10-08): Vex's is put in its place.
+  function takeOver(target, mine, what) {
+    Object.keys(mine).forEach(function (k) {
+      try { target[k] = mine[k]; } catch (e) { /* read-only: tried again below */ }
+      if (target[k] !== mine[k]) { try { Object.defineProperty(target, k, { value: mine[k], configurable: true, writable: true }); } catch (e) { /* said below */ } }
+      if (target[k] !== mine[k]) console.error('[Vex] could not provide ' + what + '.' + k + ' here');
+    });
+    return target;
+  }
+  var ACTION_KEYS = ['setBadgeText', 'getBadgeText', 'setBadgeBackgroundColor', 'getBadgeBackgroundColor', 'setBadgeTextColor', 'getBadgeTextColor', 'setTitle', 'getTitle', 'setIcon', 'setPopup', 'getPopup', 'onClicked'];
+  function actionFor(name) {
+    if (!c[name]) { c[name] = api ? actionApi() : actionStub(); return; }
+    if (!api) return;
+    var mine = actionApi(), part = {};
+    ACTION_KEYS.forEach(function (k) { part[k] = mine[k]; });
+    takeOver(c[name], part, name);
+  }
+  if (manifest.browser_action) actionFor('browserAction');
+  if (manifest.action) actionFor('action');
+
+  // chrome.runtime.onInstalled: Electron never fires it, and most extensions
+  // make their menu items there. Main fires it (main.js _extTellInstalled);
+  // a listener hears that as well as anything Electron itself might send.
+  if (api && c.runtime.onInstalled && typeof c.runtime.onInstalled.addListener === 'function') {
+    var installed = c.runtime.onInstalled;
+    var installedHub = hubEvent('runtime.onInstalled');
+    var nativeOn = installed.addListener.bind(installed);
+    var nativeOff = typeof installed.removeListener === 'function' ? installed.removeListener.bind(installed) : null;
+    takeOver(installed, {
+      addListener: function (fn) { nativeOn(fn); installedHub.addListener(fn); },
+      removeListener: function (fn) { if (nativeOff) nativeOff(fn); installedHub.removeListener(fn); },
+    }, 'runtime.onInstalled');
+  }
 
   var perms = manifest.permissions || [];
-  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && (!c.contextMenus || api)) {
     var menuId = 0;
-    c.contextMenus = {
+    // Only what can cross to main: no functions.
+    var plainProps = function (props) {
+      var out = {};
+      Object.keys(props || {}).forEach(function (k) { if (k !== 'onclick' && typeof props[k] !== 'function') out[k] = props[k]; });
+      return out;
+    };
+    var ContextType = {}, ItemType = {};
+    ['all', 'page', 'frame', 'selection', 'link', 'editable', 'image', 'video', 'audio', 'launcher', 'browser_action', 'page_action', 'action'].forEach(function (t) { ContextType[t.toUpperCase()] = t; });
+    ['normal', 'checkbox', 'radio', 'separator'].forEach(function (t) { ItemType[t.toUpperCase()] = t; });
+    var menusApi = api ? {
+      ACTION_MENU_TOP_LEVEL_LIMIT: 6, ContextType: ContextType, ItemType: ItemType,
+      create: function (props, cb) {
+        props = props || {};
+        var id = props.id != null ? props.id : ++menuId;
+        var plain = plainProps(props);
+        plain.id = id;
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        var p = api('menus.create', { props: plain }).then(function () { return undefined; });
+        if (typeof cb === 'function') settle(p, cb, 'contextMenus.create');
+        else p.catch(function (err) { console.error('Unchecked runtime.lastError (contextMenus.create): ' + err.message); });
+        return id;
+      },
+      update: function (id, props, cb) {
+        props = props || {};
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        return settle(api('menus.update', { id: id, props: plainProps(props) }).then(function () { return undefined; }), cb, 'contextMenus.update');
+      },
+      remove: function (id, cb) {
+        delete ownClicks[String(id)];
+        return settle(api('menus.remove', { id: id }).then(function () { return undefined; }), cb, 'contextMenus.remove');
+      },
+      removeAll: function (cb) {
+        ownClicks = {};
+        return settle(api('menus.removeAll').then(function () { return undefined; }), cb, 'contextMenus.removeAll');
+      },
+      onClicked: hubEvent('menus.onClicked'),
+    } : {
       create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
       update: done(undefined), remove: done(undefined), removeAll: done(undefined),
       onClicked: noEvent(),
     };
+    if (!c.contextMenus) c.contextMenus = menusApi;
+    else takeOver(c.contextMenus, menusApi, 'contextMenus');
   }
 
-  if (!c.commands) {
+  if (!c.commands || api) {
     var commands = manifest.commands || {};
-    c.commands = {
+    var commandsApi = api ? {
+      getAll: function (cb) { return settle(api('commands.getAll'), cb, 'commands.getAll'); },
+      onCommand: hubEvent('commands.onCommand'),
+    } : {
       getAll: done(Object.keys(commands).map(function (name) {
         return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
       })),
       onCommand: noEvent(),
     };
+    if (!c.commands) c.commands = commandsApi;
+    else takeOver(c.commands, commandsApi, 'commands');
+  }
+
+  // Events Electron never fires: tabs.onUpdated/onActivated/onCreated/
+  // onRemoved and webRequest.onCompleted (found 2026-10-10). A listener
+  // added here tells main, which then tells this extension
+  // (src/main/extension-events.js); a webRequest listener's filter goes with
+  // it, as its own numbered event.
+  var listenerSeq = 0;
+  function tellMain(type, filter) {
+    if (!api) return;
+    api('events.listen', { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
+  }
+  function mainHubEvent(type) {
+    var h = hubEvent(type);
+    var add = h.addListener;
+    h.addListener = function (fn) { add(fn); if (typeof fn === 'function') tellMain(type); };
+    return h;
+  }
+  function requestEvent(type) {
+    var mine = [];
+    return {
+      addListener: function (fn, filter) {
+        if (typeof fn !== 'function') return;
+        var sub = type + '#' + (++listenerSeq);
+        mine.push([fn, sub]);
+        hubEvent(sub).addListener(fn);
+        tellMain(sub, filter || {});
+      },
+      removeListener: function (fn) {
+        mine = mine.filter(function (p) { if (p[0] !== fn) return true; hubEvent(p[1]).removeListener(fn); return false; });
+      },
+      hasListener: function (fn) { return mine.some(function (p) { return p[0] === fn; }); },
+      hasListeners: function () { return mine.length > 0; },
+    };
+  }
+  if (api && c.tabs) {
+    takeOver(c.tabs, { onUpdated: mainHubEvent('tabs.onUpdated'), onActivated: mainHubEvent('tabs.onActivated'),
+      onCreated: mainHubEvent('tabs.onCreated'), onRemoved: mainHubEvent('tabs.onRemoved') }, 'tabs');
+  }
+  if (api && c.webRequest && perms.indexOf('webRequest') !== -1) {
+    takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
+  }
+
+  // chrome.windows, chrome.notifications and chrome.downloads: Electron has
+  // none (found 2026-10-10). Main answers from Vex's own windows, its
+  // Windows notifications and its downloads; what it cannot do fails and
+  // says so. A new window is a tab in the window in front.
+  function mainCall(op, args) {
+    return function () {
+      var a = Array.prototype.slice.call(arguments);
+      var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+      return settle(api(op, args.apply(null, a) || {}), cb, op);
+    };
+  }
+  function refuse(what) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      return settle(Promise.reject(new Error('Vex does not let an extension ' + what)), typeof cb === 'function' ? cb : null, what);
+    };
+  }
+  if (api && !c.windows) {
+    var withTabs = function (p, getInfo) {
+      return p.then(function (w) {
+        if (!getInfo || !getInfo.populate || !c.tabs) return w;
+        var one = function (win) { return c.tabs.query({ windowId: win.id }).then(function (tabs) { return Object.assign({}, win, { tabs: tabs }); }); };
+        return Array.isArray(w) ? Promise.all(w.map(one)) : one(w);
+      });
+    };
+    var winGet = function (op, hasId) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        var id = hasId ? a.shift() : undefined;
+        return settle(withTabs(api(op, { id: id }), a[0]), cb, op);
+      };
+    };
+    c.windows = {
+      WINDOW_ID_NONE: -1, WINDOW_ID_CURRENT: -2,
+      get: winGet('windows.get', true), getCurrent: winGet('windows.getCurrent'), getLastFocused: winGet('windows.getLastFocused'), getAll: winGet('windows.getAll'),
+      create: mainCall('windows.create', function (data) { return { data: data || {} }; }),
+      update: mainCall('windows.update', function (id, info) { return { id: id, info: info || {} }; }),
+      remove: refuse('close a window'),
+      onCreated: noEvent(), onRemoved: noEvent(), onFocusChanged: noEvent(), onBoundsChanged: noEvent(),
+    };
+  }
+  if (api && !c.notifications && perms.indexOf('notifications') !== -1) {
+    c.notifications = {
+      create: function (id, options, cb) {
+        if (typeof id === 'object' && id !== null) { cb = options; options = id; id = ''; }
+        return settle(api('notifications.create', { id: id || '', options: options || {} }), cb, 'notifications.create');
+      },
+      update: done(false), clear: done(false), getAll: done({}),
+      getPermissionLevel: mainCall('notifications.getPermissionLevel', function () { return {}; }),
+      onClicked: mainHubEvent('notifications.onClicked'),
+      onClosed: noEvent(), onButtonClicked: noEvent(), onPermissionLevelChanged: noEvent(), onShowSettings: noEvent(),
+    };
+  }
+  if (api && !c.downloads && perms.indexOf('downloads') !== -1) {
+    c.downloads = {
+      download: mainCall('downloads.download', function (options) { return { options: options || {} }; }),
+      search: mainCall('downloads.search', function (query) { return { query: query || {} }; }),
+      pause: mainCall('downloads.pause', function (id) { return { id: id }; }),
+      resume: mainCall('downloads.resume', function (id) { return { id: id }; }),
+      cancel: mainCall('downloads.cancel', function (id) { return { id: id }; }),
+      open: refuse('open a downloaded file'), show: refuse('show a downloaded file'), showDefaultFolder: refuse('open the downloads folder'),
+      erase: refuse('erase downloads from the list'), removeFile: refuse('delete a downloaded file'),
+      onCreated: mainHubEvent('downloads.onCreated'), onChanged: mainHubEvent('downloads.onChanged'),
+      onErased: noEvent(), onDeterminingFilename: noEvent(),
+    };
+  }
+
+  // chrome.alarms: Electron's takes alarms and never fires onAlarm (found
+  // 2026-10-10). Main keeps them and fires them (src/main/extension-alarms.js).
+  if (api && perms.indexOf('alarms') !== -1) {
+    var nameAnd = function (name, cb) { return typeof name === 'function' ? ['', name] : [name == null ? '' : name, cb]; };
+    var alarmsApi = {
+      create: function (name, info, cb) {
+        if (name !== null && typeof name === 'object') { cb = info; info = name; name = ''; }
+        return settle(api('alarms.create', { name: name == null ? '' : String(name), info: info || {} }).then(function () { return undefined; }), cb, 'alarms.create');
+      },
+      get: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.get', { name: String(a[0]) }), a[1], 'alarms.get'); },
+      getAll: function (cb) { return settle(api('alarms.getAll'), cb, 'alarms.getAll'); },
+      clear: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.clear', { name: String(a[0]) }), a[1], 'alarms.clear'); },
+      clearAll: function (cb) { return settle(api('alarms.clearAll'), cb, 'alarms.clearAll'); },
+      onAlarm: hubEvent('alarms.onAlarm'),
+    };
+    if (!c.alarms) c.alarms = alarmsApi;
+    else takeOver(c.alarms, alarmsApi, 'alarms');
   }
 
   if (!c.extension) c.extension = {};
-  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') {
+    c.extension.isAllowedFileSchemeAccess = function (cb) { return settle(fileAccess(), cb, 'extension.isAllowedFileSchemeAccess'); };
+  }
   if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
   if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
 
@@ -183,11 +506,21 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
     };
   }
+  // Cookies come from main, from this extension's session, for the sites it
+  // has host permission for (src/main/extension-cookies.js); every get used
+  // to answer null and every getAll [] (found 2026-10-10). Changes are not
+  // announced here.
   if (perms.indexOf('cookies') !== -1 && !c.cookies) {
-    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    var cookieCall = function (op) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        if (!api) return settle(Promise.reject(new Error('chrome.cookies is not available here')), cb, op);
+        return settle(api(op, { details: details || {} }), cb, op);
+      };
+    };
     c.cookies = {
-      get: done(null), getAll: done([]), getAllCookieStores: done([]),
-      set: noCookies, remove: noCookies,
+      get: cookieCall('cookies.get'), getAll: cookieCall('cookies.getAll'), getAllCookieStores: cookieCall('cookies.getAllCookieStores'),
+      set: cookieCall('cookies.set'), remove: cookieCall('cookies.remove'),
       onChanged: noEvent(),
     };
   }
@@ -202,16 +535,20 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
   // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
   // answer with that, and {active: true} with currentWindow or
   // lastFocusedWindow is the one tab in front of the Vex window used last.
-  // Electron puts every tab in one window, so currentWindow alone narrows
-  // nothing.
-  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  // Main also says where each tab is (its place, its Vex window and its
+  // group); Electron said index 0, window 0 and group 0 for every tab, and a
+  // tab it updated was never the active one (found 2026-10-10).
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow', 'windowId', 'index', 'groupId', 'pinned'];
   if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
     var nativeQuery = c.tabs.query.bind(c.tabs);
     var nativeGet = c.tabs.get.bind(c.tabs);
+    var nativeUpdate = typeof c.tabs.update === 'function' ? c.tabs.update.bind(c.tabs) : null;
     var inFront = function (tab, front) {
       if (!tab) return tab;
       var on = front.ids.indexOf(tab.id) !== -1;
-      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+      var at = (front.layout && front.layout[tab.id]) || null;
+      var place = at ? { index: at.index, windowId: at.windowId, groupId: at.groupId, pinned: at.pinned } : { groupId: -1 };
+      return Object.assign({}, tab, place, { active: on, highlighted: on, selected: on });
     };
     c.tabs.query = function (q, cb) {
       q = q || {};
@@ -220,15 +557,30 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
       var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
         var front = r[1];
+        var wantWindow = q.windowId === -2 ? front.currentWindow : q.windowId;
         return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
           if (typeof q.active === 'boolean' && t.active !== q.active) return false;
           if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
           if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          if (oneWindow && front.currentWindow != null && t.windowId !== front.currentWindow) return false;
+          if (typeof wantWindow === 'number' && t.windowId !== wantWindow) return false;
+          if (typeof q.index === 'number' && t.index !== q.index) return false;
+          if (typeof q.groupId === 'number' && t.groupId !== q.groupId) return false;
+          if (typeof q.pinned === 'boolean' && !!t.pinned !== q.pinned) return false;
           return true;
-        });
+        }).sort(function (a, b) { return (a.windowId - b.windowId) || (a.index - b.index); });
       });
       return answerWith(p, cb);
     };
+    if (nativeUpdate) {
+      c.tabs.update = function (id, props, cb) {
+        if (typeof id === 'object' && id !== null) { cb = props; props = id; id = undefined; }
+        var p = Promise.resolve(id === undefined ? nativeUpdate(props) : nativeUpdate(id, props)).then(function (tab) {
+          return tab ? askActiveTabs().then(function (front) { return inFront(tab, front); }) : tab;
+        });
+        return answerWith(p, cb);
+      };
+    }
     // A tab that is not there fails in Electron's own words (with the
     // callback, through chrome.runtime.lastError), as before.
     c.tabs.get = function (id, cb) {
@@ -460,16 +812,19 @@ if (location.protocol === 'chrome-extension:') {
   var __vexOpenTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:open-tab', request); };
   var __vexCloseTab = function (request) { return require('electron').ipcRenderer.invoke('extensions:close-tab', request); };
   var __vexAskActiveTabs = function () { return require('electron').ipcRenderer.invoke('extensions:active-tabs'); };
+  // Menus, badge, shortcuts (main.js _extApi), and main's events for them.
+  var __vexExtApi = function (request) { return require('electron').ipcRenderer.invoke('extensions:api', request); };
+  var __vexOnExtEvent = function (fn) { require('electron').ipcRenderer.on('extensions:event', function (_event, msg) { fn(msg); }); };
   __vexExtIsolated = typeof process !== 'undefined' && process.contextIsolated === true;
   if (__vexExtIsolated) {
     try {
-      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs] });
+      __vexCB.executeInMainWorld({ func: vexExtensionStandIns, args: [null, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs, __vexExtApi, __vexOnExtEvent] });
       __vexCB.executeInMainWorld({ func: vexStorageSyncShim, args: [null] });
     } catch (err) {
       console.error('[Vex] extension stand-ins could not reach this page:', err && err.message);
     }
   } else {
-    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs);
+    vexExtensionStandIns(window.chrome, __vexAskPopupTab, __vexOpenTab, __vexCloseTab, __vexAskActiveTabs, __vexExtApi, __vexOnExtEvent);
   }
 }
 if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorageSyncShim(window.chrome)) {
@@ -564,56 +919,191 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     }
   }
 
-  // Inject PiP button overlay on each video
-  function setupVideoPipButtons() {
-    const videos = document.querySelectorAll('video');
-    videos.forEach(video => {
-      if (video._vexPipSetup) return;
-      video._vexPipSetup = true;
+  // ---- Where Vex's Picture-in-Picture button goes -------------------------
+  //
+  // The button used to be a permanent pill in the window's bottom-right corner
+  // and, on top of it, a second "PiP" button injected into the page at the top
+  // right of each video. Both sat on top of the page's own controls (a
+  // player's volume / settings / fullscreen icons, chat bubbles, cookie
+  // banners, sticky bars) and swallowed the clicks meant for them (owner's
+  // report, 2026-10-12).
+  //
+  // Now the HOST draws one small button, only while it is useful, and the page
+  // says where. This script finds the video, then picks the first corner of it
+  // where nothing clickable is: the candidate square (plus a little padding)
+  // is probed with elementsFromPoint, and any control above the video there
+  // (a button, a link, a slider, anything that shows a pointer cursor, the
+  // site's own PiP or fullscreen button) makes the corner "taken". When every
+  // corner is taken it answers btn: null and the host draws nothing at all.
+  // Plain function of (document, window, options) so tests can drive it.
+  // ---- vexPipPlace begin ----
+  function vexPipPlace(doc, win, o) {
+    o = o || {};
+    const GAP = 8, PAD = 6;
+    const SIZE = Math.max(16, Math.round(32 / (o.zoom > 0 ? o.zoom : 1)));
+    const vw = win.innerWidth || 0, vh = win.innerHeight || 0;
+    const INTERACTIVE = 'a[href],button,input,select,textarea,summary,label,[role="button"],[role="slider"],[role="link"],[role="menuitem"],[role="switch"],[role="checkbox"],[role="tab"],[role="option"],[tabindex]:not([tabindex="-1"]),[onclick],[contenteditable=""],[contenteditable="true"]';
 
-      const btn = document.createElement('button');
-      btn.textContent = '\u29C9 PiP';
-      btn.setAttribute('data-vex-pip', '1');
-      btn.setAttribute('aria-label', 'Picture-in-Picture');
-      btn.style.cssText = 'position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.7);color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;z-index:999999;opacity:0;transition:opacity 0.2s;pointer-events:auto;font-family:sans-serif';
-
-      const wrapper = video.parentElement;
-      if (wrapper && getComputedStyle(wrapper).position === 'static') {
-        wrapper.style.position = 'relative';
+    // Closed shadow roots are listed by the preload (window.__vexClosedRoots).
+    const roots = [doc].concat(o.roots || []);
+    const closedHosts = new Map();
+    if (Array.isArray(win.__vexClosedRoots)) {
+      for (const w of win.__vexClosedRoots) {
+        const r = w && typeof w.deref === 'function' ? w.deref() : null;
+        if (r && r.host && r.host.isConnected) { closedHosts.set(r.host, r); roots.push(r); }
       }
-      if (!wrapper) return;   // nothing to anchor to; don't build an orphan
-      wrapper.appendChild(btn);
-      // One pair of listeners per wrapper, however many videos it holds.
-      if (!wrapper._vexPipHover) {
-        wrapper._vexPipHover = true;
-        wrapper.addEventListener('mouseenter', () => {
-          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '1'; });
-        });
-        wrapper.addEventListener('mouseleave', () => {
-          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '0'; });
-        });
-      }
+    }
+    const els = [];
+    if (o.frame) els.push(o.frame);
+    else for (const root of roots) for (const v of root.querySelectorAll('video')) if (els.indexOf(v) < 0) els.push(v);
 
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-          if (document.pictureInPictureElement) {
-            await document.exitPictureInPicture();
-            return;
-          }
-          if (!document.pictureInPictureEnabled) throw new Error('this page does not allow Picture-in-Picture');
-          await video.requestPictureInPicture();
-        } catch (err) {
-          // Ask the host for the pop-out window, exactly as the toolbar button
-          // does — otherwise this button is a no-op on every page that blocks
-          // native PiP.
-          console.warn('[Vex PiP] native PiP refused, falling back:', err && err.message);
-          try { ipcRenderer.sendToHost('vex-pip-fallback', describeVideo(video)); } catch { /* host gone */ }
+    const cands = [];
+    for (const v of els) {
+      if (!o.frame && !(v.currentSrc || v.src || v.srcObject)) continue;
+      const r = v.getBoundingClientRect();
+      const l = Math.max(0, r.left), t = Math.max(0, r.top), rr = Math.min(vw, r.right), b = Math.min(vh, r.bottom);
+      const w = rr - l, h = b - t;
+      if (w < 160 || h < 90) continue;
+      if (!o.frame) { const cs = win.getComputedStyle(v); if (cs.visibility === 'hidden' || cs.display === 'none') continue; }
+      cands.push({ v, l, t, r: rr, b, w, h, playing: !o.frame && !v.paused && !v.ended });
+    }
+    const none = { vw, vh, rect: null, btn: null, over: false, frame: !!o.frame, count: els.length };
+    if (!cands.length) return none;
+
+    // The video under the pointer (the smallest one, for a preview inside a
+    // player), else the best one: playing first, then the largest.
+    const p = o.pointer;
+    let pick = null;
+    if (o.frame) pick = cands[0];
+    else if (p) {
+      for (const c of cands) if (p.x >= c.l && p.x <= c.r && p.y >= c.t && p.y <= c.b && (!pick || c.w * c.h < pick.w * pick.h)) pick = c;
+    }
+    const over = !!pick;
+    if (!pick) pick = cands.slice().sort((a, b) => ((b.playing ? 1 : 0) - (a.playing ? 1 : 0)) || (b.w * b.h - a.w * a.h))[0];
+
+    // The video and everything it sits inside, across shadow boundaries.
+    const ancestors = new Set();
+    for (let n = pick.v; n; n = n.parentNode || n.host) ancestors.add(n);
+
+    const stackAt = (x, y) => {
+      const out = [];
+      for (const el of doc.elementsFromPoint(x, y)) {
+        const sr = el.shadowRoot || closedHosts.get(el);
+        if (sr && typeof sr.elementsFromPoint === 'function') for (const inner of sr.elementsFromPoint(x, y)) if (inner !== el) out.push(inner);
+        out.push(el);
+      }
+      return out;
+    };
+    const blocks = (el) => {
+      if (el === doc.documentElement || el === doc.body || el.nodeType !== 1) return false;
+      const r = el.getBoundingClientRect();
+      // A layer laid over the whole video (a click-to-pause surface) is not a control.
+      if (r.width >= pick.w * 0.9 && r.height >= pick.h * 0.9) return false;
+      if (el.matches(INTERACTIVE) || (el.closest && el.closest(INTERACTIVE))) return true;
+      return win.getComputedStyle(el).cursor === 'pointer';
+    };
+    const free = (c) => {
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const x = Math.min(vw - 1, Math.max(0, c.x - PAD + (i / 2) * (SIZE + 2 * PAD)));
+        const y = Math.min(vh - 1, Math.max(0, c.y - PAD + (j / 2) * (SIZE + 2 * PAD)));
+        for (const el of stackAt(x, y)) {
+          if (ancestors.has(el)) break;            // reached the video itself: nothing above it here
+          if (blocks(el)) return false;
         }
-      });
-    });
+      }
+      return true;
+    };
+    const R = pick.r - GAP - SIZE, L = pick.l + GAP, T = pick.t + GAP, B = pick.b - GAP - SIZE;
+    const midY = Math.round(pick.t + pick.h * 0.35);
+    const cornersInOrder = [
+      { corner: 'top-right', x: R, y: T }, { corner: 'top-left', x: L, y: T },
+      { corner: 'top-right-low', x: R, y: T + SIZE + GAP }, { corner: 'top-left-low', x: L, y: T + SIZE + GAP },
+      { corner: 'right', x: R, y: midY }, { corner: 'left', x: L, y: midY },
+      { corner: 'bottom-right', x: R, y: B - 72 }, { corner: 'bottom-left', x: L, y: B - 72 },
+    ];
+    let btn = null;
+    for (const c of cornersInOrder) {
+      if (c.x < pick.l + 2 || c.y < pick.t + 2 || c.x + SIZE > pick.r - 2 || c.y + SIZE > pick.b - 2) continue;
+      if (free(c)) { btn = { x: Math.round(c.x), y: Math.round(c.y), corner: c.corner, size: SIZE }; break; }
+    }
+    return {
+      vw, vh, over, frame: !!o.frame, count: els.length, btn,
+      rect: { l: Math.round(pick.l), t: Math.round(pick.t), w: Math.round(pick.w), h: Math.round(pick.h) },
+      playing: pick.playing, fullscreen: !!doc.fullscreenElement, inPip: !!doc.pictureInPictureElement,
+      host: String((win.location && win.location.hostname) || ''),
+    };
+  }
+  // ---- vexPipPlace end ----
+
+  // Tell the host where the button would go, and whether the pointer is over
+  // the video. Pointer events are reported at most ~12 times a second; layout
+  // changes (scroll, resize, fullscreen, play/pause) a little more slowly.
+  let webFrame = null;
+  try { webFrame = require('electron').webFrame; } catch { webFrame = null; }
+  const pipState = { pointer: null, frame: null, last: '', timer: 0, ptr: false, roots: [], rootsAt: 0 };
+  function pipZoom() { try { const z = webFrame && webFrame.getZoomFactor(); return z > 0 ? z : 1; } catch { return 1; } }
+  // Open shadow roots, found by walking the page; cached because the walk is
+  // costly and only a pointer over a custom player element needs it.
+  function pipFindRoots() {
+    const now = Date.now();
+    if (now - pipState.rootsAt < 3000) return pipState.roots;
+    pipState.rootsAt = now;
+    const out = [];
+    try {
+      const tw = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+      let n, seen = 0;
+      while ((n = tw.nextNode()) && seen++ < 20000) if (n.shadowRoot) out.push(n.shadowRoot);
+    } catch (err) { console.warn('[Vex PiP] could not list shadow roots:', err && err.message); }
+    pipState.roots = out;
+    return out;
+  }
+  // `ptr` says this report is about the pointer (it moved or left). Any other
+  // report (a scroll, the page playing) still carries the last pointer position
+  // so the same video is placed, but must not be read as "the pointer is here":
+  // the pointer may have left for the window around without the page hearing.
+  function pipReport(deep, ptr) {
+    let g;
+    try {
+      g = vexPipPlace(document, window, { pointer: pipState.pointer, zoom: pipZoom(), frame: pipState.frame, roots: deep ? pipFindRoots() : pipState.roots });
+    } catch (err) { console.warn('[Vex PiP] could not place the button:', err && err.message); return; }
+    g.ptr = ptr ? 1 : 0;
+    const key = JSON.stringify(g);
+    // While the pointer moves over a video every report is a sign of life (the
+    // host hides the button after a pause); otherwise only changes matter.
+    if (!(ptr && g.over) && key === pipState.last) return;
+    pipState.last = key;
+    try { ipcRenderer.sendToHost('vex-pip-geometry', g); } catch { /* host gone */ }
+  }
+  function pipSoon(ms, deep, ptr) {
+    if (ptr) pipState.ptr = true;
+    if (pipState.timer) return;
+    pipState.timer = setTimeout(() => { pipState.timer = 0; const p = pipState.ptr; pipState.ptr = false; pipReport(deep, p); }, ms);
+  }
+  document.addEventListener('mousemove', (e) => { pipState.pointer = { x: e.clientX, y: e.clientY }; pipSoon(80, true, true); }, { capture: true, passive: true });
+  // A video inside a frame of another site is invisible to this script; the
+  // pointer entering that frame is all it learns, so the frame stands in.
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IFRAME') { pipState.frame = t; pipState.pointer = null; pipSoon(0, true, true); }
+  }, true);
+  document.addEventListener('mouseout', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IFRAME' && pipState.frame === t) { pipState.frame = null; pipSoon(0, false, true); return; }
+    if (!e.relatedTarget) { pipState.pointer = null; pipSoon(0, false, true); }
+  }, true);
+  for (const ev of ['scroll', 'resize', 'fullscreenchange', 'play', 'pause', 'loadedmetadata', 'emptied', 'enterpictureinpicture', 'leavepictureinpicture']) {
+    (ev === 'resize' || ev === 'fullscreenchange' ? window : document).addEventListener(ev, () => pipSoon(120, false), true);
+  }
+  // A new document: forget what the host knew of the last one.
+  try { ipcRenderer.sendToHost('vex-pip-geometry', { rect: null, btn: null, over: false }); } catch { /* host gone */ }
+
+  // The page's own "PiP" overlay button that used to be injected here is gone:
+  // it sat in the top-right corner of every video, over the page's own
+  // controls, and the "Never show" choice in Settings could not switch it off. The host's
+  // button does the same job and gets out of the way.
+  function setupVideoPipButtons() {
     checkForVideos();
+    pipReport(false);
   }
 
   // Run on load and on DOM changes
@@ -644,7 +1134,7 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   // Host asks for a fresh video report when this tab becomes active (a tab
   // switch isn't a video-count change, so checkForVideos wouldn't otherwise
   // re-emit). Resetting lastVideoCount forces the next check to report.
-  ipcRenderer.on('vex-rescan-video', () => { lastVideoCount = -1; checkForVideos(); });
+  ipcRenderer.on('vex-rescan-video', () => { lastVideoCount = -1; checkForVideos(); pipState.last = ''; pipReport(true); });
 
   // Listen for a PiP request from the host toolbar button. Comes over the
   // webview IPC channel (wv.send), not window.postMessage — the host can't reach
@@ -947,13 +1437,17 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     // keeps it awake, and can say which page holds the capture services.
     capture: (kind, active) => { try { ipcRenderer.sendToHost('vex-media-capture', { kind: String(kind), active: !!active }); } catch {} },
   };
-  try {
-    if (contextBridge && contextBridge.exposeInMainWorld) contextBridge.exposeInMainWorld('__vexShareBridge', bridge);
-    else window.__vexShareBridge = bridge;
-  } catch { return; }
+  // The bridge is handed to the shim alone, as an argument of
+  // executeInMainWorld: it was a property of the page's window, and any page could
+  // call capture('mic', true) and be shown, kept awake and listed as using
+  // the microphone (audit PA9, 2026-10-10).
+  if (!contextBridge || typeof contextBridge.executeInMainWorld !== 'function') {
+    console.error('[Vex] screen-share quality and capture badges need contextBridge.executeInMainWorld');
+    return;
+  }
   const shimSrc = `(function(){try{
     if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return;
-    var bridge = window.__vexShareBridge; if(!bridge) return;
+    if(!bridge) return;
     var orig = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getDisplayMedia = function(constraints){
       // The page gets the stream only after the user's choice is applied to
@@ -1025,7 +1519,49 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
       };
     }
   }catch(e){}})();`;
-  function inject() { runInMainWorld(shimSrc); }
+  function inject() {
+    try { contextBridge.executeInMainWorld({ func: new Function('bridge', shimSrc), args: [bridge] }); }
+    catch (err) { console.error('[Vex] screen-share shim could not reach this page:', err && err.message); }
+  }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
+// === A Discord / WhatsApp notification clicked (main world) =================
+//
+// Discord and WhatsApp in a panel notify through the page's own Notification
+// API; Windows shows it, and a click went to the page — which cannot bring
+// up the panel it lives in, so the click did nothing you could see. The page's
+// Notification is wrapped (on these two sites only) so a click also tells the
+// host, which opens that panel and brings Vex to the front
+// (js/sidebar.js, 'vex-notification-click'). Nothing about the notification
+// is sent: only that one was clicked.
+(function () {
+  let host = '';
+  try { host = (window.location && window.location.protocol === 'https:' && window.location.hostname) || ''; } catch { return; }
+  if (!/^(?:(?:[a-z0-9-]+\.)?discord\.com|web\.whatsapp\.com)$/i.test(host)) return;
+  let contextBridge = null, ipcRenderer = null;
+  try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
+  const clicked = () => { try { ipcRenderer.sendToHost('vex-notification-click'); } catch { /* host gone */ } };
+  function wrapNotification(clicked) {
+    const N = window.Notification;
+    if (typeof N !== 'function' || N.__vexWrapped) return;
+    const Wrapped = function Notification(title, options) {
+      const n = new N(title, options);
+      try { n.addEventListener('click', () => clicked()); } catch (e) { /* a notification that cannot be listened to still shows */ }
+      return n;
+    };
+    Wrapped.prototype = N.prototype;
+    Object.defineProperty(Wrapped, 'permission', { get: () => N.permission, configurable: true });
+    if (typeof N.requestPermission === 'function') Wrapped.requestPermission = N.requestPermission.bind(N);
+    if ('maxActions' in N) Object.defineProperty(Wrapped, 'maxActions', { get: () => N.maxActions, configurable: true });
+    Object.defineProperty(Wrapped, '__vexWrapped', { value: true });
+    window.Notification = Wrapped;
+  }
+  function inject() {
+    try { contextBridge.executeInMainWorld({ func: wrapNotification, args: [clicked] }); }
+    catch (err) { console.error('[Vex] notification clicks cannot reach the panel on this page:', err && err.message); }
+  }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
@@ -1112,10 +1648,22 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     // instance does nothing — patch the prototype's getter/method instead.
     var proto = Object.getPrototypeOf(uad);
     if(!proto) return;
-    function addChrome(list){
+    // A burner identity or a Tor tab says another Chrome in its User-Agent
+    // (buildIdentity in main.js) and its Sec-CH-UA headers; JS said the real
+    // one, so the page saw two different Chromes (audit B10). The version is
+    // taken from this page's own User-Agent whenever its major differs.
+    var uaFull = '';
+    try{ var uaStr = String(navigator.userAgent||''); var at = uaStr.indexOf('Chrome/'); if(at>=0) uaFull = uaStr.slice(at+7).split(' ')[0]; }catch(e){}
+    var uaMajor = uaFull.split('.')[0];
+    if(!/^[0-9]+$/.test(uaMajor)) { uaMajor = ''; uaFull = ''; }
+    function majorOf(v){ return String(v==null?'':v).split('.')[0]; }
+    function addChrome(list, full){
       var out = (list||[]).map(function(x){return {brand:x.brand, version:x.version};});
+      var c = out.filter(function(x){return x.brand==='Chromium';})[0];
+      if(c && uaMajor && majorOf(c.version)!==uaMajor){
+        out.forEach(function(x){ if(x.brand==='Chromium'||x.brand==='Google Chrome') x.version = full ? uaFull : uaMajor; });
+      }
       if(!out.some(function(x){return x.brand==='Google Chrome';})){
-        var c = out.filter(function(x){return x.brand==='Chromium';})[0];
         if(c) out.push({brand:'Google Chrome', version:c.version});
       }
       return out;
@@ -1133,8 +1681,9 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
         return origHEV.call(this,hints).then(function(res){
           try{
             if(res){
-              if(Array.isArray(res.brands)) res.brands = addChrome(res.brands);
-              if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList);
+              if(Array.isArray(res.brands)) res.brands = addChrome(res.brands, false);
+              if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList, true);
+              if(typeof res.uaFullVersion==='string' && uaMajor && majorOf(res.uaFullVersion)!==uaMajor) res.uaFullVersion = uaFull;
             }
           }catch(e){}
           return res;
@@ -1182,6 +1731,35 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Closed shadow roots, for Picture-in-Picture (main world) ===
+// The Picture-in-Picture scan (js/pip-manager.js) looks into every open shadow
+// root for a video, but a custom player element that attaches a CLOSED root
+// cannot be looked into from outside: the toolbar button said "There is no
+// video on this page" for it. This keeps a weak list of the closed roots a page
+// makes, so the scan can look into those too. attachShadow behaves exactly as
+// before; nothing is kept alive and the list is not enumerable on window.
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  const src = `(function(){try{
+    var p = Element.prototype, orig = p.attachShadow;
+    if(typeof orig !== 'function' || orig.__vexRoots || typeof WeakRef !== 'function') return;
+    var list = [];
+    try{ Object.defineProperty(window,'__vexClosedRoots',{configurable:true,enumerable:false,value:list}); }catch(e){ return; }
+    var patched = function(init){
+      var r = orig.apply(this, arguments);
+      try{ if(init && init.mode === 'closed') list.push(new WeakRef(r)); }catch(e){}
+      return r;
+    };
+    patched.__vexRoots = true;
+    try{ Object.defineProperty(p,'attachShadow',{configurable:true,writable:true,value:patched}); }catch(e){}
+  }catch(e){}})();`;
+  // executeInMainWorld needs no document, so this runs before the page's first
+  // script; only the <script>-tag fallback has to wait for one.
+  if (!runInMainWorld(src)) document.addEventListener('readystatechange', () => runInMainWorld(src), { once: true });
+})();
+
 // === Smart Searchbar suggest bridge (start page only) ===
 // The start page is a sandboxed webview guest with contextIsolation, so it
 // cannot reach the main renderer's window.vex IPC. It needs Google Suggest
@@ -1204,9 +1782,16 @@ function _isVexStartPage(href) {
   if (u.protocol === 'vex:' && /^start$/i.test(u.host || '')) return true;
   // Real runtime origin: start.html served as a LOCAL file. Require file:
   // scheme AND pathname ending /renderer/start.html — no remote page qualifies.
-  if (u.protocol === 'file:') return /\/renderer\/start\.html$/i.test(u.pathname);
-  return false;
+  // And Vex's own file, not any file of that name (a download, a network
+  // share): main compares the frame's whole path (audit SE6, 2026-10-10).
+  if (u.protocol !== 'file:' || !/\/renderer\/start\.html$/i.test(u.pathname)) return false;
+  if (_vexStartPageOwn === null) {
+    try { _vexStartPageOwn = require('electron').ipcRenderer.sendSync('start-page:is-own') === true; }
+    catch (err) { console.error('[Vex] could not ask whether this is the start page:', err && err.message); _vexStartPageOwn = false; }
+  }
+  return _vexStartPageOwn;
 }
+let _vexStartPageOwn = null;
 
 (function () {
   let href;
@@ -1263,10 +1848,12 @@ function _isVexStartPage(href) {
   if (!ipcRenderer) return;
 
   const bridge = {
-    // Promise<string|null> — the stored Custom Image data: URL, or null.
-    getCustomImage: async () => {
-      try { return await ipcRenderer.invoke('theme:get-custom-image'); }
-      catch { return null; }
+    // Promise<string|null> — your own theme's background image (a data: URL)
+    // by its id (user-...), or null when it has none.
+    getCustomImage: async (id) => {
+      if (typeof id !== 'string' || !/^user-[a-z]{4,24}$/.test(id)) return null;
+      try { return await ipcRenderer.invoke('theme:get-custom-image', id); }
+      catch (err) { console.error('[Vex Theme] background image:', err && err.message); return null; }
     }
   };
 
@@ -1337,7 +1924,9 @@ function _isVexStartPage(href) {
         const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
         for (const c of cands) { if (c.value && c !== pw) { user = c.value; break; } }
       }
-      if (!user) return;
+      // No username on this page is normal for a two-step login (email first,
+      // password on the next page): the host pairs it with the username sent
+      // from the first step ("vex-login-user"), so it is sent empty here.
       const now = Date.now();
       if (now - lastSent < 1500) return; // debounce repeated triggers
       lastSent = now;
@@ -1355,15 +1944,24 @@ function _isVexStartPage(href) {
   function rememberEmail() {
     try {
       if (location.protocol !== "https:") return;
+      // The username of a two-step login's first step, kept by the host for
+      // this tab only, so the password step can still be offered for saving.
+      if (lastUser && lastUser.length <= 200) ipcRenderer.sendToHost("vex-login-user", { host: location.hostname.replace(/^www\./, ""), username: lastUser });
       const em = lastUser;
       if (!em || em.indexOf("@") < 0 || em.length > 200) return;
       ipcRenderer.sendToHost("vex-login-email", { host: location.hostname.replace(/^www\./, ""), email: em });
     } catch {}
   }
 
-  document.addEventListener("submit", () => { tryCapture(); rememberEmail(); }, true);
+  // Only the person's own submit, Enter or click: a page's script could
+  // otherwise dispatch a fake one and pop the save card whenever it liked.
+  // A submit the page starts itself (form.requestSubmit(), or a script-made
+  // click on its button) still arrives trusted, so it also needs the page to
+  // have just had a real click or key press (seen live, 2026-10-10).
+  const justActed = () => { try { return !!(navigator.userActivation && navigator.userActivation.isActive); } catch { return false; } };
+  document.addEventListener("submit", (e) => { if (!e.isTrusted || !justActed()) return; tryCapture(); rememberEmail(); }, true);
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
+    if (!e.isTrusted || e.key !== "Enter") return;
     const el = e.target;
     // Capture NOW (before a React SPA clears the password on submit) AND after a
     // short delay (for sites that populate the field late). Debounce dedupes.
@@ -1371,6 +1969,7 @@ function _isVexStartPage(href) {
   }, true);
   document.addEventListener("click", (e) => {
     try {
+      if (!e.isTrusted) return;
       const el = e.target;
       if (!el || !el.closest) return;
       const ctl = el.closest("button,[type=submit],input[type=submit],[role=button]");
@@ -1387,6 +1986,375 @@ function _isVexStartPage(href) {
       // Capture synchronously (before the password field can be cleared) + delayed.
       if (isSubmit) { tryCapture(); setTimeout(tryCapture, 80); rememberEmail(); }
     } catch {}
+  }, true);
+})();
+
+
+// === Saved-login fill — only after a real click in a login field ===
+//
+// The host (js/passwords.js) arms this on a page whose site has a saved login
+// ("vex-login-arm": the page's origin, no password). Nothing is filled as the
+// page loads: a saved password typed in on load could be read by any script on
+// the page, out of a form the person never saw (audit S5). A real (isTrusted)
+// press in a login field, or Down arrow in one, asks the host for the login
+// ("vex-login-want"); the host answers ("vex-login-fill"), through its account
+// chooser when the site has several, and the fields are filled HERE, in this
+// preload's isolated world, where page scripts cannot see the password, make
+// up the click, or swap getComputedStyle under the visibility check. Sign-in
+// popups work the same way (main/vault.js). The AI agent's "sign in" answers
+// with now:true, without a click: the person told it to sign in.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  let armed = "";      // the origin the host armed this page for
+  let typed = false;   // the person typed into a login field: leave it to them
+  let asked = null;    // { id, field } waiting for the host's answer
+  let seq = 0;
+
+  function visible(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+    } catch { return false; }
+  }
+  function meta(el) {
+    try { return ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("autocomplete") || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase(); } catch { return ""; }
+  }
+  // Search / combobox / chat inputs are not login fields (the email once went
+  // into Discord's "Find or start a conversation").
+  function isSearchy(el) {
+    const t = (el.type || "").toLowerCase();
+    if (t === "search") return true;
+    const role = (el.getAttribute("role") || "").toLowerCase();
+    if (role === "search" || role === "searchbox" || role === "combobox") return true;
+    if (el.getAttribute("aria-autocomplete")) return true;
+    return /search|find|filter|query|recipient|channel|message|mention|invite|\brole\b|emoji|gif|jump to/.test(meta(el));
+  }
+  function loginSignal(el) {
+    const t = (el.type || "").toLowerCase();
+    if (t === "email") return true;
+    const ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+    if (ac === "username" || ac === "email") return true;
+    return /e-?mail|user-?name|userid|user[_-]?login|sign-?in|(^| )login( |$)|phone number|account name/.test(meta(el));
+  }
+  function looksLikeUser(el) {
+    if (!visible(el)) return false;
+    const t = (el.type || "").toLowerCase();
+    if (!(t === "" || t === "text" || t === "email" || t === "tel")) return false;
+    return !isSearchy(el);
+  }
+  // A field asking for a NEW password (sign-up, change-password) never gets
+  // the saved one (found 2026-10-08).
+  function isNewPw(el) { return /new-password/i.test(el.getAttribute("autocomplete") || ""); }
+  function loginPassword() {
+    return Array.prototype.find.call(document.querySelectorAll("input[type=password]"), (el) => visible(el) && !isNewPw(el)) || null;
+  }
+  function userField(pw) {
+    const scope = (pw && pw.form) || document;
+    const cands = scope.querySelectorAll("input[type=text],input[type=email],input[type=tel],input:not([type])");
+    let plain = null;
+    for (let i = 0; i < cands.length; i++) {
+      const el = cands[i];
+      if (!looksLikeUser(el)) continue;
+      if (loginSignal(el)) return el;
+      if (!plain) plain = el;
+    }
+    return pw ? plain : null;
+  }
+  function sameOriginForm(el) {
+    try { return !el.form || new URL(el.form.action || location.href, location.href).origin === location.origin; } catch { return false; }
+  }
+  function isLoginField(el) {
+    if (!el || el.tagName !== "INPUT" || el.disabled || el.readOnly || !visible(el) || !sameOriginForm(el)) return false;
+    if ((el.type || "").toLowerCase() === "password") return !isNewPw(el);
+    return looksLikeUser(el) && (loginSignal(el) || !!loginPassword());
+  }
+  // The native setter, so React/Vue controlled inputs register the change.
+  // No el.focus(): it moved the cursor mid-sign-in (found 2026-09-29).
+  const setter = (function () { try { return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; } catch { return null; } })();
+  function fire(el, value) {
+    if (!visible(el) || el.disabled || el.readOnly || !sameOriginForm(el)) return false;
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+  // The username only on a real login: a password field is there, or the field
+  // itself says it is a login (email-first two-step sign-ins).
+  function fill(username, password) {
+    if (typed) return 0;
+    let n = 0;
+    const pw = loginPassword();
+    const user = userField(pw);
+    if (user && (pw || loginSignal(user)) && !user.value && fire(user, username)) n++;
+    if (pw && !pw.value && fire(pw, password)) n++;
+    return n;
+  }
+
+  ipcRenderer.on("vex-login-arm", (_e, d) => {
+    try { if (d && typeof d.origin === "string" && d.origin === location.origin) armed = d.origin; } catch {}
+  });
+  ipcRenderer.on("vex-login-fill", (_e, d) => {
+    try {
+      if (!d || !armed || armed !== location.origin || d.origin !== location.origin) return;
+      if (typeof d.username !== "string" || typeof d.password !== "string") return;
+      if (!d.now && (!asked || asked.id !== d.id || !asked.field.isConnected)) return;
+      asked = null;
+      const filled = fill(d.username, d.password);
+      ipcRenderer.sendToHost("vex-login-filled", { id: String(d.id || ""), host: location.hostname.replace(/^www\./, ""), filled });
+    } catch {}
+  });
+
+  function onGesture(e) {
+    try {
+      if (!e.isTrusted || !armed || typed || armed !== location.origin) return;
+      if (e.type === "keydown" && e.key !== "ArrowDown") return;
+      const el = e.target;
+      if (!isLoginField(el) || el.value) return;
+      const id = "lf" + (++seq) + "-" + Date.now();
+      asked = { id, field: el };
+      ipcRenderer.sendToHost("vex-login-want", { id, host: location.hostname.replace(/^www\./, ""), origin: location.origin });
+    } catch {}
+  }
+  document.addEventListener("pointerdown", onGesture, true);
+  document.addEventListener("keydown", onGesture, true);
+  // Once the person types into a login field the page is theirs: clearing the
+  // saved address to sign in as someone else had it filled straight back
+  // (found 2026-09-29). Only real key presses count.
+  document.addEventListener("input", (e) => {
+    try {
+      const el = e.target;
+      if (!e.isTrusted || !el || el.tagName !== "INPUT") return;
+      if ((el.type || "").toLowerCase() === "password" || looksLikeUser(el)) typed = true;
+    } catch {}
+  }, true);
+})();
+
+
+// === Suggest a strong password — on a sign-up / new-password field ===
+//
+// When a field that is clearly asking for a NEW password gets the focus, this
+// asks the host ("vex-pwgen-ask"). The host decides whether this tab may use
+// the vault at all (never a private, off-the-record or Tor tab, never plain
+// HTTP, never a site set to "Never") and, if so, answers with a password made
+// by js/password-gen.js ("vex-pwgen-offer"). Only then does a small card appear
+// under the field. Using it takes a real click or key press on the card; it
+// fills the field and the confirm field after it, and tells the host
+// ("vex-pwgen-used"). Nothing is saved here: the host saves the login when the
+// form is submitted (the password capture above reports it).
+//
+// Conservative on purpose: autocomplete="new-password" always counts, a
+// current-password field never does, and anything else only on a form that
+// says it is a sign-up (its own attributes or its submit button), so a login
+// form never gets the card.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+
+  const SIGNUP = /sign\s*-?\s*up|register|registration|create\s+(an\s+|your\s+|new\s+)?account|join\s+(now|free|us)|new\s+account|choose\s+(a\s+)?password|create\s+(a\s+)?password|new\s+password/i;
+  const OLD = /current|old|existing/i;
+  const CONFIRM = /confirm|repeat|retype|re-?enter|again|verify|verification|password2|passwd2|pass2/i;
+
+  function visible(el) {
+    try {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
+    } catch { return false; }
+  }
+  function meta(el) {
+    try { return ((el.name || "") + " " + (el.id || "") + " " + (el.getAttribute("aria-label") || "") + " " + (el.placeholder || "")).toLowerCase(); } catch { return ""; }
+  }
+  function ac(el) { return String(el.getAttribute("autocomplete") || "").toLowerCase(); }
+  function passwordFields(scope) {
+    return Array.prototype.filter.call(scope.querySelectorAll("input[type=password]"), (p) => visible(p) && !p.disabled && !p.readOnly);
+  }
+  // Does the form (or, with no form, the page) say it creates an account?
+  function signupScope(scope) {
+    try {
+      let text = "";
+      if (scope !== document) text += " " + (scope.id || "") + " " + (scope.getAttribute("name") || "") + " " + (scope.getAttribute("action") || "") + " " + (scope.className || "");
+      const buttons = scope.querySelectorAll("button,input[type=submit],[role=button]");
+      for (let i = 0; i < buttons.length && i < 20; i++) {
+        const b = buttons[i];
+        text += " " + (b.textContent || "") + " " + (b.value || "") + " " + (b.getAttribute("aria-label") || "") + " " + (b.id || "");
+      }
+      return SIGNUP.test(text);
+    } catch { return false; }
+  }
+  // Is this the field a new password goes into (not its confirm twin)?
+  function isNewPasswordField(el) {
+    if (!el || el.tagName !== "INPUT" || String(el.type || "").toLowerCase() !== "password") return false;
+    if (el.disabled || el.readOnly || !visible(el)) return false;
+    const a = ac(el);
+    if (/current-password/.test(a)) return false;
+    if (/new-password/.test(a)) {
+      // A confirm field is filled together with the first one; offer on the first.
+      const scope = el.form || document;
+      const first = passwordFields(scope).find((p) => /new-password/.test(ac(p)));
+      return first === el || !first;
+    }
+    const m = meta(el);
+    if (OLD.test(m) || CONFIRM.test(m)) return false;
+    const scope = el.form || document;
+    const fields = passwordFields(scope);
+    if (!signupScope(scope)) return false;
+    // Two fields on a sign-up form: new + confirm. Offer on the first. Three or
+    // more (a change-password form without autocomplete hints) is left alone.
+    if (fields.length === 2) return fields[0] === el;
+    return fields.length === 1 && /new|create|choose|signup|sign-up|register/.test(m);
+  }
+  // The fields filled when the suggestion is used: this one and every later
+  // password field in the same form that is not the current password.
+  function targetsFor(el) {
+    const scope = el.form || document;
+    const fields = passwordFields(scope);
+    const at = fields.indexOf(el);
+    return fields.slice(Math.max(at, 0)).filter((p) => p === el || (!/current-password/.test(ac(p)) && !OLD.test(meta(p))));
+  }
+
+  const setter = (function () { try { return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set; } catch { return null; } })();
+  function setValue(el, value) {
+    if (setter) setter.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const dismissed = new WeakSet();   // fields the person said no to (Escape)
+  let pending = null;                // { id, field } while the host decides
+  let card = null;                   // { host, field, id, reposition }
+  let seq = 0;
+
+  function closeCard() {
+    if (!card) return;
+    try { window.removeEventListener("scroll", card.reposition, true); window.removeEventListener("resize", card.reposition); } catch {}
+    try { card.host.remove(); } catch {}
+    card = null;
+  }
+
+  function showCard(field, offer) {
+    closeCard();
+    const t = (offer && offer.theme) || {};
+    const host = document.createElement("vex-password-suggestion");
+    host.setAttribute("style", "all:initial !important;position:fixed !important;z-index:2147483647 !important;display:block !important;");
+    const root = host.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent =
+      ":host{all:initial}" +
+      ".card{box-sizing:border-box;width:300px;max-width:calc(100vw - 16px);background:" + (t.surface || "#1e1e24") + ";color:" + (t.text || "#f2f2f5") + ";" +
+      "border:1px solid " + (t.border || "#3a3a44") + ";border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);font:13px/1.35 'Segoe UI',system-ui,sans-serif;overflow:hidden}" +
+      "button{all:unset;box-sizing:border-box;display:flex;gap:10px;align-items:flex-start;width:100%;padding:10px 12px;cursor:pointer}" +
+      "button:hover,button:focus-visible{background:" + (t.hover || "rgba(127,127,127,.14)") + "}" +
+      "button:focus-visible{outline:2px solid " + (t.primary || "#6c8cff") + ";outline-offset:-2px}" +
+      ".icon{flex:none;display:inline-flex;color:" + (t.primary || "#6c8cff") + ";margin-top:1px}" +
+      ".title{font-weight:600}" +
+      ".pw{font:12.5px/1.4 Consolas,'Cascadia Mono',monospace;word-break:break-all;margin-top:3px}" +
+      ".meta{font-size:11.5px;color:" + (t.muted || "#a0a0ab") + ";margin-top:3px}";
+    const box = document.createElement("div");
+    box.className = "card";
+    const button = document.createElement("button");
+    button.type = "button";
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    // The host's own VexIcons key, parsed as SVG (never as page HTML).
+    try {
+      const svg = new DOMParser().parseFromString(String(offer.icon || ""), "image/svg+xml").documentElement;
+      if (svg && svg.nodeName.toLowerCase() === "svg") icon.appendChild(document.importNode(svg, true));
+    } catch {}
+    const text = document.createElement("span");
+    const title = document.createElement("div"); title.className = "title"; title.textContent = "Use a strong password";
+    const pw = document.createElement("div"); pw.className = "pw"; pw.textContent = offer.password;
+    const m = document.createElement("div"); m.className = "meta"; m.textContent = (offer.label || "Strong") + " · saved when you submit";
+    text.append(title, pw, m);
+    button.append(icon, text);
+    button.setAttribute("aria-label", "Use a strong password suggested by Vex");
+    box.appendChild(button);
+    root.append(style, box);
+
+    function reposition() {
+      try {
+        const r = field.getBoundingClientRect();
+        if (!field.isConnected || r.width === 0) { closeCard(); return; }
+        const below = r.bottom + 4, height = box.offsetHeight || 80;
+        const top = (below + height > window.innerHeight && r.top - height - 4 > 0) ? r.top - height - 4 : below;
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - (box.offsetWidth || 300) - 8));
+        host.style.setProperty("top", top + "px", "important");
+        host.style.setProperty("left", left + "px", "important");
+      } catch { closeCard(); }
+    }
+    // The page keeps its focus while the card is clicked.
+    button.addEventListener("mousedown", (e) => { e.preventDefault(); });
+    button.addEventListener("click", (e) => {
+      // A click the page made up does nothing.
+      if (!e.isTrusted || !card || card.id !== offer.id) return;
+      const targets = targetsFor(field);
+      for (const p of targets) setValue(p, offer.password);
+      closeCard();
+      try { ipcRenderer.sendToHost("vex-pwgen-used", { id: offer.id, host: location.hostname.replace(/^www\./, ""), filled: targets.length }); } catch {}
+    });
+    (document.body || document.documentElement).appendChild(host);
+    card = { host, field, id: offer.id, button, reposition };
+    reposition();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+  }
+
+  ipcRenderer.on("vex-pwgen-offer", (_e, offer) => {
+    try {
+      if (!offer || !pending || offer.id !== pending.id || typeof offer.password !== "string" || !offer.password) return;
+      const field = pending.field;
+      pending = null;
+      // Still the focused, still-empty field it was asked for.
+      if (document.activeElement !== field || field.value || !isNewPasswordField(field)) return;
+      showCard(field, offer);
+    } catch {}
+  });
+
+  document.addEventListener("focusin", (e) => {
+    try {
+      const el = e.target;
+      if (card && el === card.host) return; // onto the card's own button
+      if (card && el !== card.field) closeCard();
+      if (location.protocol !== "https:") return; // the vault never saves over plain HTTP
+      if (!el || el.value || dismissed.has(el) || (card && card.field === el)) return;
+      if (!isNewPasswordField(el)) return;
+      const id = "pg" + (++seq) + "-" + Date.now();
+      pending = { id, field: el };
+      ipcRenderer.sendToHost("vex-pwgen-ask", {
+        id,
+        host: location.hostname.replace(/^www\./, ""),
+        maxLength: el.maxLength > 0 ? el.maxLength : 0,
+        minLength: el.minLength > 0 ? el.minLength : 0,
+      });
+    } catch {}
+  }, true);
+
+  document.addEventListener("focusout", (e) => {
+    try {
+      if (!card || (e.target !== card.field && e.target !== card.host)) return;
+      // Moving between the field and the card (Down arrow) keeps it open.
+      if (e.relatedTarget === card.host || e.relatedTarget === card.field) return;
+      setTimeout(() => { if (card && document.activeElement !== card.field && document.activeElement !== card.host) closeCard(); }, 0);
+    } catch {}
+  }, true);
+
+  document.addEventListener("keydown", (e) => {
+    try {
+      if (!card || !e.isTrusted) return;
+      if (e.key === "Escape") { dismissed.add(card.field); closeCard(); return; }
+      if (e.key === "ArrowDown" && e.target === card.field) { e.preventDefault(); card.button.focus(); }
+    } catch {}
+  }, true);
+
+  // Typing into the field means the person is choosing their own.
+  document.addEventListener("input", (e) => {
+    try { if (card && e.isTrusted && e.target === card.field) closeCard(); } catch {}
   }, true);
 })();
 
@@ -1544,8 +2512,67 @@ function _isVexStartPage(href) {
     } catch { /* best-effort */ }
   }
 
-  document.addEventListener("copy", () => report("copy"), true);
-  document.addEventListener("cut", () => report("cut"), true);
+  // Only a copy the person made: a page could dispatch made-up copy events by
+  // the thousand and fill the history with whatever it liked (audit SE8).
+  document.addEventListener("copy", (e) => { if (e.isTrusted) report("copy"); }, true);
+  document.addEventListener("cut", (e) => { if (e.isTrusted) report("cut"); }, true);
+
+  // A site's own "Copy" button usually calls navigator.clipboard.writeText,
+  // which fires no copy event, so those copies never reached the history. The
+  // page's writeText is wrapped in the page's world, and the wrapper reports
+  // to `seen` below, which only this closure holds (passed through
+  // executeInMainWorld, never put on window): a page cannot call it except by
+  // really writing to the clipboard. And it counts only while the person has
+  // just clicked or typed, judged here in the isolated world, where the
+  // page's own navigator.userActivation cannot be faked.
+  let pending = null;
+  function seen(text, phase) {
+    try {
+      if (phase === "call") {
+        pending = (navigator.userActivation && navigator.userActivation.isActive && typeof text === "string") ? text : null;
+        return;
+      }
+      if (phase !== "done" || pending === null || text !== pending) return;
+      pending = null;
+      if (fromSecretField()) return;
+      const t = text.replace(/\u0000/g, "");
+      if (!t.trim() || t.length > MAX) return;
+      ipcRenderer.sendToHost("vex-copy", { text: t, kind: "write", title: String(document.title || "").slice(0, 120) });
+    } catch { /* best-effort */ }
+  }
+  function hookWriteText(seen) {
+    try {
+      if (typeof Clipboard === "undefined" || !Clipboard.prototype.writeText) return;
+      // Taken now, before any of the page's own script runs, so a page that
+      // later replaces Promise.prototype.then cannot fake a finished write.
+      const write = Clipboard.prototype.writeText;
+      const then = Promise.prototype.then;
+      // Function.prototype.call and apply too: a page can replace those.
+      const apply = Reflect.apply;
+      const wrapped = {
+        writeText(data) {
+          // No text, or one that cannot be read: the browser answers as it
+          // always does, and nothing is kept.
+          if (arguments.length === 0) return apply(write, this, arguments);
+          let text;
+          try { text = String(data); } catch (e) { return apply(write, this, arguments); }
+          try { seen(text, "call"); } catch (e) { /* the report never stops the copy */ }
+          // The text read once above is what is written, so what the history
+          // keeps is what the clipboard holds: a value whose toString answered
+          // differently the second time put one text in each (release check,
+          // 2026-10-12).
+          const p = apply(write, this, [text]);
+          try { apply(then, p, [() => { try { seen(text, "done"); } catch (e) { /* never break the page */ } }, () => {}]); } catch (e) { /* never break the page */ }
+          return p;
+        },
+      }.writeText;
+      Object.defineProperty(Clipboard.prototype, "writeText", { value: wrapped, writable: true, configurable: true, enumerable: true });
+    } catch (e) { /* never break the page */ }
+  }
+  if (__vexCB && typeof __vexCB.executeInMainWorld === "function") {
+    try { __vexCB.executeInMainWorld({ func: hookWriteText, args: [seen] }); }
+    catch (err) { console.error("[Vex] copy-button tracking could not reach this page:", err && err.message); }
+  }
 })();
 
 // === Mouse-gesture tracker — right-button drag → direction(s) to host ===
@@ -2073,8 +3100,17 @@ if (typeof module !== 'undefined' && module.exports) {
   var ipc;
   try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
   if (!ipc || typeof ipc.send !== 'function') return;
+  // An Open as App or overlay window (main.js) is not a tab of any Vex
+  // window: there is no tab for Ctrl+D or Ctrl+H to act on, and every key sent
+  // from it was refused as an untrusted sender (2026-10-08).
+  if (typeof process !== 'undefined' && Array.isArray(process.argv) && process.argv.indexOf('--vex-web-window') !== -1) return;
   var PAGE_FIRST_PLAIN = 'bhmdpu';
-  var PAGE_FIRST_SHIFTED = 'oszamlh';
+  var PAGE_FIRST_SHIFTED = 'oszamlhnp';
+  // Any other Ctrl or Ctrl+Shift letter the page left alone is reported too:
+  // main passes it on only when Vex's shortcut list has it (Ctrl+Shift+K,
+  // Ctrl+Shift+F, a key you bound yourself), which did nothing from a page
+  // (found 2026-10-10). Never select all, copy, paste, cut, undo or redo.
+  var PAGE_OWN_PLAIN = 'acvxyz';
   // Chromium's own editing commands never call preventDefault, so a page
   // with no key handler of its own looked as if it had left these alone:
   // Ctrl+B in a plain contenteditable made the text bold AND hid the tab
@@ -2098,7 +3134,7 @@ if (typeof module !== 'undefined' && module.exports) {
     if (!e.isTrusted) return;
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
     var k = String(e.key || '').toLowerCase();
-    if (k.length !== 1 || (e.shiftKey ? PAGE_FIRST_SHIFTED : PAGE_FIRST_PLAIN).indexOf(k) === -1) return;
+    if (!/^[a-z0-9]$/.test(k) || (!e.shiftKey && PAGE_OWN_PLAIN.indexOf(k) !== -1)) return;
     // The element really focused, inside a shadow root too.
     var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
     if (nativeEditKey(path[0] || e.target, k, !!e.shiftKey)) return;
@@ -2109,12 +3145,54 @@ if (typeof module !== 'undefined' && module.exports) {
   }, false);
 })();
 
+// === What the page was left by, done again after "Leave site?" ===
+// A page you typed in asks before it is left; Vex asks you in its own dialog
+// while the page stays (src/main/leave-page.js). When it was a link or a form
+// in the page that was held up, main cannot know where it went: this notes
+// the link or form clicked just before the page asked, and on "Leave"
+// ('vex:leave-replay') follows it again. Main lets that second try through.
+(function () {
+  'use strict';
+  var ipc;
+  try { ipc = require('electron').ipcRenderer; } catch (e) { return; }
+  if (!ipc || typeof ipc.on !== 'function') return;
+  try { if (window.top !== window) return; } catch (e) { return; }
+  var last = null;   // { at, kind: 'link' | 'form', href | form, submitter }
+  var held = null;   // what the page was being left by when it asked
+  document.addEventListener('click', function (e) {
+    if (!e.isTrusted || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    var a = null;
+    for (var i = 0; i < path.length; i++) { var n = path[i]; if (n && n.tagName === 'A' && n.href) { a = n; break; } }
+    if (!a || a.hasAttribute('download') || /^javascript:/i.test(String(a.href))) return;
+    var target = String(a.target || '').toLowerCase();
+    if (target && target !== '_self' && target !== '_top') return;
+    last = { at: Date.now(), kind: 'link', href: String(a.href) };
+  }, true);
+  document.addEventListener('submit', function (e) {
+    if (!e.isTrusted || !e.target || e.target.tagName !== 'FORM') return;
+    last = { at: Date.now(), kind: 'form', form: e.target, submitter: e.submitter || null };
+  }, true);
+  window.addEventListener('beforeunload', function () {
+    held = last && Date.now() - last.at < 1000 ? last : null;
+  }, true);
+  ipc.on('vex:leave-replay', function () {
+    var h = held;
+    held = null; last = null;
+    if (!h) return;   // main says "do that again" when nothing starts
+    if (h.kind === 'link') { window.location.assign(h.href); return; }
+    if (!h.form.isConnected) return;
+    if (h.submitter && h.submitter.isConnected && typeof h.form.requestSubmit === 'function') h.form.requestSubmit(h.submitter);
+    else HTMLFormElement.prototype.submit.call(h.form);
+  });
+})();
+
 // === Escape the page left alone, told to the host ===
 // Peek and Responsive Preview close on Escape, but once you clicked into the
 // previewed page the key went to that page and the overlay stayed open (found
 // 2026-09-29). An Escape the page did not use is reported to the host; only
 // the webviews those overlays own act on it (peek.js, devtools-pack.js), a
-// tab ignores it. A page that takes Escape itself (its own menu, a <dialog>,
+// tab stops a page still loading (webview.js). A page that takes Escape itself (its own menu, a <dialog>,
 // leaving full screen) keeps it.
 (function () {
   'use strict';
@@ -2204,3 +3282,53 @@ if (typeof module !== 'undefined' && module.exports) {
     }, 0);
   }, false);
 })();
+
+// === A page's alert / confirm / prompt stays in its own tab ===
+// Electron's own box for these belongs to the whole Vex window and disabled
+// all of it: one alert from a page in a tab or a sidebar panel and nothing in
+// Vex answered a click until it was ended from Task Manager (2026-10-05).
+// Here they ask main with a synchronous message ('page-dialog'), which blocks
+// this page alone until the answer comes, as a page's dialog does in Chrome;
+// Vex shows the question over this tab or panel (main/page-dialogs.js,
+// renderer/js/page-dialogs.js). The page's text is cut to 10000 characters.
+function vexPageDialogs(ask) {
+  var text = function (v) { return String(v).slice(0, 10000); };
+  var put = function (name, fn) {
+    Object.defineProperty(window, name, { value: fn, writable: true, enumerable: true, configurable: true });
+  };
+  put('alert', function alert(message) {
+    ask('alert', arguments.length ? text(message) : '', '');
+  });
+  put('confirm', function confirm(message) {
+    return ask('confirm', message === undefined ? '' : text(message), '') === true;
+  });
+  put('prompt', function prompt(message, defaultValue) {
+    var answer = ask('prompt', message === undefined ? '' : text(message), defaultValue === undefined ? '' : text(defaultValue));
+    return typeof answer === 'string' ? answer : null;
+  });
+  return true;
+}
+(function () {
+  var askMain = function (type, message, value) {
+    try {
+      return require('electron').ipcRenderer.sendSync('page-dialog', { type: type, message: message, value: value });
+    } catch (err) {
+      console.error('[Vex] the page dialog could not be asked:', err && err.message);
+      return null;
+    }
+  };
+  // An extension's background page has no tab to ask over; it keeps its own.
+  if (location.protocol === 'chrome-extension:' && !__vexExtIsolated) return;
+  var isolated = typeof process !== 'undefined' && process.contextIsolated === true;
+  if (!isolated) { vexPageDialogs(askMain); return; }
+  if (!__vexCB || typeof __vexCB.executeInMainWorld !== 'function') {
+    console.error('[Vex] page dialogs: executeInMainWorld is missing; alert/confirm/prompt here answer at once');
+    return;
+  }
+  try { __vexCB.executeInMainWorld({ func: vexPageDialogs, args: [askMain] }); }
+  catch (err) { console.error('[Vex] page dialogs could not reach this page:', err && err.message); }
+})();
+
+// Pop-ups are judged in main from the input the page really got
+// (src/main/popup-blocker.js); the page's own word (navigator.userActivation,
+// which it can redefine) is no longer asked.

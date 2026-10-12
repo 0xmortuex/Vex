@@ -4,23 +4,27 @@
 // zoom, nav), all six mouse gestures, and the full right-click menu. Searchable.
 // Ctrl+K → "Shortcuts & Gestures".
 const ShortcutsGuide = {
-  KEYS: [
-    ['Command bar', 'Ctrl+K'], ['New / close tab', 'Ctrl+T / Ctrl+W'], ['Reopen closed tab', 'Ctrl+Shift+T'],
-    ['Next / previous tab', 'Ctrl+Tab / Ctrl+Shift+Tab'], ['Jump to tab 1–9', 'Ctrl+1 … Ctrl+9'],
-    ['Focus address bar', 'Ctrl+L'], ['Toggle tabs sidebar', 'Ctrl+B'], ['Find in page', 'Ctrl+F'],
-    ['Back / forward', 'Alt+← / Alt+→'], ['Reload / hard reload', 'Ctrl+R / Ctrl+Shift+R'],
-    ['Zoom in / out / reset', 'Ctrl++ / Ctrl+- / Ctrl+0'], ['Bookmark page', 'Ctrl+D'],
-    ['Print page', 'Ctrl+P'], ['View page source', 'Ctrl+U'],
-    ['Split screen', 'Ctrl+Shift+S'], ['Picture-in-Picture', 'Ctrl+Shift+P'], ['Sleep tab', 'Ctrl+Shift+Z'],
-    ['Mute tab', 'Ctrl+M'], ['AI panel', 'Ctrl+Shift+A'], ['Quick ask AI', 'Ctrl+J'],
-    ['Organize tabs with AI', 'Ctrl+Shift+G'], ['Remember / index page', 'Ctrl+Shift+H'],
-    ['History', 'Ctrl+H'], ['Memory panel', 'Ctrl+Shift+M'], ['Notes', 'Ctrl+Shift+N'],
-    ['Schedules', 'Ctrl+Shift+L'], ['Save / load session', 'Ctrl+Shift+O'], ['Reading mode', 'Ctrl+Alt+R'],
-    ['Screenshot', 'Ctrl+Alt+S'], ['Theme picker', 'Ctrl+Shift+Y'], ['Private window', 'Ctrl+Alt+N'],
+  // The keys Vex answers outside the shortcut registry. Everything else is
+  // read from the registry by keys(), so a key moved in Settings › Shortcuts
+  // shows here as it is; the list was typed in by hand and went stale
+  // (found 2026-10-10).
+  FIXED_KEYS: [
+    ['Jump to tab 1–8 / last tab', 'Ctrl+1 … Ctrl+8 / Ctrl+9'],
+    ['Back / forward', 'Alt+← / Alt+→'],
+    ['Zoom in / out', 'Ctrl++ / Ctrl+-'],
+    ['Notes', 'Ctrl+Shift+N'],
     ['Run command-chain 1 / 2 / 3', 'Ctrl+Alt+1 / 2 / 3'],
     ['Boss key — hide/show all windows', 'Ctrl+Alt+H'],
-    ['Fullscreen', 'F11'], ['DevTools', 'F12'], ['Close overlays / popups', 'Esc'],
+    ['DevTools', 'F12'], ['Close overlays / popups', 'Esc'],
   ],
+
+  // [label, key] for every shortcut, the registry's first.
+  keys() {
+    if (typeof ShortcutsRegistry === 'undefined') throw new Error('The shortcut list is not loaded');
+    const all = ShortcutsRegistry.getAllShortcuts();
+    const rows = Object.values(all).filter(d => d.current).map(d => [d.label, d.current]);
+    return rows.concat(this.FIXED_KEYS);
+  },
   GESTURES: [
     ['Back', '← drag left'], ['Forward', '→ drag right'], ['Scroll to top', '↑ drag up'],
     ['Reload', '↓ drag down'], ['Close tab', '↓ then → (down-right)'], ['Reopen last closed tab', '↓ then ← (down-left)'],
@@ -82,7 +86,7 @@ const ShortcutsGuide = {
 
   _render(m, q) {
     const body = m.querySelector('#sg-body'); if (!body) return;
-    let html = this._section('Keyboard', this.KEYS, q) +
+    let html = this._section('Keyboard', this.keys(), q) +
                this._section('Mouse gestures (hold right button + drag)', this.GESTURES, q) +
                this._section('Right-click menu', this.MENU, q);
     if (!html) html = '<div style="color:var(--text-muted);padding:16px 0">No matches.</div>';

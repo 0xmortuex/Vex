@@ -27,11 +27,13 @@ function harness() {
   const sent = [];
   const ipc = new Map();
   const ipcMain = { handle: (channel, fn) => ipc.set(channel, fn) };
+  const mainSession = { downloadURL: vi.fn() };
   const service = createDownloadService({
     app: { getPath: () => 'C:/downloads' },
-    secureSessions: { owner: () => null, partitionOf: () => 'persist:main' },
+    secureSessions: { owner: () => null, partitionOf: () => 'persist:main', fromPartition: () => mainSession, sessions: new Set([mainSession]) },
     broadcast: (channel, data) => sent.push({ channel, data }),
     ipcMain,
+    webContents: { getAllWebContents: () => [] },
   });
   const session = { on: (name, fn) => { session._will = fn; } };
   service.wireDownloadsOnSession(session, 'test');
@@ -62,6 +64,17 @@ describe('download control service', () => {
     const id = h.sent[0].data.id;
     h.service.control(id, 'pause');
     expect(h.service.control(id, 'resume')).toEqual({ ok: false, error: 'This download cannot be resumed' });
+  });
+
+  it('resumes a download whose connection dropped (interrupted, not paused)', () => {
+    const h = harness();
+    const item = fakeItem();
+    item.getState = () => 'interrupted';
+    item.resume = vi.fn();
+    h.session._will({}, item, null);
+    const id = h.sent[0].data.id;
+    expect(h.service.control(id, 'resume')).toEqual({ ok: true, paused: false });
+    expect(item.resume).toHaveBeenCalled();
   });
 
   it('drops the handle once the download is done and says so', () => {
@@ -114,5 +127,48 @@ describe('download control service', () => {
   it('turns a bad id into a reported error, not a thrown handler', async () => {
     const h = harness();
     expect(await h.invoke('downloads:control', 42, 'pause')).toEqual({ ok: false, error: 'Invalid download id' });
+  });
+});
+
+// Audit RD11 (2026-10-10): a normal window's download was listed and toasted
+// in an open private window as well.
+describe('which windows hear of a download', () => {
+  it('a normal download goes to the normal windows only', () => {
+    const calls = [];
+    const service = createDownloadService({
+      app: { getPath: () => 'C:/downloads' },
+      secureSessions: { owner: () => null, partitionOf: () => 'persist:main', fromPartition: () => ({}), sessions: new Set() },
+      broadcast: (...args) => calls.push(args),
+      ipcMain: { handle: () => {} },
+      webContents: { getAllWebContents: () => [] },
+    });
+    const session = { on: (name, fn) => { session._will = fn; } };
+    service.wireDownloadsOnSession(session, 'test');
+    session._will({}, fakeItem(), null);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const [, , opts] of calls) expect(opts).toEqual({ skipPrivate: true });
+  });
+
+  it('a private window\'s download goes to that window alone', () => {
+    const calls = [], toPrivate = [];
+    const owner = { privatePartition: 'private-1', win: { webContents: { send: (ch, d) => toPrivate.push(ch) } } };
+    const service = createDownloadService({
+      app: { getPath: () => 'C:/downloads' },
+      secureSessions: { owner: () => owner, partitionOf: () => 'private-1', fromPartition: () => ({}), sessions: new Set() },
+      broadcast: (...args) => calls.push(args),
+      ipcMain: { handle: () => {} },
+      webContents: { getAllWebContents: () => [] },
+    });
+    const session = { on: (name, fn) => { session._will = fn; } };
+    service.wireDownloadsOnSession(session, 'test');
+    session._will({}, fakeItem(), { id: 5, isDestroyed: () => false, getURL: () => 'https://a.test/' });
+    expect(calls).toEqual([]);
+    expect(toPrivate).toContain('download-started');
+  });
+
+  it('main leaves private windows out when asked to', () => {
+    const MAIN = require('fs').readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
+    const fn = MAIN.slice(MAIN.indexOf('function _broadcastDownloadEvent('), MAIN.indexOf('function _broadcastDownloadEvent(') + 400);
+    expect(fn).toContain('if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;');
   });
 });

@@ -1,0 +1,90 @@
+/* === "What's new" card after an update (js/update-log.js) ===
+   A small card in the bottom-right corner. Opaque: it floats over the page's
+   <webview>, which a translucent layer cannot frost. Colours and font are the
+   theme's (and, in a browser look, the look's) tokens, as in the update cover.
+   Above the toasts' layer, below the download card and every dialog. */
+.whatsnew-tip {
+  position: fixed; right: 24px; bottom: 24px; z-index: 100040;
+  width: 380px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px);
+  display: flex; flex-direction: column; box-sizing: border-box;
+  background: var(--surface, var(--vex-bg-elevated, #1b1b24));
+  color: var(--text, var(--vex-text-primary, #e9e9ee));
+  border: 1px solid var(--border, var(--vex-border-medium));
+  border-radius: var(--vex-radius-lg, 12px);
+  box-shadow: 0 18px 50px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+  font-family: var(--b-font, var(--vex-font-base, 'Outfit', sans-serif));
+  font-size: 13px; line-height: 1.45;
+  animation: whatsnew-tip-in 0.22s ease-out;
+}
+/* accessibility-ui.css caps every [role=dialog]; this one sizes itself. */
+.whatsnew-tip[role=dialog] { max-width: calc(100vw - 32px); overflow: hidden; }
+/* Beside the AI panel when it is docked in the same corner, as the download card. */
+body:has(#ai-panel.open:not(.expanded)) .whatsnew-tip { right: calc(min(420px, 100vw) + 24px); }
+body:has(#ai-panel.open.expanded) .whatsnew-tip { bottom: 150px; }
+@keyframes whatsnew-tip-in {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .whatsnew-tip { animation: none; } }
+
+.whatsnew-tip-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 12px 10px 16px; }
+.whatsnew-tip-icon {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary, var(--vex-accent));
+  background: color-mix(in srgb, var(--primary, var(--vex-accent)) 14%, transparent);
+}
+.whatsnew-tip-heading { flex: 1 1 auto; min-width: 0; }
+.whatsnew-tip-kicker {
+  margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--primary, var(--vex-accent));
+}
+.whatsnew-tip-title {
+  margin: 3px 0 0; font-size: 15.5px; font-weight: 700; line-height: 1.25;
+  font-family: var(--vex-font-heading, inherit); color: var(--text, var(--vex-text-primary));
+}
+.whatsnew-tip-sub { margin: 3px 0 0; font-size: 12px; color: var(--text-muted, var(--vex-text-muted)); }
+.whatsnew-tip-close {
+  flex: none; width: 28px; height: 28px; margin: -4px 0 0; padding: 0;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  border: none; border-radius: var(--vex-radius-sm, 6px); background: transparent;
+  color: var(--text-muted, var(--vex-text-muted));
+}
+.whatsnew-tip-close:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.12)); color: var(--text, var(--vex-text-primary)); }
+
+.whatsnew-tip-body { overflow-y: auto; min-height: 0; padding: 0 16px 6px 62px; }
+.whatsnew-tip-ver {
+  margin: 8px 0 2px; font-size: 11.5px; font-weight: 600;
+  color: var(--text-muted, var(--vex-text-muted));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.whatsnew-tip-list { margin: 0 0 4px; padding-left: 16px; }
+.whatsnew-tip-list li { margin: 3px 0; color: var(--text, var(--vex-text-primary)); }
+.whatsnew-tip-list li::marker { color: var(--primary, var(--vex-accent)); }
+
+.whatsnew-tip-foot {
+  display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px 14px;
+  border-top: 1px solid var(--border, var(--vex-border-subtle));
+  margin-top: 6px;
+}
+.whatsnew-tip-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 600; border-radius: var(--vex-radius-md, 8px);
+}
+.whatsnew-tip-btn-main {
+  border: 1px solid transparent;
+  background: var(--primary, var(--vex-accent)); color: var(--on-primary, #fff);
+}
+.whatsnew-tip-btn-main:hover { filter: brightness(1.08); }
+.whatsnew-tip-btn-quiet {
+  border: 1px solid var(--border, var(--vex-border-medium)); background: transparent;
+  color: var(--text, var(--vex-text-primary));
+}
+.whatsnew-tip-btn-quiet:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.12)); }
+.whatsnew-tip button:focus-visible {
+  outline: 2px solid var(--primary, var(--vex-accent)); outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .whatsnew-tip { right: 16px; bottom: 16px; }
+  .whatsnew-tip-body { padding-left: 16px; }
+}

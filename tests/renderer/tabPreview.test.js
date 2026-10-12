@@ -56,8 +56,8 @@ function installTabManager(over = {}) {
 function installWebviewManager(captureImpl = () => Promise.resolve(fakeImg)) {
   globalThis.WebviewManager = {
     webviews: new Map([
-      ['t1', { capturePage: captureImpl }],
-      ['t2', { capturePage: captureImpl }],
+      ['t1', { _attached: true, capturePage: captureImpl }],
+      ['t2', { _attached: true, capturePage: captureImpl }],
     ]),
   };
 }
@@ -188,7 +188,12 @@ describe('TabPreview — thumbnail capture', () => {
     expect(document.getElementById('tab-preview').classList.contains('visible')).toBe(true);
   });
 
-  it('does NOT show a preview for sleeping tabs', async () => {
+  // A sleeping tab has no page to picture, but its title and address are
+  // still worth showing, as Chrome's hover card does (it showed nothing
+  // until 2026-10-10).
+  it('shows a sleeping tab\'s title and address, without a picture', async () => {
+    const capture = vi.fn(() => Promise.resolve(fakeImg));
+    installWebviewManager(capture);
     buildVerticalDOM();
     TabPreview.init();
     document.querySelector('.tab-item[data-tab-id="t2"]')   // t2 is sleeping
@@ -197,7 +202,33 @@ describe('TabPreview — thumbnail capture', () => {
     await vi.advanceTimersByTimeAsync(800);
     await Promise.resolve(); await Promise.resolve();
 
-    expect(document.getElementById('tab-preview').classList.contains('visible')).toBe(false);
+    const preview = document.getElementById('tab-preview');
+    expect(preview.classList.contains('visible')).toBe(true);
+    expect(preview.querySelector('img').style.display).toBe('none');
+    expect(preview.querySelector('.preview-title').textContent).toBe('Sleeping Tab');
+    expect(capture).not.toHaveBeenCalled();
+  });
+});
+
+describe('TabPreview — the whole side list', () => {
+  // A group's tabs and the pinned row are drawn beside #tabs-list, not in it,
+  // and had no preview (found 2026-10-10).
+  it('previews a tab in a group and a pinned tab', async () => {
+    document.body.innerHTML = `
+      <div id="tabs-sidebar">
+        <div class="pinned-tabs-container"><div class="pinned-tab" data-tab-id="t1"></div></div>
+        <div id="tab-groups-container"><div class="tab-group"><div class="tab-group-tabs"><div class="tab-item" data-tab-id="t1"></div></div></div></div>
+        <div id="tabs-list"></div>
+      </div>`;
+    TabPreview.init();
+    for (const sel of ['#tab-groups-container .tab-item', '.pinned-tab']) {
+      document.getElementById('tab-preview').classList.remove('visible');
+      document.querySelector(sel).dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+      await vi.advanceTimersByTimeAsync(800);
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      expect(document.getElementById('tab-preview').classList.contains('visible'), sel).toBe(true);
+      document.querySelector(sel).dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+    }
   });
 });
 

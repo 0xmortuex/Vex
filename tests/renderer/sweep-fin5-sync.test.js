@@ -178,7 +178,8 @@ describe('S2: a push that 409s pulls, merges and retries once', () => {
     expect(server.revision).toBe(4);
     // Each push and pull also reads the device list, to decide whether
     // shortcut tiles may sync (sync-engine.js checkTileGate).
-    const paths = server.calls.map(c => c.path).filter(p => p !== '/sync/devices').slice(-3);
+    // A push first asks for a key-proof nonce (/sync/challenge, SYNC_PROTOCOL.md §2.7).
+    const paths = server.calls.map(c => c.path).filter(p => p !== '/sync/devices' && p !== '/sync/challenge').slice(-3);
     expect(paths).toEqual(['/sync/push', '/sync/pull', '/sync/push']);
     engine.signOut();
   });
@@ -192,11 +193,14 @@ describe('S2: a push that 409s pulls, merges and retries once', () => {
 });
 
 describe('S3: failed enrolments do not leave ghost devices', () => {
-  it('verifyCode on an account that already has data removes the device it registered', async () => {
+  // The session now waits for the recovery code (syncJoinKeepsSession.test.js);
+  // left unused, it is removed from the server.
+  it('verifyCode on an account that already has data removes the device it registered once the sign-in is left', async () => {
     const server = fakeWorker();
     server.blob = 'something';
     const engine = freshEngine();
-    await expect(engine.verifyCode('a@b.test', '123456')).rejects.toThrow(/recovery code/);
+    expect((await engine.verifyCode('a@b.test', '123456')).needsRecoveryCode).toBe(true);
+    await engine.cancelPendingJoin();
     expect(server.devices).toEqual([]);
     expect(server.calls.some(c => c.method === 'DELETE' && c.path === '/sync/devices/dev1')).toBe(true);
   });
@@ -277,7 +281,7 @@ describe('S5: conflicts toast once, and the newer edit wins', () => {
     server.revision += 1;
     toasts = [];
     expect((await engine.pullNow()).ok).toBe(true);
-    expect(toasts.map(t => t.message)).toEqual(['1 sync conflict retained in recovery data']);
+    expect(toasts.map(t => t.message)).toEqual(['Another device changed the same thing: both versions are kept — Settings › Vex Sync › Sync conflicts']);
     // The same cloud document again: nothing new, so no toast.
     toasts = [];
     expect((await engine.pullNow()).ok).toBe(true);
@@ -346,7 +350,8 @@ describe('S7: sync failures are said in words', () => {
     require('../../src/renderer/js/sync-settings.js');
     expect(window.SyncSettings.human('Failed to fetch')).toMatch(/Could not reach the sync server/);
     delete global.SyncEngine;
-    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/command.js'), 'utf8');
-    expect(src).toMatch(/SyncSettings\.human\(err\.message \|\| 'Send failed'\)/);
+    // Ctrl+K › Send to My Devices opens js/handoff.js's menu, which words it.
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/handoff.js'), 'utf8');
+    expect(src).toMatch(/SyncSettings\.human\(m\)/);
   });
 });

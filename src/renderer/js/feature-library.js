@@ -47,6 +47,7 @@ const FeatureLibrary = {
     if (f.sel && !f.panel && !f.cmd) where.push('A control in the window itself');
     if (f.manual && !where.length) where.push('Something you do with the mouse or the keyboard, not a command');
     const steps = (typeof VexGuide !== 'undefined') ? VexGuide.steps(f) : [];
+    const actions = VexFeatures.actions(f);
     const near = (VexFeatures.ITEMS || [])
       .filter(o => o.cat === f.cat && o.id !== f.id)
       .slice(0, 4)
@@ -63,8 +64,12 @@ const FeatureLibrary = {
       where,
       steps,
       near,
-      canOpen: !!(f.cmd || f.panel),
-      canShow: !!(f.sel || f.panel || f.cmd),
+      // The buttons, in order (VexFeatures.actions): each one really opens
+      // something. An entry with none of them gets `how` instead.
+      actions,
+      canOpen: actions.some(a => a.act !== 'show'),
+      canShow: actions.some(a => a.act === 'show'),
+      how: (typeof FeatureHow !== 'undefined' && FeatureHow[f.id]) || '',
     };
   },
 
@@ -265,8 +270,7 @@ const FeatureLibrary = {
     root.querySelectorAll('[data-open-card]').forEach(b => b.addEventListener('click', () => {
       b.closest('.flib-card').classList.toggle('open');
     }));
-    root.querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.run(b.dataset.run); }));
-    root.querySelectorAll('[data-show]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.show(b.dataset.show); }));
+    root.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.open(b.dataset.id, b.dataset.act); }));
     root.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', (e) => { e.stopPropagation(); this.ask(b.dataset.ask); }));
   },
 
@@ -283,10 +287,10 @@ const FeatureLibrary = {
           ${c.detail ? `<p class="flib-detail">${this._esc(c.detail)}</p>` : ''}
           ${c.where.length ? `<div class="flib-sub">Where it lives</div><ul>${c.where.map(w => `<li>${this._esc(w)}</li>`).join('')}</ul>` : ''}
           ${c.steps.length ? `<div class="flib-sub">What to do</div><ol>${c.steps.map(s => `<li>${this._esc(s)}</li>`).join('')}</ol>` : ''}
+          ${c.how ? `<div class="flib-sub">How it works</div><p class="flib-how">${this._esc(c.how)}</p>` : ''}
           ${c.near.length ? `<div class="flib-near">Near it: ${c.near.map(n => this._esc(n)).join(' · ')}</div>` : ''}
           <div class="flib-acts">
-            ${c.canOpen ? `<button data-run="${this._esc(c.id)}" class="flib-btn primary" type="button">Open it</button>` : ''}
-            ${c.canShow ? `<button data-show="${this._esc(c.id)}" class="flib-btn" type="button">Show me</button>` : ''}
+            ${c.actions.map((a, i) => `<button data-act="${this._esc(a.act)}" data-id="${this._esc(c.id)}" class="flib-btn${i === 0 ? ' primary' : ''}" type="button">${this._esc(a.label)}</button>`).join('')}
             <button data-ask="${this._esc(c.id)}" class="flib-btn" type="button">Ask Vex about this</button>
           </div>
         </div>
@@ -302,11 +306,38 @@ const FeatureLibrary = {
     catch (err) { window.showToast?.((err && err.message) || 'That would not start', 'error'); }
   },
 
+  // One button: `act` is one of VexFeatures.actions(). Each does exactly what
+  // its label says and says so when it cannot — a button must never do nothing.
+  open(id, act) {
+    const f = VexFeatures.get(id);
+    try {
+      if (!f) throw new Error('That feature is not in the list any more');
+      if (act === 'panel') {
+        if (typeof SidebarManager === 'undefined') throw new Error('The sidebar is not available in this window');
+        SidebarManager.openPanel(f.panel);
+      } else if (act === 'command') {
+        const c = VexFeatures.command(f);
+        if (!c) throw new Error('The command for this is not available in this window');
+        return Promise.resolve(c.action()).catch(err => window.showToast?.((err && err.message) || 'That would not start', 'error'));
+      } else if (act === 'settings') {
+        if (typeof SettingsUI === 'undefined') throw new Error('Settings is not available in this window');
+        SettingsUI.openSection(f.setting.id || f.setting.section);
+      } else if (act === 'show') {
+        this.show(id);
+      } else {
+        throw new Error('Unknown action: ' + act);
+      }
+    } catch (err) { window.showToast?.((err && err.message) || 'That would not open', 'error'); }
+    return undefined;
+  },
+
   show(id) {
     const f = VexFeatures.get(id);
     if (!f) return;
     // Pointing at a control means getting out of its way first.
     try { SidebarManager.hideActivePanel?.(); } catch { /* no sidebar in this window */ }
+    // The AI box is only on screen while the AI panel is open.
+    if (/^#ai-/.test(f.sel || '') && typeof AIPanel !== 'undefined' && AIPanel.open && !(AIPanel.isOpen && AIPanel.isOpen())) AIPanel.open();
     setTimeout(() => { try { VexGuide.show(f); } catch (err) { window.showToast?.((err && err.message) || 'There is nothing to point at', 'info'); } }, 120);
   },
 

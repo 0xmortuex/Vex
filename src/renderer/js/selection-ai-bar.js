@@ -75,7 +75,7 @@ const SelectionAIBar = {
         color: var(--text, #e5e9f0); font: inherit; font-size: 12.5px; cursor: pointer;
         white-space: nowrap;
       }
-      #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: #fff; }
+      #vex-selection-ai button:hover { background: var(--primary, #6366f1); color: var(--on-primary, #fff); }
       #vex-selection-ai button:disabled { cursor: default; }
       #vex-selection-ai .vex-sel-div { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border, #1f2530); }
     `;
@@ -156,7 +156,7 @@ const SelectionAIBar = {
     AIPanel.open();
     if (act === 'explain') AIPanel.sendMessage('explain', { selectedText: text });
     else if (act === 'debug') AIPanel.sendMessage('chat', { message: `Debug this. Say what the error means, the most likely cause, and how to fix it, with the fix as code if it is code:\n\n"""${text}"""` });
-    else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: 'English' });
+    else if (act === 'translate') AIPanel.sendMessage('translate', { selectedText: text, targetLanguage: AIPanel.translateTarget() });
     else if (act === 'summarize') {
       // The 'summarize' feature renders only a structured {summary,...} card and
       // comes back blank for a plain-prose summary of a snippet. Route through

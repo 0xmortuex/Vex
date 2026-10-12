@@ -148,16 +148,16 @@ const WebLLM = (() => {
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Run a small model <strong>entirely on your machine</strong> — private, offline, no server. The model downloads once (cached) and runs on your GPU. Nothing downloads until you press the button.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-        <select id="wl-model" style="min-width:230px">${opts}</select>
-        <button id="wl-load" style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Download &amp; load</button>
+        <select id="wl-model" aria-label="On-device model" style="min-width:230px">${opts}</select>
+        <button id="wl-load" style="padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Download &amp; load</button>
         <button id="wl-unload" style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:${isLoaded() ? 'inline-block' : 'none'}">Unload</button>
       </div>
       <div id="wl-progress" style="display:none;margin:8px 0">
         <div style="height:8px;background:var(--bg);border-radius:5px;overflow:hidden;border:1px solid var(--border)"><div id="wl-bar" style="height:100%;width:0%;background:var(--primary);transition:width .2s"></div></div>
         <div id="wl-ptext" style="font-size:11px;color:var(--text-muted);margin-top:5px;font-family:'JetBrains Mono',monospace"></div>
       </div>
-      <div id="wl-status" style="font-size:12.5px;color:${isLoaded() ? '#22c55e' : 'var(--text-muted)'};margin-bottom:8px">${isLoaded() ? loadedModel() + ' loaded' : 'No model loaded.'}</div>
-      <div class="setting-toggle-row"><span>Use on-device AI for chat</span><label class="toggle"><input type="checkbox" id="wl-prefer" ${preferred() ? 'checked' : ''} ${isLoaded() ? '' : 'disabled'}><span class="toggle-slider"></span></label></div>
+      <div id="wl-status" style="font-size:12.5px;color:${isLoaded() ? 'var(--success)' : 'var(--text-muted)'};margin-bottom:8px">${isLoaded() ? loadedModel() + ' loaded' : 'No model loaded.'}</div>
+      <div class="setting-toggle-row"><span>Use on-device AI for chat</span><label class="toggle"><input type="checkbox" id="wl-prefer" aria-label="Use on-device AI for chat" ${preferred() ? 'checked' : ''} ${isLoaded() ? '' : 'disabled'}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin-top:6px;font-size:11px">When on, AI chat runs locally on your GPU. Summaries, agent &amp; multi-tab still use cloud (small local models can't do those reliably). Falls back to cloud/Ollama automatically if anything fails or times out.</p>`;
 
     const bar = container.querySelector('#wl-bar');
@@ -179,7 +179,7 @@ const WebLLM = (() => {
       try {
         await load(id);
         status.textContent = loadedModel() + ' loaded — ready';
-        status.style.color = '#22c55e';
+        status.style.color = 'var(--success)';
         preferToggle.disabled = false;
         container.querySelector('#wl-unload').style.display = 'inline-block';
         window.showToast?.('On-device model ready');

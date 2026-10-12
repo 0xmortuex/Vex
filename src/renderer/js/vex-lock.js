@@ -25,11 +25,19 @@ const VexLock = {
   FAILS_KEY: 'vex.lockFails',
   WAIT_KEY: 'vex.lockWaitUntil',
   WAIT_MS: 30000,
+  // Each round of five wrong PINs doubles the wait, up to an hour, the same
+  // as main's own count (src/main/lock-pin.js waitFor; audit SE2).
+  ROUNDS_KEY: 'vex.lockRounds',
+  MAX_WAIT_MS: 60 * 60 * 1000,
   get _fails() { const n = Number(localStorage.getItem(this.FAILS_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; },
   set _fails(n) { if (n > 0) localStorage.setItem(this.FAILS_KEY, String(n)); else localStorage.removeItem(this.FAILS_KEY); },
+  get _rounds() { const n = Number(localStorage.getItem(this.ROUNDS_KEY)); return Number.isFinite(n) && n > 0 ? n : 0; },
+  set _rounds(n) { if (n > 0) localStorage.setItem(this.ROUNDS_KEY, String(n)); else localStorage.removeItem(this.ROUNDS_KEY); },
+  _waitFor(round) { return Math.min(this.WAIT_MS * 2 ** (Math.max(1, round) - 1), this.MAX_WAIT_MS); },
+  _waitText(ms) { const s = Math.ceil(ms / 1000); return s < 120 ? s + ' s' : Math.ceil(s / 60) + ' min'; },
   // Never more than one wait from now: a clock that jumped would otherwise
   // leave Vex refusing the right PIN for as long as the jump.
-  get _waitUntil() { const t = Number(localStorage.getItem(this.WAIT_KEY)); return Number.isFinite(t) && t > 0 ? Math.min(t, Date.now() + this.WAIT_MS) : 0; },
+  get _waitUntil() { const t = Number(localStorage.getItem(this.WAIT_KEY)); return Number.isFinite(t) && t > 0 ? Math.min(t, Date.now() + this._waitFor(this._rounds)) : 0; },
   set _waitUntil(t) { if (t > 0) localStorage.setItem(this.WAIT_KEY, String(t)); else localStorage.removeItem(this.WAIT_KEY); },
 
   hasPin() { try { return !!JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null'); } catch { return false; } },
@@ -44,9 +52,27 @@ const VexLock = {
     if (!/^\d{4,12}$/.test(String(pin))) throw new Error('A PIN is 4 to 12 digits');
     const salt = crypto.getRandomValues(new Uint8Array(16));
     localStorage.setItem(this.PIN_KEY, JSON.stringify({ salt: btoa(String.fromCharCode(...salt)), hash: await this._hash(pin, salt) }));
+    // Main checks the PIN when Vex is unlocked (src/main/lock-pin.js), so it
+    // is saved there before "PIN saved" is said.
+    if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
   },
 
   clearPin() { localStorage.removeItem(this.PIN_KEY); },
+
+  // Asked again before a secret is shown or copied (a saved password, the sync
+  // recovery code): the Vex PIN when one is set, checked by main with the same
+  // wrong-PIN count as unlocking; otherwise a plain confirmation, so someone
+  // passing by at least has to mean it. -> true to go ahead.
+  async recheck({ title, message, okLabel = 'Continue' }) {
+    if (!this.hasPin()) return !!(await window.vexConfirm({ title, message, okLabel }));
+    const pin = await window.vexPrompt({ title, message: message + ' Enter your Vex PIN to continue.', label: 'Vex PIN', password: true, okLabel });
+    if (pin === null) return false;
+    let result;
+    try { result = await window.vex.verifyLockPin(String(pin).trim().slice(0, 12)); }
+    catch (err) { window.showToast?.('Could not check the PIN: ' + err.message, 'error'); return false; }
+    if (!result || !result.ok) { window.showToast?.((result && result.error) || 'Wrong PIN', 'error'); return false; }
+    return true;
+  },
 
   async check(pin) {
     const stored = JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null');
@@ -101,12 +127,21 @@ const VexLock = {
     const msg = el.querySelector('.vex-lock-msg');
     el.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + Math.ceil((this._waitUntil - Date.now()) / 1000) + ' s'; return; }
-      if (await this.check(input.value)) { this.unlock(); return; }
+      if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + this._waitText(this._waitUntil - Date.now()); return; }
+      if (await this.check(input.value)) {
+        try { await this.unlock(input.value); }
+        catch (err) { input.value = ''; msg.textContent = err.message; }
+        return;
+      }
       this._fails++;
       input.value = '';
-      // Five wrong in a row: thirty seconds before the next try.
-      if (this._fails >= 5) { this._waitUntil = Date.now() + this.WAIT_MS; this._fails = 0; msg.textContent = 'Too many tries — wait 30 s'; }
+      // Five wrong in a row: a wait before the next try, longer each round.
+      if (this._fails >= 5) {
+        this._rounds = this._rounds + 1;
+        const wait = this._waitFor(this._rounds);
+        this._waitUntil = Date.now() + wait; this._fails = 0;
+        msg.textContent = 'Too many tries — wait ' + this._waitText(wait);
+      }
       else msg.textContent = 'Wrong PIN';
     });
     input.focus();
@@ -114,11 +149,21 @@ const VexLock = {
     return true;
   },
 
-  unlock() {
+  // Only main opens Vex, and only for the right PIN: the window saying so
+  // was enough before, and DevTools' console could say it (audit B1).
+  async unlock(pin) {
+    if (!window.vex?.unlockLock) throw new Error('Vex could not ask to be unlocked');
+    const r = await window.vex.unlockLock(String(pin ?? ''));
+    if (!r || r.ok !== true) throw new Error((r && r.error) || 'Vex stayed locked');
+    this._open();
+  },
+
+  // Take the lock screen away, once main has unlocked.
+  _open() {
     this._locked = false;
     this._fails = 0;
+    this._rounds = 0;
     localStorage.removeItem(this.LOCKED_KEY);
-    window.vex?.setLockState?.(false);
     this._watch?.disconnect();
     this._watch = null;
     for (const node of this._inerted || []) node.removeAttribute('inert');
@@ -126,6 +171,9 @@ const VexLock = {
     document.body.classList.remove('vex-locked');
     this._el?.remove();
     this._el = null;
+    // Vex Sync waits for this to send saved passwords and authenticator
+    // accounts again (js/sync-engine.js).
+    window.dispatchEvent(new CustomEvent('vex-unlocked'));
   },
 
   async _idleCheck() {

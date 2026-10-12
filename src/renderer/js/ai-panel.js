@@ -47,7 +47,7 @@ const AIPanel = {
         if (!a) return;
         e.preventDefault();
         if (e.button !== 0 && e.button !== 1) return;
-        if (typeof TabManager !== 'undefined') TabManager.createTab(a.href, true);
+        if (typeof TabManager !== 'undefined') TabManager.createTabBesideActive(a.href, true);
       };
       msgsEl.addEventListener('click', openMdLink);
       msgsEl.addEventListener('auxclick', openMdLink);
@@ -112,17 +112,20 @@ const AIPanel = {
     document.getElementById('ai-input')?.addEventListener('input', (e) => {
       if (typeof PersonasManager === 'undefined') return;
       const val = e.target.value;
-      // Only trigger after the @word is terminated (space or end of trailing word with more than 2 chars)
-      const m = val.match(/@([A-Za-z0-9_]{2,})(\s|$)/);
+      // Only a whole @word, at the start or after a space, and only once a
+      // space ends it. It used to fire while the word was still being typed
+      // and in the middle of an address: "bob@co" switched to "Code
+      // Reviewer" and "bob@company.com" became "bobmpany.com" (found
+      // 2026-10-10).
+      const m = this._takeMention(val);
       if (!m) return;
-      const mention = PersonasManager.findByMention('@' + m[1]);
+      const mention = PersonasManager.findByMention('@' + m.word);
       if (!mention) return;
       const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
       PersonasManager.setActiveForTab(tab?.id, mention.id);
       this.updatePersonaSwitcher();
       this._renderPersonaQuickPrompts();
-      // Strip the first @word from the input
-      e.target.value = val.replace(/@[A-Za-z0-9_]+\s*/, '').trim();
+      e.target.value = m.rest;
       if (typeof window.showToast === 'function') window.showToast(`Switched to ${mention.name}`, 'info');
     });
 
@@ -169,11 +172,24 @@ const AIPanel = {
           } else {
             this.sendMessage('summarize');
           }
-        } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: 'English' });
+        } else if (action === 'translate') this.sendMessage('translate', { targetLanguage: this.translateTarget() });
         else if (action === 'ask') document.getElementById('ai-input')?.focus();
         else if (action === 'group-tabs') { if (typeof TabGrouper !== 'undefined') TabGrouper.analyzeAndPropose(); }
       });
     });
+  },
+
+  // The language AI Translate writes in: the one chosen for translating pages
+  // (vex.translateLang), as a name the model reads. Every AI Translate went
+  // to English whatever was chosen (found 2026-10-10).
+  translateTarget() {
+    let code = 'en';
+    try { code = localStorage.getItem('vex.translateLang') || 'en'; }
+    catch (err) { console.warn('[AI] could not read the translation language:', err.message); }
+    const known = (typeof Translator !== 'undefined' && Array.isArray(Translator.languages)) ? Translator.languages.find(l => l.code === code) : null;
+    if (known) return known.name;
+    try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; }
+    catch { return code; }
   },
 
   // ---- How the agent asks for permission ---------------------------------
@@ -342,6 +358,7 @@ const AIPanel = {
 
   open() {
     this._initShell();
+    this._placeBelowChrome();
     document.getElementById('ai-panel')?.classList.add('open');
     // The mark that says an answer arrived while this was shut has done its job.
     document.getElementById('btn-toggle-ai')?.classList.remove('answered');
@@ -357,6 +374,14 @@ const AIPanel = {
   },
 
   // === Phase 15: Persona switcher ===
+  // "@word " typed in the box → { word, rest } (rest: the text without that
+  // @word and nothing else), or null.
+  _takeMention(val) {
+    const m = String(val || '').match(/(^|\s)@([A-Za-z0-9_]{2,})\s/);
+    if (!m) return null;
+    return { word: m[2], rest: (val.slice(0, m.index) + m[1] + val.slice(m.index + m[0].length)).trim() };
+  },
+
   getActivePersona() {
     if (typeof PersonasManager === 'undefined') return null;
     const tab = (typeof TabManager !== 'undefined') ? TabManager.getActiveTab() : null;
@@ -520,6 +545,34 @@ const AIPanel = {
     return (window.VexIcons && VexIcons.has(name)) ? VexIcons.svg(name, { size: size || 15 }) : '';
   },
 
+  // The panel is fixed to the window, and from top:0 it covered the right end
+  // of the tab strip and toolbar in every look: a click on "+" or the window's
+  // close button landed on the panel (found 2026-10-12). It starts where the
+  // page area (#main-layout) starts instead, which is below whatever chrome
+  // the look has, and follows it when that changes height (the bookmarks bar,
+  // full screen): the page area and the bars above it are watched for size.
+  // A look switch settles over several steps and can leave the page area the
+  // same height with a different top, so the end of one places it again too.
+  _chromeWatch: null,
+  _placeBelowChrome() {
+    const main = document.getElementById('main-layout');
+    if (!main) throw new Error('AI panel: #main-layout is missing, so the panel cannot be placed below the toolbar');
+    const top = Math.max(0, Math.round(main.getBoundingClientRect().top));
+    document.documentElement.style.setProperty('--ai-top', top + 'px');
+    if (typeof ResizeObserver !== 'function') return;
+    if (!this._chromeWatch) {
+      this._chromeWatch = new ResizeObserver(() => this._placeBelowChrome());
+      this._chromeWatched = new WeakSet();
+      window.addEventListener('vex:gui-style', () => this._placeBelowChrome());
+    }
+    // Observed once each: observing an element again reports it again, which
+    // would call this again, for ever. The shortcuts bar is built later.
+    for (const id of ['main-layout', 'top-bar', 'top-tab-bar', 'gui-shortcuts-bar']) {
+      const el = document.getElementById(id);
+      if (el && !this._chromeWatched.has(el)) { this._chromeWatched.add(el); this._chromeWatch.observe(el); }
+    }
+  },
+
   _initShell() {
     if (this._shellReady) return;
     this._shellReady = true;
@@ -629,12 +682,18 @@ const AIPanel = {
     this._onDocDown = (e) => {
       if (!this.isOpen()) return;
       if (panel && panel.contains(e.target)) return;
+      // Answering a question the panel asked (a setting change, the agent's
+      // Paused prompt) is not clicking away: it closed the panel (found
+      // 2026-10-10).
+      if (e.target?.closest?.('.vex-dialog-overlay')) return;
       // The buttons that open it must stay a toggle, not close-then-reopen.
       if (e.target?.closest?.('#btn-toggle-ai, .vex-job-btn, #ai-backdrop')) return;
       this.close();
     };
     this._onEsc = (e) => {
       if (e.key !== 'Escape' || !this.isOpen()) return;
+      // Escape in a dialog closes the dialog, not the panel behind it.
+      if (document.querySelector('.vex-dialog-overlay')) return;
       const dd = document.getElementById('persona-dropdown');
       const td = document.getElementById('tab-selector-dropdown');
       if (dd && !dd.hidden) { dd.hidden = true; return; }
@@ -1048,7 +1107,7 @@ const AIPanel = {
     const links = this._linksIn(m.content);
     if (links.length) {
       chip(links.length === 1 ? 'Open the source' : 'Open the ' + Math.min(links.length, 5) + ' sources', () => {
-        for (const u of links.slice(0, 5)) TabManager.createTab(u, false);
+        for (const u of links.slice(0, 5)) TabManager.createTabBesideActive(u, false);
         window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + (links.length === 1 ? '' : 's') + ' in the background');
       });
     }
@@ -1183,7 +1242,7 @@ const AIPanel = {
       try {
         const tab = (typeof TabManager !== 'undefined' && TabManager.tabs)
           ? TabManager.tabs.find(t => String(t.id) === String(id)) : null;
-        if (tab && window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) this._convPrivate[id] = true;
+        if (tab && window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) this._convPrivate[id] = true;
       } catch {}
     }
     return this._conversations[id];
@@ -1681,15 +1740,21 @@ const AIPanel = {
 
   // Right-click any image → "Ask Vex about this image". The model can see now
   // (v2.31.86), so this is a question about the picture, not about its address.
+  // The picture is in the tab in front (the right-click came from it); it is
+  // fetched through that tab's own session, and a private, off-the-record or
+  // Tor tab's is sent only if the person says yes here.
   async askAboutImage(srcUrl, question) {
-    if (!this.isOpen()) this.open();
     let image;
-    try { image = await this._imageAsData(srcUrl); }
-    catch (err) {
+    try {
+      image = await this._imageAsData(srcUrl);
+      if (image === null) return false;   // the person said no
+    } catch (err) {
+      if (!this.isOpen()) this.open();
       this._addError('That image could not be read: ' + ((err && err.message) || ''));
       VexProblems?.note('AI', 'Could not read an image for the AI', err);
       return false;
     }
+    if (!this.isOpen()) this.open();
     const ask = question || 'What is in this image?';
     await this.sendMessage('chat', { message: ask, image });
     return true;
@@ -1698,21 +1763,25 @@ const AIPanel = {
   // Fetched through main, because the page's own image is on its origin and
   // the interface is a file:// document — and shrunk, because a model does not
   // need four megapixels to answer.
+  // Resolves to null when the person declines to send a private or Tor tab's
+  // picture. Fetched by main through the tab's own session (image:for-ai),
+  // which also sends the tab's own user agent and cookies.
   async _imageAsData(srcUrl) {
     if (/^data:image\//.test(srcUrl)) return this._shrinkImage(srcUrl);
-    if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Vex cannot fetch images in this build');
-    // A User-Agent is not optional: Wikimedia and others answer a request
-    // without one with 400 and an HTML error page — which then read as "that
-    // address is not an image" instead of what actually happened.
-    const r = await window.vex.apiRequest({ url: srcUrl, binary: true, headers: { 'User-Agent': navigator.userAgent, Accept: 'image/*,*/*;q=0.8' } });
+    if (!window.vex || typeof window.vex.imageForAi !== 'function') throw new Error('Vex cannot fetch images in this build');
+    const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.getActiveWebview() : null;
+    const pageId = wv && typeof wv.getWebContentsId === 'function' ? wv.getWebContentsId() : 0;
+    if (!(pageId > 0)) throw new Error('the tab it is in is not open');
+    let r = await window.vex.imageForAi(pageId, srcUrl, false);
+    if (r && r.needsConsent) {
+      const where = r.kind === 'tor' ? 'a Tor tab' : 'a private tab';
+      const yes = await window.vexConfirm({ title: 'Send a picture from ' + where + '?', message: `This picture is in ${where}. Asking Vex about it sends the picture to your AI model, which may be online.`, okLabel: 'Send it' });
+      if (!yes) return null;
+      r = await window.vex.imageForAi(pageId, srcUrl, true);
+    }
     if (!r || !r.ok) throw new Error((r && r.error) || 'the request failed');
-    // `ok` means the request completed, not that the server was happy.
-    if (r.status >= 400) throw new Error('the site answered ' + r.status + ' (' + (r.statusText || 'error') + ')');
-    const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || 'image/png').split(';')[0];
-    if (!/^image\//.test(type)) throw new Error('that address gave back ' + type + ', not an image');
-    const base64 = r.base64 || r.body;
-    if (!base64) throw new Error('nothing came back');
-    return this._shrinkImage('data:' + type + ';base64,' + base64);
+    if (!r.base64) throw new Error('nothing came back');
+    return this._shrinkImage('data:' + r.type + ';base64,' + r.base64);
   },
 
   _shrinkImage(dataUrl, max = 1024) {
@@ -2118,11 +2187,18 @@ const AIPanel = {
     conv.push({ role: 'user', content: question, at: Date.now() });
     let line;
     try {
-      await doable.action();
-      // The command bar's label is a label — "Timer: 10:00" — which reads
-      // oddly as an answer. Its hint says what will happen and when, so the
-      // two together make a sentence: "Timer: 10:00 — Ends at 23:39".
-      line = [doable.label, doable.hint].filter(Boolean).join(' — ') || 'Done.';
+      // A question it can answer by itself ("what time is it in Sydney") is
+      // answered, and nothing is done.
+      if (typeof doable.answer === 'string' && doable.answer) line = doable.answer;
+      else {
+        // An action that says what happened ("Remembered.", a setting's new
+        // value) is the answer, in one line.
+        const said = await doable.action();
+        // The command bar's label is a label — "Timer: 10:00" — which reads
+        // oddly as an answer. Its hint says what will happen and when, so the
+        // two together make a sentence: "Timer: 10:00 — Ends at 23:39".
+        line = (typeof said === 'string' && said) ? said : ([doable.label, doable.hint].filter(Boolean).join(' — ') || 'Done.');
+      }
     } catch (err) {
       line = 'I could not: ' + ((err && err.message) || 'that did not work');
     }
@@ -2179,7 +2255,8 @@ const AIPanel = {
       return b;
     };
     if (VexFeatures.command(a.entry) || a.entry.panel) button('Do it', 'Run it now', () => VexGuide.run(a.entry));
-    if (a.entry.sel || a.entry.setting) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
+    if (a.entry.setting && (a.entry.setting.id || a.entry.setting.section)) button('Open settings', 'Open its switch in Settings', () => SettingsUI.openSection(a.entry.setting.id || a.entry.setting.section));
+    if (a.entry.sel) button('Show me', 'Point at it on screen', () => VexGuide.show(a.entry));
     if (a.entry.steps) button('Step me through it', 'One step at a time', () => VexGuide.walk(a.entry));
     // Three lines is the answer; the Library entry is the whole thing — where
     // it lives, every step, and what sits next to it (js/feature-library.js).
@@ -2198,7 +2275,10 @@ const AIPanel = {
   },
 
   _clearChat() {
-    const tabId = this._getTabId();
+    // The chat on screen: a past chat opened from Recent chats, or this tab's.
+    // It used to empty this tab's chat while a past one was showing (found
+    // 2026-10-10).
+    const tabId = this._viewingId || this._getTabId();
     if (tabId) this._conversations[tabId] = [];
     if (typeof ChatFile !== 'undefined') ChatFile.clear(tabId);
     this._persistConversations();
@@ -2763,6 +2843,13 @@ const AIPanel = {
 
     this._sending = true;
     this._setComposerBusy(true);
+    // Stop cancels a history search too: it had no Stop, and a slow model
+    // kept the panel busy until it answered (found 2026-10-10). Same
+    // controller and button as sendMessage.
+    const abort = new AbortController();
+    let finished;
+    this._chat = { abort, done: new Promise(r => { finished = r; }) };
+    document.getElementById('ai-stop-agent')?.classList.add('visible');
     const loadingEl = this._addLoading();
     if (loadingEl) loadingEl.innerHTML = 'Searching your history <span class="ai-spinner"></span>';
 
@@ -2774,8 +2861,9 @@ const AIPanel = {
       }));
 
       const aiResult = await AIRouter.callAI('historySearch', {
-        query, historyEntries: compact, timeContext: new Date().toISOString()
+        query, historyEntries: compact, timeContext: new Date().toISOString(), signal: abort.signal,
       });
+      if (abort.signal.aborted) throw new Error('Stopped');
       loadingEl?.remove();
 
       if (!aiResult || !aiResult.result) {
@@ -2802,11 +2890,20 @@ const AIPanel = {
       return true;
     } catch (err) {
       loadingEl?.remove();
+      if (abort.signal.aborted) {
+        this._getConv(this._getTabId()).push({ role: 'assistant', content: 'Stopped.', at: Date.now(), didIt: true });
+        this._persistConversations();
+        this._renderMessages();
+        return true;
+      }
       this._addError(err.message || 'Network error', () => this._handleHistorySearch(query, { _noEcho: true }));
       return false;
     } finally {
       this._sending = false;
       this._setComposerBusy(false);
+      this._chat = null;
+      if (!(typeof AgentLoop !== 'undefined' && AgentLoop.isRunning?.())) document.getElementById('ai-stop-agent')?.classList.remove('visible');
+      finished();
     }
   },
 
@@ -2845,7 +2942,7 @@ const AIPanel = {
     msgEl.querySelectorAll('.chat-history-item').forEach(item => {
       item.addEventListener('click', () => {
         const url = item.dataset.url;
-        if (url && typeof TabManager !== 'undefined') TabManager.createTab(url, true);
+        if (url && typeof TabManager !== 'undefined') TabManager.createTabBesideActive(url, true);
       });
     });
     container.appendChild(msgEl);

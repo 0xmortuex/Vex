@@ -31,6 +31,8 @@ function makeWebview() {
     setAudioMuted(v) { this.muted = v; },
     executeJavaScript(js) { if (/pause/.test(js)) this.paused = true; return Promise.resolve('ok'); },
     send(channel) { this.sent.push(channel); },
+    // The tab's page: main opens the pop-out in its session.
+    getWebContentsId() { return 12; },
   };
 }
 
@@ -68,10 +70,10 @@ const MP4 = { src: 'https://cdn.example.com/clip.mp4', currentTime: 42, paused: 
 const detected = (hasVideo) => window.dispatchEvent(new MessageEvent('message', { data: { type: 'vex-video-detected', hasVideo } }));
 const flush = () => new Promise(r => setTimeout(r, 0));
 
-describe('the toolbar button follows the page', () => {
-  it('appears when the active page has video and hides when it does not', () => {
+describe('the video report from the page', () => {
+  it('is remembered, but no longer parks a button in the window corner (pipButton.test.js)', () => {
     detected(true);
-    expect(document.getElementById('pip-btn').style.display).toBe('flex');
+    expect(document.getElementById('pip-btn').style.display).toBe('none');
     expect(PiPManager.videoDetected).toBe(true);
 
     detected(false);
@@ -85,7 +87,7 @@ describe('the pop-out does not leave you hearing the video twice', () => {
     fallback();
     await flush();
 
-    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', null);
+    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', null, 12);
     expect(webview.muted).toBe(true);
     expect(webview.paused).toBe(true);
     expect(PiPManager._source).toEqual({ tabId: 'tab-1', wasMuted: false });
@@ -196,7 +198,7 @@ describe('floating the video instead of the whole site', () => {
   it('hands the video description to main when the guest supplies one', async () => {
     fallback(MP4);
     await flush();
-    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', MP4);
+    expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://example.com/watch', MP4, 12);
   });
 
   it('says so when the site forced the whole-page fallback', async () => {

@@ -51,17 +51,6 @@ function nextRepeat(atMs, repeat, after, time) {
   return d.getTime();
 }
 
-// First occurrence of an alarm: today at HH:MM if still ahead and today is an
-// allowed day, else the next allowed day.
-function firstAlarmAt(hour, minute, days, now) {
-  const d = new Date(now); d.setHours(hour, minute, 0, 0);
-  const allowed = (Array.isArray(days) && days.length) ? days : [0, 1, 2, 3, 4, 5, 6];
-  if (d.getTime() <= now || !allowed.includes(d.getDay())) {
-    do { d.setDate(d.getDate() + 1); } while (!allowed.includes(d.getDay()));
-  }
-  return d.getTime();
-}
-
 // A host pattern for "next time I open …": the bare host, lower case, no www.
 function siteKey(s) {
   let h = String(s || '').trim().toLowerCase();
@@ -429,4 +418,4 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
   };
 }
 
-module.exports = { createReminders, nextRepeat, firstAlarmAt, siteKey, REPEATS, KINDS, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };
+module.exports = { createReminders, nextRepeat, siteKey, REPEATS, KINDS, MAX_MESSAGE, CHECK_MS, MIN_LEAD_MS };

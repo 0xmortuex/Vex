@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 let storage;
+// Every key saved, in order, as [key, value-or-null], one array per write.
+const writes = () => window.vex.persistApply.mock.calls.map(c => c[0]);
 beforeEach(async () => {
   vi.useFakeTimers();
   vi.resetModules();
   localStorage.clear(); sessionStorage.clear();
-  window.vex = { persistSet: vi.fn(async () => true), persistDelete: vi.fn(async () => true), persistGetAll: vi.fn(async () => ({})) };
+  window.vex = { persistApply: vi.fn(async () => true), persistGetAll: vi.fn(async () => ({})) };
   storage = (await import('../../src/renderer/js/storage.js')).PersistentStorage;
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
@@ -13,10 +15,10 @@ afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
 it('mirrors real Storage writes and removals through IPC', async () => {
   localStorage.setItem('vex.name', 'Ada');
   await vi.advanceTimersByTimeAsync(300);
-  expect(window.vex.persistSet).toHaveBeenCalledWith('vex.name', 'Ada');
+  expect(writes()).toEqual([[['vex.name', 'Ada']]]);
   localStorage.removeItem('vex.name');
   await vi.advanceTimersByTimeAsync(300);
-  expect(window.vex.persistDelete).toHaveBeenCalledWith('vex.name');
+  expect(writes()[1]).toEqual([['vex.name', null]]);
   expect(localStorage.getItem('setItem')).toBeNull();
 });
 
@@ -24,10 +26,10 @@ it('mirrors clear while leaving sessionStorage and unrelated keys out of disk st
   localStorage.setItem('vex.name', 'Ada'); localStorage.setItem('other', 'x');
   sessionStorage.setItem('vex.session', 'temporary');
   await vi.advanceTimersByTimeAsync(300);
-  expect(window.vex.persistSet.mock.calls).toEqual([['vex.name', 'Ada']]);
+  expect(writes()).toEqual([[['vex.name', 'Ada']]]);
   localStorage.clear();
   await vi.advanceTimersByTimeAsync(300);
-  expect(window.vex.persistDelete.mock.calls).toEqual([['vex.name']]);
+  expect(writes()[1]).toEqual([['vex.name', null]]);
 });
 
 it('hydrates values from the authoritative disk mirror', async () => {
@@ -40,11 +42,11 @@ it('does not resurrect deleted preferences from a stale Chromium copy', async ()
   // A stale value predating this launch has no pending write.
   localStorage.setItem('vex.deleted', 'old');
   await storage._flush();
-  window.vex.persistSet.mockClear();
+  window.vex.persistApply.mockClear();
   window.vex.persistGetAll.mockResolvedValue({ __vexPreferenceStore: 1 });
   await storage.init();
   expect(localStorage.getItem('vex.deleted')).toBeNull();
-  expect(window.vex.persistSet).not.toHaveBeenCalled();
+  expect(window.vex.persistApply).not.toHaveBeenCalled();
   expect(localStorage.getItem('__vexPreferenceStore')).toBeNull();
 });
 
@@ -56,22 +58,22 @@ it('preserves new writes arriving during hydration', async () => {
   resolve({ 'vex.name': 'Old', __vexPreferenceStore: 1 });
   await initialized;
   expect(localStorage.getItem('vex.name')).toBe('New');
-  expect(window.vex.persistSet).toHaveBeenCalledWith('vex.name', 'New');
+  expect(writes().flat()).toContainEqual(['vex.name', 'New']);
 });
 
 it('keeps overlapping disk batches in order when an IPC call stalls', async () => {
   let release;
-  window.vex.persistSet.mockImplementationOnce(() => new Promise(r => { release = r; }));
+  window.vex.persistApply.mockImplementationOnce(() => new Promise(r => { release = r; }));
   localStorage.setItem('vex.a', 'old'); localStorage.setItem('vex.b', 'old');
   const first = storage._flush();
   await Promise.resolve();
   localStorage.setItem('vex.b', 'new');
   const second = storage._flush();
   await Promise.resolve();
-  expect(window.vex.persistSet.mock.calls).toEqual([['vex.a', 'old']]);
+  expect(writes()).toEqual([[['vex.a', 'old'], ['vex.b', 'old']]]);
   release(true);
   await Promise.all([first, second]);
-  expect(window.vex.persistSet.mock.calls).toEqual([['vex.a', 'old'], ['vex.b', 'old'], ['vex.b', 'new']]);
+  expect(writes()).toEqual([[['vex.a', 'old'], ['vex.b', 'old']], [['vex.b', 'new']]]);
 });
 
 it('rejects non-hex recovery keys rather than silently converting invalid bytes to zero', async () => {

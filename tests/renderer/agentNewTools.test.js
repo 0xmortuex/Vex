@@ -87,7 +87,8 @@ describe('download_file', () => {
 describe('sign_in', () => {
   it('has the vault fill the form, and never returns the password', async () => {
     const r = await AgentExecutor.executeTool('sign_in', {}, {});
-    expect(PasswordVault.autofill).toHaveBeenCalled();
+    // The person asked for it, so it fills at once (still from the isolated world).
+    expect(PasswordVault.autofill).toHaveBeenCalledWith(expect.anything(), expect.any(String), { now: true });
     expect(r.ok).toBe(true);
     expect(r.result).toContain('site.example');
     // The account and its secret stay between the vault and the page.

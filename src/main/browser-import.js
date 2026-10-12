@@ -1,6 +1,7 @@
 // === Bringing bookmarks, history and passwords over from another browser ===
 //
-// Chrome, Edge, Brave (all Chromium) and Firefox keep bookmarks and history in
+// Chrome (and its Beta and Canary), Edge, Brave, Opera, Opera GX, Vivaldi and
+// Chromium (all Chromium), and Firefox and LibreWolf keep bookmarks and history in
 // plain files in each profile folder: Chromium a "Bookmarks" JSON file and a
 // "History" SQLite database, Firefox one "places.sqlite". They are read here,
 // in the main process, and only what they hold (addresses, titles, folders,
@@ -22,13 +23,28 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Where each keeps its profiles: under %LOCALAPPDATA%, or %APPDATA% (roaming)
+// for Opera. Opera keeps its one profile in the folder itself (older
+// versions) or in Default; both are looked for. Firefox Developer Edition and
+// Nightly share Firefox's profiles.ini, so their profiles are listed under
+// Firefox with their own names (dev-edition-default).
 const CHROMIUM = {
   chrome: { name: 'Chrome', dir: ['Google', 'Chrome', 'User Data'] },
+  'chrome-beta': { name: 'Chrome Beta', dir: ['Google', 'Chrome Beta', 'User Data'] },
+  'chrome-canary': { name: 'Chrome Canary', dir: ['Google', 'Chrome SxS', 'User Data'] },
   edge: { name: 'Edge', dir: ['Microsoft', 'Edge', 'User Data'] },
   brave: { name: 'Brave', dir: ['BraveSoftware', 'Brave-Browser', 'User Data'] },
+  vivaldi: { name: 'Vivaldi', dir: ['Vivaldi', 'User Data'] },
+  chromium: { name: 'Chromium', dir: ['Chromium', 'User Data'] },
+  opera: { name: 'Opera', dir: ['Opera Software', 'Opera Stable'], roaming: true, selfProfile: true },
+  'opera-gx': { name: 'Opera GX', dir: ['Opera Software', 'Opera GX Stable'], roaming: true, selfProfile: true },
 };
-const BROWSERS = ['chrome', 'edge', 'brave', 'firefox'];
-const NAMES = { chrome: 'Chrome', edge: 'Edge', brave: 'Brave', firefox: 'Firefox' };
+const FIREFOX = {
+  firefox: { name: 'Firefox', dir: ['Mozilla', 'Firefox'] },
+  librewolf: { name: 'LibreWolf', dir: ['librewolf'] },
+};
+const BROWSERS = [...Object.keys(CHROMIUM), ...Object.keys(FIREFOX)];
+const NAMES = Object.fromEntries([...Object.entries(CHROMIUM), ...Object.entries(FIREFOX)].map(([id, b]) => [id, b.name]));
 
 // Vex keeps the latest 5,000 visits (js/history-panel.js MAX_ENTRIES); reading
 // more than that from a browser with years of history would only be thrown away.
@@ -50,10 +66,11 @@ const fromPrTimeMs = (ms) => { const n = Number(ms); return n > 0 ? n : 0; };
 const iso = (ms) => (ms > 0 && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
 
 function chromiumRoot(browser, env) {
-  return env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, ...CHROMIUM[browser].dir) : null;
+  const base = CHROMIUM[browser].roaming ? env.APPDATA : env.LOCALAPPDATA;
+  return base ? path.join(base, ...CHROMIUM[browser].dir) : null;
 }
-function firefoxRoot(env) {
-  return env.APPDATA ? path.join(env.APPDATA, 'Mozilla', 'Firefox') : null;
+function firefoxRoot(browser, env) {
+  return env.APPDATA ? path.join(env.APPDATA, ...FIREFOX[browser].dir) : null;
 }
 
 // Windows tools often start a text file with a byte-order mark.
@@ -71,6 +88,8 @@ function chromiumProfiles(browser, env) {
   try { names = readJson(path.join(root, 'Local State'))?.profile?.info_cache || {}; }
   catch { names = {}; }   // no Local State: the folder names will do
   const out = [];
+  const holds = (dir) => ['Bookmarks', 'History'].some(f => fs.existsSync(path.join(dir, f)));
+  if (CHROMIUM[browser].selfProfile && holds(root)) out.push({ id: '.', name: CHROMIUM[browser].name, dir: root });
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory() || !/^(Default|Profile \d+)$/.test(entry.name)) continue;
     const dir = path.join(root, entry.name);
@@ -97,8 +116,8 @@ function parseProfilesIni(text) {
   }
   return sections.filter(s => /^Profile\d+$/.test(s.section) && s.Path);
 }
-function firefoxProfiles(env) {
-  const root = firefoxRoot(env);
+function firefoxProfiles(browser, env) {
+  const root = firefoxRoot(browser, env);
   const ini = root && path.join(root, 'profiles.ini');
   if (!ini || !fs.existsSync(ini)) return [];
   const out = [];
@@ -112,7 +131,7 @@ function firefoxProfiles(env) {
 }
 
 function profilesOf(browser, env) {
-  if (browser === 'firefox') return firefoxProfiles(env);
+  if (FIREFOX[browser]) return firefoxProfiles(browser, env);
   if (CHROMIUM[browser]) return chromiumProfiles(browser, env);
   throw new Error('Unknown browser: ' + browser);
 }
@@ -189,8 +208,8 @@ function chromiumHistory(file, tmp, browserName, limit) {
 
 const FIREFOX_ROOTS = { 'menu________': 'Bookmarks menu', 'toolbar_____': 'Bookmarks toolbar', 'unfiled_____': 'Other bookmarks', 'mobile______': 'Mobile bookmarks' };
 
-function firefoxPlaces(file, tmp, limit) {
-  const db = openCopy(file, tmp, 'Firefox');
+function firefoxPlaces(file, tmp, limit, browserName) {
+  const db = openCopy(file, tmp, browserName);
   try {
     // type 1 is a bookmark, 2 a folder; the tags tree (tags________) is not
     // bookmarks and is left behind with everything not under a known root.
@@ -222,7 +241,7 @@ function readProfile(browser, profileId, { env = process.env, limit = HISTORY_LI
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-import-'));
   try {
     let bookmarks, history;
-    if (browser === 'firefox') ({ bookmarks, history } = firefoxPlaces(path.join(profile.dir, 'places.sqlite'), tmp, limit));
+    if (FIREFOX[browser]) ({ bookmarks, history } = firefoxPlaces(path.join(profile.dir, 'places.sqlite'), tmp, limit, NAMES[browser]));
     else {
       bookmarks = chromiumBookmarks(path.join(profile.dir, 'Bookmarks'));
       history = chromiumHistory(path.join(profile.dir, 'History'), tmp, NAMES[browser], limit);
@@ -271,13 +290,15 @@ function credentialsFromCsv(text) {
   const iPass = col('password', 'login_password');
   if (iUrl < 0 || iPass < 0) throw new Error('That file is not a password export — it has no url and password columns');
   const entries = [];
-  let noUsername = 0, notWeb = 0;
+  // A login with no username is kept: Chrome and Firefox save them (a site
+  // that asks only for a password or a PIN), and they used to be dropped.
+  const noUsername = 0;
+  let notWeb = 0;
   for (const r of rows.slice(1)) {
     const url = (r[iUrl] || '').trim(), password = r[iPass] || '', username = iUser >= 0 ? (r[iUser] || '').trim() : '';
     let host = '';
     try { const u = new URL(url); if (/^https?:$/.test(u.protocol)) host = u.hostname.toLowerCase().replace(/^www\./, ''); } catch { host = ''; }
     if (!host || !password) { notWeb++; continue; }
-    if (!username) { noUsername++; continue; }
     if (host.length > 253 || username.length > 4096 || password.length > 16384) { notWeb++; continue; }
     entries.push({ host, username, password });
   }

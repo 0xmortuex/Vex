@@ -242,24 +242,6 @@ describe('a private window keeps nothing', () => {
   });
 });
 
-describe('restoring a session', () => {
-  it('keeps each tab\'s note', async () => {
-    const { SessionManager } = await import('../../src/renderer/js/sessions.js');
-    const made = [];
-    globalThis.TabManager = {
-      tabs: [], groups: [],
-      createTab: vi.fn(),
-      createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
-      _persistableFavicon: (f) => f || null,
-      renderTabUpdate: vi.fn(), switchTab: vi.fn(), persistTabs: vi.fn(async () => {}),
-      _isKeptAwake: () => false, _materializeTab: vi.fn(),
-    };
-    window.VexTabPolicy = { canRestore: () => true };
-    SessionManager.hideOverlay = vi.fn();
-    SessionManager.sessions = [{ id: 's1', name: 'S', tabs: [{ url: 'https://a.example/', title: 'A', note: 'read the second half' }, { url: 'https://b.example/', title: 'B' }], activeTabIndex: 0 }];
-    await SessionManager.restoreSession('s1', false);
-    expect(made[0].note).toBe('read the second half');
-    expect(made[1].note).toBeUndefined();
-    delete globalThis.TabManager;
-  });
-});
+// Restoring a session keeps each tab's note: checked against the real
+// TabManager in sessionRestore.test.js since sessions restore through
+// TabManager.addSavedTabs (2026-10-10).

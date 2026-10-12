@@ -105,6 +105,13 @@
 .command-result.selected { box-shadow: inset 3px 0 0 var(--vex-accent); }
 .command-result:hover .command-result-title,
 .command-result.selected .command-result-title { color: var(--vex-text-primary); }
+/* The muted hint and shortcut on that wash fell to 2.0-3.75:1 in every theme
+   (cat-themes TH3): on the highlighted row they move most of the way to the
+   title's colour, still a step quieter than it. */
+.command-result:hover :is(.command-result-hint, .command-result-shortcut),
+.command-result.selected :is(.command-result-hint, .command-result-shortcut) {
+  color: color-mix(in srgb, var(--vex-text-primary) 80%, var(--vex-text-muted));
+}
 
 .command-result-icon {
   width: 32px;

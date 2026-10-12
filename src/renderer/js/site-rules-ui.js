@@ -48,6 +48,10 @@ const SiteRulesUI = {
 
   isOff(url, what) { const rule = this.forUrl(url); return !!(rule && rule[what] === 'off'); },
   scriptsOff(url) { return this.isOff(url, 'js'); },
+  // The site panel's "Block ads and trackers on this site": stored as the
+  // 'ads' switch beside the three above (main/site-rules.js), but not one of
+  // WHAT — a site the blocker leaves alone is not being held back.
+  adsAllowed(url) { return this.isOff(url, 'ads'); },
 
   // Main is told on every change, and once at startup — it is the side that
   // actually refuses the requests.
@@ -155,65 +159,14 @@ const SiteRulesUI = {
     return { url, wv, tab };
   },
 
+  // The switches are shown and changed in the site panel (js/site-panel.js),
+  // the one place for everything about the site in front; this used to be a
+  // dialog of its own. The toolbar marker and Ctrl+K › "What This Site Is
+  // Allowed" open the panel at its switches.
   open() {
-    const t = this._tab();
-    const host = this.host(t.url);
-    document.querySelector('.vex-siterules-overlay')?.remove();
-    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
-    const overlay = document.createElement('div');
-    overlay.className = 'vex-siterules-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.38);display:grid;place-items:start center;padding-top:12vh';
-    overlay.innerHTML = `
-      <div role="dialog" aria-modal="true" aria-label="Switches for this site"
-           style="width:min(540px,92vw);display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px var(--vex-shadow-color,rgba(0,0,0,0.45));overflow:hidden">
-        <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-          <div style="font-size:13.5px;font-weight:650;color:var(--text)">What ${esc(host)} is allowed</div>
-          <div style="font-size:10.5px;color:var(--text-muted)">Only this site, and every page of it</div>
-        </div>
-        <div data-list style="padding:6px"></div>
-        <div style="padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)">
-          A change takes effect on the next load — the page reloads itself when you close this.
-        </div>
-      </div>`;
-
-    const listEl = overlay.querySelector('[data-list]');
-    let changed = false;
-    const draw = () => {
-      listEl.innerHTML = '';
-      for (const what of this.WHAT) {
-        const off = this.isOff(t.url, what.id);
-        const row = document.createElement('label');
-        row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:9px;border-radius:8px;cursor:pointer';
-        row.innerHTML = `
-          <input type="checkbox" ${off ? '' : 'checked'} style="margin-top:2px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:12.5px;color:var(--text)">${esc(what.name)}</div>
-            <div style="font-size:10.5px;color:var(--text-muted)">${esc(what.note)}</div>
-          </div>`;
-        row.querySelector('input').addEventListener('change', async (e) => {
-          try {
-            await this.set(t.url, what.id, !e.target.checked);
-            changed = true;
-            draw();
-          } catch (err) { window.showToast?.(err.message, 'error'); draw(); }
-        });
-        listEl.appendChild(row);
-      }
-    };
-
-    const close = () => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey, true);
-      // JavaScript is decided when the tab is built, so the tab is built
-      // again — the other two take effect on the next request either way.
-      if (changed && t.tab) { try { TabManager.rebuildTab(t.tab.id); } catch { /* the tab went */ } }
-    };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-    document.addEventListener('keydown', onKey, true);
-    draw();
-    document.body.appendChild(overlay);
-    return overlay;
+    this._tab();
+    if (typeof SitePanel === 'undefined') throw new Error('The site panel is not loaded');
+    return SitePanel.open({ section: 'switches' });
   },
 };
 

@@ -71,7 +71,7 @@ function createOverlayWindow({ BrowserWindow, url, opacity = 0.92, partition = '
     width: 420, height: 560, minWidth: 220, minHeight: 160,
     frame: false, alwaysOnTop: true, resizable: true, minimizable: true, maximizable: false,
     skipTaskbar: false, title: 'Vex overlay', backgroundColor: '#111111',
-    webPreferences: { partition, preload: preload || undefined, contextIsolation: true, nodeIntegration: false, webSecurity: true },
+    webPreferences: { partition, preload: preload || undefined, contextIsolation: true, nodeIntegration: false, webSecurity: true, additionalArguments: ['--vex-web-window'] },
   });
   win.setAlwaysOnTop(true, 'screen-saver');
   let current = clamp(opacity);

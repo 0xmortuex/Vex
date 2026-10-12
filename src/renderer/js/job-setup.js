@@ -78,7 +78,7 @@ const JobSetup = {
       <div id="jsx-tool-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
         <span style="flex:1;font-size:11px;color:var(--text-muted)">Applies the theme + adds a Toolbox button and quick tools by the Tor button.</span>
-        <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
+        <button id="jsx-apply" style="padding:10px 20px;background:var(--primary,var(--accent));color:var(--on-primary,#fff);border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif">Apply</button>
       </div>`;
     const toolCard = (t) => {
       const on = this._tools.has(t.id);

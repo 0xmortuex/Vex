@@ -40,4 +40,28 @@ function latestReleaseUrl(id) {
   return 'https://api.github.com/repos/' + src.repo + '/releases/latest';
 }
 
-module.exports = { SOURCES, pickAsset, latestReleaseUrl };
+// Nothing here is pinned to a release the way a Web Store package is signed
+// (security scan M6): what the publisher's latest release holds is what is
+// installed. What Vex can check is that the file it downloaded is the one
+// GitHub published: GitHub's API gives each release asset a "digest"
+// ("sha256:<hex>"). A file that does not match is refused. An asset with no
+// digest (uploaded before GitHub kept them) cannot be checked; the answer
+// says so, and the manager shows it.
+function assetDigest(asset) {
+  const d = asset && typeof asset.digest === 'string' ? asset.digest.trim().toLowerCase() : '';
+  const m = /^sha256:([0-9a-f]{64})$/.exec(d);
+  return m ? m[1] : null;
+}
+
+// { checked: true, sha256 } when the bytes match GitHub's digest, or
+// { checked: false } when GitHub published none; throws when they differ.
+function checkAssetDigest(buffer, asset, crypto = require('crypto')) {
+  if (!Buffer.isBuffer(buffer)) throw new TypeError('checkAssetDigest: expected a Buffer');
+  const want = assetDigest(asset);
+  const got = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (!want) return { checked: false, sha256: got };
+  if (want !== got) throw new Error(`The downloaded file is not the one GitHub published (its SHA-256 does not match the release's digest). It may have been changed on the way. Nothing was installed.`);
+  return { checked: true, sha256: got };
+}
+
+module.exports = { SOURCES, pickAsset, latestReleaseUrl, assetDigest, checkAssetDigest };

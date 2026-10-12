@@ -114,7 +114,10 @@
   padding: 8px 10px; background: var(--surface);
   border-radius: 6px;
   font-family: 'JetBrains Mono', monospace;
-  max-height: 80px; overflow: hidden;
+  /* Whole lines, ending in an ellipsis: an 80px cap cut a fourth line through
+     the middle in a narrow column of Settings, or with Larger text. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+  overflow: hidden;
 }
 .persona-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
 .meta-item {
@@ -131,7 +134,7 @@
   font-size: 11px; font-family: 'Outfit', sans-serif; border: 1px solid var(--border);
 }
 .btn-primary-sm {
-  background: var(--primary); color: white; border-color: var(--primary);
+  background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary);
 }
 .btn-primary-sm:hover { filter: brightness(1.1); }
 .btn-secondary-sm {

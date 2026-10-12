@@ -51,13 +51,12 @@ describe('mouse gestures', () => {
   it('↓← reopens the last closed tab, and ↑← makes a real copy', async () => {
     const { MouseGestures } = await import('../../src/renderer/js/gestures.js');
     const tab = fakeTab('a', { groupId: 'g1' });
-    globalThis.TabManager = { getActiveTab: () => tab, reopenLastClosed: vi.fn(), createTab: vi.fn(), tabs: [tab] };
+    globalThis.TabManager = { getActiveTab: () => tab, reopenLastClosed: vi.fn(), duplicateTab: vi.fn(), tabs: [tab] };
     MouseGestures.run('DL', {});
     expect(TabManager.reopenLastClosed).toHaveBeenCalledTimes(1);
     MouseGestures.run('UL', {});
-    const [url, activate, groupId, opts] = TabManager.createTab.mock.calls[0];
-    expect([url, activate, groupId]).toEqual(['https://a.example/', true, 'g1']);
-    expect(opts.allowDuplicate).toBe(true);
+    // The copy itself (allowDuplicate, its group, next to it): moreTabPlacement.test.js.
+    expect(TabManager.duplicateTab).toHaveBeenCalledWith(tab);
     delete globalThis.TabManager;
   });
 });
@@ -69,7 +68,8 @@ describe('Close Tabs to the Right follows the screen', () => {
     TM.groups = []; TM.stacks = [];
     TM.activeTabId = 'c';
     const closed = [];
-    TM.closeTab = (id) => closed.push(id);
+    // They close together, with one Undo (closeTabsWithUndo).
+    TM.closeTabsWithUndo = (ids) => closed.push(...ids);
     TM.closeTabsToTheRight('c');
     expect(closed).toEqual(['a', 'b']);
   });
@@ -155,26 +155,6 @@ describe('a snoozed tab reopened by hand', () => {
   });
 });
 
-describe('restoring a session', () => {
-  it('makes lazy tabs, so only the one switched to loads', async () => {
-    const { SessionManager } = await import('../../src/renderer/js/sessions.js');
-    const made = [];
-    globalThis.TabManager = {
-      tabs: [], groups: [],
-      createTab: vi.fn(),
-      createLazyTab: vi.fn((url, groupId, title, opts) => { const t = { id: 't' + made.length, url, title, ...opts, _lazy: true }; made.push(t); TabManager.tabs.push(t); return t; }),
-      _persistableFavicon: (f) => f || null,
-      renderTabUpdate: vi.fn(), switchTab: vi.fn(), persistTabs: vi.fn(async () => {}),
-      _isKeptAwake: () => false, _materializeTab: vi.fn(),
-    };
-    window.VexTabPolicy = { canRestore: () => true };
-    SessionManager.hideOverlay = vi.fn();
-    SessionManager.sessions = [{ id: 's1', name: 'S', tabs: [{ url: 'https://a.example/', title: 'A' }, { url: 'https://b.example/', title: 'B', pinned: true }], activeTabIndex: 1 }];
-    await SessionManager.restoreSession('s1', false);
-    expect(TabManager.createTab).not.toHaveBeenCalled();
-    expect(made.map(t => t.title)).toEqual(['A', 'B']);
-    expect(made[1].pinned).toBe(true);
-    expect(TabManager.switchTab).toHaveBeenCalledWith('t1');
-    delete globalThis.TabManager; delete window.VexTabPolicy;
-  });
-});
+// Restoring a session makes lazy tabs, so only the one switched to loads:
+// checked against the real TabManager in sessionRestore.test.js since
+// sessions restore through TabManager.addSavedTabs (2026-10-10).

@@ -63,7 +63,7 @@ describe('an address pretending to be a familiar one', () => {
     expect(LinkSafety.lookalike('github-support.co')).toMatchObject({ looksLike: 'github.com' });
     expect(LinkSafety.lookalike('secure-paypal.net')).toMatchObject({ looksLike: 'paypal.com' });
     expect(LinkSafety.lookalike('paypal.security')).toMatchObject({ looksLike: 'paypal.com', why: expect.stringContaining('ending does not') });
-    expect(LinkSafety.lookalike('xn--80ak6aa92e.com')).toMatchObject({ looksLike: null, why: expect.stringContaining('another alphabet') });
+    expect(LinkSafety.lookalike('xn--80ak6aa92e.com')).toMatchObject({ looksLike: null, why: expect.stringContaining('look exactly like Latin') });
   });
 
   it('never warns about the real thing, its subdomains, or an unrelated site', () => {

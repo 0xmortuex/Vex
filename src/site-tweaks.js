@@ -157,13 +157,17 @@ const SITE_TWEAKS = [
     // authenticator so sites don't offer passkey autofill in the first place.
     // Password autofill via the Credential Management API (no publicKey) still
     // works; create()/registration is untouched. Applied everywhere.
+    // A refused request the site really asked for (not the silent "conditional"
+    // autofill probe) is told to Vex ('vex-passkey-refused', below), which
+    // offers to allow passkeys on that site and reload (js/passwords.js).
     name: 'disable-webauthn-passkey-prompt',
     optIn: 'suppressPasskeys',
     hosts: /.*/,
     mechanism: 'webFrame',
+    notifies: 'vex-passkey-refused',
     code: '(function(){try{' +
       'var nc=navigator.credentials;' +
-      'if(nc&&typeof nc.get==="function"){var orig=nc.get.bind(nc);nc.get=function(opts){try{if(opts&&opts.publicKey){return Promise.reject(new DOMException("Passkey sign-in is disabled in Vex","NotAllowedError"));}}catch(e){}return orig(opts);};}' +
+      'if(nc&&typeof nc.get==="function"){var orig=nc.get.bind(nc);nc.get=function(opts){try{if(opts&&opts.publicKey){if(opts.mediation!=="conditional"){try{document.dispatchEvent(new CustomEvent("vex-passkey-refused"));}catch(e){}}return Promise.reject(new DOMException("Passkey sign-in is disabled in Vex","NotAllowedError"));}}catch(e){}return orig(opts);};}' +
       'if(window.PublicKeyCredential){' +
         'try{window.PublicKeyCredential.isConditionalMediationAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
         'try{window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable=function(){return Promise.resolve(false);};}catch(e){}' +
@@ -293,6 +297,17 @@ function tweaksForHost(hostname, options = {}) {
 
   tweaks.forEach((tweak) => {
     try {
+      // The page-world code says when it refused something; tell the tab's
+      // host once per page, with this frame's own hostname (not the page's word).
+      if (tweak.notifies) {
+        let told = false;
+        document.addEventListener(tweak.notifies, () => {
+          if (told) return;
+          told = true;
+          try { require('electron').ipcRenderer.sendToHost(tweak.notifies, { host: location.hostname }); }
+          catch (err) { console.error('[site-tweaks] could not tell Vex:', err && err.message); }
+        });
+      }
       if (tweak.mechanism === 'webFrame') {
         require('electron').webFrame.executeJavaScript(tweak.code)
           .catch(() => { /* best-effort */ });

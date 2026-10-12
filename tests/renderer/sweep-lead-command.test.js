@@ -56,13 +56,12 @@ describe('the command list itself', () => {
 
   it('Duplicate Tab makes a copy instead of switching to the original', () => {
     const tab = { id: 't1', url: 'https://example.com/', groupId: null };
-    globalThis.TabManager = { getActiveTab: () => tab, createTab: vi.fn() };
+    // TabManager.duplicateTab makes the copy (allowDuplicate, next to the
+    // original: tests/renderer/moreTabPlacement.test.js).
+    globalThis.TabManager = { getActiveTab: () => tab, duplicateTab: vi.fn() };
     try {
       CommandBar.commands.find(c => c.id === 'duplicatetab').action();
-      const [url, activate, , opts] = TabManager.createTab.mock.calls[0];
-      expect(url).toBe('https://example.com/');
-      expect(activate).toBe(true);
-      expect(opts.allowDuplicate).toBe(true);
+      expect(TabManager.duplicateTab).toHaveBeenCalledWith(tab);
     } finally { delete globalThis.TabManager; }
   });
 

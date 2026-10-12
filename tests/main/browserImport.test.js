@@ -103,7 +103,7 @@ describe('finding the browsers on this PC', () => {
     expect(() => bi.readProfile('chrome', '..', { env })).toThrow(/no longer on this PC/);
     expect(() => bi.readProfile('chrome', 'Crashpad', { env })).toThrow(/no longer on this PC/);
     expect(() => bi.readProfile('firefox', path.join(root, 'Local'), { env })).toThrow(/no longer on this PC/);
-    expect(() => bi.readProfile('opera', 'Default', { env })).toThrow(/Unknown browser/);
+    expect(() => bi.readProfile('netscape', 'Default', { env })).toThrow(/Unknown browser/);
   });
 
   it('parses profiles.ini sections, ignoring the install and general ones', () => {
@@ -196,8 +196,9 @@ describe('passwords from an exported CSV', () => {
       + 'app,android://abc@com.app/,me,pw,\r\n'
       + 'nouser,https://nouser.test/,,secret,\r\n';
     const r = bi.credentialsFromCsv(csv);
-    expect(r.entries).toEqual([{ host: 'example.com', username: 'me@x.test', password: 'pa55' }]);
-    expect(r).toMatchObject({ rows: 3, noUsername: 1, notWeb: 1 });
+    // A login with no username is kept, as Chrome saves it (it was dropped).
+    expect(r.entries).toEqual([{ host: 'example.com', username: 'me@x.test', password: 'pa55' }, { host: 'nouser.test', username: '', password: 'secret' }]);
+    expect(r).toMatchObject({ rows: 3, noUsername: 0, notWeb: 1 });
   });
 
   it('reads the Firefox export, quotes, commas and line breaks included', () => {
@@ -233,7 +234,81 @@ describe('passwords from an exported CSV', () => {
   });
 });
 
+// Fake profiles only, in a temp folder of their own (2026-10-10): Opera keeps
+// its profile in the folder itself, Opera GX in Default, Vivaldi, Chromium and
+// Chrome Beta/Canary under LOCALAPPDATA like Chrome, LibreWolf a profiles.ini
+// of its own, and Firefox Developer Edition shares Firefox's.
+describe('more browsers', () => {
+  let r2, env2;
+  beforeAll(() => {
+    r2 = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-browser-import-more-'));
+    env2 = { LOCALAPPDATA: path.join(r2, 'Local'), APPDATA: path.join(r2, 'Roaming') };
+    const chromiumAt = (dir) => {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.copyFileSync(path.join(FIX, 'Bookmarks.json'), path.join(dir, 'Bookmarks'));
+      makeChromeHistory(path.join(dir, 'History'));
+    };
+    chromiumAt(path.join(env2.APPDATA, 'Opera Software', 'Opera Stable'));
+    chromiumAt(path.join(env2.APPDATA, 'Opera Software', 'Opera GX Stable', 'Default'));
+    chromiumAt(path.join(env2.LOCALAPPDATA, 'Vivaldi', 'User Data', 'Default'));
+    chromiumAt(path.join(env2.LOCALAPPDATA, 'Chromium', 'User Data', 'Default'));
+    chromiumAt(path.join(env2.LOCALAPPDATA, 'Google', 'Chrome Beta', 'User Data', 'Default'));
+    chromiumAt(path.join(env2.LOCALAPPDATA, 'Google', 'Chrome SxS', 'User Data', 'Profile 1'));
+    const lw = path.join(env2.APPDATA, 'librewolf');
+    fs.mkdirSync(path.join(lw, 'Profiles', 'lw.default-default'), { recursive: true });
+    fs.writeFileSync(path.join(lw, 'profiles.ini'), '[Profile0]\nName=default-default\nIsRelative=1\nPath=Profiles/lw.default-default\nDefault=1\n');
+    makePlaces(path.join(lw, 'Profiles', 'lw.default-default', 'places.sqlite'));
+    const ff = path.join(env2.APPDATA, 'Mozilla', 'Firefox');
+    fs.mkdirSync(path.join(ff, 'Profiles', 'dev.dev-edition-default'), { recursive: true });
+    fs.writeFileSync(path.join(ff, 'profiles.ini'), '[Profile0]\nName=dev-edition-default\nIsRelative=1\nPath=Profiles/dev.dev-edition-default\n');
+    makePlaces(path.join(ff, 'Profiles', 'dev.dev-edition-default', 'places.sqlite'));
+  });
+  afterAll(() => fs.rmSync(r2, { recursive: true, force: true }));
+
+  it('finds Opera, Opera GX, Vivaldi, Chromium, Chrome Beta and Canary, LibreWolf and Firefox Developer Edition', () => {
+    const sources = bi.listSources(env2);
+    expect(sources.map(s => s.name)).toEqual(['Chrome Beta', 'Chrome Canary', 'Vivaldi', 'Chromium', 'Opera', 'Opera GX', 'Firefox', 'LibreWolf']);
+    expect(sources.find(s => s.id === 'opera').profiles).toEqual([{ id: '.', name: 'Opera' }]);
+    expect(sources.find(s => s.id === 'firefox').profiles).toEqual([{ id: 'Profiles/dev.dev-edition-default', name: 'dev-edition-default' }]);
+    expect(JSON.stringify(sources)).not.toContain(r2.replace(/\\/g, '\\\\'));
+  });
+
+  it('reads each of them', () => {
+    for (const [browser, id] of [['opera', '.'], ['opera-gx', 'Default'], ['vivaldi', 'Default'], ['chromium', 'Default'], ['chrome-beta', 'Default'], ['chrome-canary', 'Profile 1']]) {
+      const r = bi.readProfile(browser, id, { env: env2 });
+      expect(r.bookmarks, browser).toHaveLength(4);
+      expect(r.history.items.map(h => h.url), browser).toEqual(['https://new.example/', 'https://mid.example/', 'https://old.example/']);
+    }
+    const lw = bi.readProfile('librewolf', 'Profiles/lw.default-default', { env: env2 });
+    expect(lw.browserName).toBe('LibreWolf');
+    expect(lw.bookmarks).toHaveLength(3);
+  });
+
+  it('a held LibreWolf file names LibreWolf, not Firefox', () => {
+    const spy = vi.spyOn(fs, 'copyFileSync').mockImplementation(() => { throw Object.assign(new Error('busy'), { code: 'EBUSY' }); });
+    try { expect(() => bi.readProfile('librewolf', 'Profiles/lw.default-default', { env: env2 })).toThrow(/close LibreWolf/); }
+    finally { spy.mockRestore(); }
+  });
+
+  it('Opera\'s own folder is its profile; nothing above it can be named', () => {
+    expect(() => bi.readProfile('opera', '..', { env: env2 })).toThrow(/no longer on this PC/);
+  });
+});
+
 describe('adding imported logins to the vault', () => {
+  it('keeps a login with no username, and it can be edited', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-vault-'));
+    const handlers = {};
+    const safeStorage = { isEncryptionAvailable: () => true, encryptString: (s) => Buffer.from('enc:' + s), decryptString: (b) => b.toString().slice(4) };
+    const svc = createVaultService({ app: { getPath: () => dir }, safeStorage, ipcMain: { handle: (c, fn) => { handlers[c] = fn; } } });
+    const r = await svc.addMissing([{ host: 'pin.test', username: '', password: '1234' }]);
+    expect(r.added).toHaveLength(1);
+    expect(await handlers['vault:update']({}, { host: 'pin.test', username: '', newUsername: '', password: '5678' })).toEqual({ ok: true });
+    expect(handlers['vault:get']({}, 'pin.test')[0].password).toBe('5678');
+    await svc.flushVault();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it('adds only what is new and never overwrites a saved password', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-vault-'));
     const handlers = {};
@@ -258,7 +333,10 @@ describe('adding imported logins to the vault', () => {
 describe('the IPC contract', () => {
   it('takes a known browser and a profile id, nothing else', () => {
     expect(() => validate('browser-import:read', ['chrome', 'Default'])).not.toThrow();
-    expect(() => validate('browser-import:read', ['opera', 'Default'])).toThrow();
+    expect(() => validate('browser-import:read', ['netscape', 'Default'])).toThrow();
+    for (const b of ['opera', 'opera-gx', 'vivaldi', 'chromium', 'chrome-beta', 'chrome-canary', 'librewolf']) {
+      expect(() => validate('browser-import:read', [b, 'Default'])).not.toThrow();
+    }
     expect(() => validate('browser-import:read', ['chrome', { path: 'C:\\' }])).toThrow();
     expect(() => validate('browser-import:passwords-csv', ['C:\\file.csv'])).toThrow();
     expect(() => validate('browser-import:sources', [])).not.toThrow();

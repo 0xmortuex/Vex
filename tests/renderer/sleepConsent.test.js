@@ -91,15 +91,35 @@ describe('asking', () => {
     expect(document.querySelectorAll('#vex-sleep-ask')).toHaveLength(1);
   });
 
-  it('"Always" does it and stops asking', () => {
+  // One click on a tabs notice used to switch every sleeper to automatic.
+  it('"Always" does it and stops asking — about that kind only', () => {
     const run = vi.fn();
     ask(run);
     press('Always');
-    expect(SleepConsent.mode()).toBe('auto');
+    expect(SleepConsent.mode()).toBe('ask');
+    expect(SleepConsent.always()).toEqual(['panels']);
     expect(run).toHaveBeenCalledTimes(1);
     const later = vi.fn();
     expect(ask(later)).toBe(true);
     expect(later).toHaveBeenCalled();          // no question, just done
+    expect(document.getElementById('vex-sleep-ask')).toBe(null);
+    const tabs = vi.fn();
+    expect(SleepConsent.gate({ id: 'tabs', title: 'Tabs?', run: tabs })).toBe(true);
+    expect(tabs).not.toHaveBeenCalled();       // tabs still ask
+  });
+
+  it('"never" beats an earlier "Always"', () => {
+    SleepConsent.allowKind('tabs');
+    SleepConsent.set('never');
+    const run = vi.fn();
+    expect(SleepConsent.gate({ id: 'tabs', title: 'Tabs?', run })).toBe(false);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('a sleeper that cannot ask does nothing under "ask"', () => {
+    const run = vi.fn();
+    expect(SleepConsent.gate({ id: 'discard', title: 'x', canAsk: false, run })).toBe(false);
+    expect(run).not.toHaveBeenCalled();
     expect(document.getElementById('vex-sleep-ask')).toBe(null);
   });
 
@@ -131,14 +151,17 @@ describe('after a game', () => {
     expect(SleepConsent.offerAfterGame('Helldivers')).toBe(false);   // nothing to offer
   });
 
-  it('changes nothing on its own — only "Always" does', () => {
+  // "Do that next time" used to run a no-op: a yes that did nothing.
+  it('"Do that next time" makes gaming mode sleep by itself — and nothing else', () => {
     SleepConsent.offerAfterGame('a game');
+    const labels = [...document.querySelectorAll('#vex-sleep-ask button')].map(b => b.textContent);
+    expect(labels).toEqual(['Do that next time', 'Not now']);
     press('Do that next time');
     expect(SleepConsent.mode()).toBe('ask');
+    expect(SleepConsent.modeFor('gaming')).toBe('auto');
+    expect(SleepConsent.modeFor('tabs')).toBe('ask');
     SleepConsent._offered = false;
-    SleepConsent.offerAfterGame('a game');
-    press('Always');
-    expect(SleepConsent.mode()).toBe('auto');
+    expect(SleepConsent.offerAfterGame('a game')).toBe(false);   // nothing left to offer
   });
 });
 
@@ -172,10 +195,30 @@ describe('the ones that fired while you were elsewhere', () => {
 
   it('the memory ceiling sweep is the same: it says something, it does not close things', async () => {
     TabManager._memCeiling = 100;
-    window.vex = { tabMemory: vi.fn(async () => ({ byId: {} })) };
+    TabManager._guardNoteAt = 0;
+    globalThis.WebviewManager = { webviews: new Map() };
+    window.vex = { tabMemory: vi.fn(async () => ({ totalKB: 900 * 1024, byId: {} })) };
+    const notes = [];
+    const hear = (e) => notes.push(e.detail.note);
+    document.addEventListener('vex:memory-event', hear);
     await TabManager._memorySweep();
-    expect(window.vex.tabMemory).not.toHaveBeenCalled();
+    document.removeEventListener('vex:memory-event', hear);
     expect(TabManager.sleepTab).not.toHaveBeenCalled();
+    expect(notes.join(' ')).toMatch(/nothing slept: Vex is set never to sleep anything by itself/);
+  });
+
+  it('auto-sleep, the one idle timer for tabs, sleeps nothing under "never" and does under "just do it"', () => {
+    vi.useFakeTimers();
+    TabManager._inSplitPane = () => false;
+    TabManager.tabs[1].lastViewedAt = Date.now() - 60 * 60000;
+    TabManager.startAutoSleep(10, true);
+    vi.advanceTimersByTime(30000);
+    expect(TabManager.sleepTab).not.toHaveBeenCalled();
+    SleepConsent.set('auto');
+    vi.advanceTimersByTime(30000);
+    expect(TabManager.sleepTab).toHaveBeenCalledWith('b');
+    TabManager.stopAutoSleep();
+    vi.useRealTimers();
   });
 });
 
@@ -196,7 +239,7 @@ describe('a choice saved before "never" became the default', () => {
   it("Discord's own saved \"auto\" goes too", () => {
     localStorage.setItem('vex.discordMemoryConsent', 'auto');
     expect(SleepConsent.resetOnce()).toBe(true);
-    expect(localStorage.getItem('vex.discordMemoryConsent')).toBe('never');
+    expect(localStorage.getItem('vex.discordMemoryConsent')).toBe(null);
   });
 
   it('runs once: turning it back on afterwards is kept', () => {
@@ -210,5 +253,44 @@ describe('a choice saved before "never" became the default', () => {
   it('says nothing when there was nothing to change', () => {
     expect(SleepConsent.resetOnce()).toBe(false);
     expect(SleepConsent.mode()).toBe('never');
+  });
+});
+
+// The owner's bug (2026-10-07): "never do it", and tabs still went blank —
+// a hidden 30-minute hibernation in webview.js never asked, and Discord had a
+// consent key of its own that beat this one. Both go, once.
+describe('one sleep model', () => {
+  it('removes the old Discord answer and the hibernation minutes, once', () => {
+    localStorage.setItem('vex.discordMemoryConsent', 'ask');
+    localStorage.setItem('vex.tabHibernateMinutes', '30');
+    expect(SleepConsent.migrateOnce()).toBe(true);
+    expect(localStorage.getItem('vex.discordMemoryConsent')).toBe(null);
+    expect(localStorage.getItem('vex.tabHibernateMinutes')).toBe(null);
+    localStorage.setItem('vex.tabHibernateMinutes', '5');
+    expect(SleepConsent.migrateOnce()).toBe(false);          // once
+  });
+
+  it('the hidden tab hibernation is gone from webview.js', () => {
+    const { WebviewManager } = require('../../src/renderer/js/webview.js');
+    expect(WebviewManager._hibernateSweep).toBeUndefined();
+    expect(WebviewManager._hibernateMinutes).toBeUndefined();
+    // Waking a tab blanked before the update, and the system-resume recovery, stay.
+    expect(typeof WebviewManager._wake).toBe('function');
+    expect(typeof WebviewManager._recoverBlankWebviews).toBe('function');
+  });
+
+  it('under "never" the rows that wait for it are greyed out, with a line why', () => {
+    document.body.innerHTML = '<div id="sleep-consent-note"></div><div data-sleep-dependent><input type="checkbox" id="a"><select id="b"></select></div><input id="c" disabled>';
+    SleepConsent.renderSettingsState();
+    expect(document.getElementById('a').disabled).toBe(true);
+    expect(document.getElementById('b').disabled).toBe(true);
+    expect(document.getElementById('sleep-consent-note').textContent).toMatch(/never sleeps, blanks or refreshes/);
+    SleepConsent.set('ask');                                    // redraws through the event
+    expect(document.getElementById('a').disabled).toBe(false);
+    expect(document.getElementById('c').disabled).toBe(true);   // not ours to enable
+    SleepConsent.allowKind('discord');
+    expect(document.getElementById('sleep-consent-note').textContent).toMatch(/Without asking.*Discord/);
+    document.querySelector('#sleep-consent-note button').click();
+    expect(SleepConsent.always()).toEqual([]);
   });
 });

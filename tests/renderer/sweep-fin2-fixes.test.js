@@ -97,7 +97,7 @@ function ipcMessage(channel) {
 describe('Ctrl+Enter from inside the peeked page', () => {
   it('opens the peek as a tab, from its own webview only', () => {
     window.VexTabPolicy = { partitionFor: (p) => p };
-    globalThis.TabManager = { createTab: vi.fn() };
+    globalThis.TabManager = { createTab: vi.fn(), getActiveTab: () => null, openerForPage: () => null };
     const { VexPeek } = fresh('../../src/renderer/js/peek.js');
     VexPeek.open('https://example.com/');
     const tab = document.createElement('webview');
@@ -105,7 +105,7 @@ describe('Ctrl+Enter from inside the peeked page', () => {
     tab.dispatchEvent(ipcMessage('vex-peek-promote'));
     expect(TabManager.createTab).not.toHaveBeenCalled();
     VexPeek._els.wv.dispatchEvent(ipcMessage('vex-peek-promote'));
-    expect(TabManager.createTab).toHaveBeenCalledWith('https://example.com/', true, null, { partition: 'persist:main' });
+    expect(TabManager.createTab).toHaveBeenCalledWith('https://example.com/', true, null, { partition: 'persist:main', openerTabId: null });
     delete globalThis.TabManager;
   });
 });

@@ -85,18 +85,18 @@ const ReadFree = {
     // action === 'reset'
     const partition = (tab && tab.partition) || 'persist:main';
     window.showToast?.('Clearing site data…');
-    let ok = false;
+    // What failed is said, not "may have partially failed" (audit B21).
+    let error = '';
     try {
-      if (window.vex?.clearSiteData) {
-        const r = await window.vex.clearSiteData({ partition, url });
-        ok = !!(r && r.ok);
-      }
-    } catch {}
+      const r = await window.vex.clearSiteData({ partition, url });
+      if (!r || !r.ok) error = (r && r.error) || 'The site\'s data could not be cleared';
+    } catch (err) { error = err.message; }
     try {
       const wv = WebviewManager.getActiveWebview();
       if (wv) (wv.reloadIgnoringCache ? wv.reloadIgnoringCache() : wv.reload());
-    } catch {}
-    window.showToast?.(ok ? 'Paywall reset — reloading' : 'Reloaded (clear may have partially failed)');
+    } catch (err) { console.error('[ReadFree] reload failed:', err); }
+    if (error) window.showToast?.('Paywall not reset: ' + error, 'error');
+    else window.showToast?.('Paywall reset — reloading');
   },
 
   close() {

@@ -149,7 +149,7 @@ const MediaGrabber = {
       .mediagrab-btn{border:1px solid var(--border,rgba(255,255,255,0.12));background:transparent;color:var(--text,#e9e9ee);
         border-radius:7px;padding:5px 9px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
       .mediagrab-btn:hover{background:color-mix(in srgb,var(--primary,#6366f1) 18%,transparent);}
-      .mediagrab-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:#fff;font-weight:600;}
+      .mediagrab-btn.primary{background:var(--primary,#6366f1);border-color:transparent;color:var(--on-primary,#fff);font-weight:600;}
       .mediagrab-empty{padding:26px 16px;text-align:center;color:var(--text-muted,#9a9aa5);font-size:13px;line-height:1.5;}
       .mediagrab-empty small{font-size:11px;opacity:.85;}
       .mediagrab-hint{font-size:10.5px;color:var(--text-muted,#9a9aa5);padding:6px 10px 2px;border-top:1px solid var(--border,rgba(255,255,255,0.07));margin-top:4px;}

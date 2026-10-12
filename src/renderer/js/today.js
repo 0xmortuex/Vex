@@ -5,18 +5,21 @@
 // saved for later recently. Every one of those is already stored somewhere in
 // Vex; nothing showed them together.
 //
-// The new tab page is a separate document (start.html in a webview) with no
-// bridge to the main process, but it shares this renderer's localStorage. So
-// this module builds a small snapshot here, where everything is reachable,
-// and writes it to localStorage under 'vex.today'; the start page reads that
-// and re-renders on the storage event. The snapshot is display data only —
-// nothing acts on it.
+// The new tab page is a separate document (start.html in a webview, in its
+// own session partition) with no bridge to the main process. So this module
+// builds a small snapshot here, where everything is reachable, and hands it
+// to each open start page (push below). The snapshot is display data only —
+// nothing acts on it, and nothing keeps it.
 const VexToday = {
-  KEY: 'vex.today',
+  // Where the snapshot used to be saved. The start page never could read it
+  // (other partition), and saving it rewrote vex-persist.json; the copy an
+  // older Vex left there is removed once.
+  OLD_KEY: 'vex.today',
   MAX_PER_KIND: 6,
   _timer: null,
 
   init() {
+    if (localStorage.getItem(this.OLD_KEY) !== null) localStorage.removeItem(this.OLD_KEY);
     this.refresh();
     this._timer?.stop();
     this._timer = VexJobs.every('Today refresh', 60 * 1000, () => this.refresh());
@@ -121,6 +124,18 @@ const VexToday = {
     const brief = this.brief(now);
     if (brief) snap.brief = brief;
 
+    // Today's reading digest (js/reading-digest.js), when it is made and the
+    // user keeps it on the new tab. Opening a new tab never makes one.
+    try {
+      const digest = (typeof ReadingDigest !== 'undefined') ? ReadingDigest.card(now) : null;
+      if (digest) {
+        snap.digest = digest;
+        // A saved page already summarised in the card is not listed again below it.
+        const inCard = new Set(digest.items.map(i => i.url));
+        snap.saved = snap.saved.filter(s => !inCard.has(s.url));
+      }
+    } catch (err) { snap.errors.push('reading digest: ' + ((err && err.message) || 'unavailable')); }
+
     return snap;
   },
 
@@ -174,8 +189,10 @@ const VexToday = {
   async refresh() {
     const snap = await this.build();
     this._last = snap;
-    try { localStorage.setItem(this.KEY, JSON.stringify(snap)); }
-    catch (err) { console.error('[Today] could not write the snapshot:', err.message); return null; }
+    // Never saved: it was built again every minute and saved whenever it
+    // changed, rewriting the whole of vex-persist.json (1.3 MB) and its .bak
+    // for a copy nothing read (found 2026-10-09). The start page gets the
+    // fresh one from pushAll.
     this.pushAll();
     return snap;
   },
@@ -185,7 +202,10 @@ const VexToday = {
   // start page directly, on its dom-ready and on every refresh — the same
   // route the theme attribute takes.
   _last: null,
-  isStartPage(url) { return /\/renderer\/start\.html(?:[?#]|$)/i.test(String(url || '')); },
+  // Vex's own start page, by its whole path (js/webview.js): any address
+  // ending in /renderer/start.html, a web page's too, was given the snapshot
+  // (audit SE6, 2026-10-10).
+  isStartPage(url) { return _isTrustedStartPage(String(url || '')); },
 
   push(webview) {
     if (!webview || typeof webview.executeJavaScript !== 'function') return false;

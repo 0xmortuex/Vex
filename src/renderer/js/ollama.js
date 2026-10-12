@@ -6,27 +6,42 @@ const Ollama = (() => {
   let baseUrl = DEFAULT_URL;
 
   function setBaseUrl(url) {
+    _forgetHealth();
     baseUrl = String(url || DEFAULT_URL).replace(/\/$/, '');
   }
 
   function getBaseUrl() { return baseUrl; }
 
+  // One answer from /api/tags and /api/ps serves every check for a while.
+  // A single chat message used to ask Ollama /api/tags four times and /api/ps
+  // twice (the router's ping, starting it if needed, the slow-answer check,
+  // the ready check; found 2026-10-10). A request in flight is shared, a
+  // failure is not kept, and anything that changes the answer (a reply, an
+  // unload, a pull or delete, another address) forgets it.
+  const HEALTH_CACHE_MS = 20000;
+  let _health = Object.create(null); // path -> { at, promise }
+  function _forgetHealth() { _health = Object.create(null); }
+  function _healthJson(path) {
+    const hit = _health[path];
+    if (hit && Date.now() - hit.at < HEALTH_CACHE_MS) return hit.promise;
+    const promise = (async () => {
+      const r = await _quickGet(path);
+      if (!r.ok) throw new Error(await _errorText(r, ''));
+      return r.json();
+    })();
+    const entry = { at: Date.now(), promise };
+    _health[path] = entry;
+    promise.catch(() => { if (_health[path] === entry) delete _health[path]; });
+    return promise;
+  }
+
   async function ping() {
-    let t;
-    try {
-      const ctl = new AbortController();
-      t = setTimeout(() => ctl.abort(), 2000);
-      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`, { method: 'GET', signal: ctl.signal });
-      clearTimeout(t);
-      return r.ok;
-    } catch { return false; } finally { clearTimeout(t); }
+    try { await _healthJson('/api/tags'); return true; } catch { return false; }
   }
 
   async function listModels() {
     try {
-      const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/tags`);
-      if (!r.ok) return [];
-      const data = await r.json();
+      const data = await _healthJson('/api/tags');
       return (data.models || []).map(m => ({
         name: m.name,
         size: m.size,
@@ -37,6 +52,75 @@ const Ollama = (() => {
   }
 
   const GEN_TIMEOUT_MS = 120000;
+  // A model that is not in memory yet is loaded by the request itself, and
+  // nothing comes back until it is. On a busy machine that took longer than
+  // the two-minute limit, and the user got "did not answer within 120s (may
+  // still be loading)" instead of the answer (found 2026-10-09). A request
+  // that starts a load waits this long for its first answer instead.
+  const LOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+  // Before a long request: is Ollama there, is the model installed, is it in
+  // memory? Two quick reads of Ollama's own API (/api/tags, /api/ps), so a dead
+  // Ollama or a missing model is said at once rather than after a two-minute
+  // wait. A model found in memory is remembered for a short while, so a chat
+  // does not pay for two extra calls on every message.
+  const HEALTH_TIMEOUT_MS = 3000;
+  const HEALTH_TTL_MS = 20000;
+  let _readyCache = null; // { key, at }
+  const _sameModel = (name, model) => name === model || name === model + ':latest';
+  const shortName = (model) => String(model || '').replace(/:latest$/, '');
+
+  async function _quickGet(path) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(new Error('timeout')), HEALTH_TIMEOUT_MS);
+    try {
+      return await (window.VexNet?.fetch || fetch)(`${baseUrl}${path}`, { method: 'GET', signal: ctl.signal, timeoutMs: HEALTH_TIMEOUT_MS });
+    } finally { clearTimeout(t); }
+  }
+
+  // → { loaded: true|false|null } (null: this Ollama cannot say), or throws the
+  // sentence to show.
+  async function ready(model) {
+    const key = baseUrl + '|' + model;
+    if (_readyCache && _readyCache.key === key && Date.now() - _readyCache.at < HEALTH_TTL_MS) return { loaded: true };
+    let tags;
+    try {
+      tags = await _healthJson('/api/tags');
+    } catch (err) {
+      console.warn('[Ollama] health check failed:', err && err.message);
+      throw new Error('Ollama is not running. Start Ollama, or switch to cloud AI.');
+    }
+    const installed = (tags && Array.isArray(tags.models) ? tags.models : []).map(m => m.name || m.model);
+    if (!installed.some(n => _sameModel(n, model))) {
+      throw new Error(`The model "${model}" is not installed in Ollama. Pick another one in Settings › AI, or run: ollama pull ${model}`);
+    }
+    let loaded = null;
+    try {
+      const ps = await _healthJson('/api/ps');
+      loaded = (ps && Array.isArray(ps.models) ? ps.models : []).some(m => _sameModel(m.name || m.model, model));
+    } catch (err) {
+      // An older Ollama has no /api/ps: it cannot say, and the request runs
+      // with the normal limit.
+      console.warn('[Ollama] could not read which models are loaded:', err && err.message);
+    }
+    _readyCache = loaded ? { key, at: Date.now() } : null;
+    return { loaded };
+  }
+
+  // The check, when the caller asked for it (the AI router does for every
+  // request), and the deadline that follows from it.
+  async function _prepare(model, options) {
+    if (!options.checkFirst) return GEN_TIMEOUT_MS;
+    const { loaded } = await ready(model);
+    if (loaded !== false) return GEN_TIMEOUT_MS;
+    if (typeof options.onLoading === 'function') { try { options.onLoading(model); } catch (err) { console.error('[Ollama] onLoading failed:', err); } }
+    return LOAD_TIMEOUT_MS;
+  }
+
+  function _timeoutText(model, timeoutMs) {
+    if (timeoutMs >= LOAD_TIMEOUT_MS) return `${shortName(model)} did not finish loading within ${Math.round(timeoutMs / 60000)} minutes. Restart Ollama, or pick a smaller model in Settings › AI.`;
+    return `Ollama did not answer within ${Math.round(timeoutMs / 1000)}s (model "${model}" may still be loading).`;
+  }
 
   // `timeoutMs` is honoured only by VexNet's bounded fetch. When that shim is
   // absent the option is silently ignored by plain fetch, and a model that
@@ -59,7 +143,7 @@ const Ollama = (() => {
       });
     } catch (err) {
       if (ctl.signal.aborted && !(signal && signal.aborted)) {
-        throw new Error(`Ollama did not answer within ${Math.round(timeoutMs / 1000)}s (model "${body.model}" may still be loading).`);
+        throw new Error(_timeoutText(body.model, timeoutMs));
       }
       throw err;
     } finally {
@@ -78,7 +162,7 @@ const Ollama = (() => {
   // `onToken(fragment, full)` is called per fragment. The accumulated text is
   // returned, so a caller that ignores onToken gets exactly what the
   // non-streaming call would have produced.
-  async function _stream(path, body, options, pick) {
+  async function _stream(path, body, options, pick, firstTimeoutMs = GEN_TIMEOUT_MS) {
     const { onToken, signal } = options;
     const ctl = new AbortController();
     const onOuterAbort = () => ctl.abort((signal && signal.reason) || new Error('Cancelled'));
@@ -88,17 +172,22 @@ const Ollama = (() => {
     }
     // A stalled stream must still end. The deadline is refreshed by traffic, so
     // a slow-but-alive model is not cut off mid-answer.
+    // The first answer of a request that loads the model gets the loading
+    // allowance; after that, traffic refreshes the normal limit.
     let timer = null;
-    const arm = () => {
+    const arm = (ms = GEN_TIMEOUT_MS) => {
       clearTimeout(timer);
-      timer = setTimeout(() => ctl.abort(new Error('timeout')), GEN_TIMEOUT_MS);
+      timer = setTimeout(() => ctl.abort(new Error('timeout')), ms);
     };
-    arm();
+    arm(firstTimeoutMs);
 
     let r;
     try {
       r = await (window.VexNet?.fetch || fetch)(`${baseUrl}${path}`, {
-        stream: true, timeoutMs: GEN_TIMEOUT_MS, maxBytes: 16 * 1024 * 1024, signal: ctl.signal,
+        // timeoutMs covers the wait for the first answer; after that the
+        // deadline moves with every piece (a slow model writing for more than
+        // two minutes in all was cut off, found 2026-10-10).
+        stream: true, timeoutMs: firstTimeoutMs === GEN_TIMEOUT_MS ? GEN_TIMEOUT_MS : firstTimeoutMs + GEN_TIMEOUT_MS, idleTimeoutMs: GEN_TIMEOUT_MS, maxBytes: 16 * 1024 * 1024, signal: ctl.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, stream: true }),
@@ -107,7 +196,7 @@ const Ollama = (() => {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onOuterAbort);
       if (ctl.signal.aborted && !(signal && signal.aborted)) {
-        throw new Error(`Ollama did not answer within ${Math.round(GEN_TIMEOUT_MS / 1000)}s (model "${body.model}" may still be loading).`);
+        throw new Error(_timeoutText(body.model, firstTimeoutMs));
       }
       throw err;
     }
@@ -143,7 +232,7 @@ const Ollama = (() => {
           if (!line.trim()) continue;
           let event;
           try { event = JSON.parse(line); } catch { continue; }
-          if (event.error) throw new Error(event.error);
+          if (event.error) throw new Error(_crashText(String(event.error), body.model) || event.error);
           // The last line of a stream carries the counts and timings; without
           // this a streamed call reported none of them.
           if (event.done && typeof options.onMeta === 'function') {
@@ -164,6 +253,15 @@ const Ollama = (() => {
           }
         }
       }
+    } catch (err) {
+      // It went quiet in the middle of the answer: say that, not "did not
+      // answer (may still be loading)", which is what a model that had been
+      // writing for minutes used to be told.
+      const timedOut = !(signal && signal.aborted) && (ctl.signal.aborted || (err && err.message === 'Request timed out'));
+      if (timedOut && (full || thinking)) {
+        throw new Error(`${body.model} stopped writing for ${Math.round(GEN_TIMEOUT_MS / 1000)}s in the middle of the answer — try again, or pick a smaller model in Settings › AI.`);
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onOuterAbort);
@@ -182,7 +280,7 @@ const Ollama = (() => {
   // start a game in that window and it fights the model for VRAM. Vex's
   // default is one minute: a question after a pause reloads the model (a few
   // seconds), a game started after a chat gets the card back quickly.
-  // Settings › Gaming changes it; 0 unloads after every reply.
+  // Settings › Privacy Hardening › Gaming and streaming changes it; 0 unloads after every reply.
   const KEEP_ALIVE_KEY = 'vex.ai.keepAlive';
   const KEEP_ALIVE_CHOICES = ['0', '1m', '5m', '15m'];
   function keepAlive() {
@@ -214,11 +312,14 @@ const Ollama = (() => {
     if (format === 'json') _asJson(body, options.think);
     else if (options.think) body.think = true;
 
-    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response), model, null);
-    const r = await _post('/api/generate', body, options.signal);
-    if (!r.ok) throw new Error(await _errorText(r, model));
-    const data = await r.json();
-    return _notEmpty(data.response || '', model, data);
+    const timeoutMs = await _prepare(model, options);
+    try {
+      if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/generate', body, options, (e) => e.response, timeoutMs), model, null);
+      const r = await _post('/api/generate', body, options.signal, timeoutMs);
+      if (!r.ok) throw new Error(await _errorText(r, model));
+      const data = await r.json();
+      return _notEmpty(data.response || '', model, data);
+    } finally { _forgetHealth(); }
   }
 
   // A JSON reply from a reasoning model (qwen3, deepseek-r1…): Ollama puts the
@@ -259,10 +360,14 @@ const Ollama = (() => {
     if (Number.isFinite(numCtx) && numCtx > 0) body.options.num_ctx = numCtx;
     if (format === 'json') _asJson(body, options.think);
     else if (options.think) body.think = true;
-    if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content), model, null);
-    const r = await _post('/api/chat', body, options.signal);
-    if (!r.ok) throw new Error(await _errorText(r, model));
-    const data = await r.json();
+    const timeoutMs = await _prepare(model, options);
+    let data;
+    try {
+      if (options.onToken || options.onThinking) return _notEmpty(await _stream('/api/chat', body, options, (e) => e.message && e.message.content, timeoutMs), model, null);
+      const r = await _post('/api/chat', body, options.signal, timeoutMs);
+      if (!r.ok) throw new Error(await _errorText(r, model));
+      data = await r.json();
+    } finally { _forgetHealth(); }
     // What the call cost: prompt and reply sizes in tokens, and how long each
     // took. Settings › AI "Test as agent" reports these.
     if (typeof options.onMeta === 'function') {
@@ -287,9 +392,7 @@ const Ollama = (() => {
   // out of video memory by a game runs on the processor at a crawl, and that
   // is indistinguishable from "the AI is broken" without asking.
   async function running() {
-    const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/ps`);
-    if (!r.ok) throw new Error(await _errorText(r, ''));
-    const data = await r.json();
+    const data = await _healthJson('/api/ps');
     return (data.models || []).map(m => ({
       name: m.name || m.model,
       sizeMB: Math.round((m.size || 0) / (1024 * 1024)),
@@ -309,6 +412,7 @@ const Ollama = (() => {
   // unloads the model. About 5.5 GB here, which is the difference between a
   // game running well and not.
   async function unload(model) {
+    _forgetHealth();
     const r = await _post('/api/generate', { model, prompt: '', keep_alive: 0 }, null, 15000);
     if (!r.ok) throw new Error(await _errorText(r, model));
     return true;
@@ -316,6 +420,7 @@ const Ollama = (() => {
 
   // Remove a model from disk entirely (Settings › AI › the model manager).
   async function deleteModel(model) {
+    _forgetHealth();
     const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/delete`, {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }), timeoutMs: 15000,
     });
@@ -329,10 +434,23 @@ const Ollama = (() => {
     let detail = '';
     try { const j = await r.json(); detail = (j && j.error) ? String(j.error) : ''; } catch {}
     if (r.status === 404 && !detail) detail = `model "${model}" is not installed — run: ollama pull ${model}`;
+    const crash = _crashText(detail, model);
+    if (crash) return crash;
     return detail ? `Ollama: ${detail}` : `Ollama returned ${r.status}`;
   }
 
+  // "llama-server process has terminated: exit status 1" is Ollama's word for
+  // the model's own process dying, usually while loading because the graphics
+  // card or the memory is full (a game running). It was shown as is (found
+  // 2026-10-09). Older Ollama says "llama runner process has terminated".
+  function _crashText(detail, model) {
+    if (!/(llama-server|llama runner) process has terminated|llama-server process no longer running/i.test(detail || '')) return null;
+    _readyCache = null; _forgetHealth();
+    return `${model ? shortName(model) : 'The model'} crashed in Ollama (its process stopped). This usually means the graphics card or the computer ran out of memory, for example because a game is running. Close what is using the memory, or pick a smaller model in Settings › AI, then try again.`;
+  }
+
   async function pullModel(modelName, onProgress, signal) {
+    _forgetHealth();
     const r = await (window.VexNet?.fetch || fetch)(`${baseUrl}/api/pull`, {
       stream: true, timeoutMs: 30 * 60 * 1000, maxBytes: 32 * 1024 * 1024, signal,
       method: 'POST',
@@ -359,7 +477,7 @@ const Ollama = (() => {
           if (err.message && !/JSON/i.test(err.message)) throw err;
         }
       }
-    } } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    } } finally { _forgetHealth(); await reader.cancel().catch(() => {}); reader.releaseLock(); }
   }
 
   function formatBytes(bytes) {
@@ -369,7 +487,7 @@ const Ollama = (() => {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   }
 
-  return { setBaseUrl, getBaseUrl, ping, listModels, generate, chat, show, running, unload, deleteModel, pullModel, keepAlive, setKeepAlive, KEEP_ALIVE_CHOICES };
+  return { setBaseUrl, getBaseUrl, ping, ready, listModels, generate, chat, show, running, unload, deleteModel, pullModel, keepAlive, setKeepAlive, KEEP_ALIVE_CHOICES };
 })();
 
 if (typeof window !== 'undefined') window.Ollama = Ollama;

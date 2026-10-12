@@ -120,3 +120,21 @@ describe('a panel whose renderer Windows killed', () => {
     expect(wv.loadURL).not.toHaveBeenCalled();
   });
 });
+
+// A page in a panel calling window.close() (the Prime panel "closed" while a
+// question was waiting, 2026-10-05): the panel is not the page's window. It
+// stays open on its page, and the attempt is noted in Problems.
+describe('a panel page that calls window.close()', () => {
+  it('leaves the panel open and notes it', () => {
+    window.VexProblems = { note: vi.fn() };
+    SidebarManager.activePanel = 'claude';
+    const wv = openPanel('claude');
+    wv.getURL = () => 'https://claude.ai/chat/abc?secret=1';
+    wv.dispatchEvent(new Event('close'));
+    expect(SidebarManager.activePanel).toBe('claude');
+    expect(wv.isConnected).toBe(true);
+    expect(SidebarManager.panelWebviews.claude).toBe(wv);
+    expect(window.VexProblems.note).toHaveBeenCalledWith('Panels', "Claude's page tried to close itself; the panel stays open", 'claude.ai');
+    delete window.VexProblems;
+  });
+});

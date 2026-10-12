@@ -18,6 +18,7 @@ beforeEach(async () => {
   globalThis.SidebarManager = { hideActivePanel: vi.fn() };
   globalThis.START_URL = 'vex://start';
   await import('../../src/renderer/js/vex-utils.js');
+  await import('../../src/renderer/js/data-contracts.js');   // index.html loads it before tab-policy.js
   await import('../../src/renderer/js/tab-policy.js');
   TM = (await import('../../src/renderer/js/tabs.js')).TabManager;
   globalThis.TabManager = TM;
@@ -43,7 +44,9 @@ describe('private tab persistence boundaries', () => {
     const expected = window.VexTabPolicy.snapshot(TM.tabs);
     expect(session.tabs).toEqual(expected);
     expect(WM.getActive().tabs).toEqual(expected);
-    expect(snapshots._currentTabs()).toEqual(expected);
+    // Time-Travel snapshots go through the same policy but keep only what
+    // restore and the list use (found 2026-10-09: whole tabs were 650 KB).
+    expect(snapshots._currentTabs()).toEqual(expected.map(t => ({ url: t.url, title: t.title, partition: t.partition, pinned: t.pinned })));
   });
 
   it('excludes all tab snapshots in private windows even when a tab lacks a partition', async () => {
@@ -88,7 +91,9 @@ describe('private tab persistence boundaries', () => {
     TM.reopenLastClosed();
     // allowDuplicate: reopening a closed tab is asking for that page again,
     // even when it is open somewhere (js/duplicate-tabs.js).
-    expect(create).toHaveBeenCalledWith(record.url, true, null, { ...record, allowDuplicate: true });
+    // A record from before tabs remembered their place has no index: it goes
+    // where a new tab goes (atIndex null; reopenClosedPlace.test.js).
+    expect(create).toHaveBeenCalledWith(record.url, true, null, { ...record, allowDuplicate: true, atIndex: null });
   });
   it('excludes ephemeral tabs from sessions, workspaces and automatic snapshots', () => {
     TM.tabs = seedTabs(); TM.activeTabId = 't3';
@@ -130,15 +135,6 @@ describe('private tab persistence boundaries', () => {
 });
 
 describe('session and workspace restoration', () => {
-  it('applies synced tabs without discarding private tabs or retaining deleted public tabs', () => {
-    TM.tabs = seedTabs(); TM.activeTabId = 't3';
-    const keep = TM.tabs[3];
-    TM.applySyncedState([{ ...keep, title: 'Synced title' }, { id: 'remote', url: 'https://remote.test', partition: 'persist:work' }], [], []);
-    expect(TM.tabs.map(tab => tab.id)).toEqual(['t3', 'remote', 't1', 't2']);
-    expect(TM.tabs[0].title).toBe('Synced title');
-    expect(TM.getActiveTab().id).toBe('t3');
-    expect(WebviewManager.destroyWebview).toHaveBeenCalledWith('t0');
-  });
   it('uses stable globally unique IDs across restart', async () => {
     const created = TM.createTab('https://stable.test');
     VexStorage.loadTabs.mockResolvedValue([{ ...created }]);
@@ -205,13 +201,12 @@ describe('session and workspace restoration', () => {
 });
 
 describe('structured storage', () => {
-  it('preserves both history entries when page loads finish concurrently', async () => {
-    let saved = [];
-    window.vex.loadData = vi.fn(async () => structuredClone(saved));
-    window.vex.saveData = vi.fn(async (_key, value) => { saved = structuredClone(value); return true; });
+  // History is the History panel's list only (main/history-fold.js): the
+  // structured store keeps no second copy to write on every visit.
+  it('keeps no second copy of history', async () => {
     const { VexStorage: storage } = await import('../../src/renderer/js/storage.js');
-    await Promise.all([storage.addHistory({ url: 'https://a.test' }), storage.addHistory({ url: 'https://b.test' })]);
-    expect(saved.map(e => e.url).sort()).toEqual(['https://a.test', 'https://b.test']);
+    expect(storage.addHistory).toBeUndefined();
+    expect(storage.loadHistory).toBeUndefined();
   });
 
   it('saves container metadata but not ephemeral tabs', async () => {

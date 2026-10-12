@@ -473,19 +473,27 @@ describe('panel wiring', () => {
     expect(document.querySelector('.note-list-item').dataset.id).toBe('clipped');
   });
 
-  it('does not delete without a confirmation', async () => {
+  it('deletes at once, and Undo brings the note back where it was, unsaved typing included', async () => {
+    require('../../src/renderer/js/vex-undo.js');
+    let offered = null;
+    window.showToast = vi.fn((_m, _t, _d, opts) => { if (opts) offered = opts; return { dismiss() {} }; });
+    window.vexConfirm = vi.fn();
     NotesPanel.init();
-    NotesPanel.notes = [{ id: 'a', title: 'A', content: 'a' }];
-    NotesPanel.selectNote('a');
-    window.vexConfirm = vi.fn().mockResolvedValue(false);
+    NotesPanel.notes = [{ id: 'a', title: 'A', content: 'a' }, { id: 'b', title: 'B', content: 'b' }, { id: 'c', title: 'C', content: 'c' }];
+    NotesPanel.selectNote('b');
+    document.getElementById('notes-content-area').value = 'typed, not saved yet';
     await NotesPanel.deleteActive();
-    expect(window.vexConfirm).toHaveBeenCalled();
-    expect(NotesPanel.notes).toHaveLength(1);
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(NotesPanel.notes.map(n => n.id)).toEqual(['a', 'c']);
+    expect(JSON.parse(localStorage.getItem('vex.notes')).map(n => n.id)).toEqual(['a', 'c']);
+    expect(window.showToast.mock.calls.at(-1)[0]).toBe('Deleted “B”');
 
-    window.vexConfirm = vi.fn().mockResolvedValue(true);
-    await NotesPanel.deleteActive();
-    expect(NotesPanel.notes).toHaveLength(0);
-    expect(JSON.parse(localStorage.getItem('vex.notes'))).toEqual([]);
+    offered.action.run();
+    await Promise.resolve();
+    const saved = JSON.parse(localStorage.getItem('vex.notes'));
+    expect(saved.map(n => n.id)).toEqual(['a', 'b', 'c']);
+    expect(saved[1].content).toBe('typed, not saved yet');
+    expect(NotesPanel.activeNoteId).toBe('b');
     delete window.vexConfirm;
   });
 

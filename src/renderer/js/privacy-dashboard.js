@@ -58,7 +58,13 @@ const PrivacyDashboard = {
     try { blocking = (await window.vex.getAdBlockerState?.()) !== false; } catch { blocking = true; }
     const total = stats.total || 0;
     const cross = stats.crossSite || [];
-    const top = stats.byHost || [];
+    // A host blocked only on its own site (web.whatsapp.com inside WhatsApp,
+    // netflix.com inside Netflix) is that site's own analytics, not a tracker
+    // following you around: it was listed among the "tracker/ad hosts" and top
+    // offenders (walkthrough L4, 2026-10-07). It gets its own short list.
+    const all = stats.byHost || [];
+    const top = all.filter(t => !this.ownSiteOnly(t));
+    const own = all.filter(t => this.ownSiteOnly(t));
 
     const offNotice = blocking ? '' : `<div class="pd-off">Ad and tracker blocking is currently switched OFF, so nothing new is being counted. Turn it back on in Settings.</div>`;
 
@@ -82,16 +88,41 @@ const PrivacyDashboard = {
         `<div class="pd-cross-item"><span class="pd-host" title="${this._esc(c.host)}">${this._esc(c.host)}</span><span class="pd-cross-count">${c.siteCount} sites</span></div>`
       ).join('')}</div>` : '';
 
+    const ownHtml = own.length ? `
+      <div class="pd-section-title">A site's own analytics</div>
+      <div class="pd-own-note">Blocked on the site itself and not seen on any other site.</div>
+      <div class="pd-cross">${own.slice(0, 8).map(t =>
+        `<div class="pd-cross-item"><span class="pd-host" title="${this._esc(t.host)}">${this._esc(t.host)}</span><span class="pd-count">${t.count.toLocaleString()}</span></div>`
+      ).join('')}</div>` : '';
+
     body.innerHTML = offNotice + `
       <div class="pd-hero">
         <div class="pd-hero-num">${total.toLocaleString()}</div>
         <div class="pd-hero-label">requests blocked this session</div>
-        <div class="pd-hero-sub">${top.length.toLocaleString()} distinct tracker/ad host${top.length === 1 ? '' : 's'}</div>
+        <div class="pd-hero-sub">${top.length.toLocaleString()} tracker/ad host${top.length === 1 ? '' : 's'} from other sites</div>
       </div>
       ${crossHtml}
-      <div class="pd-section-title">Top offenders</div>
-      <div class="pd-list">${bars}</div>
+      ${top.length ? `<div class="pd-section-title">Top offenders</div>
+      <div class="pd-list">${bars}</div>` : ''}
+      ${ownHtml}
       <div class="pd-foot">Counts reset when Vex restarts. Blocking is ${blocking ? 'on' : 'off'}.</div>`;
+  },
+
+  // The site a host belongs to, near enough: its last two labels, or three
+  // under a two-letter country suffix such as co.uk.
+  siteOf(host) {
+    const parts = String(host || '').toLowerCase().replace(/^www\./, '').split('.').filter(Boolean);
+    if (parts.length <= 2) return parts.join('.');
+    const n = (parts[parts.length - 1].length === 2 && /^(co|com|org|net|ac|gov|edu|ne|or)$/.test(parts[parts.length - 2])) ? 3 : 2;
+    return parts.slice(-n).join('.');
+  },
+
+  // Blocked only on pages of its own site: never seen on another one.
+  ownSiteOnly(t) {
+    const sites = (t && t.sites) || [];
+    if (!sites.length) return true;
+    const mine = this.siteOf(t.host);
+    return sites.every(s => this.siteOf(s) === mine);
   },
 
   _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
@@ -118,6 +149,7 @@ const PrivacyDashboard = {
       .pd-badge{background:color-mix(in srgb, var(--warning,#f59e0b) 85%, transparent);color:#1a1206;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:700;letter-spacing:0}
       .pd-cross{display:flex;flex-direction:column;gap:5px;margin-bottom:4px}
       .pd-cross-item{display:flex;align-items:center;justify-content:space-between;background:rgba(127,127,127,.06);border:1px solid var(--border);border-radius:9px;padding:7px 10px}
+      .pd-own-note{font-size:11px;color:var(--text-muted);margin:-4px 2px 8px;line-height:1.45}
       .pd-cross-count{font-size:11px;color:var(--warning,#f59e0b);font-weight:600;flex-shrink:0;margin-left:8px}
       .pd-list{display:flex;flex-direction:column;gap:9px}
       .pd-row-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}

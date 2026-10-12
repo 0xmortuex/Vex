@@ -56,12 +56,4 @@ function createGpuProbe({ execFile, now = () => Date.now(), timeoutMs = 2500 }) 
   return { read, parse };
 }
 
-// Can a model of `needMB` reasonably run on the card right now? `null` for
-// "no idea", which callers treat as "carry on" — never as a refusal.
-function roomFor(gpu, needMB) {
-  if (!gpu || !gpu.totalMB) return null;
-  if (!needMB) return gpu.freeMB > 1024;
-  return gpu.freeMB >= needMB;
-}
-
-module.exports = { createGpuProbe, parse, roomFor, CACHE_MS };
+module.exports = { createGpuProbe, parse, CACHE_MS };

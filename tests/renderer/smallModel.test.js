@@ -27,6 +27,9 @@ describe('which model answers', () => {
     const R = router();
     R.setModel('qwen3.5:14b');
     R.setSmallModel('llama3.2:1b');
+    // Only features something really asks for (summarizeTab, suggest and
+    // route were listed and asked by nothing).
+    expect(R.routineFeatures()).toEqual(['historyIndex', 'historySearch', 'groupTabs']);
     for (const feature of R.routineFeatures()) expect(R.modelFor(feature), feature).toBe('llama3.2:1b');
     expect(R.modelFor('chat')).toBe('qwen3.5:14b');
     expect(R.modelFor('agent')).toBe('qwen3.5:14b');

@@ -19,16 +19,20 @@ const TwoModels = {
   async ask(question, context) {
     const q = String(question || '').trim();
     if (!q) throw new Error('Write the question first');
+    // A private, off-the-record or Tor tab's page stays on this machine: the
+    // cloud column is asked without it (its address and title went to the
+    // cloud, found 2026-10-10).
+    const { privateTab, ...page } = context || {};
     const request = {
       message: q,
-      pageContext: context || null,
+      pageContext: context ? page : null,
       conversationHistory: [],
       persona: null,
     };
     const answers = await Promise.all(this.SIDES.map(async (side) => {
       const started = Date.now();
       try {
-        const out = await AIRouter.callOn(side.backend, 'chat', { ...request });
+        const out = await AIRouter.callOn(side.backend, 'chat', { ...request, ...(privateTab && side.backend === 'cloud' ? { pageContext: null } : {}) });
         const text = this.reply(out && out.result != null ? String(out.result) : '');
         if (!text.trim()) throw new Error('That backend answered with nothing');
         return { ...side, ok: true, text, model: (out && out.model) || '', ms: Date.now() - started };
@@ -65,7 +69,8 @@ const TwoModels = {
       try { ctx = await PageContext.extractPageContext(wv); }
       catch (err) { console.warn('[TwoModels] could not read the page:', err.message); }
     }
-    return ctx || { url: tab.url, title: tab.title || '' };
+    const out = ctx || { url: tab.url, title: tab.title || '' };
+    return (window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) ? { ...out, privateTab: true } : out;
   },
 
   _column(a, md) {

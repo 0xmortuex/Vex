@@ -28,7 +28,7 @@ const AICompose = {
       <textarea id="cmp-instr" rows="3" placeholder="e.g. reply politely declining · make this friendlier · write a short intro about X" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:'Outfit',sans-serif"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
         <button id="cmp-cancel" style="padding:8px 16px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Cancel</button>
-        <button id="cmp-go" style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Write</button>
+        <button id="cmp-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Write</button>
       </div></div>`;
     document.body.appendChild(m);
     const instr = m.querySelector('#cmp-instr');
@@ -123,20 +123,27 @@ const CommandChains = {
       row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border)';
       row.innerHTML = `<div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:600;color:var(--text)">${VexIcons.svg('link', { size: 13 })} ${esc(ch.name)}</div><div style="font-size:11.5px;color:var(--text-muted)">${esc(ch.steps.join(' → '))}</div></div>
         <button data-del aria-label="Delete chain ${esc(ch.name)}" title="Delete this chain" style="padding:5px 10px;background:var(--bg);color:var(--danger);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center">${VexIcons.svg('trash', { size: 13 })}</button>`;
-      // A chain is something the user assembled by hand and there is no undo,
-      // so confirm first and then report what actually happened.
-      row.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!await window.vexConfirm({
-          title: 'Delete chain',
-          message: `Delete the chain "${ch.name}"? This cannot be undone.`,
-          okLabel: 'Delete', danger: true,
-        })) return;
-        const previous = this.chains;
-        this.chains = this.chains.filter(x => x.id !== ch.id);
-        const saved = this.save();
-        if (!saved) { this.chains = previous; this.save(); }
+      // A chain is something the user assembled by hand: it goes at once with
+      // Undo on the toast (js/vex-undo.js), and a save that fails says so.
+      row.querySelector('[data-del]').addEventListener('click', () => {
+        const previous = this.chains.slice();
+        const removed = window.VexUndo.takeOut(this.chains, x => x.id === ch.id);
+        if (!removed) return;
+        if (!this.save()) {
+          this.chains = previous; this.save();
+          this.renderPanel(container);
+          window.showToast?.('Could not save the change — the chain was kept', 'error');
+          return;
+        }
         this.renderPanel(container);
-        window.showToast?.(saved ? `Deleted "${ch.name}"` : 'Could not save the change — the chain was kept', saved ? undefined : 'error');
+        window.VexUndo.offer({
+          message: `Deleted the chain “${ch.name}”`,
+          undo: () => {
+            window.VexUndo.putBack(this.chains, removed);
+            if (!this.save()) throw new Error('It could not be saved');
+            if (container.isConnected) this.renderPanel(container);
+          },
+        });
       });
       container.appendChild(row);
     });
@@ -144,9 +151,9 @@ const CommandChains = {
     add.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:8px';
     add.innerHTML = `
       <input id="chain-name" type="text" placeholder="Chain name (e.g. Read it to me)" style="padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;font-family:'Outfit',sans-serif">
-      <select id="chain-pick" multiple size="6" style="padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">${baseCmds.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select>
+      <select id="chain-pick" aria-label="Commands in the chain" multiple size="6" style="padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12.5px;outline:none">${baseCmds.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select>
       <div style="font-size:11px;color:var(--text-muted)">Ctrl+click to pick steps in the order you want them to run.</div>
-      <button id="chain-add" style="align-self:flex-start;padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ Create chain</button>`;
+      <button id="chain-add" style="align-self:flex-start;padding:8px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">+ Create chain</button>`;
     container.appendChild(add);
     const picked = [];
     add.querySelector('#chain-pick').addEventListener('change', (e) => {

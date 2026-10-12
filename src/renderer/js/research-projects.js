@@ -76,6 +76,27 @@ const ResearchProjects = {
     this.save();
   },
 
+  // Gone at once with its items, Undo on the toast puts it back in its place
+  // and, if it was the one being worked on, makes it that again.
+  removeWithUndo(id, redraw) {
+    const wasActive = this.activeId() === id;
+    const removed = window.VexUndo.takeOut(this.projects, p => p.id === id);
+    if (!removed) return false;
+    if (wasActive) { try { localStorage.removeItem(this.ACTIVE_KEY); } catch {} }
+    this.save();
+    if (redraw) redraw();
+    window.VexUndo.offer({
+      message: 'Deleted the project “' + removed.item.name + '”',
+      undo: () => {
+        window.VexUndo.putBack(this.projects, removed);
+        this.save();
+        if (wasActive && !this.activeId()) this.setActive(id);
+        if (redraw) redraw();
+      },
+    });
+    return true;
+  },
+
   // --- putting things in -------------------------------------------------
   _add(projectId, item) {
     const p = this.get(projectId) || this.active();
@@ -245,7 +266,7 @@ const ResearchProjects = {
           r.addEventListener('click', async (e) => {
             if (e.target.closest('[data-use]')) { this.setActive(p.id); drawList(); return; }
             if (e.target.closest('[data-del]')) {
-              if (await vexConfirm({ title: 'Delete “' + p.name + '”?', message: 'Its ' + p.items.length + ' saved item' + (p.items.length === 1 ? '' : 's') + ' go with it. The pages themselves are untouched.', okLabel: 'Delete', danger: true })) { this.remove(p.id); drawList(); }
+              this.removeWithUndo(p.id, () => { if (body.isConnected && !viewing) drawList(); });
               return;
             }
             viewing = p; drawOne();

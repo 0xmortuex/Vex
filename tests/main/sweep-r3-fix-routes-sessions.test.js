@@ -152,9 +152,9 @@ describe('a session is wired the first time it is made', () => {
     };
     const fn = new Function('require', 'webContents', 'CHROME_UA', 'BROWSING_SESSIONS', 'wireClientHintsOnSession', 'wireAdblockerOnSession',
       'wireDownloadsOnSession', 'wirePermissionsOnSession', 'wireWebHidOnSession', 'wireDisplayMediaOnSession', '_addMediaCorsHeaders', '_scriptsOffCsp',
-      'attachGuestPreloads', 'wireSpellcheckOnSession', src + '\nreturn _wireBrowsingSession;')(
+      'attachGuestPreloads', 'wireSpellcheckOnSession', '_syncTorLight', src + '\nreturn _wireBrowsingSession;')(
       m => (m === './main/routing' ? routing : require(m)), { getAllWebContents: () => [] }, 'UA', ['persist:main', 'persist:container-work'],
-      note('ch'), note('adblock'), note('downloads'), note('permissions'), note('hid'), note('display'), () => {}, () => {}, note('preloads'), note('spell'));
+      note('ch'), note('adblock'), note('downloads'), note('permissions'), note('hid'), note('display'), () => {}, () => {}, note('preloads'), note('spell'), async () => {});
     fn(ses, partition);
     return { ses, calls: calls.map(c => c[0]) };
   }

@@ -65,6 +65,13 @@ const SponsorSkip = {
     let id = null;
     try { const u = new URL(url); if (/(^|\.)youtube\.com$/.test(u.hostname) && u.pathname === '/watch') id = u.searchParams.get('v'); } catch { id = null; }
     if (!id) return;
+    // The lookup goes from Vex's window, direct: only for a tab in the main
+    // session while that is not routed. A video opened in a Tor, private,
+    // off-the-record, burner, container or routed tab was announced to
+    // sponsor.ajay.app from the real address (security scan P2/R2).
+    const tab = (TabManager.tabs || []).find(t => t.id === tabId);
+    if (!tab || !TabManager.windowMayAsk(tab.partition)) return;
+    if (typeof SiteRoutes !== 'undefined' && SiteRoutes.match(url)) return;
     const wv = WebviewManager.webviews.get(tabId);
     if (!wv) return;
     try {

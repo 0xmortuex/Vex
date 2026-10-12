@@ -17,6 +17,7 @@ function harness(privatePartition = null) {
       on: (event, fn) => handlers.set(event, fn),
       once: vi.fn(),
       send: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
       isDestroyed: () => false,
     },
   };

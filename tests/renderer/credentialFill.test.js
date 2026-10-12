@@ -63,9 +63,10 @@ it('rejects lookalike mail providers and private email readers', () => {
 });
 it('does not erase newer clipboard content when a copied password expires', async () => {
   let clipboard = '';
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
-    writeText: vi.fn(async value => { clipboard = value; }), readText: async () => clipboard,
-  } });
+  // The main process owns the clipboard for secrets (main/secret-clipboard.js).
+  const { createSecretClipboard } = require('../../src/main/secret-clipboard.js');
+  const service = createSecretClipboard({ clipboard: { writeText: value => { clipboard = value; }, readText: () => clipboard, clear: () => { clipboard = ''; } } });
+  window.vex = { ...(window.vex || {}), copySecret: async (text, seconds) => service.write(text, seconds) };
   await PasswordVault._copyPassword('secret');
   clipboard = 'Newly copied text';
   await vi.advanceTimersByTimeAsync(30000);
@@ -131,36 +132,8 @@ it('keeps retrying TOTP across a same-origin step change', async () => {
   await vi.advanceTimersByTimeAsync(1200);
   expect(field.value).toBe('123456');
 });
-it('password filling ignores hidden fields and changed form actions', async () => {
-  window.vex = { vaultGet: async () => [{ username: 'alice', password: 'secret' }] };
-  const { webview } = page('<form action="https://evil.test"><input type="email"><input type="password"></form><input type="password" style="visibility:hidden">');
-  await PasswordVault.autofill(webview, webview.getURL());
-  expect([...document.querySelectorAll('input')].every(x => x.value === '')).toBe(true);
-});
-it('password click-to-fill survives a rewritten query string', async () => {
-  // Spotify rewrites flow_ctx between the email and password steps. Gating the
-  // fill on the full href made every step after the first silently no-op.
-  window.vex = { vaultGet: async () => [{ username: 'alice', password: 'secret' }] };
-  const { webview, location } = page('<input type="email"><input type="password">', 'https://accounts.spotify.com/login?flow_ctx=first');
-  await PasswordVault.autofill(webview, location.href);
-  expect(document.querySelector('input[type=password]').value).toBe('secret');
-  document.querySelector('input[type=email]').value = '';
-  document.querySelector('input[type=password]').value = '';
-  location.href = 'https://accounts.spotify.com/login?flow_ctx=regenerated';
-  document.querySelector('input[type=password]').dispatchEvent(new Event('focusin', { bubbles: true }));
-  await vi.advanceTimersByTimeAsync(10);
-  expect(document.querySelector('input[type=password]').value).toBe('secret');
-});
-it('password fill stops once the page has left the origin', async () => {
-  window.vex = { vaultGet: async () => [{ username: 'alice', password: 'secret' }] };
-  const { webview, location } = page('<input type="email"><input type="password">', 'https://accounts.spotify.com/login');
-  await PasswordVault.autofill(webview, location.href);
-  document.querySelector('input[type=password]').value = '';
-  location.href = 'https://evil.test/login';
-  document.querySelector('input[type=password]').dispatchEvent(new Event('focusin', { bubbles: true }));
-  await vi.advanceTimersByTimeAsync(10);
-  expect(document.querySelector('input[type=password]').value).toBe('');
-});
+// Password filling (hidden fields, query-string rewrites, leaving the origin): moved to loginFillGesture.test.js. The saved login is filled only
+// after a real click, from the guest preload (audit S5).
 it('fills a TOTP for a site the curated map never listed, once confirmed', async () => {
   // Roblox is not one of the eight curated brands, so the allowlist could never
   // match it and 2FA autofill was dead for every site outside that list.

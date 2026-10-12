@@ -38,6 +38,8 @@ const LoginsHub = {
 
   _chip() { return "padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif"; },
 
+  // The master switch (Settings › Passwords, 'setting-emailcode-autofill').
+  _emailCodesOn() { try { return localStorage.getItem('vex.emailCodeAutofill') !== '0'; } catch { return true; } },
   _hiddenReaderOn() { try { return localStorage.getItem('vex.emailCodeHiddenReader') === '1'; } catch { return false; } },
   _autoSubmitOn() { try { return localStorage.getItem('vex.emailCodeAutoSubmit') === '1'; } catch { return false; } },
 
@@ -92,23 +94,34 @@ const LoginsHub = {
   async _paint(m) {
     const body = m.querySelector('#lh-body'); if (!body) return;
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
-    let passwords = [], totp = [];
-    try { passwords = (await window.vex.vaultList()) || []; } catch {}
-    try { totp = (await window.vex.totpList()) || []; } catch {}
+    // A vault or authenticator that cannot be read is said so, not shown as
+    // "0 · None yet" (Vex locked, keychain unavailable, damaged file).
+    let passwords = [], totp = [], pwError = '', totpError = '';
+    try { passwords = (await window.vex.vaultList()) || []; }
+    catch (err) { pwError = (err && err.message) || String(err); console.error('[LoginsHub] could not read saved passwords:', pwError); }
+    try { totp = (await window.vex.totpList()) || []; }
+    catch (err) { totpError = (err && err.message) || String(err); console.error('[LoginsHub] could not read the authenticator:', totpError); }
+    const failed = (what, why) => `<div role="alert" style="font-size:12px;color:var(--danger);margin-bottom:6px">Could not read ${what}: ${esc(String(why).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))}</div>`;
     const stats = (window.AutofillLog && window.AutofillLog.stats()) || { byKind: {}, byHost: {} };
     const rate = (k) => { const s = stats.byKind[k]; return s && s.fills ? Math.round(100 * s.ok / s.fills) + '% · ' + s.fills : '—'; };
 
     // --- Email codes ---
-    const g = this._mailStatus();
+    const codesOn = this._emailCodesOn();
+    const g = codesOn ? this._mailStatus()
+      : { level: 'off', text: 'Automatic email-code fill is off. "Fill code from email" (right-click a code field, or Ctrl+K) still works when you ask.' };
     const dot = { ok: '#4caf50', warn: '#e8a13a', off: '#e5556a' }[g.level];
     let html = `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('mail', { size: 14 })}Email-code autofill <span style="font-size:11px;color:var(--text-muted);font-weight:400">· fills verification codes from your open Gmail</span></div>
       <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:6px">
         <span style="width:9px;height:9px;border-radius:50%;background:${dot};flex-shrink:0"></span>
         <span style="flex:1">${esc(g.text)}</span>
-        ${g.level === 'off'
+        ${!codesOn ? '' : g.level === 'off'
           ? `<button id="lh-open-gmail" style="${this._chip()}">Open Gmail</button>`
           : (g.level === 'warn' ? `<button id="lh-keep-gmail" style="${this._chip()}">Keep awake</button>` : '')}
       </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:4px;cursor:pointer">
+        <input type="checkbox" id="lh-codes-on" ${codesOn ? 'checked' : ''} style="cursor:pointer">
+        Fill codes from email automatically
+      </label>
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:4px;cursor:pointer">
         <input type="checkbox" id="lh-hidden-reader" ${this._hiddenReaderOn() ? 'checked' : ''} style="cursor:pointer">
         Read codes even without a Gmail tab open <span style="color:var(--text-muted)">· uses a hidden background Gmail (your signed-in session)</span>
@@ -125,8 +138,9 @@ const LoginsHub = {
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('emailcode')} attempts logged. Works with Gmail, Outlook, Proton, Yahoo &amp; iCloud.</div>`;
 
     // --- Passwords ---
-    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('key', { size: 14 })}Saved passwords <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${passwords.length} · fills auto on matching sites</span></div>`;
-    if (passwords.length) {
+    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('key', { size: 14 })}Saved passwords <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${pwError ? '?' : passwords.length} · fills when you click a sign-in field</span></div>`;
+    if (pwError) html += failed('saved passwords', pwError);
+    else if (passwords.length) {
       html += '<div style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-bottom:6px">' +
         passwords.slice(0, 60).map(p => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)">
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.host || p.site || '')}</span>
@@ -136,8 +150,9 @@ const LoginsHub = {
     html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Autofill success: ${rate('password')} · <a id="lh-manage-pw" style="color:var(--primary,var(--accent));cursor:pointer">Manage in Settings</a> · <a id="lh-pw-health" style="color:var(--primary,var(--accent));cursor:pointer">Check health</a></div>`;
 
     // --- Authenticator (2FA) ---
-    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('hash', { size: 14 })}Authenticator (2FA) <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${totp.length} · fills the 6-digit code on matching sites</span></div>`;
-    if (totp.length) {
+    html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('hash', { size: 14 })}Authenticator (2FA) <span style="font-size:11px;color:var(--text-muted);font-weight:400">· ${totpError ? '?' : totp.length} · fills the 6-digit code on matching sites</span></div>`;
+    if (totpError) html += failed('the authenticator', totpError);
+    else if (totp.length) {
       html += '<div style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-bottom:6px">' +
         totp.slice(0, 60).map(a => `<div style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border)">
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.issuer || a.label || 'Account')}</span>
@@ -160,6 +175,8 @@ const LoginsHub = {
         'inbox-empty': 'inbox empty',
         'no-code-arrived': 'no code arrived',
         'no-new-code': 'no new code',
+        'sender-mismatch': 'code was from another site',
+        'busy': 'too many sign-ins at once',
       };
       html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('chart-bar', { size: 14 })}Recent autofill activity</div>` +
         recent.map(e => `<div style="display:flex;gap:8px;padding:4px 2px;font-size:12px">
@@ -172,6 +189,13 @@ const LoginsHub = {
 
     body.innerHTML = html;
     // Wire actions
+    body.querySelector('#lh-codes-on')?.addEventListener('change', (e) => {
+      try { localStorage.setItem('vex.emailCodeAutofill', e.target.checked ? '1' : '0'); }
+      catch (err) { window.showToast?.('Could not save that: ' + err.message, 'error'); return; }
+      const inSettings = document.getElementById('setting-emailcode-autofill');
+      if (inSettings) inSettings.checked = e.target.checked;
+      this._paint(m);
+    });
     body.querySelector('#lh-hidden-reader')?.addEventListener('change', (e) => { try { localStorage.setItem('vex.emailCodeHiddenReader', e.target.checked ? '1' : '0'); } catch {} this._paint(m); });
     body.querySelector('#lh-auto-submit')?.addEventListener('change', (e) => { try { localStorage.setItem('vex.emailCodeAutoSubmit', e.target.checked ? '1' : '0'); } catch {} });
     body.querySelector('#lh-test-autofill')?.addEventListener('click', () => { this._runAutofillTest(m); });

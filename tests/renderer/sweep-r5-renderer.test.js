@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url": "http://localhost/C:/vex/src/renderer/index.html"}
 //
 // Fixes of 2026-09-30 (r5), window side:
 //   * the New Tab page's grid (its own storage, 'vex.shortcuts' there) synced
@@ -10,6 +11,8 @@
 //   * a container tab's page was told persist:main's permission decisions;
 //   * a closed tab's JavaScript-off back list was kept by main for half an hour.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// The window's start-page check (js/start-page-trust.js), as index.html loads it.
+require('../../src/renderer/js/start-page-trust.js');
 
 require('../../src/renderer/js/vex-utils.js');
 const Records = require('../../src/renderer/js/sync-records.js');
@@ -162,7 +165,7 @@ describe('the New Tab grid syncs as a list of its own', () => {
     // it back with a push of its own right after. Wait for that, or the push
     // below can land while it runs (seen as a flake under load).
     const own = Object.values(server.sessions)[0];
-    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:' + own]).toEqual({ level: 1 }));
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:' + own]).toMatchObject({ level: 2, revision: expect.any(Number) }));
     expect(names(grid())).toEqual(['a', 'b']);
     setGrid([...grid(), tile('c')]);
     const before = Object.entries((await accountDoc(server, key)).records).filter(([k]) => k.includes('vex.startTiles'));

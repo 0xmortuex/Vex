@@ -23,11 +23,48 @@ const Bookmarks = {
 
   has(url) { return this.items.some(b => b.url === url); },
 
+  // Gone at once, with Undo on the toast: it comes back in its folder and its
+  // place in the list (js/vex-undo.js).
+  remove(match) {
+    const idOf = (x) => (x && x.id != null ? String(x.id) : null);
+    const removed = VexUndo.takeOutAll(this.items, match, idOf);
+    if (!removed.length) return 0;
+    this.save();
+    this._repaint();
+    const what = removed.length === 1 ? '“' + (removed[0].item.title || removed[0].item.url) + '”' : removed.length + ' bookmarks';
+    VexUndo.offer({
+      message: 'Removed ' + what + ' from bookmarks',
+      undo: () => {
+        VexUndo.putBackAll(this.items, removed, idOf);
+        this.items = window.CollectionStore.save(this.KEY, this._baseline, this.items, 0, merged => VexUndo.reposition(merged, removed, idOf));
+        this._baseline = this.items.slice();
+        this._syncStar();
+        this._repaint();
+      },
+    });
+    return removed.length;
+  },
+
+  // The Bookmarks panel, if it is open, shows the list as it is now.
+  _repaint() {
+    const list = document.getElementById('bm-list');
+    if (!list) return;
+    const q = list.parentElement.querySelector('#bm-search');
+    const query = q ? q.value : '';
+    const scroll = list.scrollTop;
+    list._virtualDispose?.();
+    this.renderPanel(list.parentElement);
+    const box = document.getElementById('bm-search');
+    if (box && query) { box.value = query; box.dispatchEvent(new Event('input')); }
+    const fresh = document.getElementById('bm-list');
+    if (fresh) fresh.scrollTop = scroll;
+  },
+
   async toggle(url, title) {
     if (!url) return;
     if (this.has(url)) {
-      this.items = this.items.filter(b => b.url !== url);
-      window.showToast?.('Bookmark removed');
+      this.remove(b => b.url === url);
+      return;
     } else {
       // Native prompt() is disabled in Electron's renderer (always returned
       // null here, silently skipping the folder question) — use the in-app
@@ -94,7 +131,7 @@ const Bookmarks = {
           link.textContent = (item.folder || 'Unsorted') + ' · ' + (item.title || item.url); link.title = item.url;
           link.addEventListener('click', () => { SidebarManager.hideActivePanel?.(); TabManager.createTab(item.url, true); });
           const remove = document.createElement('button'); remove.innerHTML = VexIcons.svg('x', { size: 13 }); remove.title = 'Delete bookmark'; remove.setAttribute('aria-label', 'Delete bookmark');
-          remove.addEventListener('click', () => { this.items = this.items.filter(b => b.id !== item.id); this.save(); paint(q); });
+          remove.addEventListener('click', () => { this.remove(b => b.id === item.id); });
           row.append(link, remove); return row;
         });
         return;
@@ -119,7 +156,7 @@ const Bookmarks = {
             <div style="flex:1;min-width:0"><div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.title)}</div><div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(hostTxt)}</div></div>
             <button data-del style="width:22px;height:22px;border:none;background:none;color:var(--text-muted);cursor:pointer;border-radius:5px;display:inline-flex;align-items:center;justify-content:center" title="Delete bookmark" aria-label="Delete bookmark">${VexIcons.svg('x', { size: 13 })}</button>`;
           row.addEventListener('click', (e) => { if (e.target.closest('[data-del]')) return; SidebarManager.hideActivePanel?.(); TabManager.createTab(b.url, true); });
-          row.querySelector('[data-del]').addEventListener('click', (e) => { e.stopPropagation(); this.items = this.items.filter(x => x.id !== b.id); this.save(); paint(q); });
+          row.querySelector('[data-del]').addEventListener('click', (e) => { e.stopPropagation(); this.remove(x => x.id === b.id); });
           list.appendChild(row);
         });
       });

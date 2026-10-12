@@ -39,12 +39,15 @@ describe('ThemeManager', () => {
       'aurora', 'crimson', 'gold', 'sakura', 'cyberpunk', 'monochrome',
       'slate', 'emerald', 'amethyst', 'volcano', 'sapphire', 'honey', 'mint', 'obsidian',
       'ruby', 'lime', 'bronze', 'plum', 'arctic', 'wine', 'firefox-light', 'firefox-dark',
+      // For a need: high contrast, night reading, Windows 11 (2026-10-08).
+      'contrast-light', 'contrast-dark', 'evening', 'mica-light', 'mica-dark',
       // After the popular BetterDiscord themes (2026-09-29).
       'clearvision', 'darkmatter', 'duskplus', 'darkplus', 'terminal', 'amoled', 'recordgreen',
       'darkneon', 'deepmidnight', 'softx', 'neutron', 'nocturnal', 'tokyonight', 'material',
       'androidbeige', 'kaleidoscope', 'codedark', 'synthesis', 'virtualred', 'paperred',
       'noctisviola', 'wildberry', 'gxred', 'gruvbox', 'rosynight', 'azurite', 'neptune', 'ezlight',
-      'custom'
+      // The old Custom Image theme ('custom') is a theme of your own since
+      // item #4 (js/theme-studio.js); those come after these.
     ]);
     expect(TM.DEFAULT_THEME).toBe('oxford');
   });
@@ -170,11 +173,17 @@ describe('ThemeManager', () => {
     expect(localStorage.getItem('vex.theme')).toBe('oxford');
   });
 
-  it('getThemeMeta returns the registry entry with a label and preview', async () => {
+  it('getThemeMeta returns the registry entry with a label', async () => {
     const TM = await loadThemeManager();
     const meta = TM.getThemeMeta('oxford');
     expect(meta.label).toBe('Oxford Editorial');
-    expect(meta.preview).toBe('oxford.png');
+  });
+
+  // The PNG previews (assets/theme-previews/, a capture script) are long gone;
+  // the picker draws every card live. The dead file names went with them.
+  it('no theme names a preview picture that does not exist', async () => {
+    const TM = await loadThemeManager();
+    expect(TM.THEMES.filter(t => 'preview' in t).map(t => t.id)).toEqual([]);
   });
 
   it('applyTheme broadcasts the active theme to vex://start webviews via executeJavaScript', async () => {

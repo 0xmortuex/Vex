@@ -6,25 +6,47 @@
 // Public API: WebviewManager (singleton). Depends on TabManager, VexStorage,
 // HistoryPanel (optional), HistoryIndexer (optional), TabGrouper (optional).
 
-// Strict start-page matcher for the privileged VEX_CMD console channel.
-// Deliberately stricter than isStartPage() (which matches ANY url containing
-// "start.html", so https://evil.com/start.html would pass): require the
-// canonical vex://start origin OR a file: URL whose path ends in
-// /renderer/start.html. Mirrors _isVexStartPage in preload-webview.js.
-function _isTrustedStartPage(href) {
-  if (typeof href !== 'string' || !href) return false;
-  let u;
-  try { u = new URL(href); } catch { return false; }
-  if (u.protocol === 'vex:' && /^start$/i.test(u.host || '')) return true;
-  if (u.protocol === 'file:') return /\/renderer\/start\.html$/i.test(u.pathname);
-  return false;
-}
+// The privileged VEX_CMD console channel and the start-page pushes below are
+// gated on _isTrustedStartPage (js/start-page-trust.js): Vex's own start.html
+// by its whole path, not isStartPage() (js/tabs.js), which matches any file
+// named renderer/start.html.
 
 const WebviewManager = {
   webviews: new Map(),
+  _historySeq: 0,
+
+  // The tab's back list as main reads it off its page, kept with the tab and
+  // saved with it (VexTabPolicy.serialize), so the page can be built again
+  // with it (createWebview above). Asked after every navigation of the page.
+  _noteHistory(tab, webview) {
+    if (typeof window.vex?.tabHistory !== 'function') return;
+    let pageId;
+    try { pageId = webview.getWebContentsId(); } catch { return; }   // not attached yet: its first navigation asks again
+    window.vex.tabHistory(pageId).then(list => {
+      if (this.webviews.get(tab.id) !== webview) return;   // slept or closed meanwhile: keep what it had
+      tab.history = list || null;
+      TabManager.persistTabs();
+    }).catch(err => console.warn('[Vex] could not read the tab\'s back list:', err && err.message));
+  },
+
+  // One of Vex's own pages (HTTPS-Only's "no secure connection", a
+  // certificate error) is a data: page, which the tab otherwise leaves out of
+  // its address; main says which address it stands for, and the bar shows
+  // that, as Chrome does. It kept the page the person came from. Any other
+  // data: page (reading mode's) stands for nothing and is left as it was.
+  async _showVexPageAddress(tab, webview, dataUrl) {
+    if (typeof window.vex?.vexPageAddress !== 'function') throw new Error('window.vex.vexPageAddress is missing');
+    const address = await window.vex.vexPageAddress(webview.getWebContentsId());
+    if (!address || webview.getURL() !== dataUrl) return;   // not one of Vex's, or the tab moved on
+    TabManager.updateTab(tab.id, { url: address });
+    window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
+  },
 
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
+    // A container's own route is asked for now, before anything reads the
+    // page (VexTabPolicy.isRouted counts it routed until main answers).
+    if (window.VexTabPolicy) window.VexTabPolicy.isRouted(tab.partition);
     const container = document.getElementById('webviews-container');
     const webview = document.createElement('webview');
     const lifecycle = window.VexLifecycle ? new window.VexLifecycle() : null;
@@ -61,10 +83,19 @@ const WebviewManager = {
     // and main gives the new one that guest's back list (session-security.js).
     const historyFrom = tab._historyFrom;
     delete tab._historyFrom;
+    // Any other tab built again (woken, reopened, restored at start) hands
+    // main the back list kept with it, and the new page starts with it
+    // (session-security.js, carryHistory); it went with the old page before.
+    let carried = null;
+    if (!Number.isInteger(historyFrom) && tab.history && typeof window.vex?.carryTabHistory === 'function') {
+      carried = 'c' + (++this._historySeq);
+      window.vex.carryTabHistory(carried, tab.partition || 'persist:main', tab.history);
+    }
     webview.setAttribute('webpreferences', 'contextIsolation=yes'
       + (keptAwake ? ',backgroundThrottling=no' : '')
       + (noScripts ? ',javascript=no' : '')
-      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : ''));
+      + (Number.isInteger(historyFrom) ? ',vexHistoryFrom=' + historyFrom : '')
+      + (carried ? ',vexHistoryFrom=' + carried : ''));
     webview.dataset.tabId = tab.id;
     // Browsing on to such a site from here is held to it by main, on the
     // page's own response (script-src 'none'). The other way round cannot be:
@@ -88,6 +119,18 @@ const WebviewManager = {
     onWebview('did-start-loading', () => {
       TabManager.updateTab(tab.id, { loading: true });
       container.classList.add('wv-loading');
+    });
+
+    // Whether the page in front is an error page, for the padlock
+    // (js/site-panel.js): a new page clears it, a failed one sets it.
+    onWebview('did-start-navigation', (e) => {
+      if (e.isMainFrame === false || e.isSameDocument || e.isInPlace) return;
+      tab._loadFailed = null;
+    });
+    onWebview('did-fail-load', (e) => {
+      if (e.isMainFrame === false || e.errorCode === -3) return;
+      tab._loadFailed = { code: e.errorCode, url: e.validatedURL };
+      if (typeof SitePanel !== 'undefined' && TabManager.activeTabId === tab.id) SitePanel.refreshIcon();
     });
 
     onWebview('did-stop-loading', () => {
@@ -183,7 +226,7 @@ const WebviewManager = {
         if (url && !url.startsWith('about:') && !url.startsWith('file:')) {
           const host = new URL(url).hostname;
           const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
-          if (zooms[host]) webview.setZoomFactor(zooms[host]);
+          if (zooms[host]) { webview.setZoomFactor(zooms[host]); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); }
         }
       } catch {}
 
@@ -224,8 +267,12 @@ const WebviewManager = {
       // The visit is recorded the moment the page starts loading, when its
       // title is still "Loading…" or the bare URL. Without this every history
       // entry keeps that placeholder.
+      // Never from a private or Tor tab (an in-memory session), whose visit is
+      // not recorded either: its title renamed the normal entry for the same
+      // address, and history syncs (found 2026-10-09).
       const current = TabManager.tabs.find(x => x.id === tab.id);
-      if (current && current.url && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
+      const ephemeral = !!(tab.partition && !tab.partition.startsWith('persist:'));
+      if (current && current.url && !ephemeral && typeof HistoryPanel !== 'undefined') HistoryPanel.updateTitle(current.url, e.title);
     });
 
     onWebview('dom-ready', () => {
@@ -250,6 +297,8 @@ const WebviewManager = {
         if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
         // Re-apply persistent highlights for this page
         if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
+        // Discord as a tab in the Vex theme (js/discord-theme.js).
+        if (window.DiscordTheme && t && t.partition === 'persist:discord') DiscordTheme.onPageReady(webview);
       } catch {}
     });
 
@@ -268,17 +317,33 @@ const WebviewManager = {
     // current GUI Style so the home page matches Classic/Glass.
     onWebview('dom-ready', () => {
       try {
-        if (typeof isStartPage === 'function' && isStartPage(webview.getURL())) {
-          const gs = (window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
+        // Vex's own start page only: Today, the tabs from your devices and
+        // the theme went to any file named renderer/start.html (audit SE6).
+        if (_isTrustedStartPage(webview.getURL())) {
+          const gs =(window.VexGuiStyle && VexGuiStyle.get()) || 'classic';
           webview.executeJavaScript(`document.documentElement.setAttribute('data-gui-style', ${JSON.stringify(gs)})`).catch(() => {});
+          // The colour theme, in case it changed while this page was loading
+          // (Light and dark switches by itself): a no-op when it already matches.
+          if (typeof ThemeManager !== 'undefined' && !/^vex:/i.test(webview.getURL())) {
+            webview.executeJavaScript(ThemeManager.startPageThemeJs(ThemeManager.getCurrentTheme()))
+              .catch(err => console.error('[ThemeManager] New Tab theme at load failed:', err && err.message));
+          }
           // The Today block on the new tab page (js/today.js): the start page
           // runs in its own session and cannot read this renderer's storage,
           // so the snapshot is handed to it here, the same way the theme is.
           try { if (window.VexToday) VexToday.push(webview); } catch (err) { console.error('[Today] push failed:', err); }
+          // Tabs sent here from your other devices (js/handoff.js), the same way.
+          try { if (window.Handoff) Handoff.push(webview); } catch (err) { console.error('[Handoff] push failed:', err); }
           // A browser look in its own colours hands the page its palette.
           window.VexGuiStyle?.paintStartPage(webview).catch(err => console.error('[gui-style] start page palette failed:', err));
           // And the font Vex is wearing (js/fonts.js), for the same reason.
           try { window.VexFonts?.paintStartPages(); } catch (err) { console.error('[fonts] start page failed:', err); }
+          // And Settings › Appearance › Reduce motion (js/appearance-prefs.js).
+          window.ReduceMotion?.paintStartPage(webview);
+          // The search engine chosen now, a search engine of your own too
+          // (js/search-engine-custom.js): the page's own copy can be stale.
+          webview.executeJavaScript(VexTypedAddress.startPageEngineJs())
+            .catch(err => console.error('[Search] New Tab search engine at load failed:', err && err.message));
         }
       } catch {}
     });
@@ -300,6 +365,14 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // An Escape the page left alone (preload-webview.js) stops the page
+      // while it loads, as in Chrome. It did nothing in a tab (found
+      // 2026-10-10).
+      if (e.channel === 'vex-escape') {
+        const live = TabManager.tabs.find(t => t.id === tab.id);
+        if (live && live.loading) this.stop(tab.id);
+        return;
+      }
       // PiP video-detection from the guest preload (sent via sendToHost because a
       // guest window.postMessage can't cross to the host). Re-emit as a host
       // window message so PiPManager (app.js) handles it unchanged. Gate on the
@@ -315,10 +388,28 @@ const WebviewManager = {
         } catch {}
         return;
       }
+      // A Discord or WhatsApp desktop notification from this tab was clicked
+      // (preload-webview.js): Vex to the front, on this tab, as a panel does
+      // (sidebar.js openFromNotification). With Discord set to open as a tab
+      // the click used to do nothing at all.
+      if (e.channel === 'vex-notification-click') {
+        const id = webview.dataset.tabId;
+        if (window.vex && typeof window.vex.focusWindow === 'function') {
+          Promise.resolve(window.vex.focusWindow()).catch(err => window.VexProblems?.note('Tabs', 'Vex could not come to the front for a notification', err));
+        }
+        if (id && typeof TabManager !== 'undefined' && TabManager.activeTabId !== id) TabManager.switchTab(id);
+        return;
+      }
       // Microphone / camera in use (preload-webview.js getUserMedia wrapper).
       if (e.channel === 'vex-media-capture') {
         const d = (e.args && e.args[0]) || {};
         if (typeof TabManager !== 'undefined' && TabManager.setCapturing) TabManager.setCapturing(webview.dataset.tabId, d.kind, d.active);
+        return;
+      }
+      // Where this page's video is and where the pointer is, for the
+      // Picture-in-Picture button (preload-webview.js vexPipPlace).
+      if (e.channel === 'vex-pip-geometry') {
+        if (typeof PiPManager !== 'undefined') PiPManager.noteGeometry(webview, (e.args && e.args[0]) || null, null);
         return;
       }
       if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
@@ -354,6 +445,8 @@ const WebviewManager = {
     if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
     // What you copied off this page (private and Tor tabs are refused inside)
     if (window.ClipboardHistory) window.ClipboardHistory.attach(webview);
+    // The list under a field marked autocomplete="webauthn" (Vex passkeys)
+    if (window.PasskeyUI) window.PasskeyUI.attach(webview);
     if (window.Dictionary) window.Dictionary.attach(webview);
     if (window.TeachMode) window.TeachMode.attach(webview);
     // Give this page the snippet list so Tab can expand an abbreviation in it
@@ -368,7 +461,11 @@ const WebviewManager = {
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
+      this._noteHistory(tab, webview);
       const url = e.url;
+      // Arrived: the bar follows the page from here (navigate() above).
+      const arriving = TabManager.tabs.find(t => t.id === tab.id);
+      if (arriving) delete arriving._typedUrl;
       // A fresh page starts with a clean count.
       if (tab.consoleErrors) { tab.consoleErrors = 0; tab.lastConsoleError = ''; TabManager.renderTabUpdate(tab); }
       // An address pretending to be a familiar one (js/link-safety.js). Said
@@ -394,6 +491,8 @@ const WebviewManager = {
       // the tab would be permanently stuck on the snapshot. It would also dump a
       // multi-KB data: URL into history. Reading mode is a transient view, not a
       // destination — leave tab.url on the real page and keep it out of history.
+      // Vex's own error pages show the address they stand for (above).
+      if (/^data:/i.test(url)) this._showVexPageAddress(tab, webview, url).catch(err => console.warn('[Vex] could not tell which address this page stands for:', err && err.message));
       if (/^about:blank\b/i.test(url) || /^data:/i.test(url)) return;
       // A view-source: tab reports the page's own address; kept as it was
       // opened, or the tab, its restore and its copies showed the page
@@ -411,20 +510,23 @@ const WebviewManager = {
         try { SiteRoutes.applyTo(tab); } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
       }
 
-      // Add to history (both legacy storage and new HistoryPanel) — but never
-      // for Off-the-Record tabs (in-memory partition, no trace).
+      // Add to history (the History panel's list, the only copy: the second
+      // one in history.json is gone, main/history-fold.js) — but never for
+      // Off-the-Record tabs (in-memory partition, no trace).
       // Only web pages: history takes http(s), and an extension's page or a
       // file:// one threw "Invalid payload for storage:history-add" on every
       // visit (found 2026-09-29).
-      if (/^https?:/i.test(url) && !isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
-        const t = TabManager.tabs.find(t => t.id === tab.id);
-        Promise.resolve(VexStorage.addHistory({ url, title: t?.title || url }))
-          .catch(err => window.VexProblems?.note('History', 'Could not add a visit to history', err));
+      const t = TabManager.tabs.find(t => t.id === tab.id);
+      // Without a title yet: the tab's is still the page it came from, and the
+      // visit was saved under it (found 2026-10-10). page-title-updated names
+      // it (HistoryPanel.updateTitle); a page seen before keeps its old name.
+      const visit = this.historyVisit(url, null);
+      if (visit && !isStartPage(url) && !(tab.partition && !tab.partition.startsWith('persist:'))) {
         if (typeof HistoryPanel !== 'undefined') {
           // A visit from a tab in its own session (a container, a Tor or proxy
           // route) is marked, so no history list asks its site for an icon
           // through Vex's direct window (found 2026-09-30).
-          HistoryPanel.addEntry(url, t?.title || url, t?.favicon, { ownSession: !TabManager.windowMayAsk(tab.partition) });
+          HistoryPanel.addEntry(visit.url, visit.title, t?.favicon, { ownSession: !TabManager.windowMayAsk(tab.partition) });
         }
         // Phase 16 auto-grouping: try to match against remembered patterns.
         // The call internally waits for the title to settle and uses purely
@@ -437,6 +539,7 @@ const WebviewManager = {
 
     onWebview('did-navigate-in-page', (e) => {
       if (e.isMainFrame) {
+        this._noteHistory(tab, webview);
         TabManager.updateTab(tab.id, { url: e.url });
         window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: e.url } }));
         document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: e.url } }));
@@ -544,6 +647,13 @@ const WebviewManager = {
                 });
               } catch { webview.src = cmd.url; }
             }
+          } else if (cmd.type === 'typed' && typeof cmd.query === 'string') {
+            // What was typed in the New Tab box goes where the address bar
+            // sends it: its own keyword and engine rules differed (found
+            // 2026-10-10). Only from the tab in front, which is this one.
+            if (TabManager.activeTabId !== tab.id) return;
+            if (typeof window.VexSubmitTyped !== 'function') throw new Error('The address bar is not ready');
+            window.VexSubmitTyped(cmd.query.slice(0, 4096), !!cmd.newTab);
           } else if (cmd.type === 'open-panel' && cmd.panel) {
             SidebarManager.openPanel(cmd.panel);
           } else if (cmd.type === 'open-theme-picker') {
@@ -551,11 +661,14 @@ const WebviewManager = {
           } else if (cmd.type === 'set-engine' && typeof cmd.id === 'string') {
             // The New Tab page's engine menu changed only its own storage, and
             // the address bar kept the old engine (found 2026-09-29).
-            if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.SEARCH_ENGINES[cmd.id] && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
+            if (typeof VexTypedAddress !== 'undefined' && VexTypedAddress.engineOf(cmd.id) === cmd.id && typeof Onboarding !== 'undefined') Onboarding._setStart('vex.searchEngine', cmd.id);
           } else if (cmd.type === 'exit-reading') {
             if (typeof ReadingMode !== 'undefined') ReadingMode.exitReadingMode(tab.id);
           } else if (cmd.type === 'start-tiles') {
             this.saveStartTiles(cmd, webview);
+          } else if (cmd.type === 'handoff-open' || cmd.type === 'handoff-dismiss') {
+            // A card for a tab sent from another device (js/handoff.js).
+            if (typeof Handoff !== 'undefined') Handoff.onStartCommand(cmd, webview);
           }
         } catch (err) {
           console.error('VEX_CMD parse error:', err);
@@ -589,24 +702,22 @@ const WebviewManager = {
         // only auto-emits video state on a count change (not on tab switch), so
         // hide the button now and ask this guest to re-report.
         try { const b = document.getElementById('pip-btn'); if (b) b.style.display = 'none'; } catch {}
+        try { if (typeof PiPManager !== 'undefined') PiPManager._showButton(); } catch (err) { console.warn('[webview] PiP button refresh failed:', err && err.message); }
         try { if (typeof wv.send === 'function') wv.send('vex-rescan-video'); } catch {}
       }
     });
     this._ensureHibernateSweep();
   },
 
-  // === Tab hibernation ===
-  // Background tabs idle longer than vex.tabHibernateMinutes (default 30; 0/blank
-  // disables) are navigated to about:blank to free their page heap/DOM, and
-  // reloaded from the remembered URL when next focused. The active tab, audible
-  // tabs, pinned tabs, and local/start pages are never suspended.
-  _hibernateMinutes() {
-    try { const v = parseInt(localStorage.getItem('vex.tabHibernateMinutes'), 10); return Number.isFinite(v) ? v : 30; }
-    catch { return 30; }
-  },
+  // === Tab hibernation (removed) ===
+  // There used to be a sweep here that blanked every background tab not shown
+  // for 30 minutes (vex.tabHibernateMinutes) to about:blank — with no setting,
+  // and without asking js/sleep-consent.js, so tabs went blank under "never
+  // do it". Idle tabs now have ONE timer, Settings › Performance › Auto-sleep
+  // (TabManager.startAutoSleep), which goes through SleepConsent.gate. What
+  // stays: waking a tab that was blanked (_wake), and the system-resume
+  // recovery below, which reloads what the OS blanked while the PC slept.
   _ensureHibernateSweep() {
-    if (this._hibTimer) return;
-    this._hibTimer = setInterval(() => this._hibernateSweep(), 60 * 1000);
     this._startResumeWatch();
   },
   // System sleep/resume recovery (pure renderer — no IPC). A suspended machine
@@ -641,28 +752,6 @@ const WebviewManager = {
       const url = wv.dataset.hibernatedUrl;
       delete wv.dataset.hibernated;
       if (url) { try { this._loadUnwatched(wv, url, 'waking a sleeping tab'); } catch { wv.src = url; } }
-    } catch {}
-  },
-  _hibernateSweep() {
-    try {
-      const mins = this._hibernateMinutes();
-      if (!mins || mins <= 0) return;
-      const cutoff = Date.now() - mins * 60 * 1000;
-      this.webviews.forEach((wv, id) => {
-        if (id === TabManager.activeTabId) return;
-        if (wv.dataset.hibernated === '1') return;
-        if ((wv._lastActive || 0) > cutoff) return;
-        const tab = TabManager.tabs.find(t => t.id === id);
-        // Respect "Prevent from sleeping" — the manual sleepTab() honors it, but
-        // this idle-hibernation sweep was ignoring it, so a kept-awake tab still
-        // got navigated to about:blank.
-        if (!tab || tab.audible || tab.pinned || (TabManager._isKeptAwake && TabManager._isKeptAwake(tab))) return;
-        let url; try { url = wv.getURL(); } catch { return; }
-        if (!url || /^about:/i.test(url) || url.startsWith('file:') || isStartPage(url)) return;
-        wv.dataset.hibernatedUrl = url;
-        wv.dataset.hibernated = '1';
-        try { this._loadUnwatched(wv, 'about:blank', 'putting a tab to sleep'); } catch { wv.src = 'about:blank'; }
-      });
     } catch {}
   },
 
@@ -702,7 +791,19 @@ const WebviewManager = {
       localStorage.setItem('vex.forceDarkHosts', JSON.stringify([...hosts]));
     } catch {}
   },
+  // A tab's page: the site panel's own Reset (js/site-panel.js) — every
+  // setting of the site at once, with Undo. An app panel's page (no tab):
+  // its zoom and dark mode, as before.
   resetSite(webview) {
+    const tab = webview.dataset && webview.dataset.tabId != null
+      ? (TabManager.tabs || []).find(t => String(t.id) === String(webview.dataset.tabId)) : null;
+    if (tab && typeof SitePanel !== 'undefined') {
+      SitePanel.resetSite(tab).catch(err => {
+        console.error('[Webview] reset site:', err);
+        window.showToast?.('Could not reset this site: ' + SitePanel._said(err), 'error');
+      });
+      return;
+    }
     try {
       const host = this._hostOf(webview.getURL());
       if (!host) return;
@@ -889,7 +990,18 @@ const WebviewManager = {
     return handed;
   },
 
-  navigate(url) {
+  // The failures an https guess for a typed name falls back to http on: no
+  // TLS there, nothing listening on 443, or a certificate a home device made
+  // for itself.
+  HTTP_FALLBACK_ERRORS: /ERR_SSL_PROTOCOL_ERROR|ERR_SSL_VERSION_OR_CIPHER_MISMATCH|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_CONNECTION_TIMED_OUT|ERR_CERT_[A-Z_]+/,
+
+  _httpsOnly() {
+    return typeof PrivacyPack !== 'undefined' && !!(PrivacyPack.cfg && PrivacyPack.cfg.httpsOnly);
+  },
+
+  // opts.httpFallback: the address was typed without a scheme and https was
+  // guessed (VexTypedAddress.resolve).
+  navigate(url, opts = {}) {
     // A site rule cannot move a tab that already exists — a webview's session
     // is fixed the moment it is attached — so the tab opens beside this one,
     // in the routed session, and this one stays where it was.
@@ -914,10 +1026,41 @@ const WebviewManager = {
         // page went blank while the address bar still showed the old site
         // (found 2026-09-29). Show the address asked for, and say why.
         const tabId = TabManager.activeTabId;
-        const load = () => wv.loadURL(url).catch(err => {
+        // The address bar shows the address asked for while it loads, as in
+        // Chrome: it went back to the old address as soon as the bar let go,
+        // until the new page arrived (found 2026-10-10). did-navigate ends
+        // it; a load that never arrives and never fails puts the bar back on
+        // the page still there. Electron's loadURL says ERR_ABORTED (-3) for
+        // one overtaken by another, and ERR_FAILED (-2) for one that stopped
+        // without finishing or failing: stopped, turned into a download, or
+        // handed to another program (mailto:). Those -2s were taken for
+        // failures: the tab took the address and said "Could not open".
+        const asked = TabManager.tabs.find(t => t.id === tabId);
+        if (asked) asked._typedUrl = url;
+        const settle = () => {
+          const tab = TabManager.tabs.find(t => t.id === tabId);
+          if (!tab || tab._typedUrl !== url) return null;
+          delete tab._typedUrl;
+          return tab;
+        };
+        const load = () => wv.loadURL(url).then(settle, err => {
           const m = String((err && err.message) || err);
-          if (/ERR_ABORTED|\(-3\)/.test(m)) return;
+          if (/ERR_ABORTED|\(-3\)|ERR_FAILED \(-2\)/.test(m)) {
+            const tab = settle();
+            if (tab && TabManager.activeTabId === tabId) TabManager.updateUrlBar(tab);
+            return;
+          }
           console.warn('[Vex] navigate failed:', m);
+          settle();
+          // A name typed without a scheme was tried over https, and a printer
+          // or a dev server with only http failed there (printer.lan,
+          // myapp.test:3000). As in Chrome, it is tried again over http,
+          // unless HTTPS-Only is on (found 2026-10-10).
+          if (opts.httpFallback && /^https:\/\//i.test(url) && TabManager.activeTabId === tabId &&
+              WebviewManager.HTTP_FALLBACK_ERRORS.test(m) && !WebviewManager._httpsOnly()) {
+            this.navigate('http://' + url.slice('https://'.length));
+            return;
+          }
           const tab = TabManager.tabs.find(t => t.id === tabId);
           if (tab) { tab.url = url; TabManager.renderTabUpdate?.(tab); }
           const input = document.getElementById('url-input');
@@ -967,6 +1110,21 @@ const WebviewManager = {
     wv.reload();
   },
 
+  // Stop a tab's load (the Stop button, Esc in the address bar or the page).
+  // An address typed and still loading gives way to the page still showing,
+  // as in Chrome; navigate()'s own settle finds it already gone.
+  stop(tabId = TabManager.activeTabId) {
+    const wv = this.webviews.get(tabId);
+    if (!wv) return false;
+    wv.stop();
+    const tab = TabManager.tabs.find(t => t.id === tabId);
+    if (tab) {
+      delete tab._typedUrl;
+      if (tabId === TabManager.activeTabId) TabManager.updateUrlBar(tab);
+    }
+    return true;
+  },
+
   // Hard reload: clear the webview's HTTP cache in the main process, then
   // reloadIgnoringCache. Falls back to the renderer-side reloadIgnoringCache /
   // reload if the IPC bridge is unavailable (dev-reload edge cases).
@@ -1002,9 +1160,14 @@ const WebviewManager = {
     else wv.reload();
   },
 
+  // Ctrl+= / Ctrl+- / Ctrl+0 right after switching to a tab whose page is
+  // only now being made reached a webview with no page attached yet, and its
+  // zoom methods throw "The WebView must be attached to the DOM and the
+  // dom-ready event emitted" (found 2026-10-10). The saved zoom for the site
+  // is put on at dom-ready anyway.
   zoomIn() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
       const next = Math.min(cur + 0.1, 5);
       wv.setZoomFactor(next);
@@ -1014,7 +1177,7 @@ const WebviewManager = {
 
   zoomOut() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       const cur = wv.getZoomFactor ? wv.getZoomFactor() : 1;
       const next = Math.max(cur - 0.1, 0.25);
       wv.setZoomFactor(next);
@@ -1024,13 +1187,18 @@ const WebviewManager = {
 
   zoomReset() {
     const wv = this.getActiveWebview();
-    if (wv) {
+    if (wv && wv._attached) {
       wv.setZoomFactor(1);
       this._saveZoom(wv, 1);
     }
   },
 
   _saveZoom(wv, zoom) {
+    // The address bar's zoom pill (js/zoom-indicator.js) follows this.
+    document.dispatchEvent(new CustomEvent('vex:zoom-changed'));
+    // A private, off-the-record or Tor page's zoom is for that tab alone: it
+    // was written into the profile's list of sites, naming the site visited.
+    if (!this.keepsSiteData(wv)) return;
     try {
       const url = wv.getURL();
       if (!url || url.startsWith('about:') || url.startsWith('file:')) return;
@@ -1039,6 +1207,15 @@ const WebviewManager = {
       if (zoom === 1) { delete zooms[host]; } else { zooms[host] = zoom; }
       localStorage.setItem('vex.zooms', JSON.stringify(zooms));
     } catch {}
+  },
+
+  // Whether what is done on this webview's page may be remembered for its
+  // site: not in a private window, nor an off-the-record or Tor tab (a session
+  // that is not persist:*).
+  keepsSiteData(wv) {
+    if (window.VexTabPolicy?.isPrivateWindow) return false;
+    const partition = (wv && typeof wv.getAttribute === 'function' && wv.getAttribute('partition')) || 'persist:main';
+    return partition.startsWith('persist:');
   },
 
   findInPage(text) {
@@ -1061,6 +1238,11 @@ const WebviewManager = {
       if (as) {
         if (!window.vex || typeof window.vex.downloadsAskWhere !== 'function') throw new Error('Save As is not available in this window');
         await window.vex.downloadsAskWhere(src);
+      } else {
+        // You asked for it, so it is never taken for one the page started by
+        // itself (src/main/downloads.js, automatic downloads).
+        const r = await window.vex.downloadsMine(src);
+        if (!r || !r.ok) throw new Error((r && r.error) || 'Vex did not answer');
       }
       webview.downloadURL(src);
     } catch (err) {
@@ -1141,6 +1323,9 @@ const WebviewManager = {
     };
     const showSub = (row, subItems) => {
       clearTimeout(timer);
+      // The menu closed while the hover timer ran: a submenu made now was
+      // left behind at the window's top-left corner (found 2026-10-08).
+      if (!menu.isConnected) return;
       if (openRow === row) return;
       closeSub();
       const sub = document.createElement('div');
@@ -1151,13 +1336,18 @@ const WebviewManager = {
       // submenu inside it was clipped away, so every submenu of the page's
       // right-click menu (Page, This site, "More for this …") could not be
       // reached (found 2026-09-29). Removed with the menu (see `gone` below).
-      sub.style.position = 'fixed';
-      sub.style.right = 'auto';
-      document.body.appendChild(sub);
       // Beside the row; flipped to the left, or lifted, to stay on screen.
+      // Placed before it is put in the page: put in first, it stood for a
+      // moment at the stylesheet's left (the window's right edge), was
+      // measured there as off screen and always opened to the left, over
+      // the menu (found 2026-10-08).
       const rowBox = row.getBoundingClientRect(), menuBox = menu.getBoundingClientRect();
       let left = menuBox.right - 4, top = rowBox.top - 7;
+      sub.style.position = 'fixed';
+      sub.style.right = 'auto';
+      sub.style.transition = 'none';
       sub.style.left = left + 'px'; sub.style.top = top + 'px';
+      document.body.appendChild(sub);
       const r = sub.getBoundingClientRect();
       if (r.right > window.innerWidth - 4) left = Math.max(4, menuBox.left - r.width + 4);
       if (r.bottom > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 8);
@@ -1200,7 +1390,19 @@ const WebviewManager = {
       const el = document.createElement('div');
       el.className = 'tab-context-item';
       el.setAttribute('role', 'menuitem');
-      if (item.sub) el.innerHTML = icon(item.icon);
+      // An extension's own item carries its icon (img); a checkbox or radio
+      // item a check mark when on, and room for one when off.
+      const checkRoom = '<span class="ctx-icon" style="display:inline-block;width:14px;height:14px"></span>';
+      if (item.kind === 'checkbox' || item.kind === 'radio') {
+        el.setAttribute('role', item.kind === 'radio' ? 'menuitemradio' : 'menuitemcheckbox');
+        el.setAttribute('aria-checked', String(!!item.checked));
+        el.innerHTML = item.checked ? icon('check') : checkRoom;
+      } else if (item.pad) el.innerHTML = checkRoom; // lined up with checkable rows beside it
+      if (item.img) {
+        const img = document.createElement('img');
+        img.src = item.img; img.width = 14; img.height = 14; img.alt = ''; img.className = 'ctx-icon ctx-ext-icon';
+        el.appendChild(img);
+      } else if (item.icon && !item.kind) el.insertAdjacentHTML('beforeend', icon(item.icon));
       el.appendChild(document.createTextNode(item.label));
       if (item.disabled) {
         el.style.opacity = '0.4';
@@ -1382,11 +1584,17 @@ const WebviewManager = {
       { label: 'Copy Page URL', action: () => navigator.clipboard.writeText(webview.getURL()) },
       { label: 'Copy as Markdown link', action: () => { try { const u = webview.getURL(); const title = (webview.getTitle && webview.getTitle()) || u; navigator.clipboard.writeText(`[${String(title).replace(/[\[\]]/g, '')}](${u})`); window.showToast?.('Copied as Markdown'); } catch {} } },
       { label: 'Open in New Tab', action: () => TabManager.createTab(webview.getURL(), true, null, { partition: webview.getAttribute?.("partition") }) },
-      { label: 'Open as App', action: () => { try { window.vex.openAsApp(webview.getURL(), (webview.getTitle && webview.getTitle()) || ''); } catch {} } },
+      // The partition goes too: main refuses a private, OTR or Tor tab rather
+      // than reopen it in the main profile, and the refusal is said aloud.
+      { label: 'Open as App', action: () => {
+        window.vex.openAsApp(webview.getURL(), (webview.getTitle && webview.getTitle()) || '', webview.getAttribute?.('partition') || '')
+          .then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open it as an app', 'error'); },
+            (err) => { console.error('[Webview] Open as App failed:', err); window.showToast?.('Could not open it as an app', 'error'); });
+      } },
       // A tab's own rows. In a panel (Gemini, Claude, Discord...) "Duplicate
       // Tab" copied whatever TAB was active and Auto-refresh had no tab to
       // refresh, so a panel gets neither.
-      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.createTab(t.url, true, t.groupId, { ...(window.VexTabPolicy?.serialize(t) || t), allowDuplicate: true }); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
+      ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.duplicateTab(t); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
       { label: 'Print…', action: () => this.printPage(webview) },
       { label: 'View Page Source', action: () => this.viewSource(webview) },
@@ -1415,12 +1623,48 @@ const WebviewManager = {
     ];
 
     // Right-clicking an input (e.g. the verification-code box): offer to fill the
-    // code from Gmail on demand, in case the automatic pass didn't catch it.
+    // code from the Authenticator, or from Gmail, on demand, in case the
+    // automatic pass didn't catch it. The authenticator row shows on any input
+    // when there is an account (or the list is not known yet), and on other
+    // spots only when an account belongs to this site; never in a private or
+    // Tor tab (js/totp-autofill.js).
+    const offerTotp = typeof TotpAutofill !== 'undefined' && TotpAutofill.shouldOfferMenuRow(webview, !!e.params.isEditable);
+    if (typeof TotpAutofill !== 'undefined') TotpAutofill.refreshAccounts();
+    // A separator unless one is already last (the edit rows end with one).
+    const sepOnce = () => { if (!items.length || !items[items.length - 1].sep) items.push({ sep: true }); };
+    if (offerTotp) {
+      sepOnce();
+      items.push({
+        label: (window.VexI18n && window.VexI18n.t('menuFillTotp', 'Fill code from authenticator')) || 'Fill code from authenticator',
+        action: () => {
+          let at = {};
+          try { const r = webview.getBoundingClientRect(); at = { x: (e.params.x || 0) - r.left, y: (e.params.y || 0) - r.top }; } catch { at = {}; }
+          TotpAutofill.fillFromAuthenticator(webview, at).catch((err) => { console.error('[TOTP] fill from authenticator failed:', err); window.showToast?.('Could not fill the code: ' + ((err && err.message) || err), 'error'); });
+        }
+      });
+    }
+    // Passwords, by hand: the automatic "Save password?" card needs the page to
+    // submit a real form, and many sites sign in by script. On a password field:
+    // generate a strong one into it; on any input of an https page: save one for
+    // this site (js/password-manual.js says why when a private, Tor or routed
+    // tab cannot). "This site" has the save row on every page.
+    if (typeof VexPasswordManual !== 'undefined' && /^https?:/i.test(curUrl)) {
+      const tp = (key, fallback) => (window.VexI18n && window.VexI18n.t(key, fallback)) || fallback;
+      const at = () => { try { const r = webview.getBoundingClientRect(); return { x: (e.params.x || 0) - r.left, y: (e.params.y || 0) - r.top }; } catch { return {}; } };
+      const failed = (what) => (err) => { console.error('[Vault] ' + what + ' failed:', err); window.showToast?.('Could not do that: ' + ((err && err.message) || err), 'error'); };
+      const saveRow = { label: tp('menuSavePw', 'Save a password for this site…'), action: () => VexPasswordManual.saveForSite(webview).catch(failed('save a password')) };
+      const genRow = { label: tp('menuGenPw', 'Generate a strong password'), action: () => VexPasswordManual.generateInField(webview, at()).catch(failed('generate a password')) };
+      // Electron's webview event names the field kind formControlType
+      // ('input-password'); inputFieldType is the same on newer ones.
+      if (e.params.formControlType === 'input-password' || e.params.inputFieldType === 'password') { sepOnce(); items.push(genRow, saveRow); }
+      else if (e.params.isEditable) { sepOnce(); items.push(saveRow); }
+      siteItems.unshift(saveRow);
+    }
     if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
-      items.push({ sep: true });
+      sepOnce();
       items.push({
         label: 'Fill code from email',
-        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL()); window.showToast?.('Looking for your code…'); } catch {} }
+        action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }
       });
     }
 
@@ -1498,7 +1742,7 @@ const WebviewManager = {
         });
         textItems.push({
           label: 'Translate selection',
-          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: 'English' }); }
+          action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: AIPanel.translateTarget() }); }
         });
       }
       textItems.push({
@@ -1515,7 +1759,12 @@ const WebviewManager = {
       linkItems.push({ sep: true });
       linkItems.push({
         label: 'Open Link in New Tab',
-        action: () => TabManager.createTab(e.params.linkURL, true, null, { partition: webview.getAttribute?.("partition") })
+        // Next to this tab, in its group, as a clicked link opens (js/app.js);
+        // from a side panel's page (Discord, a sidebar site), next to the tab in front.
+        action: () => {
+          const from = isTab ? TabManager.tabs.find(t => t.id === webview.dataset.tabId) : TabManager.getActiveTab();
+          TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
+        }
       });
       linkItems.push({
         // Copy where it really GOES, without what identifies you: a wrapped
@@ -1656,6 +1905,12 @@ const WebviewManager = {
     // lookup fails. Also log the awaited result so future silent failures
     // surface in the host renderer's DevTools console.
     groups.reverse().forEach(add => add());
+    // Extensions' own items (chrome.contextMenus, js/ext-ui.js), after Vex's,
+    // as in Chrome. None in a private or Tor tab: no extension runs there.
+    if (typeof VexExtUi !== 'undefined') {
+      const extRows = VexExtUi.pageMenuRows(webview, e.params, imageSrc);
+      if (extRows.length) items.push({ sep: true }, ...extRows);
+    }
     items.push({ sep: true });
     items.push({ label: 'Page', icon: 'file', sub: pageItems });
     items.push({ label: 'This site', icon: 'globe', sub: siteItems });
@@ -1771,6 +2026,17 @@ const WebviewManager = {
   shouldOfferNotificationPrompt(decisions, origin) {
     const saved = (decisions || {})[origin + '::notifications'];
     return saved !== 'deny' && saved !== 'allow';
+  },
+
+  // The history entry for a visit, or null when history cannot hold it.
+  // History holds an http(s) address of at most 8192 characters and a title
+  // of at most 4096 (js/data-contracts.js; it was storage:history-add's). A
+  // sign-in redirect ran past the first; a page with no title yet sent its
+  // address as the title, past the second. Both came back as "Invalid payload
+  // for storage:history-add" (found 2026-10-10).
+  historyVisit(url, title) {
+    if (!window.VexDataContracts.url(url, true)) return null;
+    return { url, title: String(title || url).slice(0, 4096) };
   },
 
   // What to paint behind a page, given what the page paints itself.
@@ -1919,5 +2185,5 @@ if (typeof window !== 'undefined') window.WebviewManager = WebviewManager;
 // `module` is undefined, so the guard keeps the global WebviewManager surface
 // unchanged. Used by tests/renderer/webviewContextMenu.test.js.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { WebviewManager, _isTrustedStartPage };
+  module.exports = { WebviewManager };
 }

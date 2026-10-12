@@ -82,7 +82,8 @@ describe('what stays the page\u2019s', () => {
   });
 
   it('developer tools and the combos handled elsewhere', () => {
-    for (const k of ['I', 'J', 'C', 'P', 'R', 'N']) {
+    // (Ctrl+Shift+R is the hard reload, guestKeysFromRegistry.test.js.)
+    for (const k of ['I', 'J', 'C', 'P', 'N']) {
       expect(shortcutFor(key(k, { shift: true })), k).toBe(null);
     }
   });

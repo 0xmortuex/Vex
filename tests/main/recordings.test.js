@@ -7,10 +7,10 @@ const path = require('path');
 const { createRecordings, MAX_BYTES } = require('../../src/main/recordings.js');
 
 let dir, out, n;
-function make(saveTo = 'auto') {
+function make(saveTo = 'auto', folder = null) {
   n = 0;
   const dialog = { showSaveDialog: vi.fn(async (_w, opts) => (saveTo === null ? { canceled: true } : { canceled: false, filePath: path.join(out, 'saved-' + (++n) + '.' + opts.filters[0].extensions[0]) })) };
-  const recs = createRecordings({ fs, path, dir, dialog, app: { getPath: () => out }, getWindow: () => null, randomId: () => 'r' + Math.random().toString(36).slice(2, 8), now: () => new Date(2026, 8, 19, 14, 5) });
+  const recs = createRecordings({ fs, path, dir, dialog, app: { getPath: () => out }, downloadFolder: () => folder, randomId: () => 'r' + Math.random().toString(36).slice(2, 8), now: () => new Date(2026, 8, 19, 14, 5) });
   return { recs, dialog };
 }
 beforeEach(() => {
@@ -19,6 +19,18 @@ beforeEach(() => {
 });
 
 describe('recording to disk', () => {
+  // Audit RD9, RD10 (2026-10-10).
+  it('the save dialog opens in the folder chosen in Settings, over the window that asked', async () => {
+    const { recs, dialog } = make('auto', 'D:/Saved');
+    const { id } = recs.start('webm');
+    await recs.chunk(id, new Uint8Array([1]));
+    const win = { isDestroyed: () => false };
+    const r = await recs.finish(id, 'clip', win);
+    expect(dialog.showSaveDialog.mock.calls[0][0]).toBe(win);
+    expect(dialog.showSaveDialog.mock.calls[0][1].defaultPath).toBe(path.join('D:/Saved', 'clip.webm'));
+    fs.unlinkSync(r.path);
+  });
+
   it('appends chunks in order, then moves the file where the user chose', async () => {
     const { recs, dialog } = make();
     const { id } = recs.start('mp4');

@@ -8,7 +8,7 @@
 //   the guide names all of it, with the catalogue in one paragraph
 // And `screenshot` hands back a real image instead of "Screenshot captured".
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 require('../../src/renderer/js/vex-utils.js');
 const { VexClock } = require('../../src/renderer/js/clock-panel.js');
@@ -20,6 +20,12 @@ const { AgentExecutor, SCHEDULED_TOOLS } = require('../../src/renderer/js/agent-
 
 let ran;
 beforeEach(() => {
+  // The clock stands still: what a timer has left is read from Date.now(), and
+  // on a busy machine a second could pass between starting one and listing it
+  // ("4:59" for "5:00" — the full suite failed on that once). Only Date is
+  // faked; real timers still run. A test that wants time to pass moves it.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-08T09:00:00Z'));
   localStorage.clear();
   document.body.innerHTML = '';
   ran = [];
@@ -37,6 +43,7 @@ beforeEach(() => {
   delete window.VexTabPolicy;
   window.vex = {};
 });
+afterEach(() => { vi.useRealTimers(); });
 
 describe("Vex's own timer", () => {
   it('start_timer starts a real Clock timer and says when it rings', async () => {
@@ -58,6 +65,9 @@ describe("Vex's own timer", () => {
     await AgentExecutor.executeTool('start_timer', { duration: '5 min', label: 'Eggs' });
     const list = await AgentExecutor.executeTool('list_timers', {});
     expect(list.result).toEqual([{ id: VexClock._timers[0].id, label: 'Eggs', left: '5:00' }]);
+    // What is left follows the clock.
+    vi.setSystemTime(Date.now() + 61000);
+    expect((await AgentExecutor.executeTool('list_timers', {})).result[0].left).toBe('3:59');
     const gone = await AgentExecutor.executeTool('cancel_timer', { id: list.result[0].id });
     expect(gone).toEqual({ ok: true, result: 'Cancelled the timer "Eggs"' });
     expect(VexClock._timers).toHaveLength(0);

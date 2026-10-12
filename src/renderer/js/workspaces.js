@@ -5,6 +5,8 @@ const WorkspaceManager = {
   activeId: 'ws_personal',
   workspaces: [],
   _switching: false,
+  // Tab id -> back list, in memory only (saveCurrentState, switchTo).
+  _histories: new Map(),
   COLORS: ['#6366f1','#00b4d8','#22c55e','#e2231a','#a855f7','#f59e0b','#ec4899','#14b8a6'],
 
   defaultWorkspaces: [
@@ -63,6 +65,12 @@ const WorkspaceManager = {
     // workspace you switched to.
     ws.stacks = (TabManager.stacks || []).map(s => ({ ...s }));
     ws.activeTabIndex = tabs.findIndex(t => t.id === TabManager.activeTabId);
+    // Each tab's back list, for switching back during this run only: what is
+    // saved of a workspace leaves it out (VexTabPolicy.savedHistory).
+    for (const t of TabManager.tabs) {
+      const history = window.VexTabPolicy.savedHistory(t);
+      if (history) this._histories.set(t.id, history);
+    }
     this.save();
   },
 
@@ -74,6 +82,10 @@ const WorkspaceManager = {
     this._switching = true;
 
     try {
+      // 0. Private and Tor tabs belong to no workspace: ask whether they go
+      //    (or do what "Always close them" chose).
+      const closeEphemeral = await this._closeEphemeralOnSwitch();
+
       // 1. Show loading overlay
       this._showLoading();
       this.hideDropdown();
@@ -88,8 +100,14 @@ const WorkspaceManager = {
       const ws = this.getActive();
       if (!ws) { this._hideLoading(); return; }
 
-      // 4. Bulk-close all tabs (no per-tab persist, no auto-create)
-      TabManager.closeAllTabs();
+      // 4. Bulk-close all tabs (no per-tab persist, no auto-create). A
+      //    private or Tor tab is never saved in a workspace, so closing it
+      //    lost it for good (found 2026-10-10): it stays open unless the
+      //    user chose to close it (step 0). Then each is closed as closing
+      //    it by hand does, so its session (cookies, cache, Tor circuit)
+      //    ends with it.
+      if (closeEphemeral) this._closeEphemeralTabs();
+      TabManager.closeAllTabs({ keep: (t) => this._isEphemeral(t) });
       await new Promise(r => setTimeout(r, 0));
 
       // 5. Update theme immediately
@@ -109,28 +127,18 @@ const WorkspaceManager = {
         if (typeof VexStorage.saveStacks === 'function') await VexStorage.saveStacks(TabManager.stacks);
       }
 
-      // 7. Recreate tabs LAZILY (no webviews yet — instant)
+      // 7. Recreate tabs LAZILY (no webviews yet — instant). Each comes back
+      //    as it was left: asleep or not, muted, its note, its stack, and its
+      //    back list from this run (TabManager.addSavedTabs).
       const savedTabs = Array.isArray(ws.tabs) ? ws.tabs : [];
       const selectedTab = savedTabs[ws.activeTabIndex];
-      const tabsToRestore = savedTabs.filter(t => window.VexTabPolicy.canRestore(t));
-      if (!tabsToRestore.length) tabsToRestore.push({ url: START_URL, title: 'New Tab' });
-      let selectedId = null;
-      const savedToNewId = new Map();
-      for (const t of tabsToRestore) {
-        const tab = TabManager.createLazyTab(t.url, t.groupId, t.title, { partition: t.partition, pinned: t.pinned });
-        tab.keepAwakeUntil = t.keepAwakeUntil || 0;
-        // The workspace keeps each tab's note (VexTabPolicy.serialize);
-        // switching back dropped it (found 2026-09-29).
-        if (t.note) tab.note = t.note;
-        tab.favicon = TabManager._persistableFavicon(t.favicon, tab.partition);
-        // createLazyTab always starts a tab unstacked; re-apply the saved
-        // membership so a workspace's stacks survive the round-trip.
-        if (t.stackId && TabManager.stacks.some(s => s.id === t.stackId)) {
-          TabManager._setTabStack(tab.id, t.stackId);
-        }
-        if (t.id) savedToNewId.set(t.id, tab.id);
-        if (t === selectedTab) selectedId = tab.id;
+      const restored = TabManager.addSavedTabs(savedTabs.map(t => (this._histories.has(t.id) ? { ...t, history: this._histories.get(t.id) } : t)));
+      if (!restored.length) {
+        const blank = TabManager.createLazyTab(START_URL, null, 'New Tab');
+        restored.push({ saved: null, tab: blank });
       }
+      const selectedId = (restored.find(r => r.saved && r.saved.id === (selectedTab && selectedTab.id)) || {}).tab?.id || null;
+      const savedToNewId = new Map(restored.filter(r => r.saved && r.saved.id).map(r => [r.saved.id, r.tab.id]));
 
       // Stack tops refer to the ids the workspace was saved with; tabs get
       // fresh ids on restore. Repoint each top, and drop any stack that no
@@ -144,7 +152,9 @@ const WorkspaceManager = {
       // 8. One ordered render pass, then activate the correct tab (this
       //    materializes only ONE webview).
       TabManager.rebuildAllTabs();
-      TabManager.switchTab(selectedId || TabManager.tabs[0].id);
+      TabManager.switchTab(selectedId || restored[0].tab.id);
+      // Kept-awake tabs live, as at start (they stayed unloaded until clicked).
+      TabManager.bringKeptAwakeLive(restored.map(r => r.tab));
 
       await TabManager.persistTabs();
 
@@ -162,6 +172,58 @@ const WorkspaceManager = {
     } finally {
       this._switching = false;
     }
+  },
+
+  // Settings › General › Workspaces: what a switch does with private and Tor
+  // tabs. 'ask' (the default) or 'close' ("Always close them").
+  EPHEMERAL_KEY: 'vex.workspacePrivateTabs',
+
+  _isEphemeral(tab) { return !!tab.partition && !String(tab.partition).startsWith('persist:'); },
+
+  ephemeralChoice() {
+    return localStorage.getItem(this.EPHEMERAL_KEY) === 'close' ? 'close' : 'ask';
+  },
+
+  setEphemeralChoice(value) {
+    if (value !== 'ask' && value !== 'close') throw new Error('Unknown choice for private and Tor tabs: ' + value);
+    if (value === 'ask') localStorage.removeItem(this.EPHEMERAL_KEY);
+    else localStorage.setItem(this.EPHEMERAL_KEY, value);
+    document.dispatchEvent(new CustomEvent('vex:ws-private-choice'));
+  },
+
+  // True when the private and Tor tabs open now are to be closed by this
+  // switch. Escape or a click outside the question keeps them (nothing lost).
+  async _closeEphemeralOnSwitch() {
+    const open = TabManager.tabs.filter(t => this._isEphemeral(t));
+    if (!open.length) return false;
+    if (this.ephemeralChoice() === 'close') return true;
+    const t = (key, fallback) => window.VexI18n?.t(key, fallback) || fallback;
+    let always = false;
+    const close = await window.vexConfirm({
+      title: t('wsPrivate.title', 'Private and Tor tabs are open'),
+      message: open.length === 1
+        ? t('wsPrivate.one', 'One private or Tor tab is open. It belongs to no workspace, so it can stay open in the next one or be closed now. A closed private or Tor tab cannot be brought back.')
+        : t('wsPrivate.many', '{n} private or Tor tabs are open. They belong to no workspace, so they can stay open in the next one or be closed now. A closed private or Tor tab cannot be brought back.').replace('{n}', open.length),
+      okLabel: t('wsPrivate.close', 'Close them this time'),
+      cancelLabel: t('wsPrivate.keep', 'Keep them open'),
+      danger: true,
+      wide: true,   // the three choices in one row
+      extra: { label: t('wsPrivate.always', 'Always close them'), run: () => { always = true; } },
+    });
+    if (always) {
+      this.setEphemeralChoice('close');
+      window.showToast?.(t('wsPrivate.saved', 'Private and Tor tabs will close when you switch workspace. Settings › General › Workspaces changes it back.'));
+      return true;
+    }
+    return close;
+  },
+
+  // Each private and Tor tab closed as the close button does it.
+  _closeEphemeralTabs() {
+    const ids = TabManager.tabs.filter(t => this._isEphemeral(t)).map(t => t.id);
+    TabManager._bulkClosing = true;
+    try { for (const id of ids) TabManager.closeTab(id); }
+    finally { TabManager._bulkClosing = false; }
   },
 
   _showLoading() {
@@ -203,15 +265,35 @@ const WorkspaceManager = {
     return ws;
   },
 
+  // Returns what went and where, for restoreWorkspace (the Undo on the toast).
   async deleteWorkspace(id) {
-    if (this.workspaces.length <= 1 || this._switching) return;
-    if (id === this.activeId) {
+    if (this.workspaces.length <= 1 || this._switching) return null;
+    const wasActive = id === this.activeId;
+    if (wasActive) {
       const other = this.workspaces.find(w => w.id !== id);
       if (other) await this.switchTo(other.id);
+      if (this.activeId === id) return null;   // the switch did not happen
     }
-    this.workspaces = this.workspaces.filter(w => w.id !== id);
+    const index = this.workspaces.findIndex(w => w.id === id);
+    if (index < 0) return null;
+    const removed = { item: this.workspaces[index], index, prevId: index > 0 ? this.workspaces[index - 1].id : null, wasActive };
+    this.workspaces.splice(index, 1);
     this.save();
     this.render();
+    return removed;
+  },
+
+  // Back in its place with the tabs saved in it; back in front if it was.
+  async restoreWorkspace(removed) {
+    if (!removed || !removed.item) throw new Error('Nothing to put back');
+    if (!this.workspaces.some(w => w.id === removed.item.id)) {
+      let at = removed.prevId ? this.workspaces.findIndex(w => w.id === removed.prevId) + 1 : 0;
+      if (at <= 0 && removed.prevId) at = Math.min(removed.index, this.workspaces.length);
+      this.workspaces.splice(at, 0, removed.item);
+      this.save();
+      this.render();
+    }
+    if (removed.wasActive) await this.switchTo(removed.item.id);
   },
 
   render() {
@@ -343,9 +425,14 @@ const WorkspaceManager = {
       // (found 2026-09-29).
       modal.querySelector('#ws-modal-delete')?.addEventListener('click', async () => {
         if (this.workspaces.length <= 1) { window.showToast?.('The last workspace cannot be deleted'); return; }
-        if (!await vexConfirm({ title: 'Delete workspace', message: `Delete "${editing.name}" and the tabs saved in it?`, okLabel: 'Delete', danger: true })) return;
+        // Done at once; Undo on the toast brings it back with its tabs.
         this.hideModal();
-        await this.deleteWorkspace(editing.id);
+        const removed = await this.deleteWorkspace(editing.id);
+        if (!removed) return;
+        window.VexUndo.offer({
+          message: `Deleted the workspace “${removed.item.name}” and its saved tabs`,
+          undo: () => this.restoreWorkspace(removed),
+        });
       });
     }
 

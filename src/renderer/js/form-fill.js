@@ -63,6 +63,9 @@ const FormFill = {
         ['tel', /phone|tel|mobile/, P.phone],
         ['givenname', /given.?name|first.?name|fname|forename/, P.firstName],
         ['familyname', /family.?name|last.?name|lname|surname/, P.lastName],
+        // Names that are not the person's: "Company name", a username, a
+        // nickname. The bare "name" rule below took them all for the full name.
+        ['notperson', /company|organi[sz]ation|business|employer|user.?name|nick.?name|display.?name|screen.?name|login|file.?name|domain.?name|product.?name|project.?name|team.?name|group.?name|pet.?name/, null],
         ['name', /full.?name|your.?name|(^|\\b)name\\b|cardholder|account.?name/, P.fullName],
         ['street', /street|address.?line.?1|addr(ess)?1|address$|shipping.?address/, P.address],
         ['city', /city|town|locality|address.?level.?2/, P.city],
@@ -76,7 +79,7 @@ const FormFill = {
         var t=(el.type||'').toLowerCase(); if(t==='password'||t==='hidden'||t==='checkbox'||t==='radio'||t==='file'||t==='submit'||t==='button')return;
         if(!vis(el)||el.value)return;
         var m=meta(el);
-        for(var i=0;i<RULES.length;i++){ var val=RULES[i][2]; if(!val)continue; if(RULES[i][1].test(m)){
+        for(var i=0;i<RULES.length;i++){ if(RULES[i][0]==='notperson'){ if(RULES[i][1].test(m))break; continue; } var val=RULES[i][2]; if(!val)continue; if(RULES[i][1].test(m)){
           if(el.tagName==='SELECT'){ var opt=Array.prototype.slice.call(el.options).find(function(o){return (o.textContent||'').toLowerCase().indexOf(String(val).toLowerCase())>=0;}); if(opt){el.value=opt.value;el.dispatchEvent(new Event('change',{bubbles:true}));filled++;} }
           else if (fire(el,val)) filled++;
           break;

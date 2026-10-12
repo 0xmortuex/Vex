@@ -175,7 +175,7 @@ const MemoryPanel = {
       return {
         id: e.tab.id,
         title: e.tab.title,
-        url: e.tab.url,
+        url: MemoryPanel.shownUrl(e.tab.url),
         active: e.tab.id === TabManager.activeTabId,
         sleeping: d.sleeping,
         memMB: d.mb,
@@ -354,10 +354,10 @@ const MemoryPanel = {
       const named = pages.map(c => {
         if (ctx && ctx.panels && ctx.panels.has(c.id)) return { kind: 'panel', name: 'Panel: ' + ctx.panels.get(c.id) };
         if (ctx && ctx.tabs && ctx.tabs.has(c.id)) return { kind: 'tab', name: 'Tab: ' + ctx.tabs.get(c.id) };
-        return { kind: 'tab', name: c.title || c.url || 'page' };
+        return { kind: 'tab', name: c.title || MemoryPanel.shownUrl(c.url) || 'page' };
       });
       const what = named[0].name + (named.length > 1 ? ` + ${named.length - 1} more (same site, shared)` : '');
-      return { kind: named.some(n => n.kind === 'panel') ? 'panel' : 'tab', what, detail: pages.map(c => c.url).filter(Boolean).join(' · ') };
+      return { kind: named.some(n => n.kind === 'panel') ? 'panel' : 'tab', what, detail: pages.map(c => MemoryPanel.shownUrl(c.url)).filter(Boolean).join(' · ') };
     }
     // No page in it: most likely one of the running service workers (an MV3
     // extension's background lives in a renderer of its own, one per session),
@@ -472,7 +472,7 @@ const MemoryPanel = {
     // the DevTools console and nowhere else.
     if (typeof VexProblems !== 'undefined') {
       const n = VexProblems.count();
-      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : 'Nothing has failed quietly.');
+      lines.push(n ? `${n} quiet problem${n === 1 ? '' : 's'} — things that failed without saying so:` : (VexProblems.olderCount() ? 'Nothing has failed quietly since the last update.' : 'Nothing has failed quietly.'));
       for (const l of VexProblems.lines(12)) lines.push('  ' + l);
     }
     return lines;
@@ -487,17 +487,46 @@ const MemoryPanel = {
     catch (err) { host.innerHTML = `<div class="memory-proc-detail">Could not read health: ${this._esc(err && err.message)}</div>`; return null; }
     const lines = this.healthLines(d);
     const problems = (typeof VexProblems !== 'undefined') ? VexProblems.count() : 0;
+    // Lines, not repeats: the fold lists one line per problem.
+    const olderN = (typeof VexProblems !== 'undefined') ? VexProblems.older().length : 0;
     const bad = (d.events && d.events.length) || (d.extensionErrors && d.extensionErrors.length) || (d.update && d.update.error) || problems;
     host.innerHTML = `<div class="memory-health${bad ? ' bad' : ''}">${lines.map(l => `<div class="memory-health-line${/^  /.test(l) ? ' sub' : ''}">${this._esc(l.trim())}</div>`).join('')}</div>`;
-    if (problems) {
+    // Problems from before the last update, folded: most were fixed by it
+    // (found 2026-10-09). Open to read; Clear takes them with the rest.
+    let olderText = [];
+    if (olderN) {
+      olderText = VexProblems.olderLines(12);
+      const fold = document.createElement('details');
+      fold.className = 'memory-health-older';
+      fold.id = 'memory-health-older';
+      const head = document.createElement('summary');
+      head.textContent = `From an older version (${olderN})`;
+      fold.appendChild(head);
+      for (const l of olderText) {
+        const row = document.createElement('div');
+        row.className = 'memory-health-line sub';
+        row.textContent = l;
+        fold.appendChild(row);
+      }
+      host.appendChild(fold);
+    }
+    if (problems || olderN) {
       const clear = document.createElement('button');
       clear.className = 'memory-clear-problems';
       clear.id = 'memory-clear-problems';
       clear.textContent = 'Clear the problem list';
-      clear.addEventListener('click', () => { VexProblems.clear(); this.renderDiagnostics(); });
+      // Undo, not "Are you sure?" (js/vex-undo.js).
+      clear.addEventListener('click', () => {
+        const removed = VexProblems.clear();
+        this.renderDiagnostics();
+        VexUndo.offer({
+          message: 'Cleared the problem list',
+          undo: () => { VexProblems.restore(removed); return this.renderDiagnostics(); },
+        });
+      });
       host.appendChild(clear);
     }
-    this._lastHealth = lines.join('\n');
+    this._lastHealth = lines.concat(olderText.length ? [`${olderN} from an older version:`, ...olderText.map(l => '  ' + l)] : []).join('\n');
     return d;
   },
 
@@ -658,6 +687,14 @@ const MemoryPanel = {
     if (!real) return { mb: null, sleeping: false, label: 'starting…' };
     const mb = Math.round(real.memKB / 1024);
     return { mb, sleeping: false, label: shareCount > 1 ? `${mb} MB · shared by ${shareCount} tabs` : `${mb} MB` };
+  },
+
+  // The New Tab page is a file inside Vex's install folder; its address
+  // (file:///C:/…/resources/app.asar/src/renderer/start.html?theme=…) means
+  // nothing to anyone, so it is shown as "New Tab" (walkthrough L2, 2026-10-07).
+  shownUrl(u) {
+    const s = String(u || '');
+    return /^vex:\/\/start\b/i.test(s) || /^file:\/\/.*\/renderer\/start\.html(?:[?#]|$)/i.test(s) ? 'New Tab' : s;
   },
 
   _esc(s) { return window.escapeHtml(s); }

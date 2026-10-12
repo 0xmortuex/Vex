@@ -108,7 +108,7 @@ describe('shortcut tiles sync when every device understands them', () => {
     const key = await accountKey();
     // The first upload happens before the server lists the device: tiles wait.
     expect((await accountValues(server, key))[TILES]).toBeUndefined();
-    expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 1 });
+    expect((await accountValues(server, key))['sync:device:dev1']).toMatchObject({ level: 2, revision: expect.any(Number) });
     expect((await engine.pushNow()).ok).toBe(true);
     const cloud = (await accountValues(server, key))[TILES];
     expect(cloud.map(t => t.name)).toEqual(['a', 'b', 'a']);
@@ -130,7 +130,11 @@ describe('shortcut tiles sync when every device understands them', () => {
     const key = await accountKey();
     await newDevice(server, key, 'devB', v => { v[TILES] = [...v[TILES], { ...tile('b'), id: 'tile-b' }]; });
     setTiles([tile('a'), tile('c')]);
-    expect((await engine.pushNow()).ok).toBe(true);   // 409 → pull, merge → push
+    // Until a pull shows devB's marker, devB is a device tiles wait on, so a
+    // push alone has nothing new to send (and sends nothing). Sync Now pulls
+    // first, then pushes.
+    expect((await engine.pullNow()).ok).toBe(true);
+    expect((await engine.pushNow()).ok).toBe(true);
     expect(names(tiles())).toEqual(['a', 'b', 'c']);
     expect(names((await accountValues(server, key))[TILES])).toEqual(['a', 'b', 'c']);
     // The other device removes "a".
@@ -210,7 +214,7 @@ describe('an older Vex on the account', () => {
     expect((await engine.pullNow()).ok).toBe(true);
     expect(names(tiles())).toEqual(['a', 'b']);
     // The pull found this device's marker deleted and pushes it back (r7).
-    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 1 }));
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toMatchObject({ level: 2, revision: expect.any(Number) }));
     expect((await accountValues(server, key))[TILES]).toBeUndefined();
     // A tile added meanwhile stays here, and this device leaves the account's
     // tile records exactly as it found them.
@@ -242,7 +246,7 @@ describe('an older Vex on the account', () => {
     expect((await accountValues(server, key))['sync:device:dev1']).toBeUndefined();
     const pushes = server.revision;
     expect((await engine.pullNow()).ok).toBe(true);
-    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toEqual({ level: 1 }));
+    await vi.waitFor(async () => expect((await accountValues(server, key))['sync:device:dev1']).toMatchObject({ level: 2, revision: expect.any(Number) }));
     expect(server.revision).toBe(pushes + 1);
     // What devB would see once devOld is gone: only devB itself has yet to sync.
     const doc = await accountDoc(server, key);

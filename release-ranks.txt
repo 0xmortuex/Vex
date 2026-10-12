@@ -1,0 +1,71 @@
+# Ranks for commits that have no "Rank:" line, or whose rank the owner changed.
+# <hash> <kind>-<size>-<reach>  or  <hash> none     (see scripts/version-points.js)
+# Run `node scripts/version-points.js` to see the table and the next version.
+
+# Every commit up to v2.38.1 was ranked once (ranks-history.txt): 13399 points
+# from 0.0.0, so v2.38.1 counts as 13.39.9. Older releases keep their numbers.
+base v2.38.1 13.39.9
+
+# Since v2.38.1
+133037f none                       # CI test timeout only
+3d0efbc fix-mid-some               # Settings chips hidden behind a scroll box
+b536014 none                       # changelog
+729e755 feature-mid-everyone       # update check every 6 hours while open
+3a32b23 fix-high-rare              # shortcut to a deleted Vex.exe would not open Vex
+82e6827 fix-high-some              # one bad tab address made every session save fail
+604784f fix-small-some             # history refused very long addresses
+51043d1 fix-small-some             # "WebView must be attached" errors
+355d5c2 fix-mid-some               # History panel stopped saving
+0d3535b improvement-mid-some       # clear local AI messages
+a6b5a86 improvement-mid-rare       # Sync says when it has the AI worker's address
+e58e7e4 improvement-mid-some       # one AI chip in Settings
+49988b9 performance-mid-everyone   # settings file halved, no rewrite every minute
+ead1029 feature-mid-some           # never-sleep memory notice
+239a8f4 improvement-small-some     # problems folded by version, Clear has Undo
+3fabcec none                       # test setup for a change in this same batch
+9a1c284 fix-high-some              # email-code autofill almost never filled (slots taken by every page)
+a5cd8ce security-high-some         # email codes filled into any site, look-alikes included
+2f69515 none                       # widens the never-sleep notice, which is itself unreleased (scored on ead1029)
+97adba8 fix-mid-rare               # a problem at start-up could wipe the saved problem list
+b129c86 performance-mid-everyone   # history no longer rewritten twice (166 KB) on every visit
+d630550 none                       # test fixes for this same batch
+9c4f7ea fix-mid-some               # find bar: counts on background tabs, per-tab, labels, Shift+Enter
+d8a0744 fix-small-rare             # rebinding Organize Tabs left Ctrl+Shift+G running it
+75ead11 fix-small-rare             # Ctrl+K Switch environment opened a new tab
+d1246a8 fix-small-some             # Ctrl+D bookmarks missing from address-bar suggestions
+b5f549a none                       # reset-to-defaults test reads every key
+fba9e71 none                       # PRIVACY.md history count
+124a5b2 fix-mid-everyone           # address bar showed the old address while loading
+7eeb11f security-high-everyone     # F12/Ctrl+Shift+J/Ctrl+Alt+H stolen from every other program; lock bypass via DevTools
+ee601d2 fix-small-some             # Clear this site's data always said it worked
+820d991 security-mid-rare          # burner identities and Tor tabs gave away a different Chrome version
+cddf5d7 fix-small-some             # shutdowns and updates logged as crashes
+08b3dc2 fix-high-some              # "Leave site?" never asked, typed text lost
+7e2b9d2 none                       # lint
+d32d27b fix-high-some              # Back/Forward lost on sleep, reopen and restart
+1b0cfc6 fix-mid-everyone           # link tabs opened at the far right
+883ad20 none                       # code moved for a test
+d3439be none                       # v18.59.3 version bump, never published (folded into the next release)
+
+# Since v19.1.7 (published 2026-10-11): fixes first ranked none as "unreleased",
+# but the code they fix shipped in v19.1.7.
+0666c4d fix-small-rare             # extension download of a redirecting link
+3ed8430 fix-small-rare             # Turkish setup skip question
+a12e0bd polish-small-rare          # About accepted-on line follows language
+27d68cc fix-small-rare             # email-code fill-now flag left behind
+699d72c polish-small-some          # sync panel: passwords listed as local
+ebeed28 fix-small-rare             # Roblox off leaves ByeDPI running
+719dd4d fix-small-some             # Discord tab notification click
+5e81f29 fix-small-rare             # migrated home-network watches refused
+7611b04 fix-small-some             # automatic-downloads question covered
+d6414a4 security-small-rare        # Clipboard History copy-button spoof
+399d044 security-small-some        # keys acted behind the agreement
+2fce57f security-small-some        # private window skipped the agreement
+0749154 none                       # v19.42.1 version bump, never published (folded into the next release)
+a82a342 none                       # v19.55.9 version bump, never published (folded into the next release)
+4478335 none                       # Discord theme match rewrite: fixes unpublished work (v19.56.9 was never published)
+ab2a912 none                       # v19.71.4 version bump
+3d69a97 none                       # v19.91.7 version bump
+8677b48a none                       # v20.28.0 version bump
+ab3f4a15 none                       # v20.30.0 version bump
+21304d73 none                       # v20.31.0 version bump

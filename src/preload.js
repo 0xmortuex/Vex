@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 function subscribe(channel, callback) {
   const listener = (_event, ...args) => callback(...args);
   ipcRenderer.on(channel, listener);
@@ -32,6 +32,17 @@ contextBridge.exposeInMainWorld('vex', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
+  // The agreement at start (js/legal.js): a shipped document's text, and quitting Vex.
+  legalRead: (name) => ipcRenderer.invoke('legal:read', name),
+  quitApp: () => ipcRenderer.invoke('app:quit'),
+  // Game Control Center (Ctrl+K, and its row in Settings): start it, read or
+  // choose or forget where it is. Main finds the program; nothing is passed.
+  gccLaunch: () => ipcRenderer.invoke('gcc:launch'),
+  gccGet: () => ipcRenderer.invoke('gcc:get'),
+  gccPick: () => ipcRenderer.invoke('gcc:pick'),
+  gccClear: () => ipcRenderer.invoke('gcc:clear'),
+  // It is up, or gone: main's own keys for this window stand aside meanwhile.
+  legalGate: (up) => ipcRenderer.send('legal:gate', up),
 
   // Toggle background throttling on a live webContents (kept-awake tabs).
   setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),
@@ -52,7 +63,6 @@ contextBridge.exposeInMainWorld('vex', {
   loadData: (key) => ipcRenderer.invoke('storage-load', key),
   clearBrowsingData: () => ipcRenderer.invoke('browsing:clear-data'),
   clearHistory: () => ipcRenderer.invoke('browsing:clear-history'),
-  addHistory: (entry) => ipcRenderer.invoke('storage:history-add', entry),
   flushStorage: () => ipcRenderer.invoke('storage:flush'),
   cloudRequest: body => ipcRenderer.invoke('cloud:request', body),
   saveCloudToken: token => ipcRenderer.invoke('cloud:token-save', token),
@@ -109,7 +119,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Split & PiP
   onToggleSplit: (callback) => subscribe('toggle-split', callback),
   onTogglePip: (callback) => subscribe('toggle-pip', callback),
-  openPipWindow: (url, media) => ipcRenderer.invoke('open-pip-window', url, media),
+  // pageId: the tab's page; the pop-out loads in that tab's own session.
+  openPipWindow: (url, media, pageId) => ipcRenderer.invoke('open-pip-window', url, media, pageId),
   closePipWindow: () => ipcRenderer.invoke('close-pip-window'),
   isPipOpen: () => ipcRenderer.invoke('is-pip-open'),
   // Fires when the pop-out goes away, with 'closed' or 'back-to-tab'. The
@@ -172,11 +183,10 @@ contextBridge.exposeInMainWorld('vex', {
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),
   captureOpen: () => ipcRenderer.invoke('capture:open'),
-  // Safe mode: why this launch is stripped down, and the settings backups.
+  // Safe mode: why this launch is stripped down, and a backup at this first start that failed.
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
   started: () => ipcRenderer.send('app:started'),
-  restoreSettings: (name) => ipcRenderer.invoke('app:restore-settings', name),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // One cookie at a time, in the tab's own partition.
@@ -228,7 +238,8 @@ contextBridge.exposeInMainWorld('vex', {
   recStart: (ext) => ipcRenderer.invoke('rec:start', ext),
   recOwnWindow: () => ipcRenderer.invoke('rec:own-window'),
   idleSeconds: () => ipcRenderer.invoke('app:idle-seconds'),
-  overlayOpen: (url, opacity) => ipcRenderer.invoke('overlay:open', url, opacity),
+  // partition: the tab the page is from; main refuses a private, off-the-record or Tor one.
+  overlayOpen: (url, opacity, partition) => ipcRenderer.invoke('overlay:open', url, opacity, partition),
   overlayClose: () => ipcRenderer.invoke('overlay:close'),
   onOverlayOpacity: (callback) => subscribe('overlay:opacity-changed', callback),
   onLockVex: (callback) => subscribe('lock-vex', callback),
@@ -272,6 +283,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Generic HTTP request (API client + page-change monitor), runs in main
   apiRequest: (opts) => ipcRenderer.invoke('api:request', opts),
+  // An MCP server's token, kept encrypted in main; '' removes it.
+  mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
@@ -279,6 +292,12 @@ contextBridge.exposeInMainWorld('vex', {
   vaultHealth: () => ipcRenderer.invoke('vault:health'),
   vaultSave: (entry) => ipcRenderer.invoke('vault:save', entry),
   vaultDelete: (q) => ipcRenderer.invoke('vault:delete', q),
+  vaultUpdate: (q) => ipcRenderer.invoke('vault:update', q),
+  // Main asks where and writes the file; no password crosses for it.
+  vaultExportCsv: () => ipcRenderer.invoke('vault:export-csv'),
+  // Only with the breach check turned on (Password Health); main sends the
+  // first five characters of each password's SHA-1 and nothing else.
+  vaultBreachCheck: () => ipcRenderer.invoke('vault:breach-check'),
   // Import from another browser (main/browser-import.js). The passwords CSV is
   // chosen, read and saved in main; only hosts and usernames come back.
   browserImportSources: () => ipcRenderer.invoke('browser-import:sources'),
@@ -290,37 +309,77 @@ contextBridge.exposeInMainWorld('vex', {
   totpCodes: () => ipcRenderer.invoke('totp:codes'),
   totpAdd: (input) => ipcRenderer.invoke('totp:add', input),
   totpDelete: (id) => ipcRenderer.invoke('totp:delete', id),
+  // Google Authenticator's otpauth-migration:// export link (many accounts).
+  totpImportMigration: (uri) => ipcRenderer.invoke('totp:import-migration', uri),
+  // A passphrase-encrypted backup file; main asks where and reads/writes it.
+  totpExportBackup: (passphrase) => ipcRenderer.invoke('totp:export-backup', passphrase),
+  totpImportBackup: (passphrase) => ipcRenderer.invoke('totp:import-backup', passphrase),
 
   // Permission prompts (geolocation, mic, camera, notifications, ...)
   onPermissionRequest:  (cb) => subscribe('permission:request', cb),
   onPermissionExpired:  (cb) => subscribe('permission:expired', cb),
+  // A page's pop-up the blocker refused (main/popup-blocker.js): { pageId, origin, url }.
+  onPopupBlocked:       (cb) => subscribe('popup:blocked', cb),
   permissionsRendererReady: () => ipcRenderer.send('permissions:renderer-ready'),
   permissionRespond:    (payload) => ipcRenderer.invoke('permission:respond', payload),
   permissionsList:      () => ipcRenderer.invoke('permissions:list'),
+  // A page's alert / confirm / prompt, asked over its own tab or panel
+  // (src/main/page-dialogs.js, js/page-dialogs.js).
+  onPageDialog:      (cb) => subscribe('page-dialog:show', cb),
+  onPageDialogClose: (cb) => subscribe('page-dialog:close', cb),
+  pageDialogAnswer:  (payload) => ipcRenderer.send('page-dialog:answer', payload),
+  // "Leave site?" for a page that asks before it is left (main/leave-page.js).
+  onPageLeaveAsk:    (cb) => subscribe('page:leave-ask', cb),
+  pageLeaveAnswer:   (payload) => ipcRenderer.send('page:leave-answer', payload),
   // The decisions one tab's page is held to (its container's own, or a
   // private window's), by the page's webContents id.
   permissionsListForPage: (id) => ipcRenderer.invoke('permissions:list-for-page', id),
+  // The site panel: one permission of that page set to 'allow', 'deny' or
+  // 'ask'; every one of its site's reset; the certificate it was served with.
+  permissionsSetForPage: (id, permission, decision) => ipcRenderer.invoke('permissions:set-for-page', id, permission, decision),
+  // -> { decisions, undo }: the token puts every reset answer back.
+  permissionsResetForPage: (id) => ipcRenderer.invoke('permissions:reset-for-page', id),
+  permissionsResetForPageUndo: (token) => ipcRenderer.invoke('permissions:reset-for-page-undo', token),
+  siteCertificate: (id) => ipcRenderer.invoke('site:certificate', id),
+  // The address one of Vex's own pages in a tab stands for (main/vex-page-address.js).
+  vexPageAddress: (id) => ipcRenderer.invoke('tabs:vex-page-address', id),
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
+  tabHistory:           (pageId) => ipcRenderer.invoke('tabs:history', pageId),
+  // The tab in front changed (extensions' chrome.tabs.onActivated).
+  tabActivated:         (pageId) => ipcRenderer.send('tabs:activated', pageId),
+  carryTabHistory:      (token, partition, list) => ipcRenderer.send('tabs:carry-history', token, partition, list),
   // A tab's icon fetched through the tab's own session, as a data: URL.
   tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
   // Which sites the main window's Tor and proxy rules name (for a private window).
   siteRoutesRoutedHosts: () => ipcRenderer.invoke('siteroutes:routed-hosts'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),
   permissionsClearAll:  () => ipcRenderer.invoke('permissions:clear-all'),
+  permissionsClearUndo: (token) => ipcRenderer.invoke('permissions:clear-undo', token),
 
   onDownloadStarted:  (cb) => subscribe('download-started', cb),
   onDownloadProgress: (cb) => subscribe('download-progress', cb),
   onDownloadComplete: (cb) => subscribe('download-complete', cb),
   downloadsOpenFile:     (p) => ipcRenderer.invoke('downloads:open-file', p),
   downloadsShowInFolder: (p) => ipcRenderer.invoke('downloads:show-in-folder', p),
+  downloadsExist:        (paths) => ipcRenderer.invoke('downloads:exist', paths),
   downloadsOpenFolder:   ()  => ipcRenderer.invoke('downloads:open-folder'),
+  // Where a File dropped on the window lives on disk (js/tab-strip-drop.js);
+  // File.path is gone from Electron.
+  pathForFile:           (file) => webUtils.getPathForFile(file),
+  // A file Vex downloaded: to the Recycle Bin, or dragged out of the panel.
+  downloadsDeleteFile:   (p) => ipcRenderer.invoke('downloads:delete-file', p),
+  downloadsStartDrag:    (p) => ipcRenderer.invoke('downloads:start-drag', p),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
-  downloadsRetry:        (url) => ipcRenderer.invoke('downloads:retry', url),
+  downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
+  downloadsMine:         (url) => ipcRenderer.invoke('downloads:mine', url),
   copyImageFrom:         (url, partition) => ipcRenderer.invoke('image:copy', url, partition),
+  // A picture for the AI, fetched through its tab's own session; a private or
+  // Tor tab's only with confirmed (else { needsConsent, kind }).
+  imageForAi:            (pageId, url, confirmed) => ipcRenderer.invoke('image:for-ai', pageId, url, !!confirmed),
 
   // Notes & Sessions shortcuts
   onToggleNotes: (callback) => subscribe('toggle-notes', callback),
@@ -334,6 +393,11 @@ contextBridge.exposeInMainWorld('vex', {
   onSleepCurrentTab: (callback) => subscribe('sleep-current-tab', callback),
   onPrintPage: (callback) => subscribe('print-page', callback),
   setLockState: (locked) => ipcRenderer.send('vex-lock:state', !!locked),
+  // Main checks the PIN itself; only then is Vex unlocked (src/main/lock-pin.js).
+  unlockLock: (pin) => ipcRenderer.invoke('vex-lock:unlock', pin),
+  // The same check without unlocking anything: asking again before a secret
+  // is shown (js/vex-lock.js recheck).
+  verifyLockPin: (pin) => ipcRenderer.invoke('vex-lock:verify', pin),
   cancelTor: () => ipcRenderer.invoke('tor:cancel'),
   onViewSource: (callback) => subscribe('view-source', callback),
   onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),
@@ -346,8 +410,8 @@ contextBridge.exposeInMainWorld('vex', {
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   onFullscreenChanged: (callback) => subscribe('fullscreen-changed', callback),
-  openPrivateWindow: (look) => ipcRenderer.invoke('open-private-window', look),
-  openCleanWindow: (url, look) => ipcRenderer.invoke('open-clean-window', url, look),
+  openPrivateWindow: (look, uiMode) => ipcRenderer.invoke('open-private-window', look, uiMode),
+  openCleanWindow: (url, look, uiMode) => ipcRenderer.invoke('open-clean-window', url, look, uiMode),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).
   createIdentity: () => ipcRenderer.invoke('identity:create'),
   // Tor session: isolated, proxied through a local Tor SOCKS5 (max security).
@@ -412,6 +476,9 @@ contextBridge.exposeInMainWorld('vex', {
   // file:// page and Chromium denies it the Notification API. Resolves once
   // Windows has shown the toast; rejects with the reason when it did not.
   notify: (title, body) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body) }),
+  // A password or one-time code onto the clipboard; the main process empties
+  // it after `seconds` if it is still there, focus or no focus.
+  copySecret: (text, seconds) => ipcRenderer.invoke('clipboard:write-secret', text, seconds),
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {
@@ -437,12 +504,25 @@ contextBridge.exposeInMainWorld('vex', {
   saveEpub: (book) => ipcRenderer.invoke('page:save-epub', book),
   archiveList: (filePath) => ipcRenderer.invoke('archive:list', filePath),
   downloadsSetRules: (rules) => ipcRenderer.invoke('downloads:set-rules', rules),
+  downloadsPrefs: () => ipcRenderer.invoke('downloads:prefs'),
+  downloadsChooseFolder: () => ipcRenderer.invoke('downloads:choose-folder'),
+  downloadsSetAsk: (on) => ipcRenderer.invoke('downloads:set-ask', on),
+  downloadsResetPrefs: () => ipcRenderer.invoke('downloads:reset-prefs'),
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),
   fxRates: () => ipcRenderer.invoke('fx:rates'),
-  openAsApp: (url, title) => ipcRenderer.invoke('app:open-as-app', url, title),
-  getCustomThemeImage: () => ipcRenderer.invoke('theme:get-custom-image'),
-  setCustomThemeImage: (dataUrl) => ipcRenderer.invoke('theme:set-custom-image', dataUrl),
+  openAsApp: (url, title, partition) => ipcRenderer.invoke('app:open-as-app', url, title, partition),
+  // A New Tab background image: your own theme's by id (js/theme-studio.js), or
+  // with no id the old single Custom Image.
+  getCustomThemeImage: (id) => (id ? ipcRenderer.invoke('theme:get-custom-image', id) : ipcRenderer.invoke('theme:get-custom-image')),
+  setCustomThemeImage: (dataUrl, id) => (id ? ipcRenderer.invoke('theme:set-custom-image', dataUrl, id) : ipcRenderer.invoke('theme:set-custom-image', dataUrl)),
+  // A theme from your Windows wallpaper (js/theme-from-image.js): read only.
+  readWallpaper: () => ipcRenderer.invoke('theme:read-wallpaper'),
+  // Light and dark (js/theme-auto.js): Windows' app mode, now and on change.
+  getSystemDark: () => ipcRenderer.invoke('system-theme:get'),
+  // Website appearance (js/website-appearance.js): 'system', 'light' or 'dark'.
+  setWebsiteAppearance: (source) => ipcRenderer.invoke('theme:set-website-appearance', source),
+  onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
 
@@ -479,17 +559,29 @@ contextBridge.exposeInMainWorld('vex', {
   persistGetAll: () => ipcRenderer.invoke('persist-get-all'),
   persistSet: (key, value) => ipcRenderer.invoke('persist-set', key, value),
   persistDelete: (key) => ipcRenderer.invoke('persist-delete', key),
+  // [[key, value or null to delete], ...] saved in one write.
+  persistApply: (entries) => ipcRenderer.invoke('persist-apply', entries),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
   // Phase 18: Chrome extensions management
   extensionsList:           () => ipcRenderer.invoke('extensions:list'),
+  // Folder / .zip / .crx: pick it and see what it asks for; then install that one.
   extensionsInstallFolder:  () => ipcRenderer.invoke('extensions:install-folder'),
   extensionsInstallZip:     () => ipcRenderer.invoke('extensions:install-zip'),
+  extensionsInstallPicked:  (token) => ipcRenderer.invoke('extensions:install-picked', token),
   extensionsInstallCatalog: (id) => ipcRenderer.invoke('extensions:install-catalog', id),
+  // Automatic updates, and "Allow access to file URLs" per extension.
+  extensionsUpdateStatus:   () => ipcRenderer.invoke('extensions:update-status'),
+  extensionsUpdateCheck:    () => ipcRenderer.invoke('extensions:update-check'),
+  extensionsSetAutoUpdate:  (on) => ipcRenderer.invoke('extensions:set-auto-update', on),
+  extensionsUpdateApprove:  (folderName) => ipcRenderer.invoke('extensions:update-approve', folderName),
+  extensionsSetFileAccess:  (folderName, allow) => ipcRenderer.invoke('extensions:set-file-access', folderName, allow),
   // A Chrome Web Store link or extension id: what it is and may do, then install it.
   extensionsWebStorePreview: (input) => ipcRenderer.invoke('extensions:webstore-preview', input),
   extensionsInstallWebStore: (input) => ipcRenderer.invoke('extensions:install-webstore', input),
   extensionsUninstall:      (folderName) => ipcRenderer.invoke('extensions:uninstall', folderName),
+  extensionsUninstallLater: (folderName) => ipcRenderer.invoke('extensions:uninstall-later', folderName),
+  extensionsUninstallUndo:  (folderName) => ipcRenderer.invoke('extensions:uninstall-undo', folderName),
   extensionsOpenFolder:     () => ipcRenderer.invoke('extensions:open-folder'),
   extensionsSetEnabled:     (folderName, enabled) => ipcRenderer.invoke('extensions:set-enabled', folderName, enabled),
   // 'auto' (browsing sessions + the app panels it names) or 'everywhere'.
@@ -497,13 +589,41 @@ contextBridge.exposeInMainWorld('vex', {
   // Free memory now: unload extensions from sessions with no page open.
   extensionsReleaseIdle:    () => ipcRenderer.invoke('extensions:release-idle'),
   extensionsOpenPopup:      (request) => ipcRenderer.invoke('extensions:open-popup', request),
+  // Extensions' right-click menu items, toolbar badges and shortcuts (js/ext-ui.js).
+  extensionsUiState:        () => ipcRenderer.invoke('extensions:ui-state'),
+  onExtensionsUiState:      (callback) => subscribe('extensions:ui-state', callback),
+  extensionsMenuClick:      (request) => ipcRenderer.invoke('extensions:menu-click', request),
+  extensionsActionClick:    (request) => ipcRenderer.invoke('extensions:action-click', request),
+  onExtensionsRunAction:    (callback) => subscribe('extensions:run-action', callback),
+  extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
+  extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
+  extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),
 
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),
   syncLoadKey: () => ipcRenderer.invoke('sync-load-key'),
   syncSaveMeta: (meta) => ipcRenderer.invoke('sync-save-meta', meta),
   syncLoadMeta: () => ipcRenderer.invoke('sync-load-meta'),
-  syncClearState: () => ipcRenderer.invoke('sync-clear-state')
+  syncClearState: () => ipcRenderer.invoke('sync-clear-state'),
+  // Saved passwords and authenticator accounts in Vex Sync: sealed and opened
+  // by main (main/sync-secrets.js); this window carries only sealed items.
+  syncSecretsSeal: (kinds) => ipcRenderer.invoke('sync-secrets-seal', kinds),
+  syncSecretsApply: (lists) => ipcRenderer.invoke('sync-secrets-apply', lists),
+  syncSecretsDescribe: (items) => ipcRenderer.invoke('sync-secrets-describe', items),
+  syncSecretsPutBack: (request) => ipcRenderer.invoke('sync-secrets-put-back', request),
+  onSyncSecretsChanged: (callback) => subscribe('sync-secrets-changed', callback),
+  // Passkeys (main/passkeys.js, js/passkeys.js): the sheet's answer, Settings'
+  // list, and a field's chooser pick. Only names and ids cross; a private key
+  // never does.
+  passkeysAnswer: (id, answer) => ipcRenderer.invoke('passkeys:answer', id, answer),
+  passkeysList: () => ipcRenderer.invoke('passkeys:list'),
+  passkeysDelete: (credentialId) => ipcRenderer.invoke('passkeys:delete', credentialId),
+  passkeysUndoDelete: (token) => ipcRenderer.invoke('passkeys:undo-delete', token),
+  passkeysRename: (credentialId, nickname) => ipcRenderer.invoke('passkeys:rename', credentialId, nickname),
+  passkeysConditionalChoose: (requestId, credentialId, pin) => ipcRenderer.invoke('passkeys:conditional-choose', requestId, credentialId, pin),
+  onPasskeysAsk: (callback) => subscribe('passkeys:ask', callback),
+  onPasskeysAskCancel: (callback) => subscribe('passkeys:ask-cancel', callback),
+  onPasskeysNotice: (callback) => subscribe('passkeys:notice', callback)
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

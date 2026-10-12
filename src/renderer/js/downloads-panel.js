@@ -22,7 +22,9 @@ const DownloadsPanel = {
     close: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     pause: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
     resume: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
-    retry: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+    retry: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+    link: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
   },
 
   // Called once, as early as possible (app.js on DOMContentLoaded)
@@ -57,6 +59,41 @@ const DownloadsPanel = {
       this._renderShell(panel);
     }
     this.renderList();
+    this.checkDeleted().catch(err => window.VexProblems?.note('Downloads', 'Could not check which downloads are still there', err));
+  },
+
+  // A finished download whose file has since been deleted says "deleted" and
+  // offers Retry, not Open: it said "completed", and Open failed with "Failed
+  // to open path" (audit RD12, 2026-10-10). Asked of main each time the panel
+  // opens, and before a file is opened. A file put back shows Open again.
+  // -> the downloads whose state changed.
+  async checkDeleted(list = this.downloads.filter(d => d.state === 'completed' && d.path)) {
+    if (!list.length || typeof window.vex?.downloadsExist !== 'function') return [];
+    const r = await window.vex.downloadsExist(list.map(d => d.path));
+    if (!r || !r.ok || !Array.isArray(r.exist)) throw new Error((r && r.error) || 'no answer');
+    const changed = [];
+    list.forEach((dl, i) => {
+      if (r.exist[i] == null) return;                  // not one Vex can look for
+      const missing = r.exist[i] === false;
+      if (!!dl.missing === missing) return;
+      if (missing) dl.missing = true; else delete dl.missing;
+      changed.push(dl);
+    });
+    if (changed.length) {
+      this.save();
+      for (const dl of changed) if (this._rowFor(dl.id)) this._replaceRow(dl);
+      try { window.DownloadsButton?.refresh(); } catch { /* the panel is still right */ }
+    }
+    return changed;
+  },
+
+  // Before Open: true when the file has gone, and the row now says so.
+  async _deletedNow(dl) {
+    const changed = await this.checkDeleted([dl]);
+    if (!dl.missing) return false;
+    if (!changed.length && this._rowFor(dl.id)) this._replaceRow(dl);
+    window.showToast?.(dl.filename + ' has been deleted' + (dl.url ? ' — Retry downloads it again' : ''), 'info');
+    return true;
   },
 
   _onStart(data) {
@@ -74,7 +111,9 @@ const DownloadsPanel = {
       paused: false,
       canResume: false,
       path: data.path || '',
-      startedAt: data.startedAt || new Date().toISOString()
+      startedAt: data.startedAt || new Date().toISOString(),
+      // From a private, off-the-record or Tor tab: listed, never saved (save()).
+      ephemeral: !!data.ephemeral
     };
     this.downloads.unshift(dl);
     this.activeDownloads.set(dl.id, dl);
@@ -96,10 +135,12 @@ const DownloadsPanel = {
     const wasPaused = dl.paused;
     dl.paused = !!data.paused;
     dl.canResume = !!data.canResume;
+    const wasState = dl.state;
     if (data.state) dl.state = data.state === 'interrupted' ? 'interrupted' : 'progressing';
-    // Pausing swaps which buttons the row needs, so rebuild it; otherwise just
-    // move the bar, which is far cheaper and doesn't fight the CSS transition.
-    if (wasPaused !== dl.paused) this._replaceRow(dl);
+    // Pausing, or the connection dropping, swaps which buttons the row needs,
+    // so rebuild it; otherwise just move the bar, which is far cheaper and
+    // doesn't fight the CSS transition. An interrupted row used to keep Pause.
+    if (wasPaused !== dl.paused || wasState !== dl.state) this._replaceRow(dl);
     else this._patchRow(dl);
     // And the toolbar button, which is where most people watch a download.
     // This was missing: only start and finish told it anything, so its bar and
@@ -159,7 +200,10 @@ const DownloadsPanel = {
       const rest = this.downloads.filter(d => d.state !== 'progressing').slice(0, Math.max(0, 100 - keep.length));
       this.downloads = this.downloads.filter(d => keep.includes(d) || rest.includes(d));
     }
-    try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.downloads)); }
+    // A download from a private, off-the-record or Tor tab stays in the list
+    // until Vex closes and is never written to disk: its address and path went
+    // into vex-persist.json for good (security scan S5-1).
+    try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.downloads.filter(d => !d.ephemeral))); }
     catch (err) { console.error('[Downloads] could not persist history:', err.message); }
   },
 
@@ -187,6 +231,7 @@ const DownloadsPanel = {
       <div class="downloads-container">
         <div class="downloads-header">
           <h2>Downloads</h2>
+          <input type="search" class="downloads-search" id="downloads-search" placeholder="Search downloads" aria-label="Search downloads" autocomplete="off" spellcheck="false">
           <div class="downloads-actions">
             <button class="btn-link" id="btn-open-dl-folder">Open downloads folder</button>
             <button class="btn-link" id="btn-dl-rules">Sorting rules</button>
@@ -196,6 +241,9 @@ const DownloadsPanel = {
         <div class="downloads-list" id="downloads-list"></div>
       </div>
     `;
+    const search = panel.querySelector('#downloads-search');
+    search.value = this._query || '';
+    search.addEventListener('input', () => { this._query = search.value; this._applyFilter(); });
     panel.querySelector('#btn-open-dl-folder')?.addEventListener('click', () => window.vex.downloadsOpenFolder?.());
     panel.querySelector('#btn-dl-rules')?.addEventListener('click', () => this.editRules());
     panel.querySelector('#downloads-clear-btn')?.addEventListener('click', () => {
@@ -218,6 +266,34 @@ const DownloadsPanel = {
     if (r && !r.ok) window.showToast?.('The rules are set for now, but could not be saved for next time: ' + r.error, 'error');
     return list;
   },
+  // --- Settings > Downloads ------------------------------------------------
+  // The folder downloads go to and "Ask where to save each file", kept by main
+  // (src/main/download-prefs.js); the folder is picked in main's own dialog.
+  showPrefs(p) {
+    const label = document.getElementById('setting-download-folder');
+    const ask = document.getElementById('setting-download-ask');
+    if (label) { label.textContent = p.folder; label.title = p.folder; }
+    if (ask) ask.checked = !!p.ask;
+  },
+  async bindSettings() {
+    const change = document.getElementById('setting-download-folder-change');
+    const ask = document.getElementById('setting-download-ask');
+    if (!change || !ask) return;
+    const fail = (what, r) => window.showToast?.(what + ': ' + ((r && r.error) || 'Vex did not answer'), 'error');
+    change.addEventListener('click', async () => {
+      const r = await window.vex.downloadsChooseFolder();
+      if (r && r.ok) { this.showPrefs(r); window.showToast?.('Downloads now go to ' + r.folder); }
+      else if (!(r && r.canceled)) fail('Could not change the download folder', r);
+    });
+    ask.addEventListener('change', async () => {
+      const r = await window.vex.downloadsSetAsk(ask.checked);
+      if (r && r.ok) this.showPrefs(r);
+      else { ask.checked = !ask.checked; fail('Could not change it', r); }
+    });
+    const r = await window.vex.downloadsPrefs();
+    if (r && r.ok) this.showPrefs(r); else fail('Could not read where downloads go', r);
+  },
+
   // Sent at startup as well: main reads its own copy from the profile, and
   // this keeps the two from drifting after a settings restore or a sync.
   pushRules() { const list = this.rules(); if (list.length) window.vex.downloadsSetRules?.(list); },
@@ -243,9 +319,12 @@ const DownloadsPanel = {
     if (!/^add$/i.test(String(answer).trim())) return list;
     const what = await vexPrompt({ title: 'Which downloads?', message: 'A kind of file, a site, or both.\n\nExamples: “pdf”, “github.com”, “pdf from github.com”.', placeholder: 'pdf from github.com', okLabel: 'Next' });
     if (what == null) return list;
-    const m = /^\s*([a-z0-9,\s]*?)\s*(?:from\s+(\S+))?\s*$/i.exec(String(what));
-    const ext = (m && m[1] || '').trim().replace(/^\./, '');
-    const site = (m && m[2] || '').trim();
+    // ".pdf" and "from https://github.com/" are how people write these; the
+    // dot used to fail the whole answer and the address never matched a host.
+    const m = /^\s*([a-z0-9.,\s]*?)\s*(?:from\s+(\S+))?\s*$/i.exec(String(what));
+    const ext = (m && m[1] || '').split(/[,\s]+/).map(e => e.replace(/^\.+/, '')).filter(Boolean).join(', ');
+    let site = (m && m[2] || '').trim();
+    if (site) { try { site = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(site) ? site : 'https://' + site).hostname.replace(/^www\./i, '').toLowerCase(); } catch { window.showToast?.('“' + site + '” is not a site', 'error'); return list; } }
     if (!ext && !site) { window.showToast?.('Say a kind of file, a site, or both', 'error'); return list; }
     const folder = await vexPrompt({ title: 'Into which folder?', message: 'Under your Downloads folder. “Invoices”, or “Work/Invoices”.', placeholder: 'Invoices', okLabel: 'Next' });
     if (folder == null) return list;
@@ -274,6 +353,59 @@ const DownloadsPanel = {
     }
     list.innerHTML = this.downloads.map(dl => this._rowHtml(dl)).join('');
     list.querySelectorAll('.download-item').forEach(row => this._bindRowActions(row));
+    this._applyFilter();
+  },
+
+  // Search: by file name or by the address it came from. Rows that do not
+  // match are hidden rather than removed, so a download finishing while you
+  // search still updates its own row.
+  _query: '',
+  _matches(dl, q) {
+    if (!q) return true;
+    return String(dl.filename || '').toLowerCase().includes(q) || String(dl.url || '').toLowerCase().includes(q);
+  },
+  _applyFilter() {
+    const list = document.getElementById('downloads-list');
+    if (!list) return;
+    const q = String(this._query || '').trim().toLowerCase();
+    let shown = 0;
+    for (const row of list.querySelectorAll('.download-item')) {
+      const dl = this.downloads.find(d => d.id === row.dataset.id);
+      const on = !dl || this._matches(dl, q);
+      row.hidden = !on;
+      if (on) shown++;
+    }
+    let none = list.querySelector('.downloads-no-match');
+    if (q && !shown && this.downloads.length) {
+      if (!none) { none = document.createElement('div'); none.className = 'downloads-no-match downloads-empty'; list.appendChild(none); }
+      none.textContent = 'No downloads match “' + this._query.trim() + '”';
+    } else none?.remove();
+  },
+
+  async _copyLink(id) {
+    const dl = this.downloads.find(d => d.id === id);
+    if (!dl || !dl.url) { window.showToast?.('No address saved for that download', 'error'); return; }
+    try { await navigator.clipboard.writeText(dl.url); window.showToast?.('Download link copied'); }
+    catch (err) { window.showToast?.('Could not copy the link: ' + ((err && err.message) || 'the clipboard refused'), 'error'); }
+  },
+
+  // Delete the file itself (to the Recycle Bin), after asking. The row stays,
+  // saying "deleted", with Retry, as for a file deleted outside Vex.
+  async _deleteFile(id) {
+    const dl = this.downloads.find(d => d.id === id);
+    if (!dl || !dl.path) return;
+    const ok = await vexConfirm({
+      title: 'Delete ' + (dl.filename || 'this file') + '?',
+      message: 'It goes to the Recycle Bin, where you can still get it back.',
+      okLabel: 'Delete', cancelLabel: 'Keep it', danger: true,
+    });
+    if (!ok) return;
+    const r = await window.vex.downloadsDeleteFile(dl.path);
+    if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not delete that file', 'error'); return; }
+    dl.missing = true;
+    this.save();
+    this._replaceRow(dl);
+    window.showToast?.('Moved ' + (dl.filename || 'the file') + ' to the Recycle Bin');
   },
 
   // Ask main to pause/resume/cancel. Main owns the only handle to the live
@@ -293,13 +425,18 @@ const DownloadsPanel = {
       return;
     }
     const dl = this.activeDownloads.get(id);
-    if (dl && (action === 'pause' || action === 'resume')) { dl.paused = action === 'pause'; this._replaceRow(dl); }
+    if (dl && (action === 'pause' || action === 'resume')) {
+      dl.paused = action === 'pause';
+      if (action === 'resume' && dl.state === 'interrupted') dl.state = 'progressing';
+      this._replaceRow(dl);
+    }
   },
 
   async _retry(id) {
     const dl = this.downloads.find(d => d.id === id);
     if (!dl || !dl.url) { window.showToast?.('No source URL saved for that download', 'error'); return; }
-    const result = await window.vex.downloadsRetry?.(dl.url);
+    // The id lets main fetch it again through the session the first try used.
+    const result = await window.vex.downloadsRetry?.(dl.url, dl.id);
     if (!result || !result.ok) window.showToast?.((result && result.error) || 'Could not restart that download', 'error');
   },
 
@@ -422,6 +559,12 @@ const DownloadsPanel = {
       rowEl.title = 'Double-click to open';
     }
     rowEl.querySelectorAll('[data-action="open-file"]').forEach(b => b.addEventListener('click', async () => {
+      // Deleted since: the row says so and offers Retry instead.
+      const dl = this.downloads.find(d => d.id === rowEl.dataset.id);
+      if (dl) {
+        try { if (await this._deletedNow(dl)) return; }
+        catch (err) { window.VexProblems?.note('Downloads', 'Could not check the file is still there', err); }
+      }
       // An installer is the one thing a browser hands you that can do anything
       // to the machine, and browsers say nothing about it. Windows asks only
       // after the double-click, and only when the file is signed.
@@ -438,6 +581,18 @@ const DownloadsPanel = {
     rowEl.querySelectorAll('[data-action="resume"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'resume')));
     rowEl.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'cancel')));
     rowEl.querySelectorAll('[data-action="retry"]').forEach(b => b.addEventListener('click', () => this._retry(b.dataset.id)));
+    rowEl.querySelectorAll('[data-action="copy-link"]').forEach(b => b.addEventListener('click', () => this._copyLink(b.dataset.id)));
+    rowEl.querySelectorAll('[data-action="delete-file"]').forEach(b => b.addEventListener('click', () => this._deleteFile(b.dataset.id)));
+    if (rowEl.getAttribute('draggable') === 'true') {
+      rowEl.addEventListener('dragstart', (e) => {
+        const dl = this.downloads.find(d => d.id === rowEl.dataset.id);
+        e.preventDefault();          // the drag the system sees is the file's, started by main
+        if (!dl || !dl.path) return;
+        Promise.resolve(window.vex.downloadsStartDrag(dl.path))
+          .then(r => { if (r && !r.ok) window.showToast?.(r.error || 'Could not drag that file', 'error'); })
+          .catch(err => window.showToast?.('Could not drag that file: ' + ((err && err.message) || ''), 'error'));
+      });
+    }
     rowEl.querySelectorAll('[data-action="remove"]').forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.id;
       // Removing a row that is still downloading should stop the transfer too,
@@ -473,6 +628,7 @@ const DownloadsPanel = {
     const row = this._buildRow(dl);
     list.prepend(row);
     this._bindRowActions(row);
+    this._applyFilter();
   },
 
   // Swap a finished download's row in place (buttons differ between states).
@@ -482,6 +638,7 @@ const DownloadsPanel = {
     const newRow = this._buildRow(dl);
     row.replaceWith(newRow);
     this._bindRowActions(newRow);
+    this._applyFilter();
   },
 
   // Update a single row's progress bar without full re-render (smoother).
@@ -508,7 +665,7 @@ const DownloadsPanel = {
       return `${progress} &middot; ${date}${dl.paused ? ' &middot; paused' : ''}`;
     }
     const size = this.formatBytes(dl.totalBytes || dl.receivedBytes);
-    const label = dl.state === 'completed' ? ' &middot; completed'
+    const label = dl.state === 'completed' ? (dl.missing ? ' &middot; deleted' : ' &middot; completed')
       : dl.state === 'cancelled' ? ' &middot; cancelled'
       : dl.state === 'interrupted' ? ' &middot; interrupted'
       : dl.state === 'failed' ? ' &middot; failed' : '';
@@ -517,8 +674,10 @@ const DownloadsPanel = {
 
   _rowHtml(dl) {
     const isActive = dl.state === 'progressing';
-    const isComplete = dl.state === 'completed';
-    const isFailed = dl.state === 'failed' || dl.state === 'cancelled' || dl.state === 'interrupted';
+    // Finished, but the file has been deleted since (checkDeleted): no Open,
+    // and Retry as for a failed one.
+    const isComplete = dl.state === 'completed' && !dl.missing;
+    const isFailed = dl.state === 'failed' || dl.state === 'cancelled' || dl.state === 'interrupted' || (dl.state === 'completed' && !!dl.missing);
     const pct = this._percent(dl);
     const id = this._esc(dl.id);
 
@@ -534,13 +693,24 @@ const DownloadsPanel = {
       actions = `<button class="dl-btn${wants ? ' on' : ''}" data-action="open-when-done" data-id="${id}" aria-pressed="${wants}" title="${wants ? 'Vex will open this the moment it finishes \u2014 press again to stop' : 'Open this the moment it finishes'}">${wants ? 'Will open' : 'Open when done'}</button>` + actions;
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
-            <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>`;
+            <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
+            <button class="dl-btn" data-action="delete-file" data-id="${id}" title="Delete the file" aria-label="Delete the file">${this.ICONS.trash}</button>`;
+    } else if (dl.state === 'interrupted' && this.activeDownloads.has(dl.id)) {
+      // The connection dropped but the download is still open in Vex: it can
+      // be picked up where it stopped (when the server allows) or cancelled.
+      // Pause means nothing now, and Retry would start a second copy.
+      actions = (dl.canResume ? `<button class="dl-btn" data-action="resume" data-id="${id}" title="Resume" aria-label="Resume download">${this.ICONS.resume}</button>` : '')
+        + `<button class="dl-btn" data-action="cancel" data-id="${id}" title="Cancel" aria-label="Cancel download">${this.ICONS.close}</button>`;
     } else if (isFailed && dl.url) {
       actions = `<button class="dl-btn" data-action="retry" data-id="${id}" title="Try this download again" aria-label="Retry download">${this.ICONS.retry}</button>`;
     }
 
+    // Every row that has an address can hand it over; Chrome's "Copy link".
+    const copy = dl.url ? `<button class="dl-btn" data-action="copy-link" data-id="${id}" title="Copy download link" aria-label="Copy download link">${this.ICONS.link}</button>` : '';
+    // A finished file can be dragged out of the panel into a folder, a mail
+    // or a chat, as from Explorer (main starts the drag: webContents.startDrag).
     return `
-      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}">
+      <div class="download-item ${dl.state}${dl.paused ? ' paused' : ''}" data-id="${id}"${isComplete ? ' draggable="true"' : ''}>
         <div class="download-icon${isComplete ? ' complete' : ''}${isFailed ? ' failed' : ''}">${icon}</div>
         <div class="download-info">
           <div class="download-filename">${this._esc(dl.filename)}</div>
@@ -549,6 +719,7 @@ const DownloadsPanel = {
         </div>
         <div class="download-actions">
           ${actions}
+          ${copy}
           <button class="dl-btn" data-action="remove" data-id="${id}" title="Remove from list" aria-label="Remove from list">${this.ICONS.close}</button>
         </div>
       </div>

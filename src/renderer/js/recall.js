@@ -20,7 +20,23 @@ const Recall = {
   PAGE_SIZE: 30,
   _seq: 0,
 
-  enabled() { try { return localStorage.getItem(this.ENABLED_KEY) !== 'false'; } catch { return true; } },
+  // Recall is opt-in since v2.37.1. A profile that finished setup before then
+  // and never chose keeps it on (written once as an explicit 'true'), so the
+  // new default only reaches new profiles.
+  OPT_IN_KEY: 'vex.recallOptIn',
+  _migrateOnce() {
+    if (localStorage.getItem(this.OPT_IN_KEY)) return;
+    localStorage.setItem(this.OPT_IN_KEY, '1');
+    if (localStorage.getItem(this.ENABLED_KEY) == null && localStorage.getItem('vex.onboardingDone') === 'true') {
+      localStorage.setItem(this.ENABLED_KEY, 'true');
+    }
+  },
+  enabled() {
+    try {
+      this._migrateOnce();
+      return localStorage.getItem(this.ENABLED_KEY) === 'true';
+    } catch { return false; }
+  },
   setEnabled(v) { try { localStorage.setItem(this.ENABLED_KEY, v ? 'true' : 'false'); } catch {} },
 
   // Hosts the user asked Recall to stay out of. Stored locally; subdomains of a
@@ -130,7 +146,13 @@ const Recall = {
       const res = await AIRouter.callAI('chat', { message:
         `I'm searching the full text of pages I've already read for: "${q}".\n` +
         `List up to 6 alternative search queries — synonyms, related concepts, and specific terms — that would surface relevant pages. Return ONLY the queries, one per line, no numbering or commentary.` });
-      const out = String((res && (res.result || res.text || res.message)) || '');
+      let out = String((res && (res.result || res.text || res.message)) || '');
+      // A chat answer can come in the chat's JSON envelope ({"reply": …}),
+      // which is what the local model sends: read as lines, it was one line
+      // too long to be a query, so the search was never widened (found
+      // 2026-10-10).
+      try { const env = JSON.parse(out); if (env && typeof env.reply === 'string') out = env.reply; }
+      catch { /* plain text: the lines themselves */ }
       terms = out.split('\n').map(s => s.replace(/^[-*\d.)\s]+/, '').trim())
         .filter(s => s && s.length <= 60 && s.toLowerCase() !== q.toLowerCase()).slice(0, 6);
     } catch { return base; }
@@ -434,7 +456,7 @@ const Recall = {
     const esc = window.escapeHtml;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:8px">Index the full text of pages you read so you can find them later by content. Stored locally only (userData/recall.json) — never uploaded. Private, Tor and identity tabs are never indexed.</p>
-      <div class="setting-toggle-row"><span>Index pages for full-text recall</span><label class="toggle"><input type="checkbox" id="recall-enabled" ${this.enabled() ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
+      <div class="setting-toggle-row"><span>Index pages for full-text recall</span><label class="toggle"><input type="checkbox" id="recall-enabled" aria-label="Index pages for full-text recall" ${this.enabled() ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted recall-settings-stat" id="recall-settings-stat">Checking the index…</p>
       <div class="recall-settings-excluded" id="recall-excluded"></div>
       <div class="recall-settings-actions">

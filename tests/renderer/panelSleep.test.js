@@ -34,6 +34,7 @@ beforeEach(() => {
   globalThis.SleepConsent = {
     mode: () => 'auto', auto: () => true, never: () => false,
     ask: ({ run }) => { run(); return true; },
+    gate: ({ run }) => { run(); return true; }, modeFor: () => 'auto', renderSettingsState: () => {},
     offerAfterGame: () => false,
   };
   document.body.innerHTML = `
@@ -243,15 +244,6 @@ describe('how long a panel stays awake', () => {
     expect(SidebarManager.panelsDueToSleep(10_000_000)).not.toContain('discord');
   });
 
-  it('the memory notice offers it, at the moment the gigabyte is on screen', async () => {
-    fakeWebview('discord', { wcId: 7 });
-    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
-    await SidebarManager.checkDiscordMemory();
-    document.querySelector('.dmb-calls').click();
-    expect(SidebarManager.keepAwakeFor('discord')).toEqual({ mode: 'call' });
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-  });
-
   it('the panel menu says what it is set to, and opens the card', () => {
     SidebarManager.showContextMenu({ clientX: 0, clientY: 0 }, 'discord');
     const item = [...document.querySelectorAll('.tab-context-item')].find(i => /Keep awake/.test(i.textContent));
@@ -270,72 +262,22 @@ describe('how long a panel stays awake', () => {
   });
 });
 
-describe('the Discord memory watch', () => {
-  it('shows a notice with Reload past the ceiling, and a toast at most every 30 minutes', async () => {
-    const wv = fakeWebview('discord', { wcId: 7 });
-    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
-    expect(await SidebarManager.checkDiscordMemory()).toEqual({ mb: 1500, over: true });
-    const banner = document.querySelector('#panel-discord .discord-mem-banner');
-    expect(banner.textContent).toMatch(/1\.5 GB/);
-    expect(window.showToast).toHaveBeenCalledTimes(1);
-    await SidebarManager.checkDiscordMemory();
-    expect(window.showToast).toHaveBeenCalledTimes(1);
-    expect(document.querySelectorAll('.discord-mem-banner').length).toBe(1);
-    banner.querySelector('.dmb-reload').click();
-    expect(wv.reload).toHaveBeenCalled();
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-  });
-
-  // Later used to silence only the toast: the strip came straight back on the
-  // next minute's check, over the message box.
-  it('Later keeps the notice away for four hours; Don\'t show again turns notices off', async () => {
-    fakeWebview('discord', { wcId: 7 });
-    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
-    await SidebarManager.checkDiscordMemory();
-    document.querySelector('.dmb-later').click();
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-    await SidebarManager.checkDiscordMemory();
-    await SidebarManager.checkDiscordMemory();
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-    SidebarManager._discordBannerSnoozedUntil = Date.now() - 1;
-    await SidebarManager.checkDiscordMemory();
-    expect(document.querySelector('.discord-mem-banner')).not.toBe(null);
-    document.querySelector('.dmb-never').click();
-    expect(localStorage.getItem('vex.memoryNoticeMB')).toBe('0');
-    expect(await SidebarManager.checkDiscordMemory()).toEqual({ mb: 1500, over: false, off: true });
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-  });
-
-  it('the Settings select sets the shared ceiling for Discord and tabs', async () => {
+describe('the heavy-tab memory notice setting', () => {
+  it('the Settings select sets the tabs\u2019 ceiling', () => {
     document.body.insertAdjacentHTML('beforeend', '<select id="setting-memory-notice"><option value=""></option><option value="0"></option><option value="2048"></option></select>');
     SidebarManager._wirePanelSleepSettings();
     const sel = document.getElementById('setting-memory-notice');
     expect(sel.value).toBe('');
-    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(1024);
+    expect(SidebarManager.memoryNoticeCeiling(800)).toBe(800);
     sel.value = '2048'; sel.dispatchEvent(new Event('change'));
-    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(2048);
-    fakeWebview('discord', { wcId: 7 });
-    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: 1500 * 1024, pid: 1 } } }));
-    expect((await SidebarManager.checkDiscordMemory()).over).toBe(false);
+    expect(SidebarManager.memoryNoticeCeiling(800)).toBe(2048);
     sel.value = '0'; sel.dispatchEvent(new Event('change'));
-    expect(SidebarManager.memoryNoticeCeiling(1024)).toBe(0);
+    expect(SidebarManager.memoryNoticeCeiling(800)).toBe(0);
   });
 
-  it('is quiet under the ceiling, and takes the notice down again', async () => {
-    fakeWebview('discord', { wcId: 7 });
-    let kb = 1500 * 1024;
-    window.vex.tabMemory = vi.fn(async () => ({ totalKB: 0, byId: { 7: { memKB: kb, pid: 1 } } }));
-    await SidebarManager.checkDiscordMemory();
-    expect(document.querySelector('.discord-mem-banner')).not.toBe(null);
-    kb = 600 * 1024;
-    expect(await SidebarManager.checkDiscordMemory()).toEqual({ mb: 600, over: false });
-    expect(document.querySelector('.discord-mem-banner')).toBe(null);
-  });
-
-  it('does nothing without a Discord panel or the bridge', async () => {
-    expect(await SidebarManager.checkDiscordMemory()).toBe(null);
-    fakeWebview('discord');
-    expect(await SidebarManager.checkDiscordMemory()).toBe(null);
+  it('Discord has no strip of its own any more: one watch, in js/discord-memory.js', () => {
+    expect(SidebarManager.checkDiscordMemory).toBeUndefined();
+    expect(SidebarManager.startDiscordMemoryWatch).toBeUndefined();
   });
 });
 

@@ -25,10 +25,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 //     extension.isAllowedIncognitoAccess, so both were dead while Vex showed
 //     them "On" (2026-09-29).
 // Each gets an honest stand-in: permissions reports what the manifest granted
-// and Vex provides and grants nothing new; the toolbar and menu calls succeed
-// and change nothing (Vex has no per-extension button, badge or menu items);
-// no keys are bound to extension shortcuts; file access is allowed (Vex loads
-// extensions with allowFileAccess) and there is no incognito here.
+// and Vex provides and grants nothing new; there is no file access (an
+// extension's scripts never reach a file:// page here, measured 2026-10-10)
+// and no incognito.
+//
+// Right-click menu items, the toolbar button's badge and title, and keyboard
+// shortcuts are real (since 2026-10-08): extApi, where given, takes them to
+// main ({ op, args }), which keeps the items and the badge, draws them in
+// Vex's right-click menu and toolbar menu, and binds the keys
+// (src/main/extension-ui.js, src/main/extension-commands.js). onExtEvent,
+// where given, is called once with a function that main's events then reach
+// ({ type, args }): a menu click, a shortcut, a click on the toolbar button.
+// Every context of the extension that listens hears them, as in Chrome, and
+// an item's own onclick runs in the context that made it.
 //
 // It runs in the extension's own world: directly in a page without isolation
 // (a background page), through contextBridge.executeInMainWorld where the
@@ -49,7 +58,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 //
 // askActiveTabs, where given, asks main which page is the tab in front in each
 // Vex window ({ ids }) and in the Vex window used last ({ current }).
-function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) {
+function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, extApi, onExtEvent) {
   c = c || (typeof chrome !== 'undefined' ? chrome : null);
   // Only an extension has a runtime id; a website is left alone.
   if (!c || !c.runtime || !c.runtime.id || typeof c.runtime.getManifest !== 'function') return false;
@@ -63,30 +72,139 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
   }
   function noEvent() { return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } }; }
 
+  // Main's side of the menus, the badge and the shortcuts. A failure comes
+  // back in main's own words, without the wrapping Electron puts round it.
+  var api = typeof extApi === 'function' ? function (op, args) {
+    return Promise.resolve(extApi({ op: op, args: args || {} })).catch(function (err) {
+      throw new Error(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (?:Error: )?/, ''));
+    });
+  } : null;
+  // With a callback a failure is what Chrome calls an unchecked
+  // runtime.lastError: said in the console, and the callback still runs.
+  function settle(p, cb, what) {
+    if (typeof cb !== 'function') return p;
+    p.then(function (v) { cb(v); }, function (err) { console.error('Unchecked runtime.lastError (' + what + '): ' + err.message); cb(); });
+    return undefined;
+  }
+  // Whether the person allowed this extension file:// pages (its card in the
+  // manager). With no main to ask, it is not.
+  function fileAccess() { return api ? api('extension.fileAccess').then(function (v) { return v === true; }) : Promise.resolve(false); }
+  var hubs = {};
+  var heard = false;
+  var ownClicks = {};
+  function deliver(msg) {
+    if (!msg || typeof msg.type !== 'string') return;
+    var args = Array.isArray(msg.args) ? msg.args : [];
+    var call = function (fn) { try { fn.apply(null, args); } catch (err) { setTimeout(function () { throw err; }, 0); } };
+    if (msg.type === 'menus.onClicked' && args[0] && Object.prototype.hasOwnProperty.call(ownClicks, String(args[0].menuItemId))) call(ownClicks[String(args[0].menuItemId)]);
+    (hubs[msg.type] || []).slice().forEach(call);
+  }
+  function listen() {
+    if (heard || typeof onExtEvent !== 'function') return;
+    heard = true;
+    onExtEvent(deliver);
+  }
+  function hubEvent(type) {
+    var fns = hubs[type] || (hubs[type] = []);
+    return {
+      addListener: function (fn) { if (typeof fn === 'function' && fns.indexOf(fn) === -1) fns.push(fn); listen(); },
+      removeListener: function (fn) { var i = fns.indexOf(fn); if (i !== -1) fns.splice(i, 1); },
+      hasListener: function (fn) { return fns.indexOf(fn) !== -1; },
+      hasListeners: function () { return fns.length > 0; },
+    };
+  }
+
   if (!c.permissions) {
-    var granted = [].concat(manifest.permissions || [], manifest.host_permissions || []);
-    var origins = granted.filter(function (p) { return /[:/*<]/.test(p); });
+    var grantedPerms = [].concat(manifest.permissions || [], manifest.host_permissions || []);
+    var origins = grantedPerms.filter(function (p) { return /[:/*<]/.test(p); });
     // Permissions that never come with a chrome.<name> namespace of their own.
     var NO_NAMESPACE = ['activeTab', 'unlimitedStorage', 'background', 'clipboardRead', 'clipboardWrite', 'webRequestBlocking', 'geolocation'];
-    var apis = granted.filter(function (p) {
-      return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
-    });
-    var has = function (q) {
+    // Asked when called, not now: the stand-ins below (contextMenus,
+    // commands, cookies, webNavigation, …) are not made yet, and a
+    // permission they provide was answered false (found 2026-10-10, EX12).
+    var apis = function () {
+      return grantedPerms.filter(function (p) {
+        return !/[:/*<]/.test(p) && (typeof c[p] !== 'undefined' || NO_NAMESPACE.indexOf(p) !== -1);
+      });
+    };
+    // A file:// page only for an extension the person allowed on its card
+    // (main.js _fileAccessState); it was always said to be allowed (EX4).
+    var has = function (q, fileOk) {
       q = q || {};
-      return (q.permissions || []).every(function (p) { return apis.indexOf(p) !== -1; })
-        && (q.origins || []).every(function (o) { return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1; });
+      var own = apis();
+      return (q.permissions || []).every(function (p) { return own.indexOf(p) !== -1; })
+        && (q.origins || []).every(function (o) {
+          if (/^file:/i.test(o) && !fileOk) return false;
+          return origins.indexOf(o) !== -1 || origins.indexOf('<all_urls>') !== -1;
+        });
+    };
+    var askHas = function (q) {
+      var wantsFile = ((q || {}).origins || []).some(function (o) { return /^file:/i.test(o); });
+      return wantsFile ? fileAccess().then(function (ok) { return has(q, ok); }) : Promise.resolve(has(q, false));
     };
     c.permissions = {
-      contains: function (q, cb) { return done(has(q))(cb); },
-      getAll: function (cb) { return done({ permissions: apis.slice(), origins: origins.slice() })(cb); },
+      contains: function (q, cb) { return settle(askHas(q), cb, 'permissions.contains'); },
+      getAll: function (cb) { return done({ permissions: apis(), origins: origins.slice() })(cb); },
       // Already granted: true. Anything more cannot be granted here: false.
-      request: function (q, cb) { return done(has(q))(cb); },
+      request: function (q, cb) { return settle(askHas(q), cb, 'permissions.request'); },
       remove: function (q, cb) { return done(false)(cb); },
       onAdded: noEvent(),
       onRemoved: noEvent(),
     };
   }
 
+  // The toolbar button: its badge and title are kept by main and drawn on the
+  // extension's icon in Vex's extensions menu and on its pinned toolbar
+  // button, for every tab or for one (details.tabId), and so are its icon
+  // and popup (setIcon, setPopup). Its on/off stays as the manifest says.
+  function actionApi() {
+    var setter = function (prop, key) {
+      return function (details, cb) {
+        var d = details || {};
+        return settle(api('action.set', { prop: prop, value: d[key], tabId: d.tabId }).then(function () { return undefined; }), cb, 'action.set');
+      };
+    };
+    var getter = function (prop) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        return settle(api('action.get', { prop: prop, tabId: (details || {}).tabId }), cb, 'action.get');
+      };
+    };
+    // setIcon's imageData (an ImageData, or one per size) as plain numbers
+    // main can take; of several sizes, the one nearest 32 px (a toolbar icon
+    // at 200%). A path, or one per size, is passed as it is.
+    var nearest = function (bySize) {
+      var sizes = Object.keys(bySize || {}).map(Number).filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      if (!sizes.length) return null;
+      var best = sizes.filter(function (n) { return n >= 32; })[0] || sizes[sizes.length - 1];
+      return bySize[best];
+    };
+    var iconValue = function (d) {
+      if (d.imageData) {
+        var img = d.imageData.data ? d.imageData : nearest(d.imageData);
+        if (!img || !img.data) throw new Error('setIcon: imageData must be an ImageData or a dictionary of them');
+        return { imageData: { width: img.width, height: img.height, data: Array.prototype.slice.call(img.data) } };
+      }
+      if (d.path) return { path: typeof d.path === 'string' ? d.path : nearest(d.path) };
+      throw new Error('setIcon needs imageData or a path');
+    };
+    return {
+      setBadgeText: setter('text', 'text'), getBadgeText: getter('text'),
+      setBadgeBackgroundColor: setter('bg', 'color'), getBadgeBackgroundColor: getter('bg'),
+      setBadgeTextColor: setter('color', 'color'), getBadgeTextColor: getter('color'),
+      setTitle: setter('title', 'title'), getTitle: getter('title'),
+      setPopup: setter('popup', 'popup'), getPopup: getter('popup'),
+      setIcon: function (details, cb) {
+        var d = details || {};
+        var p;
+        try { p = api('action.set', { prop: 'icon', value: iconValue(d), tabId: d.tabId }).then(function () { return undefined; }); }
+        catch (err) { p = Promise.reject(err); }
+        return settle(p, cb, 'action.setIcon');
+      },
+      enable: done(undefined), disable: done(undefined), isEnabled: done(true),
+      onClicked: hubEvent('action.onClicked'),
+    };
+  }
   function actionStub() {
     return {
       setIcon: done(undefined), setBadgeText: done(undefined), setBadgeBackgroundColor: done(undefined),
@@ -96,31 +214,236 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       onClicked: noEvent(),
     };
   }
-  if (manifest.browser_action && !c.browserAction) c.browserAction = actionStub();
-  if (manifest.action && !c.action) c.action = actionStub();
+  // Electron 42 has a chrome.action of its own in a service worker, which
+  // keeps a badge nobody can see (found 2026-10-08): Vex's is put in its place.
+  function takeOver(target, mine, what) {
+    Object.keys(mine).forEach(function (k) {
+      try { target[k] = mine[k]; } catch (e) { /* read-only: tried again below */ }
+      if (target[k] !== mine[k]) { try { Object.defineProperty(target, k, { value: mine[k], configurable: true, writable: true }); } catch (e) { /* said below */ } }
+      if (target[k] !== mine[k]) console.error('[Vex] could not provide ' + what + '.' + k + ' here');
+    });
+    return target;
+  }
+  var ACTION_KEYS = ['setBadgeText', 'getBadgeText', 'setBadgeBackgroundColor', 'getBadgeBackgroundColor', 'setBadgeTextColor', 'getBadgeTextColor', 'setTitle', 'getTitle', 'setIcon', 'setPopup', 'getPopup', 'onClicked'];
+  function actionFor(name) {
+    if (!c[name]) { c[name] = api ? actionApi() : actionStub(); return; }
+    if (!api) return;
+    var mine = actionApi(), part = {};
+    ACTION_KEYS.forEach(function (k) { part[k] = mine[k]; });
+    takeOver(c[name], part, name);
+  }
+  if (manifest.browser_action) actionFor('browserAction');
+  if (manifest.action) actionFor('action');
+
+  // chrome.runtime.onInstalled: Electron never fires it, and most extensions
+  // make their menu items there. Main fires it (main.js _extTellInstalled);
+  // a listener hears that as well as anything Electron itself might send.
+  if (api && c.runtime.onInstalled && typeof c.runtime.onInstalled.addListener === 'function') {
+    var installed = c.runtime.onInstalled;
+    var installedHub = hubEvent('runtime.onInstalled');
+    var nativeOn = installed.addListener.bind(installed);
+    var nativeOff = typeof installed.removeListener === 'function' ? installed.removeListener.bind(installed) : null;
+    takeOver(installed, {
+      addListener: function (fn) { nativeOn(fn); installedHub.addListener(fn); },
+      removeListener: function (fn) { if (nativeOff) nativeOff(fn); installedHub.removeListener(fn); },
+    }, 'runtime.onInstalled');
+  }
 
   var perms = manifest.permissions || [];
-  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && !c.contextMenus) {
+  if ((perms.indexOf('contextMenus') !== -1 || perms.indexOf('menus') !== -1) && (!c.contextMenus || api)) {
     var menuId = 0;
-    c.contextMenus = {
+    // Only what can cross to main: no functions.
+    var plainProps = function (props) {
+      var out = {};
+      Object.keys(props || {}).forEach(function (k) { if (k !== 'onclick' && typeof props[k] !== 'function') out[k] = props[k]; });
+      return out;
+    };
+    var ContextType = {}, ItemType = {};
+    ['all', 'page', 'frame', 'selection', 'link', 'editable', 'image', 'video', 'audio', 'launcher', 'browser_action', 'page_action', 'action'].forEach(function (t) { ContextType[t.toUpperCase()] = t; });
+    ['normal', 'checkbox', 'radio', 'separator'].forEach(function (t) { ItemType[t.toUpperCase()] = t; });
+    var menusApi = api ? {
+      ACTION_MENU_TOP_LEVEL_LIMIT: 6, ContextType: ContextType, ItemType: ItemType,
+      create: function (props, cb) {
+        props = props || {};
+        var id = props.id != null ? props.id : ++menuId;
+        var plain = plainProps(props);
+        plain.id = id;
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        var p = api('menus.create', { props: plain }).then(function () { return undefined; });
+        if (typeof cb === 'function') settle(p, cb, 'contextMenus.create');
+        else p.catch(function (err) { console.error('Unchecked runtime.lastError (contextMenus.create): ' + err.message); });
+        return id;
+      },
+      update: function (id, props, cb) {
+        props = props || {};
+        if (typeof props.onclick === 'function') { ownClicks[String(id)] = props.onclick; listen(); }
+        return settle(api('menus.update', { id: id, props: plainProps(props) }).then(function () { return undefined; }), cb, 'contextMenus.update');
+      },
+      remove: function (id, cb) {
+        delete ownClicks[String(id)];
+        return settle(api('menus.remove', { id: id }).then(function () { return undefined; }), cb, 'contextMenus.remove');
+      },
+      removeAll: function (cb) {
+        ownClicks = {};
+        return settle(api('menus.removeAll').then(function () { return undefined; }), cb, 'contextMenus.removeAll');
+      },
+      onClicked: hubEvent('menus.onClicked'),
+    } : {
       create: function (props, cb) { if (typeof cb === 'function') setTimeout(cb, 0); return (props && props.id) || ++menuId; },
       update: done(undefined), remove: done(undefined), removeAll: done(undefined),
       onClicked: noEvent(),
     };
+    if (!c.contextMenus) c.contextMenus = menusApi;
+    else takeOver(c.contextMenus, menusApi, 'contextMenus');
   }
 
-  if (!c.commands) {
+  if (!c.commands || api) {
     var commands = manifest.commands || {};
-    c.commands = {
+    var commandsApi = api ? {
+      getAll: function (cb) { return settle(api('commands.getAll'), cb, 'commands.getAll'); },
+      onCommand: hubEvent('commands.onCommand'),
+    } : {
       getAll: done(Object.keys(commands).map(function (name) {
         return { name: name, description: (commands[name] && commands[name].description) || '', shortcut: '' };
       })),
       onCommand: noEvent(),
     };
+    if (!c.commands) c.commands = commandsApi;
+    else takeOver(c.commands, commandsApi, 'commands');
+  }
+
+  // Events Electron never fires: tabs.onUpdated/onActivated/onCreated/
+  // onRemoved and webRequest.onCompleted (found 2026-10-10). A listener
+  // added here tells main, which then tells this extension
+  // (src/main/extension-events.js); a webRequest listener's filter goes with
+  // it, as its own numbered event.
+  var listenerSeq = 0;
+  function tellMain(type, filter) {
+    if (!api) return;
+    api('events.listen', { type: type, filter: filter }).catch(function (err) { console.error('[Vex] ' + type + ' will not be heard: ' + err.message); });
+  }
+  function mainHubEvent(type) {
+    var h = hubEvent(type);
+    var add = h.addListener;
+    h.addListener = function (fn) { add(fn); if (typeof fn === 'function') tellMain(type); };
+    return h;
+  }
+  function requestEvent(type) {
+    var mine = [];
+    return {
+      addListener: function (fn, filter) {
+        if (typeof fn !== 'function') return;
+        var sub = type + '#' + (++listenerSeq);
+        mine.push([fn, sub]);
+        hubEvent(sub).addListener(fn);
+        tellMain(sub, filter || {});
+      },
+      removeListener: function (fn) {
+        mine = mine.filter(function (p) { if (p[0] !== fn) return true; hubEvent(p[1]).removeListener(fn); return false; });
+      },
+      hasListener: function (fn) { return mine.some(function (p) { return p[0] === fn; }); },
+      hasListeners: function () { return mine.length > 0; },
+    };
+  }
+  if (api && c.tabs) {
+    takeOver(c.tabs, { onUpdated: mainHubEvent('tabs.onUpdated'), onActivated: mainHubEvent('tabs.onActivated'),
+      onCreated: mainHubEvent('tabs.onCreated'), onRemoved: mainHubEvent('tabs.onRemoved') }, 'tabs');
+  }
+  if (api && c.webRequest && perms.indexOf('webRequest') !== -1) {
+    takeOver(c.webRequest, { onCompleted: requestEvent('webRequest.onCompleted') }, 'webRequest');
+  }
+
+  // chrome.windows, chrome.notifications and chrome.downloads: Electron has
+  // none (found 2026-10-10). Main answers from Vex's own windows, its
+  // Windows notifications and its downloads; what it cannot do fails and
+  // says so. A new window is a tab in the window in front.
+  function mainCall(op, args) {
+    return function () {
+      var a = Array.prototype.slice.call(arguments);
+      var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+      return settle(api(op, args.apply(null, a) || {}), cb, op);
+    };
+  }
+  function refuse(what) {
+    return function () {
+      var cb = arguments[arguments.length - 1];
+      return settle(Promise.reject(new Error('Vex does not let an extension ' + what)), typeof cb === 'function' ? cb : null, what);
+    };
+  }
+  if (api && !c.windows) {
+    var withTabs = function (p, getInfo) {
+      return p.then(function (w) {
+        if (!getInfo || !getInfo.populate || !c.tabs) return w;
+        var one = function (win) { return c.tabs.query({ windowId: win.id }).then(function (tabs) { return Object.assign({}, win, { tabs: tabs }); }); };
+        return Array.isArray(w) ? Promise.all(w.map(one)) : one(w);
+      });
+    };
+    var winGet = function (op, hasId) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        var id = hasId ? a.shift() : undefined;
+        return settle(withTabs(api(op, { id: id }), a[0]), cb, op);
+      };
+    };
+    c.windows = {
+      WINDOW_ID_NONE: -1, WINDOW_ID_CURRENT: -2,
+      get: winGet('windows.get', true), getCurrent: winGet('windows.getCurrent'), getLastFocused: winGet('windows.getLastFocused'), getAll: winGet('windows.getAll'),
+      create: mainCall('windows.create', function (data) { return { data: data || {} }; }),
+      update: mainCall('windows.update', function (id, info) { return { id: id, info: info || {} }; }),
+      remove: refuse('close a window'),
+      onCreated: noEvent(), onRemoved: noEvent(), onFocusChanged: noEvent(), onBoundsChanged: noEvent(),
+    };
+  }
+  if (api && !c.notifications && perms.indexOf('notifications') !== -1) {
+    c.notifications = {
+      create: function (id, options, cb) {
+        if (typeof id === 'object' && id !== null) { cb = options; options = id; id = ''; }
+        return settle(api('notifications.create', { id: id || '', options: options || {} }), cb, 'notifications.create');
+      },
+      update: done(false), clear: done(false), getAll: done({}),
+      getPermissionLevel: mainCall('notifications.getPermissionLevel', function () { return {}; }),
+      onClicked: mainHubEvent('notifications.onClicked'),
+      onClosed: noEvent(), onButtonClicked: noEvent(), onPermissionLevelChanged: noEvent(), onShowSettings: noEvent(),
+    };
+  }
+  if (api && !c.downloads && perms.indexOf('downloads') !== -1) {
+    c.downloads = {
+      download: mainCall('downloads.download', function (options) { return { options: options || {} }; }),
+      search: mainCall('downloads.search', function (query) { return { query: query || {} }; }),
+      pause: mainCall('downloads.pause', function (id) { return { id: id }; }),
+      resume: mainCall('downloads.resume', function (id) { return { id: id }; }),
+      cancel: mainCall('downloads.cancel', function (id) { return { id: id }; }),
+      open: refuse('open a downloaded file'), show: refuse('show a downloaded file'), showDefaultFolder: refuse('open the downloads folder'),
+      erase: refuse('erase downloads from the list'), removeFile: refuse('delete a downloaded file'),
+      onCreated: mainHubEvent('downloads.onCreated'), onChanged: mainHubEvent('downloads.onChanged'),
+      onErased: noEvent(), onDeterminingFilename: noEvent(),
+    };
+  }
+
+  // chrome.alarms: Electron's takes alarms and never fires onAlarm (found
+  // 2026-10-10). Main keeps them and fires them (src/main/extension-alarms.js).
+  if (api && perms.indexOf('alarms') !== -1) {
+    var nameAnd = function (name, cb) { return typeof name === 'function' ? ['', name] : [name == null ? '' : name, cb]; };
+    var alarmsApi = {
+      create: function (name, info, cb) {
+        if (name !== null && typeof name === 'object') { cb = info; info = name; name = ''; }
+        return settle(api('alarms.create', { name: name == null ? '' : String(name), info: info || {} }).then(function () { return undefined; }), cb, 'alarms.create');
+      },
+      get: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.get', { name: String(a[0]) }), a[1], 'alarms.get'); },
+      getAll: function (cb) { return settle(api('alarms.getAll'), cb, 'alarms.getAll'); },
+      clear: function (name, cb) { var a = nameAnd(name, cb); return settle(api('alarms.clear', { name: String(a[0]) }), a[1], 'alarms.clear'); },
+      clearAll: function (cb) { return settle(api('alarms.clearAll'), cb, 'alarms.clearAll'); },
+      onAlarm: hubEvent('alarms.onAlarm'),
+    };
+    if (!c.alarms) c.alarms = alarmsApi;
+    else takeOver(c.alarms, alarmsApi, 'alarms');
   }
 
   if (!c.extension) c.extension = {};
-  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') c.extension.isAllowedFileSchemeAccess = done(true);
+  if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') {
+    c.extension.isAllowedFileSchemeAccess = function (cb) { return settle(fileAccess(), cb, 'extension.isAllowedFileSchemeAccess'); };
+  }
   if (typeof c.extension.isAllowedIncognitoAccess !== 'function') c.extension.isAllowedIncognitoAccess = done(false);
   if (typeof c.extension.inIncognitoContext === 'undefined') c.extension.inIncognitoContext = false;
 
@@ -151,11 +474,21 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
     };
   }
+  // Cookies come from main, from this extension's session, for the sites it
+  // has host permission for (src/main/extension-cookies.js); every get used
+  // to answer null and every getAll [] (found 2026-10-10). Changes are not
+  // announced here.
   if (perms.indexOf('cookies') !== -1 && !c.cookies) {
-    var noCookies = function () { return Promise.reject(new Error('chrome.cookies is not available in Vex')); };
+    var cookieCall = function (op) {
+      return function (details, cb) {
+        if (typeof details === 'function') { cb = details; details = {}; }
+        if (!api) return settle(Promise.reject(new Error('chrome.cookies is not available here')), cb, op);
+        return settle(api(op, { details: details || {} }), cb, op);
+      };
+    };
     c.cookies = {
-      get: done(null), getAll: done([]), getAllCookieStores: done([]),
-      set: noCookies, remove: noCookies,
+      get: cookieCall('cookies.get'), getAll: cookieCall('cookies.getAll'), getAllCookieStores: cookieCall('cookies.getAllCookieStores'),
+      set: cookieCall('cookies.set'), remove: cookieCall('cookies.remove'),
       onChanged: noEvent(),
     };
   }
@@ -170,16 +503,20 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
   // 2026-09-30). Main says which pages are in front; tabs.query and tabs.get
   // answer with that, and {active: true} with currentWindow or
   // lastFocusedWindow is the one tab in front of the Vex window used last.
-  // Electron puts every tab in one window, so currentWindow alone narrows
-  // nothing.
-  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow'];
+  // Main also says where each tab is (its place, its Vex window and its
+  // group); Electron said index 0, window 0 and group 0 for every tab, and a
+  // tab it updated was never the active one (found 2026-10-10).
+  var FRONT_KEYS = ['active', 'highlighted', 'currentWindow', 'lastFocusedWindow', 'windowId', 'index', 'groupId', 'pinned'];
   if (typeof askActiveTabs === 'function' && c.tabs && typeof c.tabs.query === 'function' && typeof c.tabs.get === 'function') {
     var nativeQuery = c.tabs.query.bind(c.tabs);
     var nativeGet = c.tabs.get.bind(c.tabs);
+    var nativeUpdate = typeof c.tabs.update === 'function' ? c.tabs.update.bind(c.tabs) : null;
     var inFront = function (tab, front) {
       if (!tab) return tab;
       var on = front.ids.indexOf(tab.id) !== -1;
-      return Object.assign({}, tab, { active: on, highlighted: on, selected: on });
+      var at = (front.layout && front.layout[tab.id]) || null;
+      var place = at ? { index: at.index, windowId: at.windowId, groupId: at.groupId, pinned: at.pinned } : { groupId: -1 };
+      return Object.assign({}, tab, place, { active: on, highlighted: on, selected: on });
     };
     c.tabs.query = function (q, cb) {
       q = q || {};
@@ -188,15 +525,30 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs) 
       var oneWindow = q.currentWindow === true || q.lastFocusedWindow === true;
       var p = Promise.all([nativeQuery(rest), askActiveTabs()]).then(function (r) {
         var front = r[1];
+        var wantWindow = q.windowId === -2 ? front.currentWindow : q.windowId;
         return (r[0] || []).map(function (t) { return inFront(t, front); }).filter(function (t) {
           if (typeof q.active === 'boolean' && t.active !== q.active) return false;
           if (typeof q.highlighted === 'boolean' && t.highlighted !== q.highlighted) return false;
           if ((q.active === true || q.highlighted === true) && oneWindow && t.id !== front.current) return false;
+          if (oneWindow && front.currentWindow != null && t.windowId !== front.currentWindow) return false;
+          if (typeof wantWindow === 'number' && t.windowId !== wantWindow) return false;
+          if (typeof q.index === 'number' && t.index !== q.index) return false;
+          if (typeof q.groupId === 'number' && t.groupId !== q.groupId) return false;
+          if (typeof q.pinned === 'boolean' && !!t.pinned !== q.pinned) return false;
           return true;
-        });
+        }).sort(function (a, b) { return (a.windowId - b.windowId) || (a.index - b.index); });
       });
       return answerWith(p, cb);
     };
+    if (nativeUpdate) {
+      c.tabs.update = function (id, props, cb) {
+        if (typeof id === 'object' && id !== null) { cb = props; props = id; id = undefined; }
+        var p = Promise.resolve(id === undefined ? nativeUpdate(props) : nativeUpdate(id, props)).then(function (tab) {
+          return tab ? askActiveTabs().then(function (front) { return inFront(tab, front); }) : tab;
+        });
+        return answerWith(p, cb);
+      };
+    }
     // A tab that is not there fails in Electron's own words (with the
     // callback, through chrome.runtime.lastError), as before.
     c.tabs.get = function (id, cb) {
@@ -426,5 +778,9 @@ const askPopupTab = () => ipcRenderer.invoke('extensions:popup-tab');
 const openTab = (request) => ipcRenderer.invoke('extensions:open-tab', request);
 const closeTab = (request) => ipcRenderer.invoke('extensions:close-tab', request);
 const askActiveTabs = () => ipcRenderer.invoke('extensions:active-tabs');
-contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab, askActiveTabs] });
+// Menus, badge, shortcuts (main.js _extApi), and main's events for them
+// (serviceWorkerMain.send, main.js _extDispatch).
+const extApi = (request) => ipcRenderer.invoke('extensions:api', request);
+const onExtEvent = (fn) => { ipcRenderer.on('extensions:event', (_event, msg) => fn(msg)); };
+contextBridge.executeInMainWorld({ func: vexExtensionStandIns, args: [null, askPopupTab, openTab, closeTab, askActiveTabs, extApi, onExtEvent] });
 contextBridge.executeInMainWorld({ func: vexStorageSyncShim });

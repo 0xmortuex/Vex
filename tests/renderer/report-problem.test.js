@@ -16,6 +16,18 @@ beforeEach(async () => {
 const INFO = { version: '2.35.2', electron: '42.11.0', chrome: '148.0.7778.0', os: '10.0.26200', arch: 'x64', style: 'firefox', colors: 'theme', theme: 'solarized' };
 
 describe('scrubbing', () => {
+  it('never lets a passkey, its key or its id into a report', () => {
+    // A PEM key, and the base64url a passkey's key pair, credential id or
+    // user handle would be if one were ever logged.
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----';
+    expect(VexReport.scrub('failed: ' + pem + ' at sign')).toBe('failed: [private key removed] at sign');
+    const pkcs8 = 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgq3VqK1wH7yRzv8Jd0w9uXn2o4f1LxTt5mQb3rYkE4zehRANCAAQ';
+    const credentialId = 'xYz0Qw7r2Kd9LmN3pVb6TfGh1JsC4uHaE8oIyZXwq-s';
+    const out = VexReport.scrub(`passkey ${credentialId} key ${pkcs8}`);
+    expect(out).not.toContain(credentialId);
+    expect(out).not.toContain(pkcs8);
+  });
+
   it('takes the query string and fragment off every address, keeping the site and path', () => {
     const out = VexReport.scrub('page crashed https://mail.example.com/inbox/42?user=bob&sid=abc#access_token=xyz — oom');
     expect(out).toBe('page crashed https://mail.example.com/inbox/42?[query removed] — oom');
@@ -42,6 +54,22 @@ describe('scrubbing', () => {
       .toBe('[token removed]');
     const plain = 'Vex 2.35.2 · Electron 42.11.0 — the session could not be restored: helper process gone';
     expect(VexReport.scrub(plain)).toBe(plain);
+  });
+
+  // Audit SET10 (2026-10-10): these went into the report as they were.
+  it('replaces your own worker, tunnel and private-network addresses, and a user folder with no drive letter', () => {
+    expect(VexReport.scrub('sync push failed: https://vex-sync.janedoe.workers.dev/sync 413'))
+      .toBe('sync push failed: https://[your-worker].workers.dev/sync 413');
+    expect(VexReport.scrub('ai: fetch vex-ai.janedoe.workers.dev refused')).toBe('ai: fetch [your-worker].workers.dev refused');
+    expect(VexReport.scrub('tunnel https://quiet-river-1234.trycloudflare.com/ down')).toBe('tunnel https://[your-tunnel].trycloudflare.com/ down');
+    expect(VexReport.scrub('Ollama at http://192.168.1.20:11434 and 10.0.0.5, nas 172.20.3.4, tailnet 100.101.2.3'))
+      .toBe('Ollama at http://[private-ip]:11434 and [private-ip], nas [private-ip], tailnet [private-ip]');
+    expect(VexReport.scrub('cannot open \\Users\\jane\\AppData\\Roaming\\Vex\\x.json')).toBe('cannot open %USERPROFILE%\\AppData\\Roaming\\Vex\\x.json');
+    expect(VexReport.scrub('\\\\pc\\c$\\Users\\Jane Doe\\Desktop')).toBe('\\\\pc\\c$%USERPROFILE%\\Desktop');
+    // Not over-reaching: public addresses, versions, localhost, web paths.
+    for (const plain of ['8.8.8.8 timed out', 'Chromium 148.0.7778.0', 'http://127.0.0.1:9222 refused', 'https://workers.dev.example.com/', 'GET /users/42 failed', '172.32.0.1 is public']) {
+      expect(VexReport.scrub(plain), plain).toBe(plain);
+    }
   });
 });
 

@@ -192,6 +192,31 @@ const PersonasManager = (() => {
     return true;
   }
 
+  // remove(), keeping what Undo needs to put it back exactly: its place in
+  // the list and whether it was the default.
+  function removeForUndo(id) {
+    const index = customPersonas.findIndex(p => p.id === id);
+    if (index < 0) return null;
+    const token = {
+      persona: customPersonas[index], index,
+      prevId: index > 0 ? customPersonas[index - 1].id : null,
+      wasDefault: activePersonaIdGlobal === id,
+    };
+    remove(id);
+    return token;
+  }
+
+  function restore(token) {
+    if (!token || !token.persona) throw new Error('Nothing to put back');
+    if (customPersonas.some(p => p.id === token.persona.id)) return token.persona;
+    let at = token.prevId ? customPersonas.findIndex(p => p.id === token.prevId) + 1 : 0;
+    if (at <= 0 && token.prevId) at = Math.min(token.index, customPersonas.length);
+    customPersonas.splice(at, 0, token.persona);
+    _save(STORAGE_KEY, customPersonas);
+    if (token.wasDefault && activePersonaIdGlobal === 'builtin_default') setDefault(token.persona.id);
+    return token.persona;
+  }
+
   function duplicate(id) {
     const original = getById(id);
     if (!original) return null;
@@ -253,7 +278,7 @@ const PersonasManager = (() => {
   return {
     init, getAll, getById,
     getActiveForTab, setActiveForTab, setDefault, clearTab,
-    create, update, remove, duplicate,
+    create, update, remove, removeForUndo, restore, duplicate,
     exportPersonas, importPersonas, findByMention,
     pruneTabs
   };

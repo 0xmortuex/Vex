@@ -76,7 +76,7 @@
   padding: 3px 9px;
   cursor: pointer;
   background: var(--primary, #6366f1);
-  color: #fff;
+  color: var(--on-primary, #fff);
 }
 
 .vextasks-body { overflow-y: auto; padding: 4px 8px 12px; }

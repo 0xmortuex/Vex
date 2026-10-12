@@ -556,7 +556,140 @@ window.__vexCheckUi = (function () {
     };
   }
 
-  return { audit: audit, freeze: freeze };
+  // A whole surface — a panel, a menu, a dialog, a picker, the New Tab page —
+  // judged for text only: every piece of text in it against what is painted
+  // behind it. The bands above miss these, and so did the checker (cat-themes:
+  // Settings chips, the command bar's selected row and the Glass panels all
+  // failed while check:ui said clean). Large text (24px, or 18.66px bold)
+  // needs 3:1 (WCAG 1.4.3), the rest 4.5:1.
+  function scanSurface(exceptions, style, surface, sel) {
+    freeze();
+    var findings = [];
+    var judged = 0;
+    var roots = document.querySelectorAll(sel);
+    var seen = {};
+    function add(check, el, message, numbers) {
+      for (var i = 0; i < exceptions.length; i++) {
+        var ex = exceptions[i];
+        if (ex.check !== check) continue;
+        if (ex.styles && ex.styles.indexOf(style) === -1) continue;
+        if (el.matches && el.matches(ex.selector)) return;
+      }
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: message, numbers: numbers || {} });
+    }
+    for (var r = 0; r < roots.length; r++) {
+      var all = [roots[r]].concat(Array.prototype.slice.call(roots[r].querySelectorAll('*')));
+      for (var j = 0; j < all.length; j++) {
+        var el = all[j];
+        if (!hasOwnText(el)) continue;
+        if (/^(SCRIPT|STYLE|OPTION|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) continue;
+        if (!isVisible(el)) continue;
+        if (el.closest('[disabled], [aria-disabled="true"]')) continue;
+        var res = contrastOf(el, false);
+        if (res.skipped) continue;
+        judged++;
+        if (res.unreadable) { add('contrast-unreadable', el, 'in ' + surface + ': could not read colour ' + JSON.stringify(res.unreadable)); continue; }
+        var cs = getComputedStyle(el);
+        var px = parseFloat(cs.fontSize);
+        var min = (px >= 24 || (px >= 18.66 && parseInt(cs.fontWeight, 10) >= 700)) ? 3 : TEXT_MIN;
+        if (res.ratio + 0.05 < min) {
+          add('contrast', el, 'in ' + surface + ': text ' + res.fg + ' on ' + res.bg + ' is ' + n(res.ratio) + ':1, under ' + min + ':1',
+            { ratio: n(res.ratio), required: min, fg: res.fg, bg: res.bg, region: surface, opacity: n(res.opacity) });
+        }
+      }
+    }
+    return { roots: roots.length, judged: judged, findings: findings };
+  }
+
+  // Settings laid out in columns (SettingsUI._layout): no section over
+  // another, no gap above a section larger than the spacing between two
+  // (its margin and one grid row), no text cut off, no switch squeezed by a
+  // long label. Full screen and a text-size change once broke all four
+  // (the owner, 2026-10-12: "some gaps in settings and words were broken").
+  function settingsLayout(exceptions, style, label) {
+    freeze();
+    var findings = [];
+    var seen = {};
+    function add(check, el, message, numbers) {
+      for (var i = 0; i < exceptions.length; i++) {
+        var ex = exceptions[i];
+        if (ex.check !== check) continue;
+        if (ex.styles && ex.styles.indexOf(style) === -1) continue;
+        if (el.matches && el.matches(ex.selector)) return;
+      }
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: 'Settings (' + label + '): ' + message, numbers: numbers || {} });
+    }
+    var root = document.querySelector('#panel-settings .settings-content');
+    if (!root || !root.clientWidth) return { blocks: 0, findings: findings };
+    var zoom = root.offsetWidth ? root.getBoundingClientRect().width / root.offsetWidth : 1;
+    var blocks = Array.prototype.slice.call(root.children).filter(function (e) {
+      return e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+    });
+    var R = blocks.map(function (e) {
+      var b = e.getBoundingClientRect();
+      return { e: e, l: b.left, r: b.right, t: b.top, b: b.bottom, mb: parseFloat(getComputedStyle(e).marginBottom) || 0 };
+    });
+    for (var i = 0; i < R.length; i++) {
+      var above = null;
+      for (var j = 0; j < R.length; j++) {
+        if (i === j) continue;
+        var ox = Math.min(R[i].r, R[j].r) - Math.max(R[i].l, R[j].l);
+        var oy = Math.min(R[i].b, R[j].b) - Math.max(R[i].t, R[j].t);
+        if (j > i && ox > 1 && oy > 1) {
+          add('settings-overlap', R[i].e, describe(R[i].e) + ' and ' + describe(R[j].e) + ' overlap by ' + n(oy) + 'px', { px: n(oy) });
+        }
+        if (ox > 20 && R[j].b <= R[i].t + 2 && (!above || R[j].b > above.b)) above = R[j];
+      }
+      // The spacing between two sections: the upper one's margin, and up to
+      // one grid row (4px) of rounding, in screen pixels.
+      if (above) {
+        var gap = R[i].t - above.b;
+        var most = (above.mb + 4) * zoom + 2;
+        if (gap > most) add('settings-gap', R[i].e, 'a ' + n(gap) + 'px gap above it (most ' + n(most) + 'px)', { px: n(gap) });
+      }
+    }
+    blocks.forEach(function (blk) {
+      var bb = blk.getBoundingClientRect();
+      var all = blk.querySelectorAll('*');
+      for (var k = 0; k < all.length; k++) {
+        var el = all[k];
+        if (!el.getClientRects().length || /^(INPUT|SELECT|TEXTAREA|OPTION|svg|path|circle|rect|line|polyline|IMG|CANVAS|IFRAME|WEBVIEW)$/i.test(el.tagName)) continue;
+        if (el.closest('details:not([open])') && !el.closest('summary')) continue;
+        var inBox = false;
+        for (var p = el.parentElement; p && p !== blk; p = p.parentElement) {
+          var pc = getComputedStyle(p);
+          if (pc.overflowX !== 'visible' || pc.overflowY !== 'visible') { inBox = true; break; }
+        }
+        if (inBox) continue;
+        var cs = getComputedStyle(el);
+        if (cs.position === 'absolute' || cs.position === 'fixed') continue;
+        var r = el.getBoundingClientRect();
+        if (r.bottom > bb.bottom + 1 || r.right > bb.right + 1) {
+          add('settings-clipped', el, 'reaches ' + n(Math.max(r.bottom - bb.bottom, r.right - bb.right)) + 'px outside its section, which cuts it off', {});
+          continue;
+        }
+        if (!hasOwnText(el) || /(auto|scroll)/.test(cs.overflowX + cs.overflowY)) continue;
+        if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+        if (cs.textOverflow === 'ellipsis' || parseInt(cs.webkitLineClamp, 10) > 0) continue;
+        if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+          add('settings-clipped', el, 'its text is cut off (' + el.scrollWidth + 'x' + el.scrollHeight + ' in ' + el.clientWidth + 'x' + el.clientHeight + ')', {});
+        }
+      }
+    });
+    root.querySelectorAll('.toggle').forEach(function (t) {
+      if (!t.getClientRects().length || t.closest('details:not([open])')) return;
+      if (t.offsetWidth < 39) add('settings-squeezed', t, 'a switch squeezed to ' + t.offsetWidth + 'px wide by the label beside it', { px: t.offsetWidth });
+    });
+    return { blocks: blocks.length, findings: findings };
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout };
 })();
 'installed';
 `;
@@ -597,6 +730,129 @@ function freePort() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------------------------------------------------------------------------
+// SURFACES — what opens over the chrome. Each is opened by script, its text
+// judged (scanSurface), and closed again, in the Firefox look (the owner's)
+// and Glass, for every theme on --full. `open` and `close` run in Vex's window;
+// the New Tab page is a separate document and is judged through its own target.
+// ---------------------------------------------------------------------------
+const SURFACE_STYLES = ['firefox', 'glass'];
+const SURFACES = [
+  { name: 'Settings', sel: '#panel-settings', open: "SidebarManager.openPanel('settings')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'History', sel: '#panel-history', open: "SidebarManager.openPanel('history')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'Downloads', sel: '#panel-downloads', open: "SidebarManager.openPanel('downloads')", close: 'SidebarManager.hideActivePanel()' },
+  { name: 'the command bar', sel: '#command-bar', open: "CommandBar.open(); const i = document.querySelector('#command-input'); if (i) { i.value = 'set'; i.dispatchEvent(new Event('input', { bubbles: true })); }", close: 'CommandBar.close()' },
+  { name: 'a dialog', sel: '.vex-dialog', open: "vexConfirm({ title: 'Check', message: 'A dialog the checker opened.' })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel())" },
+  { name: 'a toast', sel: '#toast-container', open: "showToast('A toast the checker opened', 'info', 60000)", close: "document.querySelectorAll('#toast-container > *').forEach(t => t.remove())" },
+  { name: 'the tab menu', sel: '.tab-context-menu', open: "(() => { const t = document.querySelector('.top-tab, .tab-item'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); })()", close: "document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove())" },
+  { name: 'the theme picker', sel: '.vex-theme-picker', open: 'ThemePicker.open()', close: 'ThemePicker.close()' },
+  { name: 'the font picker', sel: '.vexfont', open: 'VexFonts.open()', close: 'VexFonts.close()' },
+  { name: 'the keys sheet', sel: '#vex-keys', open: 'KeysSheet.open()', close: 'KeysSheet.close()' },
+];
+
+async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, summaries) {
+  // The New Tab page: its own target, its own copy of the audit library. A
+  // look change can reload it, so the library is put back whenever it is gone.
+  let newTab = null;
+  const newTabReady = async () => {
+    if (newTab) {
+      try { if (await evaluate(newTab, 'typeof window.__vexCheckUi') === 'object') return newTab; }
+      catch { newTab.close(); newTab = null; }
+    }
+    if (!newTab) {
+      const list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
+      const start = list.find(t => /\/renderer\/start\.html/.test(t.url || ''));
+      if (!start) throw new Error('no New Tab page to check — the first tab should be one');
+      newTab = await connectCdp(start.webSocketDebuggerUrl);
+      await newTab.send('Runtime.enable');
+    }
+    if (await evaluate(newTab, PAGE_LIB) !== 'installed') throw new Error('audit library did not install in the New Tab page');
+    return newTab;
+  };
+  try {
+    for (const style of styles) {
+      await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
+      if (await evaluate(cdp, 'window.VexGuiStyle.isBrowserLook()')) await evaluate(cdp, "window.VexGuiStyle.setColors('theme')");
+      await sleep(250);
+      const judgedBy = {};
+      let count = 0;
+      for (const theme of themes) {
+        await evaluate(cdp, 'window.ThemeManager.applyTheme(' + JSON.stringify(theme) + ', { persist: false })');
+        for (const s of SURFACES) {
+          await evaluate(cdp, '(() => { ' + s.open + '; return true; })()');
+          await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+          await sleep(120);
+          const res = await evaluate(cdp, 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(s.name) + ', ' + JSON.stringify(s.sel) + ')');
+          await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+          if (!res.roots || !res.judged) throw new Error('judged no text in ' + s.name + ' (' + style + '/' + theme + ') — it did not open, or the check would be reporting on nothing');
+          judgedBy[s.name] = Math.max(judgedBy[s.name] || 0, res.judged);
+          for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
+          count += res.findings.length;
+        }
+        // The New Tab page follows the theme a beat later (it is recoloured
+        // by script); wait until it wears this one.
+        const t0 = Date.now();
+        while (await evaluate(await newTabReady(), 'document.documentElement.getAttribute("data-theme")') !== theme) {
+          if (Date.now() - t0 > 5000) throw new Error('the New Tab page never took the theme ' + theme);
+          await sleep(100);
+        }
+        await sleep(150);
+        const res = await evaluate(await newTabReady(), 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', "the New Tab page", "body")');
+        if (!res.judged) throw new Error('judged no text on the New Tab page (' + style + '/' + theme + ')');
+        judgedBy['the New Tab page'] = Math.max(judgedBy['the New Tab page'] || 0, res.judged);
+        for (const f of res.findings) findings.push({ ...f, style, colors: 'surfaces', theme });
+        count += res.findings.length;
+      }
+      summaries.push({ style, colors: 'surfaces', themes: themes.length, controls: Object.keys(judgedBy).length, colours: Object.values(judgedBy).reduce((a, b) => a + b, 0), findings: count });
+    }
+  } finally {
+    if (newTab) newTab.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SETTINGS LAYOUT — Settings at a 1920x1080 and a 2560x1440 window (the
+// window's size emulated, the real one is whatever it is), in the default
+// layout and the Settings layout choices, judged by settingsLayout() above.
+// ---------------------------------------------------------------------------
+const SETTINGS_SIZES = [[1920, 1080], [2560, 1440]];
+const SETTINGS_LAYOUTS = [
+  { label: 'automatic columns, chips', prefs: null },
+  { label: 'three columns, list on the left, compact', prefs: { columns: '3', nav: 'side', density: 'compact' } },
+  { label: 'two columns, compact', prefs: { columns: '2', nav: 'chips', density: 'compact' } },
+  { label: 'one column', prefs: { columns: '1', nav: 'chips', density: 'comfortable' } },
+];
+
+async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) {
+  try {
+    for (const style of styles) {
+      await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
+      await sleep(250);
+      let count = 0, blocks = 0;
+      for (const [width, height] of SETTINGS_SIZES) {
+        await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+        for (const layout of SETTINGS_LAYOUTS) {
+          const label = width + 'x' + height + ', ' + layout.label;
+          await evaluate(cdp, '(() => { const p = ' + JSON.stringify(layout.prefs) + ';' +
+            " if (p) localStorage.setItem('vex.settingsLayout', JSON.stringify(p)); else localStorage.removeItem('vex.settingsLayout');" +
+            " SidebarManager.openPanel('settings'); SettingsUI.applyLayoutPrefs(); return true; })()");
+          await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+          await sleep(150);
+          const res = await evaluate(cdp, 'window.__vexCheckUi.settingsLayout(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ')');
+          if (!res.blocks) throw new Error('Settings showed no sections (' + style + ', ' + label + ') — the check would be reporting on nothing');
+          blocks = Math.max(blocks, res.blocks);
+          for (const f of res.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
+          count += res.findings.length;
+        }
+      }
+      summaries.push({ style, colors: 'settings layout', themes: SETTINGS_SIZES.length * SETTINGS_LAYOUTS.length, controls: blocks, colours: 0, findings: count });
+    }
+  } finally {
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await evaluate(cdp, "(localStorage.removeItem('vex.settingsLayout'), SettingsUI.applyLayoutPrefs(), SidebarManager.hideActivePanel(), true)");
+  }
+}
 
 async function waitForTarget(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -714,6 +970,9 @@ const SEEDED_PREFERENCES = {
   'vex.onboardingDone': 'true',   // Onboarding.KEY
   'vex.tourSeen': '1',            // what finish() also sets: no tour offer either
   'vex.privacyDefaults': '1',     // Onboarding.PRIVACY_DEFAULTS_KEY: nothing to migrate or announce
+  // The privacy policy and terms, accepted as a profile past first run would
+  // have them (js/legal.js): otherwise their dialog covers the toolbar.
+  'vex.legalAcceptedVersion': String(require('../src/renderer/js/legal.js').VexLegal.VERSION),
   // A profile that finished the wizard but never ran gets app.js's older
   // "Welcome to Vex" card instead (.welcome-overlay, z-index 100000) — the
   // cause of "judged 0 foreground colours at classic/oxford".
@@ -753,7 +1012,25 @@ async function evaluate(cdp, expression) {
 }
 
 function styleLabel(style, colors) {
+  if (colors === 'surfaces') return style + ' (panels, menus, New Tab)';
+  if (colors === 'settings layout') return style + ' (Settings layouts)';
   return colors ? style + ' (' + colors + ' colours)' : style;
+}
+
+// Every shortcut chip has fallen back to its letter (favicons are blocked in
+// main()). A favicon still showing means the block leaked, and the run would
+// again depend on the network — that is a harness failure, not a pass.
+async function settleShortcutChips(cdp) {
+  const left = await evaluate(cdp, `new Promise((resolve) => {
+    const t0 = performance.now();
+    const tick = () => {
+      const imgs = document.querySelectorAll('#gui-shortcuts-bar .gsc .ic img');
+      if (!imgs.length || performance.now() - t0 > 5000) resolve(imgs.length);
+      else setTimeout(tick, 50);
+    };
+    tick();
+  })`);
+  if (left) throw new Error(left + ' shortcut favicon(s) loaded despite the block — the letter-chip contrast would depend on the network');
 }
 
 async function main() {
@@ -838,6 +1115,14 @@ async function main() {
     const target = await waitForTarget(port, 60000);
     cdp = await connectCdp(target.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
+    // The shortcuts bar shows a site's favicon, or a coloured letter chip when
+    // the favicon does not load. Which one a look got depended on the network
+    // at that moment, so a letter-chip finding moved from look to look between
+    // runs. No favicon is fetched here: every look judges the same letter chips
+    // (the case that can fail contrast), every run.
+    await cdp.send('Network.enable');
+    await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+    await cdp.send('Network.setBlockedURLs', { urls: ['*/favicon.ico'] });
     await waitForRenderer(cdp, 60000);
 
     await waitForStableLayout(cdp, 30000);
@@ -876,6 +1161,7 @@ async function main() {
     for (const style of runStyles) {
       await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
       await sleep(250);
+      await settleShortcutChips(cdp);
       const isLook = await evaluate(cdp, 'window.VexGuiStyle.isBrowserLook()');
       // A browser look can wear its own palette or the colour theme's; both
       // ship, so both are checked. classic/glass have only the one.
@@ -907,6 +1193,15 @@ async function main() {
         summaries.push({ style, colors, themes: themes.length, controls, colours, findings: count });
       }
     }
+
+    // Panels, menus, dialogs, pickers and the New Tab page, in the Firefox
+    // look and Glass (or the one style asked for, if it is either).
+    const surfaceStyles = SURFACE_STYLES.filter(s => runStyles.includes(s));
+    if (surfaceStyles.length) await scanSurfaces(cdp, port, EXCEPTIONS, surfaceStyles, themes, findings, summaries);
+    // Settings in columns and in each Settings layout, in the Firefox look
+    // (the owner's), Glass and Classic.
+    const layoutStyles = ['firefox', 'glass', 'classic'].filter(s => runStyles.includes(s));
+    if (layoutStyles.length) await scanSettingsLayout(cdp, EXCEPTIONS, layoutStyles, findings, summaries);
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
 

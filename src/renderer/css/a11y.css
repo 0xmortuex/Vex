@@ -25,6 +25,14 @@ webview:focus-visible {
   outline: none !important;
 }
 
+/* A switch (.toggle) hides its checkbox at 0x0, so the checkbox's own ring
+ * drew nothing and no Settings switch showed keyboard focus. The ring goes
+ * on the visible track instead. */
+.toggle input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary, #7aa2ff) !important;
+  outline-offset: 2px;
+}
+
 /* A tab on the strip takes keyboard focus now (js/a11y-keys.js): its ring sits
  * inside the tab, where the strip's overflow cannot clip it. */
 .top-tab:focus-visible,
@@ -96,6 +104,39 @@ webview:focus-visible {
     animation-iteration-count: infinite !important;
     animation-timing-function: ease-in-out !important;
   }
+
+  /* The page's loading ring keeps spinning with Windows' "Show animations"
+   * off: frozen it looked stuck, and the owner wants a spin, not a pulse
+   * (2026-10-12). Vex's own Reduce motion switch (below) still pulses it. */
+  #webviews-container.wv-loading::after {
+    animation-name: spin-centered !important;
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: linear !important;
+  }
+}
+
+/* The same, when Settings > Appearance > Reduce motion is on, whatever
+ * Windows says (js/appearance-prefs.js sets the attribute). */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+/* With Vex's own switch on, the page's loading ring (app.css
+ * #webviews-container.wv-loading) pulses like the others instead of freezing.
+ * Pseudo-elements cannot sit inside :is(), so the two ::after rules are listed
+ * on their own. */
+html[data-reduce-motion] :is(.ai-spinner, .ws-spinner, .agent-spinner),
+html[data-reduce-motion] .ai-msg.streaming .ai-msg-content::after,
+html[data-reduce-motion] #webviews-container.wv-loading::after {
+  animation-name: vex-a11y-working !important;
+  animation-duration: 1.4s !important;
+  animation-iteration-count: infinite !important;
+  animation-timing-function: ease-in-out !important;
 }
 
 @keyframes vex-a11y-working {

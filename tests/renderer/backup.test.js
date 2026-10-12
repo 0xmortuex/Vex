@@ -160,6 +160,19 @@ describe('saved before updates', () => {
     expect(rows[0].querySelector('button').getAttribute('aria-label')).toBe('Restore the backup made before updating to 2.35.1');
   });
 
+  it('the older settings copies moved in from settings-backups are in the same list', async () => {
+    window.vex.updates.listBackups = vi.fn(async () => ({ ok: true, items: [
+      { name: 'before-2.35.1-2026-10-01-140509.json', kind: 'before', version: '2.35.1', at: 3, bytes: 4096 },
+      { name: 'settings-2.31.89-2026-09-01-080000.json', kind: 'settings', version: '2.31.89', at: 2, bytes: 4096 },
+      { name: 'settings-first-run-2026-08-01-080000.json', kind: 'settings', version: 'first-run', at: 1, bytes: 4096 },
+    ] }));
+    VexBackup.open();
+    await flush();
+    const rows = [...document.querySelectorAll('#bk-update-list [data-backup]')];
+    expect(rows.map(r => r.querySelector('.vexsr-host').textContent)).toEqual(['Before updating to 2.35.1', 'Settings as they were in 2.31.89', 'Settings from the first start']);
+    expect(rows[1].querySelector('button').getAttribute('aria-label')).toBe('Restore the copy: Settings as they were in 2.31.89');
+  });
+
   it('Restore asks first, puts it back, and can be undone', async () => {
     VexBackup.open();
     await flush();
@@ -193,5 +206,51 @@ describe('saved before updates', () => {
     await flush();
     expect(window.vex.updates.listBackups).not.toHaveBeenCalled();
     expect(document.getElementById('bk-updates').hidden).toBe(true);
+  });
+});
+
+// Audit SET5 (2026-10-10): Settings › Data › Export All Data wrote every
+// vex.* key, the Lock PIN hash and the MCP servers' tokens included, into
+// Downloads, and let go of the file's blob straight after click().
+describe('Export All Data', () => {
+  it('leaves out what a backup leaves out, keeps the rest, and keeps the blob until the download started', async () => {
+    vi.useFakeTimers();
+    const made = [];
+    const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn((blob) => { made.push(blob); return 'blob:vex/1'; });
+    URL.revokeObjectURL = vi.fn();
+    let name = null;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () { name = this.download; });
+    try {
+      localStorage.setItem('vex.lockPin', '{"salt":"c2FsdA==","hash":"aGFzaA=="}');
+      localStorage.setItem('vex.mcpServers', '[{"url":"https://x.test","token":"t0p"}]');
+      localStorage.setItem('vex.history', '[{"url":"https://a.test"}]');
+      const skipped = VexBackup.exportAll();
+      const text = await made[0].text();
+      const data = JSON.parse(text);
+      expect(name).toBe('vex-data-export.json');
+      expect(data['vex.lockPin']).toBeUndefined();
+      expect(data['vex.mcpServers']).toBeUndefined();
+      expect(data['vex.vaultSeeded']).toBeUndefined();
+      expect(text).not.toContain('t0p');
+      expect(data['vex.history']).toBe('[{"url":"https://a.test"}]');
+      expect(data['vex.notes']).toBe('[{"t":"a note"}]');
+      expect(data['vex.installedAt']).toBe('123');
+      expect(data.somethingElse).toBeUndefined();
+      expect(skipped).toBe(3);
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(10000);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:vex/1');
+    } finally {
+      click.mockRestore();
+      URL.createObjectURL = create; URL.revokeObjectURL = revoke;
+      vi.useRealTimers();
+    }
+  });
+
+  it('the Settings button goes through it', () => {
+    const app = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
+    const i = app.indexOf("getElementById('setting-export')");
+    expect(app.slice(i, i + 200)).toContain('VexBackup.exportAll()');
   });
 });

@@ -136,15 +136,21 @@ function keepsOpenerSession(partition) {
  * @param {any} ses
  * @param {'tor'|'proxy'|'direct'} route
  * @param {any[]} allContents
+ * @param {(contents: any) => Promise<void>} [syncPage] tor-light.js's syncTorLight:
+ *   a page that goes through Tor reports light to sites, one that leaves it
+ *   follows Vex again.
  */
-function markRoutedSession(ses, route, allContents) {
+function markRoutedSession(ses, route, allContents, syncPage) {
   if (!['tor', 'proxy', 'direct'].includes(route)) throw new Error(`Unknown route "${route}"`);
   ses.__vexTor = route === 'tor';
   ses.__vexRouted = route !== 'direct';
-  const policy = ses.__vexRouted ? 'disable_non_proxied_udp' : 'default';
+  // A private window's or an off-the-record tab's session shows sites only the
+  // public address when it goes direct (main.js, _wireEphemeralBrowsing).
+  const policy = ses.__vexRouted ? 'disable_non_proxied_udp' : (ses.__vexEphemeral ? 'default_public_interface_only' : 'default');
   for (const contents of allContents) {
     if (contents.isDestroyed() || contents.session !== ses) continue;
     contents.setWebRTCIPHandlingPolicy(policy);
+    if (syncPage) syncPage(contents).catch(err => console.error('[Routing] a page could not be set to report light (or let go) for its route:', err));
   }
 }
 
@@ -162,4 +168,16 @@ function torInUse(allContents, routes) {
   return Object.values(routes).some(config => !!config && typeof config === 'object' && /** @type {any} */ (config).mode === 'tor');
 }
 
-module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, REFUSED_PROXY, isSiteRoutePartition, staleSiteRoutes, keepsOpenerSession, markRoutedSession, torInUse };
+/**
+ * Whether a session was given a Tor or proxy route of its own (a container
+ * routed from Ctrl+K › Route Through Tor / Proxy), as against the route for
+ * all of Vex, which is saved under its own key.
+ * @param {Record<string, unknown>} routes
+ * @param {string} partition
+ */
+function hasOwnRoute(routes, partition) {
+  const own = routes[partition];
+  return !!own && typeof own === 'object' && ['tor', 'proxy'].includes(/** @type {any} */ (own).mode);
+}
+
+module.exports = { restoreRoutes, proxyAddress, ALL_ROUTE_KEY, REFUSED_PROXY, isSiteRoutePartition, staleSiteRoutes, keepsOpenerSession, markRoutedSession, torInUse, hasOwnRoute };

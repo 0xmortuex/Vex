@@ -1,13 +1,9 @@
 // === Vex Theme Picker ===
 //
 // Visual theme chooser opened by Ctrl+Shift+Y (wired in app.js). Renders a grid
-// of cards — one per ThemeManager.THEMES entry — each showing a PNG preview
-// (assets/theme-previews/<id>.png) and the theme's label. Clicking a card
+// of cards — one per ThemeManager.THEMES entry — each showing a live mini
+// window in the theme's own colours and the theme's label. Clicking a card
 // applies the theme immediately and closes. Esc / backdrop click also closes.
-//
-// Previews are static screenshots captured by scripts/capture-theme-previews.js.
-// If a preview file is missing the card falls back to a labelled color chip so
-// the picker is still usable.
 
 const ThemePicker = {
   _overlay: null,
@@ -68,6 +64,14 @@ const ThemePicker = {
     // is the way back. While it is in force no theme card is ticked.
     const look = this._lookCard();
     const lookColours = !!look && window.VexGuiStyle.getColors() === 'look';
+    // Light and dark on: say which slot a pick fills (js/theme-auto.js).
+    const autoNote = (typeof ThemeAuto !== 'undefined') ? ThemeAuto.pickerNote() : '';
+    if (autoNote) {
+      const n = document.createElement('div');
+      n.className = 'vtp-auto-note';
+      n.textContent = autoNote;
+      container.appendChild(n);
+    }
 
     const section = (title, themes) => {
       if (!themes.length) return;
@@ -90,7 +94,50 @@ const ThemePicker = {
       container.append(h, grid);
     }
     section('Favorites', favThemes);
-    section(favThemes.length || look ? 'All themes' : '', ThemeManager.THEMES);
+    // Your own themes (js/theme-studio.js), and the way to make one.
+    const own = ThemeManager.THEMES.filter(t => t.user);
+    const h = document.createElement('div');
+    h.className = 'vtp-section-title';
+    h.textContent = 'Your themes';
+    const grid = document.createElement('div');
+    grid.className = 'vtp-grid';
+    own.forEach(t => grid.appendChild(this._makeCard(t, lookColours ? null : current)));
+    grid.appendChild(this._makeOwnCard());
+    grid.appendChild(this._makeFromPictureCard());
+    container.append(h, grid);
+    section('All themes', ThemeManager.THEMES.filter(t => !t.user));
+  },
+
+  // "Make your own": the editor, starting from the theme you wear now.
+  _makeOwnCard() {
+    const card = document.createElement('button');
+    card.className = 'vtp-card vtp-make-own';
+    card.dataset.theme = 'make-own';
+    card.innerHTML = `
+      <div class="vtp-thumb vtp-make-own-thumb">${VexIcons.svg('palette', { size: 30 })}<span>Start from the theme you wear now</span></div>
+      <div class="vtp-label"><span class="vtp-label-text">Make your own…</span></div>`;
+    card.addEventListener('click', () => {
+      const from = ThemeManager.getCurrentTheme();
+      this.close();
+      ThemeStudio.open({ from });
+    });
+    return card;
+  },
+
+  // "From a picture…": the editor, then a picture (or the wallpaper) to take
+  // the colours from (js/theme-from-image.js).
+  _makeFromPictureCard() {
+    const card = document.createElement('button');
+    card.className = 'vtp-card vtp-make-own';
+    card.dataset.theme = 'from-picture';
+    card.innerHTML = `
+      <div class="vtp-thumb vtp-make-own-thumb">${VexIcons.svg('image', { size: 30 })}<span>A picture or your wallpaper</span></div>
+      <div class="vtp-label"><span class="vtp-label-text">From a picture…</span></div>`;
+    card.addEventListener('click', () => {
+      this.close();
+      ThemeStudio.openFromPicture().catch(err => ThemeStudio._report(err));
+    });
+    return card;
   },
 
   // The "<look> original colours" card, or null outside the browser looks.
@@ -139,31 +186,53 @@ const ThemePicker = {
     card.className = 'vtp-card' + (t.id === current ? ' active' : '');
     card.dataset.theme = t.id;
     if (t.inspiredBy) card.title = `Inspired by ${t.inspiredBy}`;
-    const isCustom = !!t.upload;
     const fav = ThemeManager.isFavorite(t.id);
     // Live CSS preview — a mini Vex window rendered with the theme's own variables
     // (scoped via data-theme). No image files, so previews are always identical in
     // style and can never be stale/cached/mismatched between builds.
-    const upload = isCustom ? '<span class="vtp-thumb-upload">' + VexIcons.svg('upload', { size: 13 }) + ' Upload image</span>' : '';
+    const slot = (typeof ThemeAuto !== 'undefined') ? ThemeAuto.slotOf(t.id) : '';
+    const slotTag = slot ? `<span class="vtp-slot" title="Your ${slot} theme (Light and dark)">${slot === 'light' ? 'Light' : 'Dark'}</span>` : '';
+    // A theme of your own is edited; any other is the start of a new one.
+    const editTip = t.user ? 'Edit this theme' : 'Customise this theme';
     card.innerHTML = `
-      <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}${upload}
-        <span class="vtp-star${fav ? ' on' : ''}" role="button" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
+      <div class="vtp-thumb" data-theme-preview="${t.id}">${this._livePreview(t)}
+        <span class="vtp-edit" role="button" tabindex="0" title="${editTip}" aria-label="${editTip}">${VexIcons.svg('edit', { size: 14 })}</span>
+        <span class="vtp-star${fav ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${fav}" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${VexIcons.svg('star', { size: 15 })}</span>
       </div>
       <div class="vtp-label">
-        <span class="vtp-label-text">${t.label}</span>
+        <span class="vtp-label-text"></span>${slotTag}
         <span class="vtp-check" aria-hidden="true">${VexIcons.svg('check', { size: 14 })}</span>
       </div>
     `;
-    card.querySelector('.vtp-star').addEventListener('click', (e) => {
+    // A name you typed yourself goes in as text, never as markup.
+    card.querySelector('.vtp-label-text').textContent = t.label;
+    // The star could only be clicked: it took no focus and no key (cat-themes
+    // hunch). From the keyboard, Enter or Space stars it, and focus stays on
+    // that theme's star once the sections are drawn again.
+    const star = card.querySelector('.vtp-star');
+    const toggleStar = (e) => {
       e.stopPropagation();
+      e.preventDefault();
       ThemeManager.toggleFavorite(t.id);
       this._renderSections();
-    });
+      if (e.type === 'keydown') this._modal?.querySelector(`.vtp-card[data-theme="${t.id}"] .vtp-star`)?.focus();
+    };
+    star.addEventListener('click', toggleStar);
+    star.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') toggleStar(e); });
+    const edit = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.close();
+      ThemeStudio.open({ from: t.id });
+    };
+    const editBtn = card.querySelector('.vtp-edit');
+    editBtn.addEventListener('click', edit);
+    editBtn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') edit(e); });
     card.addEventListener('click', () => {
-      if (isCustom) { this._applyCustom(this._modal); return; }
       ThemeManager.applyTheme(t.id);
       this._modal.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === t.id));
-      window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
+      // With Light and dark on, theme-auto.js says which slot it filled instead.
+      if (typeof ThemeAuto === 'undefined' || !ThemeAuto.isOn()) window.showToast?.(`Theme: ${t.label}`, 'info', 1500);
       setTimeout(() => this.close(), 180);
     });
     return card;
@@ -239,57 +308,6 @@ const ThemePicker = {
         </div>
       </div>
     </div>`);
-  },
-
-  // Custom Image theme: let the user pick an image, downscale it to a data URL,
-  // store it (ThemeManager pushes it into the start page), then apply 'custom'.
-  // If they cancel but a previous image exists, just re-apply with that one.
-  _applyCustom(grid) {
-    const apply = async () => {
-      // Only persist when a NEW image was chosen. On cancel-with-existing we
-      // re-apply the stored image untouched — passing undefined here would
-      // delete it (the intent is "keep the previous one").
-      if (this._pendingImage) await ThemeManager.setCustomImage(this._pendingImage);
-      ThemeManager.applyTheme('custom');
-      grid?.querySelectorAll('.vtp-card').forEach(c => c.classList.toggle('active', c.dataset.theme === 'custom'));
-      window.showToast?.('Theme: Custom Image', 'info', 1500);
-      setTimeout(() => this.close(), 180);
-    };
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.style.display = 'none';
-    input.addEventListener('change', async () => {
-      const file = input.files && input.files[0];
-      input.remove();
-      if (!file) { // cancelled — keep any previously stored image
-        let has = false; try { has = !!localStorage.getItem('vex.customThemeImage'); } catch {}
-        if (!has) { try { has = !!(await window.vex?.getCustomThemeImage?.()); } catch {} }
-        if (has) apply(); else window.showToast?.('Pick an image to use the Custom theme');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const maxW = 1600;
-            const scale = img.width > maxW ? maxW / img.width : 1;
-            const cw = Math.round(img.width * scale), ch = Math.round(img.height * scale);
-            const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
-            cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
-            this._pendingImage = cv.toDataURL('image/jpeg', 0.82);
-          } catch { this._pendingImage = reader.result; }
-          apply();
-        };
-        img.onerror = () => window.showToast?.('Could not read that image');
-        img.src = reader.result;
-      };
-      reader.onerror = () => window.showToast?.('Could not read that file');
-      reader.readAsDataURL(file);
-    });
-    document.body.appendChild(input);
-    input.click();
   },
 
   close() {

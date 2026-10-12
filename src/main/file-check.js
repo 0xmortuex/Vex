@@ -19,8 +19,27 @@
 const path = require('path');
 
 // The kinds of file worth stopping for. A PDF or an image cannot run itself.
-const RUNNABLE = /\.(exe|msi|msix|appx|bat|cmd|com|scr|ps1|psm1|vbs|js|jse|wsf|wsh|hta|reg|jar|dll|sh|apk|dmg|pkg|deb|rpm|AppImage)$/i;
-const ARCHIVE = /\.(zip|7z|rar|tar|gz|tgz|xz|bz2|iso|cab)$/i;
+// Beyond the obvious programs and scripts, the files Chrome also treats as
+// dangerous on Windows (its download_file_types list; audit RD3, 2026-10-10):
+// shortcuts that run a command (.lnk .url .scf .pif .website .library-ms
+// .search-ms .searchconnector-ms .settingcontent-ms), Control Panel and
+// console snap-ins (.cpl .msc), help files that run script (.chm .hlp),
+// installer patches and transforms (.msp .mst), ClickOnce (.application
+// .appref-ms .xbap), more script hosts (.vb .vbe .wsc .ws .sct .shb .shs
+// .ps1xml .ps2 .ps2xml .psc1 .psc2 .msh*), setup information (.inf .ins
+// .isp), add-ins (.xll .ocx .gadget), OneNote (.one) and Java Web Start
+// (.jnlp). And disk images (.iso .img .vhd .vhdx): Windows opens one as a
+// drive, and what is on it runs without the "downloaded from the internet"
+// warning a downloaded program gets.
+const RUNNABLE = new RegExp('\\.(' + [
+  'exe', 'msi', 'msix', 'msixbundle', 'appx', 'appxbundle', 'bat', 'cmd', 'com', 'scr', 'ps1', 'psm1', 'vbs', 'js', 'jse', 'wsf', 'wsh', 'hta', 'reg', 'jar', 'dll', 'sh', 'apk', 'dmg', 'pkg', 'deb', 'rpm', 'AppImage',
+  'lnk', 'url', 'scf', 'pif', 'website', 'library-ms', 'search-ms', 'searchconnector-ms', 'settingcontent-ms',
+  'cpl', 'msc', 'chm', 'hlp', 'msp', 'mst', 'application', 'appref-ms', 'xbap',
+  'vb', 'vbe', 'wsc', 'ws', 'sct', 'shb', 'shs', 'ps1xml', 'ps2', 'ps2xml', 'psc1', 'psc2', 'msh', 'msh1', 'msh2', 'mshxml', 'msh1xml', 'msh2xml',
+  'inf', 'ins', 'isp', 'xll', 'ocx', 'gadget', 'one', 'jnlp',
+  'iso', 'img', 'vhd', 'vhdx',
+].join('|') + ')$', 'i');
+const ARCHIVE = /\.(zip|7z|rar|tar|gz|tgz|xz|bz2|cab)$/i;
 
 function createFileCheck({ fs, crypto, execFile, platform = process.platform, log }) {
   const note = typeof log === 'function' ? log : () => {};
@@ -63,17 +82,19 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
       // the site picks the file name, and PowerShell runs $(…) inside double
       // quotes, so a name like "a$(calc).exe" would have run code (found 2026-09-29).
       const script = `$ErrorActionPreference='Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:VEX_FILECHECK_PATH; ` +
-        `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject)`;
+        `[Console]::Out.Write($s.Status.ToString() + "\`n" + $s.SignerCertificate.Subject + "\`n" + [string]($null -ne $s.TimeStamperCertificate))`;
       execFile(ps, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
         { timeout: 15000, windowsHide: true, maxBuffer: 256 * 1024, env: checkEnv(filePath) },
         (err, stdout) => {
           if (err) { resolve({ status: 'unknown', signer: '', why: 'the signature could not be read' }); return; }
-          const [statusLine, subject = ''] = String(stdout || '').split('\n');
+          const [statusLine, subject = '', stamped = ''] = String(stdout || '').split('\n');
           const status = String(statusLine || '').trim();
           // "CN=Example Ltd, O=Example Ltd, …" — the common name is the bit a
           // person recognises.
           const cn = (subject.match(/CN=([^,]+)/) || [])[1] || subject.trim();
-          resolve({ status: status || 'unknown', signer: cn.replace(/^"|"$/g, ''), why: '' });
+          // Timestamped: the signature stays valid after the certificate
+          // expires (the release build requires it; scripts/code-signing.js).
+          resolve({ status: status || 'unknown', signer: cn.replace(/^"|"$/g, ''), timestamped: stamped.trim() === 'True', why: '' });
         });
     });
   }
@@ -86,7 +107,10 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
     try { stat = fs.statSync(filePath); }
     catch (err) { throw new Error('That file is not there any more', { cause: err }); }
     out.sizeBytes = stat.size;
-    out.sha256 = await hash(filePath);
+    // Only what Vex asks about before opening is fingerprinted: an ordinary
+    // file opens at once, and reading a whole 8 GB video first kept Open
+    // waiting for minutes (audit RD4, 2026-10-10).
+    if (out.kind !== 'ordinary') out.sha256 = await hash(filePath);
     if (out.kind === 'runnable') out.signature = await signature(filePath);
 
     let host = '';
@@ -107,8 +131,8 @@ function createFileCheck({ fs, crypto, execFile, platform = process.platform, lo
           : out.verdict === 'unsigned' ? 'Not signed — nobody has put their name to this file'
             : `The signature could not be checked${out.signature && out.signature.status ? ' (' + out.signature.status + ')' : ''}`)
         : out.kind === 'archive' ? 'An archive — what is inside it is not checked here' : 'Not a program',
-      `SHA-256 ${out.sha256}`,
     ];
+    if (out.sha256) out.lines.push(`SHA-256 ${out.sha256}`);
     note('[FileCheck] ' + name + ': ' + out.verdict);
     return out;
   }

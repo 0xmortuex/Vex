@@ -32,11 +32,11 @@ describe('switching a session to Tor', () => {
     const sessions = new Map();
     const ses = (p) => { if (!sessions.has(p)) sessions.set(p, { partition: p, calls: [], setProxy: vi.fn(function (c) { this.calls.push(c); return Promise.resolve(); }) }); return sessions.get(p); };
     const launcher = { start: vi.fn(start || (() => Promise.resolve(50123))) };
-    const t = new Function('require', 'secureSessions', 'session', 'webContents', 'detectTorPort', '_torLauncher', 'app', 'BROWSING_SESSIONS', '_discordBrowsingProxy',
+    const t = new Function('require', 'secureSessions', 'session', 'webContents', 'detectTorPort', '_torLauncher', 'app', 'BROWSING_SESSIONS', '_discordBrowsingProxy', '_syncTorLight',
       'const routingGeneration = new Map();\n' + tor + '\n' + apply + '\nreturn { applyRouting, _torSessions, _useTor };')(
       (m) => { if (m === './main/routing') return routing; throw new Error('unexpected require ' + m); },
       { fromPartition: ses }, { defaultSession: ses('') }, { getAllWebContents: () => [] },
-      vi.fn(async () => detect), launcher, { getPath: () => 'C:/tmp' }, ['persist:main'], { mode: 'direct' });
+      vi.fn(async () => detect), launcher, { getPath: () => 'C:/tmp' }, ['persist:main'], { mode: 'direct' }, async () => {});
     return { ...t, ses, launcher };
   }
 
@@ -95,21 +95,42 @@ describe('switching a session to Tor', () => {
   });
 });
 
-describe('HTTPS-Only falling back to http', () => {
+// HTTPS-Only no longer falls back to http by itself (SE4): it shows a page
+// (_showVexPage). That load rejecting is still handled.
+describe('HTTPS-Only showing its page in place of a failed load', () => {
   it('handles the load rejecting: -3 is expected, anything else is logged', async () => {
-    const block = between("contents.on('did-fail-load', (_e, errorCode, _desc, validatedURL, isMainFrame) => {", "// A clean main-frame load");
-    expect(block).not.toContain('try { contents.loadURL(httpUrl); } catch {}');
-    const handler = block.slice(block.indexOf('const httpUrl'), block.indexOf("try { if (mainWindow"));
+    const fn = between('function _showVexPage(', '\n}\n') + '\n}';
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const err of [Object.assign(new Error('ERR_ABORTED (-3) loading'), { errno: -3 }), new Error('ERR_CONNECTION_REFUSED (-102)')]) {
-      const contents = { loadURL: vi.fn(() => Promise.reject(err)) };
-      new Function('contents', 'u', handler)(contents, new URL('https://plain.example/a?b#c'));
+      const contents = { loadURL: vi.fn(() => Promise.reject(err)), on: vi.fn(), removeListener: vi.fn() };
+      new Function('_vexPages', fn + '\nreturn _showVexPage;')({ set() {} })(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page', 'http://plain.example/a');
       await new Promise(r => setTimeout(r, 0));
-      expect(contents.loadURL).toHaveBeenCalledWith('http://plain.example/a?b#c');
+      expect(contents.loadURL).toHaveBeenCalledWith('data:text/html;charset=utf-8,' + encodeURIComponent('<p>x</p>'));
     }
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0][1])).toContain('ERR_CONNECTION_REFUSED');
     warn.mockRestore();
+  });
+  it('takes the failed address out of the history once the page has committed', async () => {
+    const fn = between('function _showVexPage(', '\n}\n') + '\n}';
+    const removed = [];
+    let active = 1;
+    const entries = [{ url: 'https://before.example/' }, { url: 'https://plain.example/a' }, { url: 'data:text/html,x' }];
+    const listeners = {};
+    const contents = {
+      // Settles on the error page's own load, before the new page is there.
+      loadURL: vi.fn(() => Promise.resolve()),
+      on: (ev, fn2) => { listeners[ev] = fn2; },
+      removeListener: (ev) => { delete listeners[ev]; },
+      navigationHistory: { getActiveIndex: () => active, getEntryAtIndex: (i) => entries[i], removeEntryAtIndex: (i) => { removed.push(i); return true; } },
+    };
+    new Function('_vexPages', fn + '\nreturn _showVexPage;')({ set() {} })(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page', 'http://plain.example/a');
+    await new Promise(r => setTimeout(r, 0));
+    expect(removed).toEqual([]);                     // not on the promise
+    active = 2;
+    listeners['did-navigate']({}, 'data:text/html;charset=utf-8,' + encodeURIComponent('<p>x</p>'));
+    expect(removed).toEqual([1]);
+    expect(listeners['did-navigate']).toBeUndefined();
   });
 });
 
@@ -177,7 +198,7 @@ describe('a closed tab\'s JavaScript-off back list goes at once', () => {
     const sessions = new Map();
     const session = { fromPartition: (p) => { if (!sessions.has(p)) sessions.set(p, { partition: p }); return sessions.get(p); } };
     const handlers = {};
-    const win = { on: vi.fn(), once: vi.fn(), webContents: { id: 1, on: (ev, fn) => { handlers[ev] = fn; }, send: vi.fn(), isDestroyed: () => false } };
+    const win = { on: vi.fn(), once: vi.fn(), webContents: { id: 1, on: (ev, fn) => { handlers[ev] = fn; }, send: vi.fn(), setWindowOpenHandler: vi.fn(), isDestroyed: () => false } };
     const all = [{ id: 1, isDestroyed: () => false, getType: () => 'window' }];
     const security = createSessionSecurity({ session, webContents: { getAllWebContents: () => all, fromId: () => null }, root: process.cwd() + '/src' });
     security.registerHost(win);

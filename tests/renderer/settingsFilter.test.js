@@ -39,6 +39,17 @@ describe('SettingsUI._filter', () => {
     expect(root.querySelector('.set-nav').style.display).toBe('');
   });
 
+  it('hides a group\'s row of sub-chips while searching, like the nav', () => {
+    const row = document.createElement('div');
+    row.className = 'set-subnav';
+    row.textContent = 'AI Personas Memory MCP';
+    root.insertBefore(row, root.querySelectorAll('.setting-group')[1]);
+    SettingsUI._filter(root, 'memory');
+    expect(row.style.display).toBe('none');
+    SettingsUI._filter(root, '');
+    expect(row.style.display).toBe('');
+  });
+
   it('shows an empty-state when nothing matches', () => {
     SettingsUI._filter(root, 'zzznotathing');
     const empty = root.querySelector('.set-empty');

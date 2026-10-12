@@ -18,7 +18,9 @@ const PermissionPrompts = (() => {
     film:    _svg('<rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>'),
     screen:  _svg('<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'),
     clipboard: _svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>'),
-    shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>')
+    shield:  _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+    external: _svg('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>'),
+    download: _svg('<path d="M12 4v11"/><polyline points="7 10 12 15 17 10"/><line x1="5" y1="20" x2="19" y2="20"/>')
   };
   // `ask` finishes the sentence "<site> wants to …"; `label` names the thing
   // in the "Allowed: site → …" toast. One phrase used to do both jobs, which
@@ -34,7 +36,9 @@ const PermissionPrompts = (() => {
     'midiSysex':      { icon: ICONS.music,  ask: 'use your MIDI devices (SysEx)', label: 'MIDI devices (SysEx)' },
     'mediaKeySystem': { icon: ICONS.film,   ask: 'play protected content (DRM)', label: 'protected content' },
     'display-capture':{ icon: ICONS.screen, ask: 'share your screen', label: 'screen sharing', note: 'You choose which screen or window next.' },
-    'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' }
+    'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' },
+    // A page's second download with no click (src/main/downloads.js).
+    'automatic-downloads': { icon: ICONS.download, ask: 'download several files', label: 'automatic downloads', note: 'It started another download by itself. A file you click always downloads.' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }
@@ -60,9 +64,33 @@ const PermissionPrompts = (() => {
     if (_queue.length) _show(_queue[0]);
   }
 
+  // A link that opens another program (main.js, handleExternalProtocol):
+  // "external:<scheme>", with the program's name and a line about it from main.
+  function _external(data) {
+    const app = data.app || String(data.permission || '').slice('external:'.length);
+    return { icon: ICONS.external, ask: 'open ' + app, label: 'opening ' + app, note: data.detail || '' };
+  }
+
   function _show(entry) {
     const { origin, permission } = entry.data;
-    const info = LABELS[permission] || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
+    const info = LABELS[permission]
+      || (/^external:/.test(permission || '') ? _external(entry.data) : null)
+      || { icon: ICONS.shield, ask: 'use: ' + (permission || 'unknown'), label: permission || 'unknown' };
+    // once: main keeps no "allow" for this one (an Office link that fetches a
+    // file from the internet), so the only choices are this time or Block.
+    // choice 'allow-block': just the two, kept for the site — or, remember
+    // false (a private window, a Tor tab), kept by nothing but the tab.
+    const keep = entry.data.remember === false ? 'false' : 'true';
+    const actions = entry.data.choice === 'allow-block'
+      ? `<button class="btn-danger-sm" data-decision="deny" data-remember="${keep}">Block</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="${keep}">Allow</button>`
+      : entry.data.once
+      ? `<button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="false">Open this once</button>`
+      : `<button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
+        <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>`;
 
     const prompt = document.createElement('div');
     prompt.className = 'permission-prompt';
@@ -73,12 +101,13 @@ const PermissionPrompts = (() => {
         <div class="perm-message">wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}</div>
       </div>
       <div class="perm-actions">
-        <button class="btn-danger-sm" data-decision="deny" data-remember="true">Block</button>
-        <button class="btn-secondary-sm" data-decision="allow" data-remember="session">Allow this visit</button>
-        <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
-        <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>
+        ${actions}
       </div>
     `;
+    // The Downloads drop opens by itself with a page's first download and
+    // sits over the top right, where this question's Allow is — with its
+    // click-catching layer over the rest. The question needs an answer.
+    if (window.DownloadsButton && window.DownloadsButton._open) window.DownloadsButton.close();
     document.body.appendChild(prompt);
     requestAnimationFrame(() => prompt.classList.add('show'));
 
@@ -113,14 +142,15 @@ const PermissionPrompts = (() => {
         // One that waited past main's two-minute limit was already refused
         // there, so "Allowed" would be untrue.
         if (failed) { window.showToast(`Could not answer ${origin} → ${info.label}: ${failed}`, 'error', 4000); return; }
-        const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : remember === false ? ' this time' : '';
+        const how = remember === 'session' ? ' for this visit' : remember === 'day' ? ' for a day' : remember === false ? (entry.data.choice === 'allow-block' ? ' for this tab' : ' this time') : '';
         window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
       }
     };
     prompt.querySelectorAll('[data-decision]').forEach(btn => {
       btn.addEventListener('click', () => {
         // 'session' lasts until Vex closes and is never written down.
-        const remember = btn.dataset.remember === 'session' ? 'session' : btn.dataset.remember === 'day' ? 'day' : true;
+        const r = btn.dataset.remember;
+        const remember = r === 'session' ? 'session' : r === 'day' ? 'day' : r === 'false' ? false : true;
         respond(btn.dataset.decision, remember);
       });
     });

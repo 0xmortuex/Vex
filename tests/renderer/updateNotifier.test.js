@@ -107,11 +107,12 @@ describe('Update now', () => {
     expect(window.vex.updates.install).toHaveBeenCalledWith('2.35.0');
     expect(cover().dataset.phase).toBe('installing');
     expect(cover().querySelector('.update-cover-status-text').textContent).toMatch(/Your tabs are saved, and Vex opens again by itself/);
-    // The notes were read in the cover; What's New stays quiet on the new version.
-    expect(localStorage.getItem('vex.lastSeenVersion')).toBe('2.35.0');
+    // The marker is left alone: on the new version the short What's new card
+    // (update-log.js) shows the highlights once the features are there.
+    expect(localStorage.getItem('vex.lastSeenVersion')).toBe(null);
   });
 
-  it('a failed install puts the What\'s New marker back', async () => {
+  it('a failed install leaves the What\'s New marker as it was', async () => {
     localStorage.setItem('vex.lastSeenVersion', '2.34.5');
     window.vex.updates.download = vi.fn(async () => ({ ok: true }));
     window.vex.updates.install = vi.fn(async () => ({ ok: false, error: 'Tabs could not be saved' }));

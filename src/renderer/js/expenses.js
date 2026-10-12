@@ -172,7 +172,7 @@ const Expenses = {
           <datalist id="vex-exp-cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
           <input data-note type="text" maxlength="200" placeholder="What for (optional)" aria-label="Note" style="${field};flex:1;min-width:120px">
           <input data-day type="date" value="${this.dayKey(new Date())}" max="${this.dayKey(new Date())}" aria-label="Day" style="${field}">
-          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:#fff;cursor:pointer">Add</button>
+          <button type="submit" style="font:inherit;font-size:12px;padding:6px 12px;border-radius:7px;border:none;background:var(--primary);color:var(--on-primary,#fff);cursor:pointer">Add</button>
         </form>
         <div style="display:flex;align-items:center;gap:8px;padding:12px 14px 4px">
           <button data-prev type="button" aria-label="Previous month" style="display:inline-flex;${btn}">${VexIcons.svg('arrow-left', { size: 12 })}</button>

@@ -25,6 +25,7 @@ const GUEST_CLICK = `
 
 // What a scheduled (unattended) run may do: its own tab, plus research and
 // keeping what it found. Nothing that clicks, types, or touches other tabs.
+const SCHEDULED_PRIVATE = 'A scheduled task does not open or read pages on this computer or the local network';
 const SCHEDULED_TOOLS = ['navigate', 'go_back', 'go_forward', 'reload', 'scroll', 'extract_elements', 'extract_text', 'screenshot', 'wait', 'search_in_page', 'web_search', 'read_url', 'save_note', 'finish'];
 
 const AgentExecutor = {
@@ -36,6 +37,14 @@ const AgentExecutor = {
     }
     if (context.scheduled && (!context.webview || context.webview.isConnected === false)) return { ok: false, error: 'Scheduled tab was closed' };
     if (wv && window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return { ok: false, error: 'Private tabs are excluded from agent access' };
+    // An unattended run is steered by text it reads: its tab neither goes to
+    // nor reads this computer or the home network (the router, localhost),
+    // except the page its own schedule starts on. Its read_url already could
+    // not; navigate + extract_text could (found 2026-10-11).
+    if (context.scheduled && PAGE_TOOLS.includes(toolName)) {
+      const target = toolName === 'navigate' ? params.url : (wv && wv.getURL && wv.getURL());
+      if (this._privateForSchedule(target, context.startUrl)) return { ok: false, error: SCHEDULED_PRIVATE };
+    }
     if (PAGE_TOOLS.includes(toolName) && !wv) return { ok: false, error: 'No page is open — use new_tab first, or a tool that needs no page (web_search, read_url)' };
     // The cursor the user watches (js/agent-cursor.js): interactive runs only,
     // never a scheduled one, and not when it is switched off in Settings › AI.
@@ -296,7 +305,7 @@ const AgentExecutor = {
         }
 
         case 'list_tabs': {
-          const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canPersist(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId, group: t.groupId || null, asleep: !!(t.sleeping || t._lazy) }));
+          const tabs = TabManager.tabs.filter(t => !window.VexTabPolicy || window.VexTabPolicy.canShareTab(t)).map(t => ({ id: t.id, title: t.title, url: t.url, active: t.id === TabManager.activeTabId, group: t.groupId || null, asleep: !!(t.sleeping || t._lazy) }));
           return { ok: true, result: tabs };
         }
 
@@ -304,7 +313,7 @@ const AgentExecutor = {
         case 'read_tab': {
           const tab = TabManager.tabs.find(t => t.id === params.tabId);
           if (!tab) return { ok: false, error: 'No tab with that id — list_tabs gives the ids' };
-          if (window.VexTabPolicy && !window.VexTabPolicy.canPersist(tab)) return { ok: false, error: 'Private tabs are excluded from agent access' };
+          if (window.VexTabPolicy && !window.VexTabPolicy.canShareTab(tab)) return { ok: false, error: 'Private tabs are excluded from agent access' };
           const other = WebviewManager.webviews.get(tab.id);
           if (!other || tab.sleeping || tab._lazy) return { ok: false, error: 'That tab is asleep — switch_tab to it first, or read_url its address: ' + tab.url };
           if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(other)) return { ok: false, error: 'Private tabs are excluded from agent access' };
@@ -375,6 +384,8 @@ const AgentExecutor = {
           const schedule = ScheduleWords.parse(params.when);
           const prompt = String(params.prompt || '').trim();
           if (!prompt) return { ok: false, error: 'A scheduled task needs the instruction to run' };
+          // Its tab would start there and read it every time it runs.
+          if (params.startingUrl && this._privateForSchedule(params.startingUrl, null)) return { ok: false, error: SCHEDULED_PRIVATE };
           const task = Scheduler.createTask({
             name: String(params.name || prompt).slice(0, 80),
             schedule,
@@ -400,7 +411,7 @@ const AgentExecutor = {
           try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
           const saved = await window.vex.vaultGet(host);
           if (!saved || !saved.length) return { ok: false, error: 'There is no saved login for ' + host + ' — the user has to sign in themselves this once' };
-          await PasswordVault.autofill(wv, url);
+          await PasswordVault.autofill(wv, url, { now: true });
           return { ok: true, result: 'Filled the saved login for ' + host + '. Press the page’s own sign-in button to continue — the password was never shown to you.' };
         }
 
@@ -616,6 +627,21 @@ const AgentExecutor = {
       wv.sendInputEvent({ type: 'keyUp', keyCode });
       return true;
     } catch { return false; }
+  },
+
+  // Is this a page on this computer or the home network, other than the one
+  // the schedule itself starts on (startUrl, chosen by the person)?
+  _privateForSchedule(url, startUrl) {
+    let u;
+    try { u = new URL(String(url || '')); } catch { return false; }
+    if (!/^https?:$/.test(u.protocol)) return false;
+    const pa = typeof VexPrivateAddress !== 'undefined' ? VexPrivateAddress
+      : (typeof require === 'function' ? require('./private-address.js') : null);
+    if (!pa) throw new Error('private-address.js is not loaded');
+    if (!pa.isPrivateHost(u.hostname)) return false;
+    let start = null;
+    try { start = startUrl ? new URL(startUrl).origin : null; } catch { start = null; }
+    return u.origin !== start;
   },
 
   _waitForLoad(wv, timeout = 10000) {

@@ -9,6 +9,8 @@ const { VexFeatures } = require('../../src/renderer/js/feature-catalog.js');
 const { VexGuide } = require('../../src/renderer/js/vex-guide.js');
 const { GuideTemplates } = require('../../src/renderer/js/guide-templates.js');
 const { FeatureDetails } = require('../../src/renderer/js/feature-details.js');
+// FeatureDetails.themes counts the themes ThemeManager really has.
+globalThis.ThemeManager = require('../../src/renderer/js/theme-manager.js').ThemeManager;
 
 beforeEach(() => {
   localStorage.clear();

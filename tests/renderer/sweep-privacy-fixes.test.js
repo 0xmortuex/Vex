@@ -23,12 +23,12 @@ beforeEach(() => {
 
 describe('Lock Vex cannot be walked round', () => {
   const { VexLock: L } = require('../../src/renderer/js/vex-lock.js');
-  beforeEach(() => { L.unlock(); L._waitUntil = 0; });
+  beforeEach(() => { L._open(); L._waitUntil = 0; });
 
   it('makes everything but the PIN screen inert, including what opens later, and undoes it', async () => {
     await L.setPin('4821');
     document.body.innerHTML = '<button id="behind">Settings</button><div id="already" inert></div>';
-    window.vex = { setLockState: vi.fn() };
+    window.vex = { setLockState: vi.fn(), unlockLock: vi.fn(async () => ({ ok: true })) };
     L.lock();
     expect(document.getElementById('behind').hasAttribute('inert')).toBe(true);
     expect(document.querySelector('.vex-lock-screen').hasAttribute('inert')).toBe(false);
@@ -37,11 +37,12 @@ describe('Lock Vex cannot be walked round', () => {
     document.body.appendChild(panel);           // e.g. History opened by a shortcut
     await tick();
     expect(panel.hasAttribute('inert')).toBe(true);
-    L.unlock();
+    await L.unlock('4821');
     expect(document.getElementById('behind').hasAttribute('inert')).toBe(false);
     expect(panel.hasAttribute('inert')).toBe(false);
     expect(document.getElementById('already').hasAttribute('inert')).toBe(true);   // was not ours to undo
-    expect(window.vex.setLockState).toHaveBeenLastCalledWith(false);
+    expect(window.vex.unlockLock).toHaveBeenCalledWith('4821');
+    expect(window.vex.setLockState).not.toHaveBeenCalledWith(false);   // only main unlocks, on the PIN
   });
 
   it('remembers being locked, so a restart starts locked', async () => {
@@ -55,7 +56,7 @@ describe('Lock Vex cannot be walked round', () => {
     L.init();
     expect(L.locked()).toBe(true);
     expect(document.querySelector('.vex-lock-screen')).not.toBeNull();
-    L.unlock();
+    L._open();
     expect(localStorage.getItem(L.LOCKED_KEY)).toBe(null);
   });
 
@@ -121,15 +122,16 @@ describe('Clear History clears every copy', () => {
   const MODULE = '../../src/renderer/js/history-panel.js';
   const load = () => { vi.resetModules(); delete require.cache[require.resolve(MODULE)]; return require(MODULE).HistoryPanel; };
 
-  it('Delete site forgets it in the history file and in Recall', async () => {
+  // History is one list now (main/history-fold.js): the list and Recall.
+  it('Delete site forgets it in the history list and in Recall', async () => {
     const H = load();
-    localStorage.setItem('vex.history', JSON.stringify([{ id: 'a', url: 'https://bad.example/x', visitedAt: new Date().toISOString() }]));
-    let file = [{ url: 'https://bad.example/x', time: 1 }, { url: 'https://ok.example/', time: 2 }];
-    globalThis.VexStorage = { loadHistory: vi.fn(async () => file), save: vi.fn(async (k, v) => { file = v; return true; }) };
+    localStorage.setItem('vex.history', JSON.stringify([{ id: 'a', url: 'https://bad.example/x', visitedAt: new Date().toISOString() }, { id: 'b', url: 'https://ok.example/', visitedAt: new Date().toISOString() }]));
+    globalThis.VexStorage = { save: vi.fn(async () => true) };
     window.vex = { recallForget: vi.fn(async () => ({ ok: true, removed: 3 })) };
     H.renderList = () => {};
     await H.deleteSite('bad.example');
-    expect(file).toEqual([{ url: 'https://ok.example/', time: 2 }]);
+    expect(JSON.parse(localStorage.getItem('vex.history')).map(e => e.url)).toEqual(['https://ok.example/']);
+    expect(globalThis.VexStorage.save).not.toHaveBeenCalled();
     expect(window.vex.recallForget).toHaveBeenCalledWith({ host: 'bad.example' });
     expect(window.showToast).toHaveBeenLastCalledWith('Removed 1 from bad.example');
     delete globalThis.VexStorage;
@@ -140,7 +142,7 @@ describe('Clear History clears every copy', () => {
     globalThis.VexStorage = { save: vi.fn(async () => true) };
     window.vex = { recallClear: vi.fn(async () => ({ ok: false, error: 'disk full' })) };
     await expect(H._forgetElsewhere(null)).rejects.toThrow('disk full');
-    expect(globalThis.VexStorage.save).toHaveBeenCalledWith('history', []);
+    expect(globalThis.VexStorage.save).not.toHaveBeenCalled();
     delete globalThis.VexStorage;
   });
 });
@@ -199,20 +201,8 @@ describe('a privacy toggle main refused is not reported as done', () => {
   });
 });
 
-describe('the autofill log counts only real fills', () => {
-  const { PasswordVault } = require('../../src/renderer/js/passwords.js');
-  it('records a password fill only when the page says a field was filled', async () => {
-    window.AutofillLog = { record: vi.fn() };
-    window.vex = { vaultGet: vi.fn(async () => [{ username: 'me', password: 'pw' }]) };
-    const wv = (filled) => ({ _navigationGeneration: 1, getURL: () => 'https://site.example/a', executeJavaScript: vi.fn(async () => filled) });
-    await PasswordVault.autofill(wv(0), 'https://site.example/a');
-    await tick();
-    expect(window.AutofillLog.record).not.toHaveBeenCalled();
-    await PasswordVault.autofill(wv(2), 'https://site.example/a');
-    await tick();
-    expect(window.AutofillLog.record).toHaveBeenCalledWith('password', 'https://site.example/a', true, 'me');
-  });
-});
+// The autofill log counting only real fills: moved to loginFillGesture.test.js. The saved login is filled only
+// after a real click, from the guest preload (audit S5).
 
 describe('Escape in a prompt over Site Data closes only the prompt', () => {
   const { SiteData } = require('../../src/renderer/js/site-data.js');

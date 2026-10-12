@@ -769,7 +769,7 @@ const AgentLoop = {
   // Undo what a run MADE. Deliberately only Vex's own things: what it did on a
   // web page is the page's business and cannot be taken back from here, and
   // pretending otherwise would be worse than saying so.
-  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting'],
+  UNDOABLE: ['note', 'bookmark', 'group', 'timer', 'reminder', 'watch', 'github-watch', 'setting', 'schedule'],
 
   async undoRun(id) {
     const run = this.runs().find(r => r.id === id);
@@ -910,7 +910,14 @@ const AgentLoop = {
     // a newer run (found 2026-09-29).
     const token = this._runToken = {};
     const live = () => this._running && this._runToken === token;
-    this._mode = mode || this._mode || 'ask';
+    // The mode the person chose in the panel, never the one an earlier run
+    // left behind, and a plan approved then approves nothing here (Ctrl+K
+    // "Repeat a task" replayed in Auto-approve after the pill was set back to
+    // Approve manually, found 2026-10-10).
+    let chosen = null;
+    try { chosen = localStorage.getItem('vex.agentMode'); } catch (err) { console.warn('[Agent] could not read the permission mode:', err.message); }
+    this._mode = mode || (['ask', 'plan', 'auto'].includes(chosen) ? chosen : 'ask');
+    this._planApproved = false;
     // The same site rules as a real run: a recorded step that acts somewhere
     // the user did not point it is still asked about.
     this._allowedSites = new Set();
@@ -1231,6 +1238,12 @@ const AgentLoop = {
     if (decision.tool === 'click') return RISKY_WORDS.test(String(p.selector || '') + ' ' + String(decision.thought || ''));
     if (decision.tool === 'type_text' && p.submit) return RISKY_WORDS.test(String(decision.thought || ''));
     if (decision.tool === 'vex_command') return RISKY_COMMANDS.test(String(p.command || ''));
+    // A file from the web lands on the disk: always asked, as the tool says
+    // ("The user is asked first"), even in Auto-approve.
+    if (decision.tool === 'download_file') return true;
+    // An MCP server's tool can do anything that server can (write files, send
+    // messages); Vex cannot tell which, so each call is asked about.
+    if (typeof decision.tool === 'string' && decision.tool.startsWith('mcp__')) return true;
     return false;
   },
 
@@ -1546,7 +1559,7 @@ const AgentLoop = {
       }
 
       if (opts.signal?.aborted || wv.isConnected === false) throw new Error('Scheduled task cancelled');
-      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true });
+      lastResult = await AgentExecutor.executeTool(decision.tool, decision.parameters || {}, { webview: wv, scheduled: true, startUrl: opts.startUrl });
       if (lastResult && lastResult.image) { pendingImage = lastResult.image; delete lastResult.image; }
       // One search that found nothing, or one site that refused to be read, is
       // something to work around: the model is told, and tries another. A

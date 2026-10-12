@@ -86,7 +86,7 @@
 }
 .vex-tour-next {
   background: var(--primary, #6366f1);
-  color: #fff;
+  color: var(--on-primary, #fff);
   font-weight: 600;
 }
 .vex-tour-next:hover { background: var(--primary-hover, #5558e6); }

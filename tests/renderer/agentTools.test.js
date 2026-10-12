@@ -64,6 +64,19 @@ describe('read_url', () => {
     expect(AgentTools.isPrivateHost('example.com')).toBe(false);
   });
 
+  // Audit AI1 (2026-10-10): these reached a service on this machine. Main
+  // makes the real decision (tests/main/publicFetch.test.js); the window
+  // refuses them early, and asks main for a public-only read.
+  it('refuses IPv4-mapped IPv6, the unspecified address and the machine name, and asks main for a public-only read', async () => {
+    window.vex.apiRequest = vi.fn(async () => page('<html><body>' + 'x'.repeat(300) + '</body></html>'));
+    for (const url of ['http://[::ffff:127.0.0.1]:11434/api/tags', 'http://[::ffff:7f00:1]/', 'http://[::ffff:192.168.1.1]/admin', 'http://[::]:11434/', 'http://DESKTOP-L4CC18H:9878/secret', 'http://100.64.0.1/']) {
+      expect(() => AgentTools._checkUrl(url), url).toThrow(/this machine or the local network/);
+    }
+    expect(window.vex.apiRequest).not.toHaveBeenCalled();
+    await AgentTools.readUrl('https://example.com/page');
+    expect(window.vex.apiRequest).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://example.com/page', publicOnly: true }));
+  });
+
   it('says what to do about a file, an error status, and a page built by JavaScript', async () => {
     // A PDF is READ now (v2.31.97) — half of anything official lives in one.
     // Only a fully compressed file, with no plain text at all, is refused, and

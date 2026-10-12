@@ -97,30 +97,47 @@ describe('note checkboxes and bullets', () => {
   });
 });
 
-describe('Escape closes them, and deleting asks first', () => {
+// Deleting was "asks first"; it is now at once with Undo (js/vex-undo.js).
+describe('Escape closes them, and deleting comes with Undo', () => {
   const esc = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  let offered;
+  const undoReady = () => {
+    require('../../src/renderer/js/vex-undo.js');
+    offered = null;
+    window.showToast = vi.fn((_m, _t, _d, opts) => { if (opts) offered = opts; return { dismiss() {} }; });
+    window.vexConfirm = vi.fn(async () => true);
+    globalThis.vexConfirm = window.vexConfirm;
+  };
 
   it('Automations', async () => {
-    localStorage.setItem('vex.automations', JSON.stringify([{ id: 'a1', name: 'Morning', enabled: true, trigger: { type: 'time', value: '08:00' }, action: { type: 'open', value: 'https://a.test' } }]));
-    window.vexConfirm = vi.fn(async () => false);
-    globalThis.vexConfirm = window.vexConfirm;
+    undoReady();
+    const rules = [
+      { id: 'a1', name: 'Morning', enabled: true, trigger: { type: 'time', value: '08:00' }, action: { type: 'open', value: 'https://a.test' } },
+      { id: 'a2', name: 'Evening', enabled: false, trigger: { type: 'time', value: '20:00' }, action: { type: 'open', value: 'https://b.test' } },
+    ];
+    localStorage.setItem('vex.automations', JSON.stringify(rules));
     Automations.open();
     document.querySelector('#vex-automations [data-del="0"]').click();
-    await Promise.resolve(); await Promise.resolve();
-    expect(window.vexConfirm).toHaveBeenCalled();
-    expect(JSON.parse(localStorage.getItem('vex.automations')).length).toBe(1);
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('vex.automations')).map(r => r.id)).toEqual(['a2']);
+    offered.action.run();
+    await Promise.resolve();
+    expect(JSON.parse(localStorage.getItem('vex.automations'))).toEqual(rules);
     esc();
     expect(document.getElementById('vex-automations')).toBe(null);
   });
 
   it('Focus Flows', async () => {
-    localStorage.setItem('vex.focusFlows', JSON.stringify([{ name: 'Writing', openTabs: [] }]));
-    window.vexConfirm = vi.fn(async () => true);
-    globalThis.vexConfirm = window.vexConfirm;
+    undoReady();
+    const flows = [{ name: 'Writing', openTabs: [] }, { name: 'Reading', openTabs: [] }];
+    localStorage.setItem('vex.focusFlows', JSON.stringify(flows));
     FocusFlows.open();
     document.querySelector('#vex-focusflows [data-act="del"]').click();
-    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('vex.focusFlows')).length).toBe(0));
-    expect(window.vexConfirm).toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('vex.focusFlows'))).toEqual([flows[1]]);
+    expect(window.vexConfirm).not.toHaveBeenCalled();
+    offered.action.run();
+    await Promise.resolve();
+    expect(JSON.parse(localStorage.getItem('vex.focusFlows'))).toEqual(flows);
     esc();
     expect(document.getElementById('vex-focusflows')).toBe(null);
   });

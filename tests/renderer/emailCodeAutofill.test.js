@@ -13,6 +13,8 @@ function makeAutofill(readsFn) {
   const injected = [];
   const logs = [];
   const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill, {
+    _watching: new Set(),
+    _active: new Set(),
     _hasEmptyCodeField: async () => true,
     _looksLikeCodePage: async () => true,
     _findMailWebview: () => ({ wv: {}, provider: { id: 'gmail' } }), // non-null mail webview
@@ -39,7 +41,9 @@ function scriptedReader(states) {
   return () => states[Math.min(i++, states.length - 1)];
 }
 
-const loaded = (code, unread, strong) => ({ loaded: true, code, unread, strong });
+// The pages below are Spotify's, and a code is only filled into the site whose
+// own email carried it, so the scripted mail comes from Spotify.
+const loaded = (code, unread, strong, from = ['no-reply@spotify.com']) => ({ loaded: true, code, unread, strong, from });
 
 describe('EmailCodeAutofill._extractCode', () => {
   it('pulls a code after verification wording', () => {
@@ -80,7 +84,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   const makeWv = (id) => ({
     id, getURL: () => 'https://mail.google.com/mail/u/0/#inbox',
     executeJavaScript: async (js) => {
-      if (js.includes('Back to Inbox')) return 'Hi — your Spotify verification code is 246810. It expires soon.';
+      if (js.includes('Back to Inbox')) return JSON.stringify({ text: 'Hi — your Spotify verification code is 246810. It expires soon.', from: 'no-reply@spotify.com' });
       return JSON.stringify({ loaded: true, rows: [{ t: 'Weekly newsletter — top stories', u: true }] });
     },
   });
@@ -88,7 +92,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   it('reads the code from the email BODY when the inbox rows have none (hidden reader)', async () => {
     const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
     const r = await A._readInbox(makeWv('vex-gmail-reader'));
-    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true });
+    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true, from: ['no-reply@spotify.com'], foreign: false });
   });
 
   it('does NOT open message bodies in the user\'s own visible Gmail', async () => {
@@ -294,8 +298,8 @@ describe('EmailCodeAutofill does not poll the mailbox itself', () => {
 
   it('still polls a normal site whose host merely contains a provider name', async () => {
     const { A, injected } = makeAutofill(scriptedReader([
-      loaded('111111', false, true),
-      loaded('654321', true, true),
+      loaded('111111', false, true, ['no-reply@evil.test']),
+      loaded('654321', true, true, ['no-reply@evil.test']),
     ]));
     const wv = { isConnected: true, getURL: () => 'https://mail.google.com.evil.test/login' };
     const p = A.tryFill(wv, 'https://mail.google.com.evil.test/login');
@@ -373,10 +377,12 @@ describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
     expect(injected).toContain('654321');
   });
 
-  it('records a miss instead of vanishing when too many polls are already running', async () => {
+  it('records a miss instead of vanishing when the reading slots stay full the whole time', async () => {
     const { A, logs } = makeAutofill(scriptedReader([loaded('111111', true, true)]));
-    A._active = new Set([{}, {}, {}]);                      // at the cap
-    await A.tryFill({ isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' }, 'https://accounts.spotify.com/en/login/otp');
+    A._active = new Set([{}, {}, {}]);                      // at the cap, and never freed
+    const p = A.tryFill({ isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' }, 'https://accounts.spotify.com/en/login/otp');
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
     expect(logs).toEqual([{ ok: false, reason: 'busy' }]);
   });
 
@@ -385,12 +391,76 @@ describe('EmailCodeAutofill polls per page, not once for the whole app', () => {
     A._looksLikeAuthFlow = async () => true;
     A._hasEmptyCodeField = async () => false;
     const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login' };
+    let probes = 0;
+    A._looksLikeCodePage = async () => { probes++; return false; };
     A.tryFill(wv, 'https://accounts.spotify.com/en/login');
     await vi.advanceTimersByTimeAsync(100);
-    expect(A._active.size).toBe(1);
+    expect(A._watching.size).toBe(1);
     A.tryFill(wv, 'https://accounts.spotify.com/en/login');
     await vi.advanceTimersByTimeAsync(100);
-    expect(A._active.size).toBe(1);
+    expect(A._watching.size).toBe(1);
+    expect(probes).toBe(1);
+  });
+});
+
+describe('EmailCodeAutofill only takes a mailbox slot when a code is really asked for', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  // The owner's log: 180 attempts, 0 fills, 112 refused as "busy". Every page
+  // load took one of the three slots on entry and held it for up to three
+  // minutes while it waited for a code field, so three ordinary sign-in pages
+  // locked out the page that actually asked for a code.
+  it('three sign-in pages still waiting for a code step do not lock out the page showing a code field', async () => {
+    const { A, injected, logs } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    A._looksLikeAuthFlow = async () => true;
+    A._looksLikeCodePage = async () => false;
+    const waiting = ['https://discord.com/login', 'https://www.roblox.com/login', 'https://store.steampowered.com/login']
+      .map(u => ({ isConnected: true, getURL: () => u }));
+    const spotify = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    A._hasEmptyCodeField = async (wv) => wv === spotify;
+    waiting.forEach(wv => A.tryFill(wv, wv.getURL()));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(A._active.size).toBe(0);                         // watching is not reading
+    const p = A.tryFill(spotify, spotify.getURL());
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toEqual(['654321']);
+    expect(logs.filter(l => l.reason === 'busy')).toEqual([]);
+  });
+
+  it('a page asking for a code while every slot is taken is served as soon as one frees', async () => {
+    const { A, injected } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    const holders = [{}, {}, {}];
+    A._active = new Set(holders);                           // three pages already reading
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    const p = A.tryFill(wv, wv.getURL());
+    for (let k = 0; k < 5; k++) await vi.advanceTimersByTimeAsync(3100);
+    expect(injected).toEqual([]);
+    A._exit(holders[0]);                                    // one of them finishes
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(injected).toEqual(['654321']);
+  });
+
+  it('gives its slot back the moment it is done', async () => {
+    const { A } = makeAutofill(scriptedReader([
+      loaded('111111', false, true),
+      loaded('654321', true, true),
+    ]));
+    const wv = { isConnected: true, getURL: () => 'https://accounts.spotify.com/en/login/otp' };
+    const p = A.tryFill(wv, wv.getURL());
+    for (let k = 0; k < 64; k++) await vi.advanceTimersByTimeAsync(3100);
+    await p;
+    expect(A._active.size).toBe(0);
+    expect(A._watching.size).toBe(0);
+    expect(A._running).toBe(false);
   });
 });
 

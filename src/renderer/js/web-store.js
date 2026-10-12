@@ -51,11 +51,35 @@ const VexWebStore = (() => {
     return shown.map(esc).join(', ') + (more > 0 ? ` and ${more} more` : '');
   }
 
+  // Where the package came from, first in the dialog. p.source is set by main
+  // for a picked file or folder (main.js _previewPickedFile); a store link has none.
+  function sourceLine(p) {
+    const v = esc(p.version || '?');
+    const file = p.file ? ` (${esc(p.file)})` : '';
+    switch (p.source) {
+      case 'webstore-file':
+        return [false, `Version ${v}, a Chrome Web Store package from a file${file}. Its signatures, the developer's and the store's, check out.`];
+      case 'developer':
+        return [true, `Version ${v}: <strong>not from the Chrome Web Store</strong>. A package its developer signed themselves${file}, id ${esc(p.id || '?')}. The signature checks out, so it has not been changed since it was signed, but no store has looked at it.`];
+      case 'zip':
+        return [true, `Version ${v} from a .zip file${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+      case 'folder':
+        return [true, `Version ${v} from a folder on this computer${file}: <strong>not from the Chrome Web Store</strong>, and not signed, so Vex cannot tell who made it.`];
+      default:
+        return [false, `Version ${v} from the Chrome Web Store. Its signatures, the developer's and the store's, check out.`];
+    }
+  }
+
   // The permissions dialog's body. Every piece of text is escaped here.
   function dialogHtml(p) {
     const lines = [];
-    lines.push(`<div class="vex-ws-source">${icon('shield', 14)}<span>Version ${esc(p.version || '?')} from the Chrome Web Store. Its signatures, the developer's and the store's, check out.</span></div>`);
-    if (p.installed) {
+    const [unchecked, says] = sourceLine(p);
+    lines.push(`<div class="vex-ws-source${unchecked ? ' vex-ws-heavy' : ''}">${icon(unchecked ? 'warning' : 'shield', 14)}<span>${says}</span></div>`);
+    if (p.installed && p.installed.sameNameOnly) {
+      lines.push(`<div class="vex-ws-line vex-ws-heavy">${icon('warning', 14)}<span>You already have a different extension called "${esc(p.name)}" (version ${esc(p.installed.version || '?')}). Adding this one replaces it, and none of its settings or data are passed on to this one.</span></div>`);
+    } else if (p.installed && p.installed.downgrade) {
+      lines.push(`<div class="vex-ws-line vex-ws-heavy">${icon('warning', 14)}<span>This is an older version (${esc(p.version || '?')}) than the one installed (${esc(p.installed.version || '?')}). Its settings are kept, but an older version may not read what the newer one saved.</span></div>`);
+    } else if (p.installed) {
       lines.push(`<div class="vex-ws-line">${icon('refresh', 14)}<span>Installed now: version ${esc(p.installed.version || '?')}. It is updated in place, and keeps its settings.</span></div>`);
     }
     if (p.safeMode) lines.push(`<div class="vex-ws-line">${icon('info', 14)}<span>Vex is in safe mode: it loads when Vex next starts normally.</span></div>`);
@@ -81,6 +105,16 @@ const VexWebStore = (() => {
     return lines.join('');
   }
 
+  // The question's title and button: a different extension of the same name
+  // is replaced, not updated (EX1), and an older version says so.
+  function confirmWords(p) {
+    const i = p && p.installed;
+    if (i && i.sameNameOnly) return { title: `Replace "${p.name}"?`, okLabel: 'Replace' };
+    if (i && i.downgrade) return { title: `Install an older "${p.name}"?`, okLabel: 'Install older version' };
+    if (i) return { title: `Update "${p.name}"?`, okLabel: 'Update' };
+    return { title: `Add "${p.name}"?`, okLabel: 'Add to Vex' };
+  }
+
   function _doneText(r) {
     const what = r.updated ? (r.previousVersion && r.previousVersion !== r.version ? `Updated ${r.name} from v${r.previousVersion} to v${r.version}` : `Reinstalled ${r.name} v${r.version}`) : `Installed ${r.name} v${r.version}`;
     if (r.afterRestart) return what + ' — it loads when Vex restarts normally';
@@ -100,21 +134,29 @@ const VexWebStore = (() => {
     if (busy) { toast('Vex is already installing an extension. One at a time.', 'info'); return { ok: false, error: 'busy' }; }
     busy = true;
     try {
-      toast('Downloading from the Chrome Web Store and checking its signature…', 'info');
+      const fetching = 'Downloading from the Chrome Web Store and checking its signature…';
+      toast(fetching, 'info');
       const p = await window.vex.extensionsWebStorePreview(String(input || ''));
+      // Done downloading: that note stayed up beside "Installed …" (walkthrough
+      // L8, 2026-10-07). showToast gives no handle, so it goes by its text.
+      document.querySelectorAll('#toast-container .toast-item').forEach(t => { if (t.textContent === fetching) t.remove(); });
       if (!p || !p.ok) {
         toast('Could not install: ' + ((p && p.error) || 'no answer from Vex'), 'error');
         return p || { ok: false, error: 'no answer' };
+      }
+      // A Chrome theme becomes one of the user's themes (js/chrome-theme.js),
+      // never an extension. Only one that is an extension too, and that the
+      // person chose to install as one, goes on to the extension dialog.
+      if (p.isTheme && typeof ChromeTheme !== 'undefined') {
+        const t = await ChromeTheme.offer(p);
+        if (t === 'added') return { ok: true, theme: true };
+        if (t !== 'extension') return { ok: false, cancelled: t === 'cancelled', error: t };
       }
       if (p.refuse) {
         await vexAlert({ title: `Vex cannot install ${p.name}`, message: p.refuse });
         return { ok: false, error: p.refuse };
       }
-      const yes = await vexConfirm({
-        title: `${p.installed ? 'Update' : 'Add'} "${p.name}"?`,
-        html: dialogHtml(p),
-        okLabel: p.installed ? 'Update' : 'Add to Vex',
-      });
+      const yes = await vexConfirm({ ...confirmWords(p), html: dialogHtml(p) });
       if (!yes) return { ok: false, cancelled: true };
       const r = await window.vex.extensionsInstallWebStore(p.id);
       if (r && r.ok) {
@@ -157,7 +199,7 @@ const VexWebStore = (() => {
     _mark();
   }
 
-  return { install, installActive, activeStorePage, refusedHere, dialogHtml, init, _mark };
+  return { install, installActive, activeStorePage, refusedHere, dialogHtml, confirmWords, init, _mark };
 })();
 
 window.VexWebStore = VexWebStore;
