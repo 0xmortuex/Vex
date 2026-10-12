@@ -50,6 +50,10 @@ const VexI18nUI = {
       'Stop loading this page': 'Bu sayfanın yüklenmesini durdur',
       'Vex page — site information': 'Vex sayfası — site bilgileri',
       'Local file — site information': 'Yerel dosya — site bilgileri',
+      // The same button on a website names the site ({} is its host).
+      'Connection is secure — site information and settings for {}': 'Bağlantı güvenli — {} için site bilgileri ve ayarları',
+      'Not secure — site information and settings for {}': 'Güvenli değil — {} için site bilgileri ve ayarları',
+      'This page did not load — site information and settings for {}': 'Bu sayfa yüklenmedi — {} için site bilgileri ve ayarları',
       'All features': 'Tüm özellikler',
       'All features — show every panel, button and setting Vex has': 'Tüm özellikler — Vex’in her panelini, düğmesini ve ayarını göster',
       'Hide the sidebar': 'Kenar çubuğunu gizle', 'Show the sidebar': 'Kenar çubuğunu göster',
@@ -168,6 +172,10 @@ const VexI18nUI = {
     if (table[key] != null) return table[key];
     const m = /^(.+?)\s*\(([^()]*)\)$/.exec(key);
     if (m && table[m[1].trim()] != null) return table[m[1].trim()] + ' (' + m[2] + ')';
+    // "… for example.com": the site's name is not language either. The table
+    // holds "… for {}" and the host goes where {} is.
+    const f = /^(.+ for) (\S+)$/.exec(key);
+    if (f && table[f[1] + ' {}'] != null) return table[f[1] + ' {}'].replace('{}', f[2]);
     return null;
   },
 

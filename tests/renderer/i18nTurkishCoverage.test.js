@@ -142,6 +142,29 @@ describe('what has a Turkish translation now', () => {
   });
 });
 
+// Found in the v19.1.7 check: on a website the site button's tooltip names
+// the site ("Not secure — site information and settings for example.com"),
+// which no table entry matched, so in Turkish it stayed English on every
+// website — only Vex pages and local files were translated.
+describe('the site button on a website, in Turkish', () => {
+  it('is translated with the site name kept', () => {
+    expect(VexI18nUI.lookup('Not secure — site information and settings for example.com', 'tr')).toBe('Güvenli değil — example.com için site bilgileri ve ayarları');
+    expect(VexI18nUI.lookup('Connection is secure — site information and settings for github.com', 'tr')).toBe('Bağlantı güvenli — github.com için site bilgileri ve ayarları');
+    expect(VexI18nUI.lookup('This page did not load — site information and settings for 127.0.0.1', 'tr')).toBe('Bu sayfa yüklenmedi — 127.0.0.1 için site bilgileri ve ayarları');
+  });
+
+  it('translates the button itself', () => {
+    tr();
+    const btn = document.createElement('button');
+    btn.title = 'Connection is secure — site information and settings for github.com';
+    btn.setAttribute('aria-label', btn.title);
+    document.body.appendChild(btn);
+    VexI18nUI.translateEl(btn);
+    expect(btn.title).toBe('Bağlantı güvenli — github.com için site bilgileri ve ayarları');
+    expect(btn.getAttribute('aria-label')).toBe(btn.title);
+  });
+});
+
 describe('tooltips Vex sets again later', () => {
   it('the site button and the sidebar button translate the title they set', () => {
     for (const f of ['site-panel.js', 'look-sidebar.js']) {
