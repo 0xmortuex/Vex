@@ -25,7 +25,8 @@ describe('the tab events', () => {
 
   it('a tab arriving somewhere new, or moving inside its page, is announced', () => {
     const wv = src('js/webview.js');
-    expect(wv.match(/window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/g) || []).toHaveLength(2);
+    // The third: one of Vex's own pages showing the address it stands for (_showVexPageAddress).
+    expect(wv.match(/window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/g) || []).toHaveLength(3);
     expect(wv).toMatch(/TabManager\.updateTab\(tab\.id, \{ url \}\);\r?\n\s*window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/);
     expect(wv).toMatch(/TabManager\.updateTab\(tab\.id, \{ url: e\.url \}\);\r?\n\s*window\.dispatchEvent\(new CustomEvent\('vex:tab-url-changed'/);
   });

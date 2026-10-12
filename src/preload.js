@@ -335,6 +335,8 @@ contextBridge.exposeInMainWorld('vex', {
   permissionsResetForPage: (id) => ipcRenderer.invoke('permissions:reset-for-page', id),
   permissionsResetForPageUndo: (token) => ipcRenderer.invoke('permissions:reset-for-page-undo', token),
   siteCertificate: (id) => ipcRenderer.invoke('site:certificate', id),
+  // The address one of Vex's own pages in a tab stands for (main/vex-page-address.js).
+  vexPageAddress: (id) => ipcRenderer.invoke('tabs:vex-page-address', id),
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
   tabHistory:           (pageId) => ipcRenderer.invoke('tabs:history', pageId),

@@ -103,7 +103,7 @@ describe('HTTPS-Only showing its page in place of a failed load', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const err of [Object.assign(new Error('ERR_ABORTED (-3) loading'), { errno: -3 }), new Error('ERR_CONNECTION_REFUSED (-102)')]) {
       const contents = { loadURL: vi.fn(() => Promise.reject(err)), on: vi.fn(), removeListener: vi.fn() };
-      new Function(fn + '\nreturn _showVexPage;')()(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page');
+      new Function('_vexPages', fn + '\nreturn _showVexPage;')({ set() {} })(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page', 'http://plain.example/a');
       await new Promise(r => setTimeout(r, 0));
       expect(contents.loadURL).toHaveBeenCalledWith('data:text/html;charset=utf-8,' + encodeURIComponent('<p>x</p>'));
     }
@@ -124,7 +124,7 @@ describe('HTTPS-Only showing its page in place of a failed load', () => {
       removeListener: (ev) => { delete listeners[ev]; },
       navigationHistory: { getActiveIndex: () => active, getEntryAtIndex: (i) => entries[i], removeEntryAtIndex: (i) => { removed.push(i); return true; } },
     };
-    new Function(fn + '\nreturn _showVexPage;')()(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page');
+    new Function('_vexPages', fn + '\nreturn _showVexPage;')({ set() {} })(contents, '<p>x</p>', 'https://plain.example/a', 'no-HTTPS page', 'http://plain.example/a');
     await new Promise(r => setTimeout(r, 0));
     expect(removed).toEqual([]);                     // not on the promise
     active = 2;

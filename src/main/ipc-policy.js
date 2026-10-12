@@ -5,6 +5,8 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
   'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate',
+  // Which address one of Vex's own pages in a tab stands for (main/vex-page-address.js).
+  'tabs:vex-page-address',
   // A page saved or captured by its id: only one of the asking window's own
   // (security scan L1).
   'page:save', 'page:capture-full',

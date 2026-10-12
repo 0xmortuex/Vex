@@ -264,7 +264,7 @@ define('permissions:list-for-page', [integer]);
 // The site panel (js/site-panel.js): one permission of a tab's page set to
 // allow, block or ask; all of its site's reset; the certificate it was served with.
 define('permissions:set-for-page', [integer, value => typeof value === 'string' && /^(?:camera|microphone|geolocation|notifications|clipboard-read|display-capture|midi|midiSysex|popups|automatic-downloads|external:[a-z][a-z0-9+.-]{0,40})$/.test(value), oneOf(['allow', 'deny', 'ask'])]);
-define('permissions:reset-for-page site:certificate', [integer]);
+define('permissions:reset-for-page site:certificate tabs:vex-page-address', [integer]);
 // The pages of a tab just closed, whose saved back lists go (session-security.js).
 define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && value.every(integer)]);
 // A tab's back list read by its page's id, and handed back for the page made

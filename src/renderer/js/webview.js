@@ -29,6 +29,19 @@ const WebviewManager = {
     }).catch(err => console.warn('[Vex] could not read the tab\'s back list:', err && err.message));
   },
 
+  // One of Vex's own pages (HTTPS-Only's "no secure connection", a
+  // certificate error) is a data: page, which the tab otherwise leaves out of
+  // its address; main says which address it stands for, and the bar shows
+  // that, as Chrome does. It kept the page the person came from. Any other
+  // data: page (reading mode's) stands for nothing and is left as it was.
+  async _showVexPageAddress(tab, webview, dataUrl) {
+    if (typeof window.vex?.vexPageAddress !== 'function') throw new Error('window.vex.vexPageAddress is missing');
+    const address = await window.vex.vexPageAddress(webview.getWebContentsId());
+    if (!address || webview.getURL() !== dataUrl) return;   // not one of Vex's, or the tab moved on
+    TabManager.updateTab(tab.id, { url: address });
+    window.dispatchEvent(new CustomEvent('vex:tab-url-changed', { detail: { tabId: tab.id, url: address } }));
+  },
+
   createWebview(tab) {
     if (window.VexTabPolicy) tab.partition = window.VexTabPolicy.partitionFor(tab.partition);
     // A container's own route is asked for now, before anything reads the
@@ -470,6 +483,8 @@ const WebviewManager = {
       // the tab would be permanently stuck on the snapshot. It would also dump a
       // multi-KB data: URL into history. Reading mode is a transient view, not a
       // destination — leave tab.url on the real page and keep it out of history.
+      // Vex's own error pages show the address they stand for (above).
+      if (/^data:/i.test(url)) this._showVexPageAddress(tab, webview, url).catch(err => console.warn('[Vex] could not tell which address this page stands for:', err && err.message));
       if (/^about:blank\b/i.test(url) || /^data:/i.test(url)) return;
       // A view-source: tab reports the page's own address; kept as it was
       // opened, or the tab, its restore and its copies showed the page

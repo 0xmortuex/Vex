@@ -395,8 +395,10 @@ function _isTabSession(contents) {
 // Back goes to the page before it rather than into the failure again. That
 // is done when the page commits: loadURL's promise settles earlier, on the
 // error page's own did-finish-load (measured).
-function _showVexPage(contents, html, failedUrl, what) {
+function _showVexPage(contents, html, failedUrl, what, standsFor) {
   const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  // The address bar shows the address this page stands for (src/main/vex-page-address.js).
+  _vexPages.set(contents, dataUrl, standsFor);
   const shown = (_e, url) => {
     contents.removeListener('did-navigate', shown);
     if (url !== dataUrl) return;
@@ -2495,6 +2497,13 @@ function _watchCertificates(ses) {
   });
 }
 app.on('session-created', _watchCertificates);
+// Which address a Vex page in a tab stands for (src/main/vex-page-address.js).
+const _vexPages = require('./main/vex-page-address').createVexPageAddresses();
+ipcMain.handle('tabs:vex-page-address', (_e, id) => {
+  const page = webContents.fromId(id);
+  if (!page || page.isDestroyed()) throw new Error('That page is gone');
+  return _vexPages.addressOf(page);
+});
 ipcMain.handle('site:certificate', async (_e, id) => {
   const page = webContents.fromId(id);
   if (!page || page.isDestroyed()) throw new Error('That page is gone');
@@ -5170,7 +5179,7 @@ app.on('web-contents-created', (_event, contents) => {
     const bare = u.hostname.replace(/^www\./, '');
     const s = _httpsUpgradedByWc.get(contents.id);
     if (!privacyCfg.httpsOnly || !s || !s.has(bare)) {
-      if (_httpsOnly.isCertError(errorCode) && _isTabSession(contents)) _showVexPage(contents, _httpsOnly.certErrorPage(u.host, desc), validatedURL, 'certificate page');
+      if (_httpsOnly.isCertError(errorCode) && _isTabSession(contents)) _showVexPage(contents, _httpsOnly.certErrorPage(u.host, desc), validatedURL, 'certificate page', validatedURL);
       return;
     }
     s.delete(bare);
@@ -5181,11 +5190,11 @@ app.on('web-contents-created', (_event, contents) => {
     // says so instead, and loads it unencrypted only if the person asks.
     if (_httpsOnly.isCertError(errorCode)) {
       _httpsOnlyBypass.set(bare, Date.now() + 120000);
-      _showVexPage(contents, _httpsCertNotice(u.host, httpUrl), validatedURL, 'certificate notice');
+      _showVexPage(contents, _httpsCertNotice(u.host, httpUrl), validatedURL, 'certificate notice', validatedURL);
       return;
     }
     _httpsNoHttpsShown.set(contents.id, { bare, httpUrl, failedUrl: validatedURL });
-    _showVexPage(contents, _httpsOnly.noHttpsPage(u.host, httpUrl), validatedURL, 'no-HTTPS page');
+    _showVexPage(contents, _httpsOnly.noHttpsPage(u.host, httpUrl), validatedURL, 'no-HTTPS page', httpUrl);
   });
   // "Continue" on the no-HTTPS page: that site loads over http until Vex
   // closes. Only a click on the page's own link counts: will-navigate is the
