@@ -1,0 +1,43 @@
+ext {
+    // Kept in step with @capacitor/android 8.x — Capacitor's own library builds
+    // against these, and a lower compileSdk here fails the manifest merge.
+    // 26, not Capacitor's 24: ML Kit's GenAI libraries declare minSdk 26
+    // themselves, because AICore does not exist below Android 8.0. The
+    // alternative is tools:overrideLibrary, which installs on Android 7 and then
+    // fails at runtime on a code path that cannot work there anyway. Android 8.0
+    // is from 2017; Gemini Nano is worth more than that tail.
+    minSdkVersion = 26
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    androidxWebkitVersion = '1.14.0'
+    androidxSwipeRefreshVersion = '1.1.0'
+    // 1.1.0 is the newest STABLE biometric; everything after it is alpha, and
+    // 1.4.0 does not exist at all — Gradle said so, having searched for it.
+    // BiometricPrompt, PromptInfo and Authenticators are all here.
+    androidxBiometricVersion = '1.1.0'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+    // On-device AI. Both live on Google's Maven, which is unreachable from the
+    // machine this is written on, so these went in as latest.release for exactly
+    // as long as it took a build to say what that resolved to — these are those
+    // numbers, from run 25. A guessed version is how androidx.biometric:1.4.0,
+    // which does not exist, once reached a build; a dynamic version is how two
+    // machines build different apps from the same commit.
+    litertLmVersion = '0.17.1'
+    // Scrapbook's cut-outs: MediaPipe's interactive segmenter, the version the
+    // AI Edge Gallery builds against (setImage, then segment by strokes).
+    mediapipeTasksVersion = '1.0.0'
+    mlkitGenAiVersion = '1.0.0-beta1'
+    // On-device translation and language identification. Same story as above:
+    // in as latest.release for exactly one build, and these are what run 35's
+    // version report said that resolved to.
+    mlkitTranslateVersion = '17.0.3'
+    mlkitLanguageIdVersion = '17.0.6'
+}

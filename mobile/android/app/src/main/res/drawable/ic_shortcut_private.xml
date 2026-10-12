@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- A hat and a pair of glasses: the same mark the chrome uses for a
+         private tab, flattened to one path pair. -->
+    <path
+        android:fillColor="@color/widget_accent"
+        android:pathData="M6,10 L8,5 C8.2,4.4 8.7,4 9.3,4 L14.7,4 C15.3,4 15.8,4.4 16,5 L18,10 L18,11.5 L6,11.5 Z" />
+    <path
+        android:fillColor="@color/widget_accent"
+        android:pathData="M4,13 L20,13 L20,15 C20,17.2 18.2,19 16,19 C14.5,19 13.2,18.2 12.5,17 L11.5,17 C10.8,18.2 9.5,19 8,19 C5.8,19 4,17.2 4,15 Z" />
+</vector>

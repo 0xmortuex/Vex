@@ -1,0 +1,143 @@
+// Parse-check every chrome script and confirm index.html only references files
+// that exist. The desktop app has scripts/verify-source.js doing this for src/;
+// this is the same check for the mobile chrome, which ships the same way (no
+// bundler, plain <script> tags in load order).
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const root = path.resolve(__dirname, '..');
+const www = path.join(root, 'www');
+const failures = [];
+let checked = 0;
+
+function walk(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : [full];
+  });
+}
+
+for (const file of walk(www)) {
+  const relative = path.relative(root, file);
+  if (file.endsWith('.js')) {
+    checked++;
+    try { new vm.Script(fs.readFileSync(file, 'utf8'), { filename: relative }); }
+    catch (err) { failures.push(relative + ': ' + err.message); }
+  }
+  if (!file.endsWith('.html')) continue;
+  const source = fs.readFileSync(file, 'utf8');
+  for (const match of source.matchAll(/<(?:script|link)\b[^>]*?\b(?:src|href)=["']([^"']+)["']/gi)) {
+    const ref = match[1];
+    if (/^(?:[a-z]+:|\/\/|#)/i.test(ref)) continue;
+    checked++;
+    if (!fs.existsSync(path.resolve(path.dirname(file), ref.split(/[?#]/)[0]))) {
+      failures.push(relative + ': missing ' + ref);
+    }
+  }
+}
+
+// Every setting the chrome reads has to be primed at boot.
+//
+// VexStore.get() answers from a cache that only prime() and set() fill, so a key
+// nobody primed reads as its fallback for ever — the phone's stored value is
+// never looked at. That is a setting which silently resets on every launch, and
+// twice it was a setting whose default is "on" for something that leaves the
+// device. Nothing about it is visible in a diff, so it is checked here.
+{
+  const boot = fs.readFileSync(path.join(www, 'js', 'app.js'), 'utf8');
+  const primed = new Set([...boot.matchAll(/VexStore\.prime\('([\w.]+)'/g)].map(match => match[1]));
+  const read = new Map();
+  for (const file of walk(path.join(www, 'js'))) {
+    if (!file.endsWith('.js')) continue;
+    const source = fs.readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/VexStore\.get\('([\w.]+)'/g)) {
+      if (!read.has(match[1])) read.set(match[1], path.basename(file));
+    }
+  }
+  for (const [key, where] of read) {
+    checked++;
+    if (!primed.has(key)) {
+      failures.push(where + ' reads ' + key + ' but app.js never primes it — it will read its '
+        + 'fallback on every launch, whatever the phone has stored');
+    }
+  }
+}
+
+// Every panel has to be reopenable by the name it pushes on the stack. Back
+// pops the current name, pops the one under it and looks that up in REOPEN; a
+// panel that opened under another panel's name therefore left Back with nothing
+// to pop and closed the whole panel instead of stepping up one, and a name with
+// no REOPEN entry drops you on the page. Both are invisible until you press
+// Back in the one place it happens.
+{
+  const panels = fs.readFileSync(path.join(www, 'js', 'panels.js'), 'utf8');
+  const reopen = new Set([...panels.matchAll(/^    (\w+): \(\) =>/gm)].map(match => match[1]));
+  const opened = new Map();          // stack name -> titles it opens under
+  for (const file of walk(path.join(www, 'js')).filter(name => name.endsWith('.js'))) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/openShell\('(\w+)',\s*'([^']*)'/g)) {
+      if (!opened.has(match[1])) opened.set(match[1], []);
+      opened.get(match[1]).push(match[2]);
+    }
+  }
+  for (const [name, titles] of opened) {
+    checked++;
+    if (!reopen.has(name)) {
+      failures.push('panels.js opens a panel as \'' + name + '\' but REOPEN has no entry for it, '
+        + 'so Back from anything above it closes the panel instead of returning');
+    }
+    if (titles.length > 1) {
+      failures.push('two panels open under the stack name \'' + name + '\' (' + titles.join(', ')
+        + '), so Back from the second one has nothing to pop — give each its own name');
+    }
+  }
+}
+
+// The Android side: every plugin method the bridge calls has to exist, in the
+// plugin it calls it on. A chrome that ships a call into a method nobody wrote
+// fails at runtime, on a device, with "no such method" — which is exactly the
+// class of mistake a check can catch for free.
+const bridge = fs.readFileSync(path.join(www, 'js', 'bridge.js'), 'utf8');
+const javaFiles = walk(path.join(root, 'android', 'app', 'src', 'main', 'java'))
+  .map(file => fs.readFileSync(file, 'utf8'));
+
+const nativeMethods = new Map();   // plugin name -> Set of @PluginMethod names
+for (const source of javaFiles) {
+  const plugin = source.match(/@CapacitorPlugin\(name = "(\w+)"\)/);
+  if (!plugin) continue;
+  const methods = new Set([...source.matchAll(/@PluginMethod[\s\S]{0,160}?public void (\w+)\s*\(/g)].map(match => match[1]));
+  nativeMethods.set(plugin[1], methods);
+}
+
+// call('VexBlock', 'setEnabled', …) and the tabs()/system() shorthands.
+//
+// VexLocalAI is passed its method name by the caller rather than naming it in
+// bridge.js, so the names to check are wherever localAI('…') is written — which
+// is the whole chrome, not one file.
+const chrome = walk(path.join(www, 'js'))
+  .filter(file => file.endsWith('.js'))
+  .map(file => fs.readFileSync(file, 'utf8'))
+  .join('\n');
+
+const calls = [
+  ...[...bridge.matchAll(/call\('(\w+)',\s*'(\w+)'/g)].map(match => [match[1], match[2]]),
+  ...[...bridge.matchAll(/\btabs\('(\w+)'/g)].map(match => ['VexTabs', match[1]]),
+  ...[...bridge.matchAll(/\bsystem\('(\w+)'/g)].map(match => ['VexSystem', match[1]]),
+  ...[...bridge.matchAll(/plugins\.(\w+)\.(\w+)\(\{/g)].map(match => [match[1], match[2]]),
+  ...[...chrome.matchAll(/localAI\('(\w+)'/g)].map(match => ['VexLocalAI', match[1]])
+];
+
+for (const [plugin, method] of calls) {
+  if (['addListener', 'removeAllListeners'].includes(method)) continue;
+  checked++;
+  const methods = nativeMethods.get(plugin);
+  if (!methods) { failures.push('bridge.js calls ' + plugin + '.' + method + '() but no @CapacitorPlugin declares ' + plugin); continue; }
+  if (!methods.has(method)) failures.push('bridge.js calls ' + plugin + '.' + method + '() but ' + plugin + ' has no such @PluginMethod');
+}
+
+if (failures.length) {
+  for (const failure of failures) console.error('FAIL ' + failure);
+  process.exit(1);
+}
+console.log('ok — ' + checked + ' checks passed');

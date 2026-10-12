@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/vex_navy</item>
+        <item name="colorPrimaryDark">@color/vex_navy</item>
+        <item name="colorAccent">@color/vex_navy</item>
+        <!-- The chrome WebView paints the background; a window background of a
+             different colour flashes on rotation. -->
+        <item name="android:windowBackground">@color/vex_cream</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="AppTheme">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+    </style>
+</resources>

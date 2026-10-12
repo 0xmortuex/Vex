@@ -1,0 +1,1 @@
+Chrome UI fonts are bundled from https://github.com/google/fonts/tree/main/ofl on 2026-09-06. Each family includes its SIL Open Font License. Outfit, JetBrains Mono, Space Grotesk and Fraunces use variable fonts; Spectral includes the three weights used by Vex. There is no startup request to Google Fonts.

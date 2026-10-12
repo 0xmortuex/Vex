@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Midnight's paper and Oxford's accent lifted until it reads on it — the same
+     move the chrome's dark themes make. -->
+<resources>
+    <color name="widget_surface">#14161A</color>
+    <color name="widget_stroke">#33FFFFFF</color>
+    <color name="widget_ink">#E8E6E3</color>
+    <color name="widget_accent">#9FB8D4</color>
+</resources>
