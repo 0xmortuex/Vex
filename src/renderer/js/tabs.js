@@ -3395,6 +3395,12 @@ const TabManager = {
   // Opened with the menu key or Shift+F10, focus went nowhere and none of
   // that worked (release check, 2026-10-12).
   _attachMenuDismissal(menu, { keys = false } = {}) {
+    // Any menu opened from the keyboard (the menu key or Shift+F10 on a focused
+    // control: a sidebar button, a history row, a group) is worked from the
+    // keyboard too. Only the tab and address-bar menus asked for it; the rest
+    // opened with focus left behind them and no way in.
+    const viaKeyboard = !keys && !!(window.VexInputModality && window.VexInputModality.keyboard);
+    if (viaKeyboard) keys = true;
     const overlay = document.createElement('div');
     overlay.className = 'context-menu-overlay';
     // z-index 999 sits exactly one below .tab-context-menu's 1000, so the
@@ -3489,12 +3495,14 @@ const TabManager = {
     // Insert overlay before menu in DOM order so the menu (z:1000) wins over
     // the overlay (z:999) at hit-test time even before paint reorders.
     document.body.insertBefore(overlay, menu);
+    if (viaKeyboard) this._menuFromKeyboard(menu);
   },
 
   // A menu with keys opened from the keyboard (the menu key, Shift+F10):
   // focus goes to its first row.
   _menuFromKeyboard(menu) {
-    const first = menu && [...menu.children].find(el => el.classList.contains('tab-context-item') && !el.hidden);
+    const first = menu && ([...menu.children].find(el => el.classList.contains('tab-context-item') && !el.hidden)
+      || menu.querySelector('button:not([disabled])'));
     if (!first) return;
     first.tabIndex = -1;
     first.focus();

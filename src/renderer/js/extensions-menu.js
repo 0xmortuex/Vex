@@ -132,6 +132,12 @@ const ExtensionsMenu = {
     menu.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 14) + 'px';
     this._menu = menu;
     btn.classList.add('active');
+    menu.setAttribute('role', 'menu');
+    menu.querySelectorAll('.ext-menu-item').forEach(r => r.setAttribute('role', 'menuitem'));
+    btn.setAttribute('aria-haspopup', 'menu');
+    btn.setAttribute('aria-expanded', 'true');
+    // Opened with the keyboard: focus goes to the first row.
+    if (btn.matches(':focus-visible')) { const first = menu.querySelector('.ext-menu-item'); if (first) first.focus(); }
 
     // Real Chrome extensions go ABOVE the built-in tools, the way a browser
     // toolbar lists them. Fetched async so the menu still opens instantly.
@@ -142,7 +148,22 @@ const ExtensionsMenu = {
     // also close on window blur (focus moving into the guest fires it) — else
     // the menu stays stuck open when the user clicks the web page.
     this._onDoc = (ev) => { if (this._menu && !this._menu.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) this.close(); };
-    this._onKey = (ev) => { if (ev.key === 'Escape') this.close(); };
+    // From the keyboard: the arrows, Home and End walk the rows, Tab stays in
+    // the menu (it sits at the end of the page, so Tab would never reach it
+    // from the toolbar button), and Escape closes it and gives focus back.
+    this._onKey = (ev) => {
+      if (ev.key === 'Escape') { this.close(); if (btn.isConnected) btn.focus(); return; }
+      if (!this._menu || !this._menu.contains(document.activeElement)) return;
+      const rows = [...this._menu.querySelectorAll('.ext-menu-item, .ext-menu-pin')];
+      const at = rows.indexOf(document.activeElement);
+      let to = null;
+      if (ev.key === 'ArrowDown') to = rows[(at + 1) % rows.length];
+      else if (ev.key === 'ArrowUp') to = rows[(at <= 0 ? rows.length : at) - 1];
+      else if (ev.key === 'Home') to = rows[0];
+      else if (ev.key === 'End') to = rows[rows.length - 1];
+      else if (ev.key === 'Tab' && rows.length) to = ev.shiftKey ? rows[(at <= 0 ? rows.length : at) - 1] : rows[(at + 1) % rows.length];
+      if (to) { ev.preventDefault(); to.focus(); }
+    };
     this._onBlur = () => this.close();
     setTimeout(() => {
       document.addEventListener('mousedown', this._onDoc, true);
@@ -154,6 +175,7 @@ const ExtensionsMenu = {
   close() {
     if (this._menu) { this._menu.remove(); this._menu = null; }
     document.getElementById('btn-extensions')?.classList.remove('active');
+    document.getElementById('btn-extensions')?.setAttribute('aria-expanded', 'false');
     if (this._onDoc) document.removeEventListener('mousedown', this._onDoc, true);
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
     if (this._onBlur) window.removeEventListener('blur', this._onBlur);
@@ -287,6 +309,7 @@ const ExtensionsMenu = {
     usable.forEach(ext => {
       const row = document.createElement('button');
       row.className = 'ext-menu-item';
+      row.setAttribute('role', 'menuitem');
       row.innerHTML = '<span class="ext-menu-ico"></span><span class="ext-menu-text"><span class="ext-menu-label"></span><span class="ext-menu-sub"></span></span>';
       // Its icon and badge: _drawBadge.
       row.querySelector('.ext-menu-label').textContent = ext.name;
