@@ -604,7 +604,92 @@ window.__vexCheckUi = (function () {
     return { roots: roots.length, judged: judged, findings: findings };
   }
 
-  return { audit: audit, freeze: freeze, scanSurface: scanSurface };
+  // Settings laid out in columns (SettingsUI._layout): no section over
+  // another, no gap above a section larger than the spacing between two
+  // (its margin and one grid row), no text cut off, no switch squeezed by a
+  // long label. Full screen and a text-size change once broke all four
+  // (the owner, 2026-10-12: "some gaps in settings and words were broken").
+  function settingsLayout(exceptions, style, label) {
+    freeze();
+    var findings = [];
+    var seen = {};
+    function add(check, el, message, numbers) {
+      for (var i = 0; i < exceptions.length; i++) {
+        var ex = exceptions[i];
+        if (ex.check !== check) continue;
+        if (ex.styles && ex.styles.indexOf(style) === -1) continue;
+        if (el.matches && el.matches(ex.selector)) return;
+      }
+      var key = check + '|' + describe(el) + '|' + message;
+      if (seen[key]) return;
+      seen[key] = 1;
+      findings.push({ check: check, element: describe(el), message: 'Settings (' + label + '): ' + message, numbers: numbers || {} });
+    }
+    var root = document.querySelector('#panel-settings .settings-content');
+    if (!root || !root.clientWidth) return { blocks: 0, findings: findings };
+    var zoom = root.offsetWidth ? root.getBoundingClientRect().width / root.offsetWidth : 1;
+    var blocks = Array.prototype.slice.call(root.children).filter(function (e) {
+      return e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+    });
+    var R = blocks.map(function (e) {
+      var b = e.getBoundingClientRect();
+      return { e: e, l: b.left, r: b.right, t: b.top, b: b.bottom, mb: parseFloat(getComputedStyle(e).marginBottom) || 0 };
+    });
+    for (var i = 0; i < R.length; i++) {
+      var above = null;
+      for (var j = 0; j < R.length; j++) {
+        if (i === j) continue;
+        var ox = Math.min(R[i].r, R[j].r) - Math.max(R[i].l, R[j].l);
+        var oy = Math.min(R[i].b, R[j].b) - Math.max(R[i].t, R[j].t);
+        if (j > i && ox > 1 && oy > 1) {
+          add('settings-overlap', R[i].e, describe(R[i].e) + ' and ' + describe(R[j].e) + ' overlap by ' + n(oy) + 'px', { px: n(oy) });
+        }
+        if (ox > 20 && R[j].b <= R[i].t + 2 && (!above || R[j].b > above.b)) above = R[j];
+      }
+      // The spacing between two sections: the upper one's margin, and up to
+      // one grid row (4px) of rounding, in screen pixels.
+      if (above) {
+        var gap = R[i].t - above.b;
+        var most = (above.mb + 4) * zoom + 2;
+        if (gap > most) add('settings-gap', R[i].e, 'a ' + n(gap) + 'px gap above it (most ' + n(most) + 'px)', { px: n(gap) });
+      }
+    }
+    blocks.forEach(function (blk) {
+      var bb = blk.getBoundingClientRect();
+      var all = blk.querySelectorAll('*');
+      for (var k = 0; k < all.length; k++) {
+        var el = all[k];
+        if (!el.getClientRects().length || /^(INPUT|SELECT|TEXTAREA|OPTION|svg|path|circle|rect|line|polyline|IMG|CANVAS|IFRAME|WEBVIEW)$/i.test(el.tagName)) continue;
+        if (el.closest('details:not([open])') && !el.closest('summary')) continue;
+        var inBox = false;
+        for (var p = el.parentElement; p && p !== blk; p = p.parentElement) {
+          var pc = getComputedStyle(p);
+          if (pc.overflowX !== 'visible' || pc.overflowY !== 'visible') { inBox = true; break; }
+        }
+        if (inBox) continue;
+        var cs = getComputedStyle(el);
+        if (cs.position === 'absolute' || cs.position === 'fixed') continue;
+        var r = el.getBoundingClientRect();
+        if (r.bottom > bb.bottom + 1 || r.right > bb.right + 1) {
+          add('settings-clipped', el, 'reaches ' + n(Math.max(r.bottom - bb.bottom, r.right - bb.right)) + 'px outside its section, which cuts it off', {});
+          continue;
+        }
+        if (!hasOwnText(el) || /(auto|scroll)/.test(cs.overflowX + cs.overflowY)) continue;
+        if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+        if (cs.textOverflow === 'ellipsis' || parseInt(cs.webkitLineClamp, 10) > 0) continue;
+        if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) {
+          add('settings-clipped', el, 'its text is cut off (' + el.scrollWidth + 'x' + el.scrollHeight + ' in ' + el.clientWidth + 'x' + el.clientHeight + ')', {});
+        }
+      }
+    });
+    root.querySelectorAll('.toggle').forEach(function (t) {
+      if (!t.getClientRects().length || t.closest('details:not([open])')) return;
+      if (t.offsetWidth < 39) add('settings-squeezed', t, 'a switch squeezed to ' + t.offsetWidth + 'px wide by the label beside it', { px: t.offsetWidth });
+    });
+    return { blocks: blocks.length, findings: findings };
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout };
 })();
 'installed';
 `;
@@ -723,6 +808,49 @@ async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, sum
     }
   } finally {
     if (newTab) newTab.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SETTINGS LAYOUT — Settings at a 1920x1080 and a 2560x1440 window (the
+// window's size emulated, the real one is whatever it is), in the default
+// layout and the Settings layout choices, judged by settingsLayout() above.
+// ---------------------------------------------------------------------------
+const SETTINGS_SIZES = [[1920, 1080], [2560, 1440]];
+const SETTINGS_LAYOUTS = [
+  { label: 'automatic columns, chips', prefs: null },
+  { label: 'three columns, list on the left, compact', prefs: { columns: '3', nav: 'side', density: 'compact' } },
+  { label: 'two columns, compact', prefs: { columns: '2', nav: 'chips', density: 'compact' } },
+  { label: 'one column', prefs: { columns: '1', nav: 'chips', density: 'comfortable' } },
+];
+
+async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) {
+  try {
+    for (const style of styles) {
+      await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
+      await sleep(250);
+      let count = 0, blocks = 0;
+      for (const [width, height] of SETTINGS_SIZES) {
+        await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+        for (const layout of SETTINGS_LAYOUTS) {
+          const label = width + 'x' + height + ', ' + layout.label;
+          await evaluate(cdp, '(() => { const p = ' + JSON.stringify(layout.prefs) + ';' +
+            " if (p) localStorage.setItem('vex.settingsLayout', JSON.stringify(p)); else localStorage.removeItem('vex.settingsLayout');" +
+            " SidebarManager.openPanel('settings'); SettingsUI.applyLayoutPrefs(); return true; })()");
+          await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
+          await sleep(150);
+          const res = await evaluate(cdp, 'window.__vexCheckUi.settingsLayout(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ')');
+          if (!res.blocks) throw new Error('Settings showed no sections (' + style + ', ' + label + ') — the check would be reporting on nothing');
+          blocks = Math.max(blocks, res.blocks);
+          for (const f of res.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
+          count += res.findings.length;
+        }
+      }
+      summaries.push({ style, colors: 'settings layout', themes: SETTINGS_SIZES.length * SETTINGS_LAYOUTS.length, controls: blocks, colours: 0, findings: count });
+    }
+  } finally {
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await evaluate(cdp, "(localStorage.removeItem('vex.settingsLayout'), SettingsUI.applyLayoutPrefs(), SidebarManager.hideActivePanel(), true)");
   }
 }
 
@@ -885,6 +1013,7 @@ async function evaluate(cdp, expression) {
 
 function styleLabel(style, colors) {
   if (colors === 'surfaces') return style + ' (panels, menus, New Tab)';
+  if (colors === 'settings layout') return style + ' (Settings layouts)';
   return colors ? style + ' (' + colors + ' colours)' : style;
 }
 
@@ -1069,6 +1198,10 @@ async function main() {
     // look and Glass (or the one style asked for, if it is either).
     const surfaceStyles = SURFACE_STYLES.filter(s => runStyles.includes(s));
     if (surfaceStyles.length) await scanSurfaces(cdp, port, EXCEPTIONS, surfaceStyles, themes, findings, summaries);
+    // Settings in columns and in each Settings layout, in the Firefox look
+    // (the owner's), Glass and Classic.
+    const layoutStyles = ['firefox', 'glass', 'classic'].filter(s => runStyles.includes(s));
+    if (layoutStyles.length) await scanSettingsLayout(cdp, EXCEPTIONS, layoutStyles, findings, summaries);
 
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
