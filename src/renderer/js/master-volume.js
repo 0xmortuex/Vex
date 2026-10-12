@@ -411,20 +411,24 @@ const MasterVolume = {
   show() {
     this.close();
     this._injectStyles();
+    const before = document.activeElement;
     const pct = Math.round(this.level() * 100);
     const el = document.createElement('div');
     el.className = 'mastervol-pop';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Master Volume');
     el.innerHTML = `
       <div class="mastervol-head"><span class="mastervol-title">${VexIcons.svg('sliders', { size: 15 })}Master Volume</span> <span class="mastervol-pct">${pct}%</span></div>
       <div class="mastervol-row">
-        <button class="mastervol-mute" title="Mute / unmute">${VexIcons.svg(pct === 0 ? 'mute' : 'volume', { size: 18 })}</button>
-        <input class="mastervol-slider" type="range" min="0" max="500" step="5" value="${pct}">
+        <button class="mastervol-mute" title="Mute / unmute" aria-label="Mute / unmute">${VexIcons.svg(pct === 0 ? 'mute' : 'volume', { size: 18 })}</button>
+        <input class="mastervol-slider" type="range" min="0" max="500" step="5" value="${pct}" aria-label="Master volume, in percent" aria-valuetext="${pct}%">
       </div>
       <div class="mastervol-ticks"><span style="--at:0">0</span><span style="--at:0.2">100</span><span style="--at:0.5">250</span><span style="--at:1">500%</span></div>
       <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
       <div class="mastervol-status" role="status" aria-live="polite" hidden></div>`;
     document.body.appendChild(el);
     this._el = el;
+    this._prevFocus = before;
 
     const slider = el.querySelector('.mastervol-slider');
     const pctEl = el.querySelector('.mastervol-pct');
@@ -436,6 +440,7 @@ const MasterVolume = {
     const set = (p, apply = true) => {
       p = Math.max(0, Math.min(500, Math.round(p)));
       slider.value = p; pctEl.textContent = p + '%';
+      slider.setAttribute('aria-valuetext', p + '%');
       pctEl.style.color = p > 100 ? 'var(--warning, #e8b84a)' : 'var(--primary, #6366f1)';
       mute.innerHTML = VexIcons.svg(p === 0 ? 'mute' : 'volume', { size: 18 });
       if (p > 0) lastNonZero = p;
@@ -451,6 +456,9 @@ const MasterVolume = {
     slider.addEventListener('input', () => set(+slider.value));
     mute.addEventListener('click', () => set(+slider.value === 0 ? lastNonZero : 0));
     set(pct, false); // colourise the % label on open
+    // On the slider at once, so the arrow keys set the level when it was opened
+    // with Ctrl+K: it was a long Tab away from wherever the focus had been.
+    slider.focus({ preventScroll: true });
     if (pct > 100) this._refreshStatus();
     // A page can change what it plays (the next video, a protected one that
     // could not be boosted): the line follows it while the slider is open.
@@ -471,7 +479,15 @@ const MasterVolume = {
   close() {
     clearTimeout(this._statusTimer);
     clearInterval(this._statusPoll);
-    if (this._el) { this._el.remove(); this._el = null; }
+    if (this._el) {
+      this._el.remove(); this._el = null;
+      // Back to what had the focus (the page, a button), unless it already went
+      // somewhere else on its own.
+      const back = this._prevFocus;
+      this._prevFocus = null;
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (back && back !== document.body && back.isConnected && lost && typeof back.focus === 'function') back.focus({ preventScroll: true });
+    }
     if (this._onKey) document.removeEventListener('keydown', this._onKey, true);
     if (this._onDoc) document.removeEventListener('mousedown', this._onDoc, true);
     if (this._onBlur) window.removeEventListener('blur', this._onBlur);
