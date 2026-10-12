@@ -609,6 +609,10 @@ const SidebarManager = {
       // overlay button asking for the pop-out (preload-webview.js). Only tabs
       // relayed these, so a video in a panel never showed the button and its
       // overlay did nothing when the page refused native PiP.
+      if (e.channel === 'vex-pip-geometry') {
+        if (typeof PiPManager !== 'undefined') PiPManager.noteGeometry(wv, (e.args && e.args[0]) || null, panelName);
+        return;
+      }
       if (e.channel === 'vex-video-detected') {
         wv._vexHasVideo = !!(e.args && e.args[0] && e.args[0].hasVideo);
         if (typeof PiPManager !== 'undefined') PiPManager._showButton();

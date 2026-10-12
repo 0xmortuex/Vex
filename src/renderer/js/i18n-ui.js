@@ -21,7 +21,7 @@ const VexI18nUI = {
   // Only inside these. Everything else on screen belongs to the user or to a
   // web page, and must never be rewritten.
   SCOPES: [
-    '#top-bar', '#icon-sidebar', '#tabs-sidebar', '#nav-buttons',
+    '#top-bar', '#icon-sidebar', '#tabs-sidebar', '#nav-buttons', '#pip-btn',
     '.panel-header', '#panel-settings', '#panel-shortcuts', '#panel-memory',
     '#panel-downloads', '#panel-history', '#panel-bookmarks', '#panel-notes',
     '#command-bar', '.vexd-card',
@@ -47,6 +47,18 @@ const VexI18nUI = {
       'Bookmark this page': 'Bu sayfayı yer imlerine ekle',
       'Copy link': 'Bağlantıyı kopyala', 'Copy URL': 'Adresi kopyala',
       'Split Screen': 'Bölünmüş ekran', 'Picture-in-Picture': 'Pencere içinde pencere',
+      // The button over a video (js/pip-manager.js) and its Settings row.
+      'Picture in Picture': 'Pencere içinde pencere',
+      'Picture-in-Picture button on videos': 'Videolardaki pencere içinde pencere düğmesi',
+      'When I hover a video': 'Bir videonun üzerine geldiğimde',
+      'Always show': 'Her zaman göster',
+      'Never show (keyboard shortcut only)': 'Hiç gösterme (yalnızca klavye kısayolu)',
+      'Show it on all sites again': 'Tüm sitelerde yeniden göster',
+      'Picture-in-Picture button hidden for {}': 'Pencere içinde pencere düğmesi şu sitelerde gizli: {}',
+      "Don't show here": 'Burada gösterme',
+      'Show only when I hover a video': 'Yalnızca bir videonun üzerine geldiğimde göster',
+      'Always show on videos': 'Videolarda her zaman göster',
+      'Never show (use Ctrl+Shift+P)': 'Hiç gösterme (Ctrl+Shift+P kullanın)',
       'Edit Layout': 'Düzeni düzenle', 'Extensions': 'Eklentiler',
       'Zoom in': 'Yakınlaştır', 'Zoom out': 'Uzaklaştır', 'Reset zoom': 'Yakınlaştırmayı sıfırla',
       // The toolbar tooltips that stayed English (found 2026-10-10).

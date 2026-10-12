@@ -114,13 +114,10 @@ describe('a video in a web panel', () => {
     expect(window.vex.openPipWindow).toHaveBeenCalledWith('https://www.disneyplus.com/play/abc', { src: 'https://cdn.example.com/a.mp4' }, 21);
   });
 
-  it('shows the toolbar button while the panel plays, and hides it when it stops', () => {
+  it('does not park the button in a corner just because the panel plays (it is placed on the video: pipButton.test.js)', () => {
     const btn = document.getElementById('pip-btn');
     panelWv._vexMediaPlaying = true;
     document.dispatchEvent(new CustomEvent('vex:panel-changed', { detail: { panel: 'site_disney' } }));
-    expect(btn.style.display).toBe('flex');
-    panelWv._vexMediaPlaying = false;
-    document.dispatchEvent(new CustomEvent('vex:panel-changed', { detail: { panel: null } }));
     expect(btn.style.display).toBe('none');
   });
 

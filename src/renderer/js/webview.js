@@ -406,6 +406,12 @@ const WebviewManager = {
         if (typeof TabManager !== 'undefined' && TabManager.setCapturing) TabManager.setCapturing(webview.dataset.tabId, d.kind, d.active);
         return;
       }
+      // Where this page's video is and where the pointer is, for the
+      // Picture-in-Picture button (preload-webview.js vexPipPlace).
+      if (e.channel === 'vex-pip-geometry') {
+        if (typeof PiPManager !== 'undefined') PiPManager.noteGeometry(webview, (e.args && e.args[0]) || null, null);
+        return;
+      }
       if (e.channel === 'vex-video-detected' || e.channel === 'vex-pip-fallback') {
         try {
           const payload = (e.args && e.args[0]) || null;
@@ -696,6 +702,7 @@ const WebviewManager = {
         // only auto-emits video state on a count change (not on tab switch), so
         // hide the button now and ask this guest to re-report.
         try { const b = document.getElementById('pip-btn'); if (b) b.style.display = 'none'; } catch {}
+        try { if (typeof PiPManager !== 'undefined') PiPManager._showButton(); } catch (err) { console.warn('[webview] PiP button refresh failed:', err && err.message); }
         try { if (typeof wv.send === 'function') wv.send('vex-rescan-video'); } catch {}
       }
     });

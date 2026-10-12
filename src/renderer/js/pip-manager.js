@@ -112,6 +112,28 @@ const PiPManager = {
   _source: null,
   _onMessage: null,
 
+  // ---- the button over a video ----
+  // 'hover' (default): shown near the corner of a video while the pointer moves
+  // over it, gone after IDLE_MS of stillness or when the pointer leaves.
+  // 'always': shown on any video the page reports. 'never': not at all; Ctrl+
+  // Shift+P and the command bar still float it. Per device, and synced with the
+  // other settings (the keys are in the sync list in app.js).
+  MODE_KEY: 'vex.pipButton',
+  SITES_KEY: 'vex.pipButtonOff',
+  IDLE_MS: 2500,
+  // How long the button stays after the page says the pointer left the video:
+  // time to cross the few pixels onto the button itself.
+  GRACE_MS: 400,
+  // A pointer report this soon after the window saw the pointer leave is one
+  // the page queued before it left.
+  STALE_MS: 250,
+  SIZE: 32,
+  // page webview -> { g: last report from the page, over, lastMove, leftAt }
+  _geo: new Map(),
+  _pillWv: null,
+  _pillHover: false,
+  _pillTimer: 0,
+
   // Idempotent: a second init() replaces its listener instead of adding one.
   // Two live copies would each mute the source tab and then fight over
   // restoring it.
@@ -158,9 +180,54 @@ const PiPManager = {
     }
     // A panel opening or closing changes which page the button is for.
     if (!this._onPanel) {
-      this._onPanel = () => this._showButton();
+      this._onPanel = () => { this._showButton(); this._syncSettings(); };
       document.addEventListener('vex:panel-changed', this._onPanel);
     }
+    // The pointer going onto any part of Vex's own window (the toolbar, the
+    // sidebar, a menu) means it has left the video. The page is not always told
+    // when the pointer leaves it for the window around, so without this the
+    // button would stay until the idle time ran out.
+    if (!this._onHostPointer) {
+      this._onHostPointer = (ev) => {
+        const t = ev.target;
+        if (!t || t.nodeType !== 1 || t.tagName === 'WEBVIEW' || (t.closest && t.closest('#pip-btn'))) return;
+        const now = Date.now();
+        let changed = false;
+        for (const e of this._geo.values()) {
+          // A report the page had already queued about the pointer on the
+          // video arrives after this (it is throttled); hostLeftAt lets
+          // noteGeometry() tell it from the pointer coming back.
+          e.hostLeftAt = now;
+          if (e.over) { e.over = false; e.leftAt = now; changed = true; }
+        }
+        if (changed) this._showButton();
+      };
+      document.addEventListener('mouseover', this._onHostPointer, true);
+    }
+    // The window changing size moves the page under the button; the page
+    // reports its own new layout shortly after, but until then the button
+    // would sit where the video was.
+    if (!this._onResize) {
+      this._onResize = () => this._showButton();
+      window.addEventListener('resize', this._onResize);
+    }
+    const modeSel = document.getElementById('setting-pip-button');
+    if (modeSel && !modeSel._vexWired) {
+      modeSel._vexWired = true;
+      modeSel.addEventListener('change', () => {
+        try { this.setMode(modeSel.value); }
+        catch (err) { window.showToast?.('The Picture-in-Picture button setting could not be saved: ' + (err && err.message), 'error'); }
+      });
+    }
+    const sitesClear = document.getElementById('setting-pip-sites-clear');
+    if (sitesClear && !sitesClear._vexWired) {
+      sitesClear._vexWired = true;
+      sitesClear.addEventListener('click', () => {
+        try { this.clearHiddenSites(); }
+        catch (err) { window.showToast?.('That could not be saved: ' + (err && err.message), 'error'); }
+      });
+    }
+    this._syncSettings();
     const autoToggle = document.getElementById('setting-auto-pip');
     if (autoToggle && !autoToggle._vexWired) {
       autoToggle._vexWired = true;
@@ -189,11 +256,66 @@ const PiPManager = {
       }
     });
 
-    // PiP button click
+    // The button: it floats the video of the page it is drawn on. Only the
+    // button takes the pointer; the page around it is untouched.
     const pipBtn = document.getElementById('pip-btn');
-    if (pipBtn) {
-      pipBtn.addEventListener('click', () => this.toggle());
+    if (pipBtn && !pipBtn._vexWired) {
+      pipBtn._vexWired = true;
+      pipBtn.addEventListener('click', () => this._pillClick());
+      pipBtn.addEventListener('contextmenu', (ev) => { ev.preventDefault(); this._pillMenu(ev); });
+      pipBtn.addEventListener('mouseenter', () => { this._pillHover = true; });
+      pipBtn.addEventListener('mouseleave', () => {
+        this._pillHover = false;
+        const e = this._pillWv && this._geo.get(this._pillWv);
+        if (e) e.leftAt = Date.now();
+        this._showButton();
+      });
     }
+  },
+
+  // ---- settings ----
+  mode() {
+    try { const v = localStorage.getItem(this.MODE_KEY); return v === 'always' || v === 'never' ? v : 'hover'; }
+    catch { return 'hover'; }
+  },
+  setMode(m) {
+    if (m !== 'hover' && m !== 'always' && m !== 'never') throw new Error('Unknown Picture-in-Picture button setting: ' + m);
+    if (m === 'hover') localStorage.removeItem(this.MODE_KEY); else localStorage.setItem(this.MODE_KEY, m);
+    this._showButton();
+    this._syncSettings();
+    return m;
+  },
+  hiddenSites() {
+    try {
+      const a = JSON.parse(localStorage.getItem(this.SITES_KEY) || '[]');
+      return Array.isArray(a) ? a.filter(h => typeof h === 'string' && h) : [];
+    } catch { return []; }
+  },
+  siteHidden(host) { return !!host && this.hiddenSites().includes(String(host).toLowerCase()); },
+  hideSite(host) {
+    const h = String(host || '').toLowerCase();
+    if (!h) throw new Error('This page has no site name to hide the button on');
+    const list = this.hiddenSites();
+    if (!list.includes(h)) list.push(h);
+    localStorage.setItem(this.SITES_KEY, JSON.stringify(list));
+    this._showButton();
+    this._syncSettings();
+  },
+  clearHiddenSites() {
+    localStorage.removeItem(this.SITES_KEY);
+    this._showButton();
+    this._syncSettings();
+  },
+  // Settings shows the choice and, when there are any, the sites it is off on.
+  _syncSettings() {
+    const sel = document.getElementById('setting-pip-button');
+    if (sel && sel.value !== this.mode()) sel.value = this.mode();
+    const row = document.getElementById('setting-pip-sites-row');
+    if (!row) return;
+    const sites = this.hiddenSites();
+    row.style.display = sites.length ? '' : 'none';
+    const text = document.getElementById('setting-pip-sites-text');
+    if (text) text.textContent = 'Picture-in-Picture button hidden for ' + sites.join(',');
   },
 
   // Mute and pause the tab the pop-out is showing, so the same video isn't
@@ -234,7 +356,9 @@ const PiPManager = {
     try { wv.setAudioMuted(false); } catch (err) { console.warn('[PiP] could not un-mute the source tab:', err && err.message); }
   },
 
-  async toggle() {
+  // `opts.target` ({ wv, panel, tab }) floats that page's video only: the
+  // button over a video means THAT video, not whichever scores best.
+  async toggle(opts) {
     // If the pop-out PiP window is up, this press closes it. The button and
     // Ctrl+Shift+P are advertised as a toggle but previously had no way of
     // turning PiP back off at all.
@@ -244,7 +368,7 @@ const PiPManager = {
     }
 
     const wv = WebviewManager.getActiveWebview();
-    const targets = this._targets();
+    const targets = opts && opts.target ? [opts.target] : this._targets();
     if (!targets.length && (!wv || typeof wv.send !== 'function')) {
       window.showToast?.('No page to put in Picture-in-Picture', 'error');
       return;
@@ -326,13 +450,164 @@ const PiPManager = {
     return this._openPopout(this._panelTab({ wv, panel, tab: null }), media || null);
   },
 
+  // A page told us where its video is and where the pointer is (guest
+  // preload-webview.js, "vex-pip-geometry"). `panel` names the web panel the
+  // page is in, null for a tab.
+  noteGeometry(wv, g, panel) {
+    if (!wv || !g || typeof g !== 'object') return;
+    const now = Date.now();
+    let e = this._geo.get(wv);
+    if (!e) { e = { g: null, panel: null, over: false, lastMove: 0, leftAt: 0 }; this._geo.set(wv, e); }
+    const wasOver = e.over;
+    e.g = g;
+    e.panel = panel || null;
+    // A report that is not about the pointer (the page scrolled, a video
+    // started) repeats where the pointer last was and says nothing new about
+    // whether it is still there: the window around the page sees it leave
+    // (the mouseover handler in init()), the page may not.
+    if (g.ptr !== 0) {
+      const stale = g.over && e.hostLeftAt && now - e.hostLeftAt < this.STALE_MS;
+      e.over = !!g.over && !stale;
+      if (e.over) e.lastMove = now; else if (wasOver) e.leftAt = now;
+    }
+    this._showButton();
+  },
+
+  // Where the button goes now, or null for nowhere. Pure of the DOM except for
+  // the rect of the page and a check that nothing (a menu, a dialog, a panel)
+  // is on top of it.
+  _plan(now) {
+    const mode = this.mode();
+    if (mode === 'never') return null;
+    let targets = [];
+    try { targets = this._targets(); } catch (err) { console.warn('[PiP] no pages to place the button on:', err && err.message); }
+    let best = null, bestScore = -1;
+    for (const [wv, e] of [...this._geo]) {
+      if (!wv || wv.isConnected === false) { this._geo.delete(wv); continue; }
+      const g = e.g;
+      if (!g || !g.rect || !g.btn || !(g.vw > 0)) continue;
+      if (!targets.some(t => t.wv === wv)) continue;           // a page that is not showing
+      if (this.siteHidden(g.host)) continue;
+      // A video inside another site's frame: only believed while Chromium says
+      // the page is playing something, or any ad frame would get the button.
+      if (g.frame && !wv._vexMediaPlaying) continue;
+      const onButton = this._pillHover && this._pillWv === wv;
+      // A frame hides the pointer's movement from the page; being over it is all
+      // there is to go on, so it stays while the pointer is.
+      const moved = e.over && (g.frame || now - e.lastMove <= this.IDLE_MS);
+      const justLeft = !e.over && e.leftAt && now - e.leftAt <= this.GRACE_MS;
+      let show;
+      if (g.fullscreen) show = moved || onButton;               // never over a fullscreen video at rest
+      else if (mode === 'always') show = true;
+      else show = moved || justLeft || onButton;
+      if (!show) continue;
+      const score = (onButton ? 4 : 0) + (moved ? 2 : 0) + (g.playing ? 1 : 0);
+      if (score > bestScore) { best = { wv, e }; bestScore = score; }
+    }
+    if (!best) return null;
+    const { wv, e } = best;
+    let r;
+    try { r = wv.getBoundingClientRect(); } catch (err) { console.warn('[PiP] could not measure the page:', err && err.message); return null; }
+    if (!r || !(r.width > 0) || !(r.height > 0)) return null;
+    const s = r.width / e.g.vw;
+    const size = this.SIZE;
+    const x = Math.min(Math.max(r.left + e.g.btn.x * s, r.left), r.right - size);
+    const y = Math.min(Math.max(r.top + e.g.btn.y * s, r.top), r.bottom - size);
+    // Hide rather than draw over a menu or a dialog (a panel on top of the page).
+    if (typeof document.elementFromPoint === 'function') {
+      const top = document.elementFromPoint(x + size / 2, y + size / 2);
+      const pipBtn = document.getElementById('pip-btn');
+      if (top && top !== wv && !(pipBtn && pipBtn.contains(top)) && !wv.contains(top)) return null;
+    }
+    // Come back to re-check when the idle period or the grace runs out; there
+    // is nothing to wait for when it is shown regardless (Always show).
+    let next = 0;
+    if (mode !== 'always' || e.g.fullscreen) {
+      let left = 0;
+      if (!e.g.frame && e.over) left = this.IDLE_MS - (now - e.lastMove);
+      else if (!e.over && e.leftAt) left = this.GRACE_MS - (now - e.leftAt);
+      if (left > 0) next = left + 30;
+    }
+    return { wv, x, y, size, corner: e.g.btn.corner, next };
+  },
+
+  // Draw the button where _plan() says, or take it away.
   _showButton() {
     const pipBtn = document.getElementById('pip-btn');
     if (!pipBtn) return;
-    let wv = null;
-    try { wv = WebviewManager.getActiveWebview(); } catch { wv = null; }
-    const panelHasVideo = this._targets().some(t => t.panel && (t.wv._vexMediaPlaying || t.wv._vexHasVideo));
-    pipBtn.style.display = (this.videoDetected || (wv && wv._vexMediaPlaying) || panelHasVideo) ? 'flex' : 'none';
+    if (this._pillTimer) { clearTimeout(this._pillTimer); this._pillTimer = 0; }
+    const plan = this._plan(Date.now());
+    if (!plan) {
+      pipBtn.style.display = 'none';
+      this._pillWv = null;
+      this._pillHover = false;
+      return;
+    }
+    this._pillWv = plan.wv;
+    pipBtn.style.left = Math.round(plan.x) + 'px';
+    pipBtn.style.top = Math.round(plan.y) + 'px';
+    pipBtn.dataset.corner = plan.corner || '';
+    pipBtn.style.display = 'flex';
+    if (plan.next > 0) this._pillTimer = setTimeout(() => { this._pillTimer = 0; this._showButton(); }, plan.next);
+  },
+
+  _pillClick() {
+    const wv = this._pillWv;
+    const target = wv ? this._targets().find(t => t.wv === wv) : null;
+    return this.toggle(target ? { target } : undefined);
+  },
+
+  // Right-click on the button: leave it off on this site, or change how it shows.
+  _pillMenu(ev) {
+    const e = this._pillWv && this._geo.get(this._pillWv);
+    const host = e && e.g && e.g.host;
+    const t = (s) => (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup ? VexI18nUI.lookup(s) : null) || s;
+    const items = [];
+    if (host) {
+      items.push({ label: t("Don't show here"), action: () => {
+        try {
+          this.hideSite(host);
+          window.showToast?.('The Picture-in-Picture button is hidden on ' + host + '. Settings brings it back.');
+        } catch (err) { window.showToast?.('That could not be saved: ' + (err && err.message), 'error'); }
+      } });
+    }
+    const mode = this.mode();
+    const set = (m) => () => {
+      try { this.setMode(m); } catch (err) { window.showToast?.('That could not be saved: ' + (err && err.message), 'error'); }
+    };
+    if (mode !== 'hover') items.push({ label: t('Show only when I hover a video'), action: set('hover') });
+    if (mode !== 'always') items.push({ label: t('Always show on videos'), action: set('always') });
+    items.push({ label: t('Never show (use Ctrl+Shift+P)'), action: set('never') });
+    return this._openMenu(items, ev.clientX, ev.clientY);
+  },
+
+  _openMenu(items, x, y) {
+    document.querySelectorAll('.tab-context-menu, .tab-group-context-menu, .context-menu-overlay').forEach(m => m.remove());
+    const menu = document.createElement('div');
+    menu.className = 'tab-context-menu';
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    const dismiss = () => {
+      if (typeof TabManager !== 'undefined' && typeof TabManager._dismissMenu === 'function') TabManager._dismissMenu(menu);
+      else menu.remove();
+    };
+    for (const item of items) {
+      const el = document.createElement('div');
+      el.className = 'tab-context-item';
+      el.textContent = item.label;
+      el.addEventListener('click', () => { dismiss(); item.action(); });
+      menu.appendChild(el);
+    }
+    document.body.appendChild(menu);
+    if (typeof TabManager !== 'undefined' && typeof TabManager._clampMenuToViewport === 'function') TabManager._clampMenuToViewport(menu, x, y);
+    if (typeof TabManager !== 'undefined' && typeof TabManager._attachMenuDismissal === 'function') TabManager._attachMenuDismissal(menu);
+    else {
+      const close = () => { menu.remove(); document.removeEventListener('click', onClick, true); document.removeEventListener('keydown', onKey, true); };
+      const onClick = (ev) => { if (!menu.contains(ev.target)) close(); };
+      const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+      setTimeout(() => { document.addEventListener('click', onClick, true); document.addEventListener('keydown', onKey, true); }, 0);
+    }
+    return menu;
   },
 
   // The pop-out window: for a frame that may not use native PiP (a site's

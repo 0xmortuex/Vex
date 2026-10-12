@@ -70,10 +70,10 @@ const MP4 = { src: 'https://cdn.example.com/clip.mp4', currentTime: 42, paused: 
 const detected = (hasVideo) => window.dispatchEvent(new MessageEvent('message', { data: { type: 'vex-video-detected', hasVideo } }));
 const flush = () => new Promise(r => setTimeout(r, 0));
 
-describe('the toolbar button follows the page', () => {
-  it('appears when the active page has video and hides when it does not', () => {
+describe('the video report from the page', () => {
+  it('is remembered, but no longer parks a button in the window corner (pipButton.test.js)', () => {
     detected(true);
-    expect(document.getElementById('pip-btn').style.display).toBe('flex');
+    expect(document.getElementById('pip-btn').style.display).toBe('none');
     expect(PiPManager.videoDetected).toBe(true);
 
     detected(false);

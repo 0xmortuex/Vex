@@ -919,56 +919,191 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     }
   }
 
-  // Inject PiP button overlay on each video
-  function setupVideoPipButtons() {
-    const videos = document.querySelectorAll('video');
-    videos.forEach(video => {
-      if (video._vexPipSetup) return;
-      video._vexPipSetup = true;
+  // ---- Where Vex's Picture-in-Picture button goes -------------------------
+  //
+  // The button used to be a permanent pill in the window's bottom-right corner
+  // and, on top of it, a second "PiP" button injected into the page at the top
+  // right of each video. Both sat on top of the page's own controls (a
+  // player's volume / settings / fullscreen icons, chat bubbles, cookie
+  // banners, sticky bars) and swallowed the clicks meant for them (owner's
+  // report, 2026-10-12).
+  //
+  // Now the HOST draws one small button, only while it is useful, and the page
+  // says where. This script finds the video, then picks the first corner of it
+  // where nothing clickable is: the candidate square (plus a little padding)
+  // is probed with elementsFromPoint, and any control above the video there
+  // (a button, a link, a slider, anything that shows a pointer cursor, the
+  // site's own PiP or fullscreen button) makes the corner "taken". When every
+  // corner is taken it answers btn: null and the host draws nothing at all.
+  // Plain function of (document, window, options) so tests can drive it.
+  // ---- vexPipPlace begin ----
+  function vexPipPlace(doc, win, o) {
+    o = o || {};
+    const GAP = 8, PAD = 6;
+    const SIZE = Math.max(16, Math.round(32 / (o.zoom > 0 ? o.zoom : 1)));
+    const vw = win.innerWidth || 0, vh = win.innerHeight || 0;
+    const INTERACTIVE = 'a[href],button,input,select,textarea,summary,label,[role="button"],[role="slider"],[role="link"],[role="menuitem"],[role="switch"],[role="checkbox"],[role="tab"],[role="option"],[tabindex]:not([tabindex="-1"]),[onclick],[contenteditable=""],[contenteditable="true"]';
 
-      const btn = document.createElement('button');
-      btn.textContent = '\u29C9 PiP';
-      btn.setAttribute('data-vex-pip', '1');
-      btn.setAttribute('aria-label', 'Picture-in-Picture');
-      btn.style.cssText = 'position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.7);color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;z-index:999999;opacity:0;transition:opacity 0.2s;pointer-events:auto;font-family:sans-serif';
-
-      const wrapper = video.parentElement;
-      if (wrapper && getComputedStyle(wrapper).position === 'static') {
-        wrapper.style.position = 'relative';
+    // Closed shadow roots are listed by the preload (window.__vexClosedRoots).
+    const roots = [doc].concat(o.roots || []);
+    const closedHosts = new Map();
+    if (Array.isArray(win.__vexClosedRoots)) {
+      for (const w of win.__vexClosedRoots) {
+        const r = w && typeof w.deref === 'function' ? w.deref() : null;
+        if (r && r.host && r.host.isConnected) { closedHosts.set(r.host, r); roots.push(r); }
       }
-      if (!wrapper) return;   // nothing to anchor to; don't build an orphan
-      wrapper.appendChild(btn);
-      // One pair of listeners per wrapper, however many videos it holds.
-      if (!wrapper._vexPipHover) {
-        wrapper._vexPipHover = true;
-        wrapper.addEventListener('mouseenter', () => {
-          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '1'; });
-        });
-        wrapper.addEventListener('mouseleave', () => {
-          wrapper.querySelectorAll('button[data-vex-pip]').forEach(b => { b.style.opacity = '0'; });
-        });
-      }
+    }
+    const els = [];
+    if (o.frame) els.push(o.frame);
+    else for (const root of roots) for (const v of root.querySelectorAll('video')) if (els.indexOf(v) < 0) els.push(v);
 
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        try {
-          if (document.pictureInPictureElement) {
-            await document.exitPictureInPicture();
-            return;
-          }
-          if (!document.pictureInPictureEnabled) throw new Error('this page does not allow Picture-in-Picture');
-          await video.requestPictureInPicture();
-        } catch (err) {
-          // Ask the host for the pop-out window, exactly as the toolbar button
-          // does — otherwise this button is a no-op on every page that blocks
-          // native PiP.
-          console.warn('[Vex PiP] native PiP refused, falling back:', err && err.message);
-          try { ipcRenderer.sendToHost('vex-pip-fallback', describeVideo(video)); } catch { /* host gone */ }
+    const cands = [];
+    for (const v of els) {
+      if (!o.frame && !(v.currentSrc || v.src || v.srcObject)) continue;
+      const r = v.getBoundingClientRect();
+      const l = Math.max(0, r.left), t = Math.max(0, r.top), rr = Math.min(vw, r.right), b = Math.min(vh, r.bottom);
+      const w = rr - l, h = b - t;
+      if (w < 160 || h < 90) continue;
+      if (!o.frame) { const cs = win.getComputedStyle(v); if (cs.visibility === 'hidden' || cs.display === 'none') continue; }
+      cands.push({ v, l, t, r: rr, b, w, h, playing: !o.frame && !v.paused && !v.ended });
+    }
+    const none = { vw, vh, rect: null, btn: null, over: false, frame: !!o.frame, count: els.length };
+    if (!cands.length) return none;
+
+    // The video under the pointer (the smallest one, for a preview inside a
+    // player), else the best one: playing first, then the largest.
+    const p = o.pointer;
+    let pick = null;
+    if (o.frame) pick = cands[0];
+    else if (p) {
+      for (const c of cands) if (p.x >= c.l && p.x <= c.r && p.y >= c.t && p.y <= c.b && (!pick || c.w * c.h < pick.w * pick.h)) pick = c;
+    }
+    const over = !!pick;
+    if (!pick) pick = cands.slice().sort((a, b) => ((b.playing ? 1 : 0) - (a.playing ? 1 : 0)) || (b.w * b.h - a.w * a.h))[0];
+
+    // The video and everything it sits inside, across shadow boundaries.
+    const ancestors = new Set();
+    for (let n = pick.v; n; n = n.parentNode || n.host) ancestors.add(n);
+
+    const stackAt = (x, y) => {
+      const out = [];
+      for (const el of doc.elementsFromPoint(x, y)) {
+        const sr = el.shadowRoot || closedHosts.get(el);
+        if (sr && typeof sr.elementsFromPoint === 'function') for (const inner of sr.elementsFromPoint(x, y)) if (inner !== el) out.push(inner);
+        out.push(el);
+      }
+      return out;
+    };
+    const blocks = (el) => {
+      if (el === doc.documentElement || el === doc.body || el.nodeType !== 1) return false;
+      const r = el.getBoundingClientRect();
+      // A layer laid over the whole video (a click-to-pause surface) is not a control.
+      if (r.width >= pick.w * 0.9 && r.height >= pick.h * 0.9) return false;
+      if (el.matches(INTERACTIVE) || (el.closest && el.closest(INTERACTIVE))) return true;
+      return win.getComputedStyle(el).cursor === 'pointer';
+    };
+    const free = (c) => {
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const x = Math.min(vw - 1, Math.max(0, c.x - PAD + (i / 2) * (SIZE + 2 * PAD)));
+        const y = Math.min(vh - 1, Math.max(0, c.y - PAD + (j / 2) * (SIZE + 2 * PAD)));
+        for (const el of stackAt(x, y)) {
+          if (ancestors.has(el)) break;            // reached the video itself: nothing above it here
+          if (blocks(el)) return false;
         }
-      });
-    });
+      }
+      return true;
+    };
+    const R = pick.r - GAP - SIZE, L = pick.l + GAP, T = pick.t + GAP, B = pick.b - GAP - SIZE;
+    const midY = Math.round(pick.t + pick.h * 0.35);
+    const cornersInOrder = [
+      { corner: 'top-right', x: R, y: T }, { corner: 'top-left', x: L, y: T },
+      { corner: 'top-right-low', x: R, y: T + SIZE + GAP }, { corner: 'top-left-low', x: L, y: T + SIZE + GAP },
+      { corner: 'right', x: R, y: midY }, { corner: 'left', x: L, y: midY },
+      { corner: 'bottom-right', x: R, y: B - 72 }, { corner: 'bottom-left', x: L, y: B - 72 },
+    ];
+    let btn = null;
+    for (const c of cornersInOrder) {
+      if (c.x < pick.l + 2 || c.y < pick.t + 2 || c.x + SIZE > pick.r - 2 || c.y + SIZE > pick.b - 2) continue;
+      if (free(c)) { btn = { x: Math.round(c.x), y: Math.round(c.y), corner: c.corner, size: SIZE }; break; }
+    }
+    return {
+      vw, vh, over, frame: !!o.frame, count: els.length, btn,
+      rect: { l: Math.round(pick.l), t: Math.round(pick.t), w: Math.round(pick.w), h: Math.round(pick.h) },
+      playing: pick.playing, fullscreen: !!doc.fullscreenElement, inPip: !!doc.pictureInPictureElement,
+      host: String((win.location && win.location.hostname) || ''),
+    };
+  }
+  // ---- vexPipPlace end ----
+
+  // Tell the host where the button would go, and whether the pointer is over
+  // the video. Pointer events are reported at most ~12 times a second; layout
+  // changes (scroll, resize, fullscreen, play/pause) a little more slowly.
+  let webFrame = null;
+  try { webFrame = require('electron').webFrame; } catch { webFrame = null; }
+  const pipState = { pointer: null, frame: null, last: '', timer: 0, ptr: false, roots: [], rootsAt: 0 };
+  function pipZoom() { try { const z = webFrame && webFrame.getZoomFactor(); return z > 0 ? z : 1; } catch { return 1; } }
+  // Open shadow roots, found by walking the page; cached because the walk is
+  // costly and only a pointer over a custom player element needs it.
+  function pipFindRoots() {
+    const now = Date.now();
+    if (now - pipState.rootsAt < 3000) return pipState.roots;
+    pipState.rootsAt = now;
+    const out = [];
+    try {
+      const tw = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+      let n, seen = 0;
+      while ((n = tw.nextNode()) && seen++ < 20000) if (n.shadowRoot) out.push(n.shadowRoot);
+    } catch (err) { console.warn('[Vex PiP] could not list shadow roots:', err && err.message); }
+    pipState.roots = out;
+    return out;
+  }
+  // `ptr` says this report is about the pointer (it moved or left). Any other
+  // report (a scroll, the page playing) still carries the last pointer position
+  // so the same video is placed, but must not be read as "the pointer is here":
+  // the pointer may have left for the window around without the page hearing.
+  function pipReport(deep, ptr) {
+    let g;
+    try {
+      g = vexPipPlace(document, window, { pointer: pipState.pointer, zoom: pipZoom(), frame: pipState.frame, roots: deep ? pipFindRoots() : pipState.roots });
+    } catch (err) { console.warn('[Vex PiP] could not place the button:', err && err.message); return; }
+    g.ptr = ptr ? 1 : 0;
+    const key = JSON.stringify(g);
+    // While the pointer moves over a video every report is a sign of life (the
+    // host hides the button after a pause); otherwise only changes matter.
+    if (!(ptr && g.over) && key === pipState.last) return;
+    pipState.last = key;
+    try { ipcRenderer.sendToHost('vex-pip-geometry', g); } catch { /* host gone */ }
+  }
+  function pipSoon(ms, deep, ptr) {
+    if (ptr) pipState.ptr = true;
+    if (pipState.timer) return;
+    pipState.timer = setTimeout(() => { pipState.timer = 0; const p = pipState.ptr; pipState.ptr = false; pipReport(deep, p); }, ms);
+  }
+  document.addEventListener('mousemove', (e) => { pipState.pointer = { x: e.clientX, y: e.clientY }; pipSoon(80, true, true); }, { capture: true, passive: true });
+  // A video inside a frame of another site is invisible to this script; the
+  // pointer entering that frame is all it learns, so the frame stands in.
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IFRAME') { pipState.frame = t; pipState.pointer = null; pipSoon(0, true, true); }
+  }, true);
+  document.addEventListener('mouseout', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IFRAME' && pipState.frame === t) { pipState.frame = null; pipSoon(0, false, true); return; }
+    if (!e.relatedTarget) { pipState.pointer = null; pipSoon(0, false, true); }
+  }, true);
+  for (const ev of ['scroll', 'resize', 'fullscreenchange', 'play', 'pause', 'loadedmetadata', 'emptied', 'enterpictureinpicture', 'leavepictureinpicture']) {
+    (ev === 'resize' || ev === 'fullscreenchange' ? window : document).addEventListener(ev, () => pipSoon(120, false), true);
+  }
+  // A new document: forget what the host knew of the last one.
+  try { ipcRenderer.sendToHost('vex-pip-geometry', { rect: null, btn: null, over: false }); } catch { /* host gone */ }
+
+  // The page's own "PiP" overlay button that used to be injected here is gone:
+  // it sat in the top-right corner of every video, over the page's own
+  // controls, and the "Never show" choice in Settings could not switch it off. The host's
+  // button does the same job and gets out of the way.
+  function setupVideoPipButtons() {
     checkForVideos();
+    pipReport(false);
   }
 
   // Run on load and on DOM changes
@@ -999,7 +1134,7 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   // Host asks for a fresh video report when this tab becomes active (a tab
   // switch isn't a video-count change, so checkForVideos wouldn't otherwise
   // re-emit). Resetting lastVideoCount forces the next check to report.
-  ipcRenderer.on('vex-rescan-video', () => { lastVideoCount = -1; checkForVideos(); });
+  ipcRenderer.on('vex-rescan-video', () => { lastVideoCount = -1; checkForVideos(); pipState.last = ''; pipReport(true); });
 
   // Listen for a PiP request from the host toolbar button. Comes over the
   // webview IPC channel (wv.send), not window.postMessage — the host can't reach

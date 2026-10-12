@@ -501,12 +501,13 @@ describe('Picture-in-Picture from Vex', () => {
     expect(calls).toEqual(['scan']);
   });
 
-  it('shows the button for a video playing in an embedded frame', () => {
+  it('notes a video playing in an embedded frame, which lets the button be drawn over that frame (pipButton.test.js)', () => {
     wv.tagName = 'WEBVIEW';
     const ev = new Event('media-started-playing');
     Object.defineProperty(ev, 'target', { value: wv });
     PiPManager._onMedia(ev);
-    expect(document.getElementById('pip-btn').style.display).toBe('flex');
+    expect(wv._vexMediaPlaying).toBe(true);
+    expect(document.getElementById('pip-btn').style.display).toBe('none');
     delete wv._vexMediaPlaying;
   });
 });
