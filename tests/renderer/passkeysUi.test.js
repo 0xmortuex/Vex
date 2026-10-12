@@ -314,6 +314,8 @@ describe('found 2026-10-12 by driving the sheet', () => {
     const src = require('node:fs').readFileSync('src/preload-passkeys.js', 'utf8');
     expect(src).toContain("sendToHost('vex-passkey-field-key'");
     expect(src).toMatch(/key === 'Enter' && navigating/);
+    // and never for a key event a page made up itself: Enter takes a passkey
+    expect(src).toMatch(/!e\.isTrusted \|\| !shown/);
   });
 
   it('draws a button that cannot be pressed as one (the dialog stylesheet has a disabled rule)', async () => {

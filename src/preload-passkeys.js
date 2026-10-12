@@ -287,7 +287,9 @@ function vexPasskeyShim(bridge, mode) {
   window.addEventListener('resize', hideChooser);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hideChooser(); return; }
-    if (!shown || e.target !== shown || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    // Only a key the person pressed: a page can dispatch key events of its own,
+    // and Enter here signs in with a passkey.
+    if (!e.isTrusted || !shown || e.target !== shown || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const key = e.key;
     if (key === 'ArrowDown' || key === 'ArrowUp' || (key === 'Enter' && navigating)) {
       e.preventDefault();
