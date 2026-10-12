@@ -272,6 +272,8 @@ const VexFeatures = {
       what: 'Sends the selected text into your notes with a link back to where it came from.' },
     { id: 'gaming', phrases: 'gaming game fps performance while playing', cat: 'media', name: 'Gets out of a game’s way', manual: true, setting: { section: 'gaming-settings', label: 'Gaming and streaming' },
       what: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and holds background AI — and tells you what it did when you come back. Settings › Privacy Hardening › Gaming and streaming.' },
+    { id: 'game-control-center', phrases: 'game control center gcc game boost bypass overlay gamma light launch open my game app', cat: 'media', cmd: 'game-control-center', name: 'Open Game Control Center', setting: { section: 'gaming-settings', label: 'Gaming and streaming' },
+      what: 'Starts your separate Game Control Center app (bypass, game boost, network, overlay and gamma light). Vex finds it by itself; if it is somewhere else, say where in Settings.' },
     { id: 'record-screen', phrases: 'record video capture screen recording film my screen', cat: 'media', cmd: 'record-screen',
       what: 'Record a screen or a window, with its sound, to a video file — no recorder to install. Written to disk as it goes, so a long recording never fills memory.' },
     { id: 'whiteboard', cat: 'media', cmd: 'whiteboard',
@@ -609,7 +611,7 @@ const VexFeatures = {
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
-      { name: 'Games and calls', ids: ['gaming', 'screenshare'] },
+      { name: 'Games and calls', ids: ['gaming', 'game-control-center', 'screenshare'] },
     ],
     panels: [
       { name: 'The apps', ids: ['panel-whatsapp', 'panel-discord', 'panel-spotify', 'panel-netflix', 'panel-claude', 'panel-github', 'panel-roblox'] },

@@ -373,6 +373,36 @@ GameMode.onGameEnd = function () {
   return r;
 };
 
+// ---- Game Control Center (the owner's separate app) -------------------------
+// Main finds and starts it (src/main/game-control-center.js); this only asks.
+GameMode._t = function (s) {
+  try { return (typeof VexI18nUI !== 'undefined' && VexI18nUI.lookup(s)) || s; } catch { return s; }
+};
+
+GameMode.openControlCenter = async function () {
+  const b = window.vex;
+  if (!b || typeof b.gccLaunch !== 'function') throw new Error('Game Control Center cannot be started from this window');
+  const r = await b.gccLaunch();
+  if (r.ok) { window.showToast?.(this._t('Opened Game Control Center'), 'success'); return r; }
+  const where = (r.looked || []).join('; ');
+  const why = (r.refused && r.refused.length) ? ' ' + r.refused.join('; ') + '.' : '';
+  window.showToast?.(r.error + (where ? '. Looked in: ' + where + '.' : '.') + why, 'error', 15000, {
+    action: { label: this._t('Choose location…'), title: 'Pick Game Control Center.exe', run: () => this.chooseControlCenter(true) },
+  });
+  return r;
+};
+
+GameMode.chooseControlCenter = async function (thenLaunch) {
+  const b = window.vex;
+  if (!b || typeof b.gccPick !== 'function') throw new Error('Game Control Center cannot be set from this window');
+  const r = await b.gccPick();
+  if (r.cancelled) return r;
+  if (!r.ok) { window.showToast?.(r.error, 'error', 8000); return r; }
+  window.showToast?.(this._t('Game Control Center location saved'), 'success');
+  if (thenLaunch) await this.openControlCenter();
+  return r;
+};
+
 GameMode.renderGamingSettings = function (host) {
   host = host || document.getElementById('gaming-settings');
   if (!host) return;
@@ -399,6 +429,27 @@ GameMode.renderGamingSettings = function (host) {
     host.appendChild(row);
   }
   if (typeof SleepConsent !== 'undefined') SleepConsent.renderSettingsState(host);
+  // Where Game Control Center is. Normally found by itself (Start menu,
+  // installed programs, Program Files); this is for when it is somewhere else.
+  if (window.vex && typeof window.vex.gccGet === 'function') {
+    const row = document.createElement('div');
+    row.className = 'setting-toggle-row';
+    row.innerHTML = '<span></span><span class="gcc-where" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="gcc-path muted"></span><button class="gcc-browse" type="button">Browse…</button><button class="gcc-auto" type="button">Find it automatically</button></span>';
+    row.querySelector(':scope > span').textContent = GameMode._t('Game Control Center location');
+    const pathEl = row.querySelector('.gcc-path');
+    const autoBtn = row.querySelector('.gcc-auto');
+    row.querySelector('.gcc-browse').textContent = GameMode._t('Browse…');
+    autoBtn.textContent = GameMode._t('Find it automatically');
+    const paint = async () => {
+      const r = await window.vex.gccGet();
+      pathEl.textContent = r.path || GameMode._t('Found automatically');
+      autoBtn.hidden = !r.path;
+    };
+    row.querySelector('.gcc-browse').addEventListener('click', () => GameMode.chooseControlCenter(false).then(paint));
+    autoBtn.addEventListener('click', async () => { await window.vex.gccClear(); await paint(); });
+    host.appendChild(row);
+    paint().catch(err => window.showToast?.('Could not read the Game Control Center location: ' + err.message, 'error'));
+  }
   // How long a model stays loaded after the AI answers — games or not.
   if (typeof Ollama !== 'undefined' && Ollama.setKeepAlive) {
     const row = document.createElement('div');

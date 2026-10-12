@@ -32,7 +32,10 @@ const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpape
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // The agreement at start (js/legal.js): its documents, its "Quit Vex", and
   // whether it is up (main holds its keys back meanwhile).
-  'legal:read', 'app:quit', 'legal:gate']);
+  'legal:read', 'app:quit', 'legal:gate',
+  // Starting the owner's Game Control Center and choosing where it is
+  // (main/game-control-center.js): launching a program is never a page's call.
+  'gcc:launch', 'gcc:get', 'gcc:pick', 'gcc:clear']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

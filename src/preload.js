@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('vex', {
   // The agreement at start (js/legal.js): a shipped document's text, and quitting Vex.
   legalRead: (name) => ipcRenderer.invoke('legal:read', name),
   quitApp: () => ipcRenderer.invoke('app:quit'),
+  // Game Control Center (Ctrl+K, and its row in Settings): start it, read or
+  // choose or forget where it is. Main finds the program; nothing is passed.
+  gccLaunch: () => ipcRenderer.invoke('gcc:launch'),
+  gccGet: () => ipcRenderer.invoke('gcc:get'),
+  gccPick: () => ipcRenderer.invoke('gcc:pick'),
+  gccClear: () => ipcRenderer.invoke('gcc:clear'),
   // It is up, or gone: main's own keys for this window stand aside meanwhile.
   legalGate: (up) => ipcRenderer.send('legal:gate', up),
 

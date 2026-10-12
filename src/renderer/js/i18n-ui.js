@@ -181,6 +181,14 @@ const VexI18nUI = {
       'Open panel': 'Paneli aç', 'Open settings': 'Ayarları aç', 'Run command': 'Komutu çalıştır',
       'Open the volume slider': 'Ses kaydırıcısını aç', 'How it works': 'Nasıl çalışır',
       'Ask Vex about this': 'Vex’e bunu sor',
+      // Game Control Center: the command, its Settings row and its toasts.
+      'Open Game Control Center': 'Game Control Center’ı aç',
+      'Bypass, game boost, network, overlay and gamma light': 'Engel aşma, oyun hızlandırma, ağ, katman ve gama ışığı',
+      'Game Control Center location': 'Game Control Center konumu',
+      'Browse…': 'Gözat…', 'Find it automatically': 'Kendiliğinden bul', 'Found automatically': 'Kendiliğinden bulundu',
+      'Opened Game Control Center': 'Game Control Center açıldı',
+      'Choose location…': 'Konum seç…',
+      'Game Control Center location saved': 'Game Control Center konumu kaydedildi',
     },
   },
 

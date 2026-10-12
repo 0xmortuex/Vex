@@ -8537,6 +8537,18 @@ ipcMain.handle('app:focus', () => {
 // The privacy policy and terms shown inside Vex, and the agreement's "Quit Vex".
 require('./main/legal-docs').registerLegalDocs({ ipcMain, app, root: path.join(__dirname, '..') });
 
+// Ctrl+K "Open Game Control Center": the owner's separate app, found by
+// src/main/game-control-center.js (Settings choice, Start-menu shortcut,
+// uninstall entry, Program Files) and started detached. The renderer only
+// ever asks to launch; it never names a program.
+require('./main/game-control-center').register({
+  ipcMain, dialog, shell, userDataPath, env: process.env,
+  spawn: require('child_process').spawn, execFile: require('child_process').execFile,
+  getWindow: (sender) => BrowserWindow.fromWebContents(sender),
+  exists: (p) => { try { return fs.statSync(p).isFile(); } catch { return false; } },
+  readdir: (d) => fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name),
+});
+
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.

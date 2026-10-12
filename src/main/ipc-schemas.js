@@ -15,6 +15,12 @@ define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
 define('app:quit', []);
+// Game Control Center (src/main/game-control-center.js): no arguments at all,
+// so a caller cannot name a program or a path to start.
+define('gcc:launch', []);
+define('gcc:get', []);
+define('gcc:pick', []);
+define('gcc:clear', []);
 define('legal:gate', [boolean]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).
