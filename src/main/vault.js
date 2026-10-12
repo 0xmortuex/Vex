@@ -271,14 +271,19 @@ async function addMissing(entries) {
   const added = [];
   let duplicates = 0;
   const now = new Date().toISOString();
-  for (const { host, username, password } of entries) {
+  for (const { host, username, password, note, updatedAt } of entries) {
     const k = host + '\n' + username;
     if (seen.has(k)) { duplicates++; continue; }
     seen.add(k);
-    arr.push({ host, username, password, updatedAt: now });
+    // The file's own "password changed" date is kept when it had one, so an
+    // old password imported from Firefox still shows as old in Password Health.
+    const stamp = typeof updatedAt === 'string' && Number.isFinite(Date.parse(updatedAt)) ? updatedAt : now;
+    const entry = { host, username, password, updatedAt: stamp };
+    if (typeof note === 'string' && note) entry.note = note;
+    arr.push(entry);
     // updatedAt lets an undo tell a login still as imported from one the
     // person has changed since (vault:list reports the same value).
-    added.push({ host, username, updatedAt: now });
+    added.push({ host, username, updatedAt: stamp });
   }
   if (added.length) await vaultSave(arr);
   return { added, duplicates };

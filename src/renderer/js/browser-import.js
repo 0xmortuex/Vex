@@ -438,7 +438,17 @@ const BrowserImport = {
         if (r.duplicates) left.push(this._n(r.duplicates, 'was', 'were') + ' already saved');
         if (r.noUsername) left.push(this._n(r.noUsername, 'had', 'had') + ' no username');
         if (r.notWeb) left.push(this._n(r.notWeb, 'was not for a website', 'were not for a website'));
-        pwMsg('Added ' + this._n(r.added.length, 'login', 'logins') + ' from ' + r.file + '.' + (left.length ? ' Left out: ' + left.join(', ') + '.' : ''));
+        let text = 'Added ' + this._n(r.added.length, 'login', 'logins') + ' from ' + r.file + '.' + (left.length ? ' Left out: ' + left.join(', ') + '.' : '');
+        // 2FA keys that were saved next to the logins in the file.
+        if (r.totp) {
+          const t = r.totp, notes = [];
+          if (t.duplicates) notes.push(t.duplicates + ' already in the Authenticator');
+          if (t.invalid) notes.push(this._n(t.invalid, 'was', 'were') + ' not a valid key');
+          if (t.unsupported) notes.push(this._n(t.unsupported, 'was', 'were') + ' not a standard 6-digit code key (counter or Steam)');
+          text += ' ' + (t.error ? 'The 2FA keys could not be added: ' + t.error + '.'
+            : 'Added ' + this._n(t.added, '2FA key', '2FA keys') + ' to the Authenticator' + (notes.length ? ' (' + notes.join(', ') + ')' : '') + '.');
+        }
+        pwMsg(text);
         showUndo();
       } catch (err) { pwMsg(err.message, true); }
     });

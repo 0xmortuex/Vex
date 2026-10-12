@@ -185,6 +185,7 @@ function registerTotpTransfer({ ipcMain, dialog, app, windowFor, load, save, val
     const accounts = await decryptBackup(await fs.promises.readFile(file, 'utf8'), passphrase);
     return { ok: true, ...(await addAccounts(accounts)) };
   });
+  return { addAccounts };
 }
 
 module.exports = { encryptBackup, decryptBackup, parseMigration, base32, registerTotpTransfer, MIN_PASSPHRASE };

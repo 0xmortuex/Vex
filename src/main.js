@@ -1791,7 +1791,8 @@ const { _WEBAUTHN_DISABLE_JS, _autofillPopup, flushVault, addMissing: _vaultAddM
 require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard, app });
 // Bookmarks and history from Chrome, Edge, Brave and Firefox on this PC, and
 // passwords from a CSV the person exported themselves (main/browser-import.js).
-require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing });
+require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing,
+  addAuthenticator: (list) => _totpTransfer.addAccounts(list) });
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
@@ -1932,7 +1933,7 @@ ipcMain.handle('totp:delete', async (_e, id) => {
 });
 // Passphrase-encrypted backup and restore, and Google Authenticator's
 // "Transfer accounts" QR (main/totp-transfer.js).
-require('./main/totp-transfer').registerTotpTransfer({ ipcMain, dialog, app, windowFor: (e) => BrowserWindow.fromWebContents(e.sender),
+const _totpTransfer = require('./main/totp-transfer').registerTotpTransfer({ ipcMain, dialog, app, windowFor: (e) => BrowserWindow.fromWebContents(e.sender),
   load: totpLoad, save: totpSave, validate: (entry) => _totpCode(entry.secret, entry), isLocked: () => _vexLocked });
 
 // Only decisions still in force: an "Allow for a day" that has run out is as

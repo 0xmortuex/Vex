@@ -286,10 +286,19 @@ function credentialsFromCsv(text) {
   const head = rows[0].map(h => h.trim().toLowerCase());
   const col = (...names) => head.findIndex(h => names.includes(h));
   const iUrl = col('url', 'origin', 'login_uri', 'website', 'web site');
-  const iUser = col('username', 'login', 'login_username', 'user');
+  const iUser = col('username', 'login', 'login_username', 'user', 'login name', 'user name');
   const iPass = col('password', 'login_password');
+  // A note travels with the login (Chrome "note", Bitwarden "notes", LastPass
+  // "extra", KeePass "comments"); Firefox says when the password last changed.
+  const iNote = col('note', 'notes', 'extra', 'comments', 'comment');
+  const iChanged = col('timepasswordchanged');
+  // Bitwarden "login_totp", 1Password "OTPAuth", LastPass "totp": a 2FA key
+  // saved next to the login.
+  const iTotp = col('login_totp', 'totp', 'otpauth', 'otp', 'one-time password');
   if (iUrl < 0 || iPass < 0) throw new Error('That file is not a password export — it has no url and password columns');
   const entries = [];
+  const totp = [];
+  let totpUnsupported = 0;
   // A login with no username is kept: Chrome and Firefox save them (a site
   // that asks only for a password or a PIN), and they used to be dropped.
   const noUsername = 0;
@@ -297,19 +306,55 @@ function credentialsFromCsv(text) {
   for (const r of rows.slice(1)) {
     const url = (r[iUrl] || '').trim(), password = r[iPass] || '', username = iUser >= 0 ? (r[iUser] || '').trim() : '';
     let host = '';
-    try { const u = new URL(url); if (/^https?:$/.test(u.protocol)) host = u.hostname.toLowerCase().replace(/^www\./, ''); } catch { host = ''; }
+    // Bitwarden keeps several addresses in one cell, one per line: the first
+    // that is a website is the login's.
+    for (const candidate of url.split(/[\r\n]+/)) {
+      try { const u = new URL(candidate.trim()); if (/^https?:$/.test(u.protocol)) { host = u.hostname.toLowerCase().replace(/^www\./, ''); break; } } catch { /* not a URL: try the next line */ }
+    }
     if (!host || !password) { notWeb++; continue; }
     if (host.length > 253 || username.length > 4096 || password.length > 16384) { notWeb++; continue; }
-    entries.push({ host, username, password });
+    const entry = { host, username, password };
+    const note = iNote >= 0 ? (r[iNote] || '').trim() : '';
+    if (note && note.length <= 20000) entry.note = note;
+    // Only a believable date is kept (after 2000, not in the future): a
+    // file that says 0 or 1 must not make a password look decades old.
+    const changed = iChanged >= 0 ? Number(r[iChanged]) : NaN;
+    if (Number.isFinite(changed) && changed > 946684800000 && changed <= Date.now()) entry.updatedAt = new Date(changed).toISOString();
+    entries.push(entry);
+    const cell = iTotp >= 0 ? (r[iTotp] || '').trim() : '';
+    if (cell) {
+      const account = totpFromCell(cell, username, host);
+      if (account) totp.push(account); else totpUnsupported++;
+    }
   }
-  return { rows: rows.length - 1, entries, noUsername, notWeb };
+  return { rows: rows.length - 1, entries, noUsername, notWeb, totp, totpUnsupported };
+}
+
+// A 2FA key in a password export: an otpauth://totp/ link, or the bare base32
+// secret. Counter-based (hotp), Steam and anything else is not importable.
+function totpFromCell(cell, username, host) {
+  const bare = cell.replace(/[\s-]/g, '').toUpperCase();
+  if (/^[A-Z2-7]{16,}=*$/.test(bare)) return { label: username || host, issuer: host, secret: bare, algorithm: 'sha1', digits: 6, period: 30 };
+  let u;
+  try { u = new URL(cell); } catch { return null; }
+  if (u.protocol !== 'otpauth:' || u.hostname.toLowerCase() !== 'totp') return null;
+  const secret = (u.searchParams.get('secret') || '').replace(/[\s-]/g, '').toUpperCase();
+  if (!secret) return null;
+  let label = ''; try { label = decodeURIComponent(u.pathname.replace(/^\//, '')); } catch { label = u.pathname.replace(/^\//, ''); }
+  let issuer = u.searchParams.get('issuer') || '';
+  if (label.includes(':')) { const [head, ...rest] = label.split(':'); if (!issuer) issuer = head.trim(); label = rest.join(':').trim(); }
+  const algorithm = String(u.searchParams.get('algorithm') || 'sha1').toLowerCase();
+  if (!['sha1', 'sha256', 'sha512'].includes(algorithm)) return null;
+  const digits = parseInt(u.searchParams.get('digits'), 10) || 6;
+  const period = parseInt(u.searchParams.get('period'), 10) || 30;
+  return { label: label || username || host, issuer: issuer || host, secret, algorithm, digits, period };
 }
 
 // Ask for the file here, read it here, and add what is new to the vault here:
 // not one password crosses to the window. It is told the hosts, usernames and
 // saved times that were added (what vault:list shows anyway), so it can undo
 // the import — and leave a login alone that was changed since.
-async function importPasswordCsv({ dialog, win, addToVault }) {
+async function importPasswordCsv({ dialog, win, addToVault, addAuthenticator = null }) {
   const pick = await dialog.showOpenDialog(win, {
     title: 'Choose the passwords file you exported',
     filters: [{ name: 'Password export (CSV)', extensions: ['csv'] }],
@@ -321,13 +366,28 @@ async function importPasswordCsv({ dialog, win, addToVault }) {
   if (size > CSV_MAX_BYTES) throw new Error('That file is too large to be a password export');
   const parsed = credentialsFromCsv(fs.readFileSync(file, 'utf8'));
   const result = await addToVault(parsed.entries);
-  return { file: path.basename(file), rows: parsed.rows, added: result.added, duplicates: result.duplicates, noUsername: parsed.noUsername, notWeb: parsed.notWeb };
+  const out = { file: path.basename(file), rows: parsed.rows, added: result.added, duplicates: result.duplicates, noUsername: parsed.noUsername, notWeb: parsed.notWeb };
+  // 2FA keys saved next to the logins go to the authenticator, when the file
+  // had any. Counts only come back, never a secret.
+  if (parsed.totp.length || parsed.totpUnsupported) {
+    // The logins are already in the vault by now, and the window needs the
+    // list of them for Undo: a failure here is reported inside the result,
+    // not thrown over it.
+    try {
+      if (!addAuthenticator) throw new Error('adding authenticator keys is not available here');
+      const t = parsed.totp.length ? await addAuthenticator(parsed.totp) : { added: 0, duplicates: 0, invalid: 0 };
+      out.totp = { added: t.added, duplicates: t.duplicates, invalid: t.invalid, unsupported: parsed.totpUnsupported };
+    } catch (err) {
+      out.totp = { error: err.message, added: 0, duplicates: 0, invalid: 0, unsupported: parsed.totpUnsupported };
+    }
+  }
+  return out;
 }
 
-function registerBrowserImport({ ipcMain, dialog, windowFor, addToVault, env = process.env }) {
+function registerBrowserImport({ ipcMain, dialog, windowFor, addToVault, addAuthenticator, env = process.env }) {
   ipcMain.handle('browser-import:sources', () => listSources(env));
   ipcMain.handle('browser-import:read', (_e, browser, profileId) => readProfile(browser, profileId, { env }));
-  ipcMain.handle('browser-import:passwords-csv', (e) => importPasswordCsv({ dialog, win: windowFor(e), addToVault }));
+  ipcMain.handle('browser-import:passwords-csv', (e) => importPasswordCsv({ dialog, win: windowFor(e), addToVault, addAuthenticator }));
 }
 
 module.exports = {
