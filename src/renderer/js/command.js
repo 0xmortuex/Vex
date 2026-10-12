@@ -414,7 +414,7 @@ const CommandBar = {
       try {
         const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target, byUser: true });
         window.showToast?.('Watching — Vex will say when it changes' + (w.local ? '. ' + PageWatch.localNote(w) : ''));
-        PageWatch.checkOne(w.id);                 // the first look sets the baseline
+        PageWatch.firstLook(w);                   // the first look sets the baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },
     { id: 'watchgithub', label: 'Tell me when this GitHub run finishes', hint: 'Or when this repository has a new release — asked of GitHub, told on your desktop', icon: 'alarm', isPrimary: true, action: async () => {

@@ -114,7 +114,23 @@ const PageWatch = {
       if (tab) { u = tab.url; t = t || tab.title; partition = tab.partition || null; }
     }
     const watch = this.add({ url: u, title: t, ...rule, byUser, partition });
-    return { watch, said: (t || u) + ' — ' + this.describeRule(rule) + (watch.local ? '. ' + this.localNote(watch) : '') };
+    const first = this.firstLook(watch);
+    return { watch, first, said: (t || u) + ' — ' + this.describeRule(rule) + (watch.local ? '. ' + this.localNote(watch) : '') };
+  },
+
+  // Every way of adding a watch (Watch This Page, Ctrl+K, the AI, a part of
+  // the page) looks at once: the baseline is set now, not at the first timed
+  // check, and a page that cannot be read says so while you are still there.
+  // checkOne/readValue keep the routing and home-network rules.
+  async firstLook(watch) {
+    let first;
+    try { first = await this.checkOne(watch.id); }
+    catch (err) {
+      VexProblems?.note('Page watch', 'The first look at ' + watch.url + ' failed', err);
+      first = { ok: false, error: (err && err.message) || 'could not be read' };
+    }
+    if (!first.ok && !first.gone) window.showToast?.('Watching, but the first look failed: ' + first.error, 'error');
+    return first;
   },
   describeRule(r) {
     if (r.kind === 'text') return 'tells you when the page changes';
@@ -240,14 +256,19 @@ const PageWatch = {
   },
 
   async checkOne(id, now = Date.now()) {
+    const before = this.list().find(w => w.id === id);
+    if (!before) throw new Error('That watch is gone');
+    let value, readErr = null;
+    try { value = await this.readValue(before); }
+    catch (err) { readErr = err; }
+    // The list is read again after the fetch: a watch added or stopped while
+    // the page was being read must not be undone by saving an old copy.
     const list = this.list();
     const watch = list.find(w => w.id === id);
-    if (!watch) throw new Error('That watch is gone');
-    let value;
-    try {
-      value = await this.readValue(watch);
-      watch.failures = 0;
-    } catch (err) {
+    if (!watch) return { ok: false, gone: true, error: 'That watch was stopped' };
+    if (!readErr) watch.failures = 0;
+    else {
+      const err = readErr;
       // A page that fails once is a blip; one that fails five times running is
       // gone, and a watch that cannot be checked must say so rather than sit
       // there looking healthy.
@@ -303,8 +324,7 @@ const PageWatch = {
     try { watch = this.add({ url, title: title || url, byUser: true, partition }); }
     catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); return null; }
     window.showToast?.('Watching — Vex will say when it changes' + (watch.local ? '. ' + this.localNote(watch) : ''));
-    const first = await this.checkOne(watch.id);
-    if (!first.ok) window.showToast?.('Watching, but the first look failed: ' + first.error, 'error');
+    await this.firstLook(watch);
     return watch;
   },
 
