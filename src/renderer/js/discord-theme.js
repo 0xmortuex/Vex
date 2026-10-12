@@ -19,7 +19,11 @@
 //     4.5:1 (3:1 for icons).
 //
 // Only Vex's own entry is ever added, changed or removed: the user's links,
-// their other theme files and their QuickCSS are left exactly as they are.
+// their other theme files and their QuickCSS are left exactly as they are,
+// with one exception, only ever on the user's click: when their own themes
+// are also on (they can clash with the colours here) Vex says so, and
+// "Pause my other themes while matching" takes them out, records exactly
+// what it took, and puts exactly that back when matching turns off.
 // Vencord re-reads themeLinks and enabledThemes the moment they change, so a
 // theme change (or Light and dark switching) shows in Discord at once, with
 // no reload. Turned off, Vex's entries are removed the same way — at once in
@@ -28,6 +32,7 @@
 const DiscordTheme = {
   KEY: 'vex.discordMatchTheme',              // 'on' | anything else = off (the default)
   APPLIED_KEY: 'vex.discordMatchApplied',    // '1' while Discord may still hold Vex's entries
+  PAUSED_KEY: 'vex.discordMatchPaused',      // JSON { themes, links, quickCss }: exactly what "Pause my other themes" took
   FILE: 'vex-theme-match.css',
   LINK_MARK: '#vex-theme-match',
   // The least a colour gets when Discord uses it in ways no lightness can
@@ -73,6 +78,16 @@ const DiscordTheme = {
     neutron: 'Neutron\'s licence forbids redistributing it without the author\'s permission',
     nocturnal: 'Nocturnal\'s licence forbids redistributing it without the author\'s permission',
     amoled: 'AMOLED-Cord changes only Discord\'s Onyx mode, so in Discord\'s usual dark mode it would do nothing',
+  },
+
+  // Patterns the page script uses, as source text (so no backslash has to
+  // survive being written inside the script's own template).
+  GUEST_RE: {
+    comment: /\/\*[\s\S]*?\*\//.source,
+    // A colour or background property, or a custom property given a colour.
+    colour: /(^|[;{\s])(color|background(-color|-image)?|--[\w-]+)\s*:[^;}]*(#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|var\(|\b(white|black|transparent)\b)/.source,
+    ext: /(\.theme)?\.css$/.source,
+    prefix: /^@(light|dark)\s+/.source,
   },
 
   isOn() {
@@ -486,13 +501,19 @@ const DiscordTheme = {
   },
 
   // The script run in the Discord page. It touches only Vex's own link (the
-  // one ending in LINK_MARK) and Vex's own file (FILE); it answers
-  // { ok, changed } or { ok: false, reason: 'no-vencord' }.
-  guestScript(plan) {
+  // one ending in LINK_MARK) and Vex's own file (FILE) — except when the user
+  // clicked "Pause my other themes while matching" (opts.pause), which takes
+  // out their other enabled themes, links and QuickCSS and answers exactly
+  // what it took, and the later opts.restore, which puts back exactly that.
+  // It answers { ok, changed, others, paused } — others: the user's own
+  // themes in force now ({ kind, id, name }), paused: what a pause took,
+  // or { ok: false, reason: 'no-vencord' }.
+  guestScript(plan, opts) {
     const want = { link: plan && plan.link ? plan.link : null, css: plan && typeof plan.css === 'string' ? plan.css : null };
+    const act = { pause: !!(opts && opts.pause), restore: opts && opts.restore ? opts.restore : null };
     return `(async () => {
       const MARK = ${JSON.stringify(this.LINK_MARK)}, FILE = ${JSON.stringify(this.FILE)};
-      const want = ${JSON.stringify(want)};
+      const want = ${JSON.stringify(want)}, act = ${JSON.stringify(act)}, RE = ${JSON.stringify(this.GUEST_RE)};
       const until = Date.now() + ${Number(this.VENCORD_WAIT_MS)};
       const ready = () => window.Vencord && Vencord.Settings && window.VencordNative && VencordNative.themes;
       while (!ready()) {
@@ -501,10 +522,32 @@ const DiscordTheme = {
       }
       const S = Vencord.Settings, T = VencordNative.themes;
       const oldLinks = Array.from(S.themeLinks || []);
-      const links = oldLinks.filter(l => !String(l).endsWith(MARK));
+      let links = oldLinks.filter(l => !String(l).endsWith(MARK));
       if (want.link) links.push(want.link);
       const oldThemes = Array.from(S.enabledThemes || []);
-      const themes = oldThemes.filter(t => t !== FILE);
+      let themes = oldThemes.filter(t => t !== FILE);
+      // What the user's own QuickCSS does to colours (a colour or background
+      // property, or a custom property given a colour).
+      const quickCssColours = async () => {
+        if (!S.useQuickCss || !VencordNative.quickCss || typeof VencordNative.quickCss.get !== 'function') return false;
+        const css = String(await VencordNative.quickCss.get() || '').replace(new RegExp(RE.comment, 'g'), '');
+        return new RegExp(RE.colour, 'i').test(css);
+      };
+      const wasQuick = !!S.useQuickCss;
+      let quick = wasQuick, paused = null;
+      if (act.restore) {
+        const r = act.restore;
+        themes = (r.themes || []).filter(t => t !== FILE && !themes.includes(t)).concat(themes);
+        links = (r.links || []).filter(l => !String(l).endsWith(MARK) && !links.includes(l)).concat(links);
+        if (r.quickCss) quick = true;
+      }
+      if (act.pause) {
+        const hadColours = await quickCssColours();
+        paused = { themes: themes.slice(), links: links.filter(l => !String(l).endsWith(MARK)), quickCss: hadColours };
+        themes = [];
+        links = links.filter(l => String(l).endsWith(MARK));
+        if (hadColours) quick = false;
+      }
       const had = await T.getThemeData(FILE);
       let changed = false;
       if (want.css !== null) {
@@ -514,10 +557,26 @@ const DiscordTheme = {
         await T.deleteTheme(FILE); changed = true;
       }
       if (JSON.stringify(links) !== JSON.stringify(oldLinks)) { S.themeLinks = links; changed = true; }
+      if (quick !== wasQuick) { S.useQuickCss = quick; changed = true; }
       // A new array even when only the file's text changed: that is what
       // makes Vencord read the file again.
       if (changed || JSON.stringify(themes) !== JSON.stringify(oldThemes)) S.enabledThemes = themes;
-      return { ok: true, changed };
+      // The user's own themes still in force, by the name they gave them.
+      const list = typeof T.getThemesList === 'function' ? await T.getThemesList() : [];
+      const others = [];
+      for (const t of themes) {
+        if (t === FILE) continue;
+        const e = Array.isArray(list) ? list.find(x => x && x.fileName === t) : null;
+        others.push({ kind: 'theme', id: t, name: (e && e.name) || String(t).replace(new RegExp(RE.ext, 'i'), '') });
+      }
+      for (const l of links) {
+        if (String(l).endsWith(MARK)) continue;
+        const url = String(l).replace(new RegExp(RE.prefix, 'i'), '');
+        const seg = url.split('#')[0].split('?')[0].split('/').filter(Boolean).pop() || url;
+        others.push({ kind: 'link', id: String(l), name: seg.replace(new RegExp(RE.ext, 'i'), '') });
+      }
+      if (quick && await quickCssColours()) others.push({ kind: 'quickcss', id: 'quickcss', name: 'QuickCSS' });
+      return { ok: true, changed, others, paused };
     })()`;
   },
 
@@ -544,15 +603,76 @@ const DiscordTheme = {
 
   // Bring one Discord page to what it should wear. Resolves to the page's
   // answer; null when the page is not Discord.
-  async applyTo(wv, plan) {
+  async applyTo(wv, plan, opts) {
     if (!this.isDiscordUrl(this._url(wv))) return null;
     if (plan === undefined) plan = this.plan();
-    const r = await window.vexGuestEval(wv, this.guestScript(plan), false, this.VENCORD_WAIT_MS + 8000);
+    // Off: whatever a pause took comes back, along with Vex's entries going.
+    const record = plan ? null : this.paused();
+    const o = { ...(opts || {}) };
+    if (record) o.restore = record;
+    const r = await window.vexGuestEval(wv, this.guestScript(plan, o), false, this.VENCORD_WAIT_MS + 8000);
     if (r && r.ok) {
       try { if (plan) localStorage.setItem(this.APPLIED_KEY, '1'); else localStorage.removeItem(this.APPLIED_KEY); } catch {}
+      if (record) localStorage.removeItem(this.PAUSED_KEY);
+      if (r.paused) this._remember(r.paused);
     }
     this.lastResult = r;
     return r;
+  },
+
+  // What a pause took, as recorded (null: nothing is paused).
+  paused() {
+    let raw = null;
+    try { raw = localStorage.getItem(this.PAUSED_KEY); } catch {}
+    return raw ? JSON.parse(raw) : null;
+  },
+
+  // Keep what a pause took, with anything an earlier pause took.
+  _remember(p) {
+    const old = this.paused() || { themes: [], links: [], quickCss: false };
+    const uniq = (a, b) => [...new Set([...(a || []), ...(b || [])])];
+    const rec = { themes: uniq(old.themes, p.themes), links: uniq(old.links, p.links), quickCss: !!(old.quickCss || p.quickCss) };
+    if (!rec.themes.length && !rec.links.length && !rec.quickCss) return;
+    localStorage.setItem(this.PAUSED_KEY, JSON.stringify(rec));
+  },
+
+  // The user's own themes that are also on (from the last Discord page that
+  // answered), as { kind, id, name }.
+  others: [],
+
+  othersMessage() {
+    const names = this.others.map(o => "'" + o.name + "'");
+    if (!names.length) return '';
+    return names.length === 1
+      ? 'Your own Discord theme ' + names[0] + ' is also on; the colours may clash.'
+      : 'Your own Discord themes ' + names.join(', ') + ' are also on; the colours may clash.';
+  },
+
+  // The button: take the user's own themes out while matching is on. They
+  // are put back, exactly, when matching turns off.
+  async pauseOthers() {
+    if (!this.isOn()) throw new Error('Match Discord to my Vex theme is off');
+    const plan = this.plan();
+    let answered = false;
+    for (const wv of this.pages()) {
+      const r = await this.applyTo(wv, plan, { pause: true });
+      if (r && r.ok) { answered = true; this.others = r.others || []; }
+    }
+    if (!answered) throw new Error('Open Discord (with Vencord running) to pause your other themes');
+    this._renderState();
+    return this.paused();
+  },
+
+  _announceOthers() {
+    if (!this.others.length || typeof window.showToast !== 'function') return;
+    window.showToast(this.othersMessage(), 'info', 15000, {
+      action: {
+        label: 'Pause my other themes while matching',
+        run: () => this.pauseOthers().then(
+          () => window.showToast?.('Your other Discord themes are paused until matching is turned off'),
+          (err) => window.showToast?.('Not paused: ' + err.message, 'error')),
+      },
+    });
   },
 
   _chain: Promise.resolve(),
@@ -567,7 +687,11 @@ const DiscordTheme = {
       const plan = this.plan();
       const out = [];
       for (const wv of this.pages()) {
-        try { out.push(await this.applyTo(wv, plan)); }
+        try {
+          const r = await this.applyTo(wv, plan);
+          if (r && r.ok) this.others = plan ? (r.others || []) : [];
+          out.push(r);
+        }
         catch (err) {
           console.error('[DiscordTheme] could not update Discord:', err);
           window.VexProblems?.note('Discord theme', 'Discord could not be given the Vex theme', err);
@@ -587,7 +711,7 @@ const DiscordTheme = {
     if (!this.isDiscordUrl(this._url(wv))) return;
     let applied = false;
     try { applied = localStorage.getItem(this.APPLIED_KEY) === '1'; } catch {}
-    if (!this.isOn() && !applied) return;
+    if (!this.isOn() && !applied && !this.paused()) return;
     this.applyTo(wv).then(() => this._renderState(), (err) => {
       console.error('[DiscordTheme] could not update Discord:', err);
       window.VexProblems?.note('Discord theme', 'Discord could not be given the Vex theme', err);
@@ -622,6 +746,8 @@ const DiscordTheme = {
       localStorage.removeItem(this.KEY);
     }
     await this.applyAll();
+    if (this.isOn()) this._announceOthers();
+    else this.others = [];
     return this.isOn();
   },
 
@@ -639,9 +765,40 @@ const DiscordTheme = {
     const el = typeof document !== 'undefined' ? document.getElementById('discord-theme-state') : null;
     if (!el) return;
     const r = this.lastResult;
+    this._renderOthers();
     if (!this.isOn()) { el.textContent = 'Off — Discord keeps its own look (and any Vencord themes of your own).'; return; }
     if (r && r.ok === false && r.reason === 'no-vencord') { el.textContent = 'Vencord is not running in Discord — install it from the Discord button\'s right-click menu, then reload Discord.'; return; }
     el.textContent = 'Now: Discord wears ' + this.describe() + '.';
+  },
+
+  // Settings row: the user's own themes that are also on, with the button,
+  // and what is paused.
+  _renderOthers() {
+    const el = typeof document !== 'undefined' ? document.getElementById('discord-theme-others') : null;
+    if (!el) return;
+    el.textContent = '';
+    const paused = this.paused();
+    if (this.isOn() && this.others.length) {
+      const p = document.createElement('div');
+      p.textContent = this.othersMessage();
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn-secondary';
+      b.id = 'discord-theme-pause';
+      b.style.marginTop = '6px';
+      b.textContent = 'Pause my other themes while matching';
+      b.addEventListener('click', () => {
+        b.disabled = true;
+        this.pauseOthers().then(() => window.showToast?.('Your other Discord themes are paused until matching is turned off'), (err) => {
+          b.disabled = false;
+          window.showToast?.('Not paused: ' + err.message, 'error');
+        });
+      });
+      el.append(p, b);
+    } else if (paused) {
+      const n = paused.themes.length + paused.links.length + (paused.quickCss ? 1 : 0);
+      el.textContent = 'Your own Discord themes (' + n + ') are paused while matching is on, and come back when it is turned off.';
+    }
   },
 
   renderSetting(host) {
@@ -652,7 +809,8 @@ const DiscordTheme = {
         <span>Match Discord to my Vex theme<br><span style="font-size:11.5px;color:var(--text-muted)">Discord in Vex (the panel or a tab) takes on your colour theme through Vencord, and changes with it. A theme named after a BetterDiscord theme loads that real theme: Discord downloads its CSS from the theme's own site (GitHub Pages, or jsDelivr for a few) — a request you did not click. Any other theme is coloured by Vex, nothing downloaded. Your own Vencord themes and QuickCSS are kept; off removes only what Vex added. Needs Vencord.</span></span>
         <label class="toggle" style="flex-shrink:0"><input type="checkbox" id="setting-discord-theme" aria-label="Match Discord to my Vex theme"><span class="toggle-slider"></span></label>
       </div>
-      <div id="discord-theme-state" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:4px"></div>`;
+      <div id="discord-theme-state" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:4px"></div>
+      <div id="discord-theme-others" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:4px"></div>`;
     const box = host.querySelector('#setting-discord-theme');
     box.checked = this.isOn();
     box.addEventListener('change', () => {

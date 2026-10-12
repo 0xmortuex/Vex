@@ -159,10 +159,10 @@ describe('generated Discord colours', () => {
 // ---- the Vencord side ------------------------------------------------------
 
 // A Discord page with Vencord: its Settings, its theme-file store and QuickCSS.
-function fakeVencord({ links = [], enabled = [], files = {}, quickCss = '' } = {}) {
+function fakeVencord({ links = [], enabled = [], files = {}, quickCss = '', useQuickCss = false, names = {} } = {}) {
   const store = new Map(Object.entries(files));
   const sets = { themeLinks: 0, enabledThemes: 0 };
-  const settings = { _links: links, _enabled: enabled };
+  const settings = { _links: links, _enabled: enabled, useQuickCss };
   Object.defineProperty(settings, 'themeLinks', { get() { return this._links; }, set(v) { sets.themeLinks++; this._links = v; } });
   Object.defineProperty(settings, 'enabledThemes', { get() { return this._enabled; }, set(v) { sets.enabledThemes++; this._enabled = v; } });
   const win = {
@@ -172,15 +172,16 @@ function fakeVencord({ links = [], enabled = [], files = {}, quickCss = '' } = {
         uploadTheme: async (n, d) => { store.set(n, d); },
         deleteTheme: async (n) => { store.delete(n); },
         getThemeData: async (n) => store.get(n),
+        getThemesList: async () => [...store.keys()].map(fileName => ({ fileName, name: names[fileName] })),
       },
       quickCss: { css: quickCss, get: async () => quickCss, set: async () => { throw new Error('Vex must never write QuickCSS'); } },
     },
   };
   return { win, store, settings, sets };
 }
-async function run(page, plan) {
+async function run(page, plan, opts) {
   // eslint-disable-next-line no-new-func
-  const fn = new Function('window', 'Vencord', 'VencordNative', 'return ' + DiscordTheme.guestScript(plan));
+  const fn = new Function('window', 'Vencord', 'VencordNative', 'return ' + DiscordTheme.guestScript(plan, opts));
   return fn(page.win, page.win.Vencord, page.win.VencordNative);
 }
 
@@ -191,7 +192,7 @@ describe('Vencord entries', () => {
   it('a real theme adds one marked link and keeps the user\'s links, files and QuickCSS', async () => {
     const page = fakeVencord({ links: [...USER_LINKS], enabled: ['my-theme.css'], files: { ...USER_FILES }, quickCss: 'body{}' });
     const r = await run(page, { link: 'https://clearvision.github.io/x.css' + DiscordTheme.LINK_MARK });
-    expect(r).toEqual({ ok: true, changed: true });
+    expect(r).toMatchObject({ ok: true, changed: true, paused: null });
     expect(page.settings.themeLinks).toEqual([...USER_LINKS, 'https://clearvision.github.io/x.css#vex-theme-match']);
     expect(page.settings.enabledThemes).toEqual(['my-theme.css']);
     expect([...page.store.keys()].sort()).toEqual(['my-theme.css', 'other.css']);
@@ -228,6 +229,71 @@ describe('Vencord entries', () => {
     expect(page.settings.themeLinks).toEqual(USER_LINKS);
     expect(page.settings.enabledThemes).toEqual(['my-theme.css', 'other.css']);
     expect(Object.fromEntries(page.store)).toEqual(USER_FILES);
+  });
+
+  describe('the user\'s own themes', () => {
+    const MINE = { links: ['@dark https://example.github.io/themes/BASICBACKGROUND.theme.css', 'https://x.example/mine.css'], enabled: ['basic.theme.css', 'snippet.css'],
+      files: { 'basic.theme.css': '/* b */', 'snippet.css': '/* s */' }, names: { 'basic.theme.css': 'BASICBACKGROUND' },
+      quickCss: '/* mine */ .x { background-color: #123456; }', useQuickCss: true };
+
+    it('names the user\'s own themes, links and colour QuickCSS, and never Vex\'s own', async () => {
+      const page = fakeVencord({ ...MINE, links: [...MINE.links, 'https://a.example/t.css#vex-theme-match'], enabled: [...MINE.enabled, DiscordTheme.FILE], files: { ...MINE.files, [DiscordTheme.FILE]: '/* v */' } });
+      const r = await run(page, { css: '/* vex */' });
+      expect(r.others).toEqual([
+        { kind: 'theme', id: 'basic.theme.css', name: 'BASICBACKGROUND' },
+        { kind: 'theme', id: 'snippet.css', name: 'snippet' },
+        { kind: 'link', id: MINE.links[0], name: 'BASICBACKGROUND' },
+        { kind: 'link', id: MINE.links[1], name: 'mine' },
+        { kind: 'quickcss', id: 'quickcss', name: 'QuickCSS' },
+      ]);
+      // Reporting changes nothing of theirs.
+      expect(page.settings.themeLinks).toEqual(MINE.links);
+      expect(page.settings.useQuickCss).toBe(true);
+    });
+
+    it('QuickCSS that is off, or has no colour rules, is not reported', async () => {
+      const off = fakeVencord({ quickCss: 'body { background: red; }', useQuickCss: false });
+      expect((await run(off, { css: '/* v */' })).others).toEqual([]);
+      const layout = fakeVencord({ quickCss: '.x { margin: 4px; } /* color: #fff */', useQuickCss: true });
+      expect((await run(layout, { css: '/* v */' })).others).toEqual([]);
+      const custom = fakeVencord({ quickCss: ':root { --text-default: #fff; }', useQuickCss: true });
+      expect((await run(custom, { css: '/* v */' })).others).toEqual([{ kind: 'quickcss', id: 'quickcss', name: 'QuickCSS' }]);
+    });
+
+    it('nothing of theirs is paused without the click', async () => {
+      const page = fakeVencord({ ...MINE });
+      const r = await run(page, { css: '/* vex */' });
+      expect(r.paused).toBe(null);
+      expect(page.settings.enabledThemes).toEqual([...MINE.enabled, DiscordTheme.FILE]);
+      expect(page.settings.themeLinks).toEqual(MINE.links);
+      expect(page.settings.useQuickCss).toBe(true);
+    });
+
+    it('a pause takes exactly their themes out and answers what it took; restore puts back exactly that', async () => {
+      const page = fakeVencord({ ...MINE });
+      await run(page, { css: '/* vex */' });
+      const p = await run(page, { css: '/* vex */' }, { pause: true });
+      expect(p.paused).toEqual({ themes: MINE.enabled, links: MINE.links, quickCss: true });
+      expect(p.others).toEqual([]);
+      expect(page.settings.enabledThemes).toEqual([DiscordTheme.FILE]);
+      expect(page.settings.themeLinks).toEqual([]);
+      expect(page.settings.useQuickCss).toBe(false);
+      expect(page.store.get('basic.theme.css')).toBe('/* b */');
+      // Matching off: Vex's file goes and theirs come back, in their order.
+      const off = await run(page, null, { restore: p.paused });
+      expect(off.ok).toBe(true);
+      expect(page.settings.enabledThemes).toEqual(MINE.enabled);
+      expect(page.settings.themeLinks).toEqual(MINE.links);
+      expect(page.settings.useQuickCss).toBe(true);
+      expect([...page.store.keys()].sort()).toEqual(['basic.theme.css', 'snippet.css']);
+    });
+
+    it('a restore never duplicates a theme they turned back on meanwhile, nor turns QuickCSS on that was off', async () => {
+      const page = fakeVencord({ enabled: ['snippet.css', DiscordTheme.FILE], files: { 'snippet.css': '/* s */', [DiscordTheme.FILE]: '/* v */' }, useQuickCss: false });
+      await run(page, null, { restore: { themes: ['snippet.css', 'basic.theme.css'], links: [], quickCss: false } });
+      expect(page.settings.enabledThemes).toEqual(['basic.theme.css', 'snippet.css']);
+      expect(page.settings.useQuickCss).toBe(false);
+    });
   });
 
   it('says so when Vencord is not running', async () => {
@@ -295,6 +361,75 @@ describe('the switch', () => {
     await Promise.resolve();
     expect(window.vexGuestEval).toHaveBeenCalledTimes(1);
     expect(window.vexGuestEval.mock.calls[0][1]).toContain('"link":null,"css":null');
+  });
+});
+
+describe('the user\'s own themes, in Vex', () => {
+  const OTHERS = [{ kind: 'theme', id: 'basic.theme.css', name: 'BASICBACKGROUND' }];
+  let toasts;
+  beforeEach(() => {
+    localStorage.clear();
+    document.body.innerHTML = '<div id="discord-theme-setting"></div>';
+    globalThis.ThemeManager = ThemeManager;
+    ThemeManager.currentTheme = 'nord';
+    globalThis.ThemeStudio = { colorsFromTheme: (id) => palette(id) };
+    globalThis.SidebarManager = { panelWebviews: { discord: { url: 'https://discord.com/channels/@me' } } };
+    window.vex = { extensionsList: vi.fn(async () => [{ folder: 'vencord-1', enabled: true }]) };
+    window.vexGuestUrl = (wv) => wv.url;
+    toasts = [];
+    window.showToast = vi.fn((m, t, d, o) => { toasts.push({ m, o }); });
+    DiscordTheme.others = [];
+    // Discord with Vencord: the user's theme is on until a pause script says otherwise.
+    window.vexGuestEval = vi.fn(async (wv, script) => {
+      const paused = /"pause":true/.test(script);
+      if (paused) return { ok: true, changed: true, others: [], paused: { themes: ['basic.theme.css'], links: [], quickCss: false } };
+      return { ok: true, changed: true, others: /"css":null/.test(script) && /"link":null/.test(script) ? [] : OTHERS, paused: null };
+    });
+  });
+
+  it('says so once when matching starts, with the button, and pauses nothing by itself', async () => {
+    expect(await DiscordTheme.setOn(true)).toBe(true);
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].m).toBe("Your own Discord theme 'BASICBACKGROUND' is also on; the colours may clash.");
+    expect(toasts[0].o.action.label).toBe('Pause my other themes while matching');
+    expect(window.vexGuestEval.mock.calls.some(c => /"pause":true/.test(c[1]))).toBe(false);
+    expect(DiscordTheme.paused()).toBe(null);
+    // A colour change on the next theme-changed does not nag again.
+    await DiscordTheme.applyAll();
+    expect(toasts).toHaveLength(1);
+  });
+
+  it('Settings shows the same words and the button; the click pauses, records, and off restores exactly that', async () => {
+    DiscordTheme.renderSetting();
+    await DiscordTheme.setOn(true);
+    DiscordTheme._renderState();
+    const row = document.getElementById('discord-theme-others');
+    expect(row.textContent).toContain("Your own Discord theme 'BASICBACKGROUND' is also on; the colours may clash.");
+    const btn = document.getElementById('discord-theme-pause');
+    expect(btn.textContent).toBe('Pause my other themes while matching');
+    btn.click();
+    await vi.waitFor(() => expect(DiscordTheme.paused()).not.toBe(null));
+    expect(DiscordTheme.paused()).toEqual({ themes: ['basic.theme.css'], links: [], quickCss: false });
+    expect(document.getElementById('discord-theme-others').textContent).toMatch(/paused while matching is on/);
+    // Off: the record goes to Discord to be put back, and is cleared once it was.
+    await DiscordTheme.setOn(false);
+    const last = window.vexGuestEval.mock.calls.at(-1)[1];
+    expect(last).toContain('"restore":{"themes":["basic.theme.css"],"links":[],"quickCss":false}');
+    expect(DiscordTheme.paused()).toBe(null);
+  });
+
+  it('a pause recorded while Discord was closed is put back the next time Discord loads, switch off', async () => {
+    localStorage.setItem(DiscordTheme.PAUSED_KEY, JSON.stringify({ themes: ['basic.theme.css'], links: ['https://x/y.css'], quickCss: true }));
+    expect(DiscordTheme.isOn()).toBe(false);
+    DiscordTheme.onPageReady({ url: 'https://discord.com/app' });
+    await vi.waitFor(() => expect(window.vexGuestEval).toHaveBeenCalledTimes(1));
+    expect(window.vexGuestEval.mock.calls[0][1]).toContain('"restore":{"themes":["basic.theme.css"],"links":["https://x/y.css"],"quickCss":true}');
+    await vi.waitFor(() => expect(DiscordTheme.paused()).toBe(null));
+  });
+
+  it('pausing with matching off is refused, never silently done', async () => {
+    await expect(DiscordTheme.pauseOthers()).rejects.toThrow(/is off/);
+    expect(window.vexGuestEval).not.toHaveBeenCalled();
   });
 });
 
