@@ -412,50 +412,62 @@ const VexPanels = (() => {
       }
     },
 
-    // ── What is open on the computer ───────────────────────────────────────
+    // ── What is open on your other devices ─────────────────────────────────
     computerTabs(query = '') {
-      const body = openShell('computerTabs', 'Your computer', {
-        search: { value: query, placeholder: 'Search its tabs', onInput: value => this.computerTabs(value) }
+      const body = openShell('computerTabs', 'Your other devices', {
+        search: { value: query, placeholder: 'Search their tabs', onInput: value => this.computerTabs(value) }
       });
       if (typeof VexSync === 'undefined' || !VexSync.state.enabled) {
         body.appendChild(empty('Sign in to Vex Sync (Settings › Sync) with the same account as your computer, '
-          + 'and the tabs it has open show here, in their groups.'));
+          + 'and the tabs it has open show here.'));
         return;
       }
       const needle = String(query || '').trim().toLowerCase();
-      const groups = VexSync.remoteTabGroups()
-        .map(group => Object.assign({}, group, {
-          tabs: group.tabs.filter(tab => !needle || (tab.title + ' ' + tab.url).toLowerCase().includes(needle))
+      const matches = tab => !needle || (tab.title + ' ' + tab.url).toLowerCase().includes(needle);
+      const devices = VexSync.remoteDevices()
+        .map(device => Object.assign({}, device, {
+          groups: device.groups.map(group => Object.assign({}, group, { tabs: group.tabs.filter(matches) })).filter(group => group.tabs.length)
         }))
-        .filter(group => group.tabs.length);
-      if (!groups.length) {
-        body.appendChild(empty(needle ? 'No tab on your computer matches “' + query + '”.'
-          : 'Nothing open on your computer, as of the last sync.'));
+        .filter(device => device.groups.length);
+      if (!devices.length) {
+        body.appendChild(empty(needle ? 'No tab on your other devices matches “' + query + '”.'
+          : 'Nothing open on your other devices, as of the last sync. Vex on your computer lists its tabs here once it has synced.'));
         return;
       }
-      const synced = VexSync.state.lastPullAt ? Date.parse(VexSync.state.lastPullAt) : 0;
-      if (synced) body.appendChild(el('div', 'field-note', 'As of ' + when(synced) + '. Tap one to open it here.'));
-      for (const group of groups) {
-        const head = heading((group.name || (groups.length > 1 ? 'Not in a group' : 'Open tabs')) + ' · ' + group.tabs.length);
-        if (group.color) {
-          const dot = el('span', 'group-dot');
-          dot.style.background = group.color;
-          head.prepend(dot);
-        }
-        head.classList.add('tappable');
-        head.onclick = () => VexSheets.choose(group.name || 'These tabs', [
-          { id: 'all', label: 'Open all ' + group.tabs.length + ' here', note: 'Each in a new tab, in the background' }
-        ], async () => {
-          VexSheets.close();
-          for (const tab of group.tabs.slice(0, 30)) await VexUI.openUrl(tab.url, { newTab: true, background: true });
-          VexUI.toast('Opened ' + Math.min(30, group.tabs.length) + ' tabs');
-        });
+      body.appendChild(el('div', 'field-note', 'Tap one to open it here. '
+        + (VexSync.sharingTabs() ? 'Your computer lists this phone’s tabs the same way, under History › Tabs from other devices.'
+          : 'This phone’s own tabs are not shared — Settings › Sync.')));
+      const openAll = (name, tabs) => VexSheets.choose(name, [
+        { id: 'all', label: 'Open all ' + tabs.length + ' here', note: 'Each in a new tab, in the background' }
+      ], async () => {
+        VexSheets.close();
+        for (const tab of tabs.slice(0, 30)) await VexUI.openUrl(tab.url, { newTab: true, background: true });
+        VexUI.toast('Opened ' + Math.min(30, tabs.length) + ' tabs');
+      });
+      for (const device of devices) {
+        const all = device.groups.flatMap(group => group.tabs);
+        const head = heading(device.name + ' · ' + all.length + (device.at ? ' · ' + when(device.at) : ''));
+        head.classList.add('tappable', 'device-head');
+        head.onclick = () => openAll(device.name, all);
         body.appendChild(head);
-        for (const tab of group.tabs) {
-          body.appendChild(listRow(tab, {
-            sub: item => (item.pinned ? 'Pinned · ' : '') + VexSearch.prettyHost(item.url),
-            onOpen: item => { close(); VexUI.openUrl(item.url, { newTab: true }); }
-          }));
+        const grouped = device.groups.some(group => group.id);
+        for (const group of device.groups) {
+          if (grouped) {
+            const sub = el('div', 'list-subhead tappable', (group.name || 'Not in a group') + ' · ' + group.tabs.length);
+            if (group.color) {
+              const dot = el('span', 'group-dot');
+              dot.style.background = group.color;
+              sub.prepend(dot);
+            }
+            sub.onclick = () => openAll(group.name || 'These tabs', group.tabs);
+            body.appendChild(sub);
+          }
+          for (const tab of group.tabs) {
+            body.appendChild(listRow(tab, {
+              sub: item => (item.pinned ? 'Pinned · ' : '') + VexSearch.prettyHost(item.url),
+              onOpen: item => { close(); VexUI.openUrl(item.url, { newTab: true }); }
+            }));
+          }
         }
       }
     },
@@ -1276,9 +1288,10 @@ const VexPanels = (() => {
 
       body.appendChild(el('div', 'field-note',
         'The same account as Vex on your computer, through the Sync Worker you deployed (SELF_HOSTING.md). '
-        + 'Your bookmarks and your computer’s notes go both ways, and pages can be sent between devices. '
+        + 'Your bookmarks and your computer’s notes go both ways, each device sees the tabs the others have open, '
+        + 'the computer’s history shows here, and pages can be sent between devices. '
         + 'Everything is encrypted on the device with your recovery code; the worker never sees it. '
-        + 'The rest of what your computer syncs — its tabs, settings, history — is left exactly as it is.'));
+        + 'The rest of what your computer syncs — its settings, saved passwords, theme — is left exactly as it is.'));
 
       const urlField = el('div', 'field stack');
       urlField.appendChild(el('label', { for: 'sync-url' }, 'Sync Worker URL'));
@@ -1369,7 +1382,7 @@ const VexPanels = (() => {
           const devices = await VexSync.devices();
           VexSheets.choose('Devices', devices.map(device => ({
             id: device.deviceId,
-            label: (device.deviceName || device.deviceId) + (device.deviceId === state.deviceId ? ' (this phone)' : ''),
+            label: (device.deviceId === state.deviceId ? (VexSync.deviceName() || device.deviceName) + ' (this phone)' : device.name || device.deviceName || device.deviceId),
             note: device.lastSeenAt ? 'last seen ' + when(Date.parse(device.lastSeenAt)) : null
           })), async deviceId => {
             VexSheets.close();
@@ -1383,11 +1396,26 @@ const VexPanels = (() => {
       }));
 
       const remote = VexSync.remoteTabs();
-      if (remote.length) {
-        body.appendChild(valueRow('Open on your computer',
-          remote.length + ' tabs' + (VexSync.remoteTabGroups().some(group => group.id) ? ', in their groups' : ''), '',
-          () => this.computerTabs()));
-      }
+      body.appendChild(valueRow('Tabs on your other devices',
+        remote.length ? remote.length + ' open' : 'None yet, as of the last sync', '', () => this.computerTabs()));
+
+      body.appendChild(heading('This phone'));
+      body.appendChild(valueRow('Name', 'How your other devices list this phone', VexSync.deviceName() || 'Not set', async () => {
+        const typed = await VexUI.prompt('Name this phone', 'Your computer shows its tabs under this name.', VexSync.deviceName() || 'My phone');
+        if (!typed) return;
+        try { await VexSync.renameDevice(typed); VexUI.toast('Renamed'); }
+        catch (error) { VexUI.toast(error.message, 5000); }
+        this.sync();
+      }));
+      body.appendChild(toggleRow('Share this phone’s tabs',
+        'Your computer lists the tabs open here (never private ones) under History › Tabs from other devices',
+        VexSync.sharingTabs(), on => VexSync.setSharingTabs(on)));
+      const lock = VexSync.keyLock();
+      body.appendChild(el('div', 'field-note', lock.state === 'on'
+        ? 'Locked to your sync key' + (lock.since ? ' since ' + when(Date.parse(lock.since)) : '') + ': an email code alone cannot change your synced data. It can still erase it to start over, which signs every device out and emails you.'
+        : lock.state === 'unsupported'
+          ? 'Your sync worker is from before the key check, so an email code alone could overwrite your synced data. Redeploy the worker (SELF_HOSTING.md) to close that.'
+          : 'Your account is locked to its sync key on the next upload: after that, an email code alone cannot change your synced data.'));
 
       body.appendChild(heading('Leaving'));
       body.appendChild(VexSheets.row({

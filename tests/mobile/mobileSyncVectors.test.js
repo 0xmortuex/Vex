@@ -185,7 +185,8 @@ describe('spec §3.6 — the document vector', () => {
     vi.spyOn(Date, 'now').mockReturnValue(SPEC_NOW);
     // The phone's sync.js and bookmark store, with the spec's bookmark in it
     // (plus the icon the phone keeps for itself, which must not travel).
-    const store = new Map([['vex.bookmarks', [{ ...SPEC_SOURCES['preference:vex.bookmarks'][0], icon: 'https://example.com/favicon.ico' }]]]);
+    // Tabs not shared: the vector has none (sync:tabs, §4.8, is not in it).
+    const store = new Map([['vex.bookmarks', [{ ...SPEC_SOURCES['preference:vex.bookmarks'][0], icon: 'https://example.com/favicon.ico' }]], ['vex.syncShareTabs', false]]);
     const context = {
       console, crypto: globalThis.crypto, TextEncoder, TextDecoder, atob, btoa, URL, AbortController,
       setTimeout, clearTimeout, setInterval: () => 0, clearInterval: () => {},
@@ -201,7 +202,10 @@ describe('spec §3.6 — the document vector', () => {
     context.Date = Date;
     context.VexSync.state.deviceId = SPEC_DEVICE;
     const document = context.VexSync._captureOwned({ schema: 2, records: {} });
-    expect(JSON.stringify(document)).toBe(SPEC_PLAINTEXT);
+    // The vector's marker is level 1; this phone writes level 2 with the
+    // revision it last synced (§4.6) — the only difference, byte for byte.
+    expect(SPEC_PLAINTEXT).toContain('"value":{"level":1}');
+    expect(JSON.stringify(document)).toBe(SPEC_PLAINTEXT.replace('"value":{"level":1}', '"value":{"level":2,"revision":0}'));
   });
 
   it('the handoff vector: {url, title} with the same key and IV', async () => {

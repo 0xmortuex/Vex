@@ -2160,7 +2160,7 @@ const expected = {
   siteSheetOpened: true, scriptsOff: true,
   readerOpen: true, readerTitle: 'The Wreck of the Deutschland', readerSize: 21,
   chatBubbles: 2, chatFollowUps: 1,
-  themeCards: 65, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
+  themeCards: 70, themeStored: 'midnight', themeApplied: 'midnight', skinTexture: true,
   shieldScript: true, shieldOffEmpty: true,
   tabCards: 3, tabSearchCards: 1,
   privateBodyClass: true, historyUnchanged: true,

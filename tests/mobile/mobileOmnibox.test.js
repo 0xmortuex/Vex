@@ -134,7 +134,13 @@ describe('keywords and bangs, the desktop’s own', () => {
   it('sends a keyword search to its site', () => {
     store['vex.searchEngine'] = 'google';
     expect(VexSearch.toUrl('yt sea shanties')).toBe('https://www.youtube.com/results?search_query=sea%20shanties');
-    expect(VexSearch.toUrl('w Halyard')).toBe('https://en.wikipedia.org/w/index.php?search=Halyard');
+    expect(VexSearch.toUrl('@w Halyard')).toBe('https://en.wikipedia.org/w/index.php?search=Halyard');
+  });
+
+  it('searches a sentence that starts with a one-letter or everyday keyword, as the desktop does now', () => {
+    store['vex.searchEngine'] = 'google';
+    expect(VexSearch.toUrl('w hotels')).toContain('google.com/search?q=w%20hotels');
+    expect(VexSearch.toUrl('a good book')).toContain('google.com/search?q=a%20good%20book');
   });
 
   it('hands a !bang to DuckDuckGo whatever the engine', () => {

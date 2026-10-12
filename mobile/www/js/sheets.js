@@ -119,7 +119,7 @@ const VexSheets = (() => {
       run: () => VexLab.home()
     },
     'computer-tabs': {
-      icon: 'desktop', label: 'Tabs on your computer',
+      icon: 'desktop', label: 'Tabs on your other devices',
       note: () => {
         const count = typeof VexSync !== 'undefined' ? VexSync.remoteTabs().length : 0;
         return count ? count + ' open' : 'With Vex Sync';

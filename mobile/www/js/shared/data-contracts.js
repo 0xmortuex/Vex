@@ -37,7 +37,7 @@
     if (!object(value)) throw new Error('Invalid record');
     for (const field of ['id', 'groupId', 'stackId']) if (value[field] != null && !id(value[field])) throw new Error('Invalid identifier');
     for (const field of ['title', 'name', 'label']) if (value[field] != null && !text(value[field])) throw new Error('Invalid record text');
-    if (value.color != null && !color(value.color)) throw new Error('Invalid color');
+    if (value.color != null && value.color !== '' && !color(value.color)) throw new Error('Invalid color');   // '' = no colour (a shortcut with its site's logo)
   }
   function tabs(value) {
     array(value);

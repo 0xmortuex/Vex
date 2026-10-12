@@ -3,8 +3,8 @@
 // The phone on a real Vex Sync account: the shipping worker, the shipping
 // desktop engine and the phone's sync, all three in this process
 // (sync-harness.mjs). What is proved here is what the account needs from the
-// phone: it changes only bookmarks, the desktop's notes and its own marker,
-// and every other record goes back byte for byte as it came.
+// phone: it changes only bookmarks, the desktop's notes, its own marker and
+// its own open tabs, and every other record goes back byte for byte as it came.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { standIn, desktop, phone, codeFor, accountDocument } from './sync-harness.mjs';
 
@@ -169,8 +169,9 @@ describe('what the phone sends back', () => {
     const mobile = await joinedPhone();
     const after = await accountDocument(stand, recovery);
     const marker = JSON.stringify(['sync:device:' + mobile.sync.state.deviceId, 'value']);
-    expect(JSON.parse(JSON.parse(after.text).records[marker] ? JSON.stringify(after.doc.records[marker].value) : 'null')).toEqual({ level: 1 });
-    const withoutMarker = Object.fromEntries(Object.entries(after.doc.records).filter(([key]) => !sourceOf(key).startsWith('sync:device:' + mobile.sync.state.deviceId)));
+    expect(after.doc.records[marker].value).toEqual({ level: 2, revision: expect.any(Number) });
+    const own = new Set(['sync:device:' + mobile.sync.state.deviceId, 'sync:tabs:' + mobile.sync.state.deviceId]);
+    const withoutMarker = Object.fromEntries(Object.entries(after.doc.records).filter(([key]) => !own.has(sourceOf(key))));
     // Byte for byte, the whole document — key order included.
     expect(JSON.stringify({ schema: 2, records: withoutMarker })).toBe(before.text);
   });
@@ -183,7 +184,7 @@ describe('what the phone sends back', () => {
     const { doc } = await accountDocument(stand, recovery);
     const phoneId = mobile.sync.state.deviceId;
     for (const [key, record] of Object.entries(doc.records)) {
-      if (record.clock[phoneId]) expect(['preference:vex.bookmarks', 'sync:device:' + phoneId]).toContain(sourceOf(key));
+      if (record.clock[phoneId]) expect(['preference:vex.bookmarks', 'sync:device:' + phoneId, 'sync:tabs:' + phoneId]).toContain(sourceOf(key));
     }
   });
 
@@ -318,12 +319,13 @@ describe('with the desktop', () => {
     expect(mobile.bookmarks.all().some(item => item.url === 'https://desk.example/three')).toBe(true);
   });
 
-  it('gives the desktop its tile sync: the phone’s marker says level 1', async () => {
+  it('gives the desktop its tile sync and its clean-up: the phone’s marker says level 2', async () => {
     await desktopWithAccount();
     await joinedPhone();
     await pc.engine.pullNow();
     await pc.engine.pushNow();
     expect(pc.engine.tileSyncState()).toEqual({ open: true, waitingOn: [] });
+    expect(pc.engine.cleanupState()).toEqual({ open: true, waitingOn: [] });
   });
 
   it('puts its marker back when an older device deleted it', async () => {
@@ -336,7 +338,7 @@ describe('with the desktop', () => {
     expect((await mobile.sync.syncNow()).ok).toBe(true);
     const after = (await accountDocument(stand, recovery)).doc.records[key];
     expect(after.deleted).toBe(false);
-    expect(after.value).toEqual({ level: 1 });
+    expect(after.value).toEqual({ level: 2, revision: expect.any(Number) });
   });
 
   it('leaves notes alone when an older Vex keeps them as one value', async () => {
@@ -430,12 +432,13 @@ describe('the spec’s §6 rules, case by case', () => {
     await desktopWithAccount();
     const mobile = await joinedPhone();
     // The blob gone, the sessions and devices still there.
-    for (const key of [...stand.env.VEX_SYNC_KV.map.keys()]) if (key.startsWith('blob:')) stand.env.VEX_SYNC_KV.map.delete(key);
+    stand.dropBlob();
     expect((await mobile.sync.syncNow()).ok).toBe(true);
     const after = await accountDocument(stand, recovery);
     expect(after.revision).toBe(1);
     const sources = new Set(Object.keys(after.doc.records).map(sourceOf));
-    expect([...sources].sort()).toEqual(['preference:vex.bookmarks', 'preference:vex.notes', 'sync:device:' + mobile.sync.state.deviceId].sort());
+    expect([...sources].sort()).toEqual(['preference:vex.bookmarks', 'preference:vex.notes',
+      'sync:device:' + mobile.sync.state.deviceId, 'sync:tabs:' + mobile.sync.state.deviceId].sort());
   });
 
   it('rule 15: a 401 anywhere signs the phone out, without a DELETE and without touching its bookmarks', async () => {
@@ -475,17 +478,33 @@ describe('the spec’s §6 rules, case by case', () => {
     expect((await mobile.sync.syncNow()).ok).toBe(true);
   });
 
-  it('rule 5: every document the phone pushes carries its marker at level 1, and only level 1', async () => {
+  it('rule 5: every document the phone pushes carries its marker at level 2, with a revision that never leads', async () => {
     await desktopWithAccount();
     const mobile = await joinedPhone();
     for (let round = 0; round < 3; round++) {
       await mobile.bookmarks.add({ url: 'https://phone.example/r' + round, title: 'r' + round });
       expect((await mobile.sync.syncNow()).ok).toBe(true);
-      const { doc } = await accountDocument(stand, recovery);
+      const { doc, revision } = await accountDocument(stand, recovery);
       const marker = doc.records[JSON.stringify(['sync:device:' + mobile.sync.state.deviceId, 'value'])];
       expect(marker.deleted).toBe(false);
-      expect(marker.value).toEqual({ level: 1 });
+      expect(marker.value.level).toBe(2);
+      expect(Number.isSafeInteger(marker.value.revision)).toBe(true);
+      expect(marker.value.revision).toBeLessThan(revision);
     }
+  });
+
+  it('§4.6: the marker is not rewritten round after round when nothing else changed', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const revision = stand.blob().revision;
+    // The desktop syncing does not make the phone push its new revision back.
+    await pc.engine.pullNow();
+    await pc.engine.pushNow();
+    const afterDesktop = stand.blob().revision;
+    for (let round = 0; round < 3; round++) expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect(stand.blob().revision).toBe(afterDesktop);
+    expect(afterDesktop).toBeGreaterThanOrEqual(revision);
   });
 
   it('rule 11: everything the phone wrote passes the desktop’s contracts and record validation', async () => {
@@ -541,7 +560,7 @@ describe('Send to My Devices', () => {
     // Handed over once.
     expect(await mobile.sync.receiveFromDevices()).toEqual([]);
     // Nothing in the mailbox can be read by the worker.
-    expect(JSON.stringify([...stand.env.VEX_SYNC_KV.map.values()])).not.toContain('sent.example');
+    expect(stand.rawText()).not.toContain('sent.example');
   });
 
   it('refuses anything but a web address', async () => {
@@ -595,43 +614,162 @@ describe('v2.35.2 (§5.4, §6 rule 11)', () => {
 });
 
 describe('what the phone reads from the computer', () => {
-  it('shows the computer’s open tabs in its groups, and its history, without writing either back', async () => {
+  it('lists each device’s open tabs under its name, and the computer’s history, without writing either back', async () => {
     await desktopWithAccount();
-    pc.storage.set('groups', [
-      { id: 'g1', name: 'Work', color: 'blue', collapsed: false },
-      { id: 'g2', name: 'Trip', color: '#e8574b', collapsed: true }
-    ]);
     pc.storage.set('tabs', [
-      { id: 't1', url: 'https://mail.example/', title: 'Mail', groupId: 'g1', pinned: true },
-      { id: 't2', url: 'https://docs.example/q3', title: 'Q3 plan', groupId: 'g1' },
-      { id: 't3', url: 'https://flights.example/', title: 'Flights', groupId: 'g2' },
-      { id: 't4', url: 'https://news.example/', title: 'News' },
+      { id: 't1', url: 'https://mail.example/', title: 'Mail', pinned: true },
+      { id: 't2', url: 'https://docs.example/q3', title: 'Q3 plan' },
       { id: 't5', url: 'file:///C:/secret.txt', title: 'Not a web page' }
     ]);
+    pc.local.set('vex.syncDeviceName', 'Work laptop');
     pc.local.set('vex.history', JSON.stringify([
-      { id: 'h_1767225600000_aaaaa', url: 'https://tides.example/spring', title: 'Spring tides', favicon: '', visitedAt: '2026-10-04T20:00:00.000Z', indexed: false },
-      { id: 'h_1767225500000_bbbbb', url: 'https://lamps.example/', title: 'Desk lamps', favicon: '', visitedAt: '2026-10-04T19:00:00.000Z', indexed: false }
+      { id: 'h_1767225600000_aaaaa', url: 'https://tides.example/spring', title: 'Spring tides', favicon: '', visitedAt: new Date(Date.now() - 3600e3).toISOString(), indexed: false },
+      { id: 'h_1767225500000_bbbbb', url: 'https://lamps.example/', title: 'Desk lamps', favicon: '', visitedAt: new Date(Date.now() - 7200e3).toISOString(), indexed: false }
     ]));
     await pc.engine.pushNow();
     const before = recordTexts((await accountDocument(stand, recovery)).doc);
 
     const mobile = await joinedPhone();
-    const groups = mobile.sync.remoteTabGroups();
-    expect(groups.map(group => [group.name, group.color, group.tabs.map(tab => tab.title)])).toEqual([
-      ['Work', '#4f86f7', ['Mail', 'Q3 plan']],
-      ['Trip', '#e8574b', ['Flights']],
-      ['', '', ['News']]
-    ]);
-    expect(groups[0].tabs[0].pinned).toBe(true);
+    const devices = mobile.sync.remoteDevices();
+    expect(devices.map(device => [device.name, device.groups.flatMap(group => group.tabs.map(tab => tab.title))]))
+      .toEqual([['Work laptop', ['Mail', 'Q3 plan']]]);
     expect(mobile.sync.remoteHistory('tides').map(entry => entry.title)).toEqual(['Spring tides']);
     expect(mobile.sync.remoteHistory('', 10)).toHaveLength(2);
 
-    // Nothing of the computer's — tabs, groups, history — is written by the phone.
+    // Nothing of the computer's — its tabs, its history — is written by the phone.
     await mobile.bookmarks.add({ url: 'https://phone.example/read', title: 'Phone' });
     expect((await mobile.sync.syncNow()).ok).toBe(true);
     const after = recordTexts((await accountDocument(stand, recovery)).doc);
     for (const [key, text] of Object.entries(before)) {
-      if (/^\["(storage:tabs|storage:groups|preference:vex\.history)"/.test(key)) expect(after[key], key).toBe(text);
+      if (/^\["(sync:tabs:|preference:vex\.history)/.test(key)) expect(after[key], key).toBe(text);
     }
+  });
+
+  it('shows an older desktop’s shared tab list in its groups while no device sends its own', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    const { doc } = await accountDocument(stand, recovery);
+    // What Vex up to v14.72.3 wrote: one shared list, with the groups beside it.
+    for (const key of Object.keys(doc.records)) if (sourceOf(key).startsWith('sync:tabs:')) delete doc.records[key];
+    const R = pc.records;
+    const old = R.capture(R.empty(), R.flatten({
+      'storage:groups': [{ id: 'g1', name: 'Work', color: 'blue', collapsed: false }, { id: 'g2', name: 'Trip', color: '#e8574b', collapsed: true }],
+      'storage:tabs': [
+        { id: 't1', url: 'https://mail.example/', title: 'Mail', groupId: 'g1', pinned: true },
+        { id: 't2', url: 'https://flights.example/', title: 'Flights', groupId: 'g2' },
+        { id: 't3', url: 'https://news.example/', title: 'News' }
+      ]
+    }), 'old1');
+    await stand.putDocument({ schema: 2, records: { ...doc.records, ...old.records } }, recovery);
+    mobile.sync.setSharingTabs(false);
+    expect((await mobile.sync.pull()).ok).toBe(true);
+    const groups = mobile.sync.remoteTabGroups();
+    expect(groups.map(group => [group.name, group.color, group.tabs.map(tab => tab.title)])).toEqual([
+      ['Work', '#4f86f7', ['Mail']],
+      ['Trip', '#e8574b', ['Flights']],
+      ['', '', ['News']]
+    ]);
+    expect(groups[0].tabs[0].pinned).toBe(true);
+  });
+});
+
+describe('the phone’s own open tabs (§4.8)', () => {
+  it('go to the account as sync:tabs:<its id>, without private ones, and the desktop lists them under its name', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    mobile.tabs.push(
+      { id: 'p1', url: 'https://recipes.example/soup', title: 'Soup' },
+      { id: 'p2', url: 'https://secret.example/', title: 'Private', incognito: true },
+      { id: 'p3', url: 'about:blank', title: 'New tab' },
+      { id: 'p4', url: 'https://maps.example/route', title: 'Route' }
+    );
+    await mobile.sync.renameDevice('Galaxy S25 Ultra');
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const { doc } = await accountDocument(stand, recovery);
+    expect(doc.records[JSON.stringify(['sync:tabs:' + mobile.sync.state.deviceId, 'value'])].value).toEqual({
+      tabs: [{ url: 'https://recipes.example/soup', title: 'Soup' }, { url: 'https://maps.example/route', title: 'Route' }]
+    });
+    expect((await pc.engine.pullNow()).ok).toBe(true);
+    await pc.engine.listDevices();
+    expect(pc.engine.otherDeviceTabs().map(device => [device.name, device.tabs.map(tab => tab.title)]))
+      .toEqual([['Galaxy S25 Ultra', ['Soup', 'Route']]]);
+    expect(JSON.stringify(doc)).not.toContain('secret.example');
+  });
+
+  it('turned off, the list the account had from this phone is deleted', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    mobile.tabs.push({ id: 'p1', url: 'https://recipes.example/soup', title: 'Soup' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    await mobile.sync.setSharingTabs(false);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const { doc } = await accountDocument(stand, recovery);
+    expect(doc.records[JSON.stringify(['sync:tabs:' + mobile.sync.state.deviceId, 'value'])].deleted).toBe(true);
+    expect(JSON.stringify(doc)).not.toContain('recipes.example');
+  });
+});
+
+describe('the key proof (§2.7)', () => {
+  it('a desktop locks the account; the phone proves the key on every upload and wipe, and the account stays its own', async () => {
+    await desktopWithAccount();
+    expect(pc.engine.keyCheckState().state).toBe('on');
+    const mobile = await joinedPhone();
+    await mobile.bookmarks.add({ url: 'https://phone.example/proved', title: 'Proved' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect(mobile.sync.keyLock().state).toBe('on');
+    const pushes = stand.log.filter(entry => entry.path === '/sync/push');
+    expect(pushes.length).toBeGreaterThan(0);
+    expect(pushes.every(entry => entry.status === 200 || entry.status === 409)).toBe(true);
+    expect(stand.log.filter(entry => entry.path === '/sync/challenge').length).toBeGreaterThanOrEqual(pushes.length);
+    expect(await mobile.sync.devices()).toHaveLength(2);
+  });
+
+  it('a session without the key cannot overwrite the account: the worker refuses it, and the phone says why', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    // Another sign-in, with only an email code and a key of its own.
+    const intruder = phone(stand);
+    await intruder.sync.setWorkerUrl(stand.base);
+    const code = await codeFor(intruder, EMAIL);
+    await expect(intruder.sync.signIn(EMAIL, code, 'ab'.repeat(32))).rejects.toThrow(/doesn’t unlock/);
+    const before = stand.blob().revision;
+    // The phone with the right key carries on.
+    await mobile.bookmarks.add({ url: 'https://phone.example/after', title: 'After' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect(stand.blob().revision).toBeGreaterThan(before);
+  });
+
+  it('wipes with a proof, and the account is empty for everyone', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    await mobile.sync.deleteEverything();
+    expect(stand.blob()).toBe(null);
+    expect(mobile.sync.state.enabled).toBe(false);
+    expect(stand.log.some(entry => entry.path === '/sync/all' && entry.status === 200)).toBe(true);
+  });
+});
+
+describe('§4.7: deleted records the computers cleared away', () => {
+  it('are not sent back up by the phone', async () => {
+    await desktopWithAccount();
+    const mobile = await joinedPhone();
+    await mobile.bookmarks.add({ url: 'https://phone.example/gone', title: 'Gone soon' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    const id = mobile.bookmarks.all().find(item => item.url === 'https://phone.example/gone').id;
+    const key = JSON.stringify(['preference:vex.bookmarks', 'item', id]);
+    // Deleted on the computer.
+    await pc.engine.pullNow();
+    pc.local.set('vex.bookmarks', JSON.stringify(JSON.parse(pc.local.get('vex.bookmarks')).filter(item => item.id !== id)));
+    await pc.engine.pushNow();
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect(mobile.bookmarks.all().some(item => item.id === id)).toBe(false);
+    // Every device has seen the deletion; the computer clears it away.
+    const { doc } = await accountDocument(stand, recovery);
+    delete doc.records[key];
+    await stand.putDocument(doc, recovery);
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    await mobile.bookmarks.add({ url: 'https://phone.example/next', title: 'Next' });
+    expect((await mobile.sync.syncNow()).ok).toBe(true);
+    expect(Object.hasOwn((await accountDocument(stand, recovery)).doc.records, key)).toBe(false);
   });
 });

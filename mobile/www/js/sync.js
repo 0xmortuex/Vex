@@ -13,12 +13,16 @@
 //   preference:vex.bookmarks   item by item, both ways
 //   preference:vex.notes       item by item, both ways (the desktop's notes —
 //                              not the phone's page passages, which stay here)
-//   sync:device:<this id>      its marker: { level: 1 }
+//   sync:device:<this id>      its marker: { level: 2, revision, name? }
+//   sync:tabs:<this id>        the tabs open here (not private ones), which
+//                              the computers list under "Tabs from other
+//                              devices" — unless you turn that off
 //
-// Everything else — the desktop's tabs, settings, theme, history, tiles, other
-// devices' markers, sources added by a newer Vex — is copied through record by
-// record, untouched, and never written. storage:tabs in particular is read
-// (for "open on your PC") and never written.
+// Everything else — settings, theme, history, tiles, saved passwords, other
+// devices' markers and tabs, sources added by a newer Vex — is copied through
+// record by record, untouched, and never written. Other devices' open tabs
+// (sync:tabs:<id>, and the shared storage:tabs of a desktop older than
+// v14.72.3) and the computer's history are read, for "on your other devices".
 //
 // The crypto and the record merge are the desktop's own files, copied verbatim
 // (www/js/shared, `npm run shared`); so are the desktop's data contracts, which
@@ -31,13 +35,34 @@
 //            blob has been read and applied, and nothing is pushed while a
 //            blob could not be read (pullBlocked).
 //   push     capture this phone's lists onto the last document it read →
-//            validate → encrypt → POST with baseRevision. 409: another device
-//            got there first — pull, merge, push again (desktops push every two
-//            minutes, so this is routine). 401: this device was signed out.
+//            validate → encrypt → prove the key → POST with baseRevision.
+//            409: another device got there first — pull, merge, push again
+//            (desktops push seconds after a change, so this is routine).
+//            401: this device was signed out. 403 with a code: the worker
+//            refused the proof; its sentence is shown as it is.
+//
+// The key proof (SYNC_PROTOCOL.md §2.7): an account a current Vex has synced
+// is locked to its sync key, and the worker refuses an upload, a wipe — and,
+// from a session that has not proved it yet, the device list and "send to my
+// devices" — without an HMAC over a one-time nonce, keyed by a key derived
+// from the sync key. The sync key itself never leaves the phone.
+//
+// Level 2 (§4.6, §4.7): the marker carries the account revision this phone
+// last synced, so the computers can clear deleted records out of the account
+// once every device has them; a deleted record the account no longer holds is
+// dropped here too, rather than sent back up.
 
 const VexSync = (() => {
-  const SYNC_LEVEL = 1;                // what the desktop's marker says (2.34.3+)
+  // 2: copies every record it does not own as it found it, says in its marker
+  // the revision it last synced, drops a deleted record the account no longer
+  // holds, never writes a retired source (spec §4.6, §4.7).
+  const SYNC_LEVEL = 2;
   const DEVICE_SOURCE = 'sync:device:';
+  const TABS_SOURCE = 'sync:tabs:';
+  const DEVICE_TABS_MAX = 100;         // what the desktop sends and reads (§4.8)
+  // The marker is written again with nothing else changed only once a day, so
+  // two devices do not push each other's new revision back and forth for ever.
+  const MARKER_REFRESH_MS = 24 * 3600 * 1000;
   const BOOKMARKS = 'preference:vex.bookmarks';
   const NOTES = 'preference:vex.notes';
   const PUSH_ATTEMPTS = 4;             // first try + three pull-merge-retries
@@ -57,9 +82,19 @@ const VexSync = (() => {
     syncing: false,
     remoteTabs: [],
     remoteGroups: [],
+    remoteDevices: [],         // [{ deviceId, name, at, legacy?, tabs }]
     remoteHistory: [],
+    // What the worker said of the key lock: 'on' (since keyLockSince), 'off'
+    // (the next upload locks it), 'unsupported' (a worker from before it).
+    keyLock: null,
+    keyLockSince: null,
     conflicts: 0
   };
+
+  // HKDF of the sync key (§2.7.1): what proves the key, and decrypts nothing.
+  let authKey = null;
+  // The account's device list as last read: names, and which tabs to show.
+  let knownDevices = [];
 
   // A session the worker issued but the phone has not settled yet: waiting on
   // a recovery code. The worker lets it push, pull or delete itself, nothing
@@ -99,9 +134,9 @@ const VexSync = (() => {
 
   // Answers { status, body }; it is the caller that decides what 401, 403 and
   // 409 mean, because they mean different things to different calls.
-  async function request(path, { method = 'GET', body, token = state.token } = {}) {
+  async function request(path, { method = 'GET', body, token = state.token, headers: extra = {} } = {}) {
     if (!configured()) throw new Error('Add your Sync Worker URL in Settings → Sync.');
-    const headers = {};
+    const headers = { ...extra };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = 'Bearer ' + token;
     const controller = new AbortController();
@@ -128,6 +163,71 @@ const VexSync = (() => {
       return new Error('The sync server is not set up: ' + ((response.body && response.body.error) || 'it answered 503'));
     }
     return new Error((response.body && response.body.error) || (fallback + ' (the worker returned ' + response.status + ')'));
+  }
+
+  // ── Proof of the sync key (spec §2.7) ─────────────────────────────────────
+
+  const KEY_SENTENCE = 'This sync account is locked to its sync key, and the worker refused this phone’s proof';
+
+  /**
+   * The headers that prove this phone holds the sync key, for one request:
+   * { headers }, or { refused } — the challenge's own 401. A worker from
+   * before the key check has no /sync/challenge (404, or "This device has not
+   * synced yet" to a new session): it takes requests without a proof.
+   */
+  async function proofHeaders(action, details) {
+    if (!authKey) throw new Error('This phone has no sync key loaded — sign in again');
+    const response = await request('/sync/challenge');
+    if (response.status === 401) return { refused: response };
+    if (response.status === 404 || (response.status === 403 && response.body.error === 'This device has not synced yet')) {
+      state.keyLock = 'unsupported';
+      state.keyLockSince = null;
+      return { headers: {} };
+    }
+    if (!response.ok || typeof response.body.nonce !== 'string' || !/^[0-9a-f]{32}$/.test(response.body.nonce)) {
+      throw failure(response, 'Could not start the sync key check');
+    }
+    const nonce = response.body.nonce;
+    const headers = { 'X-Vex-Proof': nonce + '.' + await SyncCrypto.proof(authKey, nonce, deviceId(), action, details) };
+    // Not locked yet: this proof locks it to this key (trust on first use).
+    if (!response.body.keyCheck) { headers['X-Vex-Auth-Key'] = authKey; state.keyLock = 'off'; }
+    else { state.keyLock = 'on'; state.keyLockSince = response.body.keyCheck.setAt || null; }
+    return { headers };
+  }
+
+  function lockedHere(body) {
+    if (body && body.keyCheckSet) { state.keyLock = 'on'; state.keyLockSince = new Date().toISOString(); }
+  }
+
+  /** The worker's refusal of a proof, in its own words (§2.7.6). */
+  function refusal(response) {
+    const error = new Error((response.body && response.body.error) || KEY_SENTENCE);
+    error.code = response.body && response.body.code;
+    return error;
+  }
+
+  /**
+   * A phone that only reads (no change to upload) proves the key once, so a
+   * locked account lets it list devices and send pages (§2.7.4). Called when
+   * the worker says key-required; true when the retry is worth making.
+   */
+  async function prove() {
+    const proofed = await proofHeaders('prove', '');
+    if (proofed.refused) { await signedOutByServer(); return false; }
+    if (!proofed.headers['X-Vex-Proof']) return false;      // an older worker: nothing to prove
+    const response = await request('/sync/prove', { method: 'POST', body: {}, headers: proofed.headers });
+    if (response.status === 401) { await signedOutByServer(); return false; }
+    if (!response.ok) throw response.body && response.body.code ? refusal(response) : failure(response, 'Could not prove the sync key');
+    lockedHere(response.body);
+    return true;
+  }
+
+  /** A request that a locked account answers only once this phone proved the key. */
+  async function asProven(path, options) {
+    const response = await request(path, options);
+    if (response.status !== 403 || !response.body || response.body.code !== 'key-required') return response;
+    if (!(await prove())) return response;
+    return request(path, options);
   }
 
   // The worker's device ids are hex; the record clocks are keyed by them, and
@@ -257,6 +357,42 @@ const VexSync = (() => {
     });
   }
   const marker = () => DEVICE_SOURCE + deviceId();
+  const tabsSource = () => TABS_SOURCE + deviceId();
+
+  // This phone's name on your other devices, chosen in Settings › Sync. Kept
+  // here and sent in the marker, so it travels encrypted: the worker keeps
+  // only the name sent at sign-in (spec §4.6).
+  const cleanName = name => String(name == null ? '' : name).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const thisName = () => cleanName(VexStore.get('vex.syncDeviceName', ''));
+
+  // Whether the tabs open here are listed on your other devices. On unless
+  // you turn it off, as on the desktop.
+  const sharingTabs = () => VexStore.get('vex.syncShareTabs', true) !== false;
+
+  /** The tabs open here, as the desktop sends its own: web addresses only, no private tab. */
+  function openTabs() {
+    if (typeof VexTabStore === 'undefined') return [];
+    const check = contracts();
+    return VexTabStore.normal()
+      .filter(tab => tab && !tab.incognito && /^https?:\/\//i.test(String(tab.url || ''))
+        && String(tab.url).length <= 8192 && (!check || check.url(tab.url, true) !== false))
+      .slice(0, DEVICE_TABS_MAX)
+      .map(tab => ({ url: tab.url, title: String(tab.title || '').slice(0, 300) }));
+  }
+
+  /**
+   * The marker this push carries: the one already in the account while it
+   * says the same (level, name) and is less than a day old — else a fresh one
+   * with the revision this phone last synced, which may lag but never lead.
+   */
+  function markerValue(doc) {
+    const name = thisName();
+    const previous = doc.records[JSON.stringify([marker(), 'value'])];
+    const keep = !!previous && !previous.deleted && previous.value && previous.value.level === SYNC_LEVEL
+      && Number.isSafeInteger(previous.value.revision) && (previous.value.name || '') === name
+      && Date.now() - (previous.at || 0) < MARKER_REFRESH_MS;
+    return keep ? previous.value : { level: SYNC_LEVEL, revision: state.revision, ...(name ? { name } : {}) };
+  }
   const sourceOf = key => { try { return JSON.parse(key)[0]; } catch { return null; } };
 
   /**
@@ -357,8 +493,11 @@ const VexSync = (() => {
       // An empty list the account has never had is not worth a record.
       if (list.length || known) values[source] = list;
     }
-    values[marker()] = { level: SYNC_LEVEL };
-    const mine = new Set([...lists, marker()]);
+    values[marker()] = markerValue(doc);
+    // The open tabs: sent while sharing is on; turned off, the list the
+    // account has from this phone is deleted, like any value it owns.
+    if (sharingTabs()) values[tabsSource()] = { tabs: openTabs() };
+    const mine = new Set([...lists, marker(), tabsSource()]);
     const part = { schema: 2, records: {} };
     for (const [key, record] of Object.entries(doc.records)) if (mine.has(sourceOf(key))) part.records[key] = record;
     const captured = R.capture(part, R.flatten(values), deviceId());
@@ -367,7 +506,7 @@ const VexSync = (() => {
 
   const ownedKey = (key, lists) => {
     const source = sourceOf(key);
-    return lists.includes(source) || source === marker();
+    return lists.includes(source) || source === marker() || source === tabsSource();
   };
 
   /**
@@ -400,7 +539,8 @@ const VexSync = (() => {
       Object.assign(lists, R.unflatten(R.values(own)));
     }
     contracts().sources(lists);
-    contracts().json(lists);
+    const tabs = doc.records[JSON.stringify([tabsSource(), 'value'])];
+    contracts().json(tabs && !tabs.deleted ? { ...lists, [tabsSource()]: tabs.value } : lists);
     for (const source of OWNED) {
       if (Object.hasOwn(lists, source) && !Array.isArray(lists[source]) && writable(doc).includes(source)) {
         throw new Error('Invalid synced list: ' + source);
@@ -455,9 +595,40 @@ const VexSync = (() => {
     green: '#3fb46b', pink: '#e86ab0', purple: '#9a6ae8', cyan: '#2fb8c8', orange: '#f0883e'
   };
 
+  // A device's name: the one it gave itself in its marker, else the one the
+  // worker was told when it signed in (the desktop's deviceName()).
+  function nameOf(doc, id) {
+    const record = doc.records[JSON.stringify([DEVICE_SOURCE + id, 'value'])];
+    const own = record && !record.deleted && record.value && typeof record.value.name === 'string' ? cleanName(record.value.name) : '';
+    const listed = knownDevices.find(device => device.deviceId === id);
+    return own || (listed && typeof listed.deviceName === 'string' && listed.deviceName.trim()) || 'Another device';
+  }
+
   function readOnly(doc) {
-    // storage:tabs is a list, so it is kept item by item like any other. It is
-    // the open-tab set every desktop shares (spec §8.2): read, never written.
+    const values = records().values(doc);
+    const devices = [];
+    // Each device's open tabs (spec §4.8): { tabs: [{ url, title }] }, written
+    // by that device alone. Read, never written — but this phone's own.
+    for (const [key, value] of Object.entries(values)) {
+      let parts;
+      try { parts = JSON.parse(key); } catch { continue; }
+      const [source, kind] = parts;
+      if (kind !== 'value' || typeof source !== 'string' || !source.startsWith(TABS_SOURCE)) continue;
+      const id = source.slice(TABS_SOURCE.length);
+      if (id === state.deviceId) continue;
+      // A device taken off the account is not shown.
+      if (knownDevices.length && !knownDevices.some(device => device.deviceId === id)) continue;
+      const tabs = (value && Array.isArray(value.tabs) ? value.tabs : [])
+        .filter(tab => tab && typeof tab.url === 'string' && /^https?:\/\//i.test(tab.url))
+        .slice(0, 300)
+        .map(tab => ({ url: tab.url, title: String(tab.title || tab.url).slice(0, 300), icon: '', pinned: false, group: '', groupName: '', groupColor: '' }));
+      if (!tabs.length) continue;
+      devices.push({ deviceId: id, name: nameOf(doc, id), at: (doc.records[key] && doc.records[key].at) || 0, tabs });
+    }
+    devices.sort((a, b) => b.at - a.at);
+
+    // A desktop older than v14.72.3 shares one open-tab list, storage:tabs,
+    // with its groups in storage:groups (spec §8.2): read, never written.
     const groups = new Map();
     for (const group of accountList(doc, 'storage:groups')) {
       if (!group || group.id == null) continue;
@@ -468,20 +639,27 @@ const VexSync = (() => {
         color: /^#[0-9a-f]{3,8}$/i.test(colour) ? colour : (GROUP_COLOURS[colour.toLowerCase()] || '#9aa0a6')
       });
     }
-    const tabs = accountList(doc, 'storage:tabs');
-    state.remoteTabs = Array.isArray(tabs)
-      ? tabs.filter(tab => tab && typeof tab.url === 'string' && /^https?:/i.test(tab.url))
-        .map(tab => {
-          const group = tab.groupId != null ? groups.get(String(tab.groupId)) : null;
-          return {
-            url: tab.url, title: String(tab.title || ''),
-            icon: typeof tab.favicon === 'string' && /^https?:/i.test(tab.favicon) ? tab.favicon : '',
-            pinned: !!tab.pinned,
-            group: group ? group.id : '', groupName: group ? group.name : '', groupColor: group ? group.color : ''
-          };
-        }).slice(0, 300)
-      : [];
-    state.remoteGroups = [...groups.values()];
+    const shared = accountList(doc, 'storage:tabs')
+      .filter(tab => tab && typeof tab.url === 'string' && /^https?:/i.test(tab.url))
+      .map(tab => {
+        const group = tab.groupId != null ? groups.get(String(tab.groupId)) : null;
+        return {
+          url: tab.url, title: String(tab.title || ''),
+          icon: typeof tab.favicon === 'string' && /^https?:/i.test(tab.favicon) ? tab.favicon : '',
+          pinned: !!tab.pinned,
+          group: group ? group.id : '', groupName: group ? group.name : '', groupColor: group ? group.color : ''
+        };
+      }).slice(0, 300);
+    // Shown only while no desktop sends a list of its own: a newer desktop
+    // leaves the old shared list in the account until every device is updated.
+    if (shared.length && !devices.length) {
+      const at = Math.max(0, ...Object.entries(doc.records)
+        .filter(([key]) => sourceOf(key) === 'storage:tabs').map(([, record]) => record.at || 0));
+      devices.push({ deviceId: '', name: 'Your computer', at, legacy: true, tabs: shared });
+    }
+    state.remoteDevices = devices;
+    state.remoteTabs = devices.flatMap(device => device.tabs.map(tab => ({ ...tab, device: device.name, deviceId: device.deviceId })));
+    state.remoteGroups = devices.some(device => device.legacy) ? [...groups.values()] : [];
 
     // The desktop's history (preference:vex.history, newest first, ≤ 5000):
     // read here so a page from the computer can be found on the phone. The
@@ -534,7 +712,12 @@ const VexSync = (() => {
     state.revision = 0;
     state.remoteTabs = [];
     state.remoteGroups = [];
+    state.remoteDevices = [];
     state.remoteHistory = [];
+    state.keyLock = null;
+    state.keyLockSince = null;
+    authKey = null;
+    knownDevices = [];
     state.lastPullAt = null;
     state.lastPushAt = null;
     recordDocument = null;
@@ -564,6 +747,26 @@ const VexSync = (() => {
   // ── Pull and push ──────────────────────────────────────────────────────────
 
   /**
+   * A deleted record of this phone's that the account no longer holds was
+   * cleared away by a computer, once every device had it (spec §4.7): drop it
+   * here too. Kept, the merge would take it as this phone's and send it back
+   * up. Every record in the stored document was in the account — it is what
+   * the last pull or push left — so a deletion made since, not sent yet, is
+   * not in it and stays.
+   */
+  function withoutClearedTombstones(stored, pulled) {
+    if (!stored) return stored;
+    const lists = writable(stored);
+    let dropped = false;
+    const out = { schema: 2, records: {} };
+    for (const [key, record] of Object.entries(stored.records)) {
+      if (record && record.deleted && ownedKey(key, lists) && !Object.hasOwn(pulled.records, key)) { dropped = true; continue; }
+      out.records[key] = record;
+    }
+    return dropped ? out : stored;
+  }
+
+  /**
    * One pull. `joining`: the first one on this phone, with the account's copy
    * winning for everything it has and the phone's own additions added on top.
    */
@@ -573,6 +776,7 @@ const VexSync = (() => {
     if (!response.ok) throw failure(response, 'Could not pull');
     const revision = response.body.revision || 0;
     if (!Number.isSafeInteger(revision) || revision < 0) throw new Error('The worker sent an invalid revision');
+    if (response.body.keyCheck) { state.keyLock = 'on'; state.keyLockSince = response.body.keyCheck.setAt || null; }
 
     let pulled;
     if (!response.body.encryptedBlob) {
@@ -602,7 +806,7 @@ const VexSync = (() => {
     // goes up is the phone's own part, from an empty document, as for a new
     // account (spec §5.3 step 2, rule 3) — never a stale stored document.
     const empty = !response.body.encryptedBlob;
-    const stored = joining || empty ? null : await loadDocument();
+    const stored = joining || empty ? null : withoutClearedTombstones(await loadDocument(), pulled);
     const base = stored || pulled;
     const local = captureOwned(base, { joining: joining || !stored });
     const merged = mergeIntoPulled(local, pulled);
@@ -630,7 +834,7 @@ const VexSync = (() => {
     // phone's marker among them, and the merge rightly takes that. Put back
     // at once (the desktop's markerMissing): until it is, desktops hold their
     // tiles back waiting for this phone.
-    const own = merged.records[JSON.stringify([marker(), 'value'])];
+    const own = pulled.records[JSON.stringify([marker(), 'value'])];
     const markerMissing = !(own && !own.deleted && own.value && own.value.level >= SYNC_LEVEL);
     return { ok: true, empty: !response.body.encryptedBlob, needsPush: differs || markerMissing };
   }
@@ -647,13 +851,21 @@ const VexSync = (() => {
     if (blob.length + 200 > 4 * 1024 * 1024) {
       throw new Error('Your synced data is larger than the sync server accepts (4 MB) — nothing was sent');
     }
-    const response = await request('/sync/push', {
-      method: 'POST',
+    const proofed = await proofHeaders('push', state.revision + '\n' + await SyncCrypto.sha256Hex(blob));
+    const response = proofed.refused || await request('/sync/push', {
+      method: 'POST', headers: proofed.headers,
       body: { encryptedBlob: blob, updatedAt: new Date().toISOString(), baseRevision: state.revision }
     });
     if (response.status === 401) { await signedOutByServer(); return { ok: false, signedOut: true, reason: 'Signed out' }; }
-    if (response.status === 409) return { ok: false, conflict: true };
+    if (response.status === 409) { lockedHere(response.body); return { ok: false, conflict: true }; }
+    // The nonce was spent or too old: a new one, once more.
+    if (response.status === 403 && response.body.code === 'proof-stale') return { ok: false, stale: true };
+    // Refused by the key check: the worker's own words say what to do. Never
+    // retried with anything else (spec rule 22).
+    if (response.status === 403 && response.body.code) throw refusal(response);
+    if (response.status === 413) throw new Error('Your synced data is larger than the sync server accepts (4 MB) — nothing was sent');
     if (!response.ok) throw failure(response, 'Could not push');
+    lockedHere(response.body);
     const revision = response.body.revision;
     if (!Number.isSafeInteger(revision) || revision < 1) throw new Error('The worker sent an invalid revision');
     await saveDocument(doc);
@@ -670,6 +882,7 @@ const VexSync = (() => {
     for (let attempt = 0; attempt < PUSH_ATTEMPTS; attempt++) {
       const pushed = await pushOnce();
       if (pushed.ok || pushed.signedOut) return pushed;
+      if (pushed.stale) continue;
       if (!pushed.conflict && !pushed.needsPull) return pushed;
       const pulled = await pullOnce();
       if (!pulled.ok) return pulled;
@@ -720,6 +933,7 @@ const VexSync = (() => {
     state.deviceId = session.deviceId;
     state.deviceName = session.deviceName;
     state.key = await SyncCrypto.importKey(SyncCrypto.hexToKey(keyHex));
+    authKey = await SyncCrypto.authKeyHex(SyncCrypto.hexToKey(keyHex));
     state.enabled = true;
     state.revision = 0;
     recordDocument = null;
@@ -807,6 +1021,7 @@ const VexSync = (() => {
       if (!token || !keyHex) return false;
       try {
         state.key = await SyncCrypto.importKey(SyncCrypto.hexToKey(keyHex));
+        authKey = await SyncCrypto.authKeyHex(SyncCrypto.hexToKey(keyHex));
       } catch { return false; }
       state.email = meta.email;
       state.token = token;
@@ -913,13 +1128,39 @@ const VexSync = (() => {
     },
 
     async devices() {
-      const response = await request('/sync/devices');
+      const response = await asProven('/sync/devices');
       if (response.status === 401) { await signedOutByServer(); throw new Error('This phone is no longer signed in'); }
+      if (response.status === 403 && response.body.code) throw refusal(response);
       if (response.status === 403) return [];          // not synced yet
       if (!response.ok) throw failure(response, 'Could not list your devices');
       if (!Array.isArray(response.body.devices)) throw new Error('Could not list your devices');
-      return response.body.devices;
+      knownDevices = response.body.devices.filter(device => device && typeof device.deviceId === 'string');
+      if (recordDocument) { try { readOnly(recordDocument); } catch { /* the next pull redraws it */ } }
+      // Each with the name it gave itself, where it did.
+      return knownDevices.map(device => ({ ...device, name: recordDocument ? nameOf(recordDocument, device.deviceId) : device.deviceName }));
     },
+
+    /** This phone's name on your other devices; the next sync sends it. */
+    deviceName: () => thisName(),
+    async renameDevice(name) {
+      const clean = cleanName(name);
+      if (!clean) throw new Error('Give this phone a name');
+      await VexStore.set('vex.syncDeviceName', clean);
+      if (!state.enabled) return { ok: true };
+      const pushed = await VexSync.push();
+      if (!pushed.ok) throw new Error('Renamed here — your other devices see it after the next sync: ' + (pushed.reason || 'it did not sync'));
+      return { ok: true };
+    },
+
+    /** Whether the tabs open here show on your other devices. */
+    sharingTabs,
+    async setSharingTabs(on) {
+      await VexStore.set('vex.syncShareTabs', !!on);
+      VexSync.schedulePush(500);
+    },
+
+    /** The worker's key lock, as last heard: { state: 'on'|'off'|'unsupported'|null, since }. */
+    keyLock: () => ({ state: state.keyLock, since: state.keyLockSince }),
 
     async forgetDevice(id) {
       const response = await request('/sync/devices/' + encodeURIComponent(id), { method: 'DELETE' });
@@ -931,8 +1172,14 @@ const VexSync = (() => {
 
     /** Wipe the account for every device; this phone is signed out with it. */
     async deleteEverything() {
-      const response = await request('/sync/all', { method: 'DELETE' });
+      // A wipe proves the key like an upload (spec §2.7.2); the address goes
+      // with it so the worker can email it that the data was erased (§2.9).
+      const proofed = await proofHeaders('wipe', '');
+      const response = proofed.refused || await request('/sync/all', {
+        method: 'DELETE', headers: proofed.headers, body: state.email ? { email: state.email } : undefined
+      });
       if (response.status === 401) { await signedOutByServer(); throw new Error('This phone is no longer signed in'); }
+      if (response.status === 403 && response.body.code) throw refusal(response);
       if (!response.ok) throw failure(response, 'Could not delete the synced data');
       await forget();
     },
@@ -944,8 +1191,9 @@ const VexSync = (() => {
       try { parsed = new URL(address); } catch { throw new Error('Only web addresses can be sent'); }
       if (!/^https?:$/.test(parsed.protocol)) throw new Error('Only web addresses can be sent');
       const encryptedBlob = await SyncCrypto.encrypt({ url: String(address).slice(0, 2048), title: String(title || '').slice(0, 300) }, state.key);
-      const response = await request('/sync/drop', { method: 'POST', body: { encryptedBlob } });
+      const response = await asProven('/sync/drop', { method: 'POST', body: { encryptedBlob } });
       if (response.status === 401) { await signedOutByServer(); throw new Error('This phone is no longer signed in'); }
+      if (response.status === 403 && response.body.code) throw refusal(response);
       if (response.status === 403) throw new Error('Sync once before sending — this phone has not synced yet');
       if (!response.ok) throw failure(response, 'Could not send');
       return true;
@@ -955,7 +1203,7 @@ const VexSync = (() => {
     async receiveFromDevices() {
       if (!state.enabled || !state.key) return [];
       let response;
-      try { response = await request('/sync/drop'); } catch { return []; }
+      try { response = await asProven('/sync/drop'); } catch { return []; }
       if (response.status === 401) { await signedOutByServer(); return []; }
       if (!response.ok) return [];
       const items = [];
@@ -975,15 +1223,27 @@ const VexSync = (() => {
 
     remoteTabs() { return state.remoteTabs; },
 
-    /** The computer's open tabs in its groups, in its order: [{ name, color, tabs }]. */
+    /**
+     * Your other devices and the tabs each has open, the most recently
+     * changed first: [{ deviceId, name, at, legacy?, groups: [{ id, name,
+     * color, tabs }] }]. Groups come only from a desktop older than v14.72.3;
+     * a newer one sends its tabs without them, in its tab order.
+     */
+    remoteDevices() {
+      return state.remoteDevices.map(device => {
+        const byGroup = new Map();
+        for (const tab of device.tabs) {
+          const key = tab.group || '';
+          if (!byGroup.has(key)) byGroup.set(key, { id: key, name: tab.groupName || '', color: tab.groupColor || '', tabs: [] });
+          byGroup.get(key).tabs.push(tab);
+        }
+        return { ...device, groups: [...byGroup.values()].sort((a, b) => (!a.id) - (!b.id)) };
+      });
+    },
+
+    /** Every other device's tabs in one list of groups: [{ id, name, color, tabs }]. */
     remoteTabGroups() {
-      const byGroup = new Map();
-      for (const tab of state.remoteTabs) {
-        const key = tab.group || '';
-        if (!byGroup.has(key)) byGroup.set(key, { id: key, name: tab.groupName || '', color: tab.groupColor || '', tabs: [] });
-        byGroup.get(key).tabs.push(tab);
-      }
-      return [...byGroup.values()].sort((a, b) => (!a.id) - (!b.id));
+      return VexSync.remoteDevices().flatMap(device => device.groups);
     },
 
     /** The computer's history, newest first; `query` matches the title or address. */

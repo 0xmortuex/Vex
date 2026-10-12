@@ -85,11 +85,33 @@ const SyncCrypto = (() => {
     return (formatted || '').replace(/[^0-9a-f]/gi, '').toLowerCase();
   }
 
+  // Proof of the sync key (SYNC_PROTOCOL.md §2.7). The server is never sent
+  // the sync key: it keeps this auth key, HKDF-SHA256 of the sync key with an
+  // empty salt and its own info string, which decrypts nothing.
+  const AUTH_INFO = 'vex-sync auth key v1';
+  async function authKeyHex(keyBytes) {
+    const ikm = await crypto.subtle.importKey('raw', keyBytes, 'HKDF', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: new TextEncoder().encode(AUTH_INFO) }, ikm, 256);
+    return keyToHex(new Uint8Array(bits));
+  }
+
+  async function sha256Hex(text) {
+    return keyToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))));
+  }
+
+  // HMAC-SHA256(auth key, "vex-sync-proof/1\n<nonce>\n<deviceId>\n<action>\n<details>"), hex.
+  async function proof(authHex, nonce, deviceId, action, details) {
+    const key = await crypto.subtle.importKey('raw', hexToKey(authHex), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`vex-sync-proof/1\n${nonce}\n${deviceId}\n${action}\n${details}`));
+    return keyToHex(new Uint8Array(mac));
+  }
+
   return {
     generateKey, exportKey, importKey,
     encrypt, decrypt,
     keyToHex, hexToKey,
-    formatRecoveryCode, parseRecoveryCode
+    formatRecoveryCode, parseRecoveryCode,
+    authKeyHex, sha256Hex, proof
   };
 })();
 

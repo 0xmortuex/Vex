@@ -252,6 +252,41 @@ window.VEX_THEMES = [
     "bg": "#1c1b22"
   },
   {
+    "id": "contrast-light",
+    "label": "High Contrast Light",
+    "dark": false,
+    "accent": "#0037a6",
+    "bg": "#ffffff"
+  },
+  {
+    "id": "contrast-dark",
+    "label": "High Contrast Dark",
+    "dark": true,
+    "accent": "#8ec5ff",
+    "bg": "#000000"
+  },
+  {
+    "id": "evening",
+    "label": "Evening",
+    "dark": true,
+    "accent": "#d48a3a",
+    "bg": "#18120c"
+  },
+  {
+    "id": "mica-light",
+    "label": "Mica Light",
+    "dark": false,
+    "accent": "#005fb8",
+    "bg": "#f3f3f3"
+  },
+  {
+    "id": "mica-dark",
+    "label": "Mica Dark",
+    "dark": true,
+    "accent": "#60cdff",
+    "bg": "#202020"
+  },
+  {
     "id": "clearvision",
     "label": "ClearVision",
     "dark": true,

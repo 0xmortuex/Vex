@@ -7,14 +7,14 @@ The phone can't do these alone. Each one needs a change in `src/`, `workers/` or
 
 Everything below is the part that needs the desktop. Once a request lands, the phone side follows on `claude/mobile-browser-version-00t60f`.
 
-## 0. One gate for all of it: marker level 2
+## 0. One gate for all of it: a marker level above 2
 
 New sources are only safe once no desktop at v2.35.1 or older is left on the account. Those desktops tombstone sources they don't know (§6 rule 1). So the proposal is one rule:
 
-- Define marker level 2 as meaning "understands §R1–§R4 below".
-- A desktop that ships them writes `{"level":2}`.
-- The phone writes a new source only when every device listed by `GET /sync/devices` has a marker at level 2 or higher. This works like the tile gate in §4.6.
-- §6 rule 5 must then allow level 2.
+- Level 2 now means copy-through, revision and clean-up (§4.6, §4.7); the phone writes it. Define level 3 as "understands §R1, §R3, §R4 below".
+- A desktop that ships them writes `{"level":3,"revision":…}`.
+- The phone writes a new source only when every device listed by `GET /sync/devices` has a marker at level 3 or higher. This works like the tile gate in §4.6.
+- §6 rule 5 must then allow level 3.
 
 ## R1. Reading list (new, both sides own it)
 
@@ -33,24 +33,11 @@ New sources are only safe once no desktop at v2.35.1 or older is left on the acc
   - marking an item read when its page is opened from the list.
 - Both sides own the source and push the full list (rule 2).
 
-## R2. Each device's open tabs and groups (per device, the owner writes)
+## R2. Each device's open tabs — done on the desktop (v14.72.3+), one addition asked
 
-`storage:tabs` is merged across desktops and the phone must never write it (rule 19). So the proposal is a per-device whole-value source that nothing applies live:
+The desktop now sends `sync:tabs:<deviceId>` = `{ tabs: [{ url, title }] }` and lists other devices' tabs under History › Tabs from other devices; the phone writes its own the same way and reads the computers' (since 2026-10-12). What is lost is the **groups**: the old shared `storage:tabs` carried `groupId` and `storage:groups` the names and colours, and the phone showed the computer's tabs in its groups.
 
-- **Source:** `sync:tabs:<deviceId>`, a whole value written only by that device:
-
-  ```
-  { "at": ms, "name": deviceName,
-    "tabs": [ { "url", "title", "pinned": bool, "groupId": string|null, "active": bool } ],   // ≤ 500
-    "groups": [ { "id", "name", "color" } ] }                                                // ≤ 200
-  ```
-
-  Private tabs are never included.
-- **Desktop:**
-  - writes its own source on each push;
-  - shows "Tabs on your other devices" (phone included) with group headers, where a tap opens the tab locally;
-  - must **not** feed this source into `TabManager.applySyncedState`.
-- **Owner rule (§6):** a device owns only its own `sync:tabs:<id>`. When `DELETE /sync/devices/:id` runs, that device's source is tombstoned.
+- **Ask:** add optional `groupId` to each tab and an optional `groups: [{ id, name, color }]` beside `tabs` in the desktop's own `sync:tabs:<id>` value (§4.8). Readers that do not know them ignore them (the desktop's own `otherDeviceTabs` maps each tab to `{url, title}`), so no marker level is needed. The phone already draws groups with their colours when they are there.
 
 ## R3. Each device's history and recently closed tabs
 

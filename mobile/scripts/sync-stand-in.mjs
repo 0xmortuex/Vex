@@ -1,7 +1,8 @@
 // A Vex Sync worker on this machine, for trying sync without touching the
-// real one: the shipping worker code (workers/vex-sync-worker/worker.js,
-// syncHandler) over in-memory storage, in development mode — a sign-in code
-// comes back in the response (`devCode`) instead of by email.
+// real one: the shipping worker code (workers/vex-sync-worker/worker.js — its
+// Durable Objects, one for sign-ins and one per account, as on Cloudflare)
+// over in-memory storage, in development mode — a sign-in code comes back in
+// the response (`devCode`) instead of by email.
 //
 //   EMAIL_HASH_SECRET=<32+ characters> node scripts/sync-stand-in.mjs [port]
 //
@@ -13,7 +14,7 @@
 //
 // Storage lives as long as the process; nothing is written to disk.
 import http from 'node:http';
-import { syncHandler } from '../../workers/vex-sync-worker/worker.js';
+import * as worker from '../../workers/vex-sync-worker/worker.js';
 
 const port = Number(process.argv[2]) || 8787;
 const secret = process.env.EMAIL_HASH_SECRET || '';
@@ -22,27 +23,45 @@ if (secret.length < 32) {
   process.exit(1);
 }
 
-function memoryKV() {
-  const map = new Map();
+// A Durable Object's storage, in memory: values are structured-cloned, as on
+// Cloudflare.
+function memoryStorage() {
+  const records = new Map();
+  const clone = value => (value === undefined ? undefined : structuredClone(value));
   return {
-    async get(key) {
-      const row = map.get(key);
-      if (!row) return null;
-      if (row.expires && row.expires <= Date.now()) { map.delete(key); return null; }
-      return row.value;
+    async get(key) { return clone(records.get(key)); },
+    async put(key, value) {
+      if (typeof key === 'object') { for (const [k, v] of Object.entries(key)) records.set(k, clone(v)); return; }
+      records.set(key, clone(value));
     },
-    async put(key, value, options = {}) {
-      map.set(key, { value: String(value), expires: options.expirationTtl ? Date.now() + options.expirationTtl * 1000 : 0 });
+    async delete(key) { return records.delete(key); },
+    async list({ prefix = '', limit = Infinity, startAfter } = {}) {
+      const keys = [...records.keys()].filter(key => key.startsWith(prefix) && (startAfter === undefined || key > startAfter)).sort().slice(0, limit);
+      return new Map(keys.map(key => [key, clone(records.get(key))]));
     },
-    async delete(key) { map.delete(key); }
+    getAlarm: async () => 1,
+    setAlarm: async () => {}
   };
 }
 
-const env = {
-  EMAIL_HASH_SECRET: secret,
-  DEVELOPMENT_MODE: 'true',
-  VEX_AUTH_KV: memoryKV(),
-  VEX_SYNC_KV: memoryKV()
+// One request at a time per object (blockConcurrencyWhile).
+function objectState() {
+  let queue = Promise.resolve();
+  return { storage: memoryStorage(), blockConcurrencyWhile(fn) { const run = queue.then(fn); queue = run.catch(() => {}); return run; } };
+}
+
+const env = { EMAIL_HASH_SECRET: secret, DEVELOPMENT_MODE: 'true' };
+const signIns = new worker.VexSyncState(objectState(), env);
+const accounts = new Map();
+env.VEX_STATE = { idFromName: name => ({ name }), get: () => ({ fetch: request => signIns.fetch(request) }) };
+env.VEX_ACCOUNTS = {
+  idFromName: name => ({ name }),
+  get: ({ name }) => ({
+    fetch: request => {
+      if (!accounts.has(name)) accounts.set(name, new worker.VexSyncAccount(objectState(), env));
+      return accounts.get(name).fetch(request);
+    }
+  })
 };
 
 // One request at a time, as the worker's Durable Object runs them.
@@ -59,7 +78,7 @@ const server = http.createServer((req, res) => {
         headers: Object.fromEntries(Object.entries(req.headers).filter(([, value]) => typeof value === 'string')),
         body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body
       });
-      const response = await syncHandler.fetch(request, env);
+      const response = await worker.default.fetch(request, env);
       res.writeHead(response.status, Object.fromEntries(response.headers));
       res.end(Buffer.from(await response.arrayBuffer()));
       console.log(req.method, req.url, response.status);

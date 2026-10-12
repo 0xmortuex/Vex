@@ -15,7 +15,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { syncHandler } from '../../workers/vex-sync-worker/worker.js';
+import * as worker from '../../workers/vex-sync-worker/worker.js';
+import { memoryStorage } from '../workers/syncHarness.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..', '..');
@@ -24,27 +25,33 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 export const BASE = 'http://127.0.0.1:8787';
 
 export function standIn() {
-  const kv = () => {
-    const map = new Map();
-    return {
-      map,
-      async get(key) {
-        const row = map.get(key);
-        if (!row) return null;
-        if (row.expires && row.expires <= Date.now()) { map.delete(key); return null; }
-        return row.value;
-      },
-      async put(key, value, options = {}) {
-        map.set(key, { value: String(value), expires: options.expirationTtl ? Date.now() + options.expirationTtl * 1000 : 0 });
-      },
-      async delete(key) { map.delete(key); }
-    };
+  // The worker as it runs on Cloudflare: one Durable Object with the sign-in
+  // state, one per account (SYNC_PROTOCOL.md §1.2), each running one request
+  // at a time, over in-memory storage the test can read.
+  const objectState = storage => {
+    let queue = Promise.resolve();
+    return { storage, blockConcurrencyWhile(fn) { const run = queue.then(fn); queue = run.catch(() => {}); return run; } };
   };
   const env = {
     EMAIL_HASH_SECRET: 'stand-in-secret-for-tests-0123456789abcdef',
-    DEVELOPMENT_MODE: 'true',
-    VEX_AUTH_KV: kv(),
-    VEX_SYNC_KV: kv()
+    DEVELOPMENT_MODE: 'true'
+  };
+  const global = new Map();
+  const accounts = new Map();
+  const globalObject = new worker.VexSyncState(objectState(memoryStorage(global)), env);
+  const accountObjects = new Map();
+  env.VEX_STATE = { idFromName: name => ({ name }), get: () => ({ fetch: request => globalObject.fetch(request) }) };
+  env.VEX_ACCOUNTS = {
+    idFromName: name => ({ name }),
+    get: ({ name }) => ({
+      fetch: request => {
+        if (!accountObjects.has(name)) {
+          if (!accounts.has(name)) accounts.set(name, new Map());
+          accountObjects.set(name, new worker.VexSyncAccount(objectState(memoryStorage(accounts.get(name))), env));
+        }
+        return accountObjects.get(name).fetch(request);
+      }
+    })
   };
   const log = [];
   let chain = Promise.resolve();
@@ -53,11 +60,11 @@ export function standIn() {
     const url = typeof input === 'string' ? input : input.url;
     const request = new Request(url, init);
     const pathName = new URL(url).pathname;
-    const response = await syncHandler.fetch(request, env);
+    const response = await worker.default.fetch(request, env);
     log.push({ method: init.method || 'GET', path: pathName, status: response.status });
     return response;
   }
-  // The Durable Object runs one request at a time.
+  // One request at a time, as the account's object takes them.
   async function fetchImpl(input, init = {}) {
     // Another device's round, run just before this push reaches the worker.
     const url = typeof input === 'string' ? input : input.url;
@@ -70,21 +77,29 @@ export function standIn() {
     chain = run.catch(() => {});
     return run;
   }
+  // The account's stored blob: { revision, encryptedBlob, pushedBy, … }.
   const blobRow = () => {
-    for (const [key, row] of env.VEX_SYNC_KV.map) if (key.startsWith('blob:')) return { key, data: JSON.parse(row.value) };
+    for (const records of accounts.values()) {
+      for (const [key, row] of records) {
+        if (key.startsWith('sync:blob:') && row && !row.deleted && typeof row.value === 'string') return { records, key, row, data: JSON.parse(row.value) };
+      }
+    }
     return null;
   };
   return {
-    base: BASE, env, log, hooks,
+    base: BASE, env, log, hooks, accounts,
     fetch: fetchImpl,
-    // The raw stored blob row: { revision, encryptedBlob, pushedBy, … }.
     blob: () => (blobRow() || {}).data || null,
+    /** Lose the blob while the sessions stay, as a server that lost it would. */
+    dropBlob() { const row = blobRow(); if (row) row.records.delete(row.key); },
+    /** Everything the server keeps, as text: what it could ever show anyone. */
+    rawText: () => JSON.stringify([...global.values(), ...[...accounts.values()].flatMap(records => [...records.values()])]),
     /** Replace the stored document, as another device's push would (revision + 1). */
     async putDocument(doc, keyHex) {
       const row = blobRow();
       const encryptedBlob = await encryptWith(doc, keyHex);
       const data = { ...row.data, revision: row.data.revision + 1, encryptedBlob };
-      env.VEX_SYNC_KV.map.set(row.key, { value: JSON.stringify(data), expires: 0 });
+      row.records.set(row.key, { ...row.row, value: JSON.stringify(data) });
     }
   };
 }
@@ -135,6 +150,8 @@ export function desktop(stand, { name = 'desktop' } = {}) {
     },
     showToast: message => toasts.push(message),
     dispatchEvent: () => true,
+    addEventListener: () => {},
+    removeEventListener: () => {},
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options && options.detail; } }
   });
   for (const file of ['src/renderer/js/sync-crypto.js', 'src/renderer/js/sync-records.js',
@@ -145,6 +162,8 @@ export function desktop(stand, { name = 'desktop' } = {}) {
 }
 
 export function phone(stand) {
+  // The phone's open tabs, as VexTabStore holds them: the test sets them.
+  const tabs = [];
   const store = new Map();
   const vault = new Map();
   const blobs = new Map();
@@ -165,14 +184,15 @@ export function phone(stand) {
       put: async (name, row) => { if (name === 'blobs') blobs.set(row.name, structuredClone(row)); },
       delete: async (name, key) => { if (name === 'blobs') blobs.delete(key); }
     },
-    VexUI: { toast: message => toasts.push(message) }
+    VexUI: { toast: message => toasts.push(message) },
+    VexTabStore: { all: () => tabs, normal: () => tabs.filter(tab => !tab.incognito) }
   });
   for (const file of ['mobile/www/js/shared/sync-crypto.js', 'mobile/www/js/shared/sync-records.js',
     'mobile/www/js/shared/data-contracts.js', 'mobile/www/js/collections.js', 'mobile/www/js/sync.js']) {
     vm.runInContext(read(file), context, { filename: file });
   }
   return {
-    context, store, vault, blobs, toasts,
+    context, store, vault, blobs, toasts, tabs,
     sync: context.VexSync,
     bookmarks: context.VexCollections.bookmarks,
     notes: () => store.get('vex.syncNotes') || [],
