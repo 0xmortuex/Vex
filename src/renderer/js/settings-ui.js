@@ -880,8 +880,15 @@ const SettingsUI = {
     // row is 5.2 screen pixels, and Chromium draws it in 1/64ths, rounded
     // down: 5.1875. Counted as 4px, AI Personas (1285 rows) came out 16px
     // short and its last line ran into the next section.
-    const box = root.getBoundingClientRect();
-    const zoom = root.offsetWidth && box.width ? box.width / root.offsetWidth : 1;
+    // The zoom itself, from the style: the ratio of the box to offsetWidth
+    // (a whole number) said 1.4997 for the 1.5 of Largest, a row of 3.9905px
+    // instead of 4, and a 4500px section took 6 rows too many (35-40px gaps
+    // under Largest text).
+    let zoom = 1;
+    for (let el = root; el && el.nodeType === 1; el = el.parentElement) {
+      const z = parseFloat(getComputedStyle(el).zoom);
+      if (z > 0) zoom *= z;
+    }
     const pitch = Math.floor(this.ROW_UNIT * zoom * 64) / 64 / zoom;
     // Every height first, then every place: one layout pass, not one a block.
     const shown = [];

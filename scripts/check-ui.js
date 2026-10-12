@@ -891,11 +891,30 @@ async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) 
       let count = 0, blocks = 0, runs = 0;
       // The owner's look gets every size; the others the 1920 window and, for
       // the full width choice, the rest (--full: every size in every look).
-      for (const [width, height] of SETTINGS_SIZES) {
-        await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-        for (const layout of settingsLayouts(FULL)) {
-          if (!FULL && style !== 'firefox' && width !== 1920 && !(layout.expect.columns === 'wide')) continue;
-          const label = width + 'x' + height + ', ' + layout.label;
+      // Larger and Largest text zoom the panel: fewer CSS pixels, a row of
+      // the grid drawn in 1/64ths. Here a section ended 35-40px short of
+      // where the next began until the zoom was read from the style.
+      const base = settingsLayouts(FULL);
+      const scenarios = [];
+      for (const [width, height] of SETTINGS_SIZES) for (const layout of base) scenarios.push({ size: 'normal', width, height, layout });
+      const textLayouts = [base[0], base.find(l => l.expect.columns === '2' && l.expect.nav === 'side') || base[1]];
+      for (const size of ['larger', 'largest']) {
+        for (const [width, height] of [[1920, 1080], [2560, 1440]]) for (const layout of textLayouts) scenarios.push({ size, width, height, layout });
+      }
+      let sized = null;
+      let sizedAt = null;
+      for (const { size, width, height, layout } of scenarios) {
+        {
+          if (!FULL && style !== 'firefox' && size === 'normal' && width !== 1920 && !(layout.expect.columns === 'wide')) continue;
+          if (sizedAt !== width + 'x' + height) {
+            await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+            sizedAt = width + 'x' + height;
+          }
+          if (sized !== size) {
+            await evaluate(cdp, 'VexFonts.setSize(' + JSON.stringify(size) + '); true');
+            sized = size;
+          }
+          const label = width + 'x' + height + (size === 'normal' ? '' : ', ' + size + ' text') + ', ' + layout.label;
           await evaluate(cdp, '(() => { const p = ' + JSON.stringify(layout.prefs) + ';' +
             " if (p) localStorage.setItem('vex.settingsLayout', JSON.stringify(p)); else localStorage.removeItem('vex.settingsLayout');" +
             " SidebarManager.openPanel('settings'); SettingsUI.applyLayoutPrefs(); return true; })()");
@@ -919,7 +938,7 @@ async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) 
     }
   } finally {
     await cdp.send('Emulation.clearDeviceMetricsOverride');
-    await evaluate(cdp, "(localStorage.removeItem('vex.settingsLayout'), SettingsUI.applyLayoutPrefs(), SidebarManager.hideActivePanel(), true)");
+    await evaluate(cdp, "(VexFonts.setSize('normal'), localStorage.removeItem('vex.settingsLayout'), SettingsUI.applyLayoutPrefs(), SidebarManager.hideActivePanel(), true)");
   }
 }
 

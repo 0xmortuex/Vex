@@ -343,12 +343,23 @@ describe('SettingsUI._watchLayout', () => {
   it('counts rows as they are drawn under Larger text, so a very tall section is not cut short', () => {
     // Zoom 1.3: a 4px row is drawn 5.1875px (1/64ths, rounded down), not 5.2.
     width(1868 / 1.3);
-    Object.defineProperty(root, 'offsetWidth', { configurable: true, get: () => 1000 });
-    root.getBoundingClientRect = () => ({ width: 1300, height: 800, top: 0, left: 0, right: 1300, bottom: 800 });
+    panel.style.zoom = '1.3';                           // the panel's own zoom, from its style
     heights.a = 5139;                                   // AI Personas, 35 cards
     SettingsUI._layout(root);
     // 5139 / 4 = 1285 rows were 16 screen pixels short; at the drawn pitch it takes 1288.
     expect(document.getElementById('a').style.gridRow).toBe('1 / span 1288');
+  });
+
+  it('takes the zoom from the style, not from a box measured in whole pixels (Largest text: 1.4997 for 1.5 drew rows of 3.99px and a 4500px section took 6 rows too many)', () => {
+    width(1868);
+    panel.style.zoom = '1.5';
+    // A box one pixel short in 1000: the ratio read 1.4985, not 1.5.
+    Object.defineProperty(root, 'offsetWidth', { configurable: true, get: () => 1000 });
+    root.getBoundingClientRect = () => ({ width: 1498.5, height: 800, top: 0, left: 0, right: 1498.5, bottom: 800 });
+    heights.a = 4498;
+    SettingsUI._layout(root);
+    // 1.5 draws a 4px row as exactly 6 screen pixels: 4498 / 4, rounded up.
+    expect(document.getElementById('a').style.gridRow).toBe('1 / span 1125');
   });
 
   it('changes the column count in the next frame, and places the blocks for the count in use meanwhile', () => {
