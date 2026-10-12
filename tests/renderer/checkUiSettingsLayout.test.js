@@ -77,10 +77,52 @@ describe('check:ui settingsLayout', () => {
     expect(run()).toContain('settings-clipped');
   });
 
-  it('runs in the Firefox look, Glass and Classic, at 1920 and 2560, in every Settings layout', () => {
-    expect(src).toMatch(/const SETTINGS_SIZES = \[\[1920, 1080\], \[2560, 1440\]\];/);
+  it('runs in the Firefox look, Glass and Classic, at 1280, 1920 and 2560', () => {
+    expect(src).toMatch(/const SETTINGS_SIZES = \[\[1280, 720\], \[1920, 1080\], \[2560, 1440\]\];/);
     expect(src).toMatch(/\['firefox', 'glass', 'classic'\]\.filter\(s => runStyles\.includes\(s\)\)/);
-    expect(src).toMatch(/columns: '3', nav: 'side', density: 'compact'/);
     expect(src).toMatch(/if \(!res\.blocks\) throw new Error\('Settings showed no sections/);
+  });
+
+  it('takes every choice the Settings layout has, so a new one cannot be left out', () => {
+    const { SettingsUI } = require('../../src/renderer/js/settings-ui.js');
+    const take = (re) => (src.match(re) || [])[1].split(',').map(x => x.trim().replace(/['"]/g, ''));
+    expect(take(/const SETTINGS_COLUMNS = \[([^\]]*)\]/)).toEqual(SettingsUI.LAYOUT_CHOICES.columns.map(c => c[0]));
+    expect(take(/const SETTINGS_NAVS = \[([^\]]*)\]/)).toEqual(SettingsUI.LAYOUT_CHOICES.nav.map(c => c[0]));
+    expect(take(/const SETTINGS_DENSITIES = \[([^\]]*)\]/)).toEqual(SettingsUI.LAYOUT_CHOICES.density.map(c => c[0]));
+  });
+});
+
+describe('check:ui settingsLayout, "One column, full width"', () => {
+  const runWide = () => window.__vexCheckUi.settingsLayout([], 'firefox', '1920x1080, wide', { columns: 'wide', nav: 'chips' }).findings.map(f => f.check);
+  const laid = (width) => {
+    const root = lay([['a', 32, 100, width, 300], ['b', 32, 416, width, 120]]);
+    root.style.paddingLeft = '32px';
+    root.style.paddingRight = '32px';
+    return root;
+  };
+
+  it('passes sections that run the width of the area (1868px less 64px of padding)', () => {
+    laid(1804);
+    expect(runWide()).toEqual([]);
+  });
+
+  it('flags a centred 780px column in a 1868px area (the bug that shipped)', () => {
+    laid(780);
+    expect(runWide()).toEqual(['settings-not-wide', 'settings-not-wide']);   // both sections
+  });
+});
+
+describe('check:ui settingsGrow', () => {
+  it('flags a section that grew and left the next one over it in the very next frame', async () => {
+    const root = lay([['a', 32, 100, 600, 300], ['b', 32, 416, 600, 100]]);
+    const a = root.querySelector('#a');
+    // The grown section reaches into the one below, which has not moved yet.
+    a.getBoundingClientRect = () => (a.querySelector('div')
+      ? { left: 32, top: 100, right: 632, bottom: 600, width: 600, height: 500 }
+      : { left: 32, top: 100, right: 632, bottom: 400, width: 600, height: 300 });
+    globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+    const res = await window.__vexCheckUi.settingsGrow([], 'firefox', '1920x1080, test', { columns: 'auto' });
+    expect(res.findings.map(f => f.check)).toContain('settings-overlap');
+    expect(a.querySelector('div')).toBeNull();   // put back
   });
 });

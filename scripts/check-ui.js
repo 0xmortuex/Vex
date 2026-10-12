@@ -609,7 +609,7 @@ window.__vexCheckUi = (function () {
   // (its margin and one grid row), no text cut off, no switch squeezed by a
   // long label. Full screen and a text-size change once broke all four
   // (the owner, 2026-10-12: "some gaps in settings and words were broken").
-  function settingsLayout(exceptions, style, label) {
+  function settingsLayout(exceptions, style, label, expect) {
     freeze();
     var findings = [];
     var seen = {};
@@ -686,10 +686,51 @@ window.__vexCheckUi = (function () {
       if (!t.getClientRects().length || t.closest('details:not([open])')) return;
       if (t.offsetWidth < 39) add('settings-squeezed', t, 'a switch squeezed to ' + t.offsetWidth + 'px wide by the label beside it', { px: t.offsetWidth });
     });
+    // The layout asked for is the layout shown. "One column, full width"
+    // shipped as a centred 780px column in a 1876px panel because nothing
+    // measured how much of the width its sections use: every section is at
+    // least 90% of the room the scroll area has, in both menu styles.
+    if (expect && expect.columns === 'wide') {
+      var rcs = getComputedStyle(root);
+      var room = (root.clientWidth - (parseFloat(rcs.paddingLeft) || 0) - (parseFloat(rcs.paddingRight) || 0)) * zoom;
+      blocks.forEach(function (blk) {
+        if (!blk.classList.contains('setting-group')) return;
+        var w = blk.getBoundingClientRect().width;
+        if (w < room * 0.9) add('settings-not-wide', blk, 'is ' + n(w) + 'px wide in a ' + n(room) + 'px area (' + Math.round(w / room * 100) + '%), under 90%: "One column, full width" is not using the width', { px: n(w), room: n(room) });
+      });
+    }
+    var panelEl = root.parentElement;
+    if (expect && expect.nav) {
+      var side = panelEl && panelEl.dataset.setNav === 'side';
+      var asked = expect.nav === 'side';
+      // The list on the left needs SideMin; narrower, chips are right.
+      if (asked && !side && panelEl.clientWidth >= 900) add('settings-nav', panelEl, 'the category list was asked for on the left and the panel is ' + panelEl.clientWidth + 'px wide, but chips are shown', {});
+      if (!asked && side) add('settings-nav', panelEl, 'chips were asked for and the category list is on the left', {});
+    }
     return { blocks: blocks.length, findings: findings };
   }
 
-  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout };
+  // A section changing height as script fills it (the local models list
+  // arriving): in the very next frame nothing is over another and no gap has
+  // opened. The size observer alone re-placed the blocks a frame later.
+  function settingsGrow(exceptions, style, label, expect) {
+    var raf = function () { return new Promise(function (r) { requestAnimationFrame(r); }); };
+    var root = document.querySelector('#panel-settings .settings-content');
+    var blk = root && Array.prototype.slice.call(root.querySelectorAll(':scope > .setting-group')).filter(function (e) { return e.getClientRects().length; })[0];
+    if (!blk) return Promise.resolve({ blocks: 0, findings: [] });
+    var pad = document.createElement('div');
+    pad.style.height = '300px';
+    return raf().then(function () {
+      blk.appendChild(pad);
+      return raf();
+    }).then(function () {
+      var res = settingsLayout(exceptions, style, label + ', the frame after a section grew by 300px', expect);
+      pad.remove();
+      return raf().then(function () { return res; });
+    });
+  }
+
+  return { audit: audit, freeze: freeze, scanSurface: scanSurface, settingsLayout: settingsLayout, settingsGrow: settingsGrow };
 })();
 'installed';
 `;
@@ -816,37 +857,65 @@ async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, sum
 // window's size emulated, the real one is whatever it is), in the default
 // layout and the Settings layout choices, judged by settingsLayout() above.
 // ---------------------------------------------------------------------------
-const SETTINGS_SIZES = [[1920, 1080], [2560, 1440]];
-const SETTINGS_LAYOUTS = [
-  { label: 'automatic columns, chips', prefs: null },
-  { label: 'three columns, list on the left, compact', prefs: { columns: '3', nav: 'side', density: 'compact' } },
-  { label: 'two columns, compact', prefs: { columns: '2', nav: 'chips', density: 'compact' } },
-  { label: 'one column', prefs: { columns: '1', nav: 'chips', density: 'comfortable' } },
-];
+const SETTINGS_SIZES = [[1280, 720], [1920, 1080], [2560, 1440]];
+// Every Settings layout choice (SettingsUI.LAYOUT_CHOICES): columns x category
+// menu x density. The sample takes every column choice with both menus and
+// both densities (the density alternates, so each pairing meets each column
+// choice at least once across the sample) at every size; --full takes all 20
+// at every size, in every look. The default (nothing saved) is always in.
+const SETTINGS_COLUMNS = ['auto', '1', 'wide', '2', '3'];
+const SETTINGS_NAVS = ['chips', 'side'];
+const SETTINGS_DENSITIES = ['comfortable', 'compact'];
+const COLUMN_NAMES = { auto: 'automatic columns', 1: 'one column', wide: 'one column, full width', 2: 'two columns', 3: 'three columns' };
+const NAV_NAMES = { chips: 'chips', side: 'list on the left' };
+function settingsLayouts(full) {
+  const out = [{ label: 'default layout', prefs: null, expect: { columns: 'auto' } }];
+  for (const columns of SETTINGS_COLUMNS) {
+    for (const nav of SETTINGS_NAVS) {
+      for (const density of SETTINGS_DENSITIES) {
+        // Sample: the density follows the column choice and the menu, so
+        // 10 of the 20 run; --full runs all.
+        if (!full && (SETTINGS_COLUMNS.indexOf(columns) + SETTINGS_NAVS.indexOf(nav) + SETTINGS_DENSITIES.indexOf(density)) % 2) continue;
+        out.push({ label: COLUMN_NAMES[columns] + ', ' + NAV_NAMES[nav] + ', ' + density, prefs: { columns, nav, density }, expect: { columns, nav } });
+      }
+    }
+  }
+  return out;
+}
 
 async function scanSettingsLayout(cdp, exceptions, styles, findings, summaries) {
   try {
     for (const style of styles) {
       await evaluate(cdp, 'window.VexGuiStyle.set(' + JSON.stringify(style) + ')');
       await sleep(250);
-      let count = 0, blocks = 0;
+      let count = 0, blocks = 0, runs = 0;
+      // The owner's look gets every size; the others the 1920 window and, for
+      // the full width choice, the rest (--full: every size in every look).
       for (const [width, height] of SETTINGS_SIZES) {
         await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-        for (const layout of SETTINGS_LAYOUTS) {
+        for (const layout of settingsLayouts(FULL)) {
+          if (!FULL && style !== 'firefox' && width !== 1920 && !(layout.expect.columns === 'wide')) continue;
           const label = width + 'x' + height + ', ' + layout.label;
           await evaluate(cdp, '(() => { const p = ' + JSON.stringify(layout.prefs) + ';' +
             " if (p) localStorage.setItem('vex.settingsLayout', JSON.stringify(p)); else localStorage.removeItem('vex.settingsLayout');" +
             " SidebarManager.openPanel('settings'); SettingsUI.applyLayoutPrefs(); return true; })()");
           await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
           await sleep(150);
-          const res = await evaluate(cdp, 'window.__vexCheckUi.settingsLayout(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ')');
+          runs++;
+          const res = await evaluate(cdp, 'window.__vexCheckUi.settingsLayout(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ', ' + JSON.stringify(layout.expect) + ')');
           if (!res.blocks) throw new Error('Settings showed no sections (' + style + ', ' + label + ') — the check would be reporting on nothing');
           blocks = Math.max(blocks, res.blocks);
           for (const f of res.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
           count += res.findings.length;
+          // The frame after a section grows (the models list arriving).
+          if (width === 1920) {
+            const grown = await evaluate(cdp, 'window.__vexCheckUi.settingsGrow(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(label) + ', ' + JSON.stringify(layout.expect) + ')');
+            for (const f of grown.findings) findings.push({ ...f, style, colors: 'settings layout', theme: label });
+            count += grown.findings.length;
+          }
         }
       }
-      summaries.push({ style, colors: 'settings layout', themes: SETTINGS_SIZES.length * SETTINGS_LAYOUTS.length, controls: blocks, colours: 0, findings: count });
+      summaries.push({ style, colors: 'settings layout', themes: runs, controls: blocks, colours: 0, findings: count });
     }
   } finally {
     await cdp.send('Emulation.clearDeviceMetricsOverride');
@@ -1218,7 +1287,7 @@ async function main() {
       console.log('');
       for (const s of summaries) {
         const label = styleLabel(s.style, s.colors);
-        console.log('  ' + (s.findings ? 'FLAG' : ' ok ') + '  ' + label.padEnd(26) +
+        console.log('  ' + (s.findings ? 'FLAG' : ' ok ') + '  ' + label.padEnd(32) +
           String(s.themes).padStart(2) + ' themes  ' + String(s.controls).padStart(3) + ' controls  ' +
           String(s.colours).padStart(3) + ' colours  ' + (s.findings ? s.findings + ' finding(s)' : 'clean'));
       }
