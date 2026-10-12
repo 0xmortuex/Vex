@@ -12,6 +12,8 @@ const PasswordVault = {
   NEVER_KEY: 'vex.pwNever',
   // How long a two-step login's username waits for its password step.
   LOGIN_STEP_MS: 10 * 60 * 1000,
+  // How long a password shown in Settings › Passwords stays on screen.
+  REVEAL_MS: 30 * 1000,
 
   async _copyPassword(password) {
     // One implementation for every secret Vex copies (js/vex-utils.js).
@@ -882,16 +884,18 @@ const PasswordVault = {
         </div>
         <button type="button" data-reveal style="${this._btn}" aria-pressed="false" aria-label="Show the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('eye', { size: 13 })}<span>Show</span></button>
         <button type="button" data-copy style="${this._btn}" aria-label="Copy the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('copy', { size: 13 })}Copy</button>
+        ${entry.username ? `<button type="button" data-copyuser style="${this._btn};line-height:0" title="Copy the username" aria-label="Copy the username ${esc(entry.username)} for ${esc(entry.host)}">${VexIcons.svg('user', { size: 13 })}</button>` : ''}
         <button type="button" data-edit style="${this._btn}" aria-label="Edit the login for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('edit', { size: 13 })}Edit</button>
         <button type="button" data-del style="${this._btn};color:var(--danger);line-height:0" title="Delete" aria-label="Delete the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('x', { size: 13 })}</button>`;
       const shown = row.querySelector('[data-shown]');
       const reveal = row.querySelector('[data-reveal]');
+      const hide = () => {
+        clearTimeout(shown._hideTimer);
+        shown.textContent = ''; shown.style.display = 'none';
+        reveal.querySelector('span').textContent = 'Show'; reveal.setAttribute('aria-pressed', 'false');
+      };
       reveal.addEventListener('click', async () => {
-        if (shown.style.display !== 'none') {
-          shown.textContent = ''; shown.style.display = 'none';
-          reveal.querySelector('span').textContent = 'Show'; reveal.setAttribute('aria-pressed', 'false');
-          return;
-        }
+        if (shown.style.display !== 'none') { hide(); return; }
         try {
           if (!await this._recheck('shows a saved password')) return;
           const m = await this._fullEntry(entry.host, entry.username);
@@ -900,9 +904,20 @@ const PasswordVault = {
           shown.style.whiteSpace = 'pre-wrap';
           shown.style.display = 'block';
           reveal.querySelector('span').textContent = 'Hide'; reveal.setAttribute('aria-pressed', 'true');
+          // A password left showing on a screen someone walks past, or in a
+          // screenshot, hides itself.
+          shown._hideTimer = setTimeout(hide, this.REVEAL_MS);
         } catch (err) {
           console.error('[Vault] show failed:', err.message);
           window.showToast?.('Could not show that password: ' + err.message, 'error');
+        }
+      });
+      // The username is not a secret: a plain copy, no re-check, no timer.
+      row.querySelector('[data-copyuser]')?.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(entry.username); window.showToast?.('Username copied'); }
+        catch (err) {
+          console.error('[Vault] could not copy the username:', err.message);
+          window.showToast?.('Could not copy the username', 'error');
         }
       });
       row.querySelector('[data-copy]').addEventListener('click', async () => {
