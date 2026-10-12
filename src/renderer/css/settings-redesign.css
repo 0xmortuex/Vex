@@ -506,6 +506,10 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row {
   box-shadow: inset 3px 0 0 var(--chip-color, var(--primary));
 }
 #panel-settings[data-set-nav="side"] .settings-content { flex: 1; width: auto; min-width: 0; }
+/* The layout box opens from the button in the narrow list column: anchored to
+   its right edge it ran 37px off the window's left side and cut its labels. It
+   opens towards the settings instead. */
+#panel-settings[data-set-nav="side"] .set-layout-pop { left: 0; right: auto; }
 
 /* Compact: more on the screen. The spacing shrinks, the text does not, and
    nothing you click is under 24px (a 22px switch reaches 26 with its rim). */
