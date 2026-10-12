@@ -6503,8 +6503,16 @@ function createWindow() {
   // the guest preload starts calling them immediately, so waiting for the async
   // engine build below would make early pages throw "No handler registered". The
   // handlers no-op until the engine is ready (and follow the ad-blocker toggle).
+  const _vexPagesPrefix = pathToFileURL(path.join(__dirname, 'renderer') + path.sep).href;
   enableCosmeticFiltering((event) => adBlockerEnabled
-    && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)));
+    && !(event && event.sender && !event.sender.isDestroyed() && _adsAllowedOn(event.sender.getURL(), event.sender.session)),
+  // Vex's own interface and New Tab page: nothing there to hide.
+  (event) => {
+    const frame = event && event.senderFrame;
+    let url = '';
+    try { url = frame && !frame.isDestroyed?.() ? String(frame.url || '') : (event && event.sender && !event.sender.isDestroyed() ? event.sender.getURL() : ''); } catch { return false; }
+    return url.startsWith(_vexPagesPrefix);
+  });
 
   const adblockCache = path.join(app.getPath('userData'), 'vex-adblock-engine-full.bin');
   // The lists come through the default session, which the route for all of

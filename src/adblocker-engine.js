@@ -189,14 +189,19 @@ function _cosmeticEvent(event, url) {
   };
 }
 
-function enableCosmeticFiltering(isEnabled) {
+// isOwnPage(event): true for Vex's own interface (the window, the New Tab page).
+// The guest preload is on the default session, which the interface itself runs
+// in, so it ran there too: a MutationObserver over every class and id change
+// of Vex's own DOM, a message to main for each batch, and element-hiding rules
+// matched against Vex's own class names. Told "no" it does none of that.
+function enableCosmeticFiltering(isEnabled, isOwnPage) {
   if (_cosmeticHandlersWired) return true;
   try {
     const { ipcMain } = require('electron');
     ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', async (event, url, msg) => {
       // isEnabled is told which page asks: a site whose blocking is switched
       // off in its site panel gets no element hiding either.
-      if (!_engine || (isEnabled && !isEnabled(event, url))) return;
+      if (!_engine || (isOwnPage && isOwnPage(event)) || (isEnabled && !isEnabled(event, url))) return;
       try {
         await _engine.blocker.onInjectCosmeticFilters(_cosmeticEvent(event, url), url, msg);
       } catch (e) {
@@ -204,7 +209,10 @@ function enableCosmeticFiltering(isEnabled) {
       }
     });
     ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
-      try { return _engine ? _engine.blocker.onIsMutationObserverEnabled(event) : false; } catch { return false; }
+      try {
+        if (isOwnPage && isOwnPage(event)) return false;
+        return _engine ? _engine.blocker.onIsMutationObserverEnabled(event) : false;
+      } catch { return false; }
     });
     _cosmeticHandlersWired = true;
     return true;
