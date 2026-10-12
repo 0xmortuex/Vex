@@ -445,8 +445,12 @@ GameMode.renderGamingSettings = function (host) {
       pathEl.textContent = r.path || GameMode._t('Found automatically');
       autoBtn.hidden = !r.path;
     };
-    row.querySelector('.gcc-browse').addEventListener('click', () => GameMode.chooseControlCenter(false).then(paint));
-    autoBtn.addEventListener('click', async () => { await window.vex.gccClear(); await paint(); });
+    // A refusal from main is said; a button that fails silently looks broken.
+    const failed = (err) => window.showToast?.('Game Control Center location: ' + ((err && err.message) || err), 'error');
+    row.querySelector('.gcc-browse').addEventListener('click', () => { GameMode.chooseControlCenter(false).then(paint).catch(failed); });
+    autoBtn.addEventListener('click', async () => {
+      try { await window.vex.gccClear(); await paint(); } catch (err) { failed(err); }
+    });
     host.appendChild(row);
     paint().catch(err => window.showToast?.('Could not read the Game Control Center location: ' + err.message, 'error'));
   }
