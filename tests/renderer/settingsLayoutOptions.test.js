@@ -239,6 +239,31 @@ describe('the list down the left side', () => {
   });
 });
 
+describe('a deep link', () => {
+  it('works with a search still in the box: the search is cleared, not left hiding the section linked to', () => {
+    const { root, panel } = setup();
+    const box = panel.querySelector('.set-search');
+    box.value = 'zzzzqq';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    const about = document.getElementById('s-about');
+    expect(about.style.display).toBe('none');
+    const realRaf = globalThis.requestAnimationFrame;
+    const realScroll = Element.prototype.scrollIntoView;
+    globalThis.requestAnimationFrame = (fn) => { fn(); return 1; };
+    Element.prototype.scrollIntoView = function () { this.dataset.scrolledTo = '1'; };
+    try {
+      SettingsUI.openSection('s-about');
+    } finally {
+      globalThis.requestAnimationFrame = realRaf;
+      Element.prototype.scrollIntoView = realScroll;
+    }
+    expect(box.value).toBe('');
+    expect(about.style.display).toBe('');
+    expect(about.dataset.scrolledTo).toBe('1');
+    expect(root.querySelector('.set-empty').style.display).toBe('none');
+  });
+});
+
 describe('compact', () => {
   const compact = css.split('\n').filter(l => /data-set-density="compact"/.test(l)).join('\n')
     + css.slice(css.indexOf('#panel-settings[data-set-density="compact"] .settings-content .setting-group {'));

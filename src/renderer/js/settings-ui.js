@@ -1037,6 +1037,14 @@ const SettingsUI = {
     const attempt = () => {
       const el = document.getElementById(anchorId);
       if (el) {
+        // A search left in the box hides every section that does not match
+        // it, the one linked to included: the link did nothing. Clear it.
+        const hiddenBy = el.closest('.setting-group');
+        if (hiddenBy && hiddenBy.style.display === 'none') {
+          const root = hiddenBy.closest('.settings-content');
+          const box = root && (root.parentElement || root).querySelector('.set-search');
+          if (box) { box.value = ''; SettingsUI._filter(root, ''); }
+        }
         // A link into an advanced section opens it even in Simple mode.
         SettingsUI.reveal(el);
         // Instantly, and again while the layout settles: a smooth scroll was
