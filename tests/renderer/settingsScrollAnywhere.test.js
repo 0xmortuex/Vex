@@ -28,6 +28,13 @@ function wheel(target, init) {
 }
 
 describe('Settings scroll area', () => {
+  it('the category list on the left keeps the wheel at its ends instead of passing it on to the settings', () => {
+    const rule = css.match(/#panel-settings\[data-set-nav="side"\] \.set-nav \{([^}]*)\}/);
+    expect(rule).toBeTruthy();
+    expect(rule[1]).toMatch(/overflow-y:\s*auto/);
+    expect(rule[1]).toMatch(/overscroll-behavior:\s*contain/);
+  });
+
   it('is the whole panel, not a box in the middle', () => {
     const rule = css.match(/\n\.settings-content \{([^}]*)\}/);
     expect(rule).toBeTruthy();

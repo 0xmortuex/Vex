@@ -367,6 +367,11 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search { mar
 /* The search box and the chips line up with the columns. */
 #panel-settings[data-set-cols] .set-toolbar-inner { max-width: var(--set-grid-max, 1658px); }
 
+/* "One column, full width": one column whose sections run from the left
+   edge to the right edge instead of the centred 960px. */
+#panel-settings[data-set-wide] .settings-content > * { max-width: none; margin-left: 0; margin-right: 0; }
+#panel-settings[data-set-wide] .set-toolbar-inner { max-width: none; }
+
 /* === Settings layout (SettingsUI.LAYOUT_*) ==============================
    The user's own choice of columns, category menu and density, from the
    button beside the search box or Settings › Appearance. The defaults
@@ -473,6 +478,9 @@ html:is([data-vex-scale="larger"], [data-vex-scale="largest"]) .set-search-row {
   min-height: 0;
   max-height: none;
   overflow-y: auto;
+  /* Its own scroll box: at its top or bottom the wheel stops here and never
+     carries on into the settings beside it (SettingsUI._keepsWheel). */
+  overscroll-behavior: contain;
   padding: 2px;
   scrollbar-width: thin;
 }

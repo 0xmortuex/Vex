@@ -227,3 +227,13 @@ describe('compact', () => {
     expect(css).toMatch(/\[data-set-density="compact"\] \.settings-content \.toggle::after \{[^}]*inset: -2px/);
   });
 });
+
+describe('One column, full width', () => {
+  it('is a choice, asks for one column whatever the width, and marks the panel wide', () => {
+    expect(SettingsUI.LAYOUT_CHOICES.columns.map(([v]) => v)).toContain('wide');
+    expect(SettingsUI.columnsFor(2400, 'wide')).toBe(1);
+    expect(SettingsUI.columnsFor(900, 'wide')).toBe(1);
+    const css = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/css/settings-redesign.css'), 'utf8');
+    expect(css).toMatch(/#panel-settings\[data-set-wide\] \.settings-content > \* \{ max-width: none;/);
+  });
+});

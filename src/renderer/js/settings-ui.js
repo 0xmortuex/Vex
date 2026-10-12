@@ -493,7 +493,7 @@ const SettingsUI = {
   // layout Settings had before: automatic columns, chips, comfortable.
   LAYOUT_KEY: 'vex.settingsLayout',
   LAYOUT_CHOICES: {
-    columns: [['auto', 'Automatic'], ['1', 'One column'], ['2', 'Two columns'], ['3', 'Three columns']],
+    columns: [['auto', 'Automatic'], ['1', 'One column'], ['wide', 'One column, full width'], ['2', 'Two columns'], ['3', 'Three columns']],
     nav: [['chips', 'Chips across the top'], ['side', 'A list down the left side']],
     density: [['comfortable', 'Comfortable'], ['compact', 'Compact']],
   },
@@ -548,6 +548,9 @@ const SettingsUI = {
     const prefs = this.layoutPrefs();
     if (prefs.density === 'compact') panel.dataset.setDensity = 'compact';
     else delete panel.dataset.setDensity;
+    // One column that uses the whole width instead of the readable 960px.
+    if (prefs.columns === 'wide') panel.dataset.setWide = '1';
+    else delete panel.dataset.setWide;
     panel.querySelectorAll('select[data-set-layout]').forEach(sel => { sel.value = prefs[sel.dataset.setLayout]; });
     return prefs;
   },
@@ -753,6 +756,7 @@ const SettingsUI = {
     const avail = Number(width) - 2 * this.COL_SIDE;
     if (!(avail > 0)) return 1;
     const fits = (n, min) => n * min + (n - 1) * this.COL_GAP <= avail;
+    if (choice === 'wide') return 1;
     if (choice === 'auto') {
       let n = 1;
       while (n < 3 && fits(n + 1, this.COL_MIN)) n++;

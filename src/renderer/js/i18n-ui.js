@@ -171,7 +171,7 @@ const VexI18nUI = {
       'Settings columns': 'Ayarlar sütunları', 'Settings category menu': 'Ayarlar kategori menüsü',
       'Settings density': 'Ayarlar yoğunluğu',
       'Columns': 'Sütunlar', 'Category menu': 'Kategori menüsü', 'Density': 'Yoğunluk',
-      'Automatic': 'Otomatik', 'One column': 'Tek sütun', 'Two columns': 'İki sütun', 'Three columns': 'Üç sütun',
+      'Automatic': 'Otomatik', 'One column': 'Tek sütun', 'One column, full width': 'Tek sütun, tam genişlik', 'Two columns': 'İki sütun', 'Three columns': 'Üç sütun',
       'Chips across the top': 'Üstte, yan yana düğmeler', 'A list down the left side': 'Solda bir liste',
       'Comfortable': 'Rahat', 'Compact': 'Sıkışık',
       'Automatic uses two columns from about 1300px wide, and three on very wide screens.': 'Otomatik, yaklaşık 1300 piksel genişlikten itibaren iki, çok geniş ekranlarda üç sütun kullanır.',
