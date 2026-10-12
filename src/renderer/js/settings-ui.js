@@ -341,6 +341,8 @@ const SettingsUI = {
       search.addEventListener('input', () => SettingsUI._filter(root, search.value));
       // The list on the left goes up and down with the arrow keys too.
       nav.addEventListener('keydown', (e) => SettingsUI._navKey(e, panel, nav));
+      // Focus (a click, or Tab) makes that entry the one Tab returns to.
+      nav.addEventListener('focusin', (e) => { if (e.target && e.target.classList && e.target.classList.contains('set-nav-chip')) SettingsUI._rove(panel, e.target); });
       // The category in view is the one marked in the menu.
       let marking = false;
       root.addEventListener('scroll', () => {
@@ -739,7 +741,21 @@ const SettingsUI = {
       if (c < nav.scrollTop) nav.scrollTop = c;
       else if (c + current.offsetHeight > nav.scrollTop + nav.clientHeight) nav.scrollTop = c + current.offsetHeight - nav.clientHeight;
     }
+    // Tab goes to the marked entry only; the arrows move along the rest.
+    if (!nav.contains(document.activeElement)) this._rove(panel, current);
     return key;
+  },
+
+  // The list on the left is one stop for Tab, not 39 (the arrow keys move
+  // along it, _navKey): the entry marked in view, or the one focused, takes
+  // Tab. The chips across the top are all in the Tab order, as before.
+  _rove(panel, active) {
+    const nav = panel.querySelector('.set-nav');
+    if (!nav) return;
+    const chips = Array.from(nav.querySelectorAll('.set-nav-chip'));
+    if (panel.dataset.setNav !== 'side') { chips.forEach(c => c.removeAttribute('tabindex')); return; }
+    const keep = active || nav.querySelector('.set-nav-chip[aria-current="true"]') || chips.find(c => c.getClientRects().length) || chips[0];
+    chips.forEach(c => { c.tabIndex = c === keep ? 0 : -1; });
   },
 
   // Up, Down, Home and End move along the list on the left.
@@ -751,6 +767,7 @@ const SettingsUI = {
     const to = { ArrowDown: Math.min(chips.length - 1, i + 1), ArrowUp: Math.max(0, i - 1), Home: 0, End: chips.length - 1 }[e.key];
     if (to === undefined) return false;
     e.preventDefault();
+    this._rove(panel, chips[to]);
     chips[to].focus();
     return true;
   },
@@ -869,6 +886,7 @@ const SettingsUI = {
       if (navWant === 'side') panel.dataset.setNav = 'side';
       else delete panel.dataset.setNav;
       this._syncPad(root);
+      this._rove(panel);
     }
     const nav = keepCols ? navHad : navWant;
     const want = this.columnsFor(root.clientWidth, prefs.columns);

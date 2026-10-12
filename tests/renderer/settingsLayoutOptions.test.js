@@ -205,6 +205,28 @@ describe('the list down the left side', () => {
     expect(document.activeElement).toBe(chips[0]);
   });
 
+  it('is one stop for Tab (the marked entry), not one for every entry; the chips across the top keep theirs', () => {
+    const { panel, root } = setup();
+    const nav = panel.querySelector('.set-nav');
+    const chips = () => [...nav.querySelectorAll('.set-nav-chip')];
+    for (const c of chips()) c.getClientRects = () => [{}];
+    SettingsUI._markCurrent(root);
+    expect(chips().every(c => !c.hasAttribute('tabindex'))).toBe(true);   // chips: untouched
+    SettingsUI.setLayoutPref('nav', 'side');
+    for (const c of chips()) c.getClientRects = () => [{}];
+    SettingsUI._rove(panel);
+    expect(chips().filter(c => c.tabIndex === 0).length).toBe(1);
+    expect(chips().filter(c => c.tabIndex === -1).length).toBe(chips().length - 1);
+    // An arrow key hands the stop to the entry it moved to.
+    chips()[0].focus();
+    nav.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(chips()[1].tabIndex).toBe(0);
+    expect(chips().filter(c => c.tabIndex === 0).length).toBe(1);
+    // Back to chips: every entry is a stop again.
+    SettingsUI.setLayoutPref('nav', 'chips');
+    expect(chips().every(c => !c.hasAttribute('tabindex'))).toBe(true);
+  });
+
   it('marks the section the user was taken to, not the one beside it that began higher and runs on (two columns)', () => {
     const { root } = setup();
     root.getBoundingClientRect = () => ({ top: 0, bottom: 900, left: 0, right: 1600 });
