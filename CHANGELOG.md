@@ -1,5 +1,35 @@
 # Changelog
 
+## v20.85.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
+
+### New
+- **Password Health also flags easy-to-guess passwords** (a common password with a number added, repeats, keyboard runs, your username or the site's name) and lists logins **not changed in a year or more**. Each row has an "open site" button. This is a pattern check against a short built-in list, not a strength score, and it never sends a password anywhere.
+- **Settings › Passwords marks reused, weak and year-old logins** and shows the date each was saved. A password you reveal hides itself again after 30 seconds, and each username has its own copy button.
+- **CSV import from Bitwarden, KeePass, Firefox and Chrome keeps more:** notes, dates and the 2FA keys, which go into the Authenticator. Only standard time-based codes are imported; HOTP and Steam keys are counted as unsupported.
+- **Authenticator accounts can be renamed**, and a search box appears from six accounts. Settings › Passkeys gets the same search from six passkeys.
+- **Settings has a "Back to the default layout" button** in the layout box: columns, category menu and density go back together.
+- **Ctrl+K answers about twice as fast while you type**, and the Library lists the newer helpers (Fill code from authenticator, Save a password for this site, Generate a strong password, Open a panel's page as a tab).
+- **Vex works much better from the keyboard.** Every dialog takes focus when it opens and gives it back when it closes. The quick-tools menu and the other right-click menus open from the menu key or Shift+F10 and work with the arrows. The passkey list under a sign-in field can be driven with Down, Up and Enter. Master Volume opens with its slider focused. Settings' category list is one Tab stop instead of 39. The focus ring is now visible on every look and theme.
+- **Vex opens panels and Ctrl+K more cheaply:** opening or leaving a side panel no longer rewrites your whole settings file (7 writes became 1 in a ten-step test), Vex's own window is no longer watched by the ad blocker's page-hiding script, and the zip library is not loaded at start. `npm run perf` prints these numbers.
+
+### Fixed
+- **Settings no longer shows a frame with one section drawn over the next, or a gap of hundreds of pixels.** The cause was the local-models list arriving a moment after Settings opened; the layout now follows it in the same step instead of a frame later.
+- **In Settings with two or three columns, clicking a category now marks that category.** It marked the wrong one in almost every case.
+- **Larger and Largest text no longer leaves 25-40px of empty space under tall sections.**
+- **A link into Settings (from a feature, a command or a tool's menu) works while a search is still typed**, instead of doing nothing.
+- **Reset to Defaults puts the text size, density and font back at once**, not after a restart.
+- **A card's "Security code" is no longer filled with your authenticator code**, and a field named "hotpink" is no longer taken for a one-time-code field.
+- **Saving and filling logins works on web-component (shadow DOM) sign-in forms and after you press the "show password" eye.** Tested in unit tests only, not on a live site; the password suggestion on sign-up forms inside shadow DOM is not covered yet.
+- **The passkey sheet's disabled buttons look disabled**, and a sheet with no passkey takes focus so Escape closes it.
+- **The Settings layout box no longer runs off the left of the window** when the category list is on the left.
+- **Discord keeps following your Vex theme after one update failed**, instead of ignoring every later change until restart.
+- **Settings › Gaming's Game Control Center location buttons say so when they fail** instead of doing nothing.
+- **Settings › Browsing extras reads right:** the copy-unlock explanation sits under its own switch, and hidden-site lists read "a.com, b.org".
+- **Small keyboard and screen-reader fixes** found by a new check: the clock's alarm time has a name and the recall panel's clear button is large enough to hit.
+
+### Behind the scenes
+- A one-screen release status (`node scripts/release-check.js`), a release script that refuses a published version or a red CI, a resumable `scripts/publish-all.ps1`, and a 30-second test timeout so a slow runner no longer fails a release.
+
 ## v20.31.0 (2026-10-12) — Settings "One column, full width" now really uses the full width
 
 ### Fixed
