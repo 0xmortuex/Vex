@@ -426,6 +426,11 @@ const VexBridge = (() => {
     reload(id, options = {}) { return tabs('reload', { id, bypassCache: !!options.bypassCache }); },
     stop(id) { return tabs('stop', { id }); },
     openAppLink(token) { return tabs('openAppLink', { token }); },
+    // Back and Forward across a restart (VexTabsPlugin): a tab's key, its list
+    // put back, and the lists of tabs gone. Nothing to keep without a phone.
+    async setTabStateKey(id, key) { if (plugins.VexTabs) await tabs('setStateKey', { id, key }); },
+    async restoreTabState(id, key) { return plugins.VexTabs ? tabs('restoreState', { id, key }) : { restored: false }; },
+    async pruneTabStates(keys) { if (plugins.VexTabs) await tabs('pruneStates', { keys }); },
     state(id) { return tabs('state', { id }); },
     snapshot(id) { return tabs('snapshot', { id }); },
     find(id, text) { return tabs('find', { id, text }); },

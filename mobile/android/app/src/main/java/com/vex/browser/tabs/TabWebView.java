@@ -128,6 +128,14 @@ public class TabWebView extends WebView {
         return id;
     }
 
+    /**
+     * The key this tab's back/forward list is saved under between launches
+     * (VexTabsPlugin), or null: a private tab is never saved.
+     */
+    private String stateKey;
+    public String getStateKey() { return incognito ? null : stateKey; }
+    public void setStateKey(String key) { stateKey = key; }
+
     public boolean isIncognito() {
         return incognito;
     }

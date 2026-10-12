@@ -72,6 +72,14 @@ const VexTabStore = (() => {
       const { id } = await VexBridge.createTab(lazy ? 'about:blank' : target, { incognito: !!opts.incognito });
       if (!id) return null;
       const tab = record(id, target, opts.incognito);
+      // The key its back/forward list is kept under between launches. Never
+      // for a private tab.
+      if (!opts.incognito) {
+        tab.stateKey = /^[A-Za-z0-9_-]{6,64}$/.test(opts.stateKey || '') ? opts.stateKey
+          : 'k' + Array.from(crypto.getRandomValues(new Uint8Array(12)), byte => byte.toString(16).padStart(2, '0')).join('');
+        if (opts.fromSession) tab.fromSession = true;
+        if (VexBridge.setTabStateKey) VexBridge.setTabStateKey(id, tab.stateKey).catch(() => {});
+      }
       // Where it came from decides what Back does once its own history runs
       // out: a tab a page opened goes back to that page, a link another app
       // sent goes back to that app, and anything else is left alone.
@@ -159,6 +167,17 @@ const VexTabStore = (() => {
       tab.pendingUrl = tab.url;
       tab.loading = true;
       emit();
+      // Back from the last session: its whole back/forward list, not only the
+      // page it was on, so Back still goes where it went before the restart.
+      if (tab.fromSession && tab.stateKey && VexBridge.restoreTabState) {
+        tab.fromSession = false;
+        const back = await VexBridge.restoreTabState(id, tab.stateKey).catch(() => null);
+        if (back && back.restored) {
+          Object.assign(tab, { canGoBack: !!back.canGoBack, canGoForward: !!back.canGoForward });
+          emit();
+          return true;
+        }
+      }
       await VexBridge.load(id, tab.url);
       if (tab.scrollY > 0 && VexBridge.restoreScroll) VexBridge.restoreScroll(id, tab.scrollY);
       return true;
@@ -194,7 +213,7 @@ const VexTabStore = (() => {
         // opened in a month" can never fire: a restored tab was created a
         // moment ago, so every tab looks new on every launch.
         const open = this.normal().map(tab => ({
-          url: tab.url, title: tab.title, icon: tab.icon || '', scrollY: tab.scrollY || 0,
+          url: tab.url, title: tab.title, icon: tab.icon || '', scrollY: tab.scrollY || 0, key: tab.stateKey || '',
           lastActiveAt: tab.lastActiveAt || tab.createdAt || Date.now()
         }));
         VexStore.set('vex.openTabs', open);
@@ -213,7 +232,7 @@ const VexTabStore = (() => {
         if (!entry || !entry.url) continue;
         // Lazily: only the tab you were looking at loads now. The rest know
         // where they are and go there when you open them.
-        const tab = await this.create(entry.url, { background: true, lazy: true, title: entry.title });
+        const tab = await this.create(entry.url, { background: true, lazy: true, title: entry.title, stateKey: entry.key, fromSession: true });
         if (!tab) continue;
         tab.title = entry.title || '';
         tab.icon = entry.icon || '';
@@ -223,6 +242,8 @@ const VexTabStore = (() => {
         if (entry.scrollY > 0) tab.scrollY = entry.scrollY;
         if (entry.url === wanted) restoredActive = tab.id;
       }
+      // The saved lists of tabs that were not brought back are not kept.
+      if (VexBridge.pruneTabStates) VexBridge.pruneTabStates(this.normal().map(tab => tab.stateKey).filter(Boolean)).catch(() => {});
       const first = this.all()[0];
       if (restoredActive) await this.activate(restoredActive);
       else if (first) await this.activate(first.id);

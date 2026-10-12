@@ -208,6 +208,8 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             SwipeRefreshLayout frame = frames.remove(id);
             if (tab != null) {
                 boolean wasPrivate = tab.isIncognito();
+                final String key = tab.getStateKey();
+                if (key != null && STATE_KEY.matcher(key).matches()) stateWriter.execute(() -> stateFile(key).delete());
                 if (frame != null) { frame.removeView(tab); container.removeView(frame); }
                 else container.removeView(tab);
                 tab.stopLoading();
@@ -331,6 +333,105 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
             action.run(tab);
             if (!call.isReleased()) call.resolve();
         });
+    }
+
+    // ── Back and Forward across a restart ─────────────────────────────────────
+    // Android stops Vex in the background whenever it likes, and a tab came back
+    // knowing only its address: Back did nothing. Each normal tab's back/forward
+    // list (WebView.saveState) is kept in a file of its own, under a key the
+    // chrome keeps with the tab, written when a page finishes loading and when
+    // Vex goes to the background, and put back (restoreState) the first time
+    // the tab is opened after a restart. Never for a private tab.
+    private static final java.util.regex.Pattern STATE_KEY = java.util.regex.Pattern.compile("^[A-Za-z0-9_-]{6,64}$");
+    private final java.util.concurrent.ExecutorService stateWriter = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    private java.io.File stateFile(String key) {
+        java.io.File dir = new java.io.File(getContext().getFilesDir(), "tab-state");
+        if (!dir.exists()) dir.mkdirs();
+        return new java.io.File(dir, key + ".state");
+    }
+
+    /** On the main thread: the tab's list into bytes; the write happens off it. */
+    private void saveTabState(TabWebView tab) {
+        if (tab == null) return;
+        final String key = tab.getStateKey();
+        if (key == null || !STATE_KEY.matcher(key).matches()) return;
+        try {
+            android.os.Bundle bundle = new android.os.Bundle();
+            android.webkit.WebBackForwardList list = tab.saveState(bundle);
+            if (list == null || list.getSize() == 0) return;
+            android.os.Parcel parcel = android.os.Parcel.obtain();
+            final byte[] bytes;
+            try { bundle.writeToParcel(parcel, 0); bytes = parcel.marshall(); }
+            finally { parcel.recycle(); }
+            if (bytes.length > 2 * 1024 * 1024) return;
+            final java.io.File file = stateFile(key);
+            stateWriter.execute(() -> {
+                java.io.File part = new java.io.File(file.getPath() + ".part");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(part)) {
+                    out.write(bytes);
+                    out.getFD().sync();
+                } catch (java.io.IOException error) { part.delete(); return; }
+                if (!part.renameTo(file)) part.delete();
+            });
+        } catch (Throwable ignored) { }
+    }
+
+    @PluginMethod
+    public void setStateKey(PluginCall call) {
+        final String key = call.getString("key", "");
+        if (!STATE_KEY.matcher(key).matches()) { call.reject("Bad state key"); return; }
+        withTab(call, tab -> tab.setStateKey(key));
+    }
+
+    /** The tab's saved list put back, before it has loaded anything: { restored, url }. */
+    @PluginMethod
+    public void restoreState(PluginCall call) {
+        final String key = call.getString("key", "");
+        final String id = call.getString("id");
+        if (!STATE_KEY.matcher(key).matches()) { call.reject("Bad state key"); return; }
+        final java.io.File file = stateFile(key);
+        getActivity().runOnUiThread(() -> {
+            JSObject result = new JSObject();
+            result.put("restored", false);
+            TabWebView tab = tabs.get(id);
+            if (tab == null || tab.isIncognito() || !file.exists() || file.length() > 2 * 1024 * 1024) { call.resolve(result); return; }
+            android.os.Parcel parcel = android.os.Parcel.obtain();
+            try {
+                byte[] bytes = java.nio.file.Files.readAllBytes(file.toPath());
+                parcel.unmarshall(bytes, 0, bytes.length);
+                parcel.setDataPosition(0);
+                android.os.Bundle bundle = parcel.readBundle(getClass().getClassLoader());
+                android.webkit.WebBackForwardList list = bundle == null ? null : tab.restoreState(bundle);
+                if (list != null && list.getSize() > 0) {
+                    tab.setStateKey(key);
+                    result.put("restored", true);
+                    android.webkit.WebHistoryItem item = list.getCurrentItem();
+                    result.put("url", item == null ? "" : item.getUrl());
+                    result.put("canGoBack", tab.canGoBack());
+                    result.put("canGoForward", tab.canGoForward());
+                }
+            } catch (Throwable ignored) {
+                // A file from another WebView version, or damaged: the address it is.
+            } finally {
+                parcel.recycle();
+            }
+            call.resolve(result);
+        });
+    }
+
+    /** Remove the saved lists of tabs no longer open: { keys } are the ones that are. */
+    @PluginMethod
+    public void pruneStates(PluginCall call) {
+        JSArray keys = call.getArray("keys");
+        final java.util.Set<String> keep = new java.util.HashSet<>();
+        if (keys != null) for (int i = 0; i < keys.length(); i++) keep.add(keys.optString(i, "") + ".state");
+        stateWriter.execute(() -> {
+            java.io.File dir = new java.io.File(getContext().getFilesDir(), "tab-state");
+            java.io.File[] files = dir.listFiles();
+            if (files != null) for (java.io.File file : files) if (!keep.contains(file.getName())) file.delete();
+        });
+        call.resolve();
     }
 
     @PluginMethod
@@ -1100,6 +1201,7 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
     @Override
     public void emit(String event, JSObject data) {
+        if ("loadEnd".equals(event)) saveTabState(tabs.get(data.getString("id")));
         // Scrolling the page in front brings the scroll buttons up. emit() is
         // called from the WebView's own callbacks, on the main thread.
         if ("scroll".equals(event) && scrollButtonsOn && scrollButtons != null
@@ -1115,6 +1217,8 @@ public class VexTabsPlugin extends Plugin implements TabWebView.Host {
 
     @Override
     protected void handleOnPause() {
+        // Where each tab has been, in case Android does not let Vex come back.
+        for (TabWebView tab : tabs.values()) saveTabState(tab);
         // Leaving the app stops timers and media unless the person asked for
         // audio to keep going.
         if (!backgroundAudio) {

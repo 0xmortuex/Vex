@@ -115,9 +115,32 @@ describe('the session', () => {
     VexTabStore.persist();
     await new Promise(resolve => setTimeout(resolve, 500));
     expect(store['vex.openTabs']).toEqual([{
-      url: 'https://a.example/', title: '', icon: '', scrollY: 0, lastActiveAt: expect.any(Number)
+      url: 'https://a.example/', title: '', icon: '', scrollY: 0, key: expect.stringMatching(/^k[0-9a-f]{24}$/), lastActiveAt: expect.any(Number)
     }]);
     expect(store['vex.activeTabUrl']).toBe('https://a.example/');
+  });
+
+  it('puts back a restored tab’s whole back/forward list, and loads the address only when there is none', async () => {
+    store['vex.openTabs'] = [
+      { url: 'https://kept.example/3', title: 'Three', key: 'kaaaaaaaaaaaa', lastActiveAt: 1 },
+      { url: 'https://lost.example/', title: 'Lost', key: 'kbbbbbbbbbbbb', lastActiveAt: 1 }
+    ];
+    store['vex.activeTabUrl'] = 'https://kept.example/3';
+    const keys = [];
+    window.VexBridge.setTabStateKey = vi.fn(async (id, key) => { keys.push(key); });
+    window.VexBridge.pruneTabStates = vi.fn(async () => {});
+    window.VexBridge.restoreTabState = vi.fn(async (id, key) => (key === 'kaaaaaaaaaaaa'
+      ? { restored: true, url: 'https://kept.example/3', canGoBack: true, canGoForward: false } : { restored: false }));
+    navigated = [];
+    expect(await VexTabStore.restore()).toBe(2);
+    expect(keys).toEqual(['kaaaaaaaaaaaa', 'kbbbbbbbbbbbb']);
+    expect(window.VexBridge.pruneTabStates).toHaveBeenCalledWith(['kaaaaaaaaaaaa', 'kbbbbbbbbbbbb']);
+    expect(VexTabStore.active().canGoBack).toBe(true);
+    expect(navigated.map(entry => entry.url)).not.toContain('https://kept.example/3');
+    const lost = VexTabStore.all().find(tab => tab.url === 'https://lost.example/');
+    await VexTabStore.activate(lost.id);
+    expect(navigated.map(entry => entry.url)).toContain('https://lost.example/');
+    delete window.VexBridge.setTabStateKey; delete window.VexBridge.pruneTabStates; delete window.VexBridge.restoreTabState;
   });
 
   it('remembers when each tab was last in front, so a stale tab stays stale', async () => {
