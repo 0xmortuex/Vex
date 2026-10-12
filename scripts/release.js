@@ -5,7 +5,15 @@
 // no release).
 //
 // Usage:
-//   node scripts/release.js <version> "<title>" [--no-publish] [--dry-run] [--any-version]
+//   node scripts/release.js <version> "<title>" [--no-publish] [--dry-run] [--any-version] [--ignore-ci]
+//
+// It refuses (exit 1, no file changed) when v<version> is already a GitHub
+// release, when the CHANGELOG heading of a published release was changed, or
+// when the "Verify Vex" CI run for HEAD (or its nearest ancestor with a run) is
+// red, still running, or missing. --ignore-ci skips only the CI part; use it
+// when you have read the failure and decided it is unrelated.
+// `node scripts/release-check.js` prints the same checks in one screen.
+// The publish itself is run by the owner with scripts/publish-all.ps1.
 //
 // The version must be the one scripts/version-points.js works out from the
 // commits' ranks (run it first to see the table); --any-version skips that,
@@ -50,7 +58,7 @@ function run(cmd, opts) {
   return execSync(cmd, { cwd: REPO, stdio: (opts && opts.inherit) ? 'inherit' : ['inherit', 'pipe', 'inherit'], encoding: 'utf8' });
 }
 
-if (!version || !/^\d+\.\d+\.\d+$/.test(version)) fail('usage: node scripts/release.js <x.y.z> "<title>" [--no-publish] [--dry-run] [--any-version]');
+if (!version || !/^\d+\.\d+\.\d+$/.test(version)) fail('usage: node scripts/release.js <x.y.z> "<title>" [--no-publish] [--dry-run] [--any-version] [--ignore-ci]');
 if (!title) fail('a release title is required (used as the commit subject)');
 if (flags.has('--no-website')) fail('--no-website is gone: this script no longer touches the website. post-publish.js moves the badge after `npm run publish` proves the release.');
 
@@ -67,6 +75,16 @@ if (!flags.has('--any-version')) {
 //    2.36.1 from matching "## v2.36.10" (same check as write-release-notes.js).
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
 if (!changelog.includes(`## v${version} `)) fail(`CHANGELOG.md has no "## v${version} " entry — write the release notes first`);
+
+// 1b. Refuse (before any file changes) when the version, or the CHANGELOG
+//     heading of a published release, is already on GitHub, or when CI is red
+//     or still running for HEAD. scripts/release-guard.js; read-only gh calls.
+{
+  const guard = require('./release-guard.js');
+  const g = guard.preflight({ version, changelog, ignoreCi: flags.has('--ignore-ci') });
+  for (const w of g.warnings) console.warn('release: warning: ' + w);
+  if (g.errors.length) fail('refusing to release v' + version + ':\n  - ' + g.errors.join('\n  - '));
+}
 
 // 2. Bump version in package.json + package-lock.json.
 for (const file of ['package.json', 'package-lock.json']) {
