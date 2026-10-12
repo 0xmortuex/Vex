@@ -22,7 +22,7 @@ const AICompose = {
     const m = document.createElement('div');
     m.id = 'vex-compose-modal';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
-    m.innerHTML = `<div style="width:460px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
+    m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="AI Compose" style="width:460px;max-width:92vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">${VexIcons.svg('edit', { size: 15 })} AI Compose</div>
       <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 12px">${ctx.hasInput ? 'Writes into the focused field on the page.' : 'No input focused — the result will be copied to your clipboard.'}${ctx.value ? ' Current text is used as context.' : ''}</p>
       <textarea id="cmp-instr" rows="3" placeholder="e.g. reply politely declining · make this friendlier · write a short intro about X" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:'Outfit',sans-serif"></textarea>

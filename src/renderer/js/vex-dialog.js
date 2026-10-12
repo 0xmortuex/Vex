@@ -60,8 +60,62 @@
       else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
     },
   };
+  // A modal built by hand (the editors, pickers and wizards that are not
+  // vexConfirm/vexPrompt): it says it is a dialog, which also puts it under the
+  // trap above; focus goes in when nothing in it has it; and focus goes back to
+  // what had it when the modal is removed, unless something else has taken it.
+  FocusTrap.adopt = function adopt(modal, { label } = {}) {
+    if (!modal || modal.nodeType !== 1) throw new Error('VexFocusTrap.adopt needs the dialog element');
+    if (modal.__vexAdopted) return;
+    modal.__vexAdopted = true;
+    // What had focus before the modal: when it already took focus by itself
+    // (a modal that focuses its own field), the last thing outside any modal.
+    const opener = modal.contains(document.activeElement) ? FocusTrap.lastOutside : document.activeElement;
+    if (!modal.getAttribute('role')) modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (label && !modal.getAttribute('aria-label') && !modal.getAttribute('aria-labelledby')) modal.setAttribute('aria-label', label);
+    requestAnimationFrame(() => {
+      if (!modal.isConnected || modal.contains(document.activeElement)) return;
+      const first = FocusTrap.focusables(modal)[0];
+      if (first) first.focus({ preventScroll: true });
+      else { modal.tabIndex = -1; modal.focus({ preventScroll: true }); }
+    });
+    // Removed itself, or with the overlay around it.
+    const watch = new MutationObserver(() => {
+      if (modal.isConnected) return;
+      watch.disconnect();
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost && opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true });
+    });
+    if (modal.parentNode) watch.observe(modal.parentNode, { childList: true });
+    watch.observe(document.body, { childList: true });
+  };
   window.VexFocusTrap = FocusTrap;
   document.addEventListener('keydown', (e) => { if (e.key === 'Tab') FocusTrap.onTab(e, FocusTrap.topModal()); }, true);
+
+  // Every modal, however it was built, is brought under the same rules: a
+  // [aria-modal="true"] that appears takes focus when nothing in it has it,
+  // and gives it back when it goes. 9 of Vex's dialogs opened with the focus
+  // left on the toolbar button behind them, so a screen reader announced
+  // nothing and the keyboard was not in them.
+  FocusTrap.lastOutside = null;
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (t && t.nodeType === 1 && t !== document.body && !t.closest('[aria-modal="true"]')) FocusTrap.lastOutside = t;
+  }, true);
+  const watchModals = () => {
+    new MutationObserver((records) => {
+      for (const rec of records) {
+        for (const n of rec.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          const modal = n.matches('[aria-modal="true"]') ? n : n.querySelector('[aria-modal="true"]');
+          if (modal) FocusTrap.adopt(modal);
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  };
+  if (document.body) watchModals();
+  else document.addEventListener('DOMContentLoaded', watchModals, { once: true });
 
   function open(opts) {
     return new Promise(resolve => {

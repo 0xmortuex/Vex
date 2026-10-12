@@ -157,7 +157,7 @@ const PersonasSettings = (() => {
     const overlay = document.createElement('div');
     overlay.className = 'sync-modal-overlay';
     overlay.innerHTML = `
-      <div class="sync-modal-card persona-editor">
+      <div class="sync-modal-card persona-editor" role="dialog" aria-modal="true" aria-label="Persona editor">
         <h2 style="margin-top:0">${isEdit ? (existing.isBuiltIn ? 'Fork Built-in Persona' : 'Edit Persona') : 'New Persona'}</h2>
         ${existing && existing.isBuiltIn ? '<p class="panel-desc" style="color:var(--text-muted);font-size:12px;margin:-4px 0 14px">Built-ins can\'t be edited directly. Saving will create an editable custom copy.</p>' : ''}
 

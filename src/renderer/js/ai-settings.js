@@ -279,7 +279,7 @@ const AISettings = (() => {
     overlay.className = 'sync-modal-overlay';
     overlay.dataset.ollamaInstall = '';
     overlay.innerHTML = `
-      <div class="sync-modal-card" style="max-width:600px;max-height:80vh;overflow-y:auto">
+      <div class="sync-modal-card" role="dialog" aria-modal="true" aria-label="Install Ollama for local AI" style="max-width:600px;max-height:80vh;overflow-y:auto">
         <h2 style="margin-top:0;color:var(--primary)">Install Ollama for Local AI</h2>
         <h3 style="font-size:13px;margin:14px 0 6px">Step 1: Download Ollama</h3>
         <p style="font-size:13px">Ollama is a free tool that runs AI models on your computer.</p>

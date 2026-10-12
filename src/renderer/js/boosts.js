@@ -161,7 +161,7 @@ const VexBoosts = {
     const m = document.createElement('div');
     m.id = 'boost-edit-modal';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
-    m.innerHTML = `<div style="width:560px;max-width:94vw;max-height:88vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
+    m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Boost this site" style="width:560px;max-width:94vw;max-height:88vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">Boost ${esc(host)}</div>
       <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 14px">Custom CSS and JS applied to every page on this site. ${(b.zaps || []).length} zapped element${(b.zaps || []).length === 1 ? '' : 's'}.</p>
       <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:5px">Custom CSS</label>

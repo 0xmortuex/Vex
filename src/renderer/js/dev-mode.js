@@ -279,7 +279,7 @@ const VexDevMode = {
     m.id = 'vex-devdash';
     m.className = 'dd-overlay';
     m.innerHTML = `
-      <div class="dd-shell" role="dialog" aria-label="Developer dashboard">
+      <div class="dd-shell" role="dialog" aria-modal="true" aria-label="Developer dashboard">
         <div class="dd-head">
           <span class="dd-head-icon">${icon('terminal', 16)}</span>
           <span class="dd-head-title">Developer</span>

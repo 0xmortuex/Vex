@@ -21,6 +21,9 @@ const ThemePicker = {
 
     const modal = document.createElement('div');
     modal.className = 'vex-theme-picker';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Choose a theme');
     modal.innerHTML = `
       <div class="vtp-header">
         <h2>Choose a Theme</h2>

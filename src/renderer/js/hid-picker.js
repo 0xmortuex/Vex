@@ -32,7 +32,7 @@ const HidPicker = (() => {
     };
 
     overlay.innerHTML = `
-      <div class="hid-picker">
+      <div class="hid-picker" role="dialog" aria-modal="true" aria-label="Connect a device">
         <div class="hid-picker-head">
           <div class="hid-picker-title">Connect a device</div>
           <div class="hid-picker-origin">${_esc(origin || 'A site')} wants to connect to a HID device</div>
