@@ -98,7 +98,8 @@ webview:focus-visible {
   .ai-spinner,
   .ws-spinner,
   .agent-spinner,
-  .ai-msg.streaming .ai-msg-content::after {
+  .ai-msg.streaming .ai-msg-content::after,
+  #webviews-container.wv-loading::after {
     animation-name: vex-a11y-working !important;
     animation-duration: 1.4s !important;
     animation-iteration-count: infinite !important;
@@ -116,7 +117,13 @@ html[data-reduce-motion] *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
-html[data-reduce-motion] :is(.ai-spinner, .ws-spinner, .agent-spinner, .ai-msg.streaming .ai-msg-content::after) {
+/* The page's loading ring (app.css #webviews-container.wv-loading) froze into
+ * a still circle with Windows' "Show animations" off (found 2026-10-12): it
+ * pulses like the others. Pseudo-elements cannot sit inside :is(), so the two
+ * ::after rules are listed on their own. */
+html[data-reduce-motion] :is(.ai-spinner, .ws-spinner, .agent-spinner),
+html[data-reduce-motion] .ai-msg.streaming .ai-msg-content::after,
+html[data-reduce-motion] #webviews-container.wv-loading::after {
   animation-name: vex-a11y-working !important;
   animation-duration: 1.4s !important;
   animation-iteration-count: infinite !important;
