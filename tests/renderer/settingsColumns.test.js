@@ -274,6 +274,17 @@ describe('SettingsUI._watchLayout', () => {
     expect(c.style.gridRow).toBe('26 / span 25');
   });
 
+  it('counts rows as they are drawn under Larger text, so a very tall section is not cut short', () => {
+    // Zoom 1.3: a 4px row is drawn 5.1875px (1/64ths, rounded down), not 5.2.
+    width(1868 / 1.3);
+    Object.defineProperty(root, 'offsetWidth', { configurable: true, get: () => 1000 });
+    root.getBoundingClientRect = () => ({ width: 1300, height: 800, top: 0, left: 0, right: 1300, bottom: 800 });
+    heights.a = 5139;                                   // AI Personas, 35 cards
+    SettingsUI._layout(root);
+    // 5139 / 4 = 1285 rows were 16 screen pixels short; at the drawn pitch it takes 1288.
+    expect(document.getElementById('a').style.gridRow).toBe('1 / span 1288');
+  });
+
   it('changes the column count in the next frame, and places the blocks for the count in use meanwhile', () => {
     width(1868);
     SettingsUI._watchLayout(root);

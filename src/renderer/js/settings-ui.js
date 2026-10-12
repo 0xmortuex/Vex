@@ -548,6 +548,13 @@ const SettingsUI = {
       for (const el of kids) { el.style.removeProperty('grid-row'); el.style.removeProperty('grid-column'); }
       if (cols === 1) return want !== cols;
     }
+    // A grid row as it is drawn. Under Larger text (the panel's zoom) a 4px
+    // row is 5.2 screen pixels, and Chromium draws it in 1/64ths, rounded
+    // down: 5.1875. Counted as 4px, AI Personas (1285 rows) came out 16px
+    // short and its last line ran into the next section.
+    const box = root.getBoundingClientRect();
+    const zoom = root.offsetWidth && box.width ? box.width / root.offsetWidth : 1;
+    const pitch = Math.floor(this.ROW_UNIT * zoom * 64) / 64 / zoom;
     // Every height first, then every place: one layout pass, not one a block.
     const shown = [];
     const items = [];
@@ -557,7 +564,7 @@ const SettingsUI = {
       const h = el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
       shown.push(el);
       items.push({
-        rows: Math.max(1, Math.ceil(h / this.ROW_UNIT)),
+        rows: Math.max(1, Math.ceil(h / pitch)),
         lead: el.classList.contains('set-subnav'),
         // Show advanced settings ends the list in the column that ends first:
         // across every column, it left the same empty band under the others.
