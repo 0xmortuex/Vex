@@ -84,6 +84,7 @@ const VexI18nUI = {
       'Recall': 'Geri çağırma', 'Schedules': 'Zamanlanmış görevler',
       'Authenticator': 'Kimlik doğrulayıcı', 'Privacy': 'Gizlilik',
       'Fill code from authenticator': 'Kimlik doğrulayıcıdan kod doldur',
+      'Search accounts': 'Hesaplarda ara', 'Rename account': 'Hesabı yeniden adlandır', 'Remove account': 'Hesabı kaldır',
       'Shortcuts': 'Kısayollar', 'Queue': 'Kuyruk', 'Work': 'Çalışma',
       'Start Page': 'Başlangıç sayfası', 'Toolbox': 'Araç kutusu',
       // A web panel's page as a tab (js/panel-to-tab.js).
