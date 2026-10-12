@@ -79,7 +79,7 @@ describe('every catalogue entry can be opened or explained', () => {
       if (!buttons.length) expect(how, f.id + ' has neither a button nor a how-it-works').toBeTruthy();
       if (FeatureHow[f.id]) expect(how.textContent, f.id).toBe(FeatureHow[f.id]);
     }
-  });
+  }, 60000);   // renders every card; a loaded CI machine passed 5 s once
 });
 
 describe('Master Volume', () => {
