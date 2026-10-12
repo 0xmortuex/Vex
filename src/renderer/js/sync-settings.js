@@ -146,10 +146,10 @@ const SyncSettings = (() => {
               <li>Notes and scheduled tasks</li>
               <li>History and settings</li>
               <li>Theme, look, fonts and preferences</li>
+              <li>Saved passwords and 2FA codes, only if you turn them on</li>
             </ul>
             <strong>What stays local:</strong>
             <ul>
-              <li>Saved passwords</li>
               <li>Website cookies and logins</li>
               <li>AI chat history</li>
               <li>Interface size and spacing</li>
