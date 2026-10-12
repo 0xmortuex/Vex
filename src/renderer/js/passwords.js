@@ -811,6 +811,32 @@ const PasswordVault = {
     container.appendChild(box);
   },
 
+  // "Saved 3 Mar 2024" under a login: when Vex saved or last changed it.
+  _savedLabel(iso) {
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return '';
+    return 'saved ' + new Date(t).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  },
+
+  // What Password Health found, per login ("host\nusername" -> short notes),
+  // so a reused, weak or year-old password is marked in the list itself.
+  // Main works it out and sends findings only; a vault that cannot be
+  // analysed leaves the list without marks and says why in the console.
+  async _healthFlags() {
+    const flags = new Map();
+    const add = (host, username, note) => { const k = host + '\n' + username; if (!flags.has(k)) flags.set(k, []); if (!flags.get(k).includes(note)) flags.get(k).push(note); };
+    try {
+      const h = await window.vex.vaultHealth();
+      if (!h || h.error) throw new Error((h && h.error) || 'no answer');
+      for (const g of h.reused || []) for (const e of g.entries) add(e.host, e.username, 'reused password');
+      for (const w of h.weak || []) add(w.host, w.username, 'weak password');
+      for (const o of h.old || []) add(o.host, o.username, 'not changed in a year or more');
+    } catch (err) {
+      console.error('[Vault] could not mark weak or reused passwords:', err && err.message);
+    }
+    return flags;
+  },
+
   async renderPanel(container) {
     if (!container) return;
     const esc = (s) => window.escapeHtml(s);
@@ -841,6 +867,7 @@ const PasswordVault = {
     empty.style.display = list.length ? 'none' : 'block';
     container.appendChild(empty);
     list.sort((a, b) => (a.host || '').localeCompare(b.host || '') || (a.username || '').localeCompare(b.username || ''));
+    const flags = await this._healthFlags();
     list.forEach(entry => {
       const row = document.createElement('div');
       row.dataset.search = ((entry.host || '') + ' ' + (entry.username || '')).toLowerCase();
@@ -849,7 +876,8 @@ const PasswordVault = {
         <img src="${typeof TabManager === 'undefined' || TabManager.mayAskSiteForIcon('https://' + entry.host + '/') ? `https://${encodeURIComponent(entry.host)}/favicon.ico` : ''}" style="width:18px;height:18px;border-radius:4px" alt="" data-image-fallback="hide">
         <div style="flex:1;min-width:120px">
           <div style="font-size:13.5px;font-weight:600;color:var(--text);overflow-wrap:anywhere">${esc(entry.host)}</div>
-          <div style="font-size:11.5px;color:var(--text-muted);overflow-wrap:anywhere">${esc(entry.username)}</div>
+          <div style="font-size:11.5px;color:var(--text-muted);overflow-wrap:anywhere">${esc(entry.username)}${this._savedLabel(entry.updatedAt) ? ` · ${esc(this._savedLabel(entry.updatedAt))}` : ''}</div>
+          ${(flags.get(entry.host + '\n' + entry.username) || []).length ? `<div data-flags style="font-size:11px;color:var(--warning,#f59e0b);margin-top:2px">${esc(flags.get(entry.host + '\n' + entry.username).join(' · '))}</div>` : ''}
           <div data-shown style="display:none;font:12.5px/1.4 Consolas,'Cascadia Mono',monospace;color:var(--text);overflow-wrap:anywhere;margin-top:3px"></div>
         </div>
         <button type="button" data-reveal style="${this._btn}" aria-pressed="false" aria-label="Show the password for ${esc(entry.username)} on ${esc(entry.host)}">${VexIcons.svg('eye', { size: 13 })}<span>Show</span></button>
