@@ -114,6 +114,32 @@ const PersistentStorage = {
   // a synced one a few seconds later).
   onChange: null,
 
+  // A key that changes on every click and means nothing to a person ("the
+  // sidebar panel was opened at 14:02:11") is written to browser storage at
+  // once, so reading it is always current, but copied to the file at most once
+  // in LAZY_MIRROR_MS and when Vex closes. Each copy rewrites the whole file
+  // and its .bak (up to 1.3 MB): opening a panel did it, twice (open, then
+  // switch away). Measured with scripts/perf-baseline.js.
+  LAZY_MIRROR_MS: 5 * 60 * 1000,
+  _lazy: new Set(),
+  _lazyTimer: null,
+  _enqueueLazy(key) {
+    this._lazy.add(key);
+    if (this._lazyTimer) return;
+    this._lazyTimer = setTimeout(() => this.releaseLazy(), this.LAZY_MIRROR_MS);
+  },
+  // Hand the held keys to the normal queue now (the timer, and closing).
+  releaseLazy() {
+    if (this._lazyTimer) clearTimeout(this._lazyTimer);
+    this._lazyTimer = null;
+    const keys = [...this._lazy];
+    this._lazy.clear();
+    for (const key of keys) {
+      const value = _origGetItem.call(localStorage, key);
+      if (value !== null) this._enqueue('set', key, value);
+    }
+  },
+
   _enqueue(op, key, value) {
     if (typeof this.onChange === 'function') this.onChange(key);
     const version = (this._versions.get(key) || 0) + 1;
@@ -211,6 +237,9 @@ const _origGetItem = _storageOriginals.getItem;
 // returns an old copy.
 const FILE_ONLY_KEYS = new Set(['vex.aiConversations', 'vex.notes', 'vex.history', 'vex.agentRuns', 'vex.clipboardHistory', 'vex.annotations', 'vex.readLater']);
 const _fileOnly = new Map();
+// Copied to the file lazily (PersistentStorage._enqueueLazy). Only values that
+// are rewritten on every use and are worth nothing a few minutes old.
+const LAZY_MIRROR_KEYS = new Set(['vex.panelUsage']);
 _storageMethods.getItem = function (key) {
   if (this === localStorage && _fileOnly.has(String(key))) return _fileOnly.get(String(key));
   return _origGetItem.call(this, key);
@@ -260,7 +289,8 @@ _storageMethods.setItem = function (key, value) {
   }
   if (this === localStorage) _fileOnly.delete(key);    // fits again
   if (this === localStorage && (key.startsWith('vex.') || key === 'vex-theme' || key.startsWith('vex_'))) {
-    PersistentStorage._enqueue('set', key, this.getItem(key));
+    if (LAZY_MIRROR_KEYS.has(key)) PersistentStorage._enqueueLazy(key);
+    else PersistentStorage._enqueue('set', key, this.getItem(key));
   }
 };
 _storageMethods.removeItem = function (key) {
@@ -294,6 +324,7 @@ window.vex?.onFlushRequested?.(async () => {
   if (typeof HistoryPanel !== 'undefined') HistoryPanel.flush();
   if (typeof WorkspaceManager !== 'undefined') WorkspaceManager.saveCurrentState();
   if (typeof TabManager !== 'undefined') await TabManager.persistTabs({ now: true });
+  PersistentStorage.releaseLazy();
   await PersistentStorage._flush();
   await VexStorage.retryFailed();
   await window.vex.flushStorage?.();
