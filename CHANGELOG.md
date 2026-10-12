@@ -1,9 +1,67 @@
 # Changelog
 
-## v19.42.1 (2026-10-12) — Passwords that sync, Discord in your Vex theme, a roomier Settings, and pop-ups blocked like Chrome
+## v19.55.9 (2026-10-12) — Discord in your Vex theme, a roomier Settings, and every v19.1.7 change checked by hand
 
 ### Read this first
 - **If changes to your settings stopped being kept, this fixes it.** A shortcut added to the shortcuts bar with its site's logo (the default) was refused when settings were saved, and every change made after it, to any setting, was refused with it.
+- **Every change in v19.1.7 was checked again by using it for real**, feature by feature, and about 30 problems were fixed. The notes below list them, and the end of this entry corrects what v19.1.7's notes said too strongly.
+
+### New
+- **Discord can wear your Vex theme.** Turn on "Match Discord to my Vex theme" in Settings › Appearance (or right-click the Discord button). The Vex themes named after BetterDiscord themes load the real theme in Discord through Vencord (ClearVision, Dark Matter, Tokyo Night and 18 more, from their own published addresses); every other Vex theme, your own too, gives Discord matching, readable colours. It changes as you switch themes, and your own Vencord themes and QuickCSS are never touched. It needs Vencord, which Vex offers to install. Off until you turn it on.
+- **Settings uses your screen.** Wide windows show the sections in two columns (three on very wide screens), so a 1920px window scrolls about half as far and a 2560px one about a third. Smaller windows and Largest text keep one column.
+- **The mouse wheel scrolls Settings anywhere over it**, beside the settings and over the search box and chips too, not only in the middle.
+- **Ctrl+K opens the privacy policy, terms, license and third-party notices** inside Vex at any time (type "privacy", "terms", "license" or "legal"), and Settings › About opens all four inside Vex too, offline.
+
+### Privacy and security
+- **Tor tabs always show sites light, like Tor Browser**, whatever your Vex theme or Website appearance, so a Tor visit does not give away your light or dark setting. This covers Tor tabs, Tor containers and sites you route through Tor.
+- **The privacy policy and terms really come first:** no Vex key or command works behind them, a private window opens only once you have agreed, and a link opened from another program waits and opens right after "I agree".
+- Scheduled AI tasks no longer open or read pages on this computer or your home network in their own tab.
+- Watch This Page and Subscribe to this page's feed are refused in Tor, private and container tabs, and a feed is no longer read from your real connection after you route its site through Tor or a proxy.
+- A page's own script can no longer trigger the 2FA code refill, and can no longer put different text in Clipboard History than its Copy button really copied.
+- A private window's Discord menu no longer offers bypass options that did nothing there.
+
+### Passwords and sign-in
+- Sites you allow passkeys on show in Settings › Privacy at once, with Remove (they appeared only after a restart).
+- A login saved without a username can be edited.
+- Asking for "Fill code from email" on a page Vex does not watch no longer makes a later automatic fill in that tab skip its wait for a newer code.
+
+### Vex Sync
+- **Turning a kind of data back on in Choose what to sync keeps the changes you made while it was off**; if another device changed the same thing, both versions wait in Sync conflicts. They were lost.
+- The Sync panel says plainly that an email code alone cannot change your synced data but can erase it to start over (which signs every device out and emails you), and lists saved passwords and 2FA codes as synced when you turn them on.
+
+### Tabs, address bar and pages
+- **Vex's own HTTPS-Only and certificate pages show the address you were trying to reach** in the address bar, as Chrome does, instead of the page you came from. The site button never calls them secure.
+- **The AI panel no longer covers the tab strip, toolbar or window buttons** (the + button sat under it); full-screen AI fills the page area.
+- The address bar's right-click menu and the tab menu work from the keyboard (menu key or Shift+F10, arrows, Enter, Escape).
+- Suggestions for /Docs and /docs each show their own address.
+- Settings › General no longer shows Edit and Remove for a search engine of your own when you have none.
+
+### Page watches, downloads and panels
+- A watch compares the whole page (a change near the bottom of a long page was missed), takes its first look at once however you add it, and two watches added quickly both stay. Older watches on home-network devices keep working after the move to the one list.
+- The question a page's automatic downloads get can be answered again: the Downloads list no longer covers its Allow and Block buttons.
+- With Discord open as a tab, clicking a Discord notification brings up that tab.
+- Turning Roblox's bypass off stops ByeDPI when nothing else uses it.
+- An extension's download of a link that redirects reports its result instead of failing after 15 seconds.
+
+### Themes and language
+- A browser look that wears its own colours gives dropdowns, scrollbars and websites its own light or dark (Firefox dark over a light theme showed light dropdowns and light sites).
+- Reduce motion now stills the New Tab page too.
+- In Turkish: the site button's tooltip on websites, the setup's "skip the rest?" question, and Settings › About's "accepted on" line.
+
+### Corrections to the v19.1.7 notes
+- "Changes reach your other devices in about 5 seconds": they are sent about 5 seconds after you make them; your other devices pick them up at their next check, within 5 minutes.
+- "A sign-in email code alone can no longer overwrite or erase your synced data": it can no longer change it, but "start over" can still erase it (signing every device out and emailing you).
+- Device names: the name you type at sign-in can be seen by the sync server, like the rest of the device list; only a later rename travels encrypted. Tab groups now stay with each device's own tabs.
+- "The AI agent can no longer be pointed at this computer or your home network": that covered its page reads; scheduled tasks are covered now, and opening such a page in a chat asks you first.
+- Risky downloads: Vex stops shortcuts, disk images, OneNote files, installer patches, Control Panel items and more before opening, but not every kind Chrome warns about.
+- Search keywords you add are kept by Reset to Defaults.
+- Show, copy and export of passwords ask for your PIN if you set one, otherwise for a confirmation.
+- The new window and private window speed-up measured about a quarter of a second, not 0.3-0.4 s.
+- Extensions: the cautions list on extension cards names 28 things that do not work, not about 15; tabs.update cannot switch tabs, and onActivated does not fire for a tab opened in front.
+
+## v19.1.7 (2026-10-11) — Passwords that sync, pop-ups blocked like Chrome, sync that stays small, and extensions that work
+
+### Read this first
 - **Vex now asks you to agree to its privacy policy and terms before it is used.** They were rewritten to list everything Vex does by itself (update checks, block lists, page watches, reading sign-in codes from your email, Recall, Clipboard History, sync and more): what is sent, where, when, and the switch that turns it off. You can read both inside Vex, then choose "I agree" or "Quit Vex". Settings › About shows when you agreed. You are asked again only when the documents change.
 - **Your passwords and 2FA codes can sync between your devices.** Turn on Passwords or Authenticator in Settings › Vex Sync › Choose what to sync (off until you do, and Vex asks for your PIN first). Each one is sealed on its own inside the end-to-end encrypted sync, so neither the server nor Vex's synced copy on your PC holds one in readable form. If a login changed on two devices, the newer one wins and the other waits in Sync conflicts.
 - **Tabs that go through Tor or a proxy of their own** (a site you route that way, a Tor container, a container you routed) are kept from the AI, email-code filling, Clipboard History, price history and Recall, as a Tor tab always was, and get no search suggestions. Saved passwords and 2FA codes still fill there.
@@ -11,15 +69,15 @@
 ### Privacy and security
 - **Pop-ups are blocked like in Chrome.** A window a page opens without your click is blocked, "Pop-up blocked" shows in the address bar, and the site panel has "Allow for this site". Print windows, sign-in pop-ups and links you click still open.
 - **A saved password is filled only when you click into the sign-in field**, never as the page loads, so a script on the site cannot read it out of a form you never saw.
-- **A sign-in email code alone can no longer change your synced data.** Every upload and wipe now proves this device has your sync key, and Settings › Vex Sync says whether the account is locked to it. A code can still erase everything to start over (for a lost recovery code); that signs every device out and emails the account.
+- **A sign-in email code alone can no longer overwrite or erase your synced data.** Every upload and wipe now proves this device has your sync key, and Settings › Vex Sync says whether the account is locked to it.
 - **HTTPS-Only works in private windows, burner, New Identity and Tor tabs too.** A site with no secure connection shows a page with Go back or Continue instead of loading unencrypted, and a certificate error gets a page that explains it.
 - **A page that starts download after download with no click now asks first**, and a held file never lands in your download folder unless you allow it.
 - **Installing an extension that only shares a name with one you have asks "Replace X?"** and starts it fresh, instead of slipping into its place and reading its data.
 - **When a page goes full screen, Vex names the site** and says "press Esc to exit", so a page posing as your desktop or a sign-in window is caught.
-- The AI agent's page reads and scheduled AI tasks no longer reach this computer or your home network (opening such a page in a chat asks you first), the agent always asks before it downloads, and private and Tor tabs are never sent to the AI by Organize Tabs.
+- The AI agent can no longer be pointed at this computer or your home network, always asks before it downloads, and private and Tor tabs are never sent to the AI by Organize Tabs.
 - With on-device AI chat on, a chat after a restart answers on this machine again instead of quietly going to the cloud.
 - A site asking for a HID device gets only the one you pick, and only in that tab's container. A web page can no longer read audio or video from your computer or local network.
-- More risky file kinds are stopped before opening (shortcuts, disk images, OneNote files, installer patches, Control Panel items and more), and an ordinary file like a film opens at once.
+- More risky file kinds are stopped before opening (shortcuts, disk images, OneNote files, installer patches and the rest Chrome warns about), and an ordinary file like a film opens at once.
 - The lock is stronger: its PIN cannot be swapped while locked, wrong PINs are counted across restarts with a growing wait, and site notifications and authenticator changes wait until you unlock.
 - The address bar shows the real host of an address with a name before an @, and the padlock no longer says a failed page is secure.
 - Vex tells you by name when a device you have not seen before signs in to your sync account, and the account's address gets an email if its sync data is ever erased.
@@ -28,12 +86,11 @@
 - Export All Data no longer writes the lock PIN's hash or MCP tokens, problem reports leave out your worker names and home addresses, and a page can no longer fill Clipboard History with fake copies.
 
 ### Passwords and sign-in
-- **Settings › Passwords can add, edit, show, copy, search and export your logins** (show, copy and export ask again first: your PIN if you set one, otherwise a confirmation), and undo "Never save". A login saved without a username can be edited too.
+- **Settings › Passwords can add, edit, show, copy, search and export your logins** (show and copy ask again first), and undo "Never save".
 - **Password Health can check your passwords against known breaches**, off until you turn it on. Only the first 5 characters of each password's hash leave your computer.
 - **The Authenticator can back up to a passphrase-locked file** and import Google Authenticator's transfer QR code in one go.
 - Two-step sign-ins (Google, Microsoft) are offered for saving, and a blocked passkey request shows a bar with Allow here.
-- Form Fill no longer puts your full name into Company or User name, and clicking into an emptied 2FA field fills the current code (a page's own script cannot trigger it).
-- Sites you allow passkeys on show in Settings › Privacy at once, with Remove.
+- Form Fill no longer puts your full name into Company or User name, and an emptied 2FA field gets the current code.
 
 ### Tabs and the address bar
 - **Reload becomes Stop while a page loads**, and F5, Ctrl+F5, F6, Alt+D, Ctrl+PageUp/PageDown and Ctrl+Shift+PageUp/PageDown work as in other browsers.
@@ -48,16 +105,10 @@
 ### Vex Sync
 - **Sync no longer grows until the server refuses it.** Deleted items are cleared once every device has them, and only recent history syncs.
 - **A sync never changes or closes a tab you have open.** Other devices' tabs are listed under History › Tabs from other devices.
-- **Your changes are sent about 5 seconds after you make them** instead of at the next two-minute round; your other devices pick them up at their next check, within 5 minutes.
-- **Choose what to sync**, one switch per kind of data. Changes you make while a kind is off are kept when you turn it back on (as a choice in Sync conflicts if another device changed the same thing).
-- Name each device (the name you type at sign-in can be seen by the sync server, like the rest of the device list; a later rename travels encrypted), see and undo sync conflicts, and your look, skin and fonts now sync too. Tab groups now stay with each device's own tabs.
+- **Changes reach your other devices in about 5 seconds** instead of two minutes.
+- **Choose what to sync**, one switch per kind of data. Name each device, see and undo sync conflicts, and your look, skin and fonts now sync too.
 
 ### Settings and accessibility
-- **Settings uses your screen.** Wide windows show the sections in two columns (three on very wide screens), so a 1920px window scrolls about half as far and a 2560px one about a third. Smaller windows and Largest text keep one column.
-- **The mouse wheel scrolls Settings anywhere over it**, beside the settings and over the search box and chips too, not only in the middle.
-- **Ctrl+K opens the privacy policy, terms, license and third-party notices** inside Vex at any time (type "privacy", "terms", "license" or "legal"), and Settings › About opens all four inside Vex too, offline.
-- **While the agreement is shown, no Vex key or command works behind it**, and a private window opens only once you have agreed.
-- The address bar's right-click menu and the tab menu work from the keyboard (menu key or Shift+F10, arrows, Enter, Escape).
 - **Choose your download folder**, or be asked where to save each file.
 - **A Language choice in Settings › General** switches between English and Türkçe at once, and Turkish now reaches every Settings heading, tooltip and setup step.
 - **Settings works from the keyboard and a screen reader**: focus rings, named controls, and dialogs that keep Tab inside.
@@ -68,7 +119,6 @@
 - **One list of backups from before updates**, in Settings › Backup: the settings copy each new version used to keep elsewhere now goes into the same list, without passwords or keys, the last five kept. Older copies were moved in, not lost, and a backup that fails is said on screen.
 
 ### Themes
-- **Discord can wear your Vex theme.** Turn on "Match Discord to my Vex theme" in Settings › Appearance (or right-click the Discord button). The Vex themes named after BetterDiscord themes load the real theme in Discord through Vencord (ClearVision, Dark Matter, Tokyo Night and 18 more, from their own published addresses); every other Vex theme, your own too, gives Discord matching, readable colours. It changes as you switch themes, and your own Vencord themes and QuickCSS are never touched. It needs Vencord, which Vex offers to install.
 - **Websites follow Vex's light or dark**, or Windows, or always light or dark (Settings › Appearance › Website appearance). A Reduce motion switch is there too.
 - **New theme: High Contrast Dark.**
 - Text, hints and links are readable in every theme and on the New Tab page: 45 themes had colours under the 4.5:1 minimum, and Glass with light themes was fixed.
@@ -77,7 +127,7 @@
 ### Downloads, reading and pages
 - **The Downloads panel can be searched**, a link copied, a finished file deleted or dragged out. A dropped connection shows Resume that really resumes.
 - **Feeds know what you have read**, and Ctrl+K can subscribe to a page's feed.
-- One list of watched pages, never checked from your real connection for Tor, proxy or container sites. A watch compares the whole page and takes its first look at once, however you add it. **A watch you add on your router, NAS or another device at home now works**, with a note saying how often this computer checks it.
+- One list of watched pages, never checked from your real connection for Tor or proxy sites. **A watch you add on your router, NAS or another device at home now works**, with a note saying how often this computer checks it.
 - Highlights come back across bold text and links, and show in reading mode.
 - **The ad blocker's lists update weekly**, and clicking a blocked ad says so instead of a blank tab.
 
@@ -87,14 +137,13 @@
 - A container's first tab loads again with a request-watching extension installed.
 
 ### AI, Discord and panels
-- **The AI panel no longer covers the tab strip, toolbar or window buttons** (the + button sat under it); full-screen AI fills the page area.
 - The AI panel no longer closes when you answer its question, Clear empties the chat you are looking at, and "remember that…" is kept in AI memory.
 - AI Translate uses your chosen language. Slow local answers are no longer cut off at two minutes.
 - **Discord's Auto-configure bypass works again** and remembers what worked, and switching presets no longer leaves an old ciadpi.exe running.
 - Discord's memory has one limit and one notice, and Vex wakes up far less often during games.
 
 ### Faster
-- **A new window or private window opens about a quarter of a second sooner**, and the first launch sooner too.
+- **A new window or private window opens about 0.3 s sooner**, and the first launch about 0.4 s sooner.
 - Recall saves at most once a minute instead of after every page.
 
 ## v14.72.3 (2026-10-10) — A safer lock, keys back for your other apps, and a much quieter Vex
