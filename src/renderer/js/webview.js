@@ -1621,8 +1621,10 @@ const WebviewManager = {
     // Tor tab (js/totp-autofill.js).
     const offerTotp = typeof TotpAutofill !== 'undefined' && TotpAutofill.shouldOfferMenuRow(webview, !!e.params.isEditable);
     if (typeof TotpAutofill !== 'undefined') TotpAutofill.refreshAccounts();
+    // A separator unless one is already last (the edit rows end with one).
+    const sepOnce = () => { if (!items.length || !items[items.length - 1].sep) items.push({ sep: true }); };
     if (offerTotp) {
-      items.push({ sep: true });
+      sepOnce();
       items.push({
         label: (window.VexI18n && window.VexI18n.t('menuFillTotp', 'Fill code from authenticator')) || 'Fill code from authenticator',
         action: () => {
@@ -1632,8 +1634,25 @@ const WebviewManager = {
         }
       });
     }
+    // Passwords, by hand: the automatic "Save password?" card needs the page to
+    // submit a real form, and many sites sign in by script. On a password field:
+    // generate a strong one into it; on any input of an https page: save one for
+    // this site (js/password-manual.js says why when a private, Tor or routed
+    // tab cannot). "This site" has the save row on every page.
+    if (typeof VexPasswordManual !== 'undefined' && /^https?:/i.test(curUrl)) {
+      const tp = (key, fallback) => (window.VexI18n && window.VexI18n.t(key, fallback)) || fallback;
+      const at = () => { try { const r = webview.getBoundingClientRect(); return { x: (e.params.x || 0) - r.left, y: (e.params.y || 0) - r.top }; } catch { return {}; } };
+      const failed = (what) => (err) => { console.error('[Vault] ' + what + ' failed:', err); window.showToast?.('Could not do that: ' + ((err && err.message) || err), 'error'); };
+      const saveRow = { label: tp('menuSavePw', 'Save a password for this site…'), action: () => VexPasswordManual.saveForSite(webview).catch(failed('save a password')) };
+      const genRow = { label: tp('menuGenPw', 'Generate a strong password'), action: () => VexPasswordManual.generateInField(webview, at()).catch(failed('generate a password')) };
+      // Electron's webview event names the field kind formControlType
+      // ('input-password'); inputFieldType is the same on newer ones.
+      if (e.params.formControlType === 'input-password' || e.params.inputFieldType === 'password') { sepOnce(); items.push(genRow, saveRow); }
+      else if (e.params.isEditable) { sepOnce(); items.push(saveRow); }
+      siteItems.unshift(saveRow);
+    }
     if (e.params.isEditable && typeof EmailCodeAutofill !== 'undefined') {
-      if (!offerTotp) items.push({ sep: true });
+      sepOnce();
       items.push({
         label: 'Fill code from email',
         action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }

@@ -568,10 +568,29 @@ const PasswordVault = {
     return /^[a-z0-9.-]{1,253}$/.test(host) && host.includes('.') ? host : '';
   },
 
+  // What the add / save dialog's generator last used (this session only).
+  _dialogGen: { length: 20, letters: true, digits: true, symbols: true, avoidAmbiguous: false },
+
+  // One password for a login, from the dialog's options: length clamped to
+  // 12-64, "letters" being both cases. Throws (never falls back to something
+  // weaker) when nothing is chosen or there is no secure random source.
+  generateLogin(opts) {
+    const o = opts || {};
+    const G = window.VexPasswordGen;
+    if (!G) throw new Error('The password generator did not load');
+    const length = Math.max(12, Math.min(64, parseInt(o.length, 10) || 20));
+    const letters = o.letters !== false;
+    const made = G.generate({ length, lower: letters, upper: letters, digits: o.digits !== false, symbols: o.symbols !== false, avoidAmbiguous: !!o.avoidAmbiguous });
+    return { password: made.password, bits: made.bits, strength: G.strength(made.bits) };
+  },
+
   // The add / edit form. -> { host, username, password, note } or null.
   // usernameRequired: false for a saved login that has none (one kept from a
   // browser's CSV, for a site that asks only for a password or a PIN).
-  _editDialog({ title, okLabel, host = '', username = '', password = '', note = '', hostEditable = false, passwordRequired = true, usernameRequired = true }) {
+  // generator: true adds "Generate" with a length slider (12-64), letters /
+  // digits / symbols / no-lookalikes, and the strength of what it made.
+  // hint: one line of context under the title (why the dialog is open).
+  _editDialog({ title, okLabel, host = '', username = '', password = '', note = '', hostEditable = false, passwordRequired = true, usernameRequired = true, generator = false, hint = '', passwordVisible = false }) {
     return new Promise((resolve) => {
       document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel?.());
       const prevFocus = document.activeElement;
@@ -581,6 +600,7 @@ const PasswordVault = {
       overlay.innerHTML = `
         <div class="vex-dialog" role="dialog" aria-modal="true" aria-labelledby="vex-pwedit-title">
           <div class="vex-dialog-title" id="vex-pwedit-title">${esc(title)}</div>
+          ${hint ? `<div class="vex-dialog-message" style="font-size:12px;color:var(--text-muted);margin:0 0 8px">${esc(hint)}</div>` : ''}
           <label class="vex-dialog-label" for="vex-pwedit-host">Site</label>
           <input class="vex-dialog-input" id="vex-pwedit-host" type="text" spellcheck="false" placeholder="example.com" ${hostEditable ? '' : 'readonly'}>
           <label class="vex-dialog-label" for="vex-pwedit-user">Username or email</label>
@@ -590,8 +610,19 @@ const PasswordVault = {
             <input class="vex-dialog-input" id="vex-pwedit-pass" type="password" spellcheck="false" autocomplete="new-password" style="flex:1">
             <button type="button" class="vex-dialog-btn" id="vex-pwedit-show" aria-pressed="false">Show</button>
           </div>
+          ${generator ? `<div id="vex-pwedit-gen" style="margin-top:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <button type="button" class="vex-dialog-btn" id="vex-pwedit-generate">Generate</button>
+              <span id="vex-pwedit-bar" aria-hidden="true" style="display:inline-flex;gap:3px">${'<span style="width:22px;height:5px;border-radius:3px;background:var(--border)"></span>'.repeat(4)}</span>
+              <span id="vex-pwedit-strength" role="status" style="font-size:11.5px;color:var(--text-muted)"></span>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin:8px 0 6px">Length
+              <input type="range" id="vex-pwedit-len" min="12" max="64" value="${this._dialogGen.length}" style="flex:1;accent-color:var(--primary)" aria-label="Password length">
+              <span id="vex-pwedit-lenshow" style="min-width:22px;text-align:right">${this._dialogGen.length}</span></label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px 14px">${[['letters', 'Letters'], ['digits', 'Digits'], ['symbols', 'Symbols'], ['avoidAmbiguous', 'No lookalikes (0/O, 1/l)']].map(([key, label]) => `<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer"><input type="checkbox" data-gen="${key}" ${this._dialogGen[key] ? 'checked' : ''} style="accent-color:var(--primary)">${label}</label>`).join('')}</div>
+          </div>` : ''}
           <label class="vex-dialog-label" for="vex-pwedit-note">Note</label>
-          <textarea class="vex-dialog-input" id="vex-pwedit-note" rows="3" spellcheck="false" placeholder="Optional, kept encrypted with the password"></textarea>
+          <textarea class="vex-dialog-input" id="vex-pwedit-note" rows="${generator ? 2 : 3}" spellcheck="false" placeholder="Optional, kept encrypted with the password"></textarea>
           <div id="vex-pwedit-error" role="alert" style="display:none;font-size:12px;color:var(--danger);margin-top:6px"></div>
           <div class="vex-dialog-actions">
             <button type="button" class="vex-dialog-btn" data-cancel>Cancel</button>
@@ -625,13 +656,50 @@ const PasswordVault = {
       };
       $('[data-ok]').addEventListener('click', submit);
       $('[data-cancel]').addEventListener('click', () => done(null));
-      $('#vex-pwedit-show').addEventListener('click', (e) => {
+      const setShown = (show) => {
         const field = $('#vex-pwedit-pass');
-        const show = field.type === 'password';
+        const button = $('#vex-pwedit-show');
         field.type = show ? 'text' : 'password';
-        e.currentTarget.textContent = show ? 'Hide' : 'Show';
-        e.currentTarget.setAttribute('aria-pressed', String(show));
-      });
+        button.textContent = show ? 'Hide' : 'Show';
+        button.setAttribute('aria-pressed', String(show));
+      };
+      $('#vex-pwedit-show').addEventListener('click', () => setShown($('#vex-pwedit-pass').type === 'password'));
+      if (passwordVisible) setShown(true);
+      if (generator) {
+        // What was made, and not yet edited by hand: changing an option then
+        // makes a fresh one in place.
+        let made = false;
+        const paintStrength = (info) => {
+          const level = info ? info.level : -1;
+          const colour = ['var(--danger)', 'var(--warning, #e0a400)', 'var(--success)', 'var(--success)'][level];
+          overlay.querySelectorAll('#vex-pwedit-bar > span').forEach((seg, i) => { seg.style.background = i <= level ? colour : 'var(--border)'; });
+          $('#vex-pwedit-strength').textContent = info ? `${info.label} · ${Math.round(info.bits)} bits` : '';
+        };
+        const options = () => {
+          const o = this._dialogGen;
+          o.length = parseInt($('#vex-pwedit-len').value, 10) || o.length;
+          overlay.querySelectorAll('[data-gen]').forEach((c) => { o[c.dataset.gen] = c.checked; });
+          return o;
+        };
+        const generate = () => {
+          try {
+            const r = this.generateLogin(options());
+            $('#vex-pwedit-pass').value = r.password;
+            made = true;
+            setShown(true);
+            paintStrength(r.strength);
+            $('#vex-pwedit-error').style.display = 'none';
+          } catch (err) {
+            made = false;
+            paintStrength(null);
+            fail(err.message);
+          }
+        };
+        $('#vex-pwedit-generate').addEventListener('click', generate);
+        $('#vex-pwedit-len').addEventListener('input', () => { $('#vex-pwedit-lenshow').textContent = $('#vex-pwedit-len').value; options(); if (made) generate(); });
+        overlay.querySelectorAll('[data-gen]').forEach((c) => c.addEventListener('change', () => { options(); if (made) generate(); }));
+        $('#vex-pwedit-pass').addEventListener('input', () => { made = false; paintStrength(null); });
+      }
       overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) done(null); });
       overlay.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { e.preventDefault(); done(null); return; }
@@ -648,7 +716,7 @@ const PasswordVault = {
   },
 
   async _addLogin(container) {
-    const got = await this._editDialog({ title: 'Add a password', okLabel: 'Save', hostEditable: true });
+    const got = await this._editDialog({ title: 'Add a password', okLabel: 'Save', hostEditable: true, generator: true });
     if (!got) return;
     try {
       if (await this._fullEntry(got.host, got.username)) {
