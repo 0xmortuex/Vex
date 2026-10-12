@@ -1,5 +1,3 @@
-> Draft — not legal advice; have it reviewed if you rely on it.
-
 # Vex terms of use
 
 Document version: 2

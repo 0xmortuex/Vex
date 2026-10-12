@@ -14,6 +14,14 @@ describe('legal documents in the main process', () => {
     expect(() => readLegalDoc(root, 'package.json')).toThrow(/Not a document/);
   });
 
+  it('the documents start with their title, with no "draft" or "not legal advice" notice', () => {
+    for (const name of ['PRIVACY.md', 'TERMS.md']) {
+      const text = readLegalDoc(root, name);
+      expect(text.startsWith('# Vex '), name).toBe(true);
+      expect(text).not.toMatch(/\bdraft\b|not legal advice/i);
+    }
+  });
+
   it('the IPC contract takes only those names, and the channels are UI-only', () => {
     expect(() => validate('legal:read', ['PRIVACY.md'])).not.toThrow();
     expect(() => validate('legal:read', ['..\\package.json'])).toThrow();
