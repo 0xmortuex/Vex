@@ -52,7 +52,9 @@ const UrlBarMenu = {
     menu.style.top = e.clientY + 'px';
     document.body.appendChild(menu);
     TabManager._clampMenuToViewport(menu, e.clientX, e.clientY);
-    TabManager._attachMenuDismissal(menu);
+    // The tab menu's keys too: arrows, Home, End, Enter, and Escape back to
+    // the bar (js/tabs.js).
+    TabManager._attachMenuDismissal(menu, { keys: true });
     return menu;
   },
 
@@ -60,6 +62,16 @@ const UrlBarMenu = {
     if (!input) throw new Error('[UrlBarMenu] the address bar is missing');
     if (typeof onPasteAndGo !== 'function') throw new Error('[UrlBarMenu] needs onPasteAndGo');
     input.addEventListener('contextmenu', (e) => { e.preventDefault(); this.open(e, input, onPasteAndGo); });
+    // The menu key and Shift+F10 open it under the bar with focus on its
+    // first row; focus stayed in the bar, where the arrows did nothing
+    // (release check, 2026-10-12).
+    input.addEventListener('keydown', (e) => {
+      if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) || e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      const r = input.getBoundingClientRect();
+      const menu = this.open({ clientX: Math.round(r.left + 12), clientY: Math.round(r.bottom - 4) }, input, onPasteAndGo);
+      TabManager._menuFromKeyboard(menu);
+    });
   },
 };
 

@@ -265,6 +265,11 @@ const VexA11yKeys = (() => {
         e.preventDefault();
         const r = el.getBoundingClientRect();
         el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: Math.round(r.left + 12), clientY: Math.round(r.bottom - 4), button: 2 }));
+        // The tab menu works from the keyboard: focus goes into it (js/tabs.js
+        // _attachMenuDismissal keys). It stayed on the tab (release check,
+        // 2026-10-12).
+        const menu = document.querySelector('.tab-context-menu[data-menu-keys]');
+        if (menu && typeof TabManager !== 'undefined' && typeof TabManager._menuFromKeyboard === 'function') TabManager._menuFromKeyboard(menu);
         return;
       }
       default:

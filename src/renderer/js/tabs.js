@@ -2001,6 +2001,8 @@ const TabManager = {
     const gone = new MutationObserver(() => { if (!menu.isConnected) { closeSub(); gone.disconnect(); } });
     gone.observe(document.body, { childList: true });
     menu.addEventListener('scroll', closeSub, { passive: true });
+    // The keyboard (_menuKey) closes the list when Left or Escape leaves it.
+    menu._closeSub = closeSub;
 
     items.forEach(item => {
       if (item.sep) {
@@ -2036,7 +2038,7 @@ const TabManager = {
 
     document.body.appendChild(menu);
     this._clampMenuToViewport(menu, x, y);
-    this._attachMenuDismissal(menu);
+    this._attachMenuDismissal(menu, { keys: true });
   },
 
   // Reload from the tab's menu: a sleeping tab is woken, the tab in front
@@ -3382,7 +3384,13 @@ const TabManager = {
     else menu?.remove();
   },
 
-  _attachMenuDismissal(menu) {
+  // keys: the menu is worked from the keyboard too (the tab menu and the
+  // address bar's): arrows, Home and End move between its rows, Enter or
+  // Space runs one, Right or Enter opens a row's list beside it and Left
+  // comes back, and Escape closes it and gives focus back to what had it.
+  // Opened with the menu key or Shift+F10, focus went nowhere and none of
+  // that worked (release check, 2026-10-12).
+  _attachMenuDismissal(menu, { keys = false } = {}) {
     const overlay = document.createElement('div');
     overlay.className = 'context-menu-overlay';
     // z-index 999 sits exactly one below .tab-context-menu's 1000, so the
@@ -3391,7 +3399,16 @@ const TabManager = {
     // <webview> guest.
     overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:transparent;';
 
-    const onKey  = (ev) => { if (ev.key === 'Escape') close('escape'); };
+    const returnFocus = keys ? document.activeElement : null;
+    if (keys) {
+      menu.dataset.menuKeys = '';
+      if (!menu.getAttribute('role')) menu.setAttribute('role', 'menu');
+      for (const row of menu.children) if (row.classList.contains('tab-context-item') && !row.getAttribute('role')) row.setAttribute('role', 'menuitem');
+    }
+    const onKey  = (ev) => {
+      if (keys && this._menuKey(menu, ev)) return;
+      if (ev.key === 'Escape') close('escape');
+    };
     // Guest right-clicks churn focus guest↔host for a beat AFTER the menu
     // opens (pages like Discord refocus their composer to show their own
     // caret menu), and that churn fires host-window blur. Ignore blur in the
@@ -3437,10 +3454,15 @@ const TabManager = {
       // guest↔host focus 'window-blur' race (which used to eat <webview>
       // menu item clicks before they fired) is invisible without this.
       console.log('[Vex menu] context menu dismissed —', reason || 'unknown');
+      if (typeof menu._closeSub === 'function') menu._closeSub();
       overlay.remove();
       menu.remove();
       document.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', onBlur, true);
+      // Back to what had focus when the menu went with it, unless a row's
+      // action has put it elsewhere (a dialog, a panel).
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (returnFocus && returnFocus.isConnected && lost && reason !== 'window-blur') returnFocus.focus();
     }
     // Expose close() so item-click handlers can tear the WHOLE menu down —
     // overlay included. Calling bare menu.remove() on a click used to leave
@@ -3463,6 +3485,66 @@ const TabManager = {
     // Insert overlay before menu in DOM order so the menu (z:1000) wins over
     // the overlay (z:999) at hit-test time even before paint reorders.
     document.body.insertBefore(overlay, menu);
+  },
+
+  // A menu with keys opened from the keyboard (the menu key, Shift+F10):
+  // focus goes to its first row.
+  _menuFromKeyboard(menu) {
+    const first = menu && [...menu.children].find(el => el.classList.contains('tab-context-item') && !el.hidden);
+    if (!first) return;
+    first.tabIndex = -1;
+    first.focus();
+  },
+
+  // A key while a menu with keys (above) is open. True when it was the menu's.
+  // The rows are the menu's .tab-context-item children; a row's list beside
+  // it (.ctx-submenu) is walked the same way while focus is in it.
+  _menuKey(menu, ev) {
+    if (ev.ctrlKey || ev.altKey || ev.metaKey) return false;
+    const sub = document.querySelector('.ctx-submenu');
+    const inSub = !!(sub && sub.contains(document.activeElement));
+    const list = inSub ? sub : menu;
+    const rows = [...list.children].filter(el => el.classList.contains('tab-context-item') && !el.hidden);
+    if (!rows.length) return false;
+    const at = rows.indexOf(document.activeElement);
+    const go = (el) => { if (!el) return; el.tabIndex = -1; el.focus(); };
+    const backToRow = () => {
+      const row = menu.querySelector('.has-sub.open');
+      if (typeof menu._closeSub === 'function') menu._closeSub();
+      go(row);
+    };
+    const openSub = (row) => {
+      row.click();
+      const opened = document.querySelector('.ctx-submenu');
+      go(opened && [...opened.children].find(el => el.classList.contains('tab-context-item')));
+    };
+    const stop = () => { ev.preventDefault(); ev.stopPropagation(); return true; };
+    switch (ev.key) {
+      case 'ArrowDown':
+        if (!inSub && typeof menu._closeSub === 'function' && at >= 0) menu._closeSub();
+        go(rows[at < 0 ? 0 : (at + 1) % rows.length]); return stop();
+      case 'ArrowUp':
+        if (!inSub && typeof menu._closeSub === 'function' && at >= 0) menu._closeSub();
+        go(rows[at <= 0 ? rows.length - 1 : at - 1]); return stop();
+      case 'Home': if (at < 0) return false; go(rows[0]); return stop();
+      case 'End': if (at < 0) return false; go(rows[rows.length - 1]); return stop();
+      case 'ArrowRight':
+        if (at < 0 || inSub || !rows[at].classList.contains('has-sub')) return false;
+        openSub(rows[at]); return stop();
+      case 'ArrowLeft':
+        if (!inSub) return false;
+        backToRow(); return stop();
+      case 'Escape':
+        if (!inSub) return false;
+        backToRow(); return stop();
+      case 'Enter': case ' ':
+        if (at < 0) return false;
+        stop();
+        if (!inSub && rows[at].classList.contains('has-sub')) openSub(rows[at]);
+        else rows[at].click();
+        return true;
+      default: return false;
+    }
   },
 
   // Clamp menu inside the viewport. Call on rAF after the menu is in the DOM
