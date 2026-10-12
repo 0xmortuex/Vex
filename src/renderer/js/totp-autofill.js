@@ -18,6 +18,120 @@
 // added from a raw secret has no issuer at all and would otherwise never match.
 // Only fills a genuine one-time-code field (never a search/promo box), and only
 // when it's empty.
+//
+// WHEN it looks: on a sign-in flow it polls for the field for a minute; on any
+// other page of a site that has a saved account it WATCHES the page instead
+// (one MutationObserver, no polling), because a 2FA modal opens on the same
+// address in the middle of a logged-in session (Roblox's "2-Step Verification"
+// when you change a group's owner) and neither dom-ready nor a navigation ever
+// fires again. Found 2026-10-12: the old code looked once at page load, saw no
+// password box or 2FA wording, and gave up for good.
+
+// The page-side field detector, written as a real function so it is linted and
+// unit-tested, then injected into the page as its source (fn.toString()). Every
+// injected script - the "is there a code field" probe, the filler, the watcher
+// and the manual "Fill code from authenticator" - uses this one copy, so they
+// can never disagree about what a one-time-code field is.
+//
+// A field counts when it is a visible, enabled text / number / tel input AND
+//   - it says autocomplete="one-time-code", or
+//   - its name, id, aria-label, title, placeholder, its <label> text or the
+//     words right around it carry clear one-time-code wording ("verification
+//     code", "authenticator", "2-step", "6-digit", "OTP"...), or
+//   - it is labelled with a bare "code"/"digits" and the dialog, form or page
+//     it sits in is plainly a 2FA screen (so a promo box on a shop page is not).
+// A search box, a combobox and a coupon/promo/gift box never count unless the
+// page says autocomplete="one-time-code". Fields in open shadow roots count.
+function vexTotpDetector() {
+  var STRONG = /otp|2fa|two.?factor|two.?step|2.?step|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code|\b(?:6|six|8|eight)[ -]?digits?\b|login.?code|confirmation.?code/;
+  var STRONG_TEXT = /\botp\b|\b2fa\b|two.?factor|two.?step|\b2.?step\b|\btotp\b|\bmfa\b|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code|\b(?:6|six|8|eight)[ -]?digits?\b|login.?code|confirmation.?code/;
+  var BARE = /\bcode\b|\bdigits?\b/;
+  var SCREEN = /two.?factor|two.?step|2.?step|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)|\b(?:6|six)[ -]?digit/i;
+  var NOT_CODE = /search|coupon|promo|voucher|discount|gift|referral|invite|redeem|zip|postal|captcha/;
+  // Fields that are plainly about something else, even inside a 2FA dialog.
+  var OTHER = /e-?mail|user|name|phone|address|city|comment|message|device/;
+  function text(value, max) { return String(value || '').toLowerCase().replace(/\s+/g, ' ').slice(0, max || 160); }
+  function labelsOf(el) {
+    var out = '';
+    try {
+      var list = el.labels ? Array.prototype.slice.call(el.labels) : [];
+      for (var i = 0; i < list.length; i++) out += ' ' + (list[i].textContent || '');
+      var by = el.getAttribute('aria-labelledby');
+      if (by) by.split(/\s+/).forEach(function (id) { var n = el.ownerDocument.getElementById(id); if (n) out += ' ' + (n.textContent || ''); });
+    } catch (e) { /* a label that cannot be read is no label */ }
+    return text(out, 200);
+  }
+  function meta(el) {
+    return text([el.name, el.id, el.getAttribute('autocomplete'), el.getAttribute('aria-label'), el.getAttribute('title'), el.placeholder].join(' '), 300);
+  }
+  // The words just around a field: the first ancestor (up to three up) that has
+  // any text of its own besides the field.
+  function near(el) {
+    var p = el.parentElement;
+    for (var i = 0; i < 3 && p && p !== el.ownerDocument.body; i++, p = p.parentElement) {
+      var t = text(p.textContent, 300);
+      if (t.length >= 3) return t;
+    }
+    return '';
+  }
+  function scopeText(el) {
+    try {
+      var scope = el.closest('[role=dialog],[aria-modal=true],dialog,form') || el.ownerDocument.body;
+      return String(scope.innerText || scope.textContent || '');
+    } catch (e) { return ''; }
+  }
+  function vis(el) {
+    try {
+      var r = el.getBoundingClientRect(), s = getComputedStyle(el);
+      if (el.disabled || el.readOnly || el.closest('[inert]')) return false;
+      if (el.form && new URL(el.form.action || location.href, location.href).origin !== location.origin) return false;
+      return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
+    } catch (e) { return false; }
+  }
+  function textual(el) {
+    var t = (el.type || '').toLowerCase();
+    return t === '' || t === 'text' || t === 'tel' || t === 'number';
+  }
+  function isOtp(el) {
+    if (!el || el.tagName !== 'INPUT' || !textual(el) || !vis(el)) return false;
+    var ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    if (ac === 'one-time-code') return true;
+    var role = (el.getAttribute('role') || '').toLowerCase();
+    if (role === 'combobox' || role === 'searchbox' || el.getAttribute('aria-autocomplete')) return false;
+    var m = meta(el), label = labelsOf(el), around = near(el);
+    if (NOT_CODE.test(m) || NOT_CODE.test(label)) return false;
+    // Attribute values are short identifiers (name="emailOtp"), so the loose
+    // pattern is fine there; in running text it would match "footprint".
+    if (STRONG.test(m) || STRONG_TEXT.test(label)) return true;
+    if (STRONG_TEXT.test(around) && !NOT_CODE.test(around) && !OTHER.test(m + ' ' + label)) return true;
+    return (BARE.test(m) || BARE.test(label)) && SCREEN.test(scopeText(el));
+  }
+  function inputs() {
+    var out = [], seen = 0;
+    (function walk(root) {
+      var list = root.querySelectorAll('input');
+      for (var i = 0; i < list.length; i++) out.push(list[i]);
+      var all = root.querySelectorAll('*');
+      for (var j = 0; j < all.length && seen < 6000; j++, seen++) { if (all[j].shadowRoot) walk(all[j].shadowRoot); }
+    })(document);
+    return out;
+  }
+  // A row of one-character boxes (a React OTP input) on a 2FA screen.
+  function boxes(all) {
+    var list = all.filter(function (el) {
+      var im = (el.getAttribute('inputmode') || '').toLowerCase(), t = (el.type || '').toLowerCase();
+      return textual(el) && vis(el) && el.maxLength === 1 && (t === 'tel' || t === 'number' || im === 'numeric' || /^\d?$/.test(el.value || ''));
+    });
+    return list.length >= 4 && SCREEN.test(String(document.body.innerText || document.body.textContent || '')) ? list : [];
+  }
+  function fields() {
+    var all = inputs();
+    return { single: all.filter(isOtp), boxes: boxes(all) };
+  }
+  function hasField() { var f = fields(); return f.single.length > 0 || f.boxes.length > 0; }
+  return { vis: vis, isOtp: isOtp, fields: fields, hasField: hasField, textual: textual };
+}
+
 const TotpAutofill = {
   _domains: { github: ['github.com'], google: ['google.com'], microsoft: ['live.com', 'microsoft.com', 'microsoftonline.com'], discord: ['discord.com'], gitlab: ['gitlab.com'], cloudflare: ['cloudflare.com'], amazon: ['amazon.com'], aws: ['amazon.com', 'aws.amazon.com'] },
   _norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
@@ -34,6 +148,9 @@ const TotpAutofill = {
     if (parts.length >= 3 && this._SECOND_LEVEL.indexOf(parts[index]) !== -1) index = parts.length - 3;
     return this._norm(parts[index]);
   },
+
+  // The page-side detector as source, for the injected scripts and the tests.
+  _detectorSource() { return vexTotpDetector.toString(); },
 
   _bindings() { try { const v = JSON.parse(localStorage.getItem(this.BIND_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch { return {}; } },
   _bindKey(account, host) { return this._norm(account.issuer || account.label) + '@' + host; },
@@ -73,11 +190,19 @@ const TotpAutofill = {
       const domains = this._domains[issuer] || [];
       if (domains.some(domain => host === domain || host.endsWith('.' + domain))) return 'curated';
     }
+    // A site the person set for this account (they confirmed it, or picked this
+    // account for the site by hand) matches whatever the site's name is.
+    const bound = this._bindingFor(account, host);
+    if (bound === true) return 'bound';
+    if (bound === false) return null;
     const site = this._label(host);
     if (!site || !this._names(account).has(site)) return null;
-    const bound = this._bindingFor(account, host);
-    if (bound === false) return null;
-    return bound === true ? 'bound' : 'label';
+    return 'label';
+  },
+
+  // The accounts that claim this host: [{ account, kind }].
+  _matchesFor(list, host) {
+    return (list || []).map((a) => ({ account: a, kind: this._matchKind(a, host) })).filter((m) => m.kind);
   },
 
   async autofill(webview, url) {
@@ -91,7 +216,7 @@ const TotpAutofill = {
     try { list = await window.vex.totpList(); } catch { return; }
     if (!list || !list.length) return;
 
-    const matches = list.map((a) => ({ account: a, kind: this._matchKind(a, host) })).filter((m) => m.kind);
+    const matches = this._matchesFor(list, host);
     if (!matches.length) return;
 
     // A 2FA screen appears AFTER the password step, and sites like Roblox show it
@@ -109,16 +234,78 @@ const TotpAutofill = {
       for (let i = 0; i < this.WAIT_TICKS; i++) {
         if (!here()) return;
         if (await this._hasOtpField(webview, url)) { ready = true; break; }
-        // Only wait on a page that plausibly leads to a 2FA step. Otherwise every
-        // visit to a site with a saved code would probe the DOM for a minute.
-        if (i === 0 && !(await this._looksLikeAuthFlow(webview, url))) return;
+        // Only POLL on a page that plausibly leads to a 2FA step. Any other page
+        // of the site is watched instead (below): a 2FA modal can open in the
+        // middle of a logged-in session, on the same address, with no load.
+        if (i === 0 && !(await this._looksLikeAuthFlow(webview, url))) break;
         await new Promise((resolve) => setTimeout(resolve, this.WAIT_INTERVAL_MS));
       }
-      if (!ready || !here()) return;
+      if (!here()) return;
+      if (!ready) { this._watch(webview, url, host); return; }
       await this._fill(webview, url, host, matches);
     } finally {
       webview._vexTotpPolling = false;
     }
+  },
+
+  // Wait, without polling, for a code field to appear on this page (or for the
+  // person to click into an empty one), then fill it and wait again. The page
+  // side is one MutationObserver in the page's own world plus a trusted-focus
+  // listener; it resolves 'present' or 'focus', or 'dup' when this document is
+  // already being watched. It fires only on a field APPEARING (or a click), so
+  // a field the person dismissed is not filled again in a loop, and a page's
+  // own script cannot make Vex fill anything it could not already: the site
+  // matched an account, the field is on that site's own origin, and a click
+  // needs real user activation.
+  _watch(webview, url, host) {
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { return; }
+    const js = `(function(){try{
+      if(location.origin!==${JSON.stringify(origin)})return 'origin';
+      var KEY=Symbol.for('vex.totp.watch');
+      if(document[KEY])return 'dup';
+      var TOKEN={};
+      document[KEY]=TOKEN;
+      var D=(${vexTotpDetector.toString()})();
+      return new Promise(function(resolve){
+        var had=false;try{had=D.hasField();}catch(e){}
+        var timer=0,done=false;
+        function finish(why){if(done)return;done=true;try{mo.disconnect();}catch(e){}document.removeEventListener('focusin',onFocus,true);try{if(document[KEY]===TOKEN)delete document[KEY];}catch(e){}resolve(why);}
+        // The marker is what says "this document is watched": if it is gone
+        // (the page cleared it) this watcher has been replaced, so it ends.
+        function check(){if(done)return;if(document[KEY]!==TOKEN){finish('gone');return;}var now=false;try{now=D.hasField();}catch(e){}if(now&&!had){finish('present');return;}had=now;}
+        function schedule(){clearTimeout(timer);timer=setTimeout(check,150);setTimeout(check,700);}
+        function onFocus(e){try{
+          if(!e.isTrusted||!(navigator.userActivation&&navigator.userActivation.isActive))return;
+          var el=e.target;if(el&&el.tagName==='INPUT'&&!el.value&&D.isOtp(el))finish('focus');
+        }catch(x){}}
+        var mo=new MutationObserver(schedule);
+        mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden','open','inert','type','placeholder','aria-label']});
+        document.addEventListener('focusin',onFocus,true);
+      });
+    }catch(e){return 'error';}})();`;
+    let pending;
+    try { pending = webview.executeJavaScript(js); } catch { return; }
+    Promise.resolve(pending).then(async (why) => {
+      if (why !== 'present' && why !== 'focus') return;
+      if (webview.isConnected === false) return;
+      let current = url;
+      try { current = webview.getURL() || url; } catch { return; }
+      let list = [];
+      try { list = await window.vex.totpList(); } catch { return; }   // locked: the lock screen is up
+      const matches = this._matchesFor(list, host);
+      if (matches.length && !webview._vexTotpFilling) {
+        webview._vexTotpFilling = true;
+        try { await this._fill(webview, current, host, matches); }
+        finally { webview._vexTotpFilling = false; }
+      }
+      this._watch(webview, current, host);
+    }).catch((err) => {
+      // A page that navigated away takes its watcher with it: that is not a failure.
+      let same = false;
+      try { same = webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { same = false; }
+      if (same) console.error('[TOTP] could not watch the page for a code field:', err && err.message);
+    });
   },
 
   WAIT_TICKS: 40,            // ~60s, enough to type a password and submit
@@ -236,22 +423,7 @@ const TotpAutofill = {
   async _hasOtpField(webview, url) {
     const js = `(function(){try{
       if(location.origin!==${JSON.stringify(new URL(url).origin)})return false;
-      function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';}catch(e){return false;}}
-      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
-      function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||document.body.textContent||'');}catch(e){return false;}}
-      var all=Array.prototype.slice.call(document.querySelectorAll('input'));
-      for(var i=0;i<all.length;i++){var el=all[i];var t=(el.type||'').toLowerCase();
-        if(t==='password')continue;
-        if(!(t===''||t==='text'||t==='tel'||t==='number'))continue;
-        if(!vis(el))continue;
-        var ac=(el.getAttribute('autocomplete')||'').toLowerCase();
-        if(ac==='one-time-code')return true;
-        if(/otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el)))return true;
-        // Must mirror isOtp below, or we would prompt and then fill nothing.
-        if(/\\bcode\\b|\\bdigits?\\b/.test(meta(el))&&pageIs2fa())return true;
-        if(el.maxLength===1)return true;
-      }
-      return false;
+      return (${vexTotpDetector.toString()})().hasField();
     }catch(e){return false;}})();`;
     try { return !!(await webview.executeJavaScript(js)); } catch { return false; }
   },
@@ -263,28 +435,24 @@ const TotpAutofill = {
       var CODE=${JSON.stringify(code)};
       var DIGITS=CODE.split('');
       var setter=(function(){try{return Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;}catch(e){return null;}})();
-      function fire(el,val){try{if(location.origin!==ORIGIN||!vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
-      function vis(el){try{var r=el.getBoundingClientRect(),s=getComputedStyle(el);return !el.disabled&&!el.readOnly&&(!el.form||new URL(el.form.action||location.href,location.href).origin===location.origin)&&r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0';}catch(e){return false;}}
-      function meta(el){try{return ((el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('autocomplete')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'')).toLowerCase();}catch(e){return '';}}
-      // A genuine one-time-code field: autocomplete one-time-code, or clear 2FA
-      // wording. A BARE "code" is only accepted when the surrounding page is
-      // plainly a 2FA screen — sites like Roblox label the input just "Code",
-      // and refusing those meant 2FA autofill never fired there at all, while
-      // accepting them anywhere would grab promo/coupon boxes.
-      function isOtp(el){var t=(el.type||'').toLowerCase();if(t==='password')return false;if(!(t===''||t==='text'||t==='tel'||t==='number'))return false;if(!vis(el))return false;var ac=(el.getAttribute('autocomplete')||'').toLowerCase();if(ac==='one-time-code')return true;if(/otp|2fa|two.?factor|totp|mfa|authenticator|one.?time|verification.?code|security.?code|passcode|auth.?code/.test(meta(el)))return true;return /\\bcode\\b|\\bdigits?\\b/.test(meta(el))&&pageIs2fa();}
-      function pageIs2fa(){try{return /two.?factor|authenticat|verify your|verification code|one.?time|2fa|enter the (code|digits)/i.test(document.body.innerText||document.body.textContent||'');}catch(e){return false;}}
+      var D=(${vexTotpDetector.toString()})();
+      function fire(el,val){try{if(location.origin!==ORIGIN||!D.vis(el))return;el.focus();setter?setter.call(el,val):(el.value=val);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}}
+      // A genuine one-time-code field, by the shared detector (vexTotpDetector):
+      // autocomplete one-time-code, clear 2FA wording on the field, its label or
+      // the words around it, or a bare "code" on a plainly-2FA dialog or page.
+      function isOtp(el){return D.isOtp(el);}
       function fill(){
         if(location.origin!==ORIGIN)return false;
-        var all=Array.prototype.slice.call(document.querySelectorAll('input'));
-        // Split-box case: a row of maxlength-1 numeric inputs (React OTP). Only on
-        // a page that clearly IS a 2FA screen, to avoid unrelated 1-char inputs.
-        var boxes=all.filter(function(el){var t=(el.type||'').toLowerCase();var im=(el.getAttribute('inputmode')||'').toLowerCase();return vis(el)&&el.maxLength===1&&(t==='tel'||t==='number'||im==='numeric'||/^\\d?$/.test(el.value||''))&&(t===''||t==='text'||t==='tel'||t==='number');});
-        if(boxes.length>=DIGITS.length&&boxes.length<=DIGITS.length+2&&pageIs2fa()){
+        var f=D.fields();
+        // Split-box case: a row of one-character boxes (React OTP). Only on a page
+        // that clearly IS a 2FA screen, to avoid unrelated 1-char inputs.
+        var boxes=f.boxes;
+        if(boxes.length>=DIGITS.length&&boxes.length<=DIGITS.length+2){
           var empty=boxes.filter(function(b){return !b.value;});
           if(empty.length>=DIGITS.length){for(var i=0;i<DIGITS.length;i++){fire(boxes[i],DIGITS[i]);}return true;}
         }
         // Single-field case.
-        for(var j=0;j<all.length;j++){if(isOtp(all[j])&&!all[j].value){fire(all[j],CODE);return true;}}
+        for(var j=0;j<f.single.length;j++){if(!f.single[j].value){fire(f.single[j],CODE);return true;}}
         return false;
       }
       fill();
