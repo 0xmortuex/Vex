@@ -41,7 +41,10 @@ const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpape
   'gcc:launch', 'gcc:get', 'gcc:pick', 'gcc:clear',
   // Passkeys (main/passkeys.js): answering the sheet, Settings' list and a
   // field's chooser pick are never a page's call.
-  'passkeys:answer', 'passkeys:list', 'passkeys:delete', 'passkeys:undo-delete', 'passkeys:rename', 'passkeys:conditional-choose']);
+  'passkeys:answer', 'passkeys:list', 'passkeys:delete', 'passkeys:undo-delete', 'passkeys:rename', 'passkeys:conditional-choose',
+  // A watched page read through a hidden tab (main/page-render.js): loading an
+  // address is never a page's or an extension's call.
+  'pagewatch:render']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
