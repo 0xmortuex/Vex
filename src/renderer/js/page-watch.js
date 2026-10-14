@@ -46,8 +46,24 @@ const PageWatch = {
 
   list() { try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
   _save(list) {
-    try { localStorage.setItem(this.KEY, JSON.stringify(list)); return true; }
+    try { localStorage.setItem(this.KEY, JSON.stringify(list)); }
     catch (err) { VexProblems?.note('Page watch', 'Could not save the watches', err); return false; }
+    // The toolbar badge follows the list.
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:page-watch-list'));
+    return true;
+  },
+
+  PRIVATE_REFUSED: 'A private window does not keep watches: they would be remembered after it closes',
+  _privateWindow() { return typeof window !== 'undefined' && !!(window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow); },
+
+  // Why a page cannot be watched at all, in words, or '' when it can. The
+  // dialog asks first, so a refusal comes before a form is filled in.
+  refusalFor({ url, partition = null }) {
+    if (!this.settings().enabled) return 'Page watching is switched off in Settings';
+    if (!/^https?:/i.test(String(url || ''))) return 'Only a web page can be watched';
+    if (this._privateWindow()) return this.PRIVATE_REFUSED;
+    if (partition && typeof TabManager !== 'undefined' && typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(partition)) return this.OWN_SESSION_REFUSED;
+    return '';
   },
 
   // The rules for "changed" (js/page-watch-diff.js), loaded as a page script
@@ -121,24 +137,26 @@ const PageWatch = {
   // check; `summarize` asks the local model for a sentence.
   add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user' }) {
     const s = this.settings();
-    if (!s.enabled) throw new Error('Page watching is switched off in Settings');
-    if (!/^https?:/i.test(String(url || ''))) throw new Error('Only a web page can be watched');
-    if (partition && typeof TabManager !== 'undefined' && typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(partition)) throw new Error(this.OWN_SESSION_REFUSED);
+    const refused = this.refusalFor({ url, partition });
+    if (refused) throw new Error(refused);
     const local = this.isLocal(url);
     if (local && !byUser) throw new Error(this.LOCAL_REFUSED);
     if (local && render) throw new Error('A page on this computer or your home network is read directly, not through a hidden tab');
     const ms = Number(every) || 15 * 60000;
     if (ms < this.MIN_EVERY) throw new Error('A page is not checked more often than every ' + Math.round(this.MIN_EVERY / 60000) + ' minutes');
-    if (kind === 'regex') this._diff().compile(pattern);   // a bad pattern is refused now, not at the first check
+    // A bad pattern is refused now, not at the first check.
+    const wantsPattern = kind === 'regex' || (kind === 'number' && String(pattern || '').trim());
+    if (wantsPattern) this._diff().compile(pattern);
     const list = this.list();
     if (list.length >= s.maxWatches) throw new Error('You are already watching ' + s.maxWatches + ' pages (the limit in Settings). Stop one first.');
-    if (list.some(w => w.url === url && (w.selector || '') === (selector || '') && (w.pattern || '') === (kind === 'regex' ? pattern : ''))) throw new Error('That is already being watched');
+    const pat = wantsPattern ? String(pattern) : '';
+    if (list.some(w => w.url === url && (w.selector || '') === (selector || '') && (w.pattern || '') === pat)) throw new Error('That is already being watched');
     const watch = {
       id: 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       url: String(url), title: String(title || url), selector: String(selector || '').slice(0, 200),
       anchor: String(anchor || '').replace(/\s+/g, ' ').trim().slice(0, 120),
       kind: kind === 'number' ? 'number' : kind === 'regex' ? 'regex' : 'text',
-      pattern: kind === 'regex' ? String(pattern) : '',
+      pattern: pat,
       direction: ['up', 'down', 'any', 'below', 'above'].includes(direction) ? direction : 'any',
       target: target == null ? null : Number(target),
       every: ms,
@@ -387,7 +405,7 @@ const PageWatch = {
     const lines = D.normalizeText(text, { steady });
     const norm = lines.join('\n');
     let value;
-    if (watch.kind === 'number') value = this.firstNumber(text);
+    if (watch.kind === 'number') value = this.firstNumber(watch.pattern ? D.extract(text, watch.pattern) : text);
     else if (watch.kind === 'regex') value = D.extract(text, watch.pattern);
     else value = watch.selector ? norm.slice(0, 4000) : this._pageValue(norm, steady);
     return { value, text: norm, lines, etag, lastModified };
@@ -722,40 +740,66 @@ const PageWatch = {
     return min < 120 ? 'every ' + min + ' minutes' : 'every ' + Math.round(min / 60) + ' hours';
   },
 
-  // "Watched Pages": every watch, what it last saw, Open and Stop watching.
+  // "Watched pages": every watch, what it last saw, when it last changed, and
+  // what you can do with it: open the page, see what changed, pause, stop.
+  // GitHub runs and releases (js/github-watch.js) are listed at the end.
   showManager() {
     const esc = (s) => window.escapeHtml(s);
     document.getElementById('vex-watches')?.remove();
     const list = this.list();
     const m = document.createElement('div');
     m.id = 'vex-watches';
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-labelledby', 'vex-watches-title');
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
+    const ago = (t) => {
+      if (!t) return 'never';
+      const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+      if (min < 1) return 'just now';
+      if (min < 60) return min + ' min ago';
+      if (min < 2880) return Math.round(min / 60) + ' h ago';
+      return new Date(t).toLocaleDateString();
+    };
+    const btn = 'padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px';
     const rows = list.length ? list.map(w => {
-      let host = w.url; try { host = new URL(w.url).hostname.replace(/^www\./, ''); } catch {}
+      let host = w.url; try { host = new URL(w.url).hostname.replace(/^www\./, ''); } catch { /* shown as given */ }
       const when = w.lastCheckedAt ? new Date(w.lastCheckedAt).toLocaleString() : 'not yet';
       const fresh = this.isUnseen(w);
-      const what = w.selector ? ' · ' + w.selector : '';
+      const what = (w.selector ? ' · ' + w.selector : '') + (w.kind === 'regex' ? ' · ' + (w.pattern || 'pattern') : '');
+      const state = w.paused ? 'Paused' : (w.partGone ? this.GONE_MSG : (w.lastError || ''));
+      const hist = this.history(w.id).length;
+      const dot = w.paused ? 'var(--text-muted)' : (w.partGone || w.lastError ? 'var(--danger,#e5484d)' : (fresh ? '#22c55e' : 'var(--text-muted)'));
       return `<div data-id="${esc(w.id)}" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border)">
-        <span style="width:8px;height:8px;border-radius:50%;background:${fresh ? '#22c55e' : 'var(--text-muted)'};flex:none"></span>
+        <span style="width:8px;height:8px;border-radius:50%;background:${dot};flex:none"></span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${fresh ? ' <span style="color:var(--success);font-size:11px">changed</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))} · checked ${esc(when)}${w.lastError ? ' · ' + esc(w.lastError) : ''}</div>
+          <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${fresh ? ' <span style="color:var(--success);font-size:11px">changed</span>' : ''}${w.paused ? ' <span style="color:var(--text-muted);font-size:11px">paused</span>' : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))}${w.wake ? ' · wakes Vex' : ''}${w.render ? ' · hidden tab' : ''} · checked ${esc(when)}${w.lastChangedAt ? ' · changed ' + esc(ago(w.lastChangedAt)) : ''}${state ? ' · ' + esc(state) : ''}${w.source && w.source !== 'user' ? ' · from ' + esc(w.source) : ''}</div>
+          ${w.lastSummary ? `<div style="font-size:11.5px;color:var(--text)">${esc(w.lastSummary)}</div>` : ''}
           ${w.local ? `<div class="pw-local-note" style="font-size:11px;color:var(--text-muted)">${esc(this.localNote(w))}</div>` : ''}
         </div>
-        <button data-open style="padding:5px 10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px">Open</button>
-        <button data-x title="Stop watching" aria-label="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
+        ${hist > 1 && typeof PageWatchUI !== 'undefined' ? `<button data-diff style="${btn}">What changed</button>` : ''}
+        <button data-open style="${btn}">Open</button>
+        <button data-pause style="${btn}">${w.paused ? 'Resume' : 'Pause'}</button>
+        <button data-x title="Stop watching" aria-label="Stop watching ${esc(w.title)}" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
       </div>`;
-    }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Ctrl+K → “Watch This Page”.</div>';
-    m.innerHTML = `<div style="width:520px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
-        <div style="padding:16px 18px 10px;display:flex;align-items:center;gap:10px"><strong style="font-size:16px;color:var(--text)">Watched pages</strong><span style="flex:1"></span><button id="wt-close" style="padding:7px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Done</button></div>
-        <div style="overflow-y:auto;padding:0 18px 16px">${rows}</div>
+    }).join('') : '<div style="color:var(--text-muted);font-size:12.5px;padding:14px 8px">Not watching any pages. Right-click a page and choose “Watch this page for changes”, or press Ctrl+K and type “watch”.</div>';
+    let github = '';
+    if (typeof GitHubWatch !== 'undefined' && typeof GitHubWatch.list === 'function') {
+      const gh = GitHubWatch.list();
+      if (gh.length) github = '<div style="font-size:11.5px;color:var(--text-muted);padding:10px 8px 2px">GitHub</div>' + gh.map(g => `<div data-gh="${esc(g.id)}" style="display:flex;align-items:center;gap:10px;padding:7px 8px;border-bottom:1px solid var(--border)"><div style="flex:1;min-width:0;font-size:13px;color:var(--text)">${esc(GitHubWatch.describe(g))}</div><button data-ghx aria-label="Stop watching ${esc(GitHubWatch.describe(g))}" title="Stop watching" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button></div>`).join('');
+    }
+    const s = this.settings();
+    m.innerHTML = `<div style="width:680px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.5);overflow:hidden">
+        <div style="padding:16px 18px 10px;display:flex;align-items:center;gap:10px"><strong id="vex-watches-title" style="font-size:16px;color:var(--text)">Watched pages</strong><span style="flex:1"></span>${s.enabled ? '' : '<span style="color:var(--text-muted);font-size:12px">Switched off in Settings</span>'}<button id="wt-close" style="padding:7px 16px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600">Done</button></div>
+        <div style="overflow-y:auto;padding:0 18px 16px">${rows}${github}</div>
       </div>`;
     document.body.appendChild(m);
     // Escape closes it the way Done does. Capture phase, so nothing underneath
     // takes the same key; an Escape meant for a Vex dialog on top is left to it.
     const onKey = (e) => {
       if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
-      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
+      if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay, #pw-diff')) return;
       e.preventDefault(); e.stopPropagation(); close();
     };
     const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
@@ -763,15 +807,33 @@ const PageWatch = {
     m.querySelector('#wt-close').addEventListener('click', close);
     m.querySelector('#wt-close').focus({ preventScroll: true });
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    const reopen = () => { close(); this.showManager(); };
     m.querySelectorAll('[data-id]').forEach(row => {
       const w = list.find(x => x.id === row.dataset.id);
       row.querySelector('[data-open]').addEventListener('click', () => { this.markSeen(w.id); TabManager.createTab(w.url, true); close(); });
-      row.querySelector('[data-x]').addEventListener('click', () => { this.remove(w.id); close(); this.showManager(); });
+      row.querySelector('[data-diff]')?.addEventListener('click', () => PageWatchUI.showDiff(w.id));
+      row.querySelector('[data-pause]').addEventListener('click', () => {
+        try { this.setPaused(w.id, !w.paused); } catch (err) { window.showToast?.((err && err.message) || 'Could not change it', 'error'); return; }
+        reopen();
+      });
+      row.querySelector('[data-x]').addEventListener('click', async () => {
+        // A watch with a history of changes is not dropped by a stray click.
+        if (this.history(w.id).length > 1 && typeof vexConfirm === 'function') {
+          const ok = await vexConfirm({ title: 'Stop watching?', message: '“' + w.title + '” and what Vex kept of it will be removed.', okLabel: 'Stop watching', cancelLabel: 'Keep it' });
+          if (!ok) return;
+        }
+        this.remove(w.id); reopen();
+      });
+    });
+    m.querySelectorAll('[data-gh]').forEach(row => {
+      row.querySelector('[data-ghx]').addEventListener('click', () => { GitHubWatch.remove(row.dataset.gh); reopen(); });
     });
   },
 
   start() {
     if (this._timer) return;
+    // A private window keeps nothing: it does not run anybody's watches.
+    if (this._privateWindow()) return;
     try { this.migrateLegacy(); }
     catch (err) { window.showToast?.((err && err.message) || 'The old watched pages could not be moved', 'error'); }
     // The first look sets the baseline; nothing is announced from it.

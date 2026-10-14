@@ -212,7 +212,7 @@ const CommandBar = {
     { id: 'formatjson', label: 'Format JSON (this tab)', hint: 'Pretty-print the current raw-JSON page as a collapsible tree', icon: 'braces', action: () => { if (typeof JsonApiViewer !== 'undefined') JsonApiViewer.formatCurrentPage(); } },
     { id: 'responsive', label: 'Responsive Preview', hint: 'See this page side-by-side at phone / tablet / desktop widths', icon: 'phone', action: () => { const t = TabManager.getActiveTab(); if (typeof ResponsivePreview !== 'undefined') ResponsivePreview.open(t && t.url); } },
     { id: 'screenshot-code', label: 'Screenshot → Code', hint: 'Capture this page and have AI rebuild it as HTML/Tailwind/React', icon: 'image', action: () => { if (typeof ScreenshotToCode !== 'undefined') ScreenshotToCode.start(); } },
-    { id: 'watch', label: 'Watch This Page', hint: 'Get alerted when this page changes (restocks, docs, status pages)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a website first', 'error'); return; } PageWatch.watchPage(t.url, t.title, { partition: t.partition || null }); } },
+    { id: 'watch', label: 'Watch this page for changes', hint: 'The whole page, one part of it, or a number — Vex says what changed (restocks, docs, status pages, versions)', icon: 'eye', action: () => { if (typeof PageWatchUI === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } PageWatchUI.openForActiveTab(); } },
     { id: 'watches', label: 'Watched Pages', hint: 'Manage the pages Vex is monitoring for changes', icon: 'eye', isPrimary: true, action: () => { if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; } PageWatch.showManager(); } },
     { id: 'wayback-save', label: 'Save to Wayback Machine', hint: 'Archive this page on web.archive.org', icon: 'box', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.saveToWayback(t.url); } },
     { id: 'wayback-view', label: 'View Archived Version', hint: 'Open the latest Wayback snapshot of this page (recover dead links)', icon: 'history', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof LinkRot !== 'undefined') LinkRot.viewArchived(t.url); } },
@@ -397,35 +397,11 @@ const CommandBar = {
       try { await AgentLoop.runMacro(chosen.id); }
       catch (err) { window.showToast?.((err && err.message) || 'Could not run it', 'error'); }
     } },
-    { id: 'watchpage', label: 'Tell me when this page changes', hint: 'Vex checks it quietly and says when it is different — a price, a date, a build', icon: 'alarm', isPrimary: true, action: async () => {
+    { id: 'watchpage', label: 'Tell me when this page changes', hint: 'The whole page, checked every 15 minutes, no questions asked — Vex says what changed', icon: 'alarm', isPrimary: true, action: async () => {
       if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
       if (!tab || !/^https?:/i.test(tab.url || '')) { window.showToast?.('Open a page first', 'error'); return; }
-      const what = await vexPrompt({ title: 'What should Vex watch?', message: 'Leave empty for the whole page, or give a CSS selector for one part of it (e.g. .price).', value: '', okLabel: 'Next' });
-      if (what == null) return;
-      const asNumber = await vexConfirm({ title: 'Watch a number?', message: 'Is this a number — a price, a count, a score? Then Vex can tell you when it moves, rather than when any word on the page changes.', okLabel: 'It is a number', cancelLabel: 'Any change' });
-      let direction = 'any', target = null;
-      if (asNumber) {
-        const rule = await vexPrompt({ title: 'When should Vex tell you?', message: 'up · down · any · below 300 · above 300', value: 'down', okLabel: 'Next' });
-        if (rule == null) return;
-        const m = String(rule).trim().toLowerCase().match(/^(up|down|any|below|above)\s*([\d.]+)?$/);
-        if (!m) { window.showToast?.('Say up, down, any, "below 300" or "above 300"', 'error'); return; }
-        direction = m[1];
-        target = m[2] ? Number(m[2]) : null;
-        if ((direction === 'below' || direction === 'above') && target == null) { window.showToast?.('Give the figure too, e.g. "below 300"', 'error'); return; }
-      }
-      const how = await vexPrompt({ title: 'How often?', message: PageWatch.EVERY.map((e, i) => (i + 1) + '. ' + e.label).join('\n'), value: '2', okLabel: 'Watch it' });
-      if (how == null) return;
-      // An answer that is not on the list was quietly taken as the second
-      // choice (found 2026-09-29).
-      const choice = PageWatch.EVERY[parseInt(how, 10) - 1];
-      if (!choice) { window.showToast?.(`Choose a number from 1 to ${PageWatch.EVERY.length}`, 'error'); return; }
-      const every = choice.ms;
-      try {
-        const w = PageWatch.add({ url: tab.url, title: tab.title || tab.url, selector: what.trim(), kind: asNumber ? 'number' : 'text', every, direction, target, byUser: true });
-        window.showToast?.('Watching — Vex will say when it changes' + (w.local ? '. ' + PageWatch.localNote(w) : ''));
-        PageWatch.firstLook(w);                   // the first look sets the baseline
-      } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
+      await PageWatch.watchPage(tab.url, tab.title || tab.url, { partition: tab.partition || null });
     } },
     { id: 'watchgithub', label: 'Tell me when this GitHub run finishes', hint: 'Or when this repository has a new release — asked of GitHub, told on your desktop', icon: 'alarm', isPrimary: true, action: async () => {
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
@@ -435,24 +411,9 @@ const CommandBar = {
         await GitHubWatch.checkDue();             // a finished run says so now; a release sets its baseline
       } catch (err) { window.showToast?.((err && err.message) || 'Could not watch it', 'error'); }
     } },
-    { id: 'pagewatches', label: 'Watched Pages (what changed)', hint: 'What Vex is keeping an eye on, and what it last saw', icon: 'alarm', action: async () => {
+    { id: 'pagewatches', label: 'Watched Pages (what changed)', hint: 'What Vex is keeping an eye on, what changed, and when', icon: 'alarm', action: () => {
       if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
-      // GitHub runs and releases are listed with the pages.
-      const list = [...PageWatch.list(), ...GitHubWatch.list().map(w => ({ id: w.id, github: true, title: 'GitHub: ' + GitHubWatch.describe(w), lastCheckedAt: w.lastCheckedAt, lastValue: w.last, lastError: w.error }))];
-      if (!list.length) { window.showToast?.('Nothing is being watched yet — Ctrl+K → Tell me when this page changes'); return; }
-      const ago = (t) => (t ? Math.round((Date.now() - t) / 60000) + ' min ago' : 'not yet');
-      const pick = await vexPrompt({
-        title: 'Watched pages',
-        message: list.map((w, i) => (i + 1) + '. ' + w.title + (w.selector ? ' [' + w.selector + ']' : '')
-          + '\n   last looked ' + ago(w.lastCheckedAt)
-          + (w.lastValue != null ? ' · now ' + String(w.lastValue).slice(0, 40) : '')
-          + (w.lastError ? ' · ' + w.lastError : '')).join('\n'),
-        value: '', placeholder: 'a number to stop watching it', okLabel: 'Stop watching',
-      });
-      const chosen = list[parseInt(pick, 10) - 1];
-      if (!chosen) return;
-      if (chosen.github) GitHubWatch.remove(chosen.id); else PageWatch.remove(chosen.id);
-      window.showToast?.('No longer watching ' + chosen.title);
+      PageWatch.showManager();
     } },
     { id: 'switchenv', label: 'Switch environment', hint: 'The same path on your local server, staging or live', icon: 'code', isPrimary: true, action: async () => {
       if (typeof DevSwitch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }

@@ -1185,6 +1185,7 @@ function vexOwnTextFocused(doc) {
 
   // Pages the user asked to be told about (js/page-watch.js).
   if (typeof PageWatch !== 'undefined') PageWatch.start();
+  if (typeof PageWatchUI !== 'undefined') PageWatchUI.init();
   GitHubWatch.start();
   SponsorSkip.init();
   DownloadsButton.init();

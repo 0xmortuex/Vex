@@ -526,6 +526,9 @@ const SidebarManager = {
       // Saved passwords list each time Settings opens
       PasswordVault.renderPanel(document.getElementById('passwords-panel-content'));
     }
+    if (panelName === 'settings' && typeof PageWatchUI !== 'undefined') {
+      PageWatchUI.renderSettings(document.getElementById('pagewatch-panel-content'));
+    }
     if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
       FocusMode.renderPanel(document.getElementById('focus-panel-content'));
     }
