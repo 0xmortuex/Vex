@@ -1596,6 +1596,9 @@ const WebviewManager = {
       // refresh, so a panel gets neither.
       ...(isTab ? [{ label: 'Duplicate Tab', action: () => { try { const t = TabManager.tabs.find(x => String(x.id) === String(webview.dataset.tabId)); if (t && t.url) TabManager.duplicateTab(t); } catch (err) { window.showToast?.('Could not duplicate the tab: ' + err.message, 'error'); } } }] : []),
       { label: 'Send to Phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(webview.getURL()); } catch {} } },
+      // The whole page, one part of it, or a number in it (js/page-watch-ui.js).
+      // A tab's page only: a side panel is not a page to keep an eye on.
+      ...(isTab && typeof PageWatchUI !== 'undefined' ? [{ label: 'Watch this page for changes…', action: () => PageWatchUI.openForWebview(webview) }] : []),
       { label: 'Print…', action: () => this.printPage(webview) },
       { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
@@ -1744,6 +1747,10 @@ const WebviewManager = {
           label: 'Translate selection',
           action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { selectedText: sel, targetLanguage: AIPanel.translateTarget() }); }
         });
+      }
+      // The selected words pick the part of the page to watch.
+      if (isTab && !e.params.isEditable && typeof PageWatchUI !== 'undefined') {
+        textItems.push({ label: 'Watch this part of the page…', action: () => PageWatchUI.openForWebview(webview, { selection: true }) });
       }
       textItems.push({
         label: 'Read aloud',

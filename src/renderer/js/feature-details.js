@@ -164,7 +164,7 @@ const FeatureDetails = {
   bookmarks: 'Bookmarks in folders with a star in the address bar. The folder bar can be shown or hidden per look.',
   feeds: 'An RSS reader in the sidebar, for the sites that still publish a feed. The reading digest lists what is new in them under your saved articles.',
   history: 'Everywhere you have been, by day, searchable by keyword or by meaning, deletable by site or by day. The meaning search is the one to use when you cannot remember the words.',
-  watch: 'Tells you when a page changes — a restock, a status page, a result you are waiting on. It checks in the background and says what changed, not just that something did.',
+  watch: 'Tells you when a page changes — a restock, a status page, a price, a driver or game version — and says what changed, in lines added and removed, not just that something did. It checks from this computer, never logs in, waits longer when a page keeps failing, and keeps a short size-limited history on this device. Pages in Tor, proxy, container or private tabs are never watched.',
   wayback: 'Opens the archived copy of a page that has gone dead, or archives one before it does. Worth doing to a source you are citing.',
   focus: 'Hides the browser chrome and blocks the sites you lose time to, for 25 or 50 minutes. Reminders wait until it ends unless you marked one urgent.',
   focusflows: 'A named work mode: one click opens a set of tabs, switches the AI persona, dims the interface and turns blocking on. For the shape of an afternoon rather than a single session.',
@@ -298,6 +298,8 @@ const FeatureDetails = {
 // when the code changes, change the words here. tests/renderer/
 // libraryOpenButtons.test.js fails for a manual entry that has none.
 const FeatureHow = {
+  // page-watch.js, page-watch-ui.js: the page context menu, Ctrl+K and the badge
+  watch: 'Right-click a page and choose “Watch this page for changes…”, or press Ctrl+K and type “watch”. Pick the whole page, one part of it (select the words first, then right-click and choose “Watch this part of the page…”), or a number, price or version, and how often to look. When it changes, Vex shows a notification with the lines that were added and removed, and a badge appears on the toolbar until you open Watched pages. Turn on “Open Vex to check even when it is closed” to have Windows start Vex once a day at 08:00 for the check. In Settings › Page watcher you can switch watching off, choose how small a change to tell, and limit how many pages and looks are kept.',
   // app.js: showFindBar / findOnActive
   'find-in-page': 'Press Ctrl+F with a page in front and a find bar opens over it. Type a word and the matches are highlighted and counted (for example 2/5); Enter goes to the next one, Shift+Enter to the previous one, Escape closes the bar. Each tab has its own find bar, and on Google Docs, which paints its text on a canvas, Ctrl+F is handed to the page’s own find. It is a key, so there is no button to press and nothing to switch off.',
   // tabs.js: _showKeepAwakeChooser, sidebar.js: keep awake for panels

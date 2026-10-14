@@ -130,6 +130,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 
 ### 🛠 Productivity
 - **Notes & Clip‑to‑Notes**, **Read Later / Library**, **Bookmarks**, **Feeds (RSS)**.
+- **Page watcher** (right‑click a page → *Watch this page for changes…*, or `Ctrl+K` → *watch*) — tells you when a page, one part of it, or a number / price / version in it changes, and shows the lines that were added and removed (with one sentence from your local model if you have one). Checked from this computer without logging in, backed off when a page keeps failing, history kept small on the device, never for Tor, proxy, container or private tabs. A badge on the toolbar until you look; Settings › Page watcher has the switch and the limits.
 - **Record the Screen** (`Ctrl+K`) — pick a screen or a window in the same picker as screen share, with its sound if you want it; saved as a WebM video (VP9 + Opus — plays in Windows Media Player, Chrome, VLC and Discord). Written to disk as it records, so long recordings don't fill memory; a red pill shows the time with Stop and Discard.
 - **Whiteboard** (`Ctrl+K`) — a blank page to sketch on with the same tools as Mark Up; save or copy it as a picture. Closing after you've drawn asks first, because a sketch can't be taken again the way a screenshot can.
 - **Mark Up This Page** (`Ctrl+K`) — pen, highlighter, box, arrow, text, and **redact**: pixelate an email, a name or a balance before you share the picture. Redaction replaces the pixels in the saved image; it isn't a layer that can be removed.

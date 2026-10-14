@@ -2538,6 +2538,23 @@ ipcMain.handle('siterules:set', (_e, rules) => {
   return { ok: true, rules: _siteRules };
 });
 ipcMain.handle('siterules:get', () => ({ ok: true, rules: _siteRules }));
+// A watched page read as a hidden tab would show it (src/main/page-render.js):
+// for pages built by JavaScript. Only Vex's own main window may ask; the
+// window's own routing refusal (Tor, proxy, container) comes first, and the
+// session is the main window's, so site rules and the blocker apply.
+const _pageRender = require('./main/page-render').createPageRender({
+  BrowserWindow,
+  getSession: () => secureSessions.fromPartition('persist:main'),
+  scriptsOff: (u) => SiteRules.blocksScripts(_siteRules, u),
+  isPrivateHost: require('./renderer/js/private-address').isPrivateHost,
+});
+ipcMain.handle('pagewatch:render', async (e, opts = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents || e.senderFrame !== mainWindow.webContents.mainFrame) {
+    return { ok: false, error: 'Only the main Vex window can read a watched page through a hidden tab' };
+  }
+  try { return { ok: true, ...(await _pageRender.render(opts.url, { selector: opts.selector, anchor: opts.anchor })) }; }
+  catch (err) { return { ok: false, error: (err && err.message) || 'The hidden tab could not read the page' }; }
+});
 // The site panel's "Block ads and trackers on this site" switch (the 'ads'
 // rule, js/site-panel.js): the blocker leaves that site's pages alone, network
 // and element hiding both. Never in a Tor tab, which blocks whatever a switch

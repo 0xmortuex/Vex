@@ -123,11 +123,11 @@ describe('two watches added back to back', () => {
 describe('one code path', () => {
   it('Watch This Page, watchCurrent and the "watch part of this page" command all use firstLook', () => {
     const pw = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/page-watch.js'), 'utf8');
-    const cmd = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/command.js'), 'utf8');
+    const cmd = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/page-watch-ui.js'), 'utf8');
     const body = (name) => pw.slice(pw.indexOf('\n  ' + name + '('), pw.indexOf('\n  },', pw.indexOf('\n  ' + name + '(')));
     expect(body('watchCurrent')).toMatch(/this\.firstLook\(/);
     expect(pw.slice(pw.indexOf('\n  async watchPage('), pw.indexOf('\n  },', pw.indexOf('\n  async watchPage(')))).toMatch(/this\.firstLook\(/);
-    expect(cmd).toMatch(/PageWatch\.firstLook\(w\)/);
+    expect(cmd).toMatch(/PageWatch\.firstLook\(watch\)/);
     expect(cmd).not.toMatch(/PageWatch\.checkOne\(w\.id\)/);
   });
 });
