@@ -1177,6 +1177,8 @@ function vexOwnTextFocused(doc) {
   if (typeof GameMode !== 'undefined') GameMode.init();
   // Game mode and the game's guide (js/game-session.js).
   if (typeof GameSession !== 'undefined') Promise.resolve(GameSession.init()).catch(err => window.VexProblems?.note('Game mode', 'Could not start', err));
+  // What was looked at while a game ran (js/game-dossier.js); off until turned on.
+  if (typeof GameDossier !== 'undefined') { try { GameDossier.init(); } catch (err) { window.VexProblems?.note('Game dossier', 'Could not start', err); } }
 
   // Snoozed tabs come back when they are due; a tab untouched for a week is
   // archived rather than left in the strip (js/tab-snooze.js).

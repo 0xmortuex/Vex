@@ -117,6 +117,8 @@ const GameSession = {
     this._write(this.KEYS.games, list.filter(g => g.id !== id));
     const pages = this.pagesByGame();
     if (pages[id]) { delete pages[id]; this._write(this.KEYS.pages, pages); }
+    // Its automatic dossier goes with it (js/game-dossier.js).
+    if (typeof GameDossier !== 'undefined') GameDossier.forgetGame(id);
     if (this.active && this.gameId === id) this.closeGuide();
     this.syncWatch();
   },
@@ -326,9 +328,9 @@ const GameSession = {
   },
 
   // ---- the guide --------------------------------------------------------------
-  _mountPage(game, page, index) {
+  _mountPage(game, page, index, label) {
     const id = SidebarManager.TEMPORARY_PREFIX + game.id + '_' + index;
-    SidebarManager.mountTemporarySitePanel({ id, name: game.name + ' guide' + (index ? ' ' + (index + 1) : '') + ' — ' + page.title, url: page.url });
+    SidebarManager.mountTemporarySitePanel({ id, name: game.name + (label || ' guide' + (index ? ' ' + (index + 1) : '')) + ' — ' + page.title, url: page.url });
     this._guide.ids.push(id);
     return id;
   },
@@ -338,9 +340,12 @@ const GameSession = {
     if (typeof SidebarManager === 'undefined') return false;
     const game = this.games().find(g => g.id === this.gameId);
     const pages = game ? this.pages(game.id) : [];
-    if (!pages.length) return false;
+    // Recently used pages from the game's dossier, when the user asked for them.
+    const extra = game && typeof GameDossier !== 'undefined' ? GameDossier.suggestions(game.id) : [];
+    if (!pages.length && !extra.length) return false;
     this._guide = { ids: [], prevActive: SidebarManager.activePanel || null };
     pages.forEach((p, i) => this._mountPage(game, p, i));
+    extra.forEach((p, i) => this._mountPage(game, p, 100 + i, ' suggested'));
     const first = this._guide.ids[0];
     // Beside what is open when it can sit there; instead of it when it cannot.
     if (SidebarManager.activePanel && SidebarManager._canSit && SidebarManager._canSit(first) && SidebarManager._canSit(SidebarManager.activePanel)) SidebarManager.openBeside(first);
@@ -463,6 +468,7 @@ const GameSession = {
     const not = add('p', 'setting-info muted');
     not.textContent = t('What it does not do: it never touches the game — no injection, no reading its memory, nothing an anti-cheat could see — and it does not raise your frame rate. It frees the CPU, memory and network Vex would have used. Everything is put back exactly when the game ends; nothing it does is saved to your profile.');
     host.appendChild(not);
+    if (typeof GameDossier !== 'undefined') GameDossier.renderGlobal(host);
 
     const games = this.games();
     const head = add('div', 'setting-label');
@@ -514,6 +520,7 @@ const GameSession = {
       });
       list.appendChild(addHere);
       wrap.appendChild(list);
+      if (typeof GameDossier !== 'undefined') GameDossier.renderGame(wrap, g, () => this.renderSettings(host));
       host.appendChild(wrap);
     }
 

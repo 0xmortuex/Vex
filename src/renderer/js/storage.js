@@ -235,7 +235,7 @@ const _origGetItem = _storageOriginals.getItem;
 // from memory here and never copied into browser storage, whose cap they
 // would fill. Any other value that stops fitting joins them, so a read never
 // returns an old copy.
-const FILE_ONLY_KEYS = new Set(['vex.aiConversations', 'vex.notes', 'vex.history', 'vex.agentRuns', 'vex.clipboardHistory', 'vex.annotations', 'vex.readLater']);
+const FILE_ONLY_KEYS = new Set(['vex.aiConversations', 'vex.notes', 'vex.history', 'vex.agentRuns', 'vex.clipboardHistory', 'vex.annotations', 'vex.readLater', 'vex.gameDossier']);
 const _fileOnly = new Map();
 // Copied to the file lazily (PersistentStorage._enqueueLazy). Only values that
 // are rewritten on every use and are worth nothing a few minutes old.

@@ -1384,6 +1384,19 @@ body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still 
 #game-mode-off:focus-visible { outline: 2px solid var(--primary, #4c8dff); outline-offset: 1px; }
 .gs-game .gs-btns { display: inline-flex; gap: 6px; }
 .gs-pages { margin: 0 0 8px 12px; }
+/* Game dossier view (js/game-dossier.js) */
+.gd-dialog { width: min(760px, 94vw); max-height: 86vh; display: flex; flex-direction: column; gap: 8px; }
+.gd-bar { display: flex; flex-wrap: wrap; gap: 6px; }
+.gd-list { overflow: auto; min-height: 120px; flex: 1; }
+.gd-h { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; opacity: .75; }
+.gd-row { padding: 6px 8px; border-radius: 8px; }
+.gd-row:hover { background: var(--vex-hover-fill, rgba(127,127,127,.12)); }
+.gd-row.gd-search { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gd-link { color: var(--primary, #4c8dff); text-decoration: none; overflow-wrap: anywhere; }
+.gd-link:hover { text-decoration: underline; }
+.gd-meta, .gd-snippet { font-size: 12px; overflow-wrap: anywhere; }
+.gd-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.gd-ai { white-space: pre-wrap; font: inherit; padding: 8px; border-radius: 8px; border: 1px solid var(--border, rgba(127,127,127,.3)); margin: 0; }
 
 /* === Lock Vex (js/vex-lock.js) ==========================================
    Pages are hidden, not blurred: a blur can still be read. */

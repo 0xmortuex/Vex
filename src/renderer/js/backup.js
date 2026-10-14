@@ -60,7 +60,7 @@ const VexBackup = {
   // Big, personal, and only on request.
   OPTIONAL: {
     chats: [/^vex\.(aiConversations|aiChatMeta)$/],
-    history: [/^vex\.(history|recall)/],
+    history: [/^vex\.(history|recall)/, /^vex\.gameDossier$/],
   },
 
   _keys() {

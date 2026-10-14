@@ -276,6 +276,8 @@ const VexFeatures = {
       what: 'While one of your games runs, Vex sleeps background tabs, holds sync, AI tasks and indexing, stops its animations and runs quieter — then puts everything back when the game ends. A chip in the toolbar turns it off for now.' },
     { id: 'game-guide', phrases: 'game guide wiki build map walkthrough my pages side panel game', cat: 'media', cmd: 'game-guide-add', name: 'A guide for each game', setting: { section: 'game-session-settings', label: 'Game mode' },
       what: 'Save the pages you use for a game — guides, builds, a wiki, a map — and they open as side panels whenever that game starts, and close when it ends.' },
+    { id: 'game-dossier', phrases: 'game dossier remember pages searches while playing history build guide wiki used notes export markdown', cat: 'media', cmd: 'game-dossier-open', name: 'A dossier for each game', setting: { section: 'game-session-settings', label: 'Game mode' },
+      what: 'Off until you turn it on. While one of your games runs, Vex remembers the pages you open and the searches you make for that game only, so you can search them later, pin them, add them to the game’s guide or export them.' },
     { id: 'game-control-center', phrases: 'game control center gcc game boost bypass overlay gamma light launch open my game app', cat: 'media', cmd: 'game-control-center', name: 'Open Game Control Center', setting: { section: 'gaming-settings', label: 'Gaming and streaming' },
       what: 'Starts your separate Game Control Center app (bypass, game boost, network, overlay and gamma light). Vex finds it by itself; if it is somewhere else, say where in Settings.' },
     { id: 'record-screen', phrases: 'record video capture screen recording film my screen', cat: 'media', cmd: 'record-screen',
@@ -630,7 +632,7 @@ const VexFeatures = {
     media: [
       { name: 'Watching and listening', ids: ['drm', 'live', 'nowplaying', 'volume', 'mute', 'nightaudio', 'media-grabber', 'videonote', 'codecfixes'] },
       { name: 'Capturing what is on screen', ids: ['screenshot', 'screenshot-full', 'record-screen', 'clips', 'markup', 'whiteboard', 'page-images', 'qr'] },
-      { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-control-center', 'screenshare'] },
+      { name: 'Games and calls', ids: ['gaming', 'game-mode', 'game-guide', 'game-dossier', 'game-control-center', 'screenshare'] },
     ],
     panels: [
       { name: 'The apps', ids: ['panel-whatsapp', 'panel-discord', 'panel-spotify', 'panel-netflix', 'panel-claude', 'panel-github', 'panel-roblox'] },
