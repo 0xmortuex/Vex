@@ -91,8 +91,11 @@ describe('a watch, end to end', () => {
     page.body = '<html><body>the layout changed</body></html>';
     const r = await PageWatch.checkOne(watch.id);
     expect(r).toMatchObject({ ok: false });
-    expect(r.error).toMatch(/Nothing on that page matches "\.price"/);
-    expect(window.showToast).not.toHaveBeenCalled();
+    expect(r.error).toMatch(/The part you watched is gone from this page.*"\.price"/);
+    expect(r.partGone).toBe(true);
+    // Said once, as a gone part, not as a change of the page.
+    expect(window.showToast).toHaveBeenCalledTimes(1);
+    expect(window.showToast).toHaveBeenCalledWith(expect.stringMatching(/part you watched is gone/), 'error', 8000);
   });
 
   it('a page that keeps failing says so once, not on every check', async () => {
@@ -119,10 +122,10 @@ describe('a watch, end to end', () => {
   });
 
   it('only checks what is due, and survives a restart', async () => {
-    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'An item', kind: 'number', every: 60000 });
+    const watch = PageWatch.add({ url: 'https://shop.example/item', title: 'An item', kind: 'number', every: 5 * 60000 });
     await PageWatch.checkOne(watch.id);
     expect(await PageWatch.checkDue(Date.now())).toEqual([]);
-    const later = Date.now() + 61000;
+    const later = Date.now() + 5 * 60000 + 1000;
     expect((await PageWatch.checkDue(later))).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem(PageWatch.KEY))[0].lastValue).toBe(1299.99);
   });

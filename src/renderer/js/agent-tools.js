@@ -39,9 +39,10 @@ const AgentTools = {
     return u;
   },
 
-  async _get(url) {
+  // extraHeaders: a conditional read (If-None-Match) by a page watch.
+  async _get(url, extraHeaders = null) {
     if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9' } });
+    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9', ...(extraHeaders || {}) } });
     if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
     if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
     return r;
@@ -162,22 +163,27 @@ const AgentTools = {
 
   // maxText: how much of a page's text comes back (a page watch needs all of
   // it to see a change at the bottom of a long page).
-  async readUrl(url, { maxText = this.MAX_TEXT } = {}) {
+  // headers: a conditional read (a page watch sends If-None-Match); a 304
+  // comes back as { notModified: true }, and the validators a page gave are
+  // returned as etag / lastModified.
+  async readUrl(url, { maxText = this.MAX_TEXT, headers = null } = {}) {
     // A video: read what was said in it, not the page around it.
     if (this.youtubeId(url)) return this.youtubeTranscript(url);
     const u = this._checkUrl(url);
-    const r = await this._get(u.href);
+    const r = await this._get(u.href, headers);
+    if (r.status === 304) return { url: u.href, title: '', text: '', notModified: true };
     const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || '').toLowerCase();
+    const validators = { etag: (r.headers && r.headers.etag) || null, lastModified: (r.headers && r.headers['last-modified']) || null };
     // A PDF is where half of anything official lives. It used to be refused.
     if (/pdf/.test(type) || /\.pdf($|[?#])/i.test(u.pathname + u.search)) return this.readPdf(u.href, r);
     if (/octet-stream|image\/|video\/|audio\/|zip/.test(type)) throw new Error('That address is a ' + (type.split(';')[0] || 'file') + ', not a page — open it in a tab instead');
     const body = String(r.body || '');
     if (/html|xml/.test(type) || /^\s*</.test(body)) {
       const { title, text } = this.htmlToText(body);
-      if (text.length < 200) return { url: u.href, title, text, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
-      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText };
+      if (text.length < 200) return { url: u.href, title, text, ...validators, note: 'Very little readable text — the page probably builds itself with JavaScript. Open it with new_tab and use extract_text.' };
+      return { url: u.href, title, text: text.slice(0, maxText), truncated: text.length > maxText, ...validators };
     }
-    return { url: u.href, title: '', text: body.slice(0, maxText), truncated: body.length > maxText };
+    return { url: u.href, title: '', text: body.slice(0, maxText), truncated: body.length > maxText, ...validators };
   },
 
   // The words out of a PDF, without opening it.

@@ -8,8 +8,26 @@
 // A watch reloads quietly in the background, compares what came back with what
 // was there before, and says so when it is different. What "different" means is
 // the user's choice: the whole page, one part of it, or a number in it.
+//
+// Page Watcher (the second layer): a watch keeps a bounded history of what it
+// saw, so a change comes with WHAT changed (lines added and removed, a
+// one-sentence summary from the local model when you have one), a part of the
+// page that has gone is told apart from a change, a failing page is checked
+// less and less often, and a page that has not changed since the last look
+// costs one conditional request. The rules for "changed" are in
+// js/page-watch-diff.js.
+//
+// Patch Radar hook (not built yet): `source` says who made a watch ('user',
+// or later 'radar:steam-news', 'radar:roblox-version', 'radar:nvidia-driver').
+// A radar module registers its watches through add({ source, ... }) with the
+// URL of the vendor's endpoint and a `pattern` (kind 'regex') that pulls the
+// version out; the engine, history, backoff, notifications and the panel are
+// the ones here. Anything with a source other than 'user' is listed in the
+// panel under its own name.
 const PageWatch = {
   KEY: 'vex.pageWatches',
+  SNAPS_KEY: 'vex.pageWatchSnaps',
+  SETTINGS_KEY: 'vex.pageWatchSettings',
   EVERY: [
     { ms: 5 * 60000, label: 'every 5 minutes' },
     { ms: 15 * 60000, label: 'every 15 minutes' },
@@ -17,12 +35,66 @@ const PageWatch = {
     { ms: 6 * 3600000, label: 'every 6 hours' },
     { ms: 24 * 3600000, label: 'once a day' },
   ],
+  // A page is never asked more often than this, however a watch was made.
+  MIN_EVERY: 5 * 60000,
+  // A page that fails is asked after every * 2^failures, up to this long.
+  MAX_BACKOFF: 24 * 3600000,
+  DEFAULTS: { enabled: true, maxWatches: 30, maxSnapshots: 20, sensitivity: 'normal', summarize: false },
+  LIMIT_CEILING: { maxWatches: 100, maxSnapshots: 50 },
+  GONE_MSG: 'The part you watched is gone from this page',
+  WAKE_MESSAGE: 'Vex is opening to check the pages you are watching',
 
   list() { try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
   _save(list) {
     try { localStorage.setItem(this.KEY, JSON.stringify(list)); return true; }
     catch (err) { VexProblems?.note('Page watch', 'Could not save the watches', err); return false; }
   },
+
+  // The rules for "changed" (js/page-watch-diff.js), loaded as a page script
+  // in the window and required in tests.
+  _diff() {
+    if (typeof PageWatchDiff !== 'undefined') return PageWatchDiff;
+    if (typeof require === 'function') return require('./page-watch-diff.js').PageWatchDiff;
+    throw new Error('page-watch-diff.js is not loaded');
+  },
+
+  // Settings > Page watcher. A global switch and the limits; what is saved
+  // is cleaned, so a hand-edited value cannot make the history unbounded.
+  settings() {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(this.SETTINGS_KEY) || '{}') || {}; } catch { s = {}; }
+    const d = this.DEFAULTS, c = this.LIMIT_CEILING;
+    const int = (v, def, max) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 1 ? Math.min(n, max) : def; };
+    return {
+      enabled: s.enabled !== false,
+      maxWatches: int(s.maxWatches, d.maxWatches, c.maxWatches),
+      maxSnapshots: int(s.maxSnapshots, d.maxSnapshots, c.maxSnapshots),
+      sensitivity: ['low', 'normal', 'high'].includes(s.sensitivity) ? s.sensitivity : d.sensitivity,
+      summarize: s.summarize === true,
+    };
+  },
+  setSettings(patch) {
+    const next = { ...this.settings(), ...(patch || {}) };
+    if (patch && patch.sensitivity != null && !['low', 'normal', 'high'].includes(patch.sensitivity)) throw new Error('Sensitivity is low, normal or high');
+    try { localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(next)); }
+    catch (err) { throw new Error('The page watcher settings could not be saved: ' + ((err && err.message) || 'storage is full')); }
+    const cleaned = this.settings();
+    // A lower limit trims what is kept now, not at the next change.
+    const snaps = this._snaps();
+    for (const id of Object.keys(snaps)) while (snaps[id].length > cleaned.maxSnapshots) snaps[id].shift();
+    this._saveSnaps(snaps);
+    return cleaned;
+  },
+
+  // The history: { [watchId]: [{ at, text, hash, truncated }] }, oldest first.
+  _snaps() {
+    try { const o = JSON.parse(localStorage.getItem(this.SNAPS_KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; }
+  },
+  _saveSnaps(snaps) {
+    try { localStorage.setItem(this.SNAPS_KEY, JSON.stringify(snaps)); return true; }
+    catch (err) { VexProblems?.note('Page watch', 'Could not save the history of the watched pages', err); return false; }
+  },
+  history(id) { return (this._snaps()[id] || []).slice(); },
 
   // What is being compared. A selector narrows it to one part of the page,
   // which is the difference between "the article changed" and "the navigation
@@ -40,29 +112,69 @@ const PageWatch = {
   // in a Tor, private or container tab is refused: a watch is checked from
   // Vex's window, on your real connection — and the check at each look only
   // knows the site rules, not which tab it came from.
-  add({ url, title, selector, kind = 'text', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null }) {
+  //
+  // kind 'regex' keeps whatever `pattern` pulls out of the page (a price, a
+  // version, a build number) and speaks when it is a different one; `anchor`
+  // is the first words of the part that was picked, so a part that moved on
+  // the page can be found again; `render` reads the page as a hidden tab would
+  // (for pages built by JavaScript); `wake` asks for Vex to be opened for the
+  // check; `summarize` asks the local model for a sentence.
+  add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user' }) {
+    const s = this.settings();
+    if (!s.enabled) throw new Error('Page watching is switched off in Settings');
     if (!/^https?:/i.test(String(url || ''))) throw new Error('Only a web page can be watched');
     if (partition && typeof TabManager !== 'undefined' && typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(partition)) throw new Error(this.OWN_SESSION_REFUSED);
     const local = this.isLocal(url);
     if (local && !byUser) throw new Error(this.LOCAL_REFUSED);
+    if (local && render) throw new Error('A page on this computer or your home network is read directly, not through a hidden tab');
+    const ms = Number(every) || 15 * 60000;
+    if (ms < this.MIN_EVERY) throw new Error('A page is not checked more often than every ' + Math.round(this.MIN_EVERY / 60000) + ' minutes');
+    if (kind === 'regex') this._diff().compile(pattern);   // a bad pattern is refused now, not at the first check
     const list = this.list();
-    if (list.some(w => w.url === url && (w.selector || '') === (selector || ''))) throw new Error('That is already being watched');
+    if (list.length >= s.maxWatches) throw new Error('You are already watching ' + s.maxWatches + ' pages (the limit in Settings). Stop one first.');
+    if (list.some(w => w.url === url && (w.selector || '') === (selector || '') && (w.pattern || '') === (kind === 'regex' ? pattern : ''))) throw new Error('That is already being watched');
     const watch = {
       id: 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       url: String(url), title: String(title || url), selector: String(selector || '').slice(0, 200),
-      kind: kind === 'number' ? 'number' : 'text',
+      anchor: String(anchor || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+      kind: kind === 'number' ? 'number' : kind === 'regex' ? 'regex' : 'text',
+      pattern: kind === 'regex' ? String(pattern) : '',
       direction: ['up', 'down', 'any', 'below', 'above'].includes(direction) ? direction : 'any',
       target: target == null ? null : Number(target),
-      every: Number(every) || 15 * 60000,
+      every: ms,
+      render: !!render, wake: !!wake, summarize: summarize == null ? null : !!summarize,
+      source: String(source || 'user').slice(0, 40),
+      paused: false,
       addedAt: Date.now(), lastCheckedAt: 0, lastValue: null, lastChangedAt: 0, failures: 0,
       ...(local ? { local: true, byUser: true } : {}),
     };
     list.push(watch);
     if (!this._save(list)) throw new Error('The watch could not be saved');
+    if (watch.wake) this.syncWake();
     return watch;
   },
 
-  remove(id) { this._save(this.list().filter(w => w.id !== id)); },
+  remove(id) {
+    this._save(this.list().filter(w => w.id !== id));
+    const snaps = this._snaps();
+    if (snaps[id]) { delete snaps[id]; this._saveSnaps(snaps); }
+    this.syncWake();
+  },
+
+  // Stop checking without forgetting: the history stays, the checks wait.
+  setPaused(id, paused) {
+    const list = this.list();
+    const w = list.find(x => x.id === id);
+    if (!w) throw new Error('That watch is gone');
+    w.paused = !!paused;
+    if (!paused) { w.failures = 0; w.lastCheckedAt = 0; }
+    if (!this._save(list)) throw new Error('The watch could not be saved');
+    this.syncWake();
+    return w;
+  },
+
+  // How many watches have a change nobody has looked at (the toolbar badge).
+  unseenCount() { return this.list().filter(w => this.isUnseen(w)).length; },
 
   LOCAL_REFUSED: 'Pages on this computer or your home network are watched only when you add the watch yourself',
   OWN_SESSION_REFUSED: 'This tab goes through Tor, a proxy, a container or a private session, and a watch would check the page from your real connection — so it is not watched',
@@ -175,10 +287,19 @@ const PageWatch = {
       }
       return { changed: true, from: a, to: b, why: `went ${dir} from ${a} to ${b}` };
     }
+    // What a pattern pulled out: a version, a price, a build number. It is
+    // a different one or it is not.
+    if (watch.kind === 'regex') {
+      if (String(before) === String(value)) return { changed: false, from: before, to: value, why: 'no change' };
+      return { changed: true, from: before, to: value, why: `is now ${value} (was ${before})` };
+    }
     // A watch saved before whole pages were fingerprinted holds plain text:
     // the first look in the new form is a new baseline, not a change.
     if (this._isPageValue(value) !== this._isPageValue(before)) return { changed: false, from: before, to: value, why: 'first look' };
-    const same = this._steady(before) === this._steady(value);
+    // "High" sensitivity keeps the clock times and "5 minutes ago".
+    const same = this.settings().sensitivity === 'high'
+      ? String(before) === String(value)
+      : this._steady(before) === this._steady(value);
     return same ? { changed: false, from: before, to: value, why: 'no change' } : { changed: true, from: before, to: value, why: 'changed' };
   },
 
@@ -200,8 +321,8 @@ const PageWatch = {
   // never seen. The fingerprint is of the steady text, so "5 minutes ago"
   // and clock times still do not count.
   PAGE_MARK: ' ⁣#',
-  _pageValue(text) {
-    const steady = this._steady(text);
+  _pageValue(text, steadyOn = true) {
+    const steady = steadyOn ? this._steady(text) : String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
     let h = 0x811c9dc5, g = 0x01000193;
     for (let i = 0; i < steady.length; i++) {
       const c = steady.charCodeAt(i);
@@ -213,36 +334,111 @@ const PageWatch = {
   _isPageValue(v) { return typeof v === 'string' && v.includes(this.PAGE_MARK); },
 
   // Read the watched value out of a page, without disturbing the user's tabs:
-  // the page is fetched, not opened.
-  async readValue(watch) {
+  // the page is fetched, not opened (unless the watch asks for a hidden tab).
+  // → { value, text, lines, etag, lastModified } or { notModified: true }.
+  //
+  // Privacy, as before: the check goes out from Vex's own window, direct. A
+  // site that is routed (Tor, a proxy, a container) is refused, never checked
+  // from the real address (found 2026-09-30). Nothing is ever typed into a
+  // page and no login is made: the plain read carries no cookies at all (api:
+  // request publicOnly), and the hidden-tab read is one load of the address
+  // with no clicks, in the session of the main window.
+  async readPage(watch) {
     if (typeof AgentTools === 'undefined') throw new Error('Page reading is not available');
-    // The check is fetched from Vex's window, which goes out directly; a site
-    // you route through Tor, a proxy or a container would see your real
-    // address (found 2026-09-30).
     if (typeof TabManager !== 'undefined' && !TabManager.mayAskSiteForIcon(watch.url)) throw new Error('This site goes through Tor, a proxy or a container, and a watch would check it from your real connection — so it is not checked');
-    let text, raw = null;
-    if (this.isLocal(watch.url)) {
+    const D = this._diff();
+    let text = '', raw = null, etag = null, lastModified = null;
+    // A page that did not change since the last look says so in one short
+    // reply, when it can: ETag / Last-Modified (RFC 9110, conditional GET).
+    const cond = {};
+    if (!watch.render && watch.lastValue != null) {
+      if (watch.etag) cond['If-None-Match'] = watch.etag;
+      if (watch.lastModified) cond['If-Modified-Since'] = watch.lastModified;
+    }
+    const conditional = Object.keys(cond).length ? cond : null;
+    if (watch.render) {
+      const r = await this._render(watch);
+      if (watch.selector && !r.found) throw this._gone(watch);
+      text = String(r.text || '');
+    } else if (this.isLocal(watch.url)) {
       // Only a watch the user added on a home-network address (add) is read
       // from here; anything else, a hand-edited list included, is refused.
       if (!(watch.local === true && watch.byUser === true)) throw new Error(this.LOCAL_REFUSED);
       raw = await this._getLocal(watch.url);
       const body = String(raw.body || '');
       const type = String((raw.headers && (raw.headers['content-type'] || raw.headers['Content-Type'])) || '').toLowerCase();
-      text = /html|xml/.test(type) || /^\s*</.test(body) ? AgentTools.htmlToText(body).text : body;
+      const html = /html|xml/.test(type) || /^\s*</.test(body);
+      text = watch.selector ? this._partOf(body, watch) : (html ? AgentTools.htmlToText(body).text : body);
+    } else if (!watch.selector) {
+      const r = await AgentTools.readUrl(watch.url, { maxText: Infinity, headers: conditional });
+      if (r.notModified) return { notModified: true };
+      text = String(r.text || '');
+      etag = r.etag || null; lastModified = r.lastModified || null;
     } else {
-      text = String((await AgentTools.readUrl(watch.url, { maxText: Infinity })).text || '');
+      // A part of the page needs the real document, so this path reads the
+      // page's markup rather than the readable text.
+      raw = await AgentTools._get(watch.url, conditional);
+      if (raw.status === 304) return { notModified: true };
+      const h = raw.headers || {};
+      etag = h.etag || h.ETag || null; lastModified = h['last-modified'] || h['Last-Modified'] || null;
+      text = this._partOf(String(raw.body || ''), watch);
     }
-    if (watch.selector) {
-      // A selector needs the real document, so this path uses the page's
-      // markup rather than the readable text.
-      raw = raw || await AgentTools._get(watch.url);
-      const doc = new DOMParser().parseFromString(String(raw.body || ''), 'text/html');
-      const el = doc.querySelector(watch.selector);
-      if (!el) throw new Error('Nothing on that page matches "' + watch.selector + '" any more');
-      text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const steady = this.settings().sensitivity !== 'high';
+    const lines = D.normalizeText(text, { steady });
+    const norm = lines.join('\n');
+    let value;
+    if (watch.kind === 'number') value = this.firstNumber(text);
+    else if (watch.kind === 'regex') value = D.extract(text, watch.pattern);
+    else value = watch.selector ? norm.slice(0, 4000) : this._pageValue(norm, steady);
+    return { value, text: norm, lines, etag, lastModified };
+  },
+
+  // Kept for the callers (and tests) that only want the value.
+  async readValue(watch) {
+    const r = await this.readPage(watch);
+    return r.notModified ? watch.lastValue : r.value;
+  },
+
+  // The picked part of a page's markup, as lines of text. The selector is
+  // tried first; when it no longer matches, the part is looked for by the
+  // first words that were picked (a page that was re-laid-out). Neither: the
+  // part is gone — that is not a change, and it is said as such.
+  _partOf(html, watch) {
+    const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+    let el = null;
+    try { el = doc.querySelector(watch.selector); }
+    catch { throw new Error('"' + watch.selector + '" is not a valid selector'); }
+    if (!el && watch.anchor) el = this._findByAnchor(doc, watch.anchor);
+    if (!el) throw this._gone(watch);
+    el.querySelectorAll('script, style, noscript, template').forEach(n => n.remove());
+    el.querySelectorAll('p, br, li, h1, h2, h3, h4, h5, h6, tr, div, section, article, blockquote, pre').forEach(n => n.after(doc.createTextNode('\n')));
+    return el.textContent || '';
+  },
+  // The smallest element whose words contain the anchor.
+  _findByAnchor(doc, anchor) {
+    const want = String(anchor || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (want.length < 6) return null;
+    let best = null, bestLen = Infinity;
+    for (const n of doc.body ? doc.body.querySelectorAll('*') : []) {
+      if (/^(?:script|style|noscript|template)$/i.test(n.tagName)) continue;
+      const t = (n.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (t.length < bestLen && t.includes(want)) { best = n; bestLen = t.length; }
     }
-    if (watch.kind === 'number') return this.firstNumber(text);
-    return watch.selector ? text.slice(0, 4000) : this._pageValue(text);
+    return best;
+  },
+  _gone(watch) {
+    const e = new Error(this.GONE_MSG + ' (nothing matches "' + watch.selector + '" any more)');
+    e.code = 'gone';
+    return e;
+  },
+
+  // The page as a hidden tab would show it (main/page-render.js): for pages
+  // that build themselves with JavaScript. One load, no interaction, bounded.
+  async _render(watch) {
+    if (!window.vex || typeof window.vex.pageWatchRender !== 'function') throw new Error('Reading a page through a hidden tab is not available in this build');
+    const r = await window.vex.pageWatchRender({ url: watch.url, selector: watch.selector || '', anchor: watch.anchor || '' });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The hidden tab could not read the page');
+    return r;
   },
 
   // A home-network page, fetched by main from this computer (api:request
@@ -255,66 +451,213 @@ const PageWatch = {
     return r;
   },
 
-  async checkOne(id, now = Date.now()) {
+  // One check of one watch. Two checks of the same watch at the same moment
+  // (the first look and the timer) are one check, so a change is never
+  // announced twice.
+  _inflight: new Map(),
+  checkOne(id, now = Date.now()) {
+    if (this._inflight.has(id)) return this._inflight.get(id);
+    const p = this._checkOne(id, now).finally(() => this._inflight.delete(id));
+    this._inflight.set(id, p);
+    return p;
+  },
+
+  async _checkOne(id, now) {
     const before = this.list().find(w => w.id === id);
     if (!before) throw new Error('That watch is gone');
-    let value, readErr = null;
-    try { value = await this.readValue(before); }
+    const D = this._diff();
+    let page = null, readErr = null;
+    try { page = await this.readPage(before); }
     catch (err) { readErr = err; }
     // The list is read again after the fetch: a watch added or stopped while
     // the page was being read must not be undone by saving an old copy.
     const list = this.list();
     const watch = list.find(w => w.id === id);
     if (!watch) return { ok: false, gone: true, error: 'That watch was stopped' };
-    if (!readErr) watch.failures = 0;
-    else {
+    if (readErr) {
       const err = readErr;
       // A page that fails once is a blip; one that fails five times running is
       // gone, and a watch that cannot be checked must say so rather than sit
-      // there looking healthy.
+      // there looking healthy. Each failure also makes the next check later
+      // (effectiveEvery).
       watch.failures = (watch.failures || 0) + 1;
       watch.lastCheckedAt = now;
       watch.lastError = (err && err.message) || 'could not be read';
-      this._save(list);
-      if (watch.failures === 5) {
+      let partGone = false;
+      if (err && err.code === 'gone') {
+        // The part you watched is not there any more: said once, plainly,
+        // and not as if the page had changed.
+        partGone = true;
+        watch.partGone = true;
+        if (!watch.goneTold) {
+          watch.goneTold = true;
+          window.showToast?.('"' + watch.title + '": ' + this.GONE_MSG, 'error', 8000);
+          try { window.vex?.notify?.('Vex — a watched page', '"' + watch.title + '": ' + this.GONE_MSG); } catch {}
+        }
+      } else if (watch.failures === 5) {
         window.showToast?.('Cannot check "' + watch.title + '" — ' + watch.lastError, 'error');
         VexProblems?.note('Page watch', 'Gave up checking ' + watch.url, err);
       }
-      return { ok: false, error: watch.lastError };
+      this._save(list);
+      return { ok: false, error: watch.lastError, ...(partGone ? { partGone: true } : {}) };
     }
+    watch.failures = 0;
+    watch.partGone = false;
+    watch.goneTold = false;
+    if (page.notModified) {
+      watch.lastCheckedAt = now;
+      watch.lastError = null;
+      this._save(list);
+      return { ok: true, changed: false, from: watch.lastValue, to: watch.lastValue, why: 'not modified' };
+    }
+    const value = page.value;
     if (watch.kind === 'number' && value == null) {
       watch.lastCheckedAt = now;
       this._save(list);
       return { ok: false, error: 'no number found on that page' };
     }
-    const verdict = this.judge(watch, value);
+    if (watch.kind === 'regex' && value == null) {
+      watch.lastCheckedAt = now;
+      watch.lastError = 'the pattern was not found on that page';
+      this._save(list);
+      return { ok: false, error: watch.lastError };
+    }
+    let verdict = this.judge(watch, value);
+    const settings = this.settings();
+    const snaps = this._snaps();
+    const prev = (snaps[id] || []).slice(-1)[0] || null;
+    let diff = null, minor = false;
+    // A text watch says WHAT changed, and a difference below the chosen
+    // sensitivity is not told (and not forgotten: the baseline stays, so a
+    // few small changes add up to one that is).
+    if (verdict.changed && watch.kind === 'text' && prev) {
+      const cap = D.LIMITS.snapChars;
+      const cur = page.text.length > cap ? page.text.slice(0, cap).split('\n') : page.lines;
+      const ch = D.change(prev.text.split('\n'), cur, { sensitivity: settings.sensitivity });
+      if (!ch.significant) {
+        minor = true;
+        verdict = { changed: false, from: verdict.from, to: verdict.to, why: 'minor change' };
+      } else {
+        diff = { added: ch.added, removed: ch.removed };
+        verdict.summary = D.summarize(diff).text;
+      }
+    }
     watch.lastCheckedAt = now;
     watch.lastError = null;
+    if (page.etag) watch.etag = page.etag; else if (!watch.render) delete watch.etag;
+    if (page.lastModified) watch.lastModified = page.lastModified; else if (!watch.render) delete watch.lastModified;
     if (verdict.changed) watch.lastChangedAt = now;
-    watch.lastValue = value;
+    if (!minor) watch.lastValue = value;
+    // The history: the first look and every change, not every check.
+    if (!minor && (verdict.changed || verdict.why === 'first look' || !prev)) {
+      const text = watch.kind === 'text' ? page.text : String(value);
+      D.pushSnapshot(snaps, id, { at: now, text, hash: D.fingerprint([text]) }, { ...D.LIMITS, perWatch: settings.maxSnapshots });
+      this._saveSnaps(snaps);
+    }
+    // Never twice for the same new value.
+    let announce = verdict.changed;
+    if (announce) {
+      const token = String(verdict.to);
+      if (watch.lastAnnounced === token) announce = false;
+      else watch.lastAnnounced = token;
+    }
     this._save(list);
-    if (verdict.changed) this.announce(watch, verdict);
-    return { ok: true, ...verdict };
+    if (announce) {
+      const wantAi = watch.summarize == null ? settings.summarize : watch.summarize;
+      if (wantAi && diff) {
+        const sentence = await this.aiSentence(watch, diff);
+        if (sentence) {
+          verdict.sentence = sentence;
+          const again = this.list();
+          const w2 = again.find(x => x.id === id);
+          if (w2) { w2.lastSummary = sentence; this._save(again); }
+        }
+      }
+      this.announce(watch, verdict);
+    }
+    return { ok: true, ...verdict, ...(diff ? { diff } : {}) };
+  },
+
+  // One sentence from the LOCAL model about what changed — and only the local
+  // one: a diff of a page you watch is not sent anywhere. No local model set
+  // up, no sentence, and the plain summary is told as it is.
+  async aiSentence(watch, diff) {
+    if (typeof Ollama === 'undefined' || typeof AIRouter === 'undefined') return '';
+    let model = '';
+    try { model = AIRouter.isOllamaAvailable() ? String(AIRouter.getModel() || '') : ''; } catch { model = ''; }
+    if (!model) return '';
+    const lines = (arr, sign) => arr.slice(0, 12).map(l => sign + ' ' + l.slice(0, 200)).join('\n');
+    const prompt = 'A web page the user watches changed. Lines removed (-) and added (+):\n' + lines(diff.removed, '-') + '\n' + lines(diff.added, '+')
+      + '\n\nIn ONE short sentence, say what changed in plain words. No preamble.';
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const out = await Ollama.generate(model, prompt, { temperature: 0.2, maxTokens: 80, signal: ctl.signal });
+      return String(out || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+    } catch (err) {
+      VexProblems?.note('Page watch', 'The local model could not summarise a change to ' + watch.url, err);
+      return '';
+    } finally { clearTimeout(timer); }
   },
 
   announce(watch, verdict) {
-    const what = watch.kind === 'number' ? `${watch.title} ${verdict.why}` : `${watch.title} changed`;
+    let what;
+    if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
+    else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');
     window.showToast?.(what, 'info', 8000);
     // A desktop notification as well: the point of a watch is that you are not
     // looking at Vex (js/notify goes through the main process).
-    try { window.vex?.notify?.('Vex — a page changed', what); } catch {}
+    const body = verdict.summary && !verdict.sentence ? what + '\n' + verdict.summary : what;
+    try { window.vex?.notify?.('Vex — a page changed', body); } catch {}
     document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
+  },
+
+  // How long to wait before a watch is asked again: its own pace, doubled for
+  // each failure after the first, never past a day. A page that is down is
+  // not hammered.
+  effectiveEvery(w) {
+    const n = Math.max(0, (w.failures || 0) - 1);
+    return Math.max(w.every, Math.min(this.MAX_BACKOFF, w.every * Math.pow(2, Math.min(n, 8))));
   },
 
   // Whatever is due, one at a time so a dozen watches do not all fetch at once.
   async checkDue(now = Date.now()) {
-    const due = this.list().filter(w => now - (w.lastCheckedAt || 0) >= w.every);
+    if (!this.settings().enabled) return [];
+    const due = this.list().filter(w => !w.paused && now - (w.lastCheckedAt || 0) >= this.effectiveEvery(w));
     const out = [];
     for (const w of due) {
       try { out.push({ id: w.id, ...(await this.checkOne(w.id, now)) }); }
       catch (err) { VexProblems?.note('Page watch', 'A check failed', err); }
     }
     return out;
+  },
+
+  // Vex wakes for a watch the way it wakes for an alarm: one daily reminder
+  // (main/reminders.js keeps a Windows task for it) that opens Vex, which
+  // then checks whatever is due. One reminder serves every watch that asked;
+  // it goes when the last of them is paused or stopped.
+  // One at a time: two watches added together must not each make one.
+  syncWake() {
+    this._wakeP = (this._wakeP || Promise.resolve()).then(() => this._syncWake()).catch((err) => {
+      VexProblems?.note('Page watch', 'Could not set up (or remove) the daily wake-up for watched pages', err);
+      window.showToast?.('The wake-up for watched pages could not be set: ' + ((err && err.message) || 'unknown error'), 'error');
+      return null;
+    });
+    return this._wakeP;
+  },
+  async _syncWake() {
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.list !== 'function') return null;
+    const want = this.settings().enabled && this.list().some(w => w.wake && !w.paused);
+    const mine = (await b.list()).filter(r => r.message === this.WAKE_MESSAGE);
+    if (want && !mine.length) {
+      const d = new Date();
+      d.setHours(8, 0, 0, 0);
+      if (d.getTime() - Date.now() < 5 * 60000) d.setDate(d.getDate() + 1);
+      return b.create(this.WAKE_MESSAGE, d.getTime(), { repeat: 'daily' });
+    }
+    if (!want) for (const r of mine) await b.delete(r.id);
+    return null;
   },
 
   // "Watch This Page" in Ctrl+K: the whole page, any change, the default pace.
