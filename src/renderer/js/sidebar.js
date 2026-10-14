@@ -267,6 +267,24 @@ const SidebarManager = {
 
   unpinSite(id) {
     this._saveSitePanels(this._sitePanels().filter(p => p.id !== id));
+    this.unmountSitePanel(id);
+    window.showToast?.('Unpinned');
+  },
+
+  // A site panel that exists for now only — the game guide's pages while a
+  // game runs (js/game-session.js). Same panel, same icon, same webview; it is
+  // never written to vex.sitePanels, to the panel usage stamps or to the saved
+  // pairs, so when it goes nothing of it is left in the profile.
+  TEMPORARY_PREFIX: 'gameguide_',
+  _isTemporary(id) { return typeof id === 'string' && id.startsWith(this.TEMPORARY_PREFIX); },
+  mountTemporarySitePanel({ id, name, url }) {
+    if (!this._isTemporary(id)) throw new Error('A temporary panel id must start with ' + this.TEMPORARY_PREFIX);
+    if (!/^https?:\/\//i.test(String(url || ''))) throw new Error('A temporary panel needs a web address');
+    this._mountSitePanel({ id, name: String(name || url), url });
+    return id;
+  },
+
+  unmountSitePanel(id) {
     document.querySelector('.sidebar-icon[data-panel="' + id + '"]')?.remove();
     if (this.activePanel === id) this.hideActivePanel();
     else if (this.sidePanel === id) this.closeBeside();
@@ -274,7 +292,6 @@ const SidebarManager = {
     delete this.panelConfigs[id];
     delete this.panelWebviews[id];
     this.renderSidebarManager();
-    window.showToast?.('Unpinned');
   },
 
   _origIcons: {},
@@ -775,6 +792,7 @@ const SidebarManager = {
   },
 
   _savePair(primary, side) {
+    if (this._isTemporary(primary) || this._isTemporary(side)) return;   // never remembered
     const pairs = this._pairs();
     if (side) {
       pairs[primary] = side;
@@ -837,7 +855,9 @@ const SidebarManager = {
 
   closeBeside() {
     if (!this.sidePanel) return;
-    this._savePair(this.activePanel, null);
+    // A temporary panel (the game guide) beside it was never remembered, so
+    // closing it must not forget the pair the user did choose.
+    if (!this._isTemporary(this.sidePanel)) this._savePair(this.activePanel, null);
     this.sidePanel = null;
     this._layoutPanels();
     this._announcePanel(this.activePanel);
@@ -1006,7 +1026,7 @@ const SidebarManager = {
   // being hidden, so the idle clock starts when you leave it, not when you
   // came to it.
   _touchUsage(name) {
-    if (!name) return;
+    if (!name || this._isTemporary(name)) return;
     try {
       const u = JSON.parse(localStorage.getItem('vex.panelUsage') || '{}') || {};
       u[name] = Date.now();

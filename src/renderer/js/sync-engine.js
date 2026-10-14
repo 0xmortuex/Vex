@@ -1602,6 +1602,9 @@ const SyncEngine = (() => {
     clearTimeout(changeTimer);
     changeTimer = setTimeout(() => {
       changeTimer = null;
+      // Game mode (js/game-session.js): the change waits, and goes up in one
+      // round when the game ends. Closing the window still uploads (pushBeforeClose).
+      if (gameHolds()) { owedAfterGame = true; return; }
       pushNow().then((r) => {
         if (!r.ok && r.reason !== 'not-ready' && !r.locked) console.error('[Sync] Could not upload a change: ' + r.reason);
       });
@@ -1653,9 +1656,25 @@ const SyncEngine = (() => {
       console.log('[Sync] not configured — no push/pull timers started');
       return;
     }
-    pushTimer = setInterval(() => pushNow(), 2 * 60 * 1000);
-    pullTimer = setInterval(() => pullNow(), 5 * 60 * 1000);
+    pushTimer = setInterval(() => { if (gameHolds()) owedAfterGame = true; else pushNow(); }, 2 * 60 * 1000);
+    pullTimer = setInterval(() => { if (gameHolds()) owedAfterGame = true; else pullNow(); }, 5 * 60 * 1000);
     watchChanges();
+  }
+
+  // Game mode holds the automatic rounds while a game runs (js/game-session.js).
+  // A manual "Sync now" is never held, and neither is the last upload before
+  // the window closes.
+  let owedAfterGame = false;
+  function gameHolds() { return !!(window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('sync')); }
+  // The game ended: whatever was held goes now, as one pull and one push.
+  function resumeAfterGame() {
+    if (!owedAfterGame) return false;
+    owedAfterGame = false;
+    if (!state.enabled || privateWindow() || !syncWorkerUrl()) return false;
+    pullNow().then(() => pushNow()).then((r) => {
+      if (r && !r.ok && r.reason !== 'not-ready') console.error('[Sync] Could not catch up after the game: ' + r.reason);
+    }).catch(err => console.error('[Sync] Could not catch up after the game:', err));
+    return true;
   }
 
   function stopAutoSync() {
@@ -1926,6 +1945,7 @@ const SyncEngine = (() => {
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     otherDeviceTabs,
     pushBeforeClose,
+    resumeAfterGame,
     syncTypes: () => SYNC_TYPES.map(t => ({ id: t.id, label: t.label, on: typeOn(t.id) })),
     conflicts: conflictList,
     resolveConflict,

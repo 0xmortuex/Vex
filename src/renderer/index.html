@@ -151,6 +151,11 @@
     </div>
 
     <div id="top-bar-right">
+      <!-- Shown while Game mode is on for a running game (js/game-session.js). -->
+      <div id="game-mode-chip" role="status" hidden>
+        <span class="game-mode-chip-icon" aria-hidden="true"></span><span class="game-mode-chip-label">Game mode on</span>
+        <button id="game-mode-off" type="button" title="Put everything back until this game ends">Turn off for now</button>
+      </div>
       <!-- Shown while Vex's own Tor runs, in every look (#btn-tor is hidden in the browser looks); tor-session.js fills the icon. -->
       <div id="tor-running" role="status" hidden>
         <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
@@ -486,6 +491,11 @@
                   <span class="setting-hint">System-wide, so they work from inside a fullscreen game. Each takes that combination away from every other program, so they are off until you set one. Click a box and press the keys.</span>
                 </div>
                 <div id="hotkey-rows"></div>
+                <div class="setting-label" style="margin-top:12px">
+                  <strong>Game mode</strong>
+                  <span class="setting-hint">Vex gets out of a game's way and opens that game's own guide, then puts everything back when the game ends.</span>
+                </div>
+                <div id="game-session-settings"></div>
                 <div class="setting-label" style="margin-top:12px">
                   <strong>When a game is running</strong>
                   <span class="setting-hint">Vex notices a full-screen game the way Windows does when it holds notifications back, and gets out of its way. Nothing pops up while you play; you are told what was done when you come back.</span>
@@ -1606,6 +1616,7 @@
   <script src="js/ai-health.js"></script>
   <script src="js/model-manager.js"></script>
   <script src="js/game-mode.js"></script>
+  <script src="js/game-session.js"></script>
   <script src="js/audio-output.js"></script>
   <script src="js/link-safety.js"></script>
   <script src="js/tab-snooze.js"></script>

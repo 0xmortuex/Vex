@@ -67,6 +67,8 @@ const HistoryIndexer = (() => {
   async function processQueue() {
     processing = true;
     while (INDEX_QUEUE.length > 0) {
+      // Game mode (js/game-session.js): the queue waits for the game to end.
+      if (window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('indexing')) break;
       const { historyEntry, webview, generation } = INDEX_QUEUE.shift();
       try {
         if (isEnabled() && generation === webview._navigationGeneration && webview.isConnected !== false) await indexEntry(historyEntry, webview);
@@ -182,7 +184,13 @@ const HistoryIndexer = (() => {
     return { total, indexed, queued: INDEX_QUEUE.length, dropped };
   }
 
-  return { queueForIndexing, reindexOpenTabs, isEnabled, setEnabled, getStats };
+  // The game ended: what waited is indexed now, as before.
+  function resume() {
+    if (!processing && INDEX_QUEUE.length > 0) processQueue();
+    return INDEX_QUEUE.length;
+  }
+
+  return { queueForIndexing, reindexOpenTabs, isEnabled, setEnabled, getStats, resume };
 })();
 
 window.HistoryIndexer = HistoryIndexer;

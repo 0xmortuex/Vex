@@ -258,7 +258,7 @@ async function findCatalogUpdate({ catalogId, installedVersion, fetch, sources, 
 //   now, setTimeout, clearTimeout, sleep(ms)    for the tests
 function createExtensionUpdater(deps) {
   const d = { now: Date.now, setTimeout, clearTimeout, sleep: (ms) => new Promise(r => setTimeout(r, ms)),
-    firstCheckMs: FIRST_CHECK_MS, everyMs: CHECK_EVERY_MS, staggerMs: STAGGER_MS, onUpdated: () => {}, ...deps };
+    firstCheckMs: FIRST_CHECK_MS, everyMs: CHECK_EVERY_MS, staggerMs: STAGGER_MS, heldRetryMs: 10 * 60 * 1000, onUpdated: () => {}, ...deps };
   for (const k of ['list', 'find', 'install', 'readState', 'writeState', 'isOnline', 'isMetered']) {
     if (typeof d[k] !== 'function') throw new TypeError('createExtensionUpdater: ' + k + ' is required');
   }
@@ -289,6 +289,9 @@ function createExtensionUpdater(deps) {
   async function run({ manual }) {
     const state = d.readState();
     if (!manual && !state.auto) return { skipped: 'off' };
+    // Game mode (main/game-mode.js): a check that nobody asked for waits until
+    // the game is over. Nothing is written, so nothing is left to undo.
+    if (!manual && typeof d.isHeld === 'function' && d.isHeld()) return { skipped: 'game' };
     if (!d.isOnline()) {
       mutate(s => { s.lastOutcome = 'Not checked: Vex is offline.'; });
       return { skipped: 'offline' };
@@ -350,9 +353,11 @@ function createExtensionUpdater(deps) {
     if (timer) d.clearTimeout(timer);
     timer = d.setTimeout(async () => {
       timer = null;
-      try { await checkNow({ manual: false }); }
+      let held = false;
+      try { const r = await checkNow({ manual: false }); held = !!r && r.skipped === 'game'; }
       catch (err) { console.error('[Extensions] the update check failed:', err.message); }
-      if (started) schedule(d.everyMs);
+      // Held for a game: look again soon rather than in a day.
+      if (started) schedule(held ? d.heldRetryMs : d.everyMs);
     }, ms);
     if (timer && typeof timer.unref === 'function') timer.unref();
   }

@@ -1178,12 +1178,53 @@ const _gameWatch = require('./main/game-watch').createGameWatch({
   log: (m) => console.log(m),
   onChange: (s) => {
     console.log('[GameWatch] ' + (s.game ? 'game running: ' + s.app : 'no game'));
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', s); } catch { /* window gone */ }
+    _sendGameState();
   },
 });
-ipcMain.handle('game:watch', async (_e, on) => { if (on) await _gameWatch.start(); else _gameWatch.stop(); return { running: _gameWatch.running(), helper: _gameWatch.usingHelper(), ..._gameWatch.state() }; });
-ipcMain.handle('game:state', () => ({ running: _gameWatch.running(), ..._gameWatch.state() }));
-app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} });
+// Game mode (src/main/game-mode.js): a game the user NAMED is noticed by its
+// program name too, full screen or not. Both signals are merged into the one
+// game:state the renderer already listens to; `fullscreen` and `listed` say
+// which one it was. Names only — the game's process is never opened or read.
+const _gameMode = require('./main/game-mode');
+function _runningProgramNames() {
+  return new Promise((resolve, reject) => {
+    const tasklist = path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'tasklist.exe');
+    require('child_process').execFile(tasklist, ['/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 15000, maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout) => (err ? reject(err) : resolve(_gameMode.parseTasklist(stdout))));
+  });
+}
+const _gameProcs = _gameMode.createProcessWatch({
+  list: _runningProgramNames,
+  log: (m) => console.error(m),
+  onChange: (s) => { console.log('[GameMode] ' + (s.game ? 'listed game running: ' + s.app : 'no listed game')); _sendGameState(); },
+});
+function _mergedGameState() {
+  const fs_ = _gameWatch.state();
+  const listed = _gameProcs.state();
+  return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '' };
+}
+function _sendGameState() {
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
+}
+// While Game mode is on for a game: Vex's page processes run below normal
+// priority and the renderer's holds apply. In memory only.
+const _gameModeSession = _gameMode.createGameModeSession({
+  os: require('os'),
+  processes: () => app.getAppMetrics().map(m => ({ pid: m.pid, type: m.type })),
+  audiblePids: () => new Set(webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.isCurrentlyAudible()).map(wc => wc.getOSProcessId())),
+  log: (m) => console.error(m),
+});
+ipcMain.handle('game:watch', async (_e, on) => { if (on) await _gameWatch.start(); else _gameWatch.stop(); return { running: _gameWatch.running(), helper: _gameWatch.usingHelper(), ..._mergedGameState() }; });
+ipcMain.handle('game:state', () => ({ running: _gameWatch.running(), ..._mergedGameState() }));
+// The user's game list (Settings › Game mode); watching only while Game mode is on.
+ipcMain.handle('gamemode:games', async (_e, games, watch) => {
+  _gameProcs.setGames(watch ? games : []);
+  if (watch && games.length) await _gameProcs.start(); else _gameProcs.stop();
+  return { watching: !!(watch && games.length), ..._gameProcs.state() };
+});
+ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end()));
+ipcMain.handle('gamemode:state', () => _gameModeSession.state());
+app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
 // Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
 // system-wide, so each one is off until the user sets it.
@@ -3638,6 +3679,7 @@ function _extUpdater() {
     writeState: (s) => _extUpdates.writeState(extensionsDir, s),
     isOnline: () => net.isOnline(),
     isMetered: () => _extUpdates.isMeteredWindows(),
+    isHeld: () => _gameModeSession.held('extensionUpdates'),   // Game mode (main/game-mode.js)
     onUpdated: (r) => {
       const line = `${r.name} ${r.from} → ${r.to}${r.how === 'approved' ? ' (approved by you)' : ''}`;
       console.log('[Extensions] updated:', line);

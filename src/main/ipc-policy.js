@@ -39,6 +39,9 @@ const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpape
   // Starting the owner's Game Control Center and choosing where it is
   // (main/game-control-center.js): launching a program is never a page's call.
   'gcc:launch', 'gcc:get', 'gcc:pick', 'gcc:clear',
+  // Game mode (main/game-mode.js): which programs to watch for, and lowering
+  // Vex's own process priority, are never a page's call.
+  'gamemode:games', 'gamemode:session', 'gamemode:state',
   // Passkeys (main/passkeys.js): answering the sheet, Settings' list and a
   // field's chooser pick are never a page's call.
   'passkeys:answer', 'passkeys:list', 'passkeys:delete', 'passkeys:undo-delete', 'passkeys:rename', 'passkeys:conditional-choose']);

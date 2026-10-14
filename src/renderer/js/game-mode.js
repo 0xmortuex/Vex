@@ -278,7 +278,12 @@ GameMode.syncWatcher = async function () {
 GameMode.initGaming = function () {
   if (this._gamingWired || !window.vex || typeof window.vex.onGameState !== 'function') return false;
   this._gamingWired = true;
-  window.vex.onGameState((s) => { (s && s.game) ? this.onGameStart(s.app) : this.onGameEnd(); });
+  // A game that is only on the user's Game mode list (js/game-session.js) starts
+  // these behaviours when Game mode is on; a full-screen game always did.
+  window.vex.onGameState((s) => {
+    const wanted = (typeof GameSession !== 'undefined' && GameSession.legacyWants) ? GameSession.legacyWants(s) : !!(s && s.game);
+    wanted ? this.onGameStart(s.app) : this.onGameEnd();
+  });
   this.syncWatcher();
   return true;
 };
@@ -308,11 +313,15 @@ GameMode.onGameStart = async function (app) {
   // If that answer cannot be read, nothing sleeps. A guard that falls back to
   // sleeping is no guard at all: the one case it exists for — something has
   // gone wrong — is exactly when it would close the user's pages anyway.
-  const maySleep = (typeof SleepConsent !== 'undefined') && SleepConsent.modeFor('gaming') === 'auto';
+  // Game mode (js/game-session.js) is that answer, given by turning it on.
+  const gameModeSaidYes = typeof GameSession !== 'undefined' && GameSession.sleepAllowed();
+  const maySleep = gameModeSaidYes || ((typeof SleepConsent !== 'undefined') && SleepConsent.modeFor('gaming') === 'auto');
   if (!maySleep && this.gamingSetting('sleepTabs')) report.leftAlone = true;
   if (maySleep && this.gamingSetting('sleepTabs') && typeof TabManager !== 'undefined') {
     for (const tab of (TabManager.tabs || []).slice()) {
       if (tab.id === TabManager.activeTabId || tab.sleeping) continue;
+      // Pinned tabs are the user's marked ones: Game mode leaves them be.
+      if (gameModeSaidYes && tab.pinned) continue;
       // Music, a call, a stream you are listening to: not ours to stop.
       if ((tab.audible && !tab.muted) || (TabManager.isCapturing && TabManager.isCapturing(tab))) continue;
       try { await TabManager.sleepTab(tab.id); if (tab.sleeping) { report.slept++; report.sleptIds.push(tab.id); } }   // sleepTab itself spares kept-awake tabs
@@ -404,6 +413,7 @@ GameMode.chooseControlCenter = async function (thenLaunch) {
 };
 
 GameMode.renderGamingSettings = function (host) {
+  if (typeof GameSession !== 'undefined') GameSession.renderSettings();
   host = host || document.getElementById('gaming-settings');
   if (!host) return;
   const rows = [

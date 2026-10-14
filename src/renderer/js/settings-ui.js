@@ -68,7 +68,7 @@ const SettingsUI = {
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar'] },
     { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['privacy', 'security', 'private routing'] },
     { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill'] },
-    { name: 'Performance',     icon: 'bolt',     color: '#f97316', match: ['performance', 'sleep', 'gaming and streaming', 'discord hotkeys', 'when a game is running'] },
+    { name: 'Performance',     icon: 'bolt',     color: '#f97316', match: ['performance', 'sleep', 'gaming and streaming', 'game mode', 'discord hotkeys', 'when a game is running'] },
     { name: 'Sessions',        icon: 'save',     color: '#f59e0b', match: ['session'] },
     { name: 'Downloads',       icon: 'download', color: '#0284c7', match: ['downloads'] },
     { name: 'Workspaces',      icon: 'folders',  color: '#14b8a6', match: ['workspace'] },

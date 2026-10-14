@@ -179,6 +179,10 @@ contextBridge.exposeInMainWorld('vex', {
   gameWatch: (on) => ipcRenderer.invoke('game:watch', !!on),
   gameState: () => ipcRenderer.invoke('game:state'),
   onGameState: (cb) => subscribe('game:state', cb),
+  // Game mode (src/main/game-mode.js).
+  gameModeGames: (games, watch) => ipcRenderer.invoke('gamemode:games', games, !!watch),
+  gameModeSession: (s) => ipcRenderer.invoke('gamemode:session', s),
+  gameModeState: () => ipcRenderer.invoke('gamemode:state'),
   // The quick-capture window hands its line here to be carried out.
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),

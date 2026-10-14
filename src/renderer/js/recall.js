@@ -74,6 +74,9 @@ const Recall = {
   // Pull the page's readable text and hand it to the main-process index.
   async indexPage(webview, url, title) {
     if (!this.enabled() || !url || !window.vex?.recallIndex) return;
+    // Game mode (js/game-session.js): nothing is read from pages while a game
+    // runs. A page seen in that time is simply not remembered.
+    if (window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('recall')) return;
     if (!webview || (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(webview))) return;
     if (!/^https?:/i.test(url)) return;
     if (typeof isStartPage === 'function' && isStartPage(url)) return;

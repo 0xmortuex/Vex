@@ -58,6 +58,11 @@ define('web-suggest qr:make qr:generate permissions:revoke totp:delete extension
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);
+// Game mode (src/main/game-mode.js): the user's game list, and the session the
+// renderer starts or ends. No path or command can be named through either.
+define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
+define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
+define('gamemode:state', []);
 define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
 define('rec:own-window', []);
 define('app:idle-seconds', []);
