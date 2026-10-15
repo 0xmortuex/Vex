@@ -29,9 +29,10 @@ function createAdVerdict(deps) {
     return details.resourceType === 'mainFrame' ? details.url : deps.pageUrlOf(details.webContentsId);
   }
 
-  // null (let it through), 'third-party' (the site's third-party switch) or
-  // 'ad' (the blocker). opts.thirdParty: whether this session honours the
-  // site's third-party switch.
+  // null (let it through), 'third-party' (the site's third-party switch),
+  // 'images' (the site's pictures switch) or 'ad' (the blocker).
+  // opts.thirdParty / opts.images: whether this session honours those
+  // switches.
   function judge(details, ses, opts = {}) {
     const page = pageOf(details);
     if (details.resourceType === 'mainFrame') {
@@ -42,6 +43,11 @@ function createAdVerdict(deps) {
       }
     }
     if (opts.thirdParty !== false && deps.blocksThirdParty(page, details.url)) return 'third-party';
+    // A site whose pictures are switched off (the 'images' switch): every
+    // image request its page makes, from its own host or any other. Not for a
+    // session that opts out (Tor: a page that is told "no images" is a
+    // different page from the one every other Tor user gets).
+    if (opts.images !== false && details.resourceType === 'image' && deps.blocksImages && deps.blocksImages(page, ses)) return 'images';
     if (!deps.enabled()) return null;
     if (!(deps.engineBlocks(details) === true || deps.shouldBlock(details.url))) return null;
     if (deps.repairAllows(details.url, page)) return null;

@@ -289,7 +289,23 @@ async function initWidevine(attempts = 2) {
 // === Privacy hardening: fingerprint farbling seed, DNS-over-HTTPS, tracker tally ===
 // Config persisted to userData/privacy.json. Everything defaults OFF so normal
 // browsing is untouched until the user opts in (Settings → Privacy Hardening).
-let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false };
+// gpc: the Global Privacy Control signal (Sec-GPC: 1 and navigator.
+// globalPrivacyControl), ON: it is one request header and a legal request, not
+// a behaviour change; excluded sites are the 'gpc' site switch. referrer:
+// 'default' | 'origin' (cross-site requests carry only the origin) |
+// 'strict' (cross-site requests carry none, same-site only the origin), OFF
+// because it breaks some sign-in and payment flows; exceptions are the
+// 'referrer' site switch.
+let privacyCfg = { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false, gpc: true, referrer: 'default' };
+const REFERRER_MODES = ['default', 'origin', 'strict'];
+// What a saved or sent config may hold for the two header settings: anything
+// else is dropped to the default rather than trusted.
+function _headerPrivacy(cfg) {
+  const out = { ...cfg };
+  if (typeof out.gpc !== 'boolean') out.gpc = true;
+  if (!REFERRER_MODES.includes(out.referrer)) out.referrer = 'default';
+  return out;
+}
 // A key made at launch: each page's farbling seed is derived from it, its
 // session's partition and its site (main-helpers.js, farbleSeed), so noise is
 // steady for one site in one session, unrelated between sites and sessions,
@@ -329,6 +345,7 @@ function _recordTracker(reqUrl, wcId) {
 }
 function privacyLoad() {
   try { const fs = require('fs'); if (fs.existsSync(PRIVACY_FILE())) privacyCfg = { ...privacyCfg, ...JSON.parse(fs.readFileSync(PRIVACY_FILE(), 'utf8')) }; } catch {}
+  privacyCfg = _headerPrivacy(privacyCfg);
   return privacyCfg;
 }
 
@@ -666,6 +683,13 @@ function findLaunchUrl(argv) {
   return _mainHelpers.findLaunchUrl(argv);
 }
 
+// === Start with Windows (src/main/login-item.js) ===
+// The startup entry launches Vex with --vex-login-start (and --vex-start-
+// minimised when asked): those belong to that one start, never to a restart.
+const _loginItem = require('./main/login-item');
+const _restartArgs = () => process.argv.slice(1).filter(a => a !== _loginItem.LOGIN_ARG && a !== _loginItem.MINIMISED_ARG);
+let _startMinimisedDone = false;
+
 // === Single-instance lock (so external links route to existing Vex window) ===
 console.log('[Vex URL] requesting single-instance lock...');
 const gotTheLock = app.requestSingleInstanceLock();
@@ -695,13 +719,20 @@ if (!gotTheLock) {
       _closeForOtherProfileUpdate();
       return;
     }
+    // Windows' startup entry (Settings > Start Vex when I sign in) found Vex
+    // already running: nothing to do, and nothing to bring in front of what
+    // the person is doing.
+    if (_loginItem.isLoginLaunch(commandLine)) {
+      console.log('[Login item] started with Windows while already running — leaving the window as it is');
+      return;
+    }
     // A Snooze / Open button on a reminder's toast arrives as vex://…
     if (commandLine.some(a => handleVexAction(a))) return;
     // "Start in safe mode" from the taskbar while Vex is already running:
     // restart into it (tabs are saved continuously, as for any restart).
     if (commandLine.includes('--safe-mode')) {
       console.log('[SafeMode] asked for while running — restarting into safe mode');
-      app.relaunch({ args: [...process.argv.slice(1).filter(a => a !== '--safe-mode'), '--safe-mode'] });
+      app.relaunch({ args: [..._restartArgs().filter(a => a !== '--safe-mode'), '--safe-mode'] });
       app.exit(0);
       return;
     }
@@ -2275,7 +2306,7 @@ function wireAdblockerOnSession(ses, tag) {
     // A site whose third-party content is switched off (js/site-rules.js),
     // then the blocker (src/main/ad-verdict.js).
     const verdict = _adVerdict.judge(details, ses);
-    if (verdict === 'third-party') {
+    if (verdict === 'third-party' || verdict === 'images') {
       callback({ cancel: true });
       return;
     }
@@ -2306,6 +2337,10 @@ const CHROME_FULL_VERSION = process.versions.chrome || '148.0.0.0';
 const CHROME_MAJOR = CHROME_FULL_VERSION.split('.')[0];
 // Real Chrome sends a reduced UA (major.0.0.0) — mirror that exactly.
 const CHROME_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
+// What "Request mobile site" says (a site's own choice, src/main/site-rules.js):
+// Chrome on Android, at the same real Chrome major as everything else.
+const MOBILE_UA = `Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Mobile Safari/537.36`;
+const _siteHeaders = require('./main/site-headers');
 const CH_UA = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not-A.Brand";v="99"`;
 const CH_UA_FULL = `"Chromium";v="${CHROME_FULL_VERSION}", "Google Chrome";v="${CHROME_FULL_VERSION}", "Not-A.Brand";v="99.0.0.0"`;
 // Add Access-Control-Allow-Origin to MEDIA responses so cross-origin <video>/
@@ -2339,6 +2374,17 @@ function wireClientHintsOnSession(ses) {
         case 'sec-ch-ua-platform': h[k] = '"Windows"'; break;
       }
     }
+    // Global Privacy Control, the referrer setting and a site's own
+    // User-Agent (src/main/site-headers.js): this one listener, not a second.
+    _siteHeaders.applyHeaders(h, {
+      url: details.url, resourceType: details.resourceType, cfg: privacyCfg, rules: _siteRules,
+      tor: !!ses.__vexTor, pageUrl: () => _pageUrlOf(details.webContentsId), mobileUa: MOBILE_UA, hasUaRules: _hasUaRules,
+      restoreUa: _siteUaOverridden.size ? _siteUaOverridden.get(details.webContentsId) : undefined,
+    });
+    // That one navigation request has been put right; a site with its own
+    // keeps the entry (its pages' requests are set by its rule).
+    if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)
+      && !(_hasUaRules && SiteRules.userAgentFor(_siteRules, details.url, MOBILE_UA))) _siteUaOverridden.delete(details.webContentsId);
     callback({ requestHeaders: h });
   });
 }
@@ -2701,11 +2747,20 @@ const SiteRules = require('./main/site-rules');
 const _siteRulesFile = path.join(userDataPath, 'site-rules.json');
 let _siteRules = {};
 try { _siteRules = SiteRules.clean(JSON.parse(fs.readFileSync(_siteRulesFile, 'utf8'))); } catch { _siteRules = {}; }
+// Whether any site has its own User-Agent: the request path asks the page of
+// every request only when one does.
+let _hasUaRules = false;
+// webContents id -> the User-Agent its session has, for pages that are
+// carrying a site's own (see the did-start-navigation listener).
+const _siteUaOverridden = new Map();
+const _refreshUaRules = () => { _hasUaRules = Object.values(_siteRules).some(r => typeof r.ua === 'string'); };
+_refreshUaRules();
 ipcMain.handle('siterules:set', (_e, rules) => {
   const before = _siteRules;
   _siteRules = SiteRules.clean(rules);
   try { fs.writeFileSync(_siteRulesFile, JSON.stringify(_siteRules)); }
   catch (err) { return { ok: false, error: err.message }; }
+  _refreshUaRules();
   // Every window hears of the change at once. A private window keeps a copy
   // of these and used to re-read it every three seconds, so a site switched
   // off here still ran its JavaScript there for up to that long (found
@@ -2876,6 +2931,8 @@ const _adVerdict = require('./main/ad-verdict').createAdVerdict({
   repairAllows: (url, page) => repairAllows(url, page),
   adsAllowedOn: (page, ses) => _adsAllowedOn(page, ses),
   blocksThirdParty: (page, url) => Object.keys(_siteRules).length > 0 && SiteRules.blocksThirdParty(_siteRules, page, url),
+  // The 'images' switch; never in a Tor session (src/main/ad-verdict.js).
+  blocksImages: (page, ses) => !(ses && ses.__vexTor) && Object.keys(_siteRules).length > 0 && !!page && SiteRules.blocksImages(_siteRules, page),
   onBlockedPage: (id, url) => setTimeout(() => _adBlockedPage(id, url), 0),
 });
 // A page the ad blocker refused (a click on an ad or sponsored link) says so,
@@ -5595,6 +5652,32 @@ app.on('web-contents-created', (_event, contents) => {
     // A hold DevTools or a crashed page let go of is taken again.
     if (isMainFrame && !isInPlace) _syncTorLight(contents).catch(err => console.error('[Tor light] a Tor page could not be held light:', err));
   });
+  // A site with its own User-Agent (Settings is the site panel, src/main/
+  // site-rules.js): the page's navigator.userAgent follows the host it is
+  // navigating to, and goes back to the session's own on the next site. The
+  // request header is set in wireClientHintsOnSession; this is the page's JS.
+  // A page in a Tor session is never changed.
+  if (contents.getType() === 'webview') {
+    const baseUa = contents.getUserAgent();
+    const wcId = contents.id;
+    contents.once('destroyed', () => _siteUaOverridden.delete(wcId));
+    contents.on('did-start-navigation', (_e, url, isInPlace, isMainFrame) => {
+      if (!isMainFrame || isInPlace) return;
+      try {
+        if (contents.isDestroyed()) return;
+        const tor = !!(contents.session && contents.session.__vexTor);
+        const want = !tor && _hasUaRules && /^https?:/i.test(url) ? SiteRules.userAgentFor(_siteRules, url, MOBILE_UA) : null;
+        if (!want && !contents.__vexSiteUa) return;
+        const target = want ? want.ua : baseUa;
+        if (contents.getUserAgent() !== target) contents.setUserAgent(target);
+        contents.__vexSiteUa = !!want;
+        // The network layer fixed this navigation's User-Agent before this
+        // event, from the page it left: the request path puts the session's
+        // on that one request and then forgets it (wireClientHintsOnSession).
+        _siteUaOverridden.set(wcId, baseUa);
+      } catch (err) { console.error('[Site UA] could not set the User-Agent of a page:', err.message); }
+    });
+  }
   contents.on('did-fail-load', (_e, errorCode, _desc, _url, isMainFrame) => {
     const ses = contents.session;
     if (!isMainFrame || errorCode === -3 || !ses || !ses.__vexTorDown) return;
@@ -6545,6 +6628,16 @@ function createWindow() {
   const _showMainWindow = () => {
     try {
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+        // Started by Windows' startup entry with "Start minimised": the window
+        // is there, on the taskbar, but not in front of what the person is
+        // doing. Only the first window of this run; any later show is a person.
+        if (!_startMinimisedDone && _loginItem.wantsMinimised(process.argv)) {
+          _startMinimisedDone = true;
+          mainWindow.showInactive();
+          mainWindow.minimize();
+          return;
+        }
+        _startMinimisedDone = true;
         mainWindow.show();
         mainWindow.focus();
       }
@@ -8178,7 +8271,7 @@ ipcMain.handle('tor:create', async (event) => {
     ses.webRequest.onBeforeRequest((details, callback) => {
       // The blocker with its repairs; a site's switches made in a normal
       // window do not loosen it here (_adsAllowedOn).
-      const blocked = _adVerdict.judge(details, ses, { thirdParty: false }) === 'ad';
+      const blocked = _adVerdict.judge(details, ses, { thirdParty: false, images: false }) === 'ad';
       if (blocked) _recordTracker(details.url, details.webContentsId);
       callback(blocked ? { cancel: true } : _httpsAnswer(details));
     });
@@ -9005,7 +9098,7 @@ ipcMain.handle('widevine:retry', () => {
       }
     } catch (e) { console.warn('[Widevine] could not reset Local State:', e && e.message); }
     console.log('[Widevine] reset component state; relaunching for clean install');
-    app.relaunch();
+    app.relaunch({ args: _restartArgs() });
     app.exit(0);
     return { ok: true };
   } catch (e) {
@@ -9046,7 +9139,7 @@ require('./main/pcbb-link').registerPcbbLink({ ipcMain, env: process.env, log: (
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.
-  const args = process.argv.slice(1).filter(a => a !== '--safe-mode');
+  const args = _restartArgs().filter(a => a !== '--safe-mode');
   try {
     // Close the window the way its X does, which saves everything first, and
     // start again once it has closed. app.exit(0) straight away dropped what
@@ -9405,6 +9498,20 @@ ipcMain.handle('is-default-browser', () => {
   } catch { return false; }
 });
 
+// Settings > General > "Start Vex when I sign in to Windows" (src/main/login-item.js).
+// What it reports is what Windows holds; errors reach the person as they are.
+let _loginItemApi = null;
+function _loginItemFor() {
+  if (!_loginItemApi) {
+    _loginItemApi = _loginItem.createLoginItem({
+      app, packaged: app.isPackaged, stub: process.env.VEX_LOGIN_ITEM_STUB === '1', profileId: _profile.id,
+    });
+  }
+  return _loginItemApi;
+}
+ipcMain.handle('login-item:get', () => _loginItemFor().read());
+ipcMain.handle('login-item:set', (_e, openAtLogin, startMinimised) => _loginItemFor().write(openAtLogin, startMinimised));
+
 ipcMain.handle('adblocker-get-state', () => adBlockerEnabled);
 ipcMain.handle('adblocker-set-state', (event, enabled) => {
   adBlockerEnabled = enabled;
@@ -9414,13 +9521,21 @@ ipcMain.handle('adblocker-set-state', (event, enabled) => {
 });
 
 // === Privacy hardening IPC ===
+// Whether navigator.globalPrivacyControl is true on a page: as for the
+// Sec-GPC header (src/main/site-headers.js), not in a Tor page and not on a
+// site that is left out.
+function _gpcFor(ses, pageUrl) {
+  return privacyCfg.gpc !== false && !(ses && ses.__vexTor) && /^https?:/i.test(pageUrl)
+    && (!Object.keys(_siteRules).length || SiteRules.sendsGpc(_siteRules, pageUrl));
+}
 // Synchronous config read for the webview preload (must know the farble flag +
 // seed BEFORE any page script runs, so an async invoke would be too late).
 // The seed is for the page's own session and the site in its address bar
 // (a frame's top page), worked out here from the sender, never told by it.
 ipcMain.on('privacy:config-sync', (e) => {
   const partition = secureSessions.partitionOf(e.sender);
-  e.returnValue = { farble: _mainHelpers.farbleOn(privacyCfg.farble, partition, e.sender.session), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '') };
+  const pageUrl = e.sender.getURL() || (e.senderFrame && e.senderFrame.url) || '';
+  e.returnValue = { farble: _mainHelpers.farbleOn(privacyCfg.farble, partition, e.sender.session), seed: _mainHelpers.farbleSeed(FARBLE_KEY, partition, pageUrl), gpc: _gpcFor(e.sender.session, pageUrl) };
 });
 ipcMain.on('compatibility:get', e => {
   try {
@@ -9434,6 +9549,8 @@ ipcMain.on('compatibility:get', e => {
 });
 ipcMain.handle('privacy:get-config', () => privacyLoad());
 ipcMain.handle('privacy:set-config', async (_e, cfg) => {
+  if (cfg && 'gpc' in cfg && typeof cfg.gpc !== 'boolean') throw new Error('The Global Privacy Control setting must be on or off');
+  if (cfg && 'referrer' in cfg && !REFERRER_MODES.includes(cfg.referrer)) throw new Error('Unknown referrer setting: ' + String(cfg.referrer));
   privacyCfg = { ...privacyCfg, ...(cfg || {}) };
   await privacySave();
   applyDoH();

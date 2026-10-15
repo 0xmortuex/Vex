@@ -298,6 +298,10 @@ define('siterules:get', []);
 // A watched page read through a hidden tab (src/main/page-render.js): the
 // address and, for one part of it, a selector and the words it began with.
 define('pagewatch:render', [shape({ url: web, selector: optional(string(200)), anchor: optional(string(200)) })]);
+// Settings > Start Vex when I sign in to Windows (main/login-item.js): read
+// what Windows holds; set it on or off, minimised or not.
+define('login-item:get', []);
+define('login-item:set', [boolean, boolean]);
 define('siterules:set', [object]);
 // The saved decisions one tab's page is held to, by the page's id (main.js).
 define('permissions:list-for-page', [integer]);

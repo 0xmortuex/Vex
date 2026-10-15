@@ -61,6 +61,14 @@ const SiteProfiles = {
         if (rule.ads === 'off') s.adsAllowed = true;
         const off = SiteRulesUI.WHAT.filter(w => rule[w.id] === 'off').map(w => w.name);
         if (off.length) s.switchesOff = off;
+        // The switches that are not on/off rows: GPC left out, the referrer
+        // left alone, a User-Agent of its own (Settings > Privacy has the
+        // lists; the site panel has the controls).
+        const opts = [];
+        if (rule.gpc === 'off') opts.push('no Global Privacy Control');
+        if (rule.referrer === 'off') opts.push('sends the full referrer');
+        if (typeof rule.ua === 'string') opts.push(rule.ua === 'mobile' ? 'asked for as a mobile site' : 'its own User-Agent');
+        if (opts.length) s.siteOptions = opts;
       }
     }
     if (typeof SiteRoutes !== 'undefined') {
@@ -78,6 +86,7 @@ const SiteProfiles = {
     if (s.translate) bits.push('always translated');
     if (s.adsAllowed) bits.push('ads and trackers not blocked');
     if (s.switchesOff) bits.push(s.switchesOff.join(', ').toLowerCase() + ' off');
+    if (s.siteOptions) bits.push(s.siteOptions.join(', '));
     if (s.boost) bits.push('custom CSS/JS');
     if (s.route) bits.push('opens ' + s.route);
     return bits.join(' · ');
@@ -97,7 +106,7 @@ const SiteProfiles = {
             <div class="site-settings-what">${esc(this.describeSite(s))}</div>
           </div>
           <button type="button" class="btn-secondary-sm" data-act="go">Open</button>
-          <button type="button" class="btn-secondary-sm" data-act="reset" ${s.route && !s.zoom && !s.dark && !s.neverSleep && !s.translate && !s.adsAllowed && !s.switchesOff && !s.boost ? 'disabled title="Remove its rule under Private routing › Site rules"' : ''}>Reset</button>
+          <button type="button" class="btn-secondary-sm" data-act="reset" ${s.route && !s.zoom && !s.dark && !s.neverSleep && !s.translate && !s.adsAllowed && !s.switchesOff && !s.siteOptions && !s.boost ? 'disabled title="Remove its rule under Private routing › Site rules"' : ''}>Reset</button>
         </div>`).join('')}</div>`
         : '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">No site has anything set yet.</div>'}`;
     container.querySelectorAll('[data-host]').forEach(row => {

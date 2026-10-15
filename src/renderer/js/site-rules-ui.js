@@ -13,7 +13,31 @@ const SiteRulesUI = {
     { id: 'js', name: 'JavaScript', note: 'Off makes a page plain text and pictures. The tab reopens with it off.' },
     { id: 'cookies', name: 'Cookies', note: 'Off means none are sent to this site and none it sends back are kept, and any it already had are removed — it will not remember you.' },
     { id: 'thirdParty', name: 'Content from other sites', note: 'Off refuses anything this page loads from another host: adverts, trackers, embeds, some fonts.' },
+    { id: 'images', name: 'Pictures', note: 'Off loads none of this page’s pictures, which saves data. Not in a Tor tab. Reload to see the change.' },
   ],
+
+  // The site's own User-Agent: 'mobile', or a typed string; '' is the
+  // ordinary one Vex sends everywhere (a desktop Chrome on Windows).
+  userAgent(url) {
+    const rule = this.forUrl(url);
+    return rule && typeof rule.ua === 'string' ? rule.ua : '';
+  },
+  async setUserAgent(url, ua) {
+    if (this._isPrivate()) throw new Error('Change this in a normal window — it applies to every window');
+    const h = this.host(url);
+    if (!h) throw new Error('That is not a web page');
+    const value = String(ua || '').trim();
+    if (value && value !== 'mobile' && !(value.length >= 8 && value.length <= 512 && /^[ -~]+$/.test(value))) {
+      throw new Error('A User-Agent is 8 to 512 plain characters on one line');
+    }
+    const rules = this.rules();
+    const rule = { ...(rules[h] || {}) };
+    if (value) rule.ua = value; else delete rule.ua;
+    if (Object.keys(rule).length) rules[h] = rule; else delete rules[h];
+    this.save(rules);
+    await this.push();
+    return value;
+  },
 
   // A private window's storage starts empty, so it holds a copy of the rules
   // main keeps (loaded below) — without it every switch did nothing there,

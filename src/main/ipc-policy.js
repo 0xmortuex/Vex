@@ -31,7 +31,7 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // back the owner's desktop picture (main/wallpaper.js).
 // The sync-secrets-* channels read and write saved passwords and authenticator
 // accounts for Vex Sync (main/sync-secrets.js).
-const UI_ONLY_CHANNELS = new Set(['clipboard:write-secret', 'theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
+const UI_ONLY_CHANNELS = new Set(['login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // The agreement at start (js/legal.js): its documents, its "Quit Vex", and
   // whether it is up (main holds its keys back meanwhile).

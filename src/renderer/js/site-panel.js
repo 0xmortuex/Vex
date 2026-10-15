@@ -35,6 +35,7 @@ const SitePanel = {
   _showAllPerms: false,
   _certOpen: false,
   _proxyOpen: false,
+  _uaCustomOpen: false,
 
   // The permissions a site most often asks for are always listed; the rest
   // only once the site has an answer, or with "Show all".
@@ -147,6 +148,7 @@ const SitePanel = {
     this._after = null;
     this._certOpen = false;
     this._proxyOpen = false;
+    this._uaCustomOpen = false;
     this._showAllPerms = false;
     const btn = document.getElementById('url-site-btn');
     this._returnFocus = btn || document.activeElement;
@@ -337,6 +339,7 @@ const SitePanel = {
       body += this._behaviourHtml(c);
       body += this._blockingHtml(c);
       body += this._switchesHtml(c);
+      body += this._identityHtml(c);
       body += this._opensHtml(c);
       body += this._dataHtml(c);
     }
@@ -523,6 +526,45 @@ const SitePanel = {
       + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>` + broken);
   },
 
+  // How this site is asked for, and what Vex tells it: its own User-Agent
+  // (desktop is what Vex sends everywhere, so "desktop" is the absence of a
+  // choice), Global Privacy Control, and the referrer. The rules live with the
+  // other site switches (main/site-rules.js); the headers are applied in
+  // main's one request-header listener (main/site-headers.js).
+  _identityHtml(c) {
+    if (typeof SiteRulesUI === 'undefined') return '';
+    const off = !c.canSave;
+    const tor = !!(c.tor || c.torRoute);
+    const ua = SiteRulesUI.userAgent(c.url);
+    const kind = !ua ? '' : ua === 'mobile' ? 'mobile' : 'custom';
+    const cfg = (typeof PrivacyPack !== 'undefined' && PrivacyPack.cfg) || {};
+    const opt = (v, label) => `<option value="${v}" ${kind === v || (v === 'custom' && this._uaCustomOpen && !kind) ? 'selected' : ''}>${this._esc(label)}</option>`;
+    let html = `<div class="sp-row">
+      <label class="sp-row-text" for="sp-ua"><span class="sp-row-label">Ask for this site as</span><span class="sp-row-note">${tor ? 'A Tor tab says what every Tor tab says, so this is not used there.' : kind === 'mobile' ? 'A phone’s page, from the next load.' : kind === 'custom' ? 'With the User-Agent you typed, from the next load.' : 'A desktop Chrome on Windows, as Vex asks everywhere.'}</span></label>
+      <select class="sp-select" id="sp-ua" data-act="ua" ${off || tor ? 'disabled' : ''}>
+        ${opt('', 'Desktop site (the usual)')}
+        ${opt('mobile', 'Mobile site')}
+        ${opt('custom', 'Custom User-Agent…')}
+      </select>
+    </div>`;
+    if (!tor && !off && (kind === 'custom' || this._uaCustomOpen)) {
+      html += `<div class="sp-row sp-proxy">
+        <input class="sp-input" id="sp-ua-custom" placeholder="Mozilla/5.0 (…)" aria-label="User-Agent for this site" value="${this._esc(kind === 'custom' ? ua : '')}">
+        <button type="button" class="sp-btn sp-btn-text" data-act="ua-save">Save</button>
+      </div>`;
+    }
+    html += this._switch('rule-gpc', 'Send Global Privacy Control', {
+      checked: !tor && cfg.gpc !== false && !SiteRulesUI.isOff(c.url, 'gpc'),
+      disabled: off || tor || cfg.gpc === false,
+      note: tor ? 'Never in a Tor tab.' : cfg.gpc === false ? 'Switched off for every site in Settings › Privacy.' : 'Tells this site you do not want your data sold or shared.' });
+    html += this._switch('needs-referrer', 'This site needs the referrer', {
+      checked: SiteRulesUI.isOff(c.url, 'referrer'),
+      disabled: off || tor,
+      note: tor ? 'Never changed in a Tor tab.' : (cfg.referrer || 'default') === 'default' ? 'Settings › Privacy trims no referrer at the moment, so this changes nothing yet.' : 'On: the address you came from is sent whole to and from this site, not trimmed.' });
+    return this._section('identity', 'How it sees you', html
+      + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>`);
+  },
+
   _containerNames() {
     const names = new Set(this.CONTAINERS);
     if (typeof SiteRoutes !== 'undefined') for (const r of SiteRoutes.rules()) if (r.mode === 'container' && r.container) names.add(r.container);
@@ -700,6 +742,34 @@ const SitePanel = {
         await SiteRulesUI.set(c.url, 'ads', !el.checked);
         this._after = this._after || 'reload';
         window.showToast?.(el.checked ? 'Blocking ads and trackers on ' + c.host + ' again' : 'Ads and trackers are no longer blocked on ' + c.host);
+        this._paint();
+        return;
+      case 'ua': {
+        this._mustSave(c);
+        if (el.value === 'custom') { this._uaCustomOpen = true; this._paint(); this._el.querySelector('#sp-ua-custom')?.focus(); return; }
+        this._uaCustomOpen = false;
+        await SiteRulesUI.setUserAgent(c.url, el.value);
+        this._after = this._after || 'reload';
+        window.showToast?.(el.value === 'mobile' ? c.host + ' will be asked for as a mobile site' : c.host + ' will be asked for as a desktop site');
+        this._paint();
+        return;
+      }
+      case 'ua-save': {
+        this._mustSave(c);
+        const typed = this._el.querySelector('#sp-ua-custom').value;
+        if (!String(typed).trim()) throw new Error('Type a User-Agent, or choose Desktop site');
+        await SiteRulesUI.setUserAgent(c.url, typed);
+        this._uaCustomOpen = false;
+        this._after = this._after || 'reload';
+        window.showToast?.(c.host + ' will be asked for with your User-Agent');
+        this._paint();
+        return;
+      }
+      case 'needs-referrer':
+        this._mustSave(c);
+        await SiteRulesUI.set(c.url, 'referrer', el.checked);
+        this._after = this._after || 'reload';
+        window.showToast?.(el.checked ? c.host + ' gets the full referrer' : c.host + ' is trimmed like every other site again');
         this._paint();
         return;
       case 'route': return this._setRoute(el.value);

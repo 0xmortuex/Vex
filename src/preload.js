@@ -570,6 +570,9 @@ contextBridge.exposeInMainWorld('vex', {
   },
   setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
+  // Start with Windows: what Windows holds, and changing it (main/login-item.js)
+  loginItemGet: () => ipcRenderer.invoke('login-item:get'),
+  loginItemSet: (openAtLogin, startMinimised) => ipcRenderer.invoke('login-item:set', openAtLogin, startMinimised),
 
   // Platform + versions
   platform: process.platform,

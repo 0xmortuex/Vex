@@ -8,7 +8,7 @@
 // the "Privacy Report" overlay (Ctrl+K → Privacy Report).
 
 const PrivacyPack = {
-  cfg: { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false },
+  cfg: { farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false, gpc: true, referrer: 'default' },
 
   async init() {
     try { const c = await window.vex?.privacyGetConfig?.(); if (c) this.cfg = { ...this.cfg, ...c }; } catch {}
@@ -50,6 +50,32 @@ const PrivacyPack = {
       </div>
       <p class="setting-info muted" style="margin:4px 0 12px;font-size:11px">Upgrades page loads from http to https. If a site genuinely has no https, Vex falls back to http for that site automatically (with a warning) so nothing breaks.</p>
 
+      <div class="setting-toggle-row">
+        <span>Global Privacy Control <span class="muted" style="font-size:11px">— tell every site you do not want your data sold or shared</span></span>
+        <label class="toggle"><input type="checkbox" id="priv-gpc" aria-label="Global Privacy Control" ${c.gpc !== false ? 'checked' : ''}><span class="toggle-slider"></span></label>
+      </div>
+      <p class="setting-info muted" style="margin:4px 0 6px;font-size:11px">Sends one extra request header, Sec-GPC: 1, and sets navigator.globalPrivacyControl, which some laws (California, Colorado and others) make sites honour. Never in a Tor tab. Sites you list here are not sent it:</p>
+      <div id="priv-gpc-sites" class="priv-sites"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px">
+        <input id="priv-gpc-add-host" class="set-input" style="flex:1" placeholder="example.com" aria-label="A site to leave out of Global Privacy Control">
+        <button id="priv-gpc-add" class="btn-secondary" type="button">Leave it out</button>
+      </div>
+
+      <div class="setting-row-label">Referrer trimming <span class="muted" style="font-size:11px">— what the address you came from says when a link or a page loads another site</span></div>
+      <div style="margin-top:6px">
+        <select id="priv-referrer" aria-label="Referrer trimming">
+          <option value="default" ${c.referrer === 'default' || !c.referrer ? 'selected' : ''}>Browser default</option>
+          <option value="origin" ${c.referrer === 'origin' ? 'selected' : ''}>Trim to the site's name when it goes to another site</option>
+          <option value="strict" ${c.referrer === 'strict' ? 'selected' : ''}>Strict: send nothing to another site, only the name within a site</option>
+        </select>
+      </div>
+      <p class="setting-info muted" style="margin:6px 0 6px;font-size:11px">Off by default: some sign-in, payment and download-link flows check where you came from and stop working. It changes what is sent, not what a page reads in document.referrer, and not in Tor tabs. When a site breaks, use "This site needs the referrer" in its site panel, or list it here:</p>
+      <div id="priv-referrer-sites" class="priv-sites"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px">
+        <input id="priv-referrer-add-host" class="set-input" style="flex:1" placeholder="example.com" aria-label="A site that needs the referrer">
+        <button id="priv-referrer-add" class="btn-secondary" type="button">Needs the referrer</button>
+      </div>
+
       <div class="setting-row-label">DNS-over-HTTPS (encrypt your DNS lookups)</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
         <select id="priv-doh" aria-label="DNS-over-HTTPS">
@@ -73,6 +99,15 @@ const PrivacyPack = {
     container.querySelector('#priv-https-only').addEventListener('change', (e) => {
       this._change({ httpsOnly: e.target.checked }, e.target.checked ? 'HTTPS-Only mode on' : 'HTTPS-Only mode off', e.target, !e.target.checked);
     });
+    container.querySelector('#priv-gpc').addEventListener('change', (e) => {
+      this._change({ gpc: e.target.checked }, e.target.checked ? 'Global Privacy Control on' : 'Global Privacy Control off', e.target, !e.target.checked);
+    });
+    const refSel = container.querySelector('#priv-referrer');
+    refSel.addEventListener('change', (e) => {
+      const said = { default: 'Referrer: the browser default', origin: 'Referrer trimmed to the site name for other sites', strict: 'Referrer: strict' };
+      this._change({ referrer: e.target.value }, said[e.target.value], e.target, this.cfg.referrer || 'default');
+    });
+    this._siteLists(container);
     const dohSel = container.querySelector('#priv-doh');
     const provSel = container.querySelector('#priv-doh-provider');
     dohSel.addEventListener('change', async (e) => {
@@ -82,6 +117,48 @@ const PrivacyPack = {
     });
     provSel.addEventListener('change', (e) => { this._change({ dohProvider: e.target.value }, 'DoH provider: ' + e.target.value, e.target, this.cfg.dohProvider); });
     container.querySelector('#priv-report').addEventListener('click', () => this.showReport());
+  },
+
+  // The two lists of sites beside the header settings are the site switches
+  // 'gpc' and 'referrer' (main/site-rules.js) — the same store as the site
+  // panel's, so there is one list, seen from two places.
+  _siteHosts(what) {
+    if (typeof SiteRulesUI === 'undefined') return [];
+    return Object.entries(SiteRulesUI.rules()).filter(([, r]) => r && r[what] === 'off').map(([h]) => h).sort();
+  },
+  _siteLists(container) {
+    const esc = (s) => window.escapeHtml(s);
+    const lists = [
+      { what: 'gpc', box: '#priv-gpc-sites', input: '#priv-gpc-add-host', add: '#priv-gpc-add', none: 'No site is left out.', said: 'Not sending Global Privacy Control to ' },
+      { what: 'referrer', box: '#priv-referrer-sites', input: '#priv-referrer-add-host', add: '#priv-referrer-add', none: 'No site is listed.', said: 'Referrer left alone for ' },
+    ];
+    const guard = (fn) => async () => {
+      try { await fn(); } catch (err) { window.showToast?.('Not changed: ' + (err && err.message ? err.message : 'Vex did not accept it'), 'error'); }
+    };
+    for (const l of lists) {
+      const box = container.querySelector(l.box);
+      const draw = () => {
+        const hosts = this._siteHosts(l.what);
+        box.innerHTML = hosts.length
+          ? hosts.map(h => `<div class="setting-toggle-row" style="margin:2px 0"><span>${esc(h)}</span><button type="button" class="btn-secondary" data-host="${esc(h)}" aria-label="Remove ${esc(h)} from the list">Remove</button></div>`).join('')
+          : `<div class="muted" style="font-size:11px">${l.none}</div>`;
+      };
+      draw();
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-host]');
+        if (!b) return;
+        guard(async () => { await SiteRulesUI.set('https://' + b.dataset.host + '/', l.what, false); draw(); })();
+      });
+      container.querySelector(l.add).addEventListener('click', guard(async () => {
+        const input = container.querySelector(l.input);
+        const host = String(input.value || '').trim().replace(/^https?:\/\//i, '').replace(/[/:?#].*$/, '').replace(/^www\./, '').toLowerCase();
+        if (!host || !/^[a-z0-9.-]+\.[a-z0-9-]+$/.test(host)) throw new Error('Type a web address such as example.com');
+        await SiteRulesUI.set('https://' + host + '/', l.what, true);
+        input.value = '';
+        draw();
+        window.showToast?.(l.said + host);
+      }));
+    }
   },
 
   async showReport() {
