@@ -525,6 +525,12 @@ const ReadingMode = {
     return blocks;
   },
 
+  // Where Reader-first writes its 3-line summary once the local model has it.
+  _summarySlot() {
+    return '<aside id="vr-summary" class="vr-summary" aria-live="polite"><div class="vr-sum-body"><p>Summarising on this computer...</p></div>'
+      + '<p class="vr-sum-note"></p><button id="vr-rf-off" type="button">Do not open this site in the reader</button></aside>';
+  },
+
   _icon(name) { return (typeof VexIcons !== 'undefined' && VexIcons.svg) ? VexIcons.svg(name, { size: 16 }) : ''; },
 
   _css(colors) {
@@ -574,6 +580,10 @@ li>p:last-child{margin-bottom:0}
 dt{font-weight:600;margin-top:.7em}
 dd{margin:0 0 .5em 1.2em}
 hr{border:0;border-top:1px solid var(--vr-border);margin:2em 0}
+.vr-summary{border:1px solid var(--vr-border);border-radius:10px;padding:10px 14px;margin:0 0 2em;font:15px/1.5 'Segoe UI',system-ui,sans-serif}
+.vr-summary p{margin:.2em 0}
+.vr-summary .vr-sum-note{color:var(--vr-muted);font-size:12px;margin:.4em 0 0}
+.vr-summary button{font:inherit;font-size:12px;color:var(--vr-muted);background:transparent;border:1px solid var(--vr-border);border-radius:6px;padding:2px 8px;margin-top:6px;cursor:pointer}
 .vr-meta{color:var(--vr-muted);font:14px/1.5 'Segoe UI',system-ui,sans-serif;margin:0 0 2.2em}
 ::highlight(vex-tts){background-color:var(--vr-hl);color:var(--vr-text)}
 @media (max-width:640px){main{padding:24px 16px 96px}.vr-bar{justify-content:flex-start}}
@@ -611,6 +621,8 @@ document.getElementById('vr-smaller').addEventListener('click',function(){change
 document.getElementById('vr-bigger').addEventListener('click',function(){change('size',Math.min(32,prefs.size+1));});
 document.getElementById('vr-exit').addEventListener('click',function(){send({type:'exit-reading'});});
 document.getElementById('vr-listen').addEventListener('click',function(){send({type:'reader-listen'});});
+var rfOff=document.getElementById('vr-rf-off');
+if(rfOff)rfOff.addEventListener('click',function(){send({type:'reader-first-off'});rfOff.disabled=true;});
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!e.shiftKey&&!e.isComposing&&!e.defaultPrevented){e.preventDefault();send({type:'exit-reading'});}
 });
@@ -653,7 +665,7 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       + `<meta name="viewport" content="width=device-width, initial-scale=1">`
       + `<title>${this._esc(title)}</title><style>${this._css(colors || this._vexColors())}</style></head><body>`
       + bar
-      + `<main id="vr-main" tabindex="-1"><article><h1>${this._esc(title)}</h1><p class="vr-meta">${meta.join(' &middot; ')}</p>${body}</article></main>`
+      + `<main id="vr-main" tabindex="-1"><article><h1>${this._esc(title)}</h1><p class="vr-meta">${meta.join(' &middot; ')}</p>${article && article.summarySlot ? this._summarySlot() : ''}${body}</article></main>`
       + `<script>${this._script(p)}</script></body></html>`;
   },
 
@@ -681,9 +693,13 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     return !!this.sourceOf(u);
   },
 
-  async activate() {
+  // opts.auto: opened by Reader-first, so a page with nothing to read is left
+  // alone without a toast. opts.summary: leave a slot for a 3-line summary.
+  // Returns the extracted article (or null) so a caller can summarise it.
+  async activate(opts = {}) {
+    const auto = !!(opts && opts.auto);
     const wv = WebviewManager.getActiveWebview();
-    if (!wv) { window.showToast?.('No active tab'); return; }
+    if (!wv) { if (!auto) window.showToast?.('No active tab'); return null; }
 
     const tabId = TabManager.activeTabId;
     const currentUrl = wv.getURL();
@@ -694,7 +710,7 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     // Back has nothing remembered, so its own source line is used.
     if ((this._originalUrls.has(tabId) && /^data:text\/html/i.test(currentUrl)) || this.sourceOf(currentUrl)) {
       this.exitReadingMode(tabId);
-      return;
+      return null;
     }
 
     let article;
@@ -704,14 +720,15 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       // build below.
       article = await wv.executeJavaScript(this._extractScript());
     } catch (err) {
-      window.showToast?.('Reading mode could not read this page: ' + (err?.message || 'extraction failed'), 'error');
-      return;
+      if (!auto) window.showToast?.('Reading mode could not read this page: ' + (err?.message || 'extraction failed'), 'error');
+      return null;
     }
+    if (opts && opts.summary && article) article.summarySlot = true;
 
     let html = this.buildHtml(article || {}, currentUrl, this.prefs());
     if (!html) {
-      window.showToast?.('Reading mode found no article text on this page');
-      return;
+      if (!auto) window.showToast?.('Reading mode found no article text on this page');
+      return null;
     }
     // Chromium refuses an address over 2 MB. Pictures carried inline as data:
     // go first; then the article is cut, and the reader says so.
@@ -739,6 +756,7 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     try { if (typeof wv.focus === 'function') wv.focus(); }
     catch (err) { console.warn('[ReadingMode] could not move the focus to the article:', err && err.message); }
     window.showToast?.('Reader view — Esc to leave');
+    return article || null;
   },
 
   // Commands from a reader page (webview.js passes them on, and only from a
@@ -750,6 +768,9 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       try { this.savePrefs(cmd.prefs); }
       catch (err) { window.showToast?.('Reader settings could not be saved: ' + (err && err.message), 'error'); return false; }
       return true;
+    }
+    if (cmd.type === 'reader-first-off') {
+      return typeof ReaderFirst !== 'undefined' ? ReaderFirst.disableForTab(tabId) : false;
     }
     if (cmd.type === 'reader-listen') {
       const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews) ? WebviewManager.webviews.get(tabId) : null;

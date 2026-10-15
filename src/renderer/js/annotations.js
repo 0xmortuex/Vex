@@ -258,7 +258,10 @@ const Annotations = {
     // slash dropped) and the panel should reopen exactly what was highlighted.
     this.store[k].push({ id, text, quote, color, note: '', at: Date.now(), title: t.title || url, url });
     this.save();
-    window.showToast?.('Highlighted (' + this.forUrl(url).length + ' on this page)');
+    // Also written into the "Highlights" note with the page's address
+    // (js/web-taming.js; off with the "Highlights to Notes" command).
+    const inNotes = typeof HighlightNotes !== 'undefined' && HighlightNotes.add({ text, url, title: t.title || url });
+    window.showToast?.('Highlighted (' + this.forUrl(url).length + ' on this page)' + (inNotes ? ' and saved to Notes' : ''));
   },
 
   // Which stored bucket actually holds this highlight — the current key, or the

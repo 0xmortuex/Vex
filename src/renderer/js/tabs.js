@@ -3314,14 +3314,19 @@ const TabManager = {
   // active tab is preferred as the copy that stays. URLs are normalized (origin
   // + path + query, trailing slash dropped) so "site.com" and "site.com/" dedupe.
   closeDuplicateTabs() {
-    const norm = (u) => { try { const x = new URL(u); return (x.origin + x.pathname + x.search).replace(/\/$/, ''); } catch { return u; } };
+    // The container is part of "the same page": a Work-container Gmail and a
+    // personal one are two different tabs (as in js/duplicate-tabs.js).
+    const norm = (u, t) => {
+      const jar = (!t || !t.partition || t.partition === 'persist:main') ? '' : '|' + t.partition;
+      try { const x = new URL(u); return (x.origin + x.pathname + x.search).replace(/\/$/, '') + jar; } catch { return u + jar; }
+    };
     const seen = new Map(); // normalized url -> tab id to keep
     const active = this.tabs.find(t => t.id === this.activeTabId);
-    if (active && /^https?:/i.test(active.url || '')) seen.set(norm(active.url), active.id);
+    if (active && /^https?:/i.test(active.url || '')) seen.set(norm(active.url, active), active.id);
     const toClose = [];
     for (const t of this.tabs) {
       if (!t.url || !/^https?:/i.test(t.url) || t.pinned) continue;
-      const k = norm(t.url);
+      const k = norm(t.url, t);
       if (seen.has(k)) { if (t.id !== seen.get(k)) toClose.push(t.id); }
       else seen.set(k, t.id);
     }
