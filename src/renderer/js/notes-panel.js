@@ -781,7 +781,19 @@ const NotesPanel = {
   _renderPreview() {
     const pv = this._el('notes-preview');
     const note = this.getActive();
-    if (pv) pv.innerHTML = this.renderMarkdown(note ? this.normalize(note).content : '');
+    if (pv) {
+      pv.innerHTML = this.renderMarkdown(note ? this.normalize(note).content : '');
+      // A screenshot saved to this note (js/web-taming.js) is kept apart from
+      // the text; it is shown on top, and only ever as an image.
+      const shot = (note && typeof ShotToNote !== 'undefined') ? ShotToNote.imageFor(this.normalize(note).id) : '';
+      if (/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(shot)) {
+        const img = document.createElement('img');
+        img.src = shot;
+        img.alt = 'Saved screenshot';
+        img.style.cssText = 'max-width:100%;border-radius:8px;margin-bottom:10px';
+        pv.insertBefore(img, pv.firstChild);
+      }
+    }
   },
 
   format(kind) {

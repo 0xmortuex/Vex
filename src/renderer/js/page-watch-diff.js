@@ -30,6 +30,7 @@ const PageWatchDiff = {
   PRESETS: {
     price: { label: 'A price', pattern: '([$£€₺¥]\\s?\\d[\\d.,]*|\\d[\\d.,]*\\s?(?:USD|EUR|GBP|TRY|TL|\\$|€|£|₺))' },
     version: { label: 'A version number', pattern: '\\bv?(\\d+(?:\\.\\d+){1,3}(?:[-+][0-9A-Za-z.]+)?)\\b' },
+    stock: { label: 'Stock status', pattern: '\\b(back in stock|in stock|out of stock|sold out|currently unavailable|unavailable|pre-?order|only \\d+ left|low stock|add to (?:cart|basket|bag))\\b' },
     number: { label: 'The first number', pattern: '(-?\\d[\\d.,]*)' },
   },
 

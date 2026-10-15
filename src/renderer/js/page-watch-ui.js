@@ -109,7 +109,7 @@ const PageWatchUI = {
   },
 
   // The dialog. Resolves with the watch that was made, or null.
-  open({ url, title, partition = null, picked = null }) {
+  open({ url, title, partition = null, picked = null, preset = null }) {
     if (typeof PageWatch === 'undefined') { window.showToast?.('Not available in this build', 'error'); return Promise.resolve(null); }
     // Said before the form, not after filling it in: a tab that is private,
     // routed or in a container is not watched.
@@ -150,7 +150,7 @@ const PageWatchUI = {
         <div class="pw-nest" data-when-what="number">
           <label class="pw-lbl" for="pw-extract">Look for</label>
           <select id="pw-extract">
-            <option value="price">A price</option><option value="number">The first number</option>
+            <option value="price">A price</option><option value="stock">Stock status (in stock, sold out...)</option><option value="number">The first number</option>
             <option value="version">A version number</option><option value="custom">My own pattern…</option>
           </select>
           <input id="pw-pattern" type="text" placeholder="build #(\\d+)" autocomplete="off" spellcheck="false" aria-label="Your own pattern (a regular expression; the part in brackets is kept)" hidden>
@@ -186,6 +186,16 @@ const PageWatchUI = {
       q('#pw-target').hidden = what !== 'number' || !/^(below|above)$/.test(q('#pw-when').value);
     };
     form.addEventListener('change', sync);
+    // The light price / stock presets (js/web-taming.js): a number or a status
+    // word, checked every 6 hours, no hidden tab, no wake-up, no AI sentence.
+    if (preset === 'price' || preset === 'stock') {
+      form.querySelector('input[name="pw-what"][value="number"]').checked = true;
+      q('#pw-extract').value = preset;
+      q('#pw-when').value = 'any';
+      q('#pw-every').value = String(6 * 3600000);
+      q('#pw-ai').checked = false;
+      q('#pw-add-title').textContent = preset === 'price' ? 'Track this price' : 'Track this item’s stock';
+    }
     sync();
 
     return new Promise((resolve) => {
@@ -247,6 +257,7 @@ const PageWatchUI = {
       pattern = val('#pw-pattern').value.trim();
       D.compile(pattern);
     } else if (extract !== 'number') pattern = D.PRESETS[extract].pattern;
+    if (extract === 'stock' && when !== 'any') throw new Error('A stock status is watched for "It changes" — it has no up or down');
     if (when === 'any') return { ...spec, kind: 'regex', pattern: pattern || D.PRESETS.number.pattern };
     if (extract === 'version') throw new Error('A version number is watched for "It changes" — it has no up or down');
     const out = { ...spec, kind: 'number', pattern, direction: when };

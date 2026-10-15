@@ -84,6 +84,7 @@ const ScreenshotTool = {
           <button class="ss-save">Save</button>
           <button class="ss-copy">Copy</button>
           <button class="ss-ocr" title="Read the words in the picture and copy them">Copy text</button>
+          <button class="ss-note" title="Save the picture, its page and the text in it as a note">Save to note</button>
           <button class="ss-close">Close</button>
         </div>
       </div>
@@ -123,6 +124,12 @@ const ScreenshotTool = {
     overlay.querySelector('.ss-ocr')?.addEventListener('click', () => {
       this.hidePreview();
       DocExtract.ocrImage(dataUrl).catch(err => window.showToast?.('Could not read the text: ' + ((err && err.message) || ''), 'error'));
+    });
+
+    overlay.querySelector('.ss-note')?.addEventListener('click', () => {
+      this.hidePreview();
+      if (typeof ShotToNote === 'undefined') { window.showToast?.('Not available in this build', 'error'); return; }
+      ShotToNote.save(dataUrl);
     });
 
     overlay.querySelector('.ss-close')?.addEventListener('click', () => this.hidePreview());

@@ -793,6 +793,7 @@ const PageWatch = {
           ${w.local ? `<div class="pw-local-note" style="font-size:11px;color:var(--text-muted)">${esc(this.localNote(w))}</div>` : ''}
         </div>
         ${hist > 1 && typeof PageWatchUI !== 'undefined' ? `<button data-diff style="${btn}">What changed</button>` : ''}
+        ${(w.kind === 'number' || w.kind === 'regex') && hist > 0 && typeof PriceStock !== 'undefined' ? `<button data-chart style="${btn}">History</button>` : ''}
         <button data-open style="${btn}">Open</button>
         <button data-pause style="${btn}">${w.paused ? 'Resume' : 'Pause'}</button>
         <button data-x title="Stop watching" aria-label="Stop watching ${esc(w.title)}" style="width:26px;height:26px;border:none;background:none;color:var(--text-muted);cursor:pointer;line-height:0">${window.VexIcons ? VexIcons.svg('x', { size: 14 }) : 'Stop'}</button>
@@ -825,6 +826,7 @@ const PageWatch = {
     m.querySelectorAll('[data-id]').forEach(row => {
       const w = list.find(x => x.id === row.dataset.id);
       row.querySelector('[data-open]').addEventListener('click', () => { this.markSeen(w.id); TabManager.createTab(w.url, true); close(); });
+      row.querySelector('[data-chart]')?.addEventListener('click', () => PriceStock.show(w.id));
       row.querySelector('[data-diff]')?.addEventListener('click', () => PageWatchUI.showDiff(w.id));
       row.querySelector('[data-pause]').addEventListener('click', () => {
         try { this.setPaused(w.id, !w.paused); } catch (err) { window.showToast?.((err && err.message) || 'Could not change it', 'error'); return; }
