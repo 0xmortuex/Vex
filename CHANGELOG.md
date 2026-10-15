@@ -1,5 +1,10 @@
 # Changelog
 
+## v22.24.6 (2026-10-16) — Ctrl+K works while Vex is kept still
+
+### Fixed
+- **Ctrl+K no longer blurs the screen and shows nothing.** With Game mode / "Keep Vex still" active, Vex paused every animation, which froze the command bar's fade-in on its first, invisible frame under the blurred backdrop. Animations now finish instantly while Vex is kept still, so the bar (and every other dialog that fades in) is fully visible.
+
 ## v22.22.1 (2026-10-15) — AI News in English by default and dated, and Discord screen sharing works again
 
 ### New
