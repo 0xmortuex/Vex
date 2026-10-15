@@ -146,6 +146,20 @@ const ExtensionsSettings = (() => {
       <ul class="ext-powers">${list.map(c => `<li>${_esc(c)}</li>`).join('')}</ul></details>`;
   }
 
+  // Its request rules (declarativeNetRequest): how many are on, and a visible
+  // warning when they are slow to check or a ruleset was refused.
+  function _dnrHtml(e) {
+    const d = e && e.dnr;
+    if (!d) return '';
+    const on = d.rulesets.filter(r => r.enabled).reduce((n, r) => n + r.rules, 0) + d.dynamicRules + d.sessionRules;
+    if (!on && !d.warnings.length) return '';
+    const says = `Request rules: ${on} active${d.requests ? `, checked ${d.requests} requests at about ${d.avgMs.toFixed(3)} ms each` : ''}.`;
+    const warn = d.warnings.length
+      ? `<ul class="ext-powers">${d.warnings.map(w => `<li>${_esc(w)}</li>`).join('')}</ul>`
+      : '';
+    return `<div class="${d.slow ? 'ext-error' : 'ext-note'}">${_esc(says)}${warn}</div>`;
+  }
+
   // Where it came from, and so whether Vex can update it.
   function _sourceHtml(e) {
     const s = e.source;
@@ -408,6 +422,7 @@ const ExtensionsSettings = (() => {
                   ${_fileAccessHtml(e)}
                   ${_commandsHtml(e, commands)}
                   ${e.blocker && e.generic ? `<div class="ext-note">Vex blocks ad and tracker requests itself (Settings › Privacy). Electron gives extensions no request blocking, so here this one can only hide page elements${e.persistentBackground ? ' — and its background page stays loaded for that, about 85 MB' : ''}.</div>` : ''}
+                  ${_dnrHtml(e)}
                   ${_cautionsHtml(e)}
                   ${e.error ? `<div class="ext-error">${_esc(e.error)}</div>` : ''}
                 </div>

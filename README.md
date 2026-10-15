@@ -178,6 +178,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
 - **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).
 - **Keyboard shortcuts you control** — rebind any of them, and give a key to anything that has none: every one of the 250+ `Ctrl+K` commands can have one (Shortcuts panel, or Settings). **Customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from the Chrome Web Store, a folder or a ZIP; Vencord for Discord).
+- **Extension request rules (declarativeNetRequest)** — an extension's block, allow, upgrade, redirect and header-change rules (static rulesets, dynamic and session rules) are applied by Vex itself, with Chrome's rule limits. They run after Vex's own ad blocker, site switches and HTTPS repairs, which always win, and never apply in Private, off-the-record or Tor tabs (no extension runs there). Regular-expression rules are refused when they could take far too long. An extension whose rules are slow gets a warning on its card in Settings › Extensions. Not supported: response-header conditions, and blocking webRequest.
 
 ### ☁️ Sync
 - **Vex Sync** — end‑to‑end encrypted (AES‑GCM‑256) sync of tabs, bookmarks, history and settings across devices, via your own self‑hosted Cloudflare Worker. A hex recovery code is your key.

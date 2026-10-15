@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Extensions' request rules now work (declarativeNetRequest).** Static rulesets from the manifest, dynamic rules (kept across restarts) and session rules block, allow, upgrade to https, redirect and change request and response headers, using Chrome's own limits and the same address, domain, resource-type and method conditions. They are checked in microseconds through an index, run after Vex's ad blocker, site switches and HTTPS repairs (those win), and never reach Private, off-the-record or Tor tabs. A slow ruleset is flagged on the extension's card. Regular-expression rules that could take far too long are refused. Not covered: response-header conditions; blocking webRequest still does nothing.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

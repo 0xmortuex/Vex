@@ -308,7 +308,7 @@ function cautions(manifest) {
   const has = (...names) => names.some(n => perms.has(n));
   const out = [];
   if (has('declarativeNetRequest', 'declarativeNetRequestWithHostAccess', 'declarativeNetRequestFeedback')) {
-    out.push('Its blocking rules (declarativeNetRequest) are accepted but block nothing here: Electron gives extensions no request blocking. Vex\'s own blocker does that.');
+    out.push('Its request rules (declarativeNetRequest) are applied by Vex, after its own ad blocker and site switches (those win). Rules that need a regular expression are checked for safety, and rule counts are capped as in Chrome. They do not apply in private, off-the-record or Tor tabs, where no extension runs.');
   }
   if (has('webRequestBlocking')) out.push('It cannot block or redirect requests here (blocking webRequest). Vex\'s own blocker does that.');
   else if (has('webRequest')) out.push('It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.');

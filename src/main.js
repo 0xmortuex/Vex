@@ -2139,7 +2139,8 @@ function wireAdblockerOnSession(ses, tag) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
-      callback(_httpsAnswer(details));
+      // Then the rules of the extensions in this session (declarativeNetRequest).
+      callback(_dnrRequest(ses, details) || _httpsAnswer(details));
     }
   });
 }
@@ -2175,6 +2176,8 @@ function wireClientHintsOnSession(ses) {
   ses.__vexCHWired = true;
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
     const h = details.requestHeaders || {};
+    // An extension's header rules first, so the switches below still win.
+    _dnrRequestHeaders(ses, details, h);
     // A site whose cookies are switched off is sent none.
     if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
       for (const k of Object.keys(h)) if (k.toLowerCase() === 'cookie') delete h[k];
@@ -3259,9 +3262,15 @@ ipcMain.handle('extensions:list', () => {
       scope: scopes[e.folder] === 'everywhere' ? 'everywhere' : 'auto',
       generic: where.generic,
       where: where.partitions,
-      // Asks for request blocking, which Electron does not give extensions.
-      // Plain webRequest only watches requests (EX8): not a blocker.
-      blocker: (Array.isArray(manifest.permissions) ? manifest.permissions : []).some(p => /^(webRequestBlocking|declarativeNetRequest)/.test(String(p))),
+      // Asks for blocking webRequest, which Electron does not give extensions
+      // (its declarativeNetRequest rules are enforced by Vex itself, see
+      // `dnr`). Plain webRequest only watches requests (EX8): not a blocker.
+      blocker: (Array.isArray(manifest.permissions) ? manifest.permissions : []).some(p => /^webRequestBlocking/.test(String(p))),
+      // Its request rules: what is on, and a warning when they are slow.
+      dnr: live ? (() => {
+        try { const part = _dnrPartition(secureSessions.fromPartition('persist:main')); return part ? _extDnr.status(part, live.id) : null; }
+        catch (err) { console.error('[Extensions] request rules status:', err.message); return null; }
+      })() : null,
       // A background page that stays loaded (Manifest V2, not an event page).
       persistentBackground: !!(manifest.background && (manifest.background.page || manifest.background.scripts) && manifest.background.persistent !== false),
       // What will not work here, as the install dialog said (src/main/webstore.js).
@@ -4439,6 +4448,73 @@ const _extAlarms = require('./main/extension-alarms').createExtensionAlarms({
   },
 });
 
+// chrome.declarativeNetRequest (src/main/extension-dnr.js): Electron accepted
+// the API and enforced nothing. Main evaluates the rules from the single
+// webRequest listener each event has (wireAdblockerOnSession for
+// onBeforeRequest, wireClientHintsOnSession for onBeforeSendHeaders, the
+// onHeadersReceived of each tab session): a second listener would replace
+// Vex's own. Precedence: Vex's own switches, the ad blocker and the HTTPS
+// repairs answer first; extension rules only act on a request they let
+// through. Private, off-the-record, burner, New Identity and Tor sessions run
+// no extensions, so no rules reach them.
+const EXT_DNR_FILE = path.join(userDataPath, 'extension-dnr.json');
+let _extDnrWrites = Promise.resolve();
+const _extDnrMod = require('./main/extension-dnr');
+const _extDnr = _extDnrMod.createExtensionDnr({
+  load: () => (fs.existsSync(EXT_DNR_FILE) ? JSON.parse(fs.readFileSync(EXT_DNR_FILE, 'utf-8')) : {}),
+  save: (data) => {
+    const bytes = JSON.stringify(data);
+    _extDnrWrites = _extDnrWrites.then(() => atomicWrite(EXT_DNR_FILE, bytes, { backup: false }))
+      .catch(err => console.error('[Extensions] could not save the extensions\' request rules:', err.message));
+  },
+});
+// The partition a session's rules are kept under, once its extensions are
+// known; null for a session that holds none (a private one).
+function _dnrPartition(ses) {
+  if (ses.__vexDnrPart !== undefined) return ses.__vexDnrPart;
+  if (ses.__vexEphemeral) { ses.__vexDnrPart = null; return null; }
+  const part = _partitionKey(ses) || null;
+  ses.__vexDnrPart = part;
+  if (!part) return null;
+  const ex = _exts(ses);
+  const add = (ext) => {
+    try {
+      if (!ext || !ext.manifest) return;
+      _extDnr.register(part, { id: ext.id, path: ext.path, name: ext.name, manifest: ext.manifest, hostAllowed: (u) => _extHostAllowed(ext, u) });
+    } catch (err) { console.error(`[Extensions] request rules of ${ext && ext.name}:`, err.message); }
+  };
+  try { for (const ext of (ex.getAllExtensions ? ex.getAllExtensions() : ses.getAllExtensions())) add(ext); }
+  catch (err) { console.error('[Extensions] request rules could not read the loaded extensions:', err.message); }
+  if (typeof ex.on === 'function') {
+    ex.on('extension-loaded', (_e, ext) => add(ext));
+    ex.on('extension-unloaded', (_e, ext) => { if (ext) _extDnr.unregister(part, ext.id); });
+  }
+  return part;
+}
+function _dnrQuery(ses, details, quiet) {
+  const part = _dnrPartition(ses);
+  if (!part || !_extDnr.hasRules(part)) return null;
+  return _extDnr.evaluate(part, _extDnrMod.normalizeRequest(details, _adVerdict.pageOf(details)), quiet);
+}
+// What onBeforeRequest answers for a request the blocker let through, or null.
+function _dnrRequest(ses, details) {
+  const r = _dnrQuery(ses, details, false);
+  if (!r) return null;
+  if (r.action === 'block') return { cancel: true };
+  if (r.action === 'redirect' || r.action === 'upgradeScheme') return { redirectURL: r.redirectUrl };
+  return null;
+}
+// Request headers an extension's rules change, before Vex's own (so a site's
+// no-cookies switch and the Client Hints identity still win).
+function _dnrRequestHeaders(ses, details, headers) {
+  const r = _dnrQuery(ses, details, true);
+  if (r && r.requestOps.length) _extDnrMod.applyHeaderOps(headers, r.requestOps, false);
+}
+function _dnrResponseHeaders(ses, details, headers) {
+  const r = _dnrQuery(ses, details, true);
+  if (r && r.responseOps.length) _extDnrMod.applyHeaderOps(headers, r.responseOps, true);
+}
+
 // Events Electron never fires for an extension: tabs, webRequest.onCompleted
 // (src/main/extension-events.js). Told only to an extension that listens.
 const _extEventsMod = require('./main/extension-events');
@@ -4750,6 +4826,15 @@ async function _extApi(senderUrl, ses, request) {
     case 'alarms.getAll': needPerm('alarms'); return _extAlarms.getAll(`${partition}|${extId}`);
     case 'alarms.clear': needPerm('alarms'); return _extAlarms.clear(`${partition}|${extId}`, args.name);
     case 'alarms.clearAll': needPerm('alarms'); return _extAlarms.clearAll(`${partition}|${extId}`);
+    case 'dnr.updateDynamicRules': case 'dnr.updateSessionRules': case 'dnr.getDynamicRules': case 'dnr.getSessionRules':
+    case 'dnr.getEnabledRulesets': case 'dnr.updateEnabledRulesets': case 'dnr.getAvailableStaticRuleCount':
+    case 'dnr.getDisabledRuleIds': case 'dnr.updateStaticRules': case 'dnr.isRegexSupported': case 'dnr.testMatchOutcome':
+    case 'dnr.getMatchedRules': {
+      if (!perms.includes('declarativeNetRequest') && !perms.includes('declarativeNetRequestWithHostAccess')) throw new Error('The "declarativeNetRequest" permission is required');
+      const part = _dnrPartition(ses);
+      if (!part) throw new Error('Request rules are not available in this session');
+      return _extDnr.api(part, extId, r.op.slice('dnr.'.length), args);
+    }
     case 'commands.getAll': {
       const rows = _extCommands().byFolder[path.basename(ext.path)] || [];
       return rows.map(row => ({ name: row.name, description: row.description, shortcut: row.shortcut }));
@@ -6144,6 +6229,7 @@ function createWindow() {
   // Header stripping for webviews
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
+    _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
     _addMediaCorsHeaders(details, responseHeaders);
     _scriptsOffCsp(details, responseHeaders);
     callback({ responseHeaders });
@@ -6172,6 +6258,7 @@ function createWindow() {
 
     ses.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
+      _dnrResponseHeaders(ses, details, responseHeaders);
       if (stripAllCsp && /^https:\/\/(?:[a-z0-9-]+\.)?discord\.com(?::443)?\//i.test(details.url) && details.resourceType === 'mainFrame') {
         delete responseHeaders['x-frame-options'];
         delete responseHeaders['X-Frame-Options'];
@@ -6484,6 +6571,7 @@ function createWindow() {
     for (const p of BROWSING_SESSIONS) {
       secureSessions.fromPartition(p).webRequest.onHeadersReceived((details, callback) => {
         const responseHeaders = { ...details.responseHeaders };
+        _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
         _addMediaCorsHeaders(details, responseHeaders);
         _scriptsOffCsp(details, responseHeaders);
         callback({ responseHeaders });
@@ -8090,6 +8178,7 @@ function _wireBrowsingSession(ses, partition) {
   if (!BROWSING_SESSIONS.includes(partition)) {
     ses.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = { ...details.responseHeaders };
+      _dnrResponseHeaders(ses, details, responseHeaders);
       _addMediaCorsHeaders(details, responseHeaders);
       _scriptsOffCsp(details, responseHeaders);
       callback({ responseHeaders });
