@@ -1306,6 +1306,17 @@ function vexOwnTextFocused(doc) {
   if (typeof ReadLater !== 'undefined') ReadLater.init();
   if (typeof TabArchiver !== 'undefined') TabArchiver.init();
 
+  // Daily tools: one search over everything kept, meeting prep, evening tab
+  // cleanup, routine detection, project spaces, the text clips inbox.
+  try {
+    if (window.TextClips) window.TextClips.init();
+    if (window.UniversalSearch) window.UniversalSearch.refreshClips().catch(err => window.VexProblems?.note('Search', 'Could not read the clips inbox', err));
+    if (window.ProjectSpaces) window.ProjectSpaces.init();
+    if (window.MeetingPrep) window.MeetingPrep.start();
+    if (window.TabCleanup) window.TabCleanup.start();
+    if (window.RoutineDetect) window.RoutineDetect.start();
+  } catch (err) { console.error('[Daily tools] could not start:', err); window.VexProblems?.note('Daily tools', 'Could not start', err); }
+
   // Reading & accessibility pack + persistent highlights + full-text recall
   if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.init();
   if (typeof Annotations !== 'undefined') Annotations.init();

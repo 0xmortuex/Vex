@@ -1304,6 +1304,8 @@ app.on('will-quit', () => { try { if (_powerWatchLazy) _powerWatchLazy.stop(); }
 // system-wide, so each one is off until the user sets it.
 const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
   globalShortcut,
+  // The boss key is held system-wide already; a second action may not take it.
+  reserved: [_windowKeys.BOSS_ACCELERATOR],
   log: (m) => console.log(m),
   load: () => { try { return JSON.parse(_persistLoad()['vex.gameHotkeys'] || '{}'); } catch { return {}; } },
   save: (applied) => { try { preferences.set('vex.gameHotkeys', JSON.stringify(applied)); } catch (err) { console.error('[Hotkeys] save failed:', err.message); } },
@@ -1375,6 +1377,14 @@ ipcMain.handle('capture:submit', async (_e, entry) => {
   const kind = String((entry && entry.kind) || 'note');
   const text = String((entry && entry.text) || '').slice(0, 4000);
   if (!text) throw new Error('There is nothing to save');
+  // A clip never goes through the interface: it is kept here, in main, so it
+  // lands while Vex is hidden, busy or behind a game. The window is only told
+  // (never shown or focused) so its inbox and search can refresh.
+  if (kind === 'clip') {
+    const { count } = _captureInbox().add(text, { source: 'capture' });
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count }); } catch { /* window gone */ }
+    return { said: 'Kept in the clips inbox (' + count + ')' };
+  }
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Vex is not running');
   return new Promise((resolve, reject) => {
     const id = 'cap_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -1384,6 +1394,21 @@ ipcMain.handle('capture:submit', async (_e, entry) => {
   });
 });
 ipcMain.handle('hotkeys:set', (_e, config) => _gameHotkeys.set(config));
+
+// The clips inbox: text kept by Ctrl+Enter in the capture box (src/main/capture-inbox.js).
+let _captureInboxLazy = null;
+function _captureInbox() {
+  if (!_captureInboxLazy) _captureInboxLazy = require('./main/capture-inbox').createCaptureInbox({ file: path.join(app.getPath('userData'), 'clips-inbox.json') });
+  return _captureInboxLazy;
+}
+ipcMain.handle('clips-inbox:list', () => ({ ok: true, items: _captureInbox().list() }));
+ipcMain.handle('clips-inbox:add', (_e, text) => {
+  const r = _captureInbox().add(text, { source: 'panel' });
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count: r.count }); } catch { /* window gone */ }
+  return { ok: true, id: r.entry.id, count: r.count };
+});
+ipcMain.handle('clips-inbox:remove', (_e, id) => ({ ok: _captureInbox().remove(id) }));
+ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
 ipcMain.on('app:started', () => _bootGuard.started());
 // A failed backup at this first start is told once, to the first window that asks.

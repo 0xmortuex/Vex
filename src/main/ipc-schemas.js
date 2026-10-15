@@ -83,6 +83,10 @@ define('rec:finish', [string(80), optional(string(200))]);
 define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:open', []);
+// The text clips inbox (src/main/capture-inbox.js).
+define('clips-inbox:list clips-inbox:clear', []);
+define('clips-inbox:add', [string(4000)]);
+define('clips-inbox:remove', [string(80)]);
 // The interface's answer to one captured line (js/quick-capture.js). It was
 // declared with no arguments, so every answer was refused and the box sat on
 // "Saving…" until "Vex did not answer" (found 2026-09-29).

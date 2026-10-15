@@ -28,7 +28,13 @@ const VexMail = {
     return s;
   },
   accounts() { return this._call(window.vex.mail.accounts()); },
-  inbox(id, limit, before) { return this._call(window.vex.mail.inbox(id, limit, before)); },
+  async inbox(id, limit, before) {
+    const value = await this._call(window.vex.mail.inbox(id, limit, before));
+    // Universal search keeps a local memo of the headers (never a body).
+    try { if (window.UniversalSearch) window.UniversalSearch.rememberMail(id, value); }
+    catch (err) { window.VexProblems?.note('Search', 'Could not remember the mail subjects', err); }
+    return value;
+  },
   message(id, uid) { return this._call(window.vex.mail.message(id, uid)); },
 
   // Which provider an address belongs to, for the sign-in help. Mirrors main.
@@ -181,7 +187,10 @@ const VexMail = {
     body.querySelector('[data-webmail]')?.addEventListener('click', (e) => { e.preventDefault(); TabManager.createTab(inbox.account.webmail, true); this._ui.close(); });
     const list = body.querySelector('[data-list]');
     if (!inbox.messages.length) list.innerHTML = '<div style="padding:16px;font-size:12.5px;color:var(--text-muted)">The inbox is empty.</div>';
-    const addRows = (messages) => { for (const m of messages) {
+    // The active project space's mail filter (js/project-spaces.js) narrows
+    // what is listed; the line above the list says so and shows everything.
+    const spaces = window.ProjectSpaces;
+    const addRows = (all) => { const messages = spaces ? spaces.filterMail(all).shown : all; for (const m of messages) {
       const row = document.createElement('button');
       row.type = 'button';
       row.setAttribute('role', 'listitem');
@@ -201,6 +210,11 @@ const VexMail = {
       list.appendChild(row);
     } };
     addRows(inbox.messages);
+    const narrowed = spaces ? spaces.filterMail(inbox.messages) : null;
+    if (narrowed && narrowed.filter) {
+      list.insertAdjacentHTML('afterbegin', `<div style="padding:8px 12px;font-size:11.5px;color:var(--text-muted);border-bottom:1px solid var(--border)">Project filter “${esc(narrowed.filter)}”: ${narrowed.hidden} hidden. <button data-showall type="button" style="${btn}">Show all</button></div>`);
+      list.querySelector('[data-showall]').addEventListener('click', () => { spaces.showAllMail(true); this._drawInbox(accounts, accountId, limit); });
+    }
     // 50 of 501 were listed with nothing saying the rest exist (found
     // 2026-09-29). Say so, and offer more. Load more then stopped at 100, all
     // main sends at once (found 2026-09-30): each click now asks for the page
