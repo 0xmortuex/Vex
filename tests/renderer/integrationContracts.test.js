@@ -141,3 +141,24 @@ describe('FlashMind and the sidebar', () => {
     expect(sb).toContain('pinSitePanel({ id, name, url } = {})');
   });
 });
+
+describe('events that had no emitter', () => {
+  it('the first empty inbox of a day is announced once, to sounds, levels and medals', () => {
+    localStorage.clear();
+    const { VexBriefStreaks } = fresh('brief-extras/streaks.js');
+    const seen = [];
+    for (const n of ['vex:inbox-zero', 'vex:fun-action', 'vex:medal-signal']) document.addEventListener(n, (e) => seen.push(n + ':' + JSON.stringify(e.detail || null)));
+    const day = new Date(2026, 9, 16, 10, 0, 0);
+    VexBriefStreaks.sample(day, { unseen: 3, tabs: 5 });
+    expect(seen).toEqual([]);
+    VexBriefStreaks.sample(day, { unseen: 0, tabs: 5 });
+    expect(seen).toEqual(['vex:inbox-zero:null', 'vex:fun-action:{"kind":"inbox-cleared"}', 'vex:medal-signal:{"id":"inbox-zero"}']);
+    VexBriefStreaks.sample(day, { unseen: 0, tabs: 5 });
+    expect(seen.length).toBe(3);                           // not again the same day
+  });
+
+  it('a ringing timer announces vex:timer-done', () => {
+    const src = fs.readFileSync(path.join(JS, 'clock-panel.js'), 'utf8');
+    expect(src).toContain("if (kind === 'timer') { try { document.dispatchEvent(new CustomEvent('vex:timer-done'");
+  });
+});

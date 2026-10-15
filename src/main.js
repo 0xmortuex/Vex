@@ -2788,7 +2788,8 @@ ipcMain.handle('pagearchive:save', (_e, wcId, details) => _archiveReply(async ()
 // searchable by words and by meaning, on this PC only. Indexing waits while a
 // game is running and while battery-aware mode is saving power. ===
 const _kbIpc = require('./main/knowledge-ipc').register({
-  ipcMain, userData: app.getPath('userData'), atomicWrite, fs,
+  // atomicWrite is a const declared further down this file: read it from its module.
+  ipcMain, userData: app.getPath('userData'), atomicWrite: require('./main/file-store').atomicWrite, fs,
   recallGet: (url) => recallStore().get(url),
   archive: _archive, archiveDir: path.join(app.getPath('userData'), 'archive'),
   isHeld: () => (_gameModeSession.held('indexing') ? 'a game is running' : ((_powerWatchLazy && _powerWatchLazy.lean()) ? 'battery-aware mode is saving power' : '')),
