@@ -83,8 +83,8 @@ describe('main.js wiring', () => {
   const MAIN = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
   it('writes on quit and on forget, and no longer on a 1.5 s timer', () => {
     expect(MAIN).not.toContain('RECALL_WRITE_DELAY = 1500');
-    expect(MAIN).toMatch(/app\.on\('will-quit', \(event\) => \{\s*if \(_recallQuitSaved \|\| !_recallWriter\.dirty\) return;/);
-    expect(MAIN).toContain('if (removed) { recallTouch(); await recallFlush(); }');
+    expect(MAIN).toMatch(/app\.on\('will-quit', \(event\) => \{\s*if \(_recallQuitSaved \|\| !\(_recallWriter\.dirty \|\| _vectorWriter\.dirty\)\) return;/);
+    expect(MAIN).toContain('if (removed || gone) { if (removed) recallTouch(); await recallFlush(); }');
     expect(MAIN).toMatch(/ipcMain\.handle\('storage:flush'[^\n]*await recallFlush\(\)/);
   });
 });

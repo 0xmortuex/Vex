@@ -180,6 +180,9 @@ class RecallIndex {
 
   get size() { return this.records.length; }
 
+  /** The stored record for a url, or null. */
+  get(url) { return this._byUrl.get(url) || null; }
+
   /** Bytes of page text held (a close proxy for the on-disk JSON size). */
   get bytes() { return this._bytes; }
 

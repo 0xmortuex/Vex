@@ -1514,7 +1514,7 @@ ipcMain.handle('cookies:set', async (_e, opts) => {
 // === Full-text recall ("memex") — index the text of pages you read, search it
 // later. Stored as a capped JSON log in userData; local only, never uploaded.
 // Ranking, tokenizing and snippeting live in ./main/recall-index.js. ===
-const { RecallIndex } = require('./main/recall-index');
+const { RecallIndex, snippet: recallSnippet, hostOf: recallHostOf } = require('./main/recall-index');
 const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
 // Written at most once a minute and on close, quit, forget and clear, not on
 // every page read (./main/recall-writer.js).
@@ -1539,13 +1539,56 @@ const _recallWriter = createRecallWriter({
   },
   onError: (err) => console.error('[Recall] could not save the page index (tried again on the next save):', err && err.message),
 });
-function recallFlush(erase = false) { return _recallWriter.flush(erase); }
+// --- Recall by meaning: vectors in their own file (recall-vectors.json), built
+// from the text recall.json already holds, embedded by the user's own Ollama
+// on 127.0.0.1 only. Rules and limits: ./main/recall-vectors.js. ---
+const recallVectors = require('./main/recall-vectors');
+const RECALL_VECTORS_FILE = () => path.join(app.getPath('userData'), 'recall-vectors.json');
+let _recallVectors = null;
+function vectorStore() {
+  if (_recallVectors) return _recallVectors;
+  _recallVectors = new recallVectors.VectorStore();
+  try {
+    const fsx = require('fs');
+    if (fsx.existsSync(RECALL_VECTORS_FILE())) _recallVectors = recallVectors.VectorStore.fromJSON(JSON.parse(fsx.readFileSync(RECALL_VECTORS_FILE(), 'utf8')));
+  } catch (err) {
+    // A damaged file only costs the numbers: they are rebuilt from recall.json.
+    console.error('[Recall] the meaning index file could not be read and will be rebuilt:', err && err.message);
+    _recallVectors = new recallVectors.VectorStore();
+  }
+  return _recallVectors;
+}
+const _vectorWriter = createRecallWriter({
+  serialize: () => JSON.stringify(_recallVectors ? _recallVectors.toJSON() : { version: recallVectors.VERSION, model: '', dim: 0, entries: [] }),
+  write: async (bytes, { erase }) => {
+    await atomicWrite(RECALL_VECTORS_FILE(), bytes, { backup: false });
+    if (erase) await fs.promises.rm(RECALL_VECTORS_FILE() + '.bak', { force: true });
+  },
+  onError: (err) => console.error('[Recall] could not save the meaning index (tried again on the next save):', err && err.message),
+});
+let _meaning = null;
+function meaningIndex() {
+  if (_meaning) return _meaning;
+  _meaning = recallVectors.createMeaningIndex({
+    store: vectorStore(),
+    records: () => recallStore().records,
+    get: (url) => recallStore().get(url),
+    embedder: recallVectors.createOllamaEmbedder(),
+    onChange: () => _vectorWriter.touch(),
+  });
+  return _meaning;
+}
+// Clearing Recall clears what was understood about it, in the same step.
+function recallFlush(erase = false) {
+  if (erase) { vectorStore().clear(); _vectorWriter.touch(); }
+  return Promise.all([_recallWriter.flush(erase), _vectorWriter.flush(erase)]).then(() => undefined);
+}
 function recallTouch() { _recallWriter.touch(); }
 // Quitting without the window's own save first (the tray, an update, the
 // system): what was read since the last write is written before Vex exits.
 let _recallQuitSaved = false;
 app.on('will-quit', (event) => {
-  if (_recallQuitSaved || !_recallWriter.dirty) return;
+  if (_recallQuitSaved || !(_recallWriter.dirty || _vectorWriter.dirty)) return;
   _recallQuitSaved = true;
   event.preventDefault();
   recallFlush()
@@ -1581,9 +1624,38 @@ ipcMain.handle('recall:forget', async (_e, target) => {
     const { url, host } = target || {};
     if (!url && !host) return { ok: false, removed: 0 };
     const removed = recallStore().forget({ url, host });
-    if (removed) { recallTouch(); await recallFlush(); }
+    // The numbers made from those pages go with them, even when the page
+    // itself was already gone from the full-text index.
+    const vs = vectorStore();
+    const gone = (url ? (vs.remove(url) ? 1 : 0) : 0) + (host ? vs.removeHost(String(host).toLowerCase().replace(/^www\./, '')) : 0);
+    if (gone) _vectorWriter.touch();
+    if (removed || gone) { if (removed) recallTouch(); await recallFlush(); }
     return { ok: true, removed };
   } catch (err) { return { ok: false, removed: 0, error: err.message }; }
+});
+// Recall by meaning. These never throw to the panel: a sentence comes back.
+function meaningFail(err) { return { ok: false, state: 'error', message: err && err.message ? err.message : String(err) }; }
+ipcMain.handle('recall:meaning-status', async (_e, args) => {
+  try { return { ok: true, ...(await meaningIndex().status(args || {})) }; } catch (err) { return meaningFail(err); }
+});
+ipcMain.handle('recall:meaning-step', async (_e, args) => {
+  try { return await meaningIndex().step(args || {}); } catch (err) { return meaningFail(err); }
+});
+ipcMain.handle('recall:meaning-search', async (_e, query, args) => {
+  try {
+    const res = await meaningIndex().search(String(query || ''), args || {});
+    return {
+      ok: true, understood: res.understood || 0,
+      hits: res.hits.map(h => ({ url: h.url, title: h.title, host: recallHostOf(h.url), at: h.at, first: h.first, visits: h.visits, score: h.score, snippet: recallSnippet(h.text, []), byMeaning: true })),
+    };
+  } catch (err) { return { ...meaningFail(err), hits: [] }; }
+});
+ipcMain.handle('recall:meaning-forget', async () => {
+  try {
+    const n = meaningIndex().forget();
+    await _vectorWriter.flush();
+    return { ok: true, removed: n };
+  } catch (err) { return meaningFail(err); }
 });
 ipcMain.handle('recall:clear', async () => { recallStore().clear(); await recallFlush(true); return { ok: true }; });
 

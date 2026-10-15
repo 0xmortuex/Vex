@@ -116,6 +116,16 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .recall-hit-visits { font-size: 10px; color: var(--vex-text-muted); flex: none; }
+.recall-hit-meaning { font-size: 10px; color: var(--vex-accent); flex: none; }
+.recall-meaning-note { font-size: 11px; }
+.recall-meaning-settings { margin-top: 18px; }
+.recall-meaning-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.recall-meaning-row input {
+  flex: 1 1 180px; min-width: 0; padding: 8px 10px; box-sizing: border-box;
+  background: var(--vex-hover-fill); color: inherit; font: inherit; font-size: 13px;
+  border: 1px solid var(--vex-border, var(--border)); border-radius: var(--vex-radius-md, var(--radius)); outline: none;
+}
+.recall-meaning-row input:focus-visible { border-color: var(--vex-accent); }
 .recall-hit-acts { margin-left: auto; display: flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
 .recall-hit:hover .recall-hit-acts,
 .recall-hit.is-active .recall-hit-acts,

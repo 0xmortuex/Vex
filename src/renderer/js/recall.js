@@ -175,6 +175,109 @@ const Recall = {
     return { total: hits.length, hits, terms: base.terms, took: base.took, expanded: terms };
   },
 
+  // --- by meaning (optional, local Ollama embeddings only) ----------------------
+  //
+  // Off until the user names an embedding model in Settings › Recall. The
+  // vectors are built in the main process (src/main/recall-vectors.js) from the
+  // text recall.json already holds, a few pages a minute, only while Vex is
+  // on screen and no game is running (VexJobs 'ui'). Page text is only ever
+  // sent to Ollama on 127.0.0.1; main refuses any other address.
+  MEANING_KEY: 'vex.recall.meaningModel',
+  MEANING_BATCH: 5,
+  MEANING_EVERY_MS: 60 * 1000,
+  MEANING_JOB: 'Recall by meaning',
+  FUSE_K: 60,
+
+  meaningModel() {
+    try { return String(localStorage.getItem(this.MEANING_KEY) || '').trim(); } catch { return ''; }
+  },
+  setMeaningModel(model) {
+    const clean = String(model || '').trim();
+    try {
+      if (clean) localStorage.setItem(this.MEANING_KEY, clean); else localStorage.removeItem(this.MEANING_KEY);
+    } catch (err) { throw new Error('Could not save the model name: ' + (err && err.message)); }
+    this._syncMeaningJob();
+    return clean;
+  },
+  meaningOn() { return !!this.meaningModel() && !!window.vex?.recallMeaningSearch; },
+  _meaningArgs(extra) {
+    const base = typeof Ollama !== 'undefined' && typeof Ollama.getBaseUrl === 'function' ? Ollama.getBaseUrl() : undefined;
+    return { model: this.meaningModel() || undefined, baseUrl: base, excluded: this.excluded(), ...(extra || {}) };
+  },
+
+  // One small batch. Registered with VexJobs, which holds it while Vex is
+  // hidden or a game runs and gives it back afterwards.
+  async meaningStep() {
+    if (!this.enabled() || !this.meaningOn() || !window.vex?.recallMeaningStep) return null;
+    if (window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('recall')) return null;
+    const res = await window.vex.recallMeaningStep(this._meaningArgs({ batch: this.MEANING_BATCH }));
+    this._lastMeaning = res || null;
+    return res;
+  },
+  _syncMeaningJob() {
+    if (typeof VexJobs === 'undefined') return;
+    const want = this.enabled() && this.meaningOn();
+    if (want && !this._meaningJob) {
+      this._meaningJob = VexJobs.every(this.MEANING_JOB, this.MEANING_EVERY_MS, () => this.meaningStep(), { when: 'ui' });
+    } else if (!want && this._meaningJob) {
+      VexJobs.stop(this.MEANING_JOB);
+      this._meaningJob = null;
+    }
+  },
+
+  async meaningStatus() {
+    if (!window.vex?.recallMeaningStatus) return { configured: false, state: 'off', message: 'Not available in this window.', pages: 0, understood: 0, pending: 0, vectors: 0 };
+    return (await window.vex.recallMeaningStatus(this._meaningArgs())) || { configured: false, state: 'off', message: '', pages: 0, understood: 0, pending: 0, vectors: 0 };
+  },
+  // "1,240 of 3,000 pages understood" plus the honest state.
+  meaningLine(s) {
+    if (!s || !s.configured) return 'Meaning search is off. Pick an embedding model in Settings › Recall.';
+    const progress = `${(s.understood || 0).toLocaleString()} of ${(s.pages || 0).toLocaleString()} pages understood`;
+    if (s.state === 'ok' || s.state === 'building') return progress + (s.state === 'building' ? ' · building in the background while Vex is idle' : '');
+    return progress + ' · ' + (s.message || 'not ready');
+  },
+
+  // Full-text hits and meaning hits, fused by rank (reciprocal rank fusion).
+  // A page the words already found keeps its snippet and no label; a page only
+  // the meaning found is flagged so the panel can say "matched by meaning".
+  fuse(textHits, meaningHits) {
+    const seen = new Map();
+    const add = (hit, rank, byMeaning) => {
+      const w = 1 / (this.FUSE_K + rank);
+      const cur = seen.get(hit.url);
+      if (cur) { cur.score += w; return; }
+      seen.set(hit.url, { hit: byMeaning ? { ...hit, byMeaning: true } : hit, score: w });
+    };
+    textHits.forEach((h, i) => add(h, i + 1, false));
+    meaningHits.forEach((h, i) => add(h, i + 1, true));
+    return [...seen.values()].sort((a, b) => b.score - a.score).map(v => v.hit);
+  },
+
+  async searchByMeaning(q, opts) {
+    const o = opts || {};
+    const wide = { ...o, offset: 0, limit: 100 };
+    const text = await this.search(q, wide);
+    let meaning = { ok: true, hits: [] };
+    try {
+      meaning = await window.vex.recallMeaningSearch(String(q || '').slice(0, 512), this._meaningArgs({ limit: 30 }));
+    } catch (err) { meaning = { ok: false, message: err && err.message, hits: [] }; }
+    const site = o.site ? String(o.site).toLowerCase() : '';
+    const keep = (h) => (!o.since || h.at >= o.since) &&
+      (!site || (h.host || this.hostOf(h.url)) === site || (h.host || this.hostOf(h.url)).endsWith('.' + site));
+    const mHits = (meaning.hits || []).filter(keep);
+    let hits = this.fuse(text.hits, mHits);
+    if (o.sort === 'newest') hits.sort((a, b) => b.at - a.at);
+    else if (o.sort === 'oldest') hits.sort((a, b) => a.at - b.at);
+    const total = hits.length;
+    const start = o.offset || 0;
+    hits = hits.slice(start, start + (o.limit || this.PAGE_SIZE));
+    return {
+      total, hits, terms: text.terms, took: text.took,
+      meaningError: meaning.ok === false ? (meaning.message || 'Meaning search failed') : '',
+      meaningCount: mHits.length,
+    };
+  },
+
   // --- panel --------------------------------------------------------------
 
   ICONS: {
@@ -249,6 +352,12 @@ const Recall = {
           <span class="recall-smart-icon">${I.sparkle}</span>
           <span>Smart search <span class="recall-dim">— find by meaning (AI expands your query, runs on Enter)</span></span>
         </label>
+        ${this.meaningOn() ? `<label class="recall-smart">
+          <input type="checkbox" id="recall-meaning">
+          <span class="recall-smart-icon">${I.sparkle}</span>
+          <span>By meaning <span class="recall-dim">— finds pages about what you type, even without the same words (your own local Ollama, nothing leaves this PC)</span></span>
+        </label>
+        <p id="recall-meaning-stat" class="recall-hint" aria-live="polite"></p>` : ''}
         <p id="recall-hint" class="recall-hint">Tips: <code>"exact phrase"</code> · <code>-exclude</code> · <code>site:example.com</code> · <code>after:7d</code></p>
       </div>
       <div id="recall-results" class="recall-results" role="listbox" aria-label="Recall results"></div>`;
@@ -256,6 +365,8 @@ const Recall = {
     const input = container.querySelector('#recall-q');
     const wipe = container.querySelector('#recall-wipe');
     const smartChk = container.querySelector('#recall-smart');
+    const meaningChk = container.querySelector('#recall-meaning');
+    const meaningStat = container.querySelector('#recall-meaning-stat');
     const whenSel = container.querySelector('#recall-when');
     const siteSel = container.querySelector('#recall-site');
     const sortSel = container.querySelector('#recall-sort');
@@ -281,6 +392,10 @@ const Recall = {
       siteSel.innerHTML = '<option value="">All sites</option>' +
         (s.hosts || []).map(h => `<option value="${esc(h.host)}">${esc(h.host)} (${h.count})</option>`).join('');
       if (keep) siteSel.value = keep;
+      if (meaningStat) {
+        const ms = await this.meaningStatus();
+        if (container.isConnected) meaningStat.textContent = this.meaningLine(ms);
+      }
     };
 
     const options = () => {
@@ -328,6 +443,7 @@ const Recall = {
         <div class="recall-hit-foot">
           <span class="recall-hit-host">${esc(host || h.url)}</span>
           ${h.visits > 1 ? `<span class="recall-hit-visits">${h.visits} visits</span>` : ''}
+          ${h.byMeaning ? '<span class="recall-hit-meaning">matched by meaning</span>' : ''}
           <span class="recall-hit-acts">
             <button type="button" class="recall-icon-btn" data-act="copy" title="Copy link" aria-label="Copy link">${I.copy}</button>
             <button type="button" class="recall-icon-btn" data-act="forget" title="Forget this page" aria-label="Forget this page">${I.forget}</button>
@@ -405,8 +521,10 @@ const Recall = {
         return;
       }
       const seq = ++this._seq;
-      if (!append) out.innerHTML = `<div class="recall-idle">${smart ? 'Thinking…' : 'Searching…'}</div>`;
-      const res = smart ? await this.searchSmart(q, options()) : await this.search(q, options());
+      const byMeaning = !smart && !!meaningChk && meaningChk.checked && !!q;
+      if (!append) out.innerHTML = `<div class="recall-idle">${smart ? 'Thinking…' : (byMeaning ? 'Searching by meaning…' : 'Searching…')}</div>`;
+      const res = smart ? await this.searchSmart(q, options())
+        : (byMeaning ? await this.searchByMeaning(q, options()) : await this.search(q, options()));
       // A slower earlier keystroke must never overwrite a newer result.
       if (seq !== this._seq || !container.isConnected) return;
       if (res.private) { out.innerHTML = '<div class="recall-idle">Recall is unavailable in private windows.</div>'; return; }
@@ -420,6 +538,13 @@ const Recall = {
         return;
       }
       render(append);
+      if (res.meaningError) {
+        // Said, not hidden: the words still matched, the meaning could not.
+        const note = document.createElement('div');
+        note.className = 'recall-idle recall-meaning-note';
+        note.textContent = 'Matched by words only. ' + res.meaningError;
+        out.prepend(note);
+      }
       if (!append) setCursor(0);
     };
 
@@ -427,8 +552,9 @@ const Recall = {
       wipe.hidden = !input.value;
       clearTimeout(timer);
       if (smartChk.checked) return;
-      timer = setTimeout(() => run(false), 160);
+      timer = setTimeout(() => run(false), meaningChk && meaningChk.checked ? 450 : 160);
     });
+    if (meaningChk) meaningChk.addEventListener('change', () => { if (input.value.trim()) run(false); });
     // Keyboard flow: type, arrow through results, Enter to open the highlighted
     // one (Ctrl/Shift+Enter opens it in the background). Smart search keeps
     // Enter as 'run the AI query', since it cannot run per keystroke.
@@ -465,9 +591,65 @@ const Recall = {
       <div class="recall-settings-actions">
         <button id="recall-reindex" class="btn-secondary" type="button">Re-index open tabs</button>
         <button id="recall-clear" class="recall-danger" type="button">Clear recall index</button>
+      </div>
+      <div class="recall-meaning-settings" id="recall-meaning-settings">
+        <div class="recall-excluded-title">Find by meaning (optional)</div>
+        <p class="setting-info muted">Lets Recall find a page by what it was about, not only the words in it. It needs an embedding model in your own Ollama on this PC, for example <code>nomic-embed-text</code> (install it with <code>ollama pull nomic-embed-text</code>). Pages are understood a few at a time while Vex is idle and no game is running. Only numbers are stored, in recall-vectors.json (at most 5,000 pages, about 4 MB). Page text is only ever sent to Ollama on 127.0.0.1, never to a cloud model.</p>
+        <div class="recall-meaning-row">
+          <input id="recall-meaning-model" type="text" list="recall-meaning-models" placeholder="nomic-embed-text" autocomplete="off" spellcheck="false" aria-label="Embedding model" maxlength="100" value="${esc(this.meaningModel())}">
+          <datalist id="recall-meaning-models"></datalist>
+          <button id="recall-meaning-save" class="btn-secondary" type="button">Use this model</button>
+          <button id="recall-meaning-off" class="btn-secondary" type="button">Turn off</button>
+        </div>
+        <p class="setting-info muted" id="recall-meaning-status" aria-live="polite">Off.</p>
+        <div class="recall-settings-actions">
+          <button id="recall-meaning-forget" class="recall-danger" type="button">Forget meaning index</button>
+        </div>
       </div>`;
 
     const statEl = container.querySelector('#recall-settings-stat');
+    const meaningEl = container.querySelector('#recall-meaning-status');
+    const modelInput = container.querySelector('#recall-meaning-model');
+    const paintMeaning = async () => {
+      const s = await this.meaningStatus();
+      if (container.isConnected) meaningEl.textContent = this.meaningLine(s);
+    };
+    (async () => {
+      if (typeof Ollama === 'undefined' || typeof Ollama.listModels !== 'function') return;
+      const names = (await Ollama.listModels()).map(m => m.name);
+      const list = container.querySelector('#recall-meaning-models');
+      if (!list || !container.isConnected) return;
+      const embedLike = n => /embed|bge|minilm|gte|e5|arctic/i.test(n);
+      list.innerHTML = names.sort((a, b) => embedLike(b) - embedLike(a)).map(n => `<option value="${esc(n)}"></option>`).join('');
+    })();
+    container.querySelector('#recall-meaning-save').addEventListener('click', async () => {
+      const name = modelInput.value.trim();
+      if (!name) { window.showToast?.('Type the name of an embedding model first'); return; }
+      try { this.setMeaningModel(name); } catch (err) { window.showToast?.(err.message); return; }
+      window.showToast?.('Meaning search will build in the background');
+      // The first batch should not wait a whole minute after being asked for.
+      this.meaningStep().then(paintMeaning, paintMeaning);
+      paintMeaning();
+    });
+    container.querySelector('#recall-meaning-off').addEventListener('click', () => {
+      this.setMeaningModel('');
+      modelInput.value = '';
+      window.showToast?.('Meaning search is off');
+      paintMeaning();
+    });
+    container.querySelector('#recall-meaning-forget').addEventListener('click', async () => {
+      const ok = typeof vexConfirm === 'function'
+        ? await vexConfirm({ title: 'Forget meaning index', message: 'Delete everything Recall worked out about what your pages mean, and turn meaning search off? Your Recall text is not affected. Choose a model again to rebuild it.', okLabel: 'Forget', danger: true })
+        : true;
+      if (!ok) return;
+      const res = await window.vex?.recallMeaningForget?.();
+      if (!res || res.ok === false) { window.showToast?.((res && res.message) || 'Could not forget the meaning index'); return; }
+      this.setMeaningModel('');
+      modelInput.value = '';
+      window.showToast?.('Meaning index forgotten');
+      paintMeaning();
+    });
+    paintMeaning();
     const excludedEl = container.querySelector('#recall-excluded');
 
     const paint = async () => {
@@ -538,5 +720,9 @@ const Recall = {
   },
 };
 
-if (typeof window !== 'undefined') window.Recall = Recall;
+if (typeof window !== 'undefined') {
+  window.Recall = Recall;
+  // A profile that already chose a model starts building again at launch.
+  try { Recall._syncMeaningJob(); } catch (err) { console.error('[Recall] could not start meaning search:', err); }
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { Recall };
