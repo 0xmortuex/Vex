@@ -1463,6 +1463,9 @@ function vexOwnTextFocused(doc) {
     } catch (e) { console.error('[Clock] init failed:', e); }
     // The weekly review: a Friday reminder that opens a card (js/weekly-review.js).
     try { window.VexReview && VexReview.init(); } catch (e) { console.error('[Review] init failed:', e); }
+    // Journal, link memory, mini dashboards, clipboard actions, game log and
+    // backup nudge (js/memory-tools.js).
+    try { window.VexMemoryTools && VexMemoryTools.init(); } catch (e) { console.error('[MemoryTools] init failed:', e); }
     ShortcutsRegistry.register('last-tab',       () => {
       const went = TabManager?.lastUsedTab?.();
       if (!went) window.showToast?.('No other tab to go back to', 'info', 2000);

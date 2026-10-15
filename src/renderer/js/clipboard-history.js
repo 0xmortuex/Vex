@@ -76,6 +76,8 @@ const ClipboardHistory = {
     };
     this.recent.unshift(entry);
     if (this.recent.length > this.MAX) this.recent.length = this.MAX;
+    // Tells the clipboard actions (js/memory-tools.js) about a new page copy.
+    try { document.dispatchEvent(new CustomEvent('vex:clipboard-copy', { detail: { text: value, host: entry.host } })); } catch { /* nobody listening */ }
     return entry;
   },
 
