@@ -25,11 +25,11 @@ function createCaptureInbox({ file, fsImpl = fs, now = Date.now, randomId = () =
     try { raw = fsImpl.readFileSync(file, 'utf8'); }
     catch (err) {
       if (err && err.code === 'ENOENT') { items = []; return items; }
-      throw new Error('Could not read the clips inbox: ' + err.message);
+      throw new Error('Could not read the clips inbox: ' + err.message, { cause: err });
     }
     let parsed;
     try { parsed = JSON.parse(raw); }
-    catch (err) { throw new Error('The clips inbox file is not valid JSON: ' + err.message); }
+    catch (err) { throw new Error('The clips inbox file is not valid JSON: ' + err.message, { cause: err }); }
     items = Array.isArray(parsed) ? parsed.filter(i => i && typeof i.id === 'string' && typeof i.text === 'string') : [];
     return items;
   }

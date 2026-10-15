@@ -21,7 +21,11 @@ const BROWSER = new Set(['CSS', 'MediaRecorder', 'ResizeObserver', 'Storage', 'I
 
 describe('guarded reads of other modules', () => {
   it('only name modules that exist', () => {
-    const sources = fs.readdirSync(dir).filter(f => f.endsWith('.js')).map(f => [f, fs.readFileSync(path.join(dir, f), 'utf8')]);
+    // Sub-folders count too (js/brief-extras/...): a module declared there is real.
+    const walk = (d, rel = '') => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => (e.isDirectory()
+      ? walk(path.join(d, e.name), rel + e.name + '/')
+      : (e.name.endsWith('.js') ? [rel + e.name] : [])));
+    const sources = walk(dir).map(f => [f, fs.readFileSync(path.join(dir, f), 'utf8')]);
     for (const f of ['preload.js', 'renderer/index.html', 'renderer/start.html']) {
       const p = path.join(root, f);
       if (fs.existsSync(p)) sources.push([f, fs.readFileSync(p, 'utf8')]);
