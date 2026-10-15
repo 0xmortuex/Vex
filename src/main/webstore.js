@@ -313,8 +313,8 @@ function cautions(manifest) {
   if (has('webRequestBlocking')) out.push('It cannot block or redirect requests here (blocking webRequest). Vex\'s own blocker does that.');
   else if (has('webRequest')) out.push('It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.');
   if (m.commands && typeof m.commands === 'object' && Object.values(m.commands).some(c => c && c.global === true)) out.push('Its shortcuts work only while Vex is in front, not from other programs (global commands).');
-  if (has('cookies')) out.push('It can read and change cookies, but is not told when one changes (cookies.onChanged).');
-  if (has('webNavigation')) out.push('It is not told when pages navigate (webNavigation).');
+  if (has('cookies')) out.push('It sees the cookies of this profile\'s normal tabs only (one cookie store): never those of private, off-the-record, burner or Tor tabs.');
+  if (has('webNavigation')) out.push('It is told when web pages navigate in normal tabs (webNavigation), not in private, burner or Tor tabs, not for Vex\'s own pages, and never about new-window targets or replaced tabs.');
   if (has('notifications')) out.push('Its notifications show as Windows notifications without buttons or pictures, and it cannot take one back.');
   if (has('downloads')) out.push('It can start, list, pause and cancel downloads, but cannot name the file, open it, show it or delete it.');
   if (m.side_panel) perms.add('sidePanel');

@@ -497,19 +497,29 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     p.then(function (v) { cb(v); }, function (err) { setTimeout(function () { throw err; }, 0); });
     return undefined;
   }
+  // The events come from main (src/main/extension-events.js): a listener's
+  // url filter goes with it, as its own numbered event. Frames are answered
+  // by main for web pages in this session; onCreatedNavigationTarget and
+  // onTabReplaced never fire.
   if (perms.indexOf('webNavigation') !== -1 && !c.webNavigation) {
+    var navEvent = function (name) { return api ? requestEvent('webNavigation.' + name) : noEvent(); };
     c.webNavigation = {
-      getFrame: function (details, cb) { return answerWith(details && details.frameId === 0 ? topFrame(details) : Promise.resolve(null), cb); },
-      getAllFrames: function (details, cb) { return answerWith(topFrame(details).then(function (f) { return f ? [f] : null; }), cb); },
-      onBeforeNavigate: noEvent(), onCommitted: noEvent(), onDOMContentLoaded: noEvent(), onCompleted: noEvent(),
-      onErrorOccurred: noEvent(), onCreatedNavigationTarget: noEvent(), onReferenceFragmentUpdated: noEvent(),
-      onTabReplaced: noEvent(), onHistoryStateUpdated: noEvent(),
+      getFrame: api
+        ? function (details, cb) { return settle(api('webNavigation.getFrame', { tabId: details && details.tabId, frameId: details && details.frameId }), cb, 'webNavigation.getFrame'); }
+        : function (details, cb) { return answerWith(details && details.frameId === 0 ? topFrame(details) : Promise.resolve(null), cb); },
+      getAllFrames: api
+        ? function (details, cb) { return settle(api('webNavigation.getAllFrames', { tabId: details && details.tabId }), cb, 'webNavigation.getAllFrames'); }
+        : function (details, cb) { return answerWith(topFrame(details).then(function (f) { return f ? [f] : null; }), cb); },
+      onBeforeNavigate: navEvent('onBeforeNavigate'), onCommitted: navEvent('onCommitted'), onDOMContentLoaded: navEvent('onDOMContentLoaded'),
+      onCompleted: navEvent('onCompleted'), onErrorOccurred: navEvent('onErrorOccurred'), onReferenceFragmentUpdated: navEvent('onReferenceFragmentUpdated'),
+      onHistoryStateUpdated: navEvent('onHistoryStateUpdated'),
+      onCreatedNavigationTarget: noEvent(), onTabReplaced: noEvent(),
     };
   }
   // Cookies come from main, from this extension's session, for the sites it
   // has host permission for (src/main/extension-cookies.js); every get used
   // to answer null and every getAll [] (found 2026-10-10). Changes are not
-  // announced here.
+  // announced by the worker itself; main tells it (cookies.onChanged).
   if (perms.indexOf('cookies') !== -1 && !c.cookies) {
     var cookieCall = function (op) {
       return function (details, cb) {
@@ -521,7 +531,7 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     c.cookies = {
       get: cookieCall('cookies.get'), getAll: cookieCall('cookies.getAll'), getAllCookieStores: cookieCall('cookies.getAllCookieStores'),
       set: cookieCall('cookies.set'), remove: cookieCall('cookies.remove'),
-      onChanged: noEvent(),
+      onChanged: api ? mainHubEvent('cookies.onChanged') : noEvent(),
     };
   }
 

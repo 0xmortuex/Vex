@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Extensions are now told when pages navigate and when cookies change.** `chrome.webNavigation` fires onBeforeNavigate, onCommitted, onDOMContentLoaded, onCompleted, onErrorOccurred, onHistoryStateUpdated and onReferenceFragmentUpdated (with the URL filter each listener is added with), and getFrame / getAllFrames list the real frames of a tab. `chrome.cookies.onChanged` fires with the cookie, whether it was removed and the cause. Only extensions with the matching permission hear anything (cookies also need access to that site), only for normal tabs, never for private, off-the-record, burner or Tor tabs, and never for Vex's own pages. Still missing: history, bookmarks, tabGroups, sessions and topSites for extensions, and webNavigation's new-window and replaced-tab events.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New
