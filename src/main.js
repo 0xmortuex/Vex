@@ -8986,6 +8986,10 @@ require('./main/game-control-center').register({
   readdir: (d) => fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name),
 });
 
+// "Tell Game Control Center which tab was busy" (src/main/pcbb-link.js): off
+// until Settings turns it on, never creates the PCBlackBox folder.
+require('./main/pcbb-link').registerPcbbLink({ ipcMain, env: process.env, log: (m) => console.warn(m) });
+
 ipcMain.handle('app:restart', () => {
   // Without --safe-mode: "Restart normally" after a safe-mode start must not
   // start in safe mode again.

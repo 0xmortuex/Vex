@@ -1800,6 +1800,8 @@ function vexOwnTextFocused(doc) {
   // What each site has cost over the last five minutes (js/tab-cost.js): one
   // sample a minute, held while a game runs.
   if (typeof TabCost !== 'undefined') TabCost.start();
+  // Off unless Settings turned it on: tells Game Control Center which tab was busy.
+  if (typeof TabCostLink !== 'undefined') TabCostLink.start().catch(err => window.VexProblems?.note('Tab cost', 'Could not start the Game Control Center link', err));
 
   // The font Vex wears (js/fonts.js). Applied before anything is measured, so
   // nothing is laid out in one face and then redrawn in another.

@@ -464,6 +464,8 @@ GameMode.renderGamingSettings = function (host) {
     host.appendChild(row);
     paint().catch(err => window.showToast?.('Could not read the Game Control Center location: ' + err.message, 'error'));
   }
+  // Whether Vex tells Game Control Center which tab was busy (off by default).
+  if (typeof TabCostLink !== 'undefined') TabCostLink.renderSettings(host).catch(err => window.VexProblems?.note('Settings', 'Could not show the Game Control Center link', err));
   // How long a model stays loaded after the AI answers — games or not.
   if (typeof Ollama !== 'undefined' && Ollama.setKeepAlive) {
     const row = document.createElement('div');
