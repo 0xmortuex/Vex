@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v22.19.6 (2026-10-15) — AI News in English by default, and when each story came out
 
 ### New
 - **AI news keeps the languages you choose (Settings › AI News › Languages).** English only by default; tick Turkish, Chinese or Other languages to add more. A story in an unticked language is never stored, told, counted on the badge or looked at by a rule, and one already held is removed. A story that names no language counts as English. Nothing is translated, and the panel says how many stories were left out.
