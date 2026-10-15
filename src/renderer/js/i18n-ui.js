@@ -24,7 +24,7 @@ const VexI18nUI = {
     '#top-bar', '#icon-sidebar', '#tabs-sidebar', '#nav-buttons', '#pip-btn',
     '.panel-header', '#panel-settings', '#panel-shortcuts', '#panel-memory',
     '#panel-downloads', '#panel-history', '#panel-bookmarks', '#panel-notes',
-    '#command-bar', '.vexd-card',
+    '#command-bar', '.vexd-card', '#vex-archive',
     // The Library's feature list (js/feature-library.js), not the articles
     // saved beside it, which are the person's own words.
     '.flib',
@@ -168,6 +168,27 @@ const VexI18nUI = {
       'No battery detected on this PC, so this does nothing here.': 'Bu bilgisayarda pil bulunamadı, bu yüzden burada hiçbir şey yapmaz.',
       'No battery detected on this PC, so turning this on would do nothing here.': 'Bu bilgisayarda pil bulunamadı, bu yüzden açmak burada hiçbir şey yapmaz.',
       'Vex follows mains and battery and the charge level. Windows’ own Battery Saver switch is not something Vex can see.': 'Vex şebeke/pil durumunu ve şarj düzeyini izler. Windows’un kendi Pil Tasarrufu düğmesini Vex göremez.',
+
+      // --- archive library (js/archive-library.js) ---
+      'Archive library': 'Arşiv kitaplığı',
+      'Archive this page': 'Bu sayfayı arşivle',
+      'Archive This Page': 'Bu sayfayı arşivle',
+      'Archive Library': 'Arşiv kitaplığı',
+      'Open the library': 'Kitaplığı aç',
+      'Open library': 'Kitaplığı aç',
+      'Open your copy': 'Kopyanızı açın',
+      'Wayback Machine': 'Wayback Machine',
+      'Search titles and the saved text': 'Başlıklarda ve kayıtlı metinde arayın',
+      'Search your copies': 'Kopyalarınızda arayın',
+      'No copies yet': 'Henüz kopya yok',
+      'No copy matches': 'Eşleşen kopya yok',
+      'Try other words.': 'Başka sözcükler deneyin.',
+      'Open a page and press Archive this page.': 'Bir sayfa açın ve Bu sayfayı arşivle düğmesine basın.',
+      'Open': 'Aç', 'Export': 'Dışa aktar', 'Delete': 'Sil',
+      'Offer my copy when a page I archived will not load': 'Arşivlediğim bir sayfa açılmazsa kopyamı öner',
+      'Copies of pages you chose to keep, on this PC only.': 'Saklamayı seçtiğiniz sayfaların kopyaları, yalnızca bu bilgisayarda.',
+      'Keeps a copy of the page on this PC, in a library Vex manages, so it still opens when the page is changed or gone.': 'Sayfanın bir kopyasını bu bilgisayarda, Vex’in yönettiği bir kitaplıkta saklar; sayfa değişse ya da kalksa da açılır.',
+      'The pages you chose to keep, searchable by title and by what they say, each opening without the network and without running its scripts.': 'Saklamayı seçtiğiniz sayfalar; başlığa ve içeriğe göre aranır, her biri ağ olmadan ve betikleri çalışmadan açılır.',
 
       // --- settings controls people actually change ---
       'Default search engine': 'Varsayılan arama motoru',

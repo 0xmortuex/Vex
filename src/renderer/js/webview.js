@@ -131,6 +131,8 @@ const WebviewManager = {
       if (e.isMainFrame === false || e.errorCode === -3) return;
       tab._loadFailed = { code: e.errorCode, url: e.validatedURL };
       if (typeof SitePanel !== 'undefined' && TabManager.activeTabId === tab.id) SitePanel.refreshIcon();
+      // A page you archived that will not load: offer your copy (and Wayback).
+      if (typeof ArchiveLibrary !== 'undefined' && TabManager.activeTabId === tab.id) ArchiveLibrary.offerForDeadPage(e.validatedURL, { isMainFrame: true, errorCode: e.errorCode });
     });
 
     onWebview('did-stop-loading', () => {
@@ -468,6 +470,10 @@ const WebviewManager = {
     onWebview('did-navigate', (e) => {
       this._noteHistory(tab, webview);
       const url = e.url;
+      // A 404, 410 or 5xx page you archived: offer your copy (js/archive-library.js).
+      if (typeof ArchiveLibrary !== 'undefined' && e.httpResponseCode >= 400 && TabManager.activeTabId === tab.id) {
+        ArchiveLibrary.offerForDeadPage(url, { isMainFrame: true, httpStatus: e.httpResponseCode });
+      }
       // Arrived: the bar follows the page from here (navigate() above).
       const arriving = TabManager.tabs.find(t => t.id === tab.id);
       if (arriving) delete arriving._typedUrl;
@@ -1604,6 +1610,8 @@ const WebviewManager = {
       // The whole page, one part of it, or a number in it (js/page-watch-ui.js).
       // A tab's page only: a side panel is not a page to keep an eye on.
       ...(isTab && typeof PageWatchUI !== 'undefined' ? [{ label: 'Watch this page for changes…', action: () => PageWatchUI.openForWebview(webview) }] : []),
+      // Kept on this PC, in the archive library; refused for private, Tor and routed tabs.
+      ...(isTab && typeof ArchiveLibrary !== 'undefined' ? [{ label: 'Archive this page', action: () => ArchiveLibrary.archiveNow() }] : []),
       { label: 'Print…', action: () => this.printPage(webview) },
       { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),

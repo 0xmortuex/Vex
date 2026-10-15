@@ -216,6 +216,14 @@ define('media:list webview:hard-reload devtools:toggle-webview', [integer]);
 define('media:download', [integer, web]);
 define('page:save', [integer, string(10), optional(string(500))]);
 define('page:capture-full', [integer]);
+// Archive library (main/archive-library.js): the tab to keep and the text read
+// from it; a saved copy is named by its id.
+const archiveId = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value);
+define('pagearchive:save', [integer, shape({ title: optional(string(500)), text: optional(string(100000)) })]);
+define('pagearchive:list', []);
+define('pagearchive:search', [string(512)]);
+define('pagearchive:find', [web]);
+define('pagearchive:open pagearchive:export pagearchive:remove', [archiveId]);
 define('page:eval-all-frames', [integer, string(256 * 1024), optional(boolean)]);
 define('mail:accounts', []);
 define('mail:add', [shape({ email: string(320), password: string(512), host: optional(string(255)), port: optional(integer), secure: optional(boolean) })]);

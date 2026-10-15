@@ -712,6 +712,8 @@ function vexOwnTextFocused(doc) {
     'vex.customSearchEngine',
     // Settings › Appearance › Settings layout (js/settings-ui.js).
     'vex.settingsLayout',
+    // Archive library › "Offer my copy when a page I archived will not load".
+    'vex.archive.offer',
   ];
   const SETTINGS_DEFAULTS = () => ({ searchEngine: 'google', adBlocker: true, autoSleepEnabled: true, autoSleepMinutes: 30, autoSleepExcludePinned: true, memCeilingMB: 1200 });
   document.getElementById('setting-reset')?.addEventListener('click', async () => {
