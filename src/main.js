@@ -1914,6 +1914,20 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
   }
 });
 
+// API playground (renderer/js/api-playground.js, main/api-playground.js): one
+// request from the request builder, with a 10 s timeout and a size cap. Public
+// addresses are checked on every hop; localhost only when the playground's
+// "Allow localhost" is on. Always answers { ok, … } or { ok:false, error }.
+const _apiPlayground = require('./main/api-playground').createApiPlayground({
+  publicFetch: require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }),
+  localFetch: (url, init) => net.fetch(url, { ...init, redirect: 'manual', credentials: 'omit', bypassCustomProtocolHandlers: true }),
+  boundedFactory: require('./main/network').createBoundedFetch,
+});
+ipcMain.handle('playground:send', async (_e, req) => {
+  try { return await _apiPlayground.send(req); }
+  catch (err) { return { ok: false, error: (err && err.message) || String(err) }; }
+});
+
 // Lock Vex, as main sees it. The lock screen lived only in the window, so a
 // private window (Ctrl+Alt+N) opened unlocked and could read saved passwords
 // (found 2026-09-29). The window says when it locks and unlocks; the vault and
@@ -9514,7 +9528,9 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
     ? [{ name: 'Calendar entry', extensions: ['ics'] }]
     : kind === 'md'
       ? [{ name: 'Markdown', extensions: ['md'] }]
-      : [{ name: 'Text', extensions: ['txt'] }];
+      : kind === 'csv'
+        ? [{ name: 'CSV', extensions: ['csv'] }]
+        : [{ name: 'Text', extensions: ['txt'] }];
   const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
   const r = await dialog.showSaveDialog(_askingWindow(_e), {
     title: 'Save', defaultPath: path.join(_chosenDownloadFolder() || app.getPath('downloads'), safeName), filters,
