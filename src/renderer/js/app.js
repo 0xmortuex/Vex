@@ -1287,6 +1287,7 @@ function vexOwnTextFocused(doc) {
   if (typeof CommandChains !== 'undefined') CommandChains.init();
   // Workflow features (js/resume-workday.js hub): each is opt-out/opt-in in Settings › Workflow.
   if (typeof VexWorkday !== 'undefined') VexWorkday.init();
+  if (typeof FocusProfiles !== 'undefined' && FocusProfiles.enabled()) FocusProfiles.init();
 
   // What you copied off a page, so the last copy isn't the only copy
   if (window.ClipboardHistory) window.ClipboardHistory.init();
