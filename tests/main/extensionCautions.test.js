@@ -23,7 +23,7 @@ describe('install cautions', () => {
   it('says DNR rules are accepted and block nothing, and what partly works', () => {
     const c = ws.cautions({ manifest_version: 3, permissions: ['declarativeNetRequest', 'cookies', 'notifications', 'downloads'] }).join(' ');
     expect(c).toMatch(/accepted but block nothing/);
-    expect(c).toMatch(/not told when one changes/);
+    expect(c).toMatch(/one cookie store/);
     expect(c).toMatch(/Windows notifications/);
     expect(c).toMatch(/cannot name the file, open it/);
   });

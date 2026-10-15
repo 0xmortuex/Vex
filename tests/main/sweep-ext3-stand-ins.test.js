@@ -42,21 +42,14 @@ function worker(chrome, { over = null, front = { ids: [], current: null } } = {}
   return { c: chrome, calls };
 }
 
-describe('webNavigation: the top frame is the tab', () => {
+describe('webNavigation: frames come from main, the tab is the top frame without it', () => {
   const nav = { permissions: ['webNavigation', 'tabs'] };
-  it('getAllFrames answers the tab as frame 0, and getFrame for frame 0 only', async () => {
-    const { c } = worker(fakeChrome({ manifest: nav }));
-    const frames = await c.webNavigation.getAllFrames({ tabId: 5 });
-    expect(frames).toEqual([{ frameId: 0, parentFrameId: -1, processId: -1, url: 'https://example.com/', errorOccurred: false }]);
-    expect(frames.map(f => f.url).length).toBe(1);
-    expect((await c.webNavigation.getFrame({ tabId: 5, frameId: 0 })).url).toBe('https://example.com/');
-    expect(await c.webNavigation.getFrame({ tabId: 5, frameId: 3 })).toBeNull();
-  });
-
-  it('a tab that does not exist has no frames, as in Chrome; callbacks work too', async () => {
-    const { c } = worker(fakeChrome({ manifest: nav }));
-    expect(await c.webNavigation.getAllFrames({ tabId: 99 })).toBeNull();
-    await new Promise((resolve) => c.webNavigation.getAllFrames({ tabId: 5 }, (f) => { expect(f[0].frameId).toBe(0); resolve(); }));
+  it('getAllFrames and getFrame ask main, and pass its answer on', async () => {
+    const { c, calls } = worker(fakeChrome({ manifest: nav }));
+    await c.webNavigation.getAllFrames({ tabId: 5 });
+    await c.webNavigation.getFrame({ tabId: 5, frameId: 3 });
+    const asked = calls.filter(x => x[0] === 'extensions:api').map(x => [x[1].op, x[1].args]);
+    expect(asked).toEqual([['webNavigation.getAllFrames', { tabId: 5 }], ['webNavigation.getFrame', { tabId: 5, frameId: 3 }]]);
   });
 });
 

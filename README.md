@@ -179,6 +179,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Per‑site Settings** — remembered zoom, forced dark mode, and custom CSS/JS **Boosts** (Zap‑to‑hide any element) per website.
 - **Setup Gallery** — save, name, share and switch whole setups (panels, shortcuts, theme) via portable `VEXSETUP1` codes.
 - **Custom Tools bar** — pin any web app as a one‑click shortcut (drag‑reorder, edit, remove).
+- **Extension API support** — works: tabs (with events), windows, storage, alarms, notifications, downloads, contextMenus, action, commands, cookies (get/getAll/set/remove, `onChanged`), webNavigation (all seven navigation events with URL filters, getFrame, getAllFrames), webRequest.onCompleted. Partial: webNavigation sees web pages in normal tabs only and not new-window or replaced-tab events; webRequest is not blocking; declarativeNetRequest is accepted. Missing: history, bookmarks, tabGroups, sessions, topSites, tts, userScripts, sidePanel; nothing reaches Private, off-the-record, burner or Tor tabs.
 - **Keyboard shortcuts you control** — rebind any of them, and give a key to anything that has none: every one of the 250+ `Ctrl+K` commands can have one (Shortcuts panel, or Settings). **Customizable sidebar** (rename/re‑icon/reorder/hide/re‑link), **Chrome extension support** (install from the Chrome Web Store, a folder or a ZIP; Vencord for Discord).
 
 ### ☁️ Sync

@@ -4290,6 +4290,7 @@ function _wireExtensionWorkerIpc(ses) {
   });
   for (const versionId of Object.keys(ses.serviceWorkers.getAllRunning())) wire(Number(versionId));
   _watchExtensionLoads(ses);
+  _watchSessionCookies(ses);
 }
 
 // === Extension menus, badges and shortcuts ===============================
@@ -4571,7 +4572,99 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('page-favicon-updated', (_e, icons) => { if (icons && icons[0]) updated({ favIconUrl: icons[0] }); });
   contents.on('did-stop-loading', () => updated({ status: 'complete' }));
   contents.once('destroyed', () => _extEmit(ses, 'tabs.onRemoved', () => [id, { windowId: windowId ?? -1, isWindowClosing: false }]));
+  _extWatchNavigation(ses, contents);
 });
+// chrome.webNavigation: Electron fires none of it for an extension. Told from
+// the page's own navigation events, only to an extension with the
+// "webNavigation" permission that listens, through its url filter, and never
+// for a private, off-the-record, burner, container-less or Tor page.
+function _extPageIsPrivate(contents) {
+  const ses = contents.session;
+  const host = secureSessions.owner(contents);
+  if (host && host.privatePartition) return true;
+  return _extEventsMod.isPrivateSession({ partition: secureSessions.partitionOf(contents), persistent: typeof ses.isPersistent === 'function' ? ses.isPersistent() : undefined, tor: !!ses.__vexTor });
+}
+function _extNavEmit(contents, event, info) {
+  if (contents.isDestroyed() || !_extEventsMod.navigableUrl(info.url) || _extPageIsPrivate(contents)) return;
+  const ses = contents.session;
+  const details = _extEventsMod.navigationDetails(event, { tabId: contents.id, ...info });
+  if (!details) return;
+  _extEmit(ses, 'webNavigation.' + event, (ext, l) => {
+    if (!((ext.manifest && ext.manifest.permissions) || []).includes('webNavigation')) return null;
+    return _extEventsMod.urlFilterTakes(l.filter, info.url) ? [details] : null;
+  });
+}
+function _extWatchNavigation(ses, contents) {
+  const lastUrl = new Map();   // frame key -> last committed address, to tell a #fragment from pushState
+  const failedFrames = new Set();   // frames showing an error page: Chrome says "error", not "loaded"
+  const frameOf = (e, pid, rid) => {
+    if (e && e.frame) return e.frame;
+    return Number.isInteger(pid) && Number.isInteger(rid) ? (require('electron').webFrameMain.fromId(pid, rid) || null) : null;
+  };
+  const keyOf = (frame, isMain) => (isMain || (frame && !frame.parent) ? 0 : (frame && frame.frameTreeNodeId));
+  const hashOnly = (a, b) => { try { const x = new URL(a), y = new URL(b); x.hash = ''; y.hash = ''; return x.href === y.href && a !== b; } catch { return false; } };
+  contents.on('did-start-navigation', (e) => {
+    const url = e.url, isMain = e.isMainFrame, frame = e.frame || null;
+    const k = keyOf(frame, isMain);
+    // Chrome announces a fragment change but not a pushState one.
+    if (e.isSameDocument && !(lastUrl.has(k) && hashOnly(lastUrl.get(k), url))) return;
+    if (!e.isSameDocument) failedFrames.delete(k);
+    _extNavEmit(contents, 'onBeforeNavigate', { url, frame, isMainFrame: isMain, processId: frame ? frame.processId : -1 });
+  });
+  contents.on('did-frame-navigate', (e, url, _code, _text, isMain, pid, rid) => {
+    const frame = frameOf(e, pid, rid);
+    lastUrl.set(keyOf(frame, isMain), url);
+    _extNavEmit(contents, 'onCommitted', { url, frame, isMainFrame: isMain, processId: pid });
+  });
+  contents.on('did-navigate-in-page', (e, url, isMain, pid, rid) => {
+    const frame = frameOf(e, pid, rid);
+    const k = keyOf(frame, isMain);
+    const fragment = lastUrl.has(k) && hashOnly(lastUrl.get(k), url);
+    lastUrl.set(k, url);
+    const info = { url, frame, isMainFrame: isMain, processId: pid };
+    _extNavEmit(contents, 'onCommitted', info);
+    _extNavEmit(contents, fragment ? 'onReferenceFragmentUpdated' : 'onHistoryStateUpdated', info);
+    if (fragment) _extNavEmit(contents, 'onCompleted', info);
+  });
+  contents.on('dom-ready', () => {
+    if (contents.isDestroyed() || failedFrames.has(0)) return;
+    const frame = contents.mainFrame || null;
+    _extNavEmit(contents, 'onDOMContentLoaded', { url: contents.getURL(), frame, isMainFrame: true, processId: frame ? frame.processId : -1 });
+  });
+  contents.on('did-frame-finish-load', (e, isMain, pid, rid) => {
+    const frame = frameOf(e, pid, rid);
+    if (failedFrames.has(keyOf(frame, isMain))) return;
+    const url = frame ? frame.url : (isMain ? contents.getURL() : '');
+    _extNavEmit(contents, 'onCompleted', { url, frame, isMainFrame: isMain, processId: pid });
+  });
+  // A navigation replaced by another (-3, ERR_ABORTED) is not told. Once per
+  // failure: did-fail-load also follows every did-fail-provisional-load.
+  contents.on('did-fail-load', (e, code, description, url, isMain, pid, rid) => {
+    if (code === -3) return;
+    const frame = frameOf(e, pid, rid);
+    failedFrames.add(keyOf(frame, isMain));
+    const named = description || ('ERR_' + code);
+    _extNavEmit(contents, 'onErrorOccurred', { url, frame, isMainFrame: isMain, processId: pid, error: /^net::/.test(named) ? named : 'net::' + named });
+  });
+}
+// chrome.cookies.onChanged, from each extension session's own cookie jar:
+// only to an extension with the "cookies" permission and host permission for
+// the cookie's site. A private, off-the-record or Tor session is never
+// watched.
+const _watchedCookieSessions = new WeakSet();
+function _watchSessionCookies(ses) {
+  if (_watchedCookieSessions.has(ses) || ses.__vexTor) return;
+  if (typeof ses.isPersistent === 'function' && !ses.isPersistent()) return;
+  _watchedCookieSessions.add(ses);
+  ses.cookies.on('changed', (_e, cookie, cause, removed) => {
+    _extEmit(ses, 'cookies.onChanged', (ext) => {
+      const m = ext.manifest || {};
+      if (!(m.permissions || []).includes('cookies')) return null;
+      if (!_extCookies.allowsHost(m, cookie.domain, _extMenuModel.matchPattern)) return null;
+      return [_extEventsMod.cookieChange(cookie, cause, removed, _extCookies.toChrome)];
+    });
+  });
+}
 // The tab in front changed in a Vex window (js/tabs.js, switchTab).
 ipcMain.on('tabs:activated', (event, pageId) => {
   const host = secureSessions.owner(event.sender);
@@ -4827,8 +4920,22 @@ async function _extApi(senderUrl, ses, request) {
       if (/^webRequest\./.test(type)) needPerm('webRequest');
       if (/^downloads\./.test(type)) needPerm('downloads');
       if (/^notifications\./.test(type)) needPerm('notifications');
+      if (/^webNavigation\./.test(type)) needPerm('webNavigation');
+      if (/^cookies\./.test(type)) needPerm('cookies');
       _extEvents.listen(`${partition}|${extId}`, type, args.filter);
       return undefined;
+    }
+    case 'webNavigation.getFrame': case 'webNavigation.getAllFrames': {
+      needPerm('webNavigation');
+      const page = _extPage(ses, args.tabId);
+      if (!page || _extPageIsPrivate(page) || !_extEventsMod.navigableUrl(page.getURL())) return null;
+      const rows = [...page.mainFrame.framesInSubtree].filter(f => _extEventsMod.navigableUrl(f.url)).map(f => {
+        const ids = _extEventsMod.frameIds(f, false);
+        return { frameId: ids.frameId, parentFrameId: ids.parentFrameId, processId: f.processId, url: f.url, errorOccurred: false,
+          documentLifecycle: 'active', frameType: ids.frameId === 0 ? 'outermost_frame' : 'sub_frame' };
+      });
+      if (r.op === 'webNavigation.getAllFrames') return rows;
+      return rows.find(f => f.frameId === args.frameId) || null;
     }
     case 'alarms.create': needPerm('alarms'); _extAlarms.create(`${partition}|${extId}`, args.name, args.info); return undefined;
     case 'alarms.get': needPerm('alarms'); return _extAlarms.get(`${partition}|${extId}`, args.name);
