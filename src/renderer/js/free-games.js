@@ -145,7 +145,7 @@ const FreeGames = {
     if (typeof VexJobs === 'undefined') return this;
     VexJobs.every('free-games', 30 * 60 * 1000, () => {
       this.check().catch(err => window.VexProblems?.note('Free games', 'Could not check the stores', err));
-    }, { when: 'background' });
+    }, { when: 'background', deferOnBattery: true });
     return this;
   },
 };

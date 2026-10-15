@@ -101,7 +101,7 @@ const GitHubWatch = {
 
   start() {
     if (this._job) return;
-    this._job = VexJobs.every('GitHub watches', 60000, () => this.checkDue(), { when: 'background' });
+    this._job = VexJobs.every('GitHub watches', 60000, () => this.checkDue(), { when: 'background', deferOnBattery: true });
   },
 };
 

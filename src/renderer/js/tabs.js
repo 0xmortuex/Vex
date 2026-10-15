@@ -2592,7 +2592,11 @@ const TabManager = {
   startAutoSleep(thresholdMinutes, excludePinned) {
     this.stopAutoSleep();
     this._autoSleepInterval = setInterval(() => {
-      const threshold = (thresholdMinutes || 30) * 60 * 1000;
+      // On battery the wait is shorter (js/battery-mode.js) — the same timer,
+      // the same filters below and the same consent gate, not another path.
+      const minutes = (typeof BatteryMode !== 'undefined' && typeof BatteryMode.sleepMinutes === 'function')
+        ? BatteryMode.sleepMinutes(thresholdMinutes || 30) : (thresholdMinutes || 30);
+      const threshold = minutes * 60 * 1000;
       const now = Date.now();
       const due = [];
       this.tabs.forEach(t => {

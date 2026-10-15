@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (rename this heading to the version when it is released)
+
+### New
+- **Vex can save power while the PC runs on its battery** (Settings › Performance › On battery, off until you turn it on). Idle tabs sleep after 10 minutes (5 when the battery is low), Vex's own background checks (page and GitHub watches, calendars, Read later, tabs from other devices, free games, live channels, Recall page reads, the sync pull, extension updates) and background AI wait, and its animations stop. One "Saving battery" chip in the toolbar says so; plugging in runs the waiting work once and puts everything back. A change between mains and battery must hold for ten seconds, so a loose plug does not make it flap. Tabs playing sound, on a call, being recorded or kept awake are never slept, and your own changes still sync. On a PC with no battery it does nothing and Settings says so. Windows' Battery Saver switch is not visible to Vex.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

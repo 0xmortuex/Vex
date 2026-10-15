@@ -1343,10 +1343,45 @@ body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 
 /* Gaming (js/game-mode.js, "Keep Vex still"): nothing in Vex animates while a
    game has the screen. */
-body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still *::after {
+body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still *::after,
+body.vex-battery-still *, body.vex-battery-still *::before, body.vex-battery-still *::after {
   animation-play-state: paused !important;
   transition: none !important;
 }
+
+/* "Saving battery" (js/battery-mode.js): one chip, like the Tor one. A div, so
+   the looks' `#top-bar-right > button` sizing leaves it alone. */
+#battery-saving {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 3px 0 8px;
+  border: 1px solid color-mix(in srgb, #22c55e 45%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+#battery-saving[hidden] { display: none; }
+#battery-saving .battery-saving-icon { display: inline-flex; color: #22c55e; }
+#battery-saving .battery-saving-icon svg { width: 14px; height: 14px; }
+#battery-saving-open {
+  height: 20px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#battery-saving-open:hover { background: var(--vex-hover-fill, var(--bg)); }
 
 /* === Lock Vex (js/vex-lock.js) ==========================================
    Pages are hidden, not blurred: a blur can still be read. */

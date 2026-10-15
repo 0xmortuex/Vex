@@ -58,6 +58,9 @@ define('web-suggest qr:make qr:generate permissions:revoke totp:delete extension
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);
 define('game:state', []);
+// On battery or on mains (src/main/power-watch.js).
+define('power:watch power:lean', [boolean]);
+define('power:status', []);
 define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
 define('rec:own-window', []);
 define('app:idle-seconds', []);

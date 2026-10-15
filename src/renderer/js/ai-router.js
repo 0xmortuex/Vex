@@ -259,6 +259,11 @@ const AIRouter = (() => {
       _dbg(`[AIRouter] holding ${feature} — a game is running`);
       return null;
     }
+    // Battery-aware mode holds it the same way (js/battery-mode.js).
+    if (BACKGROUND_FEATURES.includes(feature) && typeof window !== 'undefined' && window.BatteryMode && window.BatteryMode.holdingAi()) {
+      _dbg(`[AIRouter] holding ${feature} — saving battery`);
+      return null;
+    }
     const primary = await resolveBackend(feature);
     if (primary === 'skip') {
       _dbg(`[AIRouter] skipping ${feature} — no local backend`);

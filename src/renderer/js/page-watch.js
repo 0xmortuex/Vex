@@ -432,8 +432,12 @@ const PageWatch = {
     try { this.migrateLegacy(); }
     catch (err) { window.showToast?.((err && err.message) || 'The old watched pages could not be moved', 'error'); }
     // The first look sets the baseline; nothing is announced from it.
-    setTimeout(() => this.checkDue(), 20000);
-    this._timer = VexJobs.every('Page watches', 60000, () => this.checkDue(), { when: 'background' });
+    // On battery (js/battery-mode.js) this first sweep is put off with the rest.
+    setTimeout(() => {
+      if (typeof BatteryMode !== 'undefined' && BatteryMode.defer('page-watch-first', () => this.checkDue())) return;
+      this.checkDue();
+    }, 20000);
+    this._timer = VexJobs.every('Page watches', 60000, () => this.checkDue(), { when: 'background', deferOnBattery: true });
   },
 };
 

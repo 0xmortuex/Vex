@@ -165,7 +165,7 @@ const LiveChannels = {
     VexJobs.every('live-channels', this.EVERY_MS, () => {
       if (!this.list().length) return;
       this.check().catch(err => window.VexProblems?.note('Live channels', 'Could not check who is live', err));
-    }, { when: 'background' });
+    }, { when: 'background', deferOnBattery: true });
     return this;
   },
 };

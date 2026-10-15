@@ -975,7 +975,9 @@ function vexOwnTextFocused(doc) {
   // the memory ceiling while Memory Saver was on silently switched Memory Saver
   // back off in everything but the toggle.
   const memorySaverOn = () => { try { return localStorage.getItem('vex.memorySaver') === '1'; } catch { return false; } };
-  const effectiveSleepMinutes = () => (memorySaverOn() ? Math.min(settings.autoSleepMinutes || 30, 10) : (settings.autoSleepMinutes || 30));
+  const chosenSleepMinutes = () => (memorySaverOn() ? Math.min(settings.autoSleepMinutes || 30, 10) : (settings.autoSleepMinutes || 30));
+  // On battery (js/battery-mode.js) panels sleep sooner too, by the same rule.
+  const effectiveSleepMinutes = () => (typeof BatteryMode !== 'undefined' ? BatteryMode.sleepMinutes(chosenSleepMinutes()) : chosenSleepMinutes());
   // A guard set to Off stays off under Memory Saver (it used to run at 900 MB
   // while the select said Off).
   const effectiveMemCeiling = () => {
@@ -1000,8 +1002,8 @@ function vexOwnTextFocused(doc) {
       VexStorage.saveSettings(settings);
       writeAutoSleepMirror();
       if (settings.autoSleepEnabled) {
-        TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned);
-        if (memorySaverOn() && effectiveSleepMinutes() !== settings.autoSleepMinutes) {
+        TabManager.startAutoSleep(chosenSleepMinutes(), settings.autoSleepExcludePinned);
+        if (memorySaverOn() && chosenSleepMinutes() !== settings.autoSleepMinutes) {
           showToast('Saved — Memory Saver keeps tabs sleeping after 10 minutes until you turn it off', 'info');
         }
       } else {
@@ -1014,7 +1016,7 @@ function vexOwnTextFocused(doc) {
 
     // Start auto-sleep if enabled
     if (settings.autoSleepEnabled) {
-      TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
+      TabManager.startAutoSleep(chosenSleepMinutes(), settings.autoSleepExcludePinned !== false);
     }
   }
 
@@ -1073,7 +1075,7 @@ function vexOwnTextFocused(doc) {
     TabManager.startIdleDiscard(on);
     // Memory Saver shortens auto-sleep; it does not switch on a toggle that
     // shows off.
-    if (settings.autoSleepEnabled) TabManager.startAutoSleep(effectiveSleepMinutes(), settings.autoSleepExcludePinned !== false);
+    if (settings.autoSleepEnabled) TabManager.startAutoSleep(chosenSleepMinutes(), settings.autoSleepExcludePinned !== false);
     else TabManager.stopAutoSleep();
     TabManager.startMemoryGuard(effectiveMemCeiling());
   };
@@ -1175,6 +1177,9 @@ function vexOwnTextFocused(doc) {
   // Discord hotkeys that reach into a fullscreen game, and streamer mode
   // (js/game-mode.js).
   if (typeof GameMode !== 'undefined') GameMode.init();
+
+  // Opt-in: save power while the PC runs on its battery (js/battery-mode.js).
+  if (typeof BatteryMode !== 'undefined') BatteryMode.init();
 
   // Snoozed tabs come back when they are due; a tab untouched for a week is
   // archived rather than left in the strip (js/tab-snooze.js).

@@ -179,6 +179,11 @@ contextBridge.exposeInMainWorld('vex', {
   gameWatch: (on) => ipcRenderer.invoke('game:watch', !!on),
   gameState: () => ipcRenderer.invoke('game:state'),
   onGameState: (cb) => subscribe('game:state', cb),
+  // On battery or on mains (src/main/power-watch.js; js/battery-mode.js).
+  powerWatch: (on) => ipcRenderer.invoke('power:watch', !!on),
+  powerStatus: () => ipcRenderer.invoke('power:status'),
+  powerLean: (on) => ipcRenderer.invoke('power:lean', !!on),
+  onPowerState: (cb) => subscribe('power:state', cb),
   // The quick-capture window hands its line here to be carried out.
   onCaptureTake: (cb) => subscribe('capture:take', cb),
   captureDone: (payload) => ipcRenderer.send('capture:done', payload),

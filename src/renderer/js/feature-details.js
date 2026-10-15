@@ -17,6 +17,7 @@
 // after the headline, not a manual.
 const FeatureDetails = {
   // ---- Tabs & windows ------------------------------------------------------
+  'battery-mode': 'Vex asks Windows whether the PC is on its battery. If it is, the idle-tab timer shortens to 10 minutes (5 when the charge is low), Vex’s own checks for page changes, calendars, GitHub, Read later and tabs from other devices wait, background AI waits, and its animations stop. Anything playing sound, on a call, being recorded or kept awake is never put to sleep, and nothing you typed is lost. Plugging in runs the waiting work once. On a PC with no battery it does nothing, and Settings says so.',
   'find-in-page': 'Vex counts the matches and keeps its own bar, so a site that has hijacked Ctrl+F for its own search still gives you the browser one. Enter jumps to the next match, Shift+Enter to the previous.',
   'memory-saver': 'This is the blunt instrument: it lets Chromium discard idle tabs on its own terms. If you want to decide what sleeps and when, use Sleeping tabs and the memory ceiling instead — they keep the scroll position and can be told what to leave alone.',
   'vertical-tabs': 'Thirty tabs across the top gives each one about twelve pixels of title; down the side each keeps its full name. The strip can be collapsed to icons with Ctrl+B when you want the width back.',
@@ -295,6 +296,8 @@ const FeatureDetails = {
 // when the code changes, change the words here. tests/renderer/
 // libraryOpenButtons.test.js fails for a manual entry that has none.
 const FeatureHow = {
+  // battery-mode.js: BatteryMode (main side: src/main/power-watch.js)
+  'battery-mode': 'Settings › Performance › On battery has the switch, and it is off until you turn it on. Windows says when the PC goes onto its battery or back to the mains; a change must hold for ten seconds before Vex acts on it, so a loose plug does not make it flap. While on battery a small “Saving battery” chip sits in the toolbar. The idle-tab timer is the same one as always, only shorter, and it still asks first or never acts depending on “Before Vex puts anything to sleep on its own”. Background checks that opted in are held the way a game holds them and each runs once when you plug in; page reads for Recall and the sync pull are queued and run then; your own changes still upload. Windows’ Battery Saver switch is not visible to Vex.',
   // app.js: showFindBar / findOnActive
   'find-in-page': 'Press Ctrl+F with a page in front and a find bar opens over it. Type a word and the matches are highlighted and counted (for example 2/5); Enter goes to the next one, Shift+Enter to the previous one, Escape closes the bar. Each tab has its own find bar, and on Google Docs, which paints its text on a canvas, Ctrl+F is handed to the page’s own find. It is a key, so there is no button to press and nothing to switch off.',
   // tabs.js: _showKeepAwakeChooser, sidebar.js: keep awake for panels

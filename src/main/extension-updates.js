@@ -254,11 +254,12 @@ async function findCatalogUpdate({ catalogId, installedVersion, fetch, sources, 
 //   readState() / writeState(state)
 //   isOnline()                boolean
 //   isMetered()               Promise<boolean>; rejects when it cannot tell
+//   isOnBattery()             optional; true while battery-aware mode is saving power
 //   onUpdated({ folder, name, from, to, how })   e.g. a line in diagnostics
 //   now, setTimeout, clearTimeout, sleep(ms)    for the tests
 function createExtensionUpdater(deps) {
   const d = { now: Date.now, setTimeout, clearTimeout, sleep: (ms) => new Promise(r => setTimeout(r, ms)),
-    firstCheckMs: FIRST_CHECK_MS, everyMs: CHECK_EVERY_MS, staggerMs: STAGGER_MS, onUpdated: () => {}, ...deps };
+    firstCheckMs: FIRST_CHECK_MS, everyMs: CHECK_EVERY_MS, staggerMs: STAGGER_MS, batteryRetryMs: 20 * 60 * 1000, onUpdated: () => {}, ...deps };
   for (const k of ['list', 'find', 'install', 'readState', 'writeState', 'isOnline', 'isMetered']) {
     if (typeof d[k] !== 'function') throw new TypeError('createExtensionUpdater: ' + k + ' is required');
   }
@@ -292,6 +293,12 @@ function createExtensionUpdater(deps) {
     if (!d.isOnline()) {
       mutate(s => { s.lastOutcome = 'Not checked: Vex is offline.'; });
       return { skipped: 'offline' };
+    }
+    // Battery-aware mode: a scheduled check waits for the mains; "Check now"
+    // still goes ahead.
+    if (!manual && typeof d.isOnBattery === 'function' && d.isOnBattery()) {
+      mutate(s => { s.lastOutcome = 'Not checked: Vex is saving battery. It checks again when the PC is plugged in. "Check now" checks anyway.'; });
+      return { skipped: 'battery' };
     }
     if (!manual) {
       let metered;
@@ -350,9 +357,11 @@ function createExtensionUpdater(deps) {
     if (timer) d.clearTimeout(timer);
     timer = d.setTimeout(async () => {
       timer = null;
-      try { await checkNow({ manual: false }); }
+      let outcome = null;
+      try { outcome = await checkNow({ manual: false }); }
       catch (err) { console.error('[Extensions] the update check failed:', err.message); }
-      if (started) schedule(d.everyMs);
+      // Held for the battery: look again soon rather than in six hours.
+      if (started) schedule(outcome && outcome.skipped === 'battery' ? d.batteryRetryMs : d.everyMs);
     }, ms);
     if (timer && typeof timer.unref === 'function') timer.unref();
   }

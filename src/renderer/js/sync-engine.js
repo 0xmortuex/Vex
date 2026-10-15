@@ -1654,7 +1654,12 @@ const SyncEngine = (() => {
       return;
     }
     pushTimer = setInterval(() => pushNow(), 2 * 60 * 1000);
-    pullTimer = setInterval(() => pullNow(), 5 * 60 * 1000);
+    // On battery (js/battery-mode.js) the pull waits and runs once when the PC
+    // is plugged in. The push is not put off: it is how your changes leave.
+    pullTimer = setInterval(() => {
+      if (typeof BatteryMode !== 'undefined' && BatteryMode.defer('sync-pull', () => pullNow())) return;
+      pullNow();
+    }, 5 * 60 * 1000);
     watchChanges();
   }
 
