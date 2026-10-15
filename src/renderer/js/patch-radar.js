@@ -369,5 +369,281 @@ const PatchRadar = {
   },
 };
 
-if (typeof window !== 'undefined') window.PatchRadar = PatchRadar;
-if (typeof module !== 'undefined' && module.exports) module.exports = { PatchRadar };
+// === Release radar: what is new in the tools I actually use =====================
+//
+// The patch radar above is per game and per address the user typed. This is the
+// same idea for software: the latest release of the products the person really
+// uses, and only those. "Uses" is decided on this computer, from three places:
+//
+//   history      a product's site visited at least MIN_VISITS times in 60 days
+//   extensions   an installed extension that is the product (or its companion)
+//   watched      a GitHub repository already in Vex's GitHub watches
+//
+// A product that none of the three shows is never looked up, so nothing about
+// products you do not use is asked or listed. The one request is GitHub's
+// public "latest release" for each matched repository (no key, no account, 60 an
+// hour unsigned; answers are kept six hours). What was asked is shown first, and
+// asked of the person once, because the repository names tell GitHub which of
+// these tools you use.
+const ReleaseRadar = {
+  KEY: 'vex.releaseRadar',
+  CACHE_MS: 6 * 3600000,
+  RECENT_MS: 45 * 24 * 3600000,
+  HISTORY_MS: 60 * 24 * 3600000,
+  MIN_VISITS: 3,
+  MAX_LOOKUPS: 15,
+
+  // A starting list of well-known tools. `hosts` are the sites that show use,
+  // `ext` a pattern for an extension's name, `repo` the GitHub project whose
+  // releases are the product's.
+  PRODUCTS: [
+    { id: 'vscode', name: 'Visual Studio Code', repo: 'microsoft/vscode', hosts: ['code.visualstudio.com'] },
+    { id: 'node', name: 'Node.js', repo: 'nodejs/node', hosts: ['nodejs.org'] },
+    { id: 'deno', name: 'Deno', repo: 'denoland/deno', hosts: ['deno.com', 'deno.land'] },
+    { id: 'bun', name: 'Bun', repo: 'oven-sh/bun', hosts: ['bun.sh'] },
+    { id: 'vite', name: 'Vite', repo: 'vitejs/vite', hosts: ['vitejs.dev', 'vite.dev'] },
+    { id: 'electron', name: 'Electron', repo: 'electron/electron', hosts: ['electronjs.org'] },
+    { id: 'rust', name: 'Rust', repo: 'rust-lang/rust', hosts: ['rust-lang.org', 'doc.rust-lang.org'] },
+    { id: 'git', name: 'Git for Windows', repo: 'git-for-windows/git', hosts: ['git-scm.com', 'gitforwindows.org'] },
+    { id: 'ollama', name: 'Ollama', repo: 'ollama/ollama', hosts: ['ollama.com'] },
+    { id: 'obsidian', name: 'Obsidian', repo: 'obsidianmd/obsidian-releases', hosts: ['obsidian.md'] },
+    { id: 'obs', name: 'OBS Studio', repo: 'obsproject/obs-studio', hosts: ['obsproject.com'] },
+    { id: 'godot', name: 'Godot', repo: 'godotengine/godot', hosts: ['godotengine.org'] },
+    { id: 'ha', name: 'Home Assistant', repo: 'home-assistant/core', hosts: ['home-assistant.io'] },
+    { id: 'ublock', name: 'uBlock Origin', repo: 'gorhill/uBlock', hosts: [], ext: /ublock/i },
+    { id: 'bitwarden', name: 'Bitwarden', repo: 'bitwarden/clients', hosts: ['bitwarden.com'], ext: /bitwarden/i },
+    { id: 'darkreader', name: 'Dark Reader', repo: 'darkreader/darkreader', hosts: ['darkreader.org'], ext: /dark reader/i },
+  ],
+
+  enabled() { return !window.VexWorkflow ? true : window.VexWorkflow.pref('releaseRadar', true) !== false; },
+  backgroundOn() { return !!window.VexWorkflow && window.VexWorkflow.pref('releaseRadarBackground', false) === true; },
+  agreed() { return !!window.VexWorkflow && window.VexWorkflow.pref('releaseRadarAgreed', false) === true; },
+
+  _state() {
+    try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? { fetched: o.fetched || {}, seen: o.seen || {} } : { fetched: {}, seen: {} }; }
+    catch { return { fetched: {}, seen: {} }; }
+  },
+  _saveState(s) { try { localStorage.setItem(this.KEY, JSON.stringify(s)); return true; } catch { return false; } },
+
+  // ---- what the person uses ----------------------------------------------------------
+  _historyHosts(now = Date.now()) {
+    const counts = new Map();
+    let entries = [];
+    try {
+      entries = (typeof HistoryPanel !== 'undefined' && typeof HistoryPanel.list === 'function') ? HistoryPanel.list()
+        : (() => { const a = JSON.parse(localStorage.getItem('vex.history') || '[]'); return Array.isArray(a) ? a : (a && Array.isArray(a.entries) ? a.entries : []); })();
+    } catch { entries = []; }
+    for (const h of entries) {
+      if (!h || !h.url) continue;
+      const t = typeof h.time === 'number' ? h.time : Date.parse(h.time || '') || 0;
+      if (t && now - t > this.HISTORY_MS) continue;
+      let host = '';
+      try { host = new URL(h.url).hostname.replace(/^www\./, '').toLowerCase(); } catch { continue; }
+      counts.set(host, (counts.get(host) || 0) + 1);
+    }
+    return counts;
+  },
+
+  // → [{ product, why: [string], repo }] — products with at least one reason.
+  usedProducts(extensions = [], watched = [], now = Date.now()) {
+    const hosts = this._historyHosts(now);
+    const out = [];
+    const seenRepo = new Set();
+    for (const p of this.PRODUCTS) {
+      const why = [];
+      let visits = 0;
+      for (const [h, n] of hosts) if (p.hosts.some(x => h === x || h.endsWith('.' + x))) visits += n;
+      if (visits >= this.MIN_VISITS) why.push('visited ' + visits + ' times in 60 days');
+      const ext = p.ext ? extensions.find(e => p.ext.test(String(e.name || ''))) : null;
+      if (ext) why.push('extension “' + ext.name + '” is installed');
+      if (watched.some(w => String(w).toLowerCase() === p.repo.toLowerCase())) why.push('you watch ' + p.repo);
+      if (why.length) { out.push({ product: p, repo: p.repo, why }); seenRepo.add(p.repo.toLowerCase()); }
+    }
+    // A repository watched in Vex that is not in the table is a product the
+    // person named themselves.
+    for (const r of watched) {
+      if (seenRepo.has(String(r).toLowerCase())) continue;
+      out.push({ product: { id: 'repo:' + r, name: r, repo: r, hosts: [] }, repo: r, why: ['you watch ' + r] });
+      seenRepo.add(String(r).toLowerCase());
+    }
+    return out;
+  },
+
+  _watchedRepos() {
+    try { return (typeof GitHubWatch !== 'undefined' ? GitHubWatch.list() : []).filter(w => w.kind === 'release').map(w => w.owner + '/' + w.repo); }
+    catch { return []; }
+  },
+  async _extensions() {
+    try { if (window.vex && typeof window.vex.extensionsList === 'function') { const l = await window.vex.extensionsList(); return Array.isArray(l) ? l : []; } }
+    catch (err) { this._note('Could not read the installed extensions', err); }
+    return [];
+  },
+
+  // ---- looking up ----------------------------------------------------------------------
+  async _latest(repo) {
+    if (typeof GitHubWatch === 'undefined' || typeof GitHubWatch._get !== 'function') throw new Error('GitHub lookups are not available');
+    const r = await GitHubWatch._get('/repos/' + repo + '/releases/latest');
+    return { tag: r.tag_name || '', name: r.name || r.tag_name || '', published: Date.parse(r.published_at || r.created_at || '') || 0, url: r.html_url || ('https://github.com/' + repo + '/releases'), notes: String(r.body || '').replace(/\r/g, '').slice(0, 400) };
+  },
+
+  // Look up the matched products whose answer is older than CACHE_MS. → { items, errors }
+  async refresh({ force = false, now = Date.now() } = {}) {
+    if (!this.enabled()) throw new Error('The release radar is off in Settings › Workflow');
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) throw new Error('The release radar is not used in a private window');
+    const used = this.usedProducts(await this._extensions(), this._watchedRepos(), now).slice(0, this.MAX_LOOKUPS);
+    const st = this._state();
+    const errors = [];
+    for (const u of used) {
+      const have = st.fetched[u.repo];
+      if (!force && have && now - have.at < this.CACHE_MS) continue;
+      try { st.fetched[u.repo] = { ...(await this._latest(u.repo)), at: now }; }
+      catch (err) { errors.push(u.product.name + ': ' + ((err && err.message) || String(err))); if (/slow down/i.test(String(err && err.message))) break; }
+    }
+    this._saveState(st);
+    return { items: this.items(used, st, now), errors };
+  },
+
+  // The matched products with what is known, newest release first. No request.
+  items(used, st = this._state(), now = Date.now()) {
+    const list = used || this.usedProducts([], this._watchedRepos(), now);
+    return list.map((u) => {
+      const f = st.fetched[u.repo];
+      return f ? { id: u.product.id, name: u.product.name, repo: u.repo, why: u.why, tag: f.tag, title: f.name, published: f.published, url: f.url, notes: f.notes, unseen: st.seen[u.repo] !== f.tag, recent: !!f.published && now - f.published < this.RECENT_MS } : null;
+    }).filter(Boolean).sort((a, b) => b.published - a.published);
+  },
+
+  markSeen(repo) {
+    const st = this._state();
+    const f = st.fetched[repo];
+    if (f) { st.seen[repo] = f.tag; this._saveState(st); }
+  },
+
+  // ---- the list ---------------------------------------------------------------------------
+  async _agree(used) {
+    if (this.agreed()) return true;
+    const ok = await window.vexConfirm({
+      title: 'Look up releases of the tools you use?',
+      message: 'Vex found these in your history, extensions and GitHub watches:\n\n' + used.map(u => u.product.name + ' (' + u.repo + ')').join('\n')
+        + '\n\nIt asks GitHub for each one’s latest release — no account, no key. GitHub can see which of them you asked for. Nothing else is sent.',
+      okLabel: 'Look them up',
+    });
+    if (ok) window.VexWorkflow.setPref('releaseRadarAgreed', true);
+    return ok;
+  },
+
+  async open() {
+    if (!this.enabled()) { window.showToast?.('The release radar is off in Settings › Workflow', 'info'); return; }
+    document.getElementById('vex-relradar')?.remove();
+    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
+    const m = document.createElement('div');
+    m.id = 'vex-relradar';
+    m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:flex-start;justify-content:center;padding-top:8vh';
+    m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="What is new for you" style="width:620px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px var(--vex-shadow-color,rgba(0,0,0,.5));color:var(--text);font-size:12.5px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--border)">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:700;flex:1">${VexIcons.svg('rocket', { size: 16 })}What is new for you</span>
+        <button type="button" id="rr-refresh" class="btn-secondary">Check now</button>
+        <button type="button" id="rr-close" class="btn-secondary" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button>
+      </div>
+      <div id="rr-body" style="padding:10px 16px 16px;overflow-y:auto"></div></div>`;
+    document.body.appendChild(m);
+    const body = m.querySelector('#rr-body');
+    const close = () => m.remove();
+    m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
+    m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+    m.querySelector('#rr-close').addEventListener('click', close);
+
+    const paint = (items, errors, note) => {
+      body.textContent = '';
+      if (note) { const n = document.createElement('div'); n.style.cssText = 'color:var(--text-muted);margin-bottom:8px'; n.textContent = note; body.appendChild(n); }
+      if (!items.length && !errors.length) {
+        const e = document.createElement('div');
+        e.style.color = 'var(--text-muted)';
+        e.textContent = 'Nothing yet. A product shows here once your history, an extension or a GitHub watch shows you use it.';
+        body.appendChild(e);
+      }
+      for (const it of items) {
+        const row = document.createElement('div');
+        row.style.cssText = 'border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:7px;background:var(--bg)';
+        row.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">${esc(it.name)} · ${esc(it.tag)}</b><span style="color:var(--text-muted)">${it.published ? esc(new Date(it.published).toLocaleDateString()) : ''}${it.unseen ? ' · new' : ''}</span></div>
+          <div style="color:var(--text-muted);font-size:11.5px;margin:3px 0">Shown because: ${esc(it.why.join('; '))}</div>
+          ${it.notes ? `<div style="white-space:pre-wrap;font-size:11.5px;max-height:5.5em;overflow:hidden">${esc(it.notes)}</div>` : ''}
+          <div style="margin-top:6px;display:flex;gap:6px"><button type="button" class="btn-secondary" data-open>Open release</button><button type="button" class="btn-secondary" data-seen>Mark seen</button></div>`;
+        row.querySelector('[data-open]').addEventListener('click', () => { this.markSeen(it.repo); try { TabManager.createTab(it.url, true); close(); } catch (err) { window.showToast?.(err.message, 'error'); } });
+        row.querySelector('[data-seen]').addEventListener('click', () => { this.markSeen(it.repo); row.remove(); });
+        body.appendChild(row);
+      }
+      for (const e of errors) { const d = document.createElement('div'); d.style.cssText = 'color:var(--danger,#e5484d);font-size:11.5px'; d.textContent = e; body.appendChild(d); }
+    };
+
+    const run = async (force) => {
+      body.textContent = 'Looking at what you use…';
+      try {
+        const used = this.usedProducts(await this._extensions(), this._watchedRepos()).slice(0, this.MAX_LOOKUPS);
+        if (!used.length) { paint([], [], ''); return; }
+        const st = this._state();
+        const anyFetch = used.some(u => !st.fetched[u.repo] || force);
+        if (anyFetch && !(await this._agree(used))) { paint(this.items(used, st), [], 'Showing what was already known. Nothing was looked up.'); return; }
+        const r = await this.refresh({ force });
+        paint(r.items, r.errors, 'Only products your history, extensions or GitHub watches show you use.');
+      } catch (err) { paint([], [(err && err.message) || String(err)], ''); }
+    };
+    m.querySelector('#rr-refresh').addEventListener('click', () => run(true));
+    await run(false);
+  },
+
+  // The background check: once every six hours, only when asked for and only
+  // after the person has agreed to the lookups. What is new is told once.
+  async _tick() {
+    if (!this.enabled() || !this.backgroundOn() || !this.agreed()) return 0;
+    const before = new Set(this.items().filter(i => !i.unseen).map(i => i.repo));
+    const r = await this.refresh();
+    const fresh = r.items.filter(i => i.unseen && i.recent && !before.has(i.repo));
+    if (fresh.length) {
+      const text = 'New for you: ' + fresh.slice(0, 3).map(i => i.name + ' ' + i.tag).join(', ') + (fresh.length > 3 ? ' and ' + (fresh.length - 3) + ' more' : '');
+      window.showToast?.(text, 'info', 8000);
+    }
+    return fresh.length;
+  },
+
+  snapshot() {
+    return { enabled: this.enabled(), background: this.backgroundOn(), items: this.items().map(i => ({ name: i.name, tag: i.tag, published: i.published, url: i.url, unseen: i.unseen, recent: i.recent })) };
+  },
+
+  render(box) {
+    box.appendChild(window.VexWorkflow.toggleRow('Release radar: what is new in the tools I use', 'only tools your history, extensions or GitHub watches show', this.enabled(), (on) => {
+      if (!window.VexWorkflow.setPref('releaseRadar', on)) window.showToast?.('The choice could not be saved', 'error');
+      this.init();
+    }));
+    box.appendChild(window.VexWorkflow.toggleRow('Check by itself every six hours', 'off by default; asks GitHub only after you have agreed once', this.backgroundOn(), (on) => {
+      if (!window.VexWorkflow.setPref('releaseRadarBackground', on)) window.showToast?.('The choice could not be saved', 'error');
+    }));
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn-secondary'; b.style.marginTop = '6px'; b.textContent = 'Show what is new for me';
+    b.addEventListener('click', () => this.open());
+    box.appendChild(b);
+  },
+
+  init() {
+    if (!window.VexWorkflow) return false;
+    if (!this.enabled()) {
+      if (this._job) { this._job.stop(); this._job = null; }
+      if (typeof CommandBar !== 'undefined' && Array.isArray(CommandBar.commands)) CommandBar.commands = CommandBar.commands.filter(c => c.id !== 'release-radar');
+      return false;
+    }
+    window.VexWorkflow.addCommand({ id: 'release-radar', label: 'What is new for me', hint: 'Latest releases of the tools you actually use, from your history, extensions and GitHub watches', icon: 'rocket', action: () => this.open() });
+    if (!this._job && typeof VexJobs !== 'undefined') this._job = VexJobs.every('Release radar', 6 * 3600000, () => this._tick().catch(err => this._note('The release check failed', err)), { when: 'background', deferOnBattery: true });
+    return true;
+  },
+  _note(what, err) { window.VexProblems?.note('Release radar', what, err); },
+};
+
+if (!!window.VexWorkflow) {
+  window.VexWorkflow.register({
+    id: 'releaseRadar', title: 'Release radar', icon: 'rocket',
+    render: (box) => ReleaseRadar.render(box),
+    snapshot: () => ReleaseRadar.snapshot(),
+  });
+}
+
+if (typeof window !== 'undefined') { window.PatchRadar = PatchRadar; window.ReleaseRadar = ReleaseRadar; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { PatchRadar, ReleaseRadar };
