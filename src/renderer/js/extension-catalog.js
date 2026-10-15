@@ -2,8 +2,8 @@
 // Extensions worth installing in Vex, and the honest reason for each.
 //
 // Vex runs on Electron, whose extension support is partial: there is no
-// request blocking (neither declarativeNetRequest nor a blocking webRequest),
-// no context menus, no keyboard commands and no badges, and extensions never
+// blocking webRequest (declarativeNetRequest rules are applied by Vex itself,
+// behind its own blocker: src/main/extension-dnr.js), and extensions never
 // load in Private or Tor tabs (Electron refuses temporary sessions).
 // chrome.storage.sync, tabs.create/remove and chrome.permissions work through
 // Vex's stand-ins (src/preload-webview.js, src/preload-extension-sw.js). Every
@@ -118,7 +118,7 @@ const VexExtensionCatalog = {
   // What Electron simply does not give an extension, so the manager can say so
   // rather than leaving someone guessing why their extension is quiet.
   UNSUPPORTED: [
-    'Blocking requests (declarativeNetRequest, blocking webRequest) — ad blockers cannot block',
+    'Blocking requests from code (blocking webRequest). declarativeNetRequest rules do work, behind Vex’s own blocker',
     'Changing the toolbar icon or popup from code (action.setIcon, setPopup) and global shortcuts that work outside Vex',
     'Syncing settings between machines (storage.sync works, but stays on this machine)',
     'Cookies and navigation events in private, burner and Tor tabs (cookies, webNavigation), and webNavigation\u2019s new-window and replaced-tab events',

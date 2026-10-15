@@ -22,14 +22,14 @@ describe('install cautions', () => {
   });
   it('says DNR rules are accepted and block nothing, and what partly works', () => {
     const c = ws.cautions({ manifest_version: 3, permissions: ['declarativeNetRequest', 'cookies', 'notifications', 'downloads'] }).join(' ');
-    expect(c).toMatch(/accepted but block nothing/);
+    expect(c).toMatch(/applied by Vex, after its own ad blocker/);
     expect(c).toMatch(/one cookie store/);
     expect(c).toMatch(/Windows notifications/);
     expect(c).toMatch(/cannot name the file, open it/);
   });
   it('plain webRequest is told it only hears finished requests, and is no blocker', () => {
     expect(ws.cautions({ manifest_version: 3, permissions: ['webRequest'] })).toEqual(['It is told only about finished requests (webRequest.onCompleted), not about requests as they start or their headers.']);
-    expect(MAIN).toMatch(/some\(p => \/\^\(webRequestBlocking\|declarativeNetRequest\)\/\.test\(String\(p\)\)\)/);
+    expect(MAIN).toMatch(/some\(p => \/\^webRequestBlocking\/\.test\(String\(p\)\)\)/);
   });
   it('the card shows them, and the 85 MB note only for a background page that stays loaded', () => {
     expect(MAIN).toMatch(/cautions: e\.manifest \? require\('\.\/main\/webstore'\)\.cautions\(manifest\) : \[\]/);

@@ -472,6 +472,46 @@ function vexExtensionStandIns(c, askPopupTab, openTab, closeTab, askActiveTabs, 
     else takeOver(c.alarms, alarmsApi, 'alarms');
   }
 
+  // chrome.declarativeNetRequest: Electron's takes rules and enforces none
+  // (found 2026-10-12). Main keeps them and applies them from Vex's own
+  // webRequest listeners (src/main/extension-dnr.js).
+  if (api && (perms.indexOf('declarativeNetRequest') !== -1 || perms.indexOf('declarativeNetRequestWithHostAccess') !== -1)) {
+    var dnrCall = function (name, pack) {
+      return function () {
+        var a = Array.prototype.slice.call(arguments);
+        var cb = typeof a[a.length - 1] === 'function' ? a.pop() : null;
+        return settle(api('dnr.' + name, pack ? pack(a) : (a[0] || {})), cb, 'declarativeNetRequest.' + name);
+      };
+    };
+    var dnrApi = {
+      updateDynamicRules: dnrCall('updateDynamicRules'),
+      updateSessionRules: dnrCall('updateSessionRules'),
+      getDynamicRules: dnrCall('getDynamicRules'),
+      getSessionRules: dnrCall('getSessionRules'),
+      getEnabledRulesets: dnrCall('getEnabledRulesets'),
+      updateEnabledRulesets: dnrCall('updateEnabledRulesets'),
+      getAvailableStaticRuleCount: dnrCall('getAvailableStaticRuleCount'),
+      getDisabledRuleIds: dnrCall('getDisabledRuleIds'),
+      updateStaticRules: dnrCall('updateStaticRules'),
+      isRegexSupported: dnrCall('isRegexSupported'),
+      testMatchOutcome: dnrCall('testMatchOutcome', function (a) { return { request: a[0] || {} }; }),
+      getMatchedRules: dnrCall('getMatchedRules', function (a) { return { filter: a[0] || {} }; }),
+      setExtensionActionOptions: done(undefined),
+      onRuleMatchedDebug: noEvent(),
+      GUARANTEED_MINIMUM_STATIC_RULES: 30000,
+      MAX_NUMBER_OF_STATIC_RULESETS: 100,
+      MAX_NUMBER_OF_ENABLED_STATIC_RULESETS: 50,
+      MAX_NUMBER_OF_DYNAMIC_RULES: 30000,
+      MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES: 5000,
+      MAX_NUMBER_OF_SESSION_RULES: 5000,
+      MAX_NUMBER_OF_UNSAFE_SESSION_RULES: 5000,
+      MAX_NUMBER_OF_REGEX_RULES: 1000,
+      MAX_NUMBER_OF_DISABLED_STATIC_RULES: 5000,
+    };
+    if (!c.declarativeNetRequest) c.declarativeNetRequest = dnrApi;
+    else takeOver(c.declarativeNetRequest, dnrApi, 'declarativeNetRequest');
+  }
+
   if (!c.extension) c.extension = {};
   if (typeof c.extension.isAllowedFileSchemeAccess !== 'function') {
     c.extension.isAllowedFileSchemeAccess = function (cb) { return settle(fileAccess(), cb, 'extension.isAllowedFileSchemeAccess'); };
