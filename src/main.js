@@ -824,6 +824,16 @@ const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermis
 // picker in the renderer, and hand the chosen source back (with system-audio
 // loopback so "share sound" works). ===
 const _pendingScreenPicks = new Map();
+// Is the frame still the page that asked? A single-page app (Discord) rewrites its address while a
+// share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
+// with 'Requesting page changed'. What matters is whether it is the same site: an address on another
+// origin, or a detached frame, is a different page.
+function _sameRequester(frame, askedUrl) {
+  try {
+    if (!frame || frame.detached) return false;
+    return new URL(frame.url).origin === new URL(askedUrl).origin;
+  } catch { return false; }
+}
 function wireDisplayMediaOnSession(ses) {
   if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
   ses.__vexDisplayWired = true;
@@ -837,7 +847,7 @@ function wireDisplayMediaOnSession(ses) {
       .then((sources) => {
         if (!sources || !sources.length) return callback();
         const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        if (requestingContents.isDestroyed() || requestingFrame.url !== requestingUrl) return callback();
+        if (requestingContents.isDestroyed() || !_sameRequester(requestingFrame, requestingUrl)) return callback();
         // The picker UI lives in the Vex window that owns this request. When the
         // request comes from a DIFFERENT window - a Discord pop-out, which floats
         // always-on-top by default - the picker opens behind it, so "Share Your
@@ -889,7 +899,7 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   if (p.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
-  try { if (p.frame.detached || p.frame.url !== p.url) { p.callback(); return { ok: false, error: 'Requesting page changed' }; } } catch { try { p.callback(); } catch {} return { ok: false }; }
+  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch {} return { ok: false, error: 'Requesting page changed' }; }
   if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
   if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: false, error: 'That screen or window is no longer there — try again' }; }
