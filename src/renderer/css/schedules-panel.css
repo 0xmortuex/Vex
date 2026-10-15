@@ -39,6 +39,12 @@
 
 .sched-content { flex: 1; overflow-y: auto; padding: 14px 20px; }
 
+/* Drawn inside the Clock panel's body (its sub-tab "Scheduled tasks"): the
+   body already pads and scrolls, and the Clock panel carries the heading. */
+.sched-container.sched-embedded { flex: 1; min-height: 0; height: auto; }
+.sched-embedded .sched-header { padding: 0 0 10px; border-bottom: 0; }
+.sched-embedded .sched-content { padding: 0; }
+
 .sched-icon { flex-shrink: 0; vertical-align: -2px; }
 
 /* Status marks — SVG on currentColor, no emoji anywhere in this panel. */

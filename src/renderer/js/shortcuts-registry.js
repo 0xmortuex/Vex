@@ -62,7 +62,7 @@ const ShortcutsRegistry = (() => {
     // renderer registry actually fires it — and it stays user-rebindable.
     'private-window': { default: 'Ctrl+Alt+N',   label: 'Private Window',             category: 'Panels' },
     'sessions':       { default: 'Ctrl+Shift+O', label: 'Sessions Menu',              category: 'Panels' },
-    'schedules':      { default: 'Ctrl+Shift+L', label: 'Schedules Panel',            category: 'Panels' },
+    'schedules':      { default: 'Ctrl+Shift+L', label: 'Scheduled tasks (Clock panel)', category: 'Panels' },
 
     // Tools
     'reading-mode':   { default: 'Ctrl+Alt+R',   label: 'Reading Mode',               category: 'Tools' },

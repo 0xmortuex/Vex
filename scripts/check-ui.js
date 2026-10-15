@@ -1101,7 +1101,7 @@ const SURFACES = [
 
 // Judged for keyboard and screen-reader structure only (a11yScan): the whole
 // window with nothing open, and each sidebar panel that is plain HTML.
-const PANEL_IDS = ['bookmarks', 'notes', 'clock', 'memory', 'library', 'schedules', 'shortcuts', 'privacy', 'recall', 'annotations', 'authenticator', 'feeds', 'queue', 'work', 'devtools-dash'];
+const PANEL_IDS = ['bookmarks', 'notes', 'clock', 'memory', 'library', 'shortcuts', 'privacy', 'recall', 'annotations', 'authenticator', 'feeds', 'queue', 'work', 'devtools-dash'];
 const A11Y_ONLY_SURFACES = [
   { name: 'the window', sel: 'body', open: 'SidebarManager.hideActivePanel()', close: 'true' },
   { name: 'the site panel', sel: '#vex-site-panel', open: 'SitePanel.open()', close: 'SitePanel.close()' },
@@ -1112,6 +1112,8 @@ const A11Y_ONLY_SURFACES = [
   { name: 'the passkey picker', dialog: true, sel: '#vex-passkey-sheet', open: "PasskeyUI.openSheet({ id: 'check-ui', kind: 'get', host: 'example.com', rpName: 'Example', uv: 'discouraged', hasPin: false, accounts: [{ credentialId: 'a', userName: 'ada', userDisplayName: 'Ada', createdAt: '2026-01-01T00:00:00Z' }, { credentialId: 'b', userName: 'grace', userDisplayName: 'Grace', createdAt: '2026-01-02T00:00:00Z' }] })", close: "document.querySelectorAll('.vex-dialog-overlay').forEach(o => o._vexCancel && o._vexCancel())" },
   { name: 'a sidebar button menu', sel: '.tab-context-menu', open: "(() => { const b = document.querySelector('#icon-sidebar .sidebar-icon'); const r = b.getBoundingClientRect(); b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); })()", close: "document.querySelectorAll('.tab-context-menu, .context-menu-overlay').forEach(m => m.remove())" },
   ...PANEL_IDS.map(id => ({ name: 'the ' + id + ' panel', sel: '#panel-' + id, open: "SidebarManager.openPanel('" + id + "')", close: 'SidebarManager.hideActivePanel()' })),
+  // The former Schedules panel: the Clock panel's Scheduled tasks sub-tab.
+  { name: 'the scheduled tasks tab', sel: '#panel-clock', open: "SidebarManager.openPanel('schedules')", close: 'SidebarManager.hideActivePanel()' },
 ];
 
 async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, summaries) {

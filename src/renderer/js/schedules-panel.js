@@ -6,7 +6,8 @@
 // type and every action type the engine supports.
 //
 // Icons are inline SVG on currentColor — no emoji anywhere in this panel.
-// Public API: SchedulesPanel (singleton — init, showModal).
+// Public API: SchedulesPanel (singleton — init(container), showModal). Shown as
+// the "Scheduled tasks" sub-tab of the Clock panel.
 // Depends on Scheduler, VexUI, vexConfirm, window.showToast.
 
 const TASK_TEMPLATES = [
@@ -60,6 +61,7 @@ const SchedulesPanel = {
   _expanded: new Set(),
   _ticker: null,
   _boundChange: null,
+  _root: null,
 
   // 16px stroke icons on currentColor, matching the sidebar/top-bar vocabulary.
   _icon(name, size = 16) {
@@ -80,21 +82,22 @@ const SchedulesPanel = {
     return `<svg class="sched-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.dash}</svg>`;
   },
 
-  init() {
-    const panel = document.getElementById('panel-schedules');
-    if (!panel) return;
-    if (panel.dataset.rendered) { this._render(); return; }   // reopening must refresh, not freeze
-    panel.dataset.rendered = 'true';
+  // Draws the panel into `container`. Since the Schedules panel was merged into
+  // Clock ("Scheduled tasks" sub-tab, js/clock-panel.js) the caller owns the
+  // element. Called again each time the sub-tab is shown, so the markup is rebuilt from the singleton's state
+  // (_activeTab, _expanded) — the Scheduler itself never depends on this panel.
+  init(container) {
+    if (!container) throw new Error('SchedulesPanel.init needs the element to draw into');
+    const panel = container;
+    this._root = panel;
 
+    const tabs = [['active', 'Active'], ['history', 'History'], ['templates', 'Templates']];
     panel.innerHTML = `
-      <div class="sched-container">
+      <div class="sched-container sched-embedded">
         <div class="sched-header">
-          <h2>Scheduled Tasks</h2>
           <div class="sched-header-row">
-            <div class="sched-tabs" role="tablist">
-              <button class="sched-tab active" data-tab="active" role="tab" aria-selected="true">Active</button>
-              <button class="sched-tab" data-tab="history" role="tab" aria-selected="false">History</button>
-              <button class="sched-tab" data-tab="templates" role="tab" aria-selected="false">Templates</button>
+            <div class="sched-tabs" role="tablist" aria-label="Scheduled tasks">
+              ${tabs.map(([id, label]) => `<button class="sched-tab${this._activeTab === id ? ' active' : ''}" data-tab="${id}" role="tab" aria-selected="${this._activeTab === id}">${label}</button>`).join('')}
             </div>
             <button class="sched-new-btn" id="sched-new-btn">${this._icon('plus', 14)}<span>New Task</span></button>
           </div>
@@ -114,7 +117,7 @@ const SchedulesPanel = {
       });
     });
 
-    document.getElementById('sched-new-btn')?.addEventListener('click', () => this.showModal());
+    panel.querySelector('#sched-new-btn').addEventListener('click', () => this.showModal());
 
     // The engine announces every task/run change; the ticker keeps the "next
     // run" countdowns honest while the panel sits open. A burst of runs fires a
@@ -129,8 +132,10 @@ const SchedulesPanel = {
   },
 
   _visible() {
-    const panel = document.getElementById('panel-schedules');
-    return !!panel && panel.style.display !== 'none' && panel.offsetParent !== null;
+    // Drawn into the Clock panel's body, which is replaced when another
+    // sub-tab is shown — a detached root is simply not visible.
+    const root = this._root;
+    return !!root && root.isConnected && root.offsetParent !== null;
   },
 
   _scheduleRender() {

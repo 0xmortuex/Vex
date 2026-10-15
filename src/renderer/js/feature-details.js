@@ -59,7 +59,7 @@ const FeatureDetails = {
   personas: 'A persona is a saved voice and set of instructions, and each tab can use a different one — research in one, code review in another. @mention one mid-chat to borrow it for a single answer.',
   'ai-memory': 'Facts you should only have to say once: what you work on, which framework, how you like answers. It works on the local backend too, because it is stored here and sent with the question.',
   skills: 'The prompt you keep retyping, saved as its own Ctrl+K command that runs on whatever page you are on. This is the cheap way to automate something before reaching for the agent.',
-  schedules: 'Tasks that run without you — every morning, every Monday, or on a cron line. A run missed while the machine was off is caught up rather than silently skipped.',
+  schedules: 'Tasks that run without you — every morning, every Monday, or on a cron line. A run missed while the machine was off is caught up rather than silently skipped. They are on the Scheduled tasks tab of the Clock panel (Ctrl+Shift+L opens it there).',
   recall: 'Searches the text of pages you actually read, not just their titles, which is what you need when you remember the sentence and nothing else. The index is on this machine and can be emptied at any time.',
   remember: 'For when you cannot name it: "that article about DPI" finds it by what it was about. It searches the same local index as Recall.',
   catchup: 'Your saved pile, read for you: each article in two or three sentences and why it may matter, grouped by topic when there are many. Made on this machine unless you allow the cloud, and a summary is kept until the article changes. Turn on the morning run in the Library\'s Digest tab.',
@@ -361,7 +361,7 @@ const FeatureHow = {
   // agent-loop.js
   'agent-pause': 'The Pause button appears in the AI panel only while the agent is running. Pressing it holds the run between steps and leaves the page where it is; what you type while it is held becomes the agent’s next instruction, and it carries on from there. It is not there when the agent is idle, which is why there is nothing to open.',
   // agent: schedule tool
-  'agent-schedule': 'Tell the agent in the AI panel what to repeat and when — “every weekday at 8:30, check the status page and note anything new” — and it creates the scheduled task itself. The task is listed in the Schedules panel like any other. Press Show me to find the box to type in.',
+  'agent-schedule': 'Tell the agent in the AI panel what to repeat and when — “every weekday at 8:30, check the status page and note anything new” — and it creates the scheduled task itself. The task is listed under Scheduled tasks in the Clock panel like any other. Press Show me to find the box to type in.',
   // game-mode.js
   gaming: 'When a full-screen game starts, Vex frees the graphics card, sleeps background tabs and panels, stops its own animations and holds scheduled AI tasks. When the game ends it wakes the tabs one at a time and tells you what it did. Anything playing sound, on a call or kept awake is left alone. Each of the five behaviours has its own switch in Settings.',
 };

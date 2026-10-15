@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Schedules and Clock are one sidebar button now.** The Clock panel has a fifth tab, **Scheduled tasks**, with everything the Schedules panel had (Active, History, Templates, New Task, reminders). The separate Schedules icon is gone. Ctrl+Shift+L, Ctrl+K "Schedules" and anything else that opened Schedules still work and land on that tab. Your sidebar order, hidden and beside-panel settings are moved over once: the merged button keeps Clock's place and is shown unless both were hidden. Scheduled tasks themselves are untouched and keep running whether or not the panel is open.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

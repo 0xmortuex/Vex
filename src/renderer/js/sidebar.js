@@ -179,7 +179,28 @@ const SidebarManager = {
   sidePanel: null,
   panelWebviews: {},
   // Panels that use custom JS rendering (no webview)
-  customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'schedules', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall', 'authenticator', 'privacy'],
+  customPanels: ['settings', 'github', 'notes', 'downloads', 'history', 'memory', 'shortcuts', 'queue', 'bookmarks', 'feeds', 'library', 'annotations', 'recall', 'authenticator', 'privacy'],
+
+  // Panels that were folded into another one. Every way of opening the old name
+  // (SidebarManager.openPanel/togglePanel/openBeside, Ctrl+Shift+L, Ctrl+K,
+  // the main-process 'toggle-schedules' message) lands on the surviving panel
+  // with the sub-tab the old panel became already selected.
+  //   schedules -> Clock, sub-tab "Scheduled tasks"
+  PANEL_ALIASES: { schedules: { panel: 'clock', tab: 'schedules' } },
+
+  _alias(name) {
+    return Object.prototype.hasOwnProperty.call(this.PANEL_ALIASES, name) ? this.PANEL_ALIASES[name] : null;
+  },
+
+  // The name that really exists, with the alias's sub-tab chosen as a side
+  // effect (the remembered sub-tab must not win over an explicit request).
+  _resolveAlias(name) {
+    const a = this._alias(name);
+    if (!a) return name;
+    if (typeof VexClock === 'undefined') throw new Error('The ' + name + ' panel now lives in the Clock panel, but js/clock-panel.js did not load');
+    VexClock._tab = a.tab;
+    return a.panel;
+  },
 
   panelConfigs: {
     start: { url: null, partition: null },
@@ -196,7 +217,6 @@ const SidebarManager = {
     downloads: { url: null, partition: null },
     history: { url: null, partition: null },
     memory: { url: null, partition: null },
-    schedules: { url: null, partition: null },
     shortcuts: { url: null, partition: null },
     bookmarks: { url: null, partition: null },
     feeds: { url: null, partition: null },
@@ -328,6 +348,10 @@ const SidebarManager = {
     // One-time: hide the niche feature panels by default so the sidebar ships
     // lean (the browser core + apps stay; the rest are one click away in
     // Settings → Sidebar). Runs once per install; respects later user choices.
+    // Schedules was merged into Clock — before the lean default, which reads
+    // whether it already ran to know what a missing Schedules setting meant.
+    try { this._mergeSchedulesIntoClockOnce(); }
+    catch (err) { window.VexProblems?.note('Sidebar', 'The Schedules panel is now part of Clock, but your saved sidebar settings could not be moved over (they are left as they were)', err); }
     this._applyLeanDefault();
     this._hideBookmarksOnce();
     this._showLibraryOnce();
@@ -394,6 +418,21 @@ const SidebarManager = {
   },
 
   togglePanel(panelName) {
+    const alias = this._alias(panelName);
+    if (alias) {
+      // Its old shortcut (Ctrl+Shift+L) closes the Clock panel only when the
+      // Scheduled tasks sub-tab is what is showing; otherwise it brings that
+      // sub-tab forward instead of hiding something the user was reading.
+      const open = this.activePanel === alias.panel || this.sidePanel === alias.panel;
+      const showing = open && typeof VexClock !== 'undefined' && VexClock._tab === alias.tab;
+      if (open && !showing) {
+        const el = document.getElementById('panel-' + alias.panel);
+        this._resolveAlias(panelName);
+        this._preparePanel(alias.panel, el);
+        return;
+      }
+      panelName = open ? alias.panel : this._resolveAlias(panelName);
+    }
     if (this.activePanel === panelName) {
       this.hideActivePanel();
       return;
@@ -408,6 +447,7 @@ const SidebarManager = {
   },
 
   showPanel(panelName) {
+    panelName = this._resolveAlias(panelName);
     // Discord set to open as a tab (Settings › Performance): its button, Ctrl+K
     // and links open or switch to that tab instead of the panel.
     if (panelName === 'discord' && window.DiscordMemory && DiscordMemory.mode() === 'tab') { DiscordMemory.openTab(); return; }
@@ -468,7 +508,6 @@ const SidebarManager = {
     if (panelName === 'downloads') DownloadsPanel.init();
     if (panelName === 'history') HistoryPanel.init();
     if (panelName === 'memory') MemoryPanel.init();
-    if (panelName === 'schedules') SchedulesPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();   // redrawn each open: your keys may have changed
     if (panelName === 'queue') QueuePanel.init();
     if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
@@ -823,6 +862,7 @@ const SidebarManager = {
   },
 
   openBeside(panelName) {
+    panelName = this._resolveAlias(panelName);
     if (!this.activePanel) throw new Error('Open a panel first, then put another beside it');
     if (panelName === this.activePanel) throw new Error(this.panelLabel(panelName) + ' is already open');
     if (!this._canSit(panelName) || !this._canSit(this.activePanel)) throw new Error('Settings takes the whole area and cannot share it');
@@ -1634,7 +1674,7 @@ const SidebarManager = {
   // browser core (start/history/downloads/settings), the app panels
   // (WhatsApp/Claude/Spotify/Netflix/Discord/Roblox) and Notes/Authenticator
   // stay visible. Bookmarks is default-off too (still one click away to re-show).
-  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'schedules', 'feeds', 'annotations', 'recall', 'bookmarks'],
+  DEFAULT_HIDDEN_PANELS: ['queue', 'memory', 'feeds', 'annotations', 'recall', 'bookmarks'],
 
   // Applied once per install (guarded by vex.sidebarLeanV1). Merges hidden:true
   // onto each default-hidden panel; a later Show in Settings sticks because this
@@ -1682,6 +1722,78 @@ const SidebarManager = {
       }
       localStorage.setItem('vex.sidebarLibraryShownV1', '1');
     } catch { /* the rail is drawn from the overrides either way */ }
+  },
+
+  // The Schedules panel became the Clock panel's "Scheduled tasks" sub-tab, so
+  // the 'schedules' button is gone and its saved settings move to 'clock'.
+  // Runs once (vex.sidebarSchedulesMergedV1). The rules:
+  //   * The merged button keeps the Clock slot and Clock's own name/icon.
+  //   * It is hidden only if BOTH were hidden. Clock hidden but Schedules shown
+  //     (hidden:false, or reset to default after the lean default ran) shows it.
+  //     'schedules' was hidden by default, so with no Schedules override and the
+  //     lean default not yet applied it counts as hidden.
+  //   * Sidebar order: 'schedules' is removed; if Clock was not in the order but
+  //     Schedules was, Clock takes Schedules' place.
+  //   * A panel remembered beside Schedules is remembered beside Clock instead
+  //     (unless Clock already has a partner); Clock's last-used time becomes
+  //     the later of the two.
+  //   * Schedules' own rename/icon/pinned-beside values are dropped.
+  // Nothing else in any of those settings is touched.
+  _mergeSchedulesIntoClockOnce() {
+    const FLAG = 'vex.sidebarSchedulesMergedV1';
+    if (localStorage.getItem(FLAG)) return;
+    const readObj = (key) => {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return null;
+      const v = JSON.parse(raw);   // a corrupt value must surface, not be overwritten
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+    };
+    const lean = !!localStorage.getItem('vex.sidebarLeanV1');
+
+    // Everything is read (and may throw) before anything is written, so a
+    // failure leaves the settings untouched and the flag unset for a retry.
+    const writes = {};
+    const ov = readObj('vex.panelOverrides');
+    if (ov) {
+      const s = ov.schedules;
+      const schedHidden = s ? !!s.hidden : !lean;
+      const clockHidden = !!(ov.clock && ov.clock.hidden);
+      if (clockHidden && !schedHidden) ov.clock = Object.assign({}, ov.clock, { hidden: false });
+      delete ov.schedules;
+      writes['vex.panelOverrides'] = ov;
+    }
+
+    const rawOrder = localStorage.getItem('vex.sidebarOrder');
+    if (rawOrder !== null) {
+      const order = JSON.parse(rawOrder);
+      if (Array.isArray(order) && order.includes('schedules')) {
+        const merged = [];
+        for (const p of order) {
+          if (p === 'schedules') { if (!order.includes('clock')) merged.push('clock'); }
+          else merged.push(p);
+        }
+        writes['vex.sidebarOrder'] = merged;
+      }
+    }
+
+    const pairs = readObj('vex.panelPairs');
+    if (pairs && ('schedules' in pairs || Object.values(pairs).includes('schedules'))) {
+      const partner = pairs.schedules;
+      delete pairs.schedules;
+      for (const k of Object.keys(pairs)) if (pairs[k] === 'schedules') delete pairs[k];
+      if (partner && partner !== 'clock' && !pairs.clock && !pairs[partner]) { pairs.clock = partner; pairs[partner] = 'clock'; }
+      writes['vex.panelPairs'] = pairs;
+    }
+
+    const usage = readObj('vex.panelUsage');
+    if (usage && 'schedules' in usage) {
+      usage.clock = Math.max(Number(usage.clock) || 0, Number(usage.schedules) || 0);
+      delete usage.schedules;
+      writes['vex.panelUsage'] = usage;
+    }
+
+    for (const [key, value] of Object.entries(writes)) localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(FLAG, '1');
   },
 
   applyPanelOverrides() {

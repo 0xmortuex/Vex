@@ -436,7 +436,6 @@ const Onboarding = {
       { id: 'annotations', name: 'Annotations' },
       { id: 'recall',      name: 'Recall' },
       { id: 'memory',      name: 'AI memory' },
-      { id: 'schedules',   name: 'Schedules' },
       { id: 'library',     name: 'Library' },
     ];
   },
