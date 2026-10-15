@@ -94,6 +94,7 @@ const SettingsUI = {
     { name: 'Shortcuts',       icon: 'keyboard', color: '#94a3b8', match: ['shortcut'] },
     { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping'] },
     { name: 'History',         icon: 'clock',    color: '#7dd3fc', match: ['history'] },
+    { name: 'Play',            icon: 'puzzle',   color: '#f472b6', match: ['play: '] },
     { name: 'Extras',          icon: 'cursor',   color: '#60a5fa', match: ['browsing extras', 'gesture', 'page watcher', 'ai news', 'quiet hours'] },
     { name: 'Extensions',      icon: 'puzzle',   color: '#10b981', match: ['extension'] },
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },
