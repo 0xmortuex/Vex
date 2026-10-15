@@ -257,7 +257,12 @@ const WebviewManager = {
           if (typeof Recall === 'undefined') return;
           const url = webview.getURL && webview.getURL();
           const t = TabManager.tabs.find(x => x.id === tab.id);
-          if (url) Recall.indexPage(webview, url, t && t.title);
+          if (!url) return;
+          const title = t && t.title;
+          // On battery the read waits for the mains (js/battery-mode.js); it
+          // is skipped then if the tab has moved on, like any other late read.
+          if (typeof BatteryMode !== 'undefined' && BatteryMode.defer('recall:' + tab.id, () => Recall.indexPage(webview, url, title))) return;
+          Recall.indexPage(webview, url, title);
         } catch (e) { /* best-effort */ }
       }, 2500);
     });

@@ -63,6 +63,9 @@ define('game:state', []);
 define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
 define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
 define('gamemode:state', []);
+// On battery or on mains (src/main/power-watch.js).
+define('power:watch power:lean', [boolean]);
+define('power:status', []);
 define('rec:start', [oneOf(['mp4', 'webm', 'gif'])]);
 define('rec:own-window', []);
 define('app:idle-seconds', []);

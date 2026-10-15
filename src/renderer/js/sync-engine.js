@@ -1657,7 +1657,13 @@ const SyncEngine = (() => {
       return;
     }
     pushTimer = setInterval(() => { if (gameHolds()) owedAfterGame = true; else pushNow(); }, 2 * 60 * 1000);
-    pullTimer = setInterval(() => { if (gameHolds()) owedAfterGame = true; else pullNow(); }, 5 * 60 * 1000);
+    // On battery (js/battery-mode.js) the pull waits and runs once when the PC is plugged in.
+    // The push is not put off: it is how your changes leave.
+    pullTimer = setInterval(() => {
+      if (gameHolds()) { owedAfterGame = true; return; }
+      if (typeof BatteryMode !== 'undefined' && BatteryMode.defer('sync-pull', () => pullNow())) return;
+      pullNow();
+    }, 5 * 60 * 1000);
     watchChanges();
   }
 

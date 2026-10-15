@@ -161,6 +161,11 @@
         <span class="tor-running-icon" aria-hidden="true"></span><span class="tor-running-label">Tor is running</span>
         <button id="tor-running-stop" type="button" title="Stop Tor">Stop</button>
       </div>
+      <!-- Shown while battery-aware mode is saving power (js/battery-mode.js), in every look. -->
+      <div id="battery-saving" role="status" hidden>
+        <span class="battery-saving-icon" aria-hidden="true"></span><span class="battery-saving-label">Saving battery</span>
+        <button id="battery-saving-open" type="button" title="On battery settings">Settings</button>
+      </div>
       <!-- Simple mode's one switch back to everything (js/simple-mode.js);
            shown only while Simple mode is on. -->
       <button id="btn-all-features" type="button" title="All features — show every panel, button and setting Vex has" aria-label="All features" hidden></button>
@@ -666,6 +671,13 @@
                   <option value="2400">2.4 GB (max)</option>
                 </select>
               </div>
+            </div>
+
+            <!-- On battery (js/battery-mode.js, src/main/power-watch.js) -->
+            <div class="setting-group" id="settings-battery">
+              <label class="setting-label">On battery</label>
+              <div class="setting-hint">When this PC runs on its battery, Vex can ask less of it: tabs sleep sooner, its own background checks wait, and its animations stop. Everything comes back when the PC is plugged in. A tab that is playing sound, on a call, being recorded or kept awake is never touched, and nothing you are typing is lost. It is off until you turn it on.</div>
+              <div id="battery-settings"></div>
             </div>
 
             <!-- Profiles (js/profiles-ui.js, src/main/profiles.js) -->
@@ -1755,6 +1767,7 @@
   <script src="js/private-routing.js"></script>
   <script src="js/site-routes.js"></script>
   <script src="js/sleep-consent.js"></script>
+  <script src="js/battery-mode.js"></script>
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>

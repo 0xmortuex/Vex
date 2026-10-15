@@ -46,7 +46,7 @@ const TrackerReceipts = {
     this._save(this.STATE, { lastTotal: cur, lastByHost: nextByHost });
   },
 
-  start() { if (this._timer) return; this.sample(); this._timer = VexJobs.every('Tracker receipts', 10 * 60 * 1000, () => this.sample()); },
+  start() { if (this._timer) return; this.sample(); this._timer = VexJobs.every('Tracker receipts', 10 * 60 * 1000, () => this.sample(), { deferOnBattery: true }); },
   stop() { if (this._timer) { this._timer.stop(); this._timer = null; } },
 
   _lastDays(n) {

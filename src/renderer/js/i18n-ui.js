@@ -151,6 +151,19 @@ const VexI18nUI = {
       'Gaming and streaming': 'Oyun ve yayın', 'Discord hotkeys': 'Discord kısayol tuşları',
       'When a game is running': 'Bir oyun çalışırken', 'Your local models': 'Yerel modelleriniz',
       'Streamer mode': 'Yayıncı modu',
+      // --- On battery (js/battery-mode.js) ---
+      'On battery': 'Pilde', 'Saving battery': 'Pil tasarrufu',
+      'Low battery — saving power': 'Pil azaldı — güç tasarrufu',
+      'Save power when this PC is on battery': 'Bilgisayar pildeyken güç tasarrufu yap',
+      'Sleep idle tabs sooner': 'Boştaki sekmeleri daha erken uyut',
+      'Wait with background checks': 'Arka plan kontrollerini beklet',
+      'Hold background AI': 'Arka plandaki yapay zekâyı beklet',
+      'Keep Vex still': 'Vex’i hareketsiz tut',
+      'Count the battery as low at': 'Pili şu seviyede düşük say',
+      'Off.': 'Kapalı.',
+      'No battery detected on this PC, so this does nothing here.': 'Bu bilgisayarda pil bulunamadı, bu yüzden burada hiçbir şey yapmaz.',
+      'No battery detected on this PC, so turning this on would do nothing here.': 'Bu bilgisayarda pil bulunamadı, bu yüzden açmak burada hiçbir şey yapmaz.',
+      'Vex follows mains and battery and the charge level. Windows’ own Battery Saver switch is not something Vex can see.': 'Vex şebeke/pil durumunu ve şarj düzeyini izler. Windows’un kendi Pil Tasarrufu düğmesini Vex göremez.',
 
       // --- settings controls people actually change ---
       'Default search engine': 'Varsayılan arama motoru',

@@ -19,11 +19,15 @@ const VexJobs = {
   _jobs: new Map(),
   _tick: null,
 
-  every(name, ms, fn, { when = 'ui' } = {}) {
+  // deferOnBattery: true marks a job that may wait while battery-aware mode
+  // is saving power (js/battery-mode.js). Nothing else is ever held for it:
+  // the lock-when-idle check, the Discord call badge and the workspace
+  // snapshot are not marked.
+  every(name, ms, fn, { when = 'ui', deferOnBattery = false } = {}) {
     if (typeof fn !== 'function') throw new Error('VexJobs.every: ' + name + ' has no function');
     if (!(ms > 0)) throw new Error('VexJobs.every: ' + name + ' needs an interval');
     if (when !== 'ui' && when !== 'background') throw new Error('VexJobs.every: unknown kind ' + when);
-    const job = { name, ms, fn, when, next: Date.now() + ms, owed: false, running: false, runs: 0, held: 0 };
+    const job = { name, ms, fn, when, deferOnBattery: !!deferOnBattery, next: Date.now() + ms, owed: false, running: false, runs: 0, held: 0 };
     this._jobs.set(name, job);
     this._start();
     return { stop: () => this.stop(name) };
@@ -32,9 +36,10 @@ const VexJobs = {
   stop(name) { this._jobs.delete(name); this._arm(); },
 
   // Why a job of this kind should wait right now, or '' to run it.
-  heldBecause(when) {
+  heldBecause(when, job) {
     const gaming = typeof GameMode !== 'undefined' && GameMode.gaming;
     if (gaming) return 'a game is running';
+    if (job && job.deferOnBattery && typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs()) return 'saving battery';
     if (when === 'ui' && typeof document !== 'undefined' && document.hidden) return 'Vex is hidden';
     return '';
   },
@@ -43,7 +48,7 @@ const VexJobs = {
     for (const job of this._jobs.values()) {
       if (now < job.next) continue;
       job.next = now + job.ms;
-      if (this.heldBecause(job.when)) { job.owed = true; job.held++; continue; }
+      if (this.heldBecause(job.when, job)) { job.owed = true; job.held++; continue; }
       this._run(job);
     }
   },
@@ -54,7 +59,7 @@ const VexJobs = {
   resume() {
     const now = Date.now();
     for (const job of this._jobs.values()) {
-      if (this.heldBecause(job.when)) continue;
+      if (this.heldBecause(job.when, job)) continue;
       if (!job.owed && job.next > now) continue;
       if (!job.owed) job.held++;
       job.next = now + job.ms;
@@ -97,7 +102,7 @@ const VexJobs = {
     if (!this._jobs.size) return;
     let next = Infinity;
     for (const job of this._jobs.values()) {
-      if (this.heldBecause(job.when)) continue;
+      if (this.heldBecause(job.when, job)) continue;
       if (job.next < next) next = job.next;
     }
     if (next === Infinity) return;

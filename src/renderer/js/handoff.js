@@ -377,7 +377,7 @@ const Handoff = {
     // Checked on focus, every 2 minutes, and shortly after launch (§5.6).
     const check = () => { this.receive(); };
     window.addEventListener('focus', check);
-    if (typeof VexJobs !== 'undefined') VexJobs.every('Tabs sent from other devices', 2 * 60 * 1000, check, { when: 'background' });
+    if (typeof VexJobs !== 'undefined') VexJobs.every('Tabs sent from other devices', 2 * 60 * 1000, check, { when: 'background', deferOnBattery: true });
     setTimeout(check, 8000);
   },
 };

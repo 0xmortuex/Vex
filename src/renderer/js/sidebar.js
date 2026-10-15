@@ -511,6 +511,10 @@ const SidebarManager = {
       // Streamer mode and the Discord hotkeys (js/game-mode.js).
       GameMode.renderSettings().catch(err => VexProblems?.note('Settings', 'Could not show the gaming settings', err));
     }
+    if (panelName === 'settings' && typeof BatteryMode !== 'undefined') {
+      // The On battery section (js/battery-mode.js).
+      BatteryMode.renderSettings().catch(err => VexProblems?.note('Settings', 'Could not show the battery settings', err));
+    }
     if (panelName === 'settings' && typeof PersonasSettings !== 'undefined') {
       // Phase 15: render the Personas grid each time Settings opens
       PersonasSettings.renderPanel(document.getElementById('personas-panel-content'));

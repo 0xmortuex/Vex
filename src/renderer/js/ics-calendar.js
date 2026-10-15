@@ -262,7 +262,7 @@ const IcsCalendar = {
   start() {
     if (this._job || !this.feeds().length) return;
     this.refresh();
-    this._job = VexJobs.every('Calendars', this.EVERY, () => this.refresh(), { when: 'background' });
+    this._job = VexJobs.every('Calendars', this.EVERY, () => this.refresh(), { when: 'background', deferOnBattery: true });
   },
 };
 

@@ -805,6 +805,8 @@ const Scheduler = {
     // claimed: a due task simply stays due, and the first check after the game
     // runs it through the ordinary catch-up — late, not lost.
     if (typeof window !== 'undefined' && window.GameMode && typeof window.GameMode.holdingAi === 'function' && window.GameMode.holdingAi()) return;
+    // Likewise while battery-aware mode is saving power (js/battery-mode.js).
+    if (typeof window !== 'undefined' && window.BatteryMode && window.BatteryMode.holdingAi()) return;
     const now = nowMs === undefined ? Date.now() : nowMs;
     const tasks = this.getAllTasks();
     const skipped = [];

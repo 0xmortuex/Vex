@@ -282,6 +282,8 @@ const VexFeatures = {
       what: 'Off until you turn it on. While one of your games runs, Vex remembers the pages you open and the searches you make for that game only, so you can search them later, pin them, add them to the game’s guide or export them.' },
     { id: 'game-patch-radar', phrases: 'game patch notes radar update news new patch version steam feed tell me when changelog', cat: 'media', name: 'Patch notes for each game', setting: { section: 'game-session-settings', label: 'Game mode' },
       what: 'Give a game a patch notes page or news feed and Vex checks it in the background every 6 hours and says “New patch notes for <game>” — without you visiting the site. Nothing is watched until you add the address.' },
+    { id: 'battery-mode', phrases: 'battery laptop on battery power saving save power unplugged low battery plugged in energy', cat: 'tabs', name: 'Saves power on battery', manual: true, setting: { section: 'battery-settings', label: 'On battery' },
+      what: 'Off until you turn it on. While the PC runs on its battery, idle tabs sleep sooner, Vex’s own background checks wait and its animations stop, with one chip in the toolbar saying so. It undoes all of it when you plug in, and does nothing on a PC without a battery.' },
     { id: 'game-control-center', phrases: 'game control center gcc game boost bypass overlay gamma light launch open my game app', cat: 'media', cmd: 'game-control-center', name: 'Open Game Control Center', setting: { section: 'gaming-settings', label: 'Gaming and streaming' },
       what: 'Starts your separate Game Control Center app (bypass, game boost, network, overlay and gamma light). Vex finds it by itself; if it is somewhere else, say where in Settings.' },
     { id: 'record-screen', phrases: 'record video capture screen recording film my screen', cat: 'media', cmd: 'record-screen',
@@ -601,7 +603,7 @@ const VexFeatures = {
   GROUPS: {
     tabs: [
       { name: 'The tab strip', ids: ['vertical-tabs', 'treetabs', 'tab-groups', 'reopen', 'closeduplicates', 'switchtoopen', 'open-links', 'gestures'] },
-      { name: 'Memory, and sleeping', ids: ['why-slow', 'tab-cost', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
+      { name: 'Memory, and sleeping', ids: ['why-slow', 'tab-cost', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling', 'battery-mode'] },
       { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp'] },
       { name: 'Getting back to where you were', ids: ['sessions', 'wsnap', 'tabtrail', 'apps-not-links'] },
     ],

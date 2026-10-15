@@ -1234,6 +1234,29 @@ ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ a
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
+// On battery or on mains (src/main/power-watch.js). The interface opts in
+// (Settings › Performance › On battery); until it asks, nothing listens.
+// powerMonitor may only be used once the app is ready, so this is made on
+// first use. battery-aware mode: begin
+let _powerWatchLazy = null;
+function _powerWatch() {
+  if (_powerWatchLazy) return _powerWatchLazy;
+  _powerWatchLazy = require('./main/power-watch').createPowerWatch({
+    powerMonitor: require('electron').powerMonitor,
+    send: (channel, payload) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload); } catch { /* window gone */ } },
+  });
+  return _powerWatchLazy;
+}
+ipcMain.handle('power:watch', async (_e, on) => {
+  const w = _powerWatch();
+  if (on) w.start(); else { w.stop(); w.setLean(false); }
+  return w.status();
+});
+ipcMain.handle('power:status', () => _powerWatch().status());
+ipcMain.handle('power:lean', (_e, on) => _powerWatch().setLean(on));
+app.on('will-quit', () => { try { if (_powerWatchLazy) _powerWatchLazy.stop(); } catch {} });
+// battery-aware mode: end
+
 // Mute Discord without leaving the game (src/main/game-hotkeys.js). These are
 // system-wide, so each one is off until the user sets it.
 const _gameHotkeys = require('./main/game-hotkeys').createGameHotkeys({
@@ -3732,6 +3755,7 @@ function _extUpdater() {
     isOnline: () => net.isOnline(),
     isMetered: () => _extUpdates.isMeteredWindows(),
     isHeld: () => _gameModeSession.held('extensionUpdates'),   // Game mode (main/game-mode.js)
+    isOnBattery: () => !!(_powerWatchLazy && _powerWatchLazy.lean()),
     onUpdated: (r) => {
       const line = `${r.name} ${r.from} → ${r.to}${r.how === 'approved' ? ' (approved by you)' : ''}`;
       console.log('[Extensions] updated:', line);
