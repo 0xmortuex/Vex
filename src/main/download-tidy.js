@@ -49,7 +49,7 @@ function createDownloadTidy({ fs, logFile, onMoved, now = () => Date.now() }) {
       if (!fs.existsSync(logFile)) return [];
       const v = JSON.parse(fs.readFileSync(logFile, 'utf8'));
       return Array.isArray(v) ? v : [];
-    } catch (err) { throw new Error('The tidy-up log could not be read: ' + err.message); }
+    } catch (err) { throw new Error('The tidy-up log could not be read: ' + err.message, { cause: err }); }
   }
   function writeLog(entries) {
     // Written beside, then renamed over: a crash cannot leave half a log.
