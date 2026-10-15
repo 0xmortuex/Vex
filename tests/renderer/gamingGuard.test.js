@@ -237,4 +237,11 @@ describe('panels, waking up, and keeping Vex still', () => {
     GameMode.onGameEnd();
     expect(document.body.classList.contains('vex-gaming-still')).toBe(false);
   });
+  it('the still rule finishes animations instead of pausing them (a paused commandIn left Ctrl+K at opacity 0)', () => {
+    const css = require('fs').readFileSync(require('path').join(__dirname, '../../src/renderer/css/app.css'), 'utf8');
+    const rule = css.match(/body\.vex-gaming-still \*[^{]*\{[^}]*\}/)[0];
+    expect(rule).not.toMatch(/animation-play-state/);
+    expect(rule).toMatch(/animation-duration:\s*1ms/);
+    expect(rule).toMatch(/animation-iteration-count:\s*1/);
+  });
 });

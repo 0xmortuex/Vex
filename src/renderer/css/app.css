@@ -1344,7 +1344,11 @@ body.streamer-mode [data-sensitive]:focus-within { filter: none; }
 /* Gaming (js/game-mode.js, "Keep Vex still"): nothing in Vex animates while a
    game has the screen. */
 body.vex-gaming-still *, body.vex-gaming-still *::before, body.vex-gaming-still *::after {
-  animation-play-state: paused !important;
+  /* Finish at once, not pause: a paused entry animation (commandIn on the Ctrl+K bar)
+     stays on its first frame, opacity 0, under a blurred overlay. */
+  animation-duration: 1ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
   transition: none !important;
 }
 
