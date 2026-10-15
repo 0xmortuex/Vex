@@ -119,3 +119,24 @@ describe('script order in index.html', () => {
     expect(new26.filter(f => at(f) < 0 && !start.includes('js/' + f))).toEqual([]);
   });
 });
+
+describe('where a module puts its Settings group', () => {
+  it('inside .settings-content, never as another child of the panel (it became a third flex column and squeezed Settings)', () => {
+    const bad = [];
+    for (const f of walk(RJS)) {
+      const s = read(f);
+      if (!/getElementById\('panel-settings'\)/.test(s)) continue;
+      if (/\|\|\s*panel\)\.appendChild\(/.test(s) && !/querySelector\('\.settings-content'\)\s*\|\|\s*panel\)\.appendChild\(/.test(s)) bad.push(path.basename(f));
+      if (/querySelector\('\.panel-content'\)\s*\|\|\s*panel/.test(s)) bad.push(path.basename(f) + ' (.panel-content)');
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
+describe('groups that other helpers add', () => {
+  it('the daily-batch groups are in a chip too', () => {
+    for (const h of ['New tab by time of day', 'Why a tab is open', 'Repeated searches', 'Shopping comparison']) {
+      expect(catOf(h), h).not.toBe('Other');
+    }
+  });
+});

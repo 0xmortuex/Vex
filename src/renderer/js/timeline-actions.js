@@ -174,7 +174,7 @@ const TimelineActions = {
     const body = document.createElement('div');
     body.id = 'timeline-actions-content';
     group.append(label, body);
-    (panel.querySelector('.panel-content') || panel).appendChild(group);
+    (panel.querySelector('.settings-content') || panel).appendChild(group);
     this.renderSettings(body);
     if (typeof IntersectionObserver === 'function') {
       new IntersectionObserver((entries) => { if (entries.some(e => e.isIntersecting)) this.renderSettings(body); }).observe(group);

@@ -184,7 +184,7 @@ const VexDelights = {
     group.append(label, body);
     const anchor = document.getElementById('settings-brief-actions') || document.getElementById('settings-brief');
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(group, anchor.nextSibling);
-    else (panel.querySelector('.panel-content') || panel).appendChild(group);
+    else (panel.querySelector('.settings-content') || panel).appendChild(group);
     this.renderSettings(body);
     if (typeof IntersectionObserver === 'function') {
       new IntersectionObserver((entries) => { if (entries.some(e => e.isIntersecting)) this.renderSettings(body); }).observe(group);
