@@ -70,7 +70,13 @@ const FocusMode = {
       : `Focus for ${minutes} min — your blocklist is empty, so nothing is blocked. Ctrl+K → "Focus" to end early.`);
     clearInterval(this._timer);
     this._timer = setInterval(() => {
-      if (Date.now() >= this.until) { this.stop(); window.showToast?.('Focus session complete'); }
+      if (Date.now() >= this.until) {
+        const minutes = this.minutes;
+        this.stop();
+        window.showToast?.('Focus session complete');
+        // For the optional finish jingle (js/vex-jingle.js); nothing else needs it.
+        try { document.dispatchEvent(new CustomEvent('vex:focus-complete', { detail: { minutes } })); } catch { /* no document */ }
+      }
     }, 5000);
     // Reminders wait until the session ends, unless marked urgent, and then
     // arrive as a batch — a toast mid-session is exactly what focus is for
