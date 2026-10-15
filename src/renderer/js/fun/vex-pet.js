@@ -40,18 +40,18 @@ const VexPet = {
   },
 
   _cheerUntil() {
-    const s = VexFun.load(this.KEY, {});
+    const s = VexProgress.load(this.KEY, {});
     return Number(s.cheerUntil) || 0;
   },
 
   // Starts the cheer. Works even while the pet is off; it simply is not shown.
   cheer() {
-    VexFun.save(this.KEY, { cheerUntil: VexFun.now() + this.CHEER_MS });
+    VexProgress.save(this.KEY, { cheerUntil: VexProgress.now() + this.CHEER_MS });
     try { document.dispatchEvent(new CustomEvent('vex:pet-changed')); } catch { /* no document */ }
   },
 
   mood() {
-    const now = VexFun.now();
+    const now = VexProgress.now();
     return this.moodFor({ hour: new Date(now).getHours(), cheerUntil: this._cheerUntil(), now });
   },
 
@@ -83,7 +83,7 @@ const VexPet = {
   },
 
   snapshot() {
-    const enabled = VexFun.enabled('pet');
+    const enabled = VexProgress.enabled('pet');
     const mood = this.mood();
     return { enabled, mood, label: this.LABELS[mood], svg: enabled ? this.art(mood) : '' };
   },
@@ -122,12 +122,12 @@ const VexPet = {
     const update = () => {
       const s = this.snapshot();
       // Off, or a game is running: draw nothing at all.
-      if (!s.enabled || VexFun.gameActive()) { box.innerHTML = ''; box.hidden = true; box.removeAttribute('aria-label'); return; }
+      if (!s.enabled || VexProgress.silenced()) { box.innerHTML = ''; box.hidden = true; box.removeAttribute('aria-label'); return; }
       box.hidden = false;
       box.setAttribute('aria-label', s.label);
       box.innerHTML = s.svg;
     };
-    const onEvent = () => { try { update(); } catch (err) { VexFun.report('The pet could not redraw', err); } };
+    const onEvent = () => { try { update(); } catch (err) { VexProgress.report('The pet could not redraw', err); } };
     const evs = ['vex:pet-changed', 'vex:fun-changed', 'vex:game-mode'];
     evs.forEach(n => document.addEventListener(n, onEvent));
     window.addEventListener('storage', onEvent);
@@ -149,7 +149,7 @@ const VexPet = {
     if (this._wired || typeof document === 'undefined') return;
     this._wired = true;
     document.addEventListener('vex:focus-complete', () => {
-      try { this.cheer(); } catch (err) { VexFun.report('The pet could not cheer', err); }
+      try { this.cheer(); } catch (err) { VexProgress.report('The pet could not cheer', err); }
     });
   },
 };

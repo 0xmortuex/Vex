@@ -125,6 +125,16 @@ const VexI18nUI = {
       // holds the section's mark, so only its text node is translated).
       'Profiles': 'Profiller', 'Data': 'Veriler', 'Permissions': 'İzinler',
       'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar', 'Play': 'Oyun',
+      // Chips added with the 2026-10 features.
+      'Focus OS': 'Odak planı', 'Knowledge': 'Bilgi', 'Vex health': 'Vex sağlığı',
+      'Health check': 'Sağlık denetimi', 'Minimal Vex': 'Sade Vex', 'Feature usage': 'Özellik kullanımı',
+      'Little surprises': 'Küçük sürprizler', 'Living Vex': 'Yaşayan Vex', 'Citations in Notes': 'Notlarda kaynakça',
+      'Knowledge base': 'Bilgi tabanı', 'Research board': 'Araştırma panosu', 'Translation glossary': 'Çeviri sözlüğü',
+      'Meeting copilot': 'Toplantı yardımcısı', 'Listen to articles': 'Makaleleri dinle',
+      'Subscriptions and renewals': 'Abonelikler ve yenilemeler', 'Sources into a document': 'Kaynaklardan belge',
+      'Explain this page (local model)': 'Bu sayfayı açıkla (yerel model)', 'Web safety': 'Web güvenliği',
+      'Time travel': 'Zaman yolculuğu', 'Vex Packs': 'Vex paketleri', 'Profile and medals': 'Profil ve madalyalar',
+      'Fun and expression': 'Eğlence ve ifade', 'Quiet hours': 'Sessiz saatler',
       // Userscripts: the Settings heading, the commands and the toolbar marker.
       'Userscripts': 'Kullanıcı betikleri', 'Userscripts (manage)': 'Kullanıcı betikleri (yönet)',
       'Disable all userscripts': 'Tüm kullanıcı betiklerini kapat',

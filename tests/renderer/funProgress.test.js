@@ -27,8 +27,8 @@ async function load() {
   for (const f of ['fun-core', 'levels', 'discovery-log', 'daily-challenge', 'vex-pet', 'fun-settings']) {
     await import('../../src/renderer/js/fun/' + f + '.js');
   }
-  VexFun.now = () => clock;
-  VexFun._gameFlag = false;
+  VexProgress.now = () => clock;
+  VexProgress._gameFlag = false;
 }
 
 const signals = [];
@@ -41,18 +41,18 @@ beforeEach(async () => {
 
 describe('shared core', () => {
   it('is off by default and rejects unknown flags', () => {
-    for (const f of VexFun.FLAGS) expect(VexFun.enabled(f)).toBe(false);
-    expect(() => VexFun.enabled('nope')).toThrow(/Unknown/);
-    expect(() => VexFun.setEnabled('pet', 'yes')).toThrow(/on or off/);
+    for (const f of VexProgress.FLAGS) expect(VexProgress.enabled(f)).toBe(false);
+    expect(() => VexProgress.enabled('nope')).toThrow(/Unknown/);
+    expect(() => VexProgress.setEnabled('pet', 'yes')).toThrow(/on or off/);
   });
   it('sends a medal signal once per id', () => {
-    expect(VexFun.medal('x')).toBe(true);
-    expect(VexFun.medal('x')).toBe(false);
+    expect(VexProgress.medal('x')).toBe(true);
+    expect(VexProgress.medal('x')).toBe(false);
     expect(signals.filter(s => s === 'x')).toHaveLength(1);
   });
   it('raises on damaged storage instead of resetting it', () => {
     localStorage.setItem('vex.fun.levels', '{oops');
-    expect(() => VexFun.load('vex.fun.levels', {})).toThrow(/could not be read/);
+    expect(() => VexProgress.load('vex.fun.levels', {})).toThrow(/could not be read/);
   });
 });
 
@@ -70,7 +70,7 @@ describe('browser levels', () => {
     expect(VexLevels.snapshot().xp).toBe(0);
   });
   it('awards, caps per day, and resets the cap the next day', () => {
-    VexFun.setEnabled('levels', true);
+    VexProgress.setEnabled('levels', true);
     expect(VexLevels.award('inbox-cleared').gained).toBe(30);
     expect(VexLevels.award('inbox-cleared')).toBeNull();
     clock += 86400000;
@@ -78,7 +78,7 @@ describe('browser levels', () => {
     expect(VexLevels.snapshot().xp).toBe(60);
   });
   it('levels up, signals a medal at level 5, and exposes a snapshot', () => {
-    VexFun.setEnabled('levels', true);
+    VexProgress.setEnabled('levels', true);
     const ups = [];
     document.addEventListener('vex:level-up', (e) => ups.push(e.detail.level));
     for (let d = 0; d < 12; d++) { VexLevels.award('inbox-cleared'); VexLevels.award('reading-finished'); clock += 86400000; }
@@ -90,7 +90,7 @@ describe('browser levels', () => {
     expect(s.progress).toBeLessThanOrEqual(1);
   });
   it('counts the vex:fun-action event', () => {
-    VexFun.setEnabled('levels', true);
+    VexProgress.setEnabled('levels', true);
     document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'note', count: 2 } }));
     expect(VexLevels.snapshot().xp).toBe(10);
   });
@@ -98,7 +98,7 @@ describe('browser levels', () => {
 
 describe('discovery log', () => {
   it('counts used features as N of M and records the day found', () => {
-    VexFun.setEnabled('discovery', true);
+    VexProgress.setEnabled('discovery', true);
     __used.add('f1'); __used.add('f2');
     expect(VexDiscovery.scan().sort()).toEqual(['f1', 'f2']);
     const s = VexDiscovery.snapshot();
@@ -110,13 +110,13 @@ describe('discovery log', () => {
   it('signals milestone medals and does nothing while off', () => {
     __used.add('f0');
     expect(VexDiscovery.scan()).toEqual([]);
-    VexFun.setEnabled('discovery', true);
+    VexProgress.setEnabled('discovery', true);
     for (let i = 0; i < 10; i++) __used.add('f' + i);
     VexDiscovery.scan();
     expect(signals).toContain('discovery-10');
   });
   it('renders an accessible card', () => {
-    VexFun.setEnabled('discovery', true);
+    VexProgress.setEnabled('discovery', true);
     __used.add('f3'); VexDiscovery.scan();
     const el = document.getElementById('host');
     VexDiscovery.render(el);
@@ -127,18 +127,18 @@ describe('discovery log', () => {
 
 describe('daily challenge', () => {
   it('is the same all day, and one per day', () => {
-    VexFun.setEnabled('challenge', true);
+    VexProgress.setEnabled('challenge', true);
     const a = VexDailyChallenge.snapshot();
     expect(VexDailyChallenge.snapshot().id).toBe(a.id);
     expect(VexDailyChallenge.pickFor('2026-10-16').id).toBe(a.id);
   });
   it('completes a tab challenge through vex:tab-closed and rewards levels', () => {
-    VexFun.setEnabled('challenge', true);
-    VexFun.setEnabled('levels', true);
+    VexProgress.setEnabled('challenge', true);
+    VexProgress.setEnabled('levels', true);
     // choose a day whose challenge is close-tabs
     const idx = VexDailyChallenge.POOL.findIndex(p => p.id === 'close-tabs');
     let d = new Date(2026, 9, 16);
-    while (VexDailyChallenge.pickFor(VexFun.today(d.getTime())).id !== 'close-tabs') d = new Date(d.getTime() + 86400000);
+    while (VexDailyChallenge.pickFor(VexProgress.today(d.getTime())).id !== 'close-tabs') d = new Date(d.getTime() + 86400000);
     expect(idx).toBeGreaterThanOrEqual(0);
     clock = d.getTime();
     for (let i = 0; i < 5; i++) document.dispatchEvent(new CustomEvent('vex:tab-closed', { detail: { tabId: i } }));
@@ -149,8 +149,8 @@ describe('daily challenge', () => {
     expect(signals).toContain('challenge-first');
   });
   it('skipping costs nothing and cannot be undone or doubled', () => {
-    VexFun.setEnabled('challenge', true);
-    VexFun.setEnabled('levels', true);
+    VexProgress.setEnabled('challenge', true);
+    VexProgress.setEnabled('levels', true);
     VexDailyChallenge.skip();
     expect(VexDailyChallenge.snapshot().status).toBe('skipped');
     expect(VexLevels.snapshot().xp).toBe(0);
@@ -159,20 +159,20 @@ describe('daily challenge', () => {
     expect(VexDailyChallenge.snapshot().status).toBe('open');
   });
   it('manual challenges need the person; automatic ones refuse "I did it"', () => {
-    VexFun.setEnabled('challenge', true);
+    VexProgress.setEnabled('challenge', true);
     let d = new Date(2026, 9, 16);
-    while (!VexDailyChallenge.pickFor(VexFun.today(d.getTime())).manual) d = new Date(d.getTime() + 86400000);
+    while (!VexDailyChallenge.pickFor(VexProgress.today(d.getTime())).manual) d = new Date(d.getTime() + 86400000);
     clock = d.getTime();
     VexDailyChallenge.complete();
     expect(VexDailyChallenge.snapshot().status).toBe('done');
-    while (VexDailyChallenge.pickFor(VexFun.today(d.getTime())).manual) d = new Date(d.getTime() + 86400000);
+    while (VexDailyChallenge.pickFor(VexProgress.today(d.getTime())).manual) d = new Date(d.getTime() + 86400000);
     clock = d.getTime();
     expect(() => VexDailyChallenge.complete()).toThrow(/by itself/);
   });
   it('notices command-bar use', () => {
-    VexFun.setEnabled('challenge', true);
+    VexProgress.setEnabled('challenge', true);
     let d = new Date(2026, 9, 16);
-    while (VexDailyChallenge.pickFor(VexFun.today(d.getTime())).id !== 'command-bar') d = new Date(d.getTime() + 86400000);
+    while (VexDailyChallenge.pickFor(VexProgress.today(d.getTime())).id !== 'command-bar') d = new Date(d.getTime() + 86400000);
     clock = d.getTime();
     VexDailyChallenge.snapshot();
     localStorage.setItem('vex.commandUsage', JSON.stringify({ a: { n: 2 }, b: { n: 1 } }));
@@ -190,14 +190,14 @@ describe('vex pet', () => {
   });
   it('is drawn only when on, with no emoji and no script', () => {
     expect(VexPet.snapshot().svg).toBe('');
-    VexFun.setEnabled('pet', true);
+    VexProgress.setEnabled('pet', true);
     const s = VexPet.snapshot();
     expect(s.svg.startsWith('<svg')).toBe(true);
     expect(s.svg).not.toMatch(/<script|on\w+=/i);
     expect(/\p{Extended_Pictographic}/u.test(s.svg)).toBe(false);
   });
   it('cheers on vex:focus-complete, mounts, and hides during Game mode', () => {
-    VexFun.setEnabled('pet', true);
+    VexProgress.setEnabled('pet', true);
     const host = document.getElementById('host');
     const h = VexPet.mount(host);
     expect(host.querySelector('.vex-pet-calm')).not.toBeNull();
@@ -230,7 +230,7 @@ describe('settings group', () => {
     const box = g.querySelector('[data-fun-flag="challenge"]');
     box.checked = true;
     box.dispatchEvent(new Event('change'));
-    expect(VexFun.enabled('challenge')).toBe(true);
+    expect(VexProgress.enabled('challenge')).toBe(true);
     expect(g.querySelector('[aria-label="Daily challenge"]')).not.toBeNull();
   });
 });

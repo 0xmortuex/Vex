@@ -167,6 +167,59 @@
   M('protect-first-scan', 'privacy', 'silver', 'Looked after', 'You ran a protection scan.', 'Run a protection scan.', 'stethoscope', null, { signal: true });
   M('ai-badge-first', 'explore', 'bronze', 'Brief badge', 'An AI badge was awarded to you.', 'Use the AI features.', 'brain', null, { signal: true });
 
+  // --- signals from the fun, play, expression, surprise and focus modules -----
+  // Each of these is earned by a feature dispatching `vex:medal-signal` {id}
+  // (VexFun.medal, VexProgress.medal, a module's own signal()). They are listed
+  // here so no signal is dropped; the ids a feature wrote against that already
+  // have a catalogue medal are mapped just below instead.
+  const S = { signal: true };
+  M('inbox-zero', 'organize', 'silver', 'Inbox zero', 'You cleared your inbox.', 'Clear the inbox.', 'check', null, S);
+  M('level-5', 'mastery', 'silver', 'Level 5', 'You reached browser level 5.', 'Do useful things in Vex.', 'star', null, S);
+  M('level-10', 'mastery', 'gold', 'Level 10', 'You reached browser level 10.', 'Do useful things in Vex.', 'star', null, S);
+  M('discovery-10', 'explore', 'bronze', 'Ten found', 'You tried ten Vex features.', 'Try more features.', 'compass', null, S);
+  M('discovery-25', 'explore', 'silver', 'Twenty-five found', 'You tried twenty-five Vex features.', 'Try more features.', 'compass', null, S);
+  M('discovery-50', 'explore', 'gold', 'Fifty found', 'You tried fifty Vex features.', 'Try more features.', 'compass', null, S);
+  M('discovery-all', 'explore', 'platinum', 'Found them all', 'You tried every Vex feature in the log.', 'Try every feature.', 'compass', null, S);
+  M('challenge-first', 'focus', 'bronze', 'One small thing', 'You did a daily challenge.', 'Open the daily challenge.', 'target', null, S);
+  M('challenge-7', 'focus', 'silver', 'A week of small things', 'You did seven daily challenges.', 'Do the daily challenge.', 'target', null, S);
+  M('play-tetris-cleared', 'explore', 'bronze', 'Rows cleared', 'You cleared a row in Tab Tetris.', 'Play Tab Tetris.', 'puzzle', null, S);
+  M('play-tetris-grouped', 'explore', 'silver', 'Tidy tabs', 'You grouped tabs in Tab Tetris.', 'Play Tab Tetris.', 'puzzle', null, S);
+  M('play-mini-scramble', 'explore', 'bronze', 'Unscrambled', 'You solved a scramble.', 'Play the offline mini games.', 'puzzle', null, S);
+  M('play-mini-runner', 'explore', 'bronze', 'Offline runner', 'You ran the offline runner.', 'Play the offline mini games.', 'puzzle', null, S);
+  M('play-mini-lights', 'explore', 'bronze', 'Lights out', 'You solved the lights puzzle.', 'Play the offline mini games.', 'puzzle', null, S);
+  M('play-daily-word-solved', 'explore', 'bronze', 'Word of the day', 'You solved the daily word.', 'Play the daily word.', 'puzzle', null, S);
+  M('play-daily-word-week', 'explore', 'silver', 'A week of words', 'You solved the daily word on seven days.', 'Play the daily word.', 'puzzle', null, S);
+  M('focus-os-first-goal', 'focus', 'bronze', 'A goal in sight', 'You set a goal in Focus OS.', 'Set a goal in Focus OS.', 'target', null, S);
+  M('focus-os-first-plan', 'focus', 'bronze', 'A plan', 'Focus OS proposed work blocks for a goal.', 'Plan a goal in Focus OS.', 'calendar', null, S);
+  M('focus-os-first-block', 'focus', 'silver', 'First block', 'You finished a Focus OS work block.', 'Do a planned block.', 'check', null, S);
+  M('focus-os-goal-done', 'focus', 'gold', 'Goal reached', 'You reached a Focus OS goal.', 'Finish a goal.', 'star', null, S);
+  M('focus-os-day-clear', 'focus', 'silver', 'Clear day', 'You did everything planned for a day.', 'Finish a day\'s blocks.', 'sun', null, S);
+  M('rabbit-hole-first', 'explore', 'bronze', 'Down the rabbit hole', 'You followed a trail of pages.', 'Open the rabbit hole trail.', 'compass', null, S);
+  M('rabbit-hole-good', 'explore', 'silver', 'Worth the trip', 'A rabbit hole was worth it.', 'Rate a rabbit hole.', 'compass', null, S);
+  M('time-capsule-opened', 'explore', 'silver', 'Time capsule', 'You opened a time capsule.', 'Open a time capsule.', 'archive', null, S);
+  M('old-bookmark-reviewed', 'organize', 'bronze', 'Old friend', 'You reviewed an old bookmark.', 'Review an old bookmark.', 'bookmark', null, S);
+  M('on-this-day-seen', 'explore', 'bronze', 'On this day', 'You looked at this day in past years.', 'Open On this day.', 'calendar', null, S);
+  M('mood-theme-on', 'start', 'bronze', 'In the mood', 'You turned on a mood theme.', 'Try a mood theme.', 'palette', null, S);
+  M('seasonal-week-started', 'start', 'bronze', 'New season', 'You started a seasonal week.', 'Try a seasonal week.', 'palette', null, S);
+  M('speed-run-first', 'mastery', 'bronze', 'Speed run', 'You finished a speed run.', 'Try a speed run.', 'zap', null, S);
+  M('shortcut-trainer', 'mastery', 'silver', 'Shortcut trainer', 'You finished a shortcut drill.', 'Open the shortcut trainer.', 'keyboard', null, S);
+  M('roulette-first', 'explore', 'bronze', 'Tab roulette', 'You spun the tab roulette.', 'Spin the tab roulette.', 'shuffle', null, S);
+  M('jingle-composed', 'explore', 'silver', 'Jingle', 'You composed a jingle.', 'Compose a jingle.', 'music', null, S);
+
+  // Ids that cosmetics, titles and unlocks were written against, mapped to the
+  // catalogue medal that means the same thing.
+  const ALIASES = {
+    'first-focus': 'focus-first', 'deep-focus': 'focus-flow', 'explorer': 'features-15',
+    'command-bar-pro': 'power-user', 'keyboard-master': 'commands-25',
+    'tab-whisperer': 'tidy-up', 'archivist': 'sessions-5', 'bookmark-curator': 'bookmarks-50',
+    'note-taker': 'notes-5', 'queue-cleared': 'read-later', 'quiet-mode': 'quiet-reader',
+    'night-owl': 'night-audio', 'early-bird': 'days-3', 'week-streak': 'days-7',
+    'privacy-first': 'privacy-choice', 'password-health': 'try-passwords', 'trackers-blocked': 'try-adblock',
+    'theme-maker': 'own-theme', 'tour-complete': 'take-the-tour', 'first-backup': 'backup-made',
+    'game-mode-first': 'game-clear',
+  };
+  for (const k of Object.keys(ALIASES)) V.alias(k, ALIASES[k]);
+
   // --- wiring ----------------------------------------------------------------
   const doc = root.document;
   let timer = null;

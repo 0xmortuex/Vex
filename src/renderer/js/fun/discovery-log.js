@@ -24,19 +24,19 @@ const VexDiscovery = {
   // Records features that have been used since the last scan. Returns the ids
   // found this time. A no-op while the log is off.
   scan() {
-    if (!VexFun.enabled('discovery')) return [];
+    if (!VexProgress.enabled('discovery')) return [];
     const F = this._items();
-    const seen = VexFun.load(this.KEY, {});
-    const day = VexFun.today();
+    const seen = VexProgress.load(this.KEY, {});
+    const day = VexProgress.today();
     const fresh = [];
     for (const item of F.ITEMS) {
       if (!seen[item.id] && F.used(item)) { seen[item.id] = day; fresh.push(item.id); }
     }
     if (fresh.length) {
-      VexFun.save(this.KEY, seen);
+      VexProgress.save(this.KEY, seen);
       const found = Object.keys(seen).length;
-      for (const m of this.MILESTONES) if (found >= m) VexFun.medal('discovery-' + m);
-      if (found >= F.ITEMS.length) VexFun.medal('discovery-all');
+      for (const m of this.MILESTONES) if (found >= m) VexProgress.medal('discovery-' + m);
+      if (found >= F.ITEMS.length) VexProgress.medal('discovery-all');
       try { document.dispatchEvent(new CustomEvent('vex:discovery-changed', { detail: { ids: fresh } })); } catch { /* no document */ }
     }
     return fresh;
@@ -44,8 +44,8 @@ const VexDiscovery = {
 
   snapshot() {
     const F = this._items();
-    const enabled = VexFun.enabled('discovery');
-    const seen = VexFun.load(this.KEY, {});
+    const enabled = VexProgress.enabled('discovery');
+    const seen = VexProgress.load(this.KEY, {});
     const total = F.ITEMS.length;
     const known = F.ITEMS.filter(i => seen[i.id]);
     const nameOf = (i) => (typeof F.nameOf === 'function' ? F.nameOf(i) : i.name || i.id);
@@ -75,10 +75,10 @@ const VexDiscovery = {
     const pct = s.total ? Math.round((s.found / s.total) * 100) : 0;
     el.innerHTML =
       '<div class="fun-card" role="group" aria-label="Discovery log">' +
-        '<div class="fun-card-head">' + icon('star') + '<strong>' + VexFun.esc(s.text) + '</strong></div>' +
-        '<div class="fun-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + s.total + '" aria-valuenow="' + s.found + '" aria-label="' + VexFun.esc(s.text) + '"><span style="width:' + pct + '%"></span></div>' +
+        '<div class="fun-card-head">' + icon('star') + '<strong>' + VexProgress.esc(s.text) + '</strong></div>' +
+        '<div class="fun-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + s.total + '" aria-valuenow="' + s.found + '" aria-label="' + VexProgress.esc(s.text) + '"><span style="width:' + pct + '%"></span></div>' +
         (s.recent.length
-          ? '<ul class="fun-list">' + s.recent.map(r => '<li>' + VexFun.esc(r.name) + ' <span class="muted">' + VexFun.esc(r.day) + '</span></li>').join('') + '</ul>'
+          ? '<ul class="fun-list">' + s.recent.map(r => '<li>' + VexProgress.esc(r.name) + ' <span class="muted">' + VexProgress.esc(r.day) + '</span></li>').join('') + '</ul>'
           : '<p class="setting-info muted">Nothing logged yet. Features you use show up here.</p>') +
       '</div>';
   },
@@ -90,10 +90,10 @@ const VexDiscovery = {
     // A scan reads two small stores; once a minute while the person switches
     // tabs is plenty, and it never runs over a game.
     document.addEventListener('vex:tab-activated', () => {
-      const t = VexFun.now();
-      if (t - last < 60000 || VexFun.gameActive()) return;
+      const t = VexProgress.now();
+      if (t - last < 60000 || VexProgress.silenced()) return;
       last = t;
-      try { this.scan(); } catch (err) { VexFun.report('The discovery log could not update', err); }
+      try { this.scan(); } catch (err) { VexProgress.report('The discovery log could not update', err); }
     });
   },
 };

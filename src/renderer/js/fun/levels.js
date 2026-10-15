@@ -42,8 +42,18 @@ const VexLevels = {
     return level <= this.TITLES.length ? this.TITLES[level - 1] : 'Level ' + level;
   },
 
+  // The ONE level. When the medal ledger is there its level (medals plus the
+  // points from here) is the level the profile page shows, so this module reads
+  // it instead of keeping a second ladder.
+  _unified() {
+    try {
+      if (typeof VexMedals !== 'undefined' && VexMedals && typeof VexMedals.levelInfo === 'function') return VexMedals.levelInfo();
+    } catch { /* the ledger is not usable: fall back to this module's own ladder */ }
+    return null;
+  },
+
   _state() {
-    const s = VexFun.load(this.KEY, {});
+    const s = VexProgress.load(this.KEY, {});
     return { xp: Number(s.xp) || 0, day: s.day || '', counts: (s.counts && typeof s.counts === 'object') ? s.counts : {} };
   },
 
@@ -52,27 +62,31 @@ const VexLevels = {
   award(kind, count) {
     const a = this.ACTIONS[kind];
     if (!a) throw new Error('Unknown level action: ' + kind);
-    if (!VexFun.enabled('levels')) return null;
+    if (!VexProgress.enabled('levels')) return null;
     const n = count === undefined ? 1 : Number(count);
     if (!Number.isInteger(n) || n < 1) throw new Error('The count of an action is a whole number from 1');
     const s = this._state();
-    const day = VexFun.today();
+    const day = VexProgress.today();
     if (s.day !== day) { s.day = day; s.counts = {}; }
     const done = Number(s.counts[kind]) || 0;
     const take = Math.min(n, a.cap - done);
     if (take <= 0) return null;
-    const before = this.levelFor(s.xp);
+    const uBefore = this._unified();
+    const before = uBefore ? uBefore.level : this.levelFor(s.xp);
     s.counts[kind] = done + take;
     s.xp += take * a.xp;
-    VexFun.save(this.KEY, s);
-    const level = this.levelFor(s.xp);
+    VexProgress.save(this.KEY, s);
+    // The points go to the one level the profile shows (VexMedals.levelInfo).
+    if (typeof VexMedals !== 'undefined' && VexMedals && typeof VexMedals.addXp === 'function') VexMedals.addXp('fun-' + kind, take * a.xp);
+    const uAfter = this._unified();
+    const level = uAfter ? uAfter.level : this.levelFor(s.xp);
     const res = { gained: take * a.xp, xp: s.xp, level, leveledUp: level > before, title: this.titleFor(level) };
     if (res.leveledUp) {
-      if (level >= 5) VexFun.medal('level-5');
-      if (level >= 10) VexFun.medal('level-10');
+      if (level >= 5) VexProgress.medal('level-5');
+      if (level >= 10) VexProgress.medal('level-10');
       try { document.dispatchEvent(new CustomEvent('vex:level-up', { detail: { level, title: res.title } })); } catch { /* no document */ }
       // A quiet toast, and never over a game.
-      if (!VexFun.gameActive() && typeof window !== 'undefined' && typeof window.showToast === 'function') {
+      if (!VexProgress.silenced() && typeof window !== 'undefined' && typeof window.showToast === 'function') {
         window.showToast('Level ' + level + ': ' + res.title);
       }
     }
@@ -81,20 +95,22 @@ const VexLevels = {
   },
 
   snapshot() {
-    const enabled = VexFun.enabled('levels');
+    const enabled = VexProgress.enabled('levels');
     const s = this._state();
-    const level = this.levelFor(s.xp);
+    const u = this._unified();
+    const level = u ? u.level : this.levelFor(s.xp);
     const base = this.threshold(level);
-    const span = this.threshold(level + 1) - base;
-    const day = VexFun.today();
+    const span = u ? u.span : this.threshold(level + 1) - base;
+    const into = u ? u.into : s.xp - base;
+    const day = VexProgress.today();
     return {
       enabled,
-      xp: s.xp,
+      xp: u ? u.xp : s.xp,
       level,
       title: this.titleFor(level),
-      into: s.xp - base,
+      into,
       span,
-      progress: Math.min(1, (s.xp - base) / span),
+      progress: Math.min(1, into / span),
       nextTitle: this.titleFor(level + 1),
       today: s.day === day ? Object.assign({}, s.counts) : {},
     };
@@ -106,12 +122,12 @@ const VexLevels = {
     document.addEventListener('vex:fun-action', (e) => {
       const d = (e && e.detail) || {};
       try { this.award(d.kind, d.count); }
-      catch (err) { VexFun.report('Browser levels could not count an action', err); }
+      catch (err) { VexProgress.report('Browser levels could not count an action', err); }
     });
     // A finished focus session is announced for the pet too; count it once here.
     document.addEventListener('vex:focus-complete', () => {
       try { this.award('focus'); }
-      catch (err) { VexFun.report('Browser levels could not count a focus session', err); }
+      catch (err) { VexProgress.report('Browser levels could not count a focus session', err); }
     });
   },
 };

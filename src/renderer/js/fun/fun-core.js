@@ -17,7 +17,7 @@
 // "this happened" by dispatching
 //   document 'vex:medal-signal'  detail { id }
 // once per id, ever, on this profile.
-const VexFun = {
+const VexProgress = {
   KEY: 'vex.fun',
   FLAGS: ['pet', 'discovery', 'levels', 'challenge'],
   LABELS: {
@@ -77,8 +77,16 @@ const VexFun = {
     return false;
   },
 
+  // The ONE global quiet switch is Play's (js/vex-fun.js): localStorage
+  // vex.fun.quiet === '1'. Read here by key so the New Tab page, which has no
+  // VexFun, honours the same switch.
+  quiet() { try { return localStorage.getItem('vex.fun.quiet') === '1'; } catch { return false; } },
+
+  // Game mode or the quiet switch: nothing visible, nothing audible.
+  silenced() { return this.gameActive() || this.quiet(); },
+
   // Whether a module should be doing anything visible right now.
-  live(flag) { return this.enabled(flag) && !this.gameActive(); },
+  live(flag) { return this.enabled(flag) && !this.silenced(); },
 
   reducedMotion() {
     try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
@@ -109,9 +117,9 @@ const VexFun = {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('vex:game-mode', (e) => {
-    VexFun._gameFlag = !!(e && e.detail && e.detail.active);
+    VexProgress._gameFlag = !!(e && e.detail && e.detail.active);
   });
 }
 
-globalThis.VexFun = VexFun;
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexFun };
+globalThis.VexProgress = VexProgress;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexProgress };

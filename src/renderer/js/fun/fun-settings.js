@@ -14,18 +14,18 @@ const VexFunSettings = {
 
   render(container) {
     if (!container) throw new Error('No place to draw the fun settings');
-    const E = (v) => VexFun.esc(v);
-    const toggles = VexFun.FLAGS.map(f => {
-      const t = VexFun.LABELS[f];
+    const E = (v) => VexProgress.esc(v);
+    const toggles = VexProgress.FLAGS.map(f => {
+      const t = VexProgress.LABELS[f];
       return '<div class="setting-toggle-row"><span>' + E(t.label) + '</span>' +
-        '<label class="toggle"><input type="checkbox" data-fun-flag="' + f + '" aria-label="' + E(t.label) + '"' + (VexFun.enabled(f) ? ' checked' : '') + '>' +
+        '<label class="toggle"><input type="checkbox" data-fun-flag="' + f + '" aria-label="' + E(t.label) + '"' + (VexProgress.enabled(f) ? ' checked' : '') + '>' +
         '<span class="toggle-slider"></span></label></div>' +
         '<p class="setting-info muted" style="margin:2px 0 10px">' + E(t.hint) + '</p>';
     }).join('');
     container.innerHTML = toggles +
       '<div data-fun-card="levels"></div><div data-fun-card="discovery"></div><div data-fun-card="challenge"></div>';
     container.querySelectorAll('[data-fun-flag]').forEach(inp => inp.addEventListener('change', () => {
-      try { VexFun.setEnabled(inp.dataset.funFlag, inp.checked); }
+      try { VexProgress.setEnabled(inp.dataset.funFlag, inp.checked); }
       catch (err) { inp.checked = !inp.checked; window.showToast?.(err.message, 'error'); return; }
       this._cards(container);
     }));
@@ -34,20 +34,20 @@ const VexFunSettings = {
 
   _cards(container) {
     const lvl = container.querySelector('[data-fun-card="levels"]');
-    if (VexFun.enabled('levels')) {
+    if (VexProgress.enabled('levels')) {
       const s = VexLevels.snapshot();
       lvl.innerHTML = '<div class="fun-card" role="group" aria-label="Browser level"><div class="fun-card-head">' +
         (globalThis.VexIcons ? globalThis.VexIcons.svg('zap', { size: 15 }) : '') +
-        '<strong>Level ' + s.level + ': ' + VexFun.esc(s.title) + '</strong></div>' +
+        '<strong>Level ' + s.level + ': ' + VexProgress.esc(s.title) + '</strong></div>' +
         '<div class="fun-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + s.span + '" aria-valuenow="' + s.into + '" aria-label="Progress to level ' + (s.level + 1) + '"><span style="width:' + Math.round(s.progress * 100) + '%"></span></div>' +
-        '<p class="setting-info muted">' + s.into + ' of ' + s.span + ' points to ' + VexFun.esc(s.nextTitle) + '. Points come from useful things only.</p></div>';
+        '<p class="setting-info muted">' + s.into + ' of ' + s.span + ' points to ' + VexProgress.esc(s.nextTitle) + '. Points come from useful things only.</p></div>';
     } else lvl.innerHTML = '';
     VexDiscovery.render(container.querySelector('[data-fun-card="discovery"]'));
     VexDailyChallenge.render(container.querySelector('[data-fun-card="challenge"]'));
     // The off-state sentences of the cards are noise next to their own switch.
     container.querySelectorAll('[data-fun-card]').forEach(c => {
       const flag = c.dataset.funCard;
-      if (!VexFun.enabled(flag)) c.innerHTML = '';
+      if (!VexProgress.enabled(flag)) c.innerHTML = '';
     });
   },
 
@@ -84,9 +84,18 @@ const VexFunSettings = {
 };
 
 if (typeof document !== 'undefined') {
+  // Settings builds this group itself each time it opens (the chips read the
+  // heading: "Play: " puts it in the Play chip). Without the shared registry
+  // (a test, an older page) it is injected once, as before.
   const go = () => {
-    // The Settings markup is static, so one attempt at load is normally
-    // enough; the retry covers a panel built a moment later.
+    if (typeof VexSettingsGroups !== 'undefined' && typeof VexSettingsGroups.register === 'function') {
+      VexSettingsGroups.register({
+        id: 'fun-progress',
+        title: 'Play: fun and progress (all optional, all off until you turn them on)',
+        render: (c) => { VexFunSettings._css(); VexFunSettings.render(c); },
+      });
+      return;
+    }
     if (!VexFunSettings.inject()) setTimeout(() => VexFunSettings.inject(), 1500);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);

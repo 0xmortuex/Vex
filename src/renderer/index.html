@@ -2116,12 +2116,28 @@
   <script src="js/search-again.js"></script>
   <script src="js/shopping-clip.js"></script>
   <script src="js/reader-kinds.js"></script>
+  <!-- Living (js/living-core.js first: the layers below read its quiet gate): all off until chosen. -->
+  <script src="js/living-core.js"></script>
+  <script src="js/tab-personality.js"></script>
+  <script src="js/seasonal-worlds.js"></script>
+  <script src="js/weather-layer.js"></script>
+  <script src="js/focus-scenes.js"></script>
+  <script src="js/sticker-sheet.js"></script>
+  <!-- Fun and progress (js/fun/fun-core.js first; reads the medal ledger and the Play quiet switch). -->
+  <script src="js/fun/fun-core.js"></script>
+  <script src="js/fun/levels.js"></script>
+  <script src="js/fun/discovery-log.js"></script>
+  <script src="js/fun/daily-challenge.js"></script>
+  <script src="js/fun/vex-pet.js"></script>
+  <script src="js/fun/fun-settings.js"></script>
   <!-- Play: optional, off by default (js/vex-fun.js holds the shared rules). -->
   <script src="js/vex-fun.js"></script>
   <script src="js/vex-sounds.js"></script>
   <script src="js/vex-daily-word.js"></script>
   <script src="js/vex-mini-games.js"></script>
   <script src="js/vex-tab-tetris.js"></script>
+  <!-- Every feature above registers with the usage record here, once all of them exist. -->
+  <script src="js/vex-usage-registry.js"></script>
   <!-- window-bundle: break - start-up runs even if a feature above fails to load -->
   <script src="js/app.js"></script>
   <script src="js/i18n-ui.js"></script>

@@ -94,7 +94,17 @@ const VexBriefStreaks = {
     const tm = deps.tabs !== undefined ? deps.tabs : (typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs) ? TabManager.tabs.length : null);
     if (typeof tm === 'number') day.tabs = tm;
     const unseen = deps.unseen !== undefined ? deps.unseen : (typeof VexMail !== 'undefined' && VexMail._state && VexMail._state.inbox ? VexMail._state.inbox.unseen : null);
-    if (typeof unseen === 'number' && unseen === 0) day.inbox = true;
+    if (typeof unseen === 'number' && unseen === 0) {
+      // The first time today the inbox is seen empty: sounds, levels and medals hear it once.
+      if (!day.inbox && typeof document !== 'undefined') {
+        try {
+          document.dispatchEvent(new CustomEvent('vex:inbox-zero'));
+          document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'inbox-cleared' } }));
+          document.dispatchEvent(new CustomEvent('vex:medal-signal', { detail: { id: 'inbox-zero' } }));
+        } catch { /* no document */ }
+      }
+      day.inbox = true;
+    }
     days[k] = day;
     this._save(days);
     return day;

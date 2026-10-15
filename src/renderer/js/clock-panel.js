@@ -150,6 +150,8 @@ const VexClock = {
   // The ringing card: what is ringing, Snooze, Dismiss. Keeps sounding until
   // one of them is pressed.
   ring({ id, title, message, kind, snoozable }) {
+    // Sounds listens for this; a finished countdown is the one timer event.
+    if (kind === 'timer') { try { document.dispatchEvent(new CustomEvent('vex:timer-done', { detail: { id } })); } catch { /* no document */ } }
     // A card rung over another took its place but left the old card's clock
     // ticking every second for good (found 2026-09-29).
     const old = document.getElementById('vex-ringing');

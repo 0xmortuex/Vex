@@ -44,13 +44,13 @@
   function rawSet(k, v) { const s = ls(); if (s) { try { s.setItem(k, v); return; } catch { /* quota: keep in memory */ } } mem[k] = v; }
 
   let cache = null;
-  function blank() { return { v: 1, earned: {}, progress: {}, profile: {}, counters: {}, days: [] }; }
+  function blank() { return { v: 1, earned: {}, progress: {}, profile: {}, counters: {}, days: [], bonus: {} }; }
   function load() {
     if (cache) return cache;
     let d = null;
     try { d = JSON.parse(rawGet(KEY) || 'null'); } catch { d = null; }
     cache = Object.assign(blank(), d && typeof d === 'object' ? d : {});
-    for (const k of ['earned', 'progress', 'profile', 'counters']) if (!cache[k] || typeof cache[k] !== 'object') cache[k] = {};
+    for (const k of ['earned', 'progress', 'profile', 'counters', 'bonus']) if (!cache[k] || typeof cache[k] !== 'object') cache[k] = {};
     if (!Array.isArray(cache.days)) cache.days = [];
     return cache;
   }
@@ -72,7 +72,30 @@
     return registry.get(def.id);
   }
 
-  const get = (id) => registry.get(id) || null;
+  // One ledger of signal names. Features were written against their own ids
+  // (a dotted "play.tetris.cleared", a cosmetic's "first-focus"); canon() maps
+  // each to the catalogue id that really exists, so nothing is dropped.
+  const aliases = new Map();
+  const unmappedSeen = new Set();
+  function alias(from, to) {
+    if (typeof from !== 'string' || typeof to !== 'string') throw new Error('A medal alias maps one id to another');
+    if (registry.has(from)) throw new Error('Medal alias would hide a real medal: ' + from);
+    aliases.set(from, to);
+  }
+  function canon(id) {
+    if (typeof id !== 'string') return id;
+    if (aliases.has(id)) return aliases.get(id);
+    if (!registry.has(id) && id.indexOf('.') >= 0) {
+      const dashed = id.replace(/\./g, '-');
+      if (registry.has(dashed)) return dashed;
+    }
+    return id;
+  }
+  // Signals that reached the engine with no medal behind them (a bug to fix in
+  // the catalogue, not something to hide).
+  function unmapped() { return [...unmappedSeen]; }
+
+  const get = (id) => registry.get(canon(id)) || null;
   const list = () => [...registry.values()];
 
   // --- unlock-all display switch ---------------------------------------------
@@ -128,10 +151,11 @@
   function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
   // --- awarding ----------------------------------------------------------------
-  function has(id) { return !!load().earned[id]; }
-  function isShown(id) { return has(id) || (unlockAll() && registry.has(id)); }
+  function has(id) { return !!load().earned[canon(id)]; }
+  function isShown(id) { return has(id) || (unlockAll() && registry.has(canon(id))); }
 
-  function award(id, opts) {
+  function award(rawId, opts) {
+    const id = canon(rawId);
     const def = registry.get(id);
     if (!def) throw new Error('Unknown medal: ' + id);
     const d = load();
@@ -140,11 +164,14 @@
     delete d.progress[id];
     save();
     emit('vex:medal-awarded', { id, title: def.title, tier: def.tier });
+    // The sounds module listens for this older name; one award, both events.
+    emit('vex:medal-earned', { id, title: def.title, tier: def.tier });
     if (!(opts && opts.silent)) notify(def);
     return true;
   }
 
-  function progress(id, n, of) {
+  function progress(rawId, n, of) {
+    const id = canon(rawId);
     const def = registry.get(id);
     if (!def) throw new Error('Unknown medal: ' + id);
     n = Math.max(0, Math.floor(Number(n) || 0));
@@ -162,7 +189,7 @@
   }
 
   function progressOf(id) {
-    const p = load().progress[id];
+    const p = load().progress[canon(id)];
     return p ? { n: p.n, of: p.of } : null;
   }
 
@@ -209,11 +236,24 @@
   // --- XP and level ------------------------------------------------------------------
   const MAX_LEVEL = 30;
   function xpOf(pred) { return list().reduce((s, m) => s + (pred(m) ? XP[m.tier] : 0), 0); }
+  // Points other features earn for useful things (Browser levels). They add to
+  // the one level the profile shows; a medal never depends on them.
+  function bonusXp() { return Object.values(load().bonus).reduce((s, n) => s + (Number(n) || 0), 0); }
+  function addXp(source, n) {
+    if (typeof source !== 'string' || !/^[a-z0-9-]{1,40}$/.test(source)) throw new Error('Bonus points need a source name');
+    const add = Math.floor(Number(n));
+    if (!Number.isFinite(add) || add < 1 || add > 1000) throw new Error('Bonus points are a whole number from 1 to 1000');
+    const d = load();
+    d.bonus[source] = (Number(d.bonus[source]) || 0) + add;
+    save();
+    emit('vex:medal-profile', profile());
+    return d.bonus[source];
+  }
   function levelFor(xp) { return Math.min(MAX_LEVEL, Math.floor(Math.sqrt(xp / 20)) + 1); }
   function levelStart(l) { return 20 * (l - 1) * (l - 1); }
   function levelInfo() {
     const all = unlockAll();
-    const xp = xpOf(m => (all ? true : has(m.id)));
+    const xp = xpOf(m => (all ? true : has(m.id))) + bonusXp();
     const level = levelFor(xp);
     const lo = levelStart(level), hi = levelStart(level + 1);
     return { xp, level, max: level >= MAX_LEVEL, into: xp - lo, span: hi - lo, shownByDisplay: all };
@@ -364,7 +404,7 @@
 
   const VexMedals = {
     TIERS, SHAPES, XP, TIER_NAMES, CATS, AVATARS, MAX_LEVEL,
-    define, get, list, has, isShown, award, progress, progressOf,
+    define, get, list, has, isShown, award, progress, progressOf, alias, canon, unmapped, addXp, bonusXp,
     unlockAll, setUnlockAll, on, flush, pendingToasts, gaming,
     bump, counter, markActiveDay, streak, bestStreak, activeDays, save,
     levelInfo, stats, profile, setProfile,
@@ -389,7 +429,8 @@
   if (root.document && typeof root.document.addEventListener === 'function') {
     root.document.addEventListener('vex:medal-signal', (e) => {
       const d = e && e.detail;
-      if (!d || typeof d.id !== 'string' || !registry.has(d.id)) return;
+      if (!d || typeof d.id !== 'string') return;
+      if (!registry.has(canon(d.id))) { unmappedSeen.add(d.id); return; }
       if (d.n != null && d.of != null) progress(d.id, d.n, d.of);
       else award(d.id);
     });

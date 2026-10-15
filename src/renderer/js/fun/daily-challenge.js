@@ -40,19 +40,19 @@ const VexDailyChallenge = {
   },
 
   _state() {
-    const s = VexFun.load(this.KEY, {});
+    const s = VexProgress.load(this.KEY, {});
     return Object.assign({ day: '', id: '', status: 'open', progress: 0, base: 0, total: 0 }, s);
   },
 
   // The record for today, made on first use. Only when the feature is on.
   _today() {
-    const day = VexFun.today();
+    const day = VexProgress.today();
     let s = this._state();
     if (s.day !== day) {
       const c = this.pickFor(day);
       s = { day, id: c.id, status: 'open', progress: 0, total: s.total || 0,
         base: c.auto === 'commands' ? this._commandTotal() : c.auto === 'feature' ? this._unusedCount() : 0 };
-      VexFun.save(this.KEY, s);
+      VexProgress.save(this.KEY, s);
     }
     return s;
   },
@@ -66,16 +66,16 @@ const VexDailyChallenge = {
   _finish(s) {
     s.status = 'done';
     s.total = (s.total || 0) + 1;
-    VexFun.save(this.KEY, s);
-    VexFun.medal('challenge-first');
-    if (s.total >= 7) VexFun.medal('challenge-7');
+    VexProgress.save(this.KEY, s);
+    VexProgress.medal('challenge-first');
+    if (s.total >= 7) VexProgress.medal('challenge-7');
     if (globalThis.VexLevels) globalThis.VexLevels.award('challenge');
     try { document.dispatchEvent(new CustomEvent('vex:challenge-changed')); } catch { /* no document */ }
   },
 
   // Re-reads an automatic challenge's progress and finishes it at the target.
   refresh() {
-    if (!VexFun.enabled('challenge')) return;
+    if (!VexProgress.enabled('challenge')) return;
     const s = this._today();
     if (s.status !== 'open') return;
     const c = this._def(s.id);
@@ -83,20 +83,20 @@ const VexDailyChallenge = {
     else if (c.auto === 'feature') s.progress = Math.max(0, s.base - this._unusedCount());
     else if (c.auto !== 'tabs') return;
     if (s.progress >= c.target) { s.progress = c.target; this._finish(s); }
-    else VexFun.save(this.KEY, s);
+    else VexProgress.save(this.KEY, s);
   },
 
   _onTabClosed() {
-    if (!VexFun.enabled('challenge') || VexFun.gameActive()) return;
+    if (!VexProgress.enabled('challenge') || VexProgress.silenced()) return;
     const s = this._today();
     if (s.status !== 'open' || this._def(s.id).auto !== 'tabs') return;
     s.progress += 1;
     if (s.progress >= this._def(s.id).target) this._finish(s);
-    else VexFun.save(this.KEY, s);
+    else VexProgress.save(this.KEY, s);
   },
 
   complete() {
-    if (!VexFun.enabled('challenge')) throw new Error('The daily challenge is off');
+    if (!VexProgress.enabled('challenge')) throw new Error('The daily challenge is off');
     const s = this._today();
     if (s.status !== 'open') throw new Error('Today\'s challenge is already ' + s.status);
     if (!this._def(s.id).manual) throw new Error('This challenge notices by itself when it is done');
@@ -105,17 +105,17 @@ const VexDailyChallenge = {
   },
 
   skip() {
-    if (!VexFun.enabled('challenge')) throw new Error('The daily challenge is off');
+    if (!VexProgress.enabled('challenge')) throw new Error('The daily challenge is off');
     const s = this._today();
     if (s.status !== 'open') throw new Error('Today\'s challenge is already ' + s.status);
     s.status = 'skipped';
-    VexFun.save(this.KEY, s);
+    VexProgress.save(this.KEY, s);
     try { document.dispatchEvent(new CustomEvent('vex:challenge-changed')); } catch { /* no document */ }
   },
 
   snapshot() {
-    const enabled = VexFun.enabled('challenge');
-    if (!enabled) return { enabled, day: VexFun.today(), id: '', text: '', status: 'open', progress: 0, target: 0, manual: false, reward: 0, completedTotal: this._state().total || 0 };
+    const enabled = VexProgress.enabled('challenge');
+    if (!enabled) return { enabled, day: VexProgress.today(), id: '', text: '', status: 'open', progress: 0, target: 0, manual: false, reward: 0, completedTotal: this._state().total || 0 };
     this.refresh();
     const s = this._today();
     const c = this._def(s.id);
@@ -136,7 +136,7 @@ const VexDailyChallenge = {
     let body;
     if (s.status === 'done') body = '<p class="setting-info">Done for today. Nice.</p>';
     else if (s.status === 'skipped') body = '<p class="setting-info muted">Skipped. A new one tomorrow.</p>';
-    else body = '<p class="setting-info">' + VexFun.esc(s.text) + (s.manual ? '' : ' <span class="muted">(' + s.progress + ' of ' + s.target + ')</span>') + '</p>' +
+    else body = '<p class="setting-info">' + VexProgress.esc(s.text) + (s.manual ? '' : ' <span class="muted">(' + s.progress + ' of ' + s.target + ')</span>') + '</p>' +
       '<div class="fun-actions">' +
         (s.manual ? '<button type="button" class="btn-primary" data-fun-done>I did it</button>' : '') +
         '<button type="button" class="btn-secondary" data-fun-skip>Skip</button>' +
@@ -152,15 +152,15 @@ const VexDailyChallenge = {
     if (this._wired || typeof document === 'undefined') return;
     this._wired = true;
     document.addEventListener('vex:tab-closed', () => {
-      try { this._onTabClosed(); } catch (err) { VexFun.report('The daily challenge could not count a tab', err); }
+      try { this._onTabClosed(); } catch (err) { VexProgress.report('The daily challenge could not count a tab', err); }
     });
     // Commands and features are read when a tab changes, at most once a minute.
     let last = 0;
     document.addEventListener('vex:tab-activated', () => {
-      const t = VexFun.now();
-      if (t - last < 60000 || VexFun.gameActive()) return;
+      const t = VexProgress.now();
+      if (t - last < 60000 || VexProgress.silenced()) return;
       last = t;
-      try { this.refresh(); } catch (err) { VexFun.report('The daily challenge could not update', err); }
+      try { this.refresh(); } catch (err) { VexProgress.report('The daily challenge could not update', err); }
     });
   },
 };
