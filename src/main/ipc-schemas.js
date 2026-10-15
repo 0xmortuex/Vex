@@ -481,6 +481,23 @@ define('userscripts:remove userscripts:clear-values', [string(64)]);
 define('userscripts:set-global', [boolean]);
 define('userscripts:set-hosts', [string(64), value => Array.isArray(value) && value.length <= 30 && value.every(h => typeof h === 'string' && h.length <= 253)]);
 define('userscripts:fetch', [web]);
+// Vex Packs (main/packs.js, main/packs-store.js). The window never hands main
+// content to install: a pack is previewed (main judges the text) and then
+// installed by the one-use token main gave back. Main re-validates everything.
+const packToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+const packIdArg = value => typeof value === 'string' && /^[a-z0-9][a-z0-9._-]{2,63}$/.test(value);
+define('packs:list packs:items packs:pick-file', []);
+define('packs:preview', [string(300000)]);
+define('packs:install', [packToken, optional(boolean)]);
+define('packs:discard', [packToken]);
+define('packs:set-enabled', [packIdArg, boolean]);
+define('packs:uninstall', [packIdArg]);
+define('packs:set-global', [boolean]);
+define('packs:trust-key', [packIdArg, optional(string(60))]);
+define('packs:untrust-key', [string(40)]);
+define('packs:generate-key', [optional(boolean)]);
+define('packs:export', [shape({ id: string(64), name: string(80), authorName: string(60), description: optional(string(600)), sign: boolean,
+  items: value => Array.isArray(value) && value.length >= 1 && value.length <= 200 && value.every(object) })]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);

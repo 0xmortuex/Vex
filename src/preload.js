@@ -745,6 +745,23 @@ contextBridge.exposeInMainWorld('vex', {
     setHosts: (id, hosts) => ipcRenderer.invoke('userscripts:set-hosts', id, hosts),
     clearValues: (id) => ipcRenderer.invoke('userscripts:clear-values', id),
     fetch: (url) => ipcRenderer.invoke('userscripts:fetch', url)
+  },
+  // Vex Packs (main/packs-store.js, js/packs-ui.js). Main judges every pack;
+  // install takes only the one-use token a preview returned.
+  packs: {
+    list: () => ipcRenderer.invoke('packs:list'),
+    items: () => ipcRenderer.invoke('packs:items'),
+    pickFile: () => ipcRenderer.invoke('packs:pick-file'),
+    preview: (text) => ipcRenderer.invoke('packs:preview', text),
+    install: (token, trustKey) => ipcRenderer.invoke('packs:install', token, !!trustKey),
+    discard: (token) => ipcRenderer.invoke('packs:discard', token),
+    setEnabled: (id, on) => ipcRenderer.invoke('packs:set-enabled', id, !!on),
+    uninstall: (id) => ipcRenderer.invoke('packs:uninstall', id),
+    setGlobal: (on) => ipcRenderer.invoke('packs:set-global', !!on),
+    trustKey: (id, label) => ipcRenderer.invoke('packs:trust-key', id, label),
+    untrustKey: (fingerprint) => ipcRenderer.invoke('packs:untrust-key', fingerprint),
+    generateKey: (replace) => ipcRenderer.invoke('packs:generate-key', !!replace),
+    export: (request) => ipcRenderer.invoke('packs:export', request)
   }
 });
 

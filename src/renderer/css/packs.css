@@ -1,0 +1,48 @@
+/* Vex Packs manager (js/packs-ui.js). Tokens only, so every theme and every
+   browser look carries over; a11y.css stays the last stylesheet. */
+.vex-packs-overlay {
+  position: fixed; inset: 0; z-index: 100060;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.vex-packs-dialog {
+  width: 640px; max-width: 94vw; max-height: 86vh; overflow: auto;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px 22px; box-shadow: 0 24px 60px var(--vex-shadow-color, rgba(0, 0, 0, 0.5));
+}
+.vex-packs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vex-packs-title { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.vex-packs-note, .vex-packs-sub { font-size: 12px; color: var(--text-muted); margin: 6px 0; }
+.vex-packs-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+.vex-packs-master { font-size: 12.5px; margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.vex-packs-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 12.5px; cursor: pointer;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+.vex-packs-btn:hover { background: var(--vex-hover-fill, rgba(255, 255, 255, 0.05)); }
+.vex-packs-btn:disabled { opacity: 0.6; cursor: default; }
+.vex-packs-btn.danger { color: var(--danger, #e5484d); }
+.vex-packs-ico { display: inline-flex; }
+.vex-packs-card {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px; background: var(--bg);
+}
+.vex-packs-card.off { opacity: 0.7; }
+.vex-packs-card.damaged { border-color: var(--danger, #e5484d); }
+.vex-packs-cardtop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vex-packs-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--text-muted);
+}
+.vex-packs-badge.trusted { color: var(--success, #30a46c); border-color: var(--success, #30a46c); }
+.vex-packs-badge.unsigned { color: var(--warning, #f5a524); border-color: var(--warning, #f5a524); }
+.vex-packs-desc { font-size: 12.5px; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vex-packs-items ul, .vex-packs-perms ul, .vex-packs-log { margin: 6px 0 6px 18px; padding: 0; font-size: 12.5px; }
+.vex-packs-items li .vex-packs-btn { margin-left: 8px; padding: 2px 8px; }
+.vex-packs-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.vex-packs-section { margin-top: 12px; font-size: 12.5px; }
+.vex-packs-keyrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+.vex-packs-empty { color: var(--text-muted); font-size: 13px; }
