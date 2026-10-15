@@ -988,6 +988,42 @@
                 </div>
                 <div id="theme-auto-status" role="status" style="font-size:11.5px;color:var(--text-muted);margin-top:6px"></div>
               </div>
+              <!-- Wind-down: a warm, dimming veil that fades in after a set hour (js/theme-auto.js). Off by default. -->
+              <div class="setting-toggle-row" id="wind-down-row">
+                <span>Wind-down<br><span style="font-size:11.5px;color:var(--text-muted)">After a set hour, Vex slowly dims and warms its colours, then fades back at the end hour. Your theme is not changed.</span></span>
+                <label class="toggle"><input type="checkbox" id="setting-wind-down" aria-label="Wind-down"><span class="toggle-slider"></span></label>
+              </div>
+              <div id="wind-down-details" style="display:none">
+                <div class="setting-toggle-row">
+                  <span>From</span>
+                  <span style="display:flex;align-items:center;gap:8px">
+                    <input type="time" id="setting-wind-down-start" aria-label="Wind-down starts" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                    <span>to</span>
+                    <input type="time" id="setting-wind-down-end" aria-label="Wind-down ends" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                  </span>
+                </div>
+                <div class="setting-toggle-row">
+                  <span>Fade in over</span>
+                  <select id="setting-wind-down-ramp" aria-label="Fade in over" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:var(--radius);font-family:'Outfit',sans-serif;font-size:13px">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">90 minutes</option>
+                  </select>
+                </div>
+                <div class="setting-toggle-row">
+                  <span>Strength</span>
+                  <input type="range" min="10" max="100" step="5" id="setting-wind-down-intensity" aria-label="Wind-down strength" style="flex:0 1 200px">
+                </div>
+                <div class="setting-toggle-row">
+                  <span>Use the dark theme too<br><span style="font-size:11.5px;color:var(--text-muted)">Switches a light theme to your dark one while it winds down, and puts it back at the end.</span></span>
+                  <label class="toggle"><input type="checkbox" id="setting-wind-down-dark" aria-label="Use the dark theme during wind-down"><span class="toggle-slider"></span></label>
+                </div>
+                <div class="setting-toggle-row">
+                  <span id="wind-down-status" role="status" style="font-size:11.5px;color:var(--text-muted)"></span>
+                  <button type="button" class="btn-secondary" id="wind-down-snooze">Not tonight</button>
+                </div>
+              </div>
               <!-- Discord in the Vex theme, through Vencord (js/discord-theme.js). -->
               <div id="discord-theme-setting"></div>
               <!-- Website appearance and Reduce motion (js/appearance-prefs.js). -->
