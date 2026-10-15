@@ -247,10 +247,24 @@ if it needs a static guard.
    * `_register`: pack chains become Ctrl+K commands run by `CommandChains.run`;
    * `addThemeToMine`: through `CustomThemes.validateRecord`;
    * `_collect` / `exportMine`: the person's own items out, validated again in main.
-8. Consumers yet to be wired by their features (each must read through
-   `VexPacks.items(type)` only, treat the data as untrusted text, and keep its
-   own guards): `aliases` (command bar shortcuts), `brief-section` (the brief),
-   `page-action` (page actions feature: exact-origin match, request-only, never
-   private / Tor / routed tabs), `readability-preset` (readability CSS builder:
-   numbers only), `sticker` / `medal-frame` (render through `<img src="data:image/svg+xml...">`,
-   never inline), `quotes` (`textContent`).
+8. `src/renderer/js/packs-consumers.js` hands each installed, switched-on item to
+   the feature that reads it, through an in-memory setter on that feature (never
+   written to the feature's own storage; gone with the pack). Each keeps its own
+   guards:
+   * `aliases` -> `VexAliases.setPackEntries` (the person's own word wins);
+   * `readability-preset` -> `SiteReadability.setPackPresets` (numbers only; not
+     applied in private windows or Tor / routed tabs);
+   * `page-action` -> `PageActions.setPackScripts` (master switch and its warning,
+     exact origin, chosen by the person, never automatic, never private / Tor /
+     routed tabs);
+   * `brief-section` -> `BriefIntegration.setPackSections` (text, https links;
+     page-bound templates only from a normal tab; a template with {query} is not
+     offered);
+   * `quotes` -> `VexFortune.setPackLines` and `VexWidgets.setPackQuotes`
+     (`textContent`);
+   * `sticker` -> `StickerSheet.setPackStickers`, `medal-frame` ->
+     `VexCosmetics.setPackFrames` (drawn as an image: a data: SVG in an `<img>`
+     or an SVG `<image>`, never inline);
+   * `theme` and `chain` are read by packs-ui.js itself.
+   A type whose consumer is not in a build stays inert; `VexPackConsumers.status()`
+   lists it.

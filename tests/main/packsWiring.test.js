@@ -48,7 +48,7 @@ describe('pack IPC wiring', () => {
 });
 
 describe('no code is ever made from pack content', () => {
-  const FILES = ['src/main/packs.js', 'src/main/packs-store.js', 'src/renderer/js/packs-ui.js'];
+  const FILES = ['src/main/packs.js', 'src/main/packs-store.js', 'src/renderer/js/packs-ui.js', 'src/renderer/js/packs-consumers.js'];
   for (const f of FILES) {
     it(f + ' has no eval, Function, dynamic import, script injection or markup built from pack text', () => {
       const src = read(f).replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -60,6 +60,10 @@ describe('no code is ever made from pack content', () => {
       expect(src).not.toMatch(/require\(\s*['\"](?:node:)?(?:net|http|https|http2|child_process|vm|dns|tls|worker_threads|electron)['\"]\s*\)|\bfetch\s*\(/);
     });
   }
+  it('the consumers hand pack data over through setters and never write it as markup', () => {
+    const src = read('src/renderer/js/packs-consumers.js');
+    expect(src).not.toMatch(/innerHTML|insertAdjacentHTML|outerHTML|document.write|localStorage/);
+  });
   it('the manager writes pack text only with textContent and puts only icons in innerHTML', () => {
     const src = read('src/renderer/js/packs-ui.js');
     const uses = src.match(/innerHTML\s*=.*$/gm) || [];
