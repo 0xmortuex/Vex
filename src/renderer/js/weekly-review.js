@@ -12,6 +12,16 @@ const VexReview = {
   SEEDED_KEY: 'vex.review.seeded',
   DAY: 5, HOUR: 17,
 
+  // Other modules add a section here (Focus OS does): { id, title, build(now) }
+  // where build answers { summary?, items?: [{ text, sub? }] } or null. A
+  // section that throws is named in the card's errors and never hides the rest.
+  extras: [],
+  addSection(def) {
+    if (!def || typeof def.id !== 'string' || typeof def.build !== 'function') throw new Error('A review section needs an id and a build() function');
+    this.extras = this.extras.filter(x => x.id !== def.id);
+    this.extras.push(def);
+  },
+
   init() {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.onFired !== 'function') return false;
@@ -82,6 +92,11 @@ const VexReview = {
       }
       r.tools = Object.entries(counts).sort((a, c) => c[1] - a[1]).slice(0, 6).map(([id, n]) => ({ id, name: (typeof Toolbox !== 'undefined' && Toolbox.all) ? ((Toolbox.all().find(t => t.id === id) || {}).name || id) : id, n }));
     } catch (err) { r.errors.push('tools: ' + ((err && err.message) || 'unavailable')); }
+    r.extra = {};
+    for (const x of this.extras) {
+      try { r.extra[x.id] = await x.build(now); }
+      catch (err) { r.errors.push((x.title || x.id) + ': ' + ((err && err.message) || 'unavailable')); }
+    }
     return r;
   },
 
@@ -131,6 +146,15 @@ const VexReview = {
     section('Saved and not yet read', data.saved.unread.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
     section('Watched pages that changed', data.changed.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
     section('Tools you used', data.tools, (x) => link(x.name, null, x.n + ' result' + (x.n === 1 ? '' : 's')));
+    for (const x of this.extras) {
+      const ex = data.extra && data.extra[x.id];
+      if (!ex || (!ex.summary && !(ex.items && ex.items.length))) continue;
+      const s = document.createElement('section'); s.className = 'rv-sec';
+      const h = document.createElement('h4'); h.textContent = x.title || x.id; s.appendChild(h);
+      if (ex.summary) { const p = document.createElement('div'); p.className = 'rv-empty'; p.textContent = ex.summary; s.appendChild(p); }
+      for (const it of ex.items || []) s.appendChild(link(it.text, null, it.sub));
+      body.appendChild(s);
+    }
     for (const e of data.errors) { const d = document.createElement('div'); d.className = 'rv-error'; d.textContent = 'Could not read ' + e; body.appendChild(d); }
     const close = () => wrap.remove();
     wrap.querySelector('#rv-close').addEventListener('click', close);
