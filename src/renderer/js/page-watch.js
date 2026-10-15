@@ -612,18 +612,14 @@ const PageWatch = {
     let model = '';
     try { model = AIRouter.isOllamaAvailable() ? String(AIRouter.getModel() || '') : ''; } catch { model = ''; }
     if (!model) return '';
-    const lines = (arr, sign) => arr.slice(0, 12).map(l => sign + ' ' + l.slice(0, 200)).join('\n');
-    const prompt = 'A web page the user watches changed. Lines removed (-) and added (+):\n' + lines(diff.removed, '-') + '\n' + lines(diff.added, '+')
-      + '\n\nIn ONE short sentence, say what changed in plain words. No preamble.';
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 20000);
+    // What changed and whether it matters: js/page-watch-explain.js.
     try {
-      const out = await Ollama.generate(model, prompt, { temperature: 0.2, maxTokens: 80, signal: ctl.signal });
-      return String(out || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+      const E = typeof PageWatchExplain !== 'undefined' ? PageWatchExplain : require('./page-watch-explain.js').PageWatchExplain;
+      return await E.explain(watch, diff, { generate: (m, p, o) => Ollama.generate(m, p, o), model });
     } catch (err) {
       VexProblems?.note('Page watch', 'The local model could not summarise a change to ' + watch.url, err);
       return '';
-    } finally { clearTimeout(timer); }
+    }
   },
 
   announce(watch, verdict) {

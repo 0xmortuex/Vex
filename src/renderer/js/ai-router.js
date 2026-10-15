@@ -313,6 +313,13 @@ const AIRouter = (() => {
   async function callBackend(backend, feature, request) {
     if (backend === 'ondevice') return await callOnDevice(feature, request);
     if (backend === 'local') return await callLocal(feature, request);
+    // The user's AI memory goes to the cloud only when they ticked "include
+    // memory" for it (js/ai-memory.js). This is the one place every cloud
+    // request passes through, fallbacks included.
+    if (request && Array.isArray(request.conversationHistory) && request.conversationHistory.some(m => m && m.vexMemory)
+        && !(typeof AIMemory !== 'undefined' && AIMemory.allowsBackend('cloud'))) {
+      request = { ...request, conversationHistory: request.conversationHistory.filter(m => !(m && m.vexMemory)) };
+    }
     return await callCloud(feature, request);
   }
 
