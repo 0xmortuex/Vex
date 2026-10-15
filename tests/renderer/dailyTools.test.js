@@ -31,7 +31,12 @@ describe('universal search', () => {
     expect(UniversalSearch.search('mail: invoice', items).map(x => x.id)).toEqual(['m1']);
     expect(UniversalSearch.search('boiler zzz', items)).toEqual([]);
   });
-  it('remembers mail headers only, capped, and can forget', () => {
+  it('remembers mail headers only once it is turned on, capped, and can forget', () => {
+    // Opt-in: nothing is kept until the person turns the memo on.
+    expect(UniversalSearch.mailEnabled()).toBe(false);
+    expect(UniversalSearch.rememberMail('a1', { messages: [{ uid: 1, subject: 'Hi', date: 5 }] })).toBe(0);
+    expect(localStorage.getItem('vex.mailHeaders')).toBeNull();
+    UniversalSearch.setMailEnabled(true);
     const n = UniversalSearch.rememberMail('a1', { messages: [{ uid: 1, subject: 'Hi', from: { name: 'Al', address: 'a@x' }, date: 5 }] });
     expect(n).toBe(1);
     expect(JSON.parse(localStorage.getItem('vex.mailHeaders'))[0]).toEqual({ accountId: 'a1', uid: 1, subject: 'Hi', from: 'Al', date: 5 });

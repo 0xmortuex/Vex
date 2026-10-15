@@ -143,6 +143,8 @@ const VexI18nUI = {
       'Site Permissions': 'Site izinleri', 'Chrome Extensions': 'Chrome eklentileri',
       'Smart Tab Grouping': 'Akıllı sekme gruplama', 'Command Chains': 'Komut zincirleri',
       'Workflow and chains': 'İş akışı ve zincirler',
+      'Morning Brief': 'Sabah özeti', 'Brief actions': 'Özet eylemleri',
+      'Memory tools': 'Hafıza araçları', 'Distraction budget': 'Dikkat bütçesi',
       // Page watcher: the Settings block, the toolbar badge and its commands.
       'Page watcher': 'Sayfa izleyici', 'Watched pages': 'İzlenen sayfalar', 'Watched pages…': 'İzlenen sayfalar…',
       'Watch pages for changes': 'Sayfaları değişiklikler için izle',

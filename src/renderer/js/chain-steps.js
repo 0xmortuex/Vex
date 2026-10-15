@@ -145,7 +145,8 @@ const VexChainSteps = {
   },
 
   // ---- the editor ----------------------------------------------------------------
-  async open(existing) {
+  // `prefill` ({ name, steps }) fills a NEW chain's form, so a suggestion can be reviewed and saved.
+  async open(existing, prefill) {
     if (typeof CommandChains === 'undefined') throw new Error('Command chains are not available');
     document.getElementById('vex-chainedit')?.remove();
     const m = document.createElement('div');
@@ -154,8 +155,8 @@ const VexChainSteps = {
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Command chain" style="width:520px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:0 24px 60px var(--vex-shadow-color,rgba(0,0,0,.5));color:var(--text);font-size:12.5px">
       <div style="display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;margin-bottom:10px">${VexIcons.svg('link', { size: 16 })}${existing ? 'Edit chain' : 'New chain'}</div>
-      <input id="cs-name" class="set-input" style="width:100%;box-sizing:border-box;margin-bottom:8px" placeholder="Name, e.g. Standup" value="${esc(existing ? existing.name : '')}">
-      <textarea id="cs-text" class="set-input" rows="8" spellcheck="false" style="width:100%;box-sizing:border-box;font-family:monospace;resize:vertical" placeholder="open https://example.com/board&#10;session Standup&#10;timer 15 min&#10;mute discord&#10;Reading mode">${esc(existing ? this.toText(existing.steps) : '')}</textarea>
+      <input id="cs-name" class="set-input" style="width:100%;box-sizing:border-box;margin-bottom:8px" placeholder="Name, e.g. Standup" value="${esc(existing ? existing.name : (prefill ? prefill.name : ''))}">
+      <textarea id="cs-text" class="set-input" rows="8" spellcheck="false" style="width:100%;box-sizing:border-box;font-family:monospace;resize:vertical" placeholder="open https://example.com/board&#10;session Standup&#10;timer 15 min&#10;mute discord&#10;Reading mode">${esc(existing ? this.toText(existing.steps) : (prefill ? this.toText(prefill.steps) : ''))}</textarea>
       <div style="color:var(--text-muted);font-size:11.5px;margin:6px 0">One step a line, run in order: <b>open</b> address, <b>session</b> name, <b>focus</b> name, <b>timer</b> 15 min, <b>mute</b> or <b>unmute</b> text in a tab, <b>wait</b> seconds, or the name of any Ctrl+K command.</div>
       <div id="cs-err" style="color:var(--danger,#e5484d);min-height:16px;white-space:pre-wrap"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">

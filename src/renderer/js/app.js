@@ -1317,6 +1317,11 @@ function vexOwnTextFocused(doc) {
     if (window.TabCleanup) window.TabCleanup.start();
     if (window.RoutineDetect) window.RoutineDetect.start();
   } catch (err) { console.error('[Daily tools] could not start:', err); window.VexProblems?.note('Daily tools', 'Could not start', err); }
+  // Settings block and the routine -> chain editor link, then the brief extras and memory-tool sections.
+  try {
+    if (window.DailyToolsSettings) window.DailyToolsSettings.init();
+    if (window.BriefIntegration) window.BriefIntegration.init();
+  } catch (err) { console.error('[Brief integration] could not start:', err); window.VexProblems?.note('Morning Brief', 'Extra sections could not start', err); }
 
   // Reading & accessibility pack + persistent highlights + full-text recall
   if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.init();

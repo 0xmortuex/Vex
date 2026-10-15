@@ -158,8 +158,9 @@ const UniversalSearch = {
     }));
   },
 
-  // The mail memo. Headers only; capped; newest first; off with the switch.
-  mailEnabled() { try { return localStorage.getItem(this.MAIL_ENABLED_KEY) !== 'off'; } catch { return true; } },
+  // The mail memo. Headers only; capped; newest first. Off until the person
+  // turns it on in Settings > Workflow and chains > Daily tools.
+  mailEnabled() { try { return localStorage.getItem(this.MAIL_ENABLED_KEY) === 'on'; } catch { return false; } },
   setMailEnabled(on) {
     localStorage.setItem(this.MAIL_ENABLED_KEY, on ? 'on' : 'off');
     if (!on) this.forgetMail();

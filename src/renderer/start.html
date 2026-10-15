@@ -2092,6 +2092,11 @@
     .brief-badge.bad { color: #e5484d; border-color: #e5484d; }
     .brief-note, .brief-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--vex-text-muted); }
     .brief-error { margin: 0; font-size: 12.5px; color: #e5484d; }
+    .brief-itemwrap { display: flex; flex-direction: column; }
+    .brief-itemacts { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 6px; }
+    .brief-mini { padding: 3px 10px; font: inherit; font-size: 11.5px; color: var(--vex-text-secondary); background: transparent; border: 1px solid var(--vex-border-subtle); border-radius: 999px; cursor: pointer; }
+    .brief-mini:hover { color: var(--vex-text-primary); border-color: var(--vex-border-accent); background: var(--vex-accent-glow); }
+    .brief-mini:focus-visible { outline: 2px solid var(--vex-accent, #6366f1); outline-offset: 2px; }
     .brief-act { align-self: flex-start; padding: 5px 12px; font: inherit; font-size: 12.5px; font-weight: 600; background: var(--vex-accent, #6366f1); color: var(--on-primary, #fff); border: 1px solid transparent; border-radius: var(--vex-radius-md); cursor: pointer; }
     .brief-act:hover { filter: brightness(1.08); }
   </style>
@@ -2100,7 +2105,7 @@
       function send(o) { console.log('VEX_CMD:' + JSON.stringify(o)); }
       function icon(name, size) { return (window.VexIcons && VexIcons.svg) ? VexIcons.svg(name, { size: size || 16 }) : ''; }
       function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null && text !== '') e.textContent = text; return e; }
-      var BAD = /^(failed|problem|overdue)$/i;
+      var BAD = /^(failed|problem|overdue|down)$/i;
       function item(it) {
         var link = it.url ? 'a' : 'div';
         var row = el(link, 'brief-item');
@@ -2117,7 +2122,18 @@
         if (it.sub) main.appendChild(el('span', 'brief-sub', it.sub));
         row.appendChild(main);
         if (it.badge) row.appendChild(el('span', 'brief-badge' + (BAD.test(it.badge) ? ' bad' : ''), it.badge));
-        return row;
+        if (!it.actions || !it.actions.length) return row;
+        // Buttons cannot sit inside a link, so a row with actions is a wrapper.
+        var wrap = el('div', 'brief-itemwrap');
+        wrap.appendChild(row);
+        var bar = el('div', 'brief-itemacts');
+        it.actions.forEach(function (a) {
+          var b = el('button', 'brief-mini', a.label); b.type = 'button';
+          b.addEventListener('click', function () { send(a.cmd); });
+          bar.appendChild(b);
+        });
+        wrap.appendChild(bar);
+        return wrap;
       }
       function card(s) {
         var c = el('article', 'brief-card');

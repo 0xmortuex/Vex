@@ -127,6 +127,8 @@ const VexBrief = {
     const items = (Array.isArray(out.items) ? out.items : []).slice(0, def.maxItems || 6).map(it => ({
       text: str(it.text, 200), sub: str(it.sub, 200), url: /^https?:\/\//i.test(String(it.url || '')) ? str(it.url, 2048) : '',
       when: str(it.when, 40), badge: str(it.badge, 24), cmd: it.cmd && typeof it.cmd.type === 'string' ? it.cmd : null,
+      // Small buttons under a row: [{label, cmd}]. Each one is a command the browser answers.
+      actions: (Array.isArray(it.actions) ? it.actions : []).filter(a => a && a.cmd && typeof a.cmd.type === 'string').slice(0, 4).map(a => ({ label: str(a.label, 30), cmd: a.cmd })),
     }));
     const stats = (Array.isArray(out.stats) ? out.stats : []).slice(0, 6).map(s => ({ label: str(s.label, 40), value: str(s.value, 24) }));
     const res = {
@@ -141,6 +143,8 @@ const VexBrief = {
   // `snap` is today.js's snapshot (reminders, tasks, calendar, changed pages),
   // so the sections that only re-arrange it do not read it a second time.
   async build({ now = Date.now(), force = false, snap = null } = {}) {
+    // Sections that other modules keep (brief extras, memory tools) join here.
+    if (typeof BriefIntegration !== 'undefined') BriefIntegration.sync(this);
     const prefs = this.prefs();
     const out = { at: now, enabled: prefs.enabled, greeting: this.greeting(now), sections: [] };
     if (!prefs.enabled) return out;
@@ -159,6 +163,7 @@ const VexBrief = {
   // ---- Settings › Morning Brief -------------------------------------------
   renderSettings(container) {
     if (!container) return;
+    if (typeof BriefIntegration !== 'undefined') BriefIntegration.sync(this);
     const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
     const redraw = () => this.renderSettings(container);
     const toggle = (label, checked, onChange) => {
@@ -248,6 +253,19 @@ const VexBrief = {
         TabManager.createTab(url, true);
         return;
       }
+      if (cmd.type === 'brief-action') {
+        // A button a section drew (snooze, dismiss, play...). Only keys the last build handed out run.
+        if (!this._offered('action', cmd.key)) throw new Error('That action is no longer on offer. Refresh the brief.');
+        if (typeof BriefIntegration === 'undefined') throw new Error('Brief actions are not loaded');
+        await BriefIntegration.runAction(cmd.key);
+        return;
+      }
+      if (cmd.type === 'brief-open-url') {
+        if (!this._offered('url', cmd.url)) throw new Error('That address is not on offer');
+        if (typeof TabManager === 'undefined') throw new Error('Tabs are not loaded');
+        TabManager.createTab(cmd.url, true);
+        return;
+      }
       if (cmd.type === 'brief-open-panel' && typeof cmd.panel === 'string') {
         if (!this._offered('panel', cmd.panel)) throw new Error('That panel is not on offer');
         if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel(cmd.panel);
@@ -262,8 +280,10 @@ const VexBrief = {
     const hit = (c) => c && c.type && (
       (kind === 'session' && c.type === 'brief-resume' && c.id === value) ||
       (kind === 'file' && c.type === 'brief-open-file' && c.path === value) ||
+      (kind === 'action' && c.type === 'brief-action' && c.key === value) ||
+      (kind === 'url' && c.type === 'brief-open-url' && c.url === value && /^https?:\/\//i.test(String(value))) ||
       (kind === 'panel' && c.type === 'brief-open-panel' && c.panel === value));
-    return secs.some(s => (s.items || []).some(i => hit(i.cmd)) || hit(s.action && s.action.cmd));
+    return secs.some(s => (s.items || []).some(i => hit(i.cmd) || (i.actions || []).some(a => hit(a.cmd))) || hit(s.action && s.action.cmd));
   },
 
   // Rebuild and hand to the open start pages (through VexToday, which owns the push).

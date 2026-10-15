@@ -4,7 +4,7 @@
 // days in a row:
 //   inbox  the Mail inbox was empty of unread messages at some point that day.
 //          Only counted once the inbox has been loaded in this session
-//          (Mail._state.inbox), because Vex never reads mail in the background;
+//          (VexMail._state.inbox), because Vex never reads mail in the background;
 //          a day it was not looked at is "not measured" and counts as missed.
 //   tabs   the open tab count at the last sample of the day is at or under N
 //          (goal, default 15).
@@ -93,7 +93,7 @@ const VexBriefStreaks = {
     const day = days[k] || { inbox: false, tabs: null, focus: 0 };
     const tm = deps.tabs !== undefined ? deps.tabs : (typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs) ? TabManager.tabs.length : null);
     if (typeof tm === 'number') day.tabs = tm;
-    const unseen = deps.unseen !== undefined ? deps.unseen : (typeof Mail !== 'undefined' && Mail._state && Mail._state.inbox ? Mail._state.inbox.unseen : null);
+    const unseen = deps.unseen !== undefined ? deps.unseen : (typeof VexMail !== 'undefined' && VexMail._state && VexMail._state.inbox ? VexMail._state.inbox.unseen : null);
     if (typeof unseen === 'number' && unseen === 0) day.inbox = true;
     days[k] = day;
     this._save(days);

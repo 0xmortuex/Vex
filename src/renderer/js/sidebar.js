@@ -603,6 +603,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof VexBrief !== 'undefined') {
       VexBrief.renderSettings(document.getElementById('brief-panel-content'));
     }
+    if (panelName === 'settings' && typeof BriefIntegration !== 'undefined') {
+      BriefIntegration.renderSettings(document.getElementById('brief-extras-settings'));
+    }
     if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
       FocusMode.renderPanel(document.getElementById('focus-panel-content'));
     }

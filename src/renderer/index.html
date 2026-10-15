@@ -527,11 +527,6 @@
             </div>
 
             <div class="setting-group">
-              <label class="setting-label">Memory tools</label>
-              <div id="memtools-settings"></div>
-            </div>
-
-            <div class="setting-group">
               <label class="setting-label">Autofill</label>
               <div class="setting-toggle-row">
                 <span><span>Fill sign-in codes from your email</span> <span style="color:var(--text-muted);font-size:11px">· only a code the same site emailed you, read from your open webmail</span></span>
@@ -1214,6 +1209,8 @@
               <div id="brief-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
+              <!-- Extra sections and their switches (js/brief-integration.js, js/brief-extras/settings.js) -->
+              <div id="brief-extras-settings" style="margin-top:10px"></div>
             </div>
 
             <!-- Focus mode blocklist -->
@@ -1254,6 +1251,13 @@
               <div id="library-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
+            </div>
+
+            <!-- Memory tools: journal, link memory, dashboards, clipboard actions, game log, backup (js/memory-tools.js).
+                 Sits after Library so the Settings chips keep their order. -->
+            <div class="setting-group" id="settings-memtools">
+              <label class="setting-label">Memory tools</label>
+              <div id="memtools-settings"></div>
             </div>
 
             <!-- Reading & Accessibility: dyslexia font, color-blind filter, ruler -->
@@ -1842,6 +1846,14 @@
   <script src="js/quick-reminder.js"></script>
   <script src="js/brief.js"></script>
   <script src="js/brief-sections.js"></script>
+  <!-- Brief extras: one new thing, news actions, evening wind-down, spoken digest, streaks -->
+  <script src="js/brief-extras/one-new-thing.js"></script>
+  <script src="js/brief-extras/news-actions.js"></script>
+  <script src="js/brief-extras/evening.js"></script>
+  <script src="js/brief-extras/audio-digest.js"></script>
+  <script src="js/brief-extras/streaks.js"></script>
+  <script src="js/brief-extras/settings.js"></script>
+  <script src="js/brief-integration.js"></script>
   <script src="js/today.js"></script>
   <script src="js/clock-panel.js"></script>
   <script src="js/quick-commands.js"></script>
@@ -1947,6 +1959,7 @@
   <script src="js/meeting-prep.js"></script>
   <script src="js/tab-cleanup.js"></script>
   <script src="js/routine-detect.js"></script>
+  <script src="js/daily-tools-settings.js"></script>
   <script src="js/project-spaces.js"></script>
   <script src="js/tab-ai-media.js"></script>
   <script src="js/workspace-snapshots.js"></script>
