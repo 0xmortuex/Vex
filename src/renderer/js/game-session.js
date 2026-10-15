@@ -302,22 +302,48 @@ const GameSession = {
   },
 
   // ---- the first game: ask once, when somebody is there to answer ------------
+  // "Not now" is about THIS app, THIS time: the choice stays "ask", and the app
+  // is not asked about again until Vex restarts (_declined is never saved). A
+  // different full-screen app asks again. "Don't ask again" is the permanent
+  // answer and the only one that saves 'off'.
+  _declined: new Set(),
   _askLater(s) {
     if (this._asked) return false;
+    const key = this.exeKey(s && s.app);
+    if (key && this._declined.has(key)) return false;
     this._asked = true;
     const ask = async () => {
       if (this.mode() !== 'ask') return;
+      const game = this._gameFor(s);
+      const listed = !!(game || (s && s.listed));
+      const shown = (game && game.name) || (s && s.app) || '';
+      // Whole sentences, so each can be translated as one; {app} is filled in after.
+      const named = !!shown;
+      const text = listed
+        ? (named ? '{app} is running. Game mode makes Vex stay out of its way while it does: background tabs sleep, sync, AI tasks and indexing wait, and Vex runs quieter. It never touches the game itself. Everything comes back when the game ends.'
+          : 'A game is running. Game mode makes Vex stay out of its way while it does: background tabs sleep, sync, AI tasks and indexing wait, and Vex runs quieter. It never touches the game itself. Everything comes back when the game ends.')
+        : (named ? 'A full-screen app ({app}) is in front. If it is a game, Game mode makes Vex stay out of its way while you play: background tabs sleep, sync, AI tasks and indexing wait, and Vex runs quieter. It never touches the game itself. Everything comes back when it ends.'
+          : 'A full-screen app is in front. If it is a game, Game mode makes Vex stay out of its way while you play: background tabs sleep, sync, AI tasks and indexing wait, and Vex runs quieter. It never touches the game itself. Everything comes back when it ends.');
+      const message = this._t(text).split('{app}').join(shown);
+      let never = false;
       let yes;
       try {
         yes = await window.vexConfirm({
           title: this._t('Turn on Game mode?'),
-          message: this._t('A game is running. Game mode makes Vex stay out of its way while it does: background tabs sleep, sync, AI tasks and indexing wait, and Vex runs quieter. It never touches the game itself. Everything comes back when the game ends.'),
+          message,
           okLabel: this._t('Turn on'),
           cancelLabel: this._t('Not now'),
+          extra: { label: this._t('Don’t ask again'), run: () => { never = true; this.setMode('off'); } },
         });
       } catch (err) { this._note('The Game mode question failed', err); return; }
-      this.setMode(yes ? 'on' : 'off');
-      window.showToast?.(this._t(yes ? 'Game mode is on — Settings › Privacy Hardening › Gaming and streaming changes it' : 'Game mode stays off — Settings › Privacy Hardening › Gaming and streaming turns it on'));
+      if (never) { window.showToast?.(this._t('Game mode is off — Settings › Privacy Hardening › Gaming and streaming turns it on')); return; }
+      if (yes) {
+        this.setMode('on');
+        window.showToast?.(this._t('Game mode is on — Settings › Privacy Hardening › Gaming and streaming changes it'));
+        return;
+      }
+      if (key) this._declined.add(key);
+      window.showToast?.(this._t('Vex will ask again for a different app. To stop being asked, choose “Don’t ask again” in the question, or turn Game mode off in Settings › Privacy Hardening › Gaming and streaming'));
     };
     // A full-screen game has the screen: the question waits for Vex to be seen.
     const when = () => document.visibilityState === 'visible' && (typeof document.hasFocus !== 'function' || document.hasFocus());
