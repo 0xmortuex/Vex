@@ -654,7 +654,20 @@ contextBridge.exposeInMainWorld('vex', {
   passkeysConditionalChoose: (requestId, credentialId, pin) => ipcRenderer.invoke('passkeys:conditional-choose', requestId, credentialId, pin),
   onPasskeysAsk: (callback) => subscribe('passkeys:ask', callback),
   onPasskeysAskCancel: (callback) => subscribe('passkeys:ask-cancel', callback),
-  onPasskeysNotice: (callback) => subscribe('passkeys:notice', callback)
+  onPasskeysNotice: (callback) => subscribe('passkeys:notice', callback),
+  // Userscripts (main/userscripts.js, js/userscripts.js): the manager's list and
+  // switches. A page's own scripts never come through here.
+  userscripts: {
+    list: () => ipcRenderer.invoke('userscripts:list'),
+    preview: (source, replaceId) => ipcRenderer.invoke('userscripts:preview', source, replaceId || ''),
+    install: (options) => ipcRenderer.invoke('userscripts:install', options),
+    setEnabled: (id, on) => ipcRenderer.invoke('userscripts:set-enabled', id, !!on),
+    remove: (id) => ipcRenderer.invoke('userscripts:remove', id),
+    setGlobal: (on) => ipcRenderer.invoke('userscripts:set-global', !!on),
+    setHosts: (id, hosts) => ipcRenderer.invoke('userscripts:set-hosts', id, hosts),
+    clearValues: (id) => ipcRenderer.invoke('userscripts:clear-values', id),
+    fetch: (url) => ipcRenderer.invoke('userscripts:fetch', url)
+  }
 });
 
 contextBridge.exposeInMainWorld('vexDevTools', {

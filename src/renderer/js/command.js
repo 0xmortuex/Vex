@@ -43,6 +43,8 @@ const CommandBar = {
     { id: 'peek', label: 'Peek Current Page', hint: 'Preview the active page in a floating overlay (Shift+click links to peek them)', icon: 'eye', action: () => { const t = TabManager.getActiveTab(); if (t && t.url && typeof VexPeek !== 'undefined') VexPeek.open(t.url); } },
     { id: 'zap', label: 'Zap Element', hint: 'Click any element on this page to hide it forever on this site', icon: 'zap', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } },
     { id: 'boost', label: 'Boost This Site', hint: 'Custom CSS / JS for the current site', icon: 'palette', action: () => { if (typeof VexBoosts !== 'undefined') VexBoosts.openEditor(); } },
+    { id: 'userscripts', label: 'Userscripts (manage)', hint: 'Install, switch off or delete userscripts; one click turns them all off', icon: 'code', action: () => { if (typeof SettingsUI !== 'undefined' && SettingsUI.openSection) SettingsUI.openSection('userscripts-panel'); } },
+    { id: 'userscripts-off', label: 'Disable all userscripts', hint: 'Turn all userscripts off at once; nothing runs until you turn them back on', icon: 'code', action: async () => { try { if (typeof VexUserscripts === 'undefined') throw new Error('Userscripts are not available'); await VexUserscripts.setAll(false); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'morning-brief', label: 'Write my morning brief', hint: "Today's reminders, tasks, changed pages and feeds in a paragraph, at the top of the new tab — the AI runs only now", icon: 'sparkles', action: async () => {
       window.showToast?.('Writing your morning brief…');
       try { await VexToday.writeBrief(); window.showToast?.('Your brief is on the new tab page'); }

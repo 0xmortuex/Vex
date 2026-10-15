@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="css/keys-sheet.css">
   <link rel="stylesheet" href="css/skins.css">
   <link rel="stylesheet" href="css/settings-redesign.css">
+<link rel="stylesheet" href="css/userscripts.css">
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
   <link rel="stylesheet" href="css/read-aloud.css">
@@ -196,6 +197,12 @@
       <!-- Only visible while a watched page has changed and you have not looked
            (js/page-watch-ui.js). -->
       <button id="btn-page-watch" class="nav-btn" title="Watched pages" aria-label="Watched pages" hidden></button>
+      <!-- Only visible while userscripts are running on the page in view
+           (js/userscripts.js): the count, the list and the off switch. -->
+      <button id="btn-userscripts" class="nav-btn" title="Userscripts running on this page" aria-haspopup="dialog" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span class="us-count" aria-hidden="true">0</span>
+      </button>
       <button id="btn-toggle-ai" title="Toggle AI Panel (Ctrl+Shift+A) · Quick ask: Ctrl+J">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2z"/></svg>
         <span style="font-size:11px;font-weight:500">AI</span>
@@ -1114,6 +1121,14 @@
               </div>
             </div>
 
+            <!-- Userscripts — a small ==UserScript== manager (js/userscripts.js) -->
+            <div class="setting-group" id="userscripts-panel">
+              <label class="setting-label">Userscripts</label>
+              <div id="userscripts-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading userscripts...</div>
+              </div>
+            </div>
+
             <!-- Passwords — safeStorage-encrypted vault -->
             <div class="setting-group">
               <label class="setting-label">Passwords</label>
@@ -1796,6 +1811,7 @@
   <script src="js/look-sidebar.js"></script>
   <script src="js/skills.js"></script>
   <script src="js/boosts.js"></script>
+  <script src="js/userscripts.js"></script>
   <script src="js/password-gen.js"></script>
   <script src="js/passwords.js"></script>
   <script src="js/password-manual.js"></script>

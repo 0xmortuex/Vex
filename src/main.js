@@ -214,6 +214,8 @@ const GUEST_PRELOADS = [
   // Vex as a passkey provider (main/passkeys.js): its own preload for the same
   // sandboxing reason as site-tweaks.js.
   path.join(__dirname, 'preload-passkeys.js'),
+  // Userscripts (main/userscripts.js): its own preload for the same reason.
+  path.join(__dirname, 'userscripts-preload.js'),
   // Cosmetic ad-filtering preload (@ghostery). Self-contained bundle that only
   // require()s 'electron', so it's safe in the sandboxed guest context. It asks
   // main (ipc) for element-hiding rules per page and applies them — this is what
@@ -7691,9 +7693,16 @@ ipcMain.handle('web-suggest', async (event, query) => {
   }
 });
 
-ipcMain.handle('storage-save', (_event, key, data) => dataStore.write(key, data));
+// The userscripts file is read back into memory after a write that did not come
+// from the manager itself (a backup restore). What is not exactly as the
+// manager had it comes back switched off (src/main/userscripts.js reload).
+ipcMain.handle('storage-save', async (_event, key, data) => {
+  const written = await dataStore.write(key, data);
+  if (key === 'userscripts') await _userscripts.reload({ trusted: false });
+  return written;
+});
 ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
-ipcMain.handle('storage:flush', async () => { await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
+ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
@@ -9273,6 +9282,149 @@ ipcMain.handle('notify:show', async (_e, payload) => {
   const { title, body } = payload || {};
   // Rejections travel to the renderer as the error message; nothing is hidden.
   return notifier.show({ title, body });
+});
+
+// === Userscripts (src/main/userscripts.js, src/userscripts-preload.js) ======
+// A small ==UserScript== manager. The scripts and their saved values live in
+// the 'userscripts' store file, which is in a backup only when asked for and is
+// never in Vex Sync. A page can reach none of this: the page preload asks main
+// which scripts may run, and main judges the tab (session) and the frame's real
+// address itself.
+const _usCore = require('./main/userscripts');
+const _userscripts = _usCore.createUserscripts({ store: dataStore, log: console });
+_userscripts.load().catch(err => console.error('[Userscripts] could not read the saved scripts:', err && err.message));
+const _usXhr = require('./main/userscript-xhr').createXhr({
+  net, limits: _usCore.LIMITS, getSession: () => secureSessions.fromPartition('vex-userscripts'),
+});
+// A script address fetched for an install or an update: the same empty session,
+// the size of a script at most, only on the person's click.
+const _usFetch = require('./main/userscript-xhr').createXhr({
+  net, limits: { ..._usCore.LIMITS, maxXhrResponse: _usCore.LIMITS.maxSourceBytes }, getSession: () => secureSessions.fromPartition('vex-userscripts'),
+});
+const _usActive = new Map();   // webContents id -> { url, ids:Set }
+const _usInflight = new Map(); // `${webContents id}:${script id}:${req id}` -> abort()
+
+function _usTabAllowed(contents) {
+  const host = secureSessions.owner(contents);
+  if (!host || host.privatePartition) return false;
+  const partition = secureSessions.partitionOf(contents) || '';
+  let routed = true; // an unreadable route is refused, not guessed
+  try {
+    const own = readRouting()[partition];
+    routed = !!(own && typeof own === 'object' && (own.mode === 'tor' || own.mode === 'proxy'));
+  } catch (err) { console.error('[Userscripts] could not read the routes, so no script runs:', err && err.message); }
+  return _usCore.tabAllowed({ partition, tor: !!(contents.session && contents.session.__vexTor), routed });
+}
+function _usOrigin(url) { try { return new URL(url).origin; } catch { return ''; } }
+
+ipcMain.on('userscripts:page', (event) => {
+  const none = { scripts: [] };
+  try {
+    const frame = event.senderFrame;
+    const sender = event.sender;
+    _usActive.delete(sender.id);
+    if (!frame || frame.parent || !_userscripts.globalEnabled) { event.returnValue = none; return; }
+    const url = frame.url;
+    const matched = _userscripts.matching(url, { eligible: _usTabAllowed(sender), topFrame: true });
+    if (!matched.length) { event.returnValue = none; return; }
+    _usActive.set(sender.id, { url, ids: new Set(matched.map(s => s.id)) });
+    if (!sender.__vexUsCleanup) {
+      sender.__vexUsCleanup = true;
+      sender.once('destroyed', () => _usActive.delete(sender.id));
+    }
+    event.returnValue = { scripts: matched.map(s => _userscripts.payload(s, url)), limits: _usCore.LIMITS };
+  } catch (err) {
+    console.error('[Userscripts] could not answer a page:', err && err.message);
+    event.returnValue = none;
+  }
+});
+
+ipcMain.handle('userscripts:gm', async (event, req) => {
+  const { id, op } = req;
+  const args = Array.isArray(req.args) ? req.args : [];
+  const rec = _usActive.get(event.sender.id);
+  if (!rec || !rec.ids.has(id)) throw new Error('This page is not running that script');
+  if (!event.senderFrame || event.senderFrame.parent || _usOrigin(event.senderFrame.url) !== _usOrigin(rec.url)) throw new Error('The page changed; the script is no longer attached to it');
+  if (!_userscripts.globalEnabled || !_usTabAllowed(event.sender)) throw new Error('Userscripts are not allowed in this tab');
+  const s = _userscripts.get(id);
+  if (!s.enabled) throw new Error('That userscript is switched off');
+  const L = _usCore.LIMITS;
+  _userscripts.requireGrant(s, op === 'xhr-abort' ? 'xhr' : op);
+  switch (op) {
+    case 'setValue': return _userscripts.setValue(id, args[0], args[1]);
+    case 'deleteValue': return _userscripts.deleteValue(id, args[0]);
+    case 'xhr': {
+      const [reqId, d] = args;
+      if (!Number.isSafeInteger(reqId) || !d || typeof d !== 'object' || typeof d.url !== 'string' || d.url.length > 4000) return { ok: false, kind: 'error', message: 'Bad request' };
+      const key = event.sender.id + ':' + id + ':' + reqId;
+      let live = 0;
+      for (const k of _usInflight.keys()) if (k.startsWith(event.sender.id + ':' + id + ':')) live++;
+      if (live >= 10) return { ok: false, kind: 'error', message: 'Too many requests at once for one script' };
+      const headers = {};
+      if (d.headers && typeof d.headers === 'object') {
+        for (const [k, v] of Object.entries(d.headers).slice(0, 50)) if (typeof v === 'string' && v.length < 4096 && k.length < 200) headers[k] = v;
+      }
+      const responseType = ['text', 'json', 'arraybuffer', 'blob'].includes(d.responseType) ? d.responseType : 'text';
+      const call = _usXhr.start({
+        url: d.url, method: d.method, headers, body: typeof d.data === 'string' || d.data instanceof Uint8Array ? d.data : null,
+        timeoutMs: d.timeout, responseType, allow: (u) => _userscripts.checkConnect(s, u, rec.url),
+      });
+      _usInflight.set(key, call.abort);
+      try { return { ok: true, result: await call.promise }; }
+      catch (err) {
+        return { ok: false, kind: err && err.timeout ? 'timeout' : err && err.aborted ? 'aborted' : 'error', message: (err && err.message) || 'request failed' };
+      } finally { _usInflight.delete(key); }
+    }
+    case 'xhr-abort': {
+      const abort = _usInflight.get(event.sender.id + ':' + id + ':' + args[0]);
+      if (abort) abort();
+      return true;
+    }
+    case 'clipboard': {
+      const text = String(args[0] == null ? '' : args[0]);
+      if (text.length > L.maxClipboard) throw new Error('That is too much text for the clipboard');
+      if (!_userscripts.rate(s, 'clipboard', 10)) throw new Error('This script is copying too often');
+      clipboard.writeText(text);
+      return true;
+    }
+    case 'notification': {
+      const o = args[0] && typeof args[0] === 'object' ? args[0] : {};
+      if (!_userscripts.rate(s, 'notification', L.notificationsPerMinute)) throw new Error('This script is sending notifications too often');
+      const clip = (v) => String(v == null ? '' : v).slice(0, L.maxNotificationText);
+      const title = clip(o.title);
+      // Always named after the script, so a page's script cannot pass for Vex.
+      return notifier.show({ title: 'Userscript ' + s.meta.name + (title ? ': ' + title : ''), body: clip(o.text) });
+    }
+    case 'openTab': {
+      const url = String(args[0] || '');
+      if (!_userscripts.rate(s, 'openTab', L.openTabsPerMinute)) throw new Error('This script is opening tabs too often');
+      if (url.length > 2000 || !_usCore.isWebUrl(url)) throw new Error('Only web addresses can be opened');
+      const host = secureSessions.owner(event.sender);
+      if (!host || !host.win || host.win.isDestroyed()) throw new Error('There is no window to open it in');
+      host.win.webContents.send('open-url', url);
+      return true;
+    }
+    default: throw new Error('Unknown userscript operation');
+  }
+});
+
+// Settings' side. Vex's own window only (ipc-policy.js UI_ONLY_CHANNELS).
+ipcMain.handle('userscripts:list', () => _userscripts.list());
+ipcMain.handle('userscripts:preview', (_e, source, replaceId) => _userscripts.preview(source, { replaceId: replaceId || '' }));
+ipcMain.handle('userscripts:install', (_e, o) => _userscripts.install(o));
+ipcMain.handle('userscripts:set-enabled', (_e, id, on) => _userscripts.setEnabled(id, on));
+ipcMain.handle('userscripts:remove', (_e, id) => _userscripts.remove(id));
+ipcMain.handle('userscripts:set-global', (_e, on) => _userscripts.setGlobalEnabled(on));
+ipcMain.handle('userscripts:set-hosts', (_e, id, hosts) => _userscripts.setUserHosts(id, hosts));
+ipcMain.handle('userscripts:clear-values', (_e, id) => _userscripts.clearValues(id));
+// A script's address, fetched on the person's own click (install from a link,
+// or "Check for update"): the empty session, http(s) only, never in the background.
+ipcMain.handle('userscripts:fetch', async (_e, url) => {
+  if (!_usCore.isWebUrl(url)) throw new Error('That is not a web address');
+  const call = _usFetch.start({ url, method: 'GET', headers: { Accept: 'text/javascript,text/plain,*/*;q=0.5' }, responseType: 'text', allow: (u) => (_usCore.isWebUrl(u) ? { ok: true } : { ok: false, reason: 'Only http and https addresses' }) });
+  const res = await call.promise;
+  if (res.status < 200 || res.status >= 300) throw new Error('The site answered ' + res.status);
+  return { source: res.responseText, finalUrl: res.finalUrl };
 });
 ipcMain.handle('reminders:create', async (_e, payload) => {
   if (!reminders) throw new Error('Reminders have not started yet');

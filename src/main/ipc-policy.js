@@ -2,7 +2,10 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   '@ghostery/adblocker/inject-cosmetic-filters', '@ghostery/adblocker/is-mutation-observer-enabled', 'guest:page-shortcut', 'page-dialog', 'start-page:is-own',
   // A page's passkey request and the list for a field's chooser, from the page
   // preload (preload-passkeys.js); main takes the site from the asking frame.
-  'passkeys:request', 'passkeys:cancel', 'passkeys:conditional-list']);
+  'passkeys:request', 'passkeys:cancel', 'passkeys:conditional-list',
+  // A page's userscripts (userscripts-preload.js): main judges the tab and the
+  // frame's own address; a refused tab is simply given none.
+  'userscripts:page', 'userscripts:gm']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history',
   // The site panel's per-page permissions and certificate (main.js): a private
@@ -23,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|downloads:(?:choose-folder|set-ask|reset-prefs))/;
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|downloads:(?:choose-folder|set-ask|reset-prefs))/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -49,7 +52,10 @@ const UI_ONLY_CHANNELS = new Set(['login-item:get', 'login-item:set', 'clipboard
   'passkeys:answer', 'passkeys:list', 'passkeys:delete', 'passkeys:undo-delete', 'passkeys:rename', 'passkeys:conditional-choose',
   // A watched page read through a hidden tab (main/page-render.js): loading an
   // address is never a page's or an extension's call.
-  'pagewatch:render']);
+  'pagewatch:render',
+  // The userscript manager (main/userscripts.js): installing, switching and
+  // deleting code that runs on sites is never a page's call.
+  'userscripts:list', 'userscripts:preview', 'userscripts:install', 'userscripts:set-enabled', 'userscripts:remove', 'userscripts:set-global', 'userscripts:set-hosts', 'userscripts:clear-values', 'userscripts:fetch']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');
@@ -154,6 +160,7 @@ function installIpcPolicy(ipcMain, security) {
       // A page's alert / confirm / prompt waits on this answer (sendSync), so a
       // refused one still answers: as cancelled, never left waiting for ever.
       // The start-page check waits on this one (sendSync): refused, it is told no.
+      if (channel === 'userscripts:page') { try { event.returnValue = { scripts: [] }; } catch (replyErr) { console.error('[IPC] could not answer "userscripts:page":', replyErr.message); } return; }
       if (channel === 'start-page:is-own') { try { event.returnValue = false; } catch (replyErr) { console.error('[IPC] could not answer "' + channel + '":', replyErr.message); } return; }
       if (channel === 'page-dialog') {
         console.warn('[IPC] refused "page-dialog": %s', (err && err.message) || err);

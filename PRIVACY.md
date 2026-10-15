@@ -36,6 +36,7 @@ Vex keeps your profile in `%APPDATA%\Vex`. Extra profiles you create live in `%A
 - **price history**: the price a product page publishes for search engines, noted when you open it (newest 200 products);
 - the **autofill log**, a local list of what Vex filled and where (newest 300), and the **problems list** and **crash log** (`crash-log.json`, last 100 errors). The crash log names only the site a crashed or frozen page was on (never its full address), and says only "a private page" for a private window, an off-the-record, burner or Tor tab;
 - the values Page Watch last saw on the pages you watch;
+- your **userscripts** (`vex-storage\userscripts.json`): the script text you installed, which sites you added to each, and the values a script saved for itself (at most 256 KB each). They are in a backup only if you tick "Include my userscripts", they are never part of Vex Sync, and a restored script comes back switched off;
 - the ad-blocker's list cache (`vex-adblock-engine-full.bin`), the spell-check dictionary (`Dictionaries`), currency rates (`fx-rates.json`), and the Tor and ByeDPI programs with their log files (`tor`, `byedpi`).
 
 Downloads from a private window or an off-the-record, burner or Tor tab are listed until Vex closes and never written to disk.
@@ -193,6 +194,8 @@ Choose "Prefer local" to keep requests on your PC while Ollama is running (a fai
 | Free games list | Epic Games and Steam | Nothing but the request |
 | RSS feeds | The addresses you added | A normal request, when you open the feeds or a digest runs |
 | Link checker and site crawler | The sites you check (no cookies are sent) | A normal request |
+| Userscripts: install or update from an address | The address you give (no cookies are sent) | A normal request, only when you press the button; nothing is fetched in the background |
+| Userscripts: GM_xmlhttpRequest | Only the hosts the script lists in @connect that you saw before installing it (any site only if you accepted a "can contact any site" warning) | What the script sends, from Vex's own session with no cookies; never from a private, Tor, burner or routed tab, because scripts do not run there |
 | Latency check | 1.1.1.1, 8.8.8.8, Discord, Steam, Riot, Roblox, Epic, YouTube | Only a connection attempt, no data |
 | "What is my IP" check | api.ipify.org | Nothing but the request |
 | Website asks for your location | ipapi.co, then ipwho.is | Your IP address, only if you allowed the site and did not set a location yourself |

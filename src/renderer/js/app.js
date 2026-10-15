@@ -1274,6 +1274,7 @@ function vexOwnTextFocused(doc) {
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
   if (typeof VexBoosts !== 'undefined') VexBoosts.init();
+  if (typeof VexUserscripts !== 'undefined') VexUserscripts.init();
 
   // Tier 2/3 extras: compact mode, bookmarks, feeds, command chains
   if (typeof CompactMode !== 'undefined') CompactMode.init();

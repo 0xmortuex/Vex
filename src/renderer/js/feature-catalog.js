@@ -535,6 +535,9 @@ const VexFeatures = {
       what: 'Per-site zoom, forced dark mode and your own tweaks, remembered for that site only.' },
     { id: 'boost', phrases: 'custom css userscript tweak a site', cat: 'look', cmd: 'boost',
       what: 'Your own CSS or JavaScript on a site — permanently.' },
+    { id: 'userscripts', phrases: 'userscript greasemonkey tampermonkey violentmonkey user.js gm script install script', cat: 'look', cmd: 'userscripts', name: 'Userscripts',
+      openLabel: 'Open Userscripts settings', setting: { section: 'userscripts-panel' },
+      what: 'Install a .user.js script from a paste, an address or a file, see what it may do first, and switch any of them off with one click.' },
     { id: 'zap', phrases: 'hide element remove thing from page', cat: 'look', cmd: 'zap',
       what: 'Click anything you never want to see on that site again, and it is gone for good.' },
     { id: 'airestyle', cat: 'look', cmd: 'airestyle',
@@ -665,7 +668,7 @@ const VexFeatures = {
     ],
     look: [
       { name: 'The whole browser', ids: ['themes', 'theme-editor', 'theme-from-picture', 'theme-auto', 'chrome-themes', 'skin', 'font', 'uisize', 'guistyle', 'simple-mode', 'login-start', 'startpage', 'editlayout', 'tools-bar', 'shortcuts'] },
-      { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'zap', 'airestyle'] },
+      { name: 'One site at a time', ids: ['siteprofiles', 'boost', 'userscripts', 'zap', 'airestyle'] },
       { name: 'The rest', ids: ['search-engine', 'extensions', 'setupgallery'] },
     ],
     dev: [
