@@ -68,6 +68,21 @@ define('game:state', []);
 define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
 define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
 define('gamemode:state', []);
+// Time travel and the tuning advisor (src/main/state-journal.js,
+// src/main/tuning-advisor.js). Sizes are bounded here and again where used.
+const journalTs = value => Number.isSafeInteger(value) && value >= 0 && value <= 8.64e15;
+define('journal:push', [value => object(value) && Array.isArray(value.tabs) && value.tabs.length <= 400
+  && (value.notes === undefined || (Array.isArray(value.notes) && value.notes.length <= 2000))
+  && (value.reminders === undefined || (Array.isArray(value.reminders) && value.reminders.length <= 400))]);
+define('journal:list', [optional(shape({ from: optional(journalTs), to: optional(journalTs) }))]);
+define('journal:at', [journalTs]);
+define('journal:diff', [journalTs, journalTs]);
+define('journal:note-versions', [string(80)]);
+define('journal:note-version', [string(80), journalTs]);
+define('journal:stats journal:forget tuning:history tuning:forget', []);
+define('journal:configure', [shape({ retentionDays: optional(value => Number.isInteger(value) && value >= 1 && value <= 365), enabled: optional(boolean) })]);
+define('tuning:advise', [value => object(value) && (value.rows === undefined || (Array.isArray(value.rows) && value.rows.length <= 500))
+  && (value.jobs === undefined || (Array.isArray(value.jobs) && value.jobs.length <= 300))]);
 // On battery or on mains (src/main/power-watch.js).
 define('power:watch power:lean', [boolean]);
 define('power:status', []);

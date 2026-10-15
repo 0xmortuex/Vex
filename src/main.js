@@ -1277,6 +1277,52 @@ ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ a
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
+// Time travel and the tuning advisor (src/main/state-journal.js,
+// src/main/tuning-advisor.js). The interface pushes small snapshots of the
+// browser and its measurements; main redacts, bounds and stores them under
+// userData\timetravel, and nothing is written while a game runs.
+let _vexStartupMs = null;   // set when the window first shows (see ready-to-show)
+const _timeTravelDir = () => path.join(app.getPath('userData'), 'timetravel');
+let _journalLazy = null;
+function _journal() {
+  if (_journalLazy) return _journalLazy;
+  _journalLazy = require('./main/state-journal').createStateJournal({
+    dir: _timeTravelDir(),
+    isPaused: () => !!(_mergedGameState().game || _gameModeSession.active()),
+    encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+    seal: (s) => safeStorage.encryptString(s).toString('base64'),
+    unseal: (s) => safeStorage.decryptString(Buffer.from(s, 'base64')),
+    log: (m) => console.warn(m),
+  });
+  return _journalLazy;
+}
+let _tuningLazy = null;
+function _tuning() {
+  if (_tuningLazy) return _tuningLazy;
+  const adv = require('./main/tuning-advisor');
+  _tuningLazy = { adv, store: adv.createSampleStore({ dir: _timeTravelDir() }) };
+  return _tuningLazy;
+}
+ipcMain.handle('journal:push', (_e, raw) => _journal().append(raw));
+ipcMain.handle('journal:list', (_e, range) => _journal().list(range || {}));
+ipcMain.handle('journal:at', (_e, ts) => _journal().at(ts));
+ipcMain.handle('journal:diff', (_e, a, b) => _journal().diff(a, b));
+ipcMain.handle('journal:note-versions', (_e, id) => _journal().noteVersions(id));
+ipcMain.handle('journal:note-version', (_e, id, ts) => _journal().noteVersionAt(id, ts));
+ipcMain.handle('journal:stats', () => _journal().stats());
+ipcMain.handle('journal:configure', (_e, cfg) => _journal().configure(cfg));
+ipcMain.handle('journal:forget', async () => { await _tuning().store.forget(); return _journal().forget(); });
+ipcMain.handle('tuning:advise', async (_e, metrics) => {
+  const t = _tuning();
+  const m = { ...metrics, machineMemMB: Math.round(require('os').totalmem() / 1048576), startup: _vexStartupMs == null ? null : { ms: _vexStartupMs }, gaming: !!(_mergedGameState().game || _gameModeSession.active()) };
+  const out = t.adv.advise(m);
+  // Nothing is stored while a game runs: the numbers would be the game's.
+  if (!m.gaming) await t.store.add(m);
+  return { ...out, comparison: await t.store.compare() };
+});
+ipcMain.handle('tuning:history', () => _tuning().store.compare());
+ipcMain.handle('tuning:forget', () => _tuning().store.forget());
+
 // On battery or on mains (src/main/power-watch.js). The interface opts in
 // (Settings › Performance › On battery); until it asks, nothing listens.
 // powerMonitor may only be used once the app is ready, so this is made on
@@ -6656,6 +6702,7 @@ function createWindow() {
     } catch {}
   };
   mainWindow.once('ready-to-show', _showMainWindow);
+  mainWindow.once('ready-to-show', () => { _vexStartupMs = Math.round(process.uptime() * 1000); });
   setTimeout(_showMainWindow, 4000);
 
   if (enableDevToolsAtStartup) {

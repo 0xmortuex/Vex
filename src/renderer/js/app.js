@@ -1284,6 +1284,8 @@ function vexOwnTextFocused(doc) {
   if (typeof Bookmarks !== 'undefined') Bookmarks.init();
   if (typeof VexFeeds !== 'undefined') VexFeeds.init();
   if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.init();
+  // The whole-browser journal behind Time travel (js/time-travel.js).
+  if (typeof VexTimeTravel !== 'undefined') VexTimeTravel.start();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
 
   // What you copied off a page, so the last copy isn't the only copy
