@@ -308,6 +308,7 @@ const CommandBar = {
     { id: 'reopen', label: 'Reopen Closed Tab', hint: 'Restore last closed tab', shortcut: 'Ctrl+Shift+T', icon: 'undo', action: () => TabManager.reopenLastClosed() },
     { id: 'history', label: 'History', hint: 'Browsing history', shortcut: 'Ctrl+H', icon: 'clock', isPrimary: true, action: () => SidebarManager.openPanel('history') },
     { id: 'memory', label: 'Memory', hint: 'Memory usage per tab', shortcut: 'Ctrl+Shift+M', icon: 'cpu', isPrimary: true, action: () => SidebarManager.openPanel('memory') },
+    { id: 'tab-cost', label: 'What is slowing my browser?', hint: 'Which site, panel or extension used the processor, memory and network over the last 5 minutes — with sleep, mute, close and always-sleep buttons', icon: 'activity', isPrimary: true, action: () => { SidebarManager.openPanel('memory'); setTimeout(() => { if (typeof MemoryPanel !== 'undefined') MemoryPanel.focusCost(); }, 250); } },
     { id: 'tasks', label: 'Running Tasks', hint: 'Every process Vex is running and what it costs — with a way to end one', icon: 'activity', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open(); } },
     { id: 'sleep', label: 'Sleep Tab', hint: 'Put current tab to sleep', shortcut: 'Ctrl+Shift+Z', icon: 'sleep', action: () => TabManager.sleepActiveTab() },
     { id: 'sleep-all', label: 'Sleep All Inactive', hint: 'Sleep all non-active tabs', icon: 'sleep', action: () => { TabManager.sleepAllInactive(); window.showToast?.('All inactive tabs sleeping'); } },
