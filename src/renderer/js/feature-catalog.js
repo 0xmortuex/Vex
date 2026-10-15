@@ -198,6 +198,8 @@ const VexFeatures = {
       what: 'Times your own connection against Discord, Steam, Riot, Roblox, Epic and YouTube, and says in one sentence whether the slow part is your line or theirs.' },
     { id: 'siterules', phrases: 'turn off javascript for this site block cookies block third party content per site switches', cat: 'privacy', cmd: 'siterules', name: 'What this site is allowed',
       what: 'Three switches for one site: JavaScript, cookies, and content loaded from other hosts. Off means off for every page of that site, until you switch it back.' },
+    { id: 'sitebroken', phrases: 'this site is broken not working page blank video will not play site does not load fix site compatibility', cat: 'privacy', cmd: 'sitebroken', name: 'This site is broken',
+      what: 'Tries Vex’s own settings for the site in front one at a time: the ad blocker, then its Boost and forced dark mode, then the switches that turn JavaScript, cookies or other sites’ content off. It reloads after each and asks whether it helped; the one that did is kept for that site alone, with an undo.' },
     { id: 'meeting', phrases: 'meeting call notes action items mute notifications during a call', cat: 'work', cmd: 'meeting', name: 'Meeting mode',
       what: 'Holds your reminders, mutes every other tab making a sound, and opens a note with the time on it. Lines you type go in with their time; action items become tasks.' },
     { id: 'tabmentions', phrases: 'ask about another tab mention a tab in the ai box at sign compare two tabs', cat: 'ai', name: 'Name a tab with @', sel: '#ai-input', manual: true,
@@ -604,7 +606,7 @@ const VexFeatures = {
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint'] },
       { name: 'The connection itself', ids: ['doh', 'https-only', 'tor', 'routing', 'routing-all', 'site-routes', 'dpi'] },
       { name: 'Leaving no trace', ids: ['otr', 'identity', 'private-window'] },
-      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'siteidentity'] },
+      { name: 'One site at a time', ids: ['permissions', 'clearsite', 'sitedata', 'siterules', 'sitebroken', 'siteidentity'] },
       { name: 'Your passwords', ids: ['pwhealth'] },
     ],
     reading: [

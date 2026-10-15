@@ -1194,6 +1194,8 @@ function vexOwnTextFocused(doc) {
   WhatsNew.init();
   // Per-site switches: tell main what they are (js/site-rules-ui.js).
   SiteRulesUI.init();
+  // "This site is broken": puts a half-finished ladder back if you leave (js/site-ladder.js).
+  if (typeof SiteLadder !== 'undefined') SiteLadder.init();
   // A meeting that was running when Vex closed (js/meeting-mode.js).
   MeetingMode.init();
   // Type @ in the AI box to name a tab (js/tab-mentions.js).

@@ -96,6 +96,7 @@ const FeatureDetails = {
   clearsite: 'Wipes one site’s cookies and storage and reloads it. The cure for a stuck login, a stale "your browser is unsupported", or a cart that will not empty.',
   sitedata: 'Every cookie and stored item for one site, listed one by one, with the value editable. For the times when clearing everything would sign you out of the thing you are trying to fix.',
   siterules: 'Three switches per site: JavaScript, cookies, and content loaded from other hosts. The third one is the trap — YouTube serves its video from another host, so switching it off gives a black player; the toolbar now marks a site that is being held back.',
+  sitebroken: 'Each step is tried on its own and put back if it did not help, so a site is never left looser than the one thing that fixed it; only when two or more steps applied does a last step try them together. It does nothing in a private window or a Tor tab, where a fix would not be kept or would weaken your anonymity. Fingerprint protection and HTTPS-Only are global settings and are not part of it.',
   siteidentity: 'Exactly what this page can see about your browser, with a verdict on why a site might be refusing to work. Start here when a site behaves oddly only in Vex.',
   pwhealth: 'Finds reused passwords, weak ones (short, common, repeating, or built from your username or the site name), passwords not changed in a year, and accounts with no second factor — checked on this machine against local data, never by uploading your vault.',
 

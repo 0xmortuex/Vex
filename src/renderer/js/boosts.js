@@ -36,7 +36,9 @@ const VexBoosts = {
     const host = this._host(url);
     if (!host) return;
     const b = this.boosts[host];
-    if (!b) { this._writeCss(webview, ''); return; }
+    // `paused` is set by "This site is broken" (js/site-ladder.js): the boost
+    // is kept but not applied until it is put back.
+    if (!b || b.paused) { this._writeCss(webview, ''); return; }
     const cssParts = [];
     if (Array.isArray(b.zaps) && b.zaps.length) {
       cssParts.push(b.zaps.map(sel => `${sel}{display:none!important;visibility:hidden!important}`).join('\n'));

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **"This site is broken" fixes a site that does not work, one step at a time.** From the site panel or Ctrl+K, Vex allows the ad blocker's hands off the site, then pauses its Boost and forced dark mode, then allows what its per-site switches turned off, reloading after each and asking "Did that fix it?". A step that did not help is put back before the next; the one that did is kept as an ordinary per-site rule with Undo, a "Tighten again" button for each change, and a "Report to myself" text. It does nothing in private windows and Tor tabs. Fingerprint protection and HTTPS-Only are global and not part of it; trying a different browser identity is skipped because Vex has no per-site identity yet.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New
