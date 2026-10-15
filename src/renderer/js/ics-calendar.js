@@ -128,6 +128,10 @@ const IcsCalendar = {
       const name = head.split(';')[0].toUpperCase(), params = head.slice(name.length);
       if (name === 'SUMMARY') ev.summary = this._unescape(value);
       else if (name === 'LOCATION') ev.location = this._unescape(value);
+      // What the invitation links to (a doc, an agenda, a call): Meeting prep
+      // (js/meeting-prep.js) opens these ahead of the meeting.
+      else if (name === 'DESCRIPTION') ev.description = this._unescape(value);
+      else if (name === 'URL') ev.url = value;
       else if (name === 'UID') ev.uid = value;
       else if (name === 'STATUS') ev.cancelled = /CANCELLED/i.test(value);
       else if (name === 'RRULE') ev.rrule = value;
@@ -249,10 +253,10 @@ const IcsCalendar = {
       const events = this._events.get(f.url) || [];
       const moved = new Map(events.filter(e => e.recurrenceId != null).map(e => [e.uid + '@' + e.recurrenceId, e]));
       for (const ev of events) {
-        if (ev.recurrenceId != null) { for (const o of this.expand({ ...ev, rrule: null }, from, to)) out.push({ ...o, summary: ev.summary, location: ev.location, allDay: ev.allDay, calendar: f.name }); continue; }
+        if (ev.recurrenceId != null) { for (const o of this.expand({ ...ev, rrule: null }, from, to)) out.push({ ...o, summary: ev.summary, location: ev.location, description: ev.description || '', url: ev.url || '', allDay: ev.allDay, calendar: f.name }); continue; }
         for (const o of this.expand(ev, from, to)) {
           if (moved.has(ev.uid + '@' + o.start)) continue;
-          out.push({ ...o, summary: ev.summary, location: ev.location, allDay: ev.allDay, calendar: f.name });
+          out.push({ ...o, summary: ev.summary, location: ev.location, description: ev.description || '', url: ev.url || '', allDay: ev.allDay, calendar: f.name });
         }
       }
     }

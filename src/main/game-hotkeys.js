@@ -15,7 +15,7 @@
 // No push-to-talk: it needs the key RELEASE as well, and Electron's global
 // shortcuts only report the press. A half-working one is worse than none.
 const ACTIONS = {
-  'quick-capture': 'Note something, set a reminder or a timer, from anywhere',
+  'quick-capture': 'Note something, set a reminder or a timer, or Ctrl+Enter to keep a clip, from anywhere',
   'discord-mute': 'Mute or unmute yourself in Discord',
   'discord-deafen': 'Deafen or undeafen yourself in Discord',
   'discord-hangup': 'Leave the Discord call',
@@ -37,8 +37,22 @@ function isSafeAccelerator(accel) {
   return /^([A-Za-z0-9]|F\d{1,2}|Space|Tab|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|Plus|Numpad\d|NumpadDecimal|NumpadAdd|NumpadSubtract|NumpadMultiply|NumpadDivide|`|-|=|\[|\]|\\|;|'|,|\.|\/)$/.test(key);
 }
 
-function createGameHotkeys({ globalShortcut, onAction, log, load, save }) {
+// One spelling per combination, so "ctrl+shift+m" and "Control+Shift+M" are
+// seen as the same key when two actions are compared.
+function normalizeAccelerator(accel) {
+  const parts = String(accel || '').split('+').map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  const key = parts[parts.length - 1].toLowerCase();
+  const alias = { control: 'ctrl', commandorcontrol: 'ctrl', cmdorctrl: 'ctrl', command: 'ctrl', cmd: 'ctrl', option: 'alt', altgr: 'alt', meta: 'super' };
+  const mods = [...new Set(parts.slice(0, -1).map(p => { const m = p.toLowerCase(); return alias[m] || m; }))].sort();
+  return mods.concat(key).join('+');
+}
+
+// `reserved`: combinations another part of Vex already holds system-wide (the
+// boss key), refused here with a reason instead of silently fighting for them.
+function createGameHotkeys({ globalShortcut, onAction, log, load, save, reserved = [] }) {
   const note = typeof log === 'function' ? log : () => {};
+  const reservedNorm = new Set(reserved.map(normalizeAccelerator));
   let registered = new Map();          // action → accelerator
 
   function readConfig() {
@@ -56,6 +70,10 @@ function createGameHotkeys({ globalShortcut, onAction, log, load, save }) {
     for (const [action, accel] of Object.entries(wanted)) {
       if (!ACTIONS[action] || !accel) continue;
       if (!isSafeAccelerator(accel)) { errors.push({ action, accel, error: 'That needs a modifier — "Ctrl+Shift+M", not a plain key' }); continue; }
+      const norm = normalizeAccelerator(accel);
+      if (reservedNorm.has(norm)) { errors.push({ action, accel, error: accel + ' is already Vex\'s own key for hiding the window — pick another' }); continue; }
+      const twin = Object.keys(applied).find(a => normalizeAccelerator(applied[a]) === norm);
+      if (twin) { errors.push({ action, accel, error: accel + ' is already set for "' + ACTIONS[twin] + '" — one key cannot do two things' }); continue; }
       let ok;
       try { ok = globalShortcut.register(accel, () => onAction(action)); }
       catch (err) { errors.push({ action, accel, error: err.message }); continue; }
@@ -85,4 +103,4 @@ function createGameHotkeys({ globalShortcut, onAction, log, load, save }) {
   return { apply, set, current, stop, ACTIONS, isSafeAccelerator };
 }
 
-module.exports = { createGameHotkeys, isSafeAccelerator, ACTIONS };
+module.exports = { createGameHotkeys, isSafeAccelerator, normalizeAccelerator, ACTIONS };

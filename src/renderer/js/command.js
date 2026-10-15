@@ -84,6 +84,22 @@ const CommandBar = {
     } },
     { id: 'readlater-next', label: 'Next from Read Later', hint: 'The oldest link you saved, in this tab — read them one at a time', icon: 'book', action: () => ReadLater.next() },
     { id: 'readlater', label: 'Read Later', hint: 'Save this page to your Library queue', icon: 'book', action: () => { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } ReadLater.add(t.url, t.title); } },
+    { id: 'search-everything', label: 'Search Everything', hint: 'One box over history, notes, clips, mail subjects, read later and bookmarks — filter by type with "mail:" or "notes:"', icon: 'search', isPrimary: true, action: () => { if (window.UniversalSearch) return window.UniversalSearch.open(); } },
+    { id: 'clips-inbox', label: 'Clips Inbox (text kept from the capture box)', hint: 'What you kept with Ctrl+Enter in the quick-capture box', icon: 'clipboard', action: () => { if (window.TextClips) return window.TextClips.open(); } },
+    { id: 'project-spaces', label: 'Project Spaces', hint: 'A project’s tabs, notes, repository, mail filter and AI thread, switched together', icon: 'folder', isPrimary: true, action: () => { if (window.ProjectSpaces) return window.ProjectSpaces.open(); } },
+    { id: 'project-next', label: 'Next Project Space', hint: 'Switch to the next project space', icon: 'folder', action: () => { if (window.ProjectSpaces) return window.ProjectSpaces.next(); } },
+    { id: 'tab-cleanup', label: 'Tidy Stale Tabs Now', hint: 'Tabs unused for days and second copies: archive them, with Undo', icon: 'broom', action: () => {
+      if (!window.TabCleanup) return;
+      const items = window.TabCleanup.snapshot().items;
+      if (!items.length) { window.showToast?.('Nothing to tidy'); return; }
+      window.TabCleanup.showCard(items);
+    } },
+    { id: 'meeting-prep', label: 'Prepare for My Next Meeting', hint: 'Its linked documents and your last notes for it', icon: 'calendar', action: async () => {
+      if (!window.MeetingPrep) return;
+      const prep = await window.MeetingPrep.snapshot();
+      if (!prep) { window.showToast?.('Nothing on your calendar in the next day'); return; }
+      window.MeetingPrep.showCard(prep);
+    } },
     { id: 'library', label: 'Library', hint: 'What you saved — read later, archived tabs', icon: 'book', isPrimary: true, action: () => { try { ReadLater.showTab('saved'); } catch {} SidebarManager.openPanel('library'); } },
     { id: 'routing-all', label: 'Private Routing — All of Vex Through Tor or a Proxy', hint: 'Send everything through Tor or a proxy you name, and check that it is really working', icon: 'globe', isPrimary: true, action: () => { if (typeof PrivateRouting !== 'undefined') PrivateRouting.open(); } },
     { id: 'backup', label: 'Back Up Everything, or Put It Back', hint: 'One file with your notes, sessions, keybindings, site rules and the whole look — saved logins are never in it', icon: 'archive', action: () => { if (typeof VexBackup !== 'undefined') VexBackup.open(); } },

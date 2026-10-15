@@ -44,7 +44,7 @@
   <div class="card">
     <div class="row"><span class="dot"></span><span class="title">Vex — quick capture</span></div>
     <input id="q" maxlength="4000" autofocus autocomplete="off" spellcheck="false" placeholder="A note, or “remind me…”, or “/” for a command">
-    <div class="hint"><b>Enter</b> saves · <b>remind me…</b> sets a reminder · <b>timer 20 min</b> · <b>/</b> runs a command · <b>Esc</b> closes</div>
+    <div class="hint"><b>Enter</b> saves a note · <b>Ctrl+Enter</b> keeps it as a clip · <b>remind me…</b> sets a reminder · <b>timer 20 min</b> · <b>/</b> runs a command · <b>Esc</b> closes</div>
     <div class="said" id="said"></div>
   </div>
   <script>
@@ -67,7 +67,11 @@
     input.addEventListener('keydown', async (e) => {
       if (e.key === 'Escape') { window.vexCapture.close(); return; }
       if (e.key !== 'Enter') return;
-      const parsed = classify(input.value);
+      // Ctrl+Enter keeps the line as it is in the clips inbox: nothing is
+      // interpreted, and Vex's own window is not involved at all.
+      const parsed = (e.ctrlKey || e.metaKey) && input.value.trim()
+        ? { kind: 'clip', text: input.value.trim() }
+        : classify(input.value);
       if (!parsed) { window.vexCapture.close(); return; }
       said.textContent = 'Saving…';
       try {

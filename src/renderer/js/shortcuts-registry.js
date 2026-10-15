@@ -81,6 +81,8 @@ const ShortcutsRegistry = (() => {
     // command itself when the key is pressed. All rebindable, none claimed by
     // the main process, and Ctrl+Alt is where there is room left — Ctrl and
     // Ctrl+Shift are largely spoken for by Chromium and by Vex already.
+    'search-everything': { default: 'Ctrl+Alt+U', label: 'Search everything (history, notes, clips, mail, bookmarks)', category: 'Tools', cmd: 'search-everything' },
+    'project-next':   { default: 'Ctrl+Alt+V',   label: 'Next project space',        category: 'Tabs',       cmd: 'project-next' },
     'library':        { default: 'Ctrl+Alt+B',   label: 'Library (what you saved)',   category: 'Panels',     cmd: 'library' },
     'everything':     { default: 'Ctrl+Alt+E',   label: 'Everything Vex can do',      category: 'Panels',     cmd: 'everything' },
     'tasks':          { default: 'Ctrl+Alt+T',   label: 'Running tasks',              category: 'Tools',      cmd: 'tasks' },

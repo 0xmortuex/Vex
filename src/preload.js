@@ -212,6 +212,13 @@ contextBridge.exposeInMainWorld('vex', {
   // The folder your recordings land in, and what is in it.
   clipsFolder: (pick) => ipcRenderer.invoke('clips:folder', pick),
   clipsList: (dir) => ipcRenderer.invoke('clips:list', dir),
+  // Text kept from the capture box (Ctrl+Enter): main holds it, so it lands
+  // even while Vex is hidden or behind a game.
+  clipsInboxList: () => ipcRenderer.invoke('clips-inbox:list'),
+  clipsInboxAdd: (text) => ipcRenderer.invoke('clips-inbox:add', text),
+  clipsInboxRemove: (id) => ipcRenderer.invoke('clips-inbox:remove', id),
+  clipsInboxClear: () => ipcRenderer.invoke('clips-inbox:clear'),
+  onClipsInboxChanged: (cb) => subscribe('clips-inbox:changed', cb),
   // What is free to keep on Epic and Steam this week.
   freeGames: () => ipcRenderer.invoke('games:free'),
   // Per-site switches: JavaScript, cookies, third-party content.
