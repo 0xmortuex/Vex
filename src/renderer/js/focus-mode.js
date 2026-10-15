@@ -101,6 +101,14 @@ const FocusMode = {
   },
 
   guard(webview, url) {
+    // The daily distraction budget (js/distraction-budget.js), for a category
+    // the user chose to block once its limit is used up.
+    const spent = typeof DistractionBudget !== 'undefined' ? DistractionBudget.shouldBlock(url) : null;
+    if (spent) {
+      window.showToast?.(`Your ${DistractionBudget.LABELS[spent].toLowerCase()} budget for today is used up`);
+      try { if (webview.canGoBack()) webview.goBack(); else webview.loadURL(typeof START_URL !== 'undefined' ? START_URL : 'about:blank'); } catch {}
+      return true;
+    }
     if (!this.shouldBlock(url)) return false;
     const mins = Math.max(1, Math.ceil((this.until - Date.now()) / 60000));
     window.showToast?.(`Blocked during focus (${mins} min left)`);

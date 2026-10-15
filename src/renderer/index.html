@@ -583,6 +583,13 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+              <div class="setting-toggle-row">
+                <span>Tidy up<br><span class="setting-info muted" style="font-size:11.5px">Sort loose files into Type / year-month folders. You see the list first, and one click puts everything back.</span></span>
+                <span style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button id="setting-download-tidy" class="btn-secondary">Preview tidy-up</button>
+                  <button id="setting-download-tidy-undo" class="btn-secondary">Undo last tidy-up</button>
+                </span>
+              </div>
             </div>
 
             <div class="setting-group">
@@ -1185,6 +1192,14 @@
             <div class="setting-group" id="workflow-settings">
               <label class="setting-label">Workflow and chains</label>
               <div id="workflow-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
+            <!-- Distraction budget: daily limit per kind of site (js/distraction-budget.js) -->
+            <div class="setting-group" id="settings-distraction-budget">
+              <label class="setting-label">Distraction budget</label>
+              <div id="budget-panel-content">
                 <div style="color:var(--text-muted);font-size:12px">Loading...</div>
               </div>
             </div>
@@ -1862,6 +1877,7 @@
   <script src="js/password-manual.js"></script>
   <script src="js/passkeys.js"></script>
   <script src="js/focus-mode.js"></script>
+  <script src="js/distraction-budget.js"></script>
   <script src="js/page-extras.js"></script>
   <script src="js/gestures.js"></script>
   <script src="js/clipboard-history.js"></script>
