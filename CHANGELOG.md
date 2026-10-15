@@ -1,5 +1,14 @@
 # Changelog
 
+## v20.91.6 (2026-10-15) — What a site is told about you, and Vex with Windows
+
+### New
+- **Global Privacy Control** is sent to every site (the `Sec-GPC: 1` header and `navigator.globalPrivacyControl`), on by default, with a list of sites to leave out in Settings › Privacy Hardening or in a site's panel. A Tor tab never sends it.
+- **Referrer trimming** (off by default): trim the address a site is told you came from to the site's name when it goes to another site, or send nothing across sites (Strict). A site's panel has "This site needs the referrer" for the sign-in or payment page that breaks. It trims the header, not `document.referrer`, and not in Tor tabs.
+- **A site's panel can ask for that site as a mobile site, or with a User-Agent you type**, from the next load, and shows which. Desktop is what Vex sends everywhere. A Tor tab is never changed.
+- **Pictures can be switched off for one site** to save data, from the same panel as JavaScript and cookies (not in Tor tabs).
+- **Start Vex when I sign in to Windows**, with "Start minimised", in Settings › General. It shows what Windows holds, works only in the installed app (Settings says so in a source copy), and a Windows start while Vex is already open leaves the window alone.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

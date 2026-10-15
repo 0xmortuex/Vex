@@ -274,6 +274,10 @@ define('clips:list', [optional(string(4096))]);
 // A file dropped on the AI panel: its bytes, and what it was called.
 define('doc:text', [value => value instanceof Uint8Array && value.byteLength <= 32 * 1024 * 1024, string(300)]);
 define('siterules:get', []);
+// Settings > Start Vex when I sign in to Windows (main/login-item.js): read
+// what Windows holds; set it on or off, minimised or not.
+define('login-item:get', []);
+define('login-item:set', [boolean, boolean]);
 define('siterules:set', [object]);
 // The saved decisions one tab's page is held to, by the page's id (main.js).
 define('permissions:list-for-page', [integer]);

@@ -1675,11 +1675,21 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
       getter.__vexPatched = true;
       try{ Object.defineProperty(proto,'brands',{configurable:true,enumerable:bd.enumerable,get:getter}); }catch(e){}
     }
+    // A site asked for as a mobile site (its own User-Agent, set per site in
+    // the site panel): the page's JS says the same thing the header does.
+    var uaMobile = /Mobile/.test(String(navigator.userAgent||'')) && /Android/.test(String(navigator.userAgent||''));
+    if(uaMobile){
+      var md = Object.getOwnPropertyDescriptor(proto,'mobile');
+      if(md && md.get && md.configurable){ try{ Object.defineProperty(proto,'mobile',{configurable:true,enumerable:md.enumerable,get:function(){return true;}}); }catch(e){} }
+      var pd = Object.getOwnPropertyDescriptor(proto,'platform');
+      if(pd && pd.get && pd.configurable){ try{ Object.defineProperty(proto,'platform',{configurable:true,enumerable:pd.enumerable,get:function(){return 'Android';}}); }catch(e){} }
+    }
     if(typeof proto.getHighEntropyValues==='function' && !proto.getHighEntropyValues.__vexPatched){
       var origHEV = proto.getHighEntropyValues;
       var patched = function(hints){
         return origHEV.call(this,hints).then(function(res){
           try{
+            if(res && uaMobile){ res.mobile = true; if('platform' in res) res.platform = 'Android'; }
             if(res){
               if(Array.isArray(res.brands)) res.brands = addChrome(res.brands, false);
               if(Array.isArray(res.fullVersionList)) res.fullVersionList = addChrome(res.fullVersionList, true);
@@ -2820,6 +2830,13 @@ let _vexStartPageOwn = null;
   if (!ipcRenderer) return;
   let cfg;
   try { cfg = ipcRenderer.sendSync('privacy:config-sync'); } catch { return; }
+  // Global Privacy Control: the page can read navigator.globalPrivacyControl.
+  // Main says whether this page gets the signal (the setting is on, its site is
+  // not excluded, it is not a Tor page): the same decision the Sec-GPC header
+  // makes. Applied whether or not fingerprint protection is on.
+  if (cfg && cfg.gpc === true) {
+    try { runInMainWorld("try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:function(){return true;},configurable:true,enumerable:true});}catch(e){}"); } catch {}
+  }
   if (!cfg || !cfg.farble) return;
 
   // The injected source runs in the page's MAIN world. The seed is baked in so

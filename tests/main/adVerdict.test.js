@@ -60,7 +60,7 @@ describe('every session asks the same verdict (EX10)', () => {
   it('New Identity honours the third-party switch like a private window; Tor keeps to the blocker', () => {
     const at = (from) => main.slice(main.indexOf(from), main.indexOf(from) + 4000);
     expect(at("ipcMain.handle('identity:create'")).toMatch(/_adVerdict\.judge\(details, ses\);/);
-    expect(at('const part = `tor-')).toMatch(/_adVerdict\.judge\(details, ses, \{ thirdParty: false \}\)/);
+    expect(at('const part = `tor-')).toMatch(/_adVerdict\.judge\(details, ses, \{ thirdParty: false, images: false \}\)/);
   });
   it('the third-party switch is honoured unless told otherwise', () => {
     const v = make({ shown: 'https://site.example/', thirdPartyOff: ['site.example'] });
@@ -112,5 +112,26 @@ describe('a page the blocker refuses (EX9)', () => {
     expect(main.slice(at, at + 500)).toMatch(/_showVexPage\(contents, require\('\.\/main\/ad-verdict'\)\.blockedPageHtml\(url\)/);
     expect(main).toMatch(/onBlockedPage: \(id, url\) => setTimeout\(\(\) => _adBlockedPage\(id, url\), 0\)/);
     expect(main).toMatch(/if \(_adVerdict\.takeBlockedPage\(contents\.id, to\)\) _adVerdict\.allowOnce\(contents\.id, to\);/);
+  });
+});
+
+describe('a site whose pictures are switched off', () => {
+  const host = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
+  const build = () => createAdVerdict({
+    pageUrlOf: () => 'https://news.example/',
+    enabled: () => false, engineBlocks: () => null, shouldBlock: () => false, repairAllows: () => false,
+    adsAllowedOn: () => false, blocksThirdParty: () => false,
+    blocksImages: (page, ses) => !(ses && ses.__vexTor) && host(page) === 'news.example',
+  });
+  it('refuses every picture its page loads, from any host, and nothing else', () => {
+    const v = build();
+    expect(v.judge({ resourceType: 'image', url: 'https://cdn.other/p.png', webContentsId: 1 }, {})).toBe('images');
+    expect(v.judge({ resourceType: 'script', url: 'https://cdn.other/a.js', webContentsId: 1 }, {})).toBe(null);
+    expect(v.judge({ resourceType: 'mainFrame', url: 'https://news.example/', webContentsId: 1 }, {})).toBe(null);
+  });
+  it('never in a Tor session', () => {
+    const v = build();
+    expect(v.judge({ resourceType: 'image', url: 'https://cdn.other/p.png', webContentsId: 1 }, { __vexTor: true })).toBe(null);
+    expect(v.judge({ resourceType: 'image', url: 'https://cdn.other/p.png', webContentsId: 1 }, {}, { images: false })).toBe(null);
   });
 });

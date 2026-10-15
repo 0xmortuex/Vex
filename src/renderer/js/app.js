@@ -740,7 +740,7 @@ function vexOwnTextFocused(doc) {
       if (typeof ThemeManager !== 'undefined') ThemeManager.applyTheme(ThemeManager.DEFAULT_THEME);
       // Fingerprint protection, DNS-over-HTTPS and HTTPS-only live in main.
       if (window.vex && typeof window.vex.privacySetConfig === 'function') {
-        await window.vex.privacySetConfig({ farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false });
+        await window.vex.privacySetConfig({ farble: false, doh: 'off', dohProvider: 'cloudflare', httpsOnly: false, gpc: true, referrer: 'default' });
       }
       // Where downloads go, and "Ask where to save each file", live in main too.
       const dl = await window.vex.downloadsResetPrefs();
@@ -1702,6 +1702,42 @@ function vexOwnTextFocused(doc) {
       el.style.color = isDefault ? 'var(--success)' : 'var(--text-muted)';
     }
   });
+
+  // Start Vex when I sign in to Windows (Settings > General). The switches
+  // show what Windows holds (main/login-item.js), read again whenever the
+  // window is focused, so an entry removed in Task Manager shows as off.
+  {
+    const on = document.getElementById('setting-login-item');
+    const min = document.getElementById('setting-login-minimised');
+    const note = document.getElementById('login-item-note');
+    if (on && min && window.vex && window.vex.loginItemGet) {
+      const WHY = '· Vex opens with Windows, in this profile';
+      const paint = (s) => {
+        on.checked = !!s.openAtLogin;
+        min.checked = !!s.startMinimised;
+        on.disabled = !s.supported;
+        min.disabled = !s.supported || !s.openAtLogin;
+        if (note) note.textContent = s.supported ? (s.stub ? WHY + ' (test mode: nothing is written to Windows)' : WHY) : '· ' + s.reason;
+      };
+      const read = async () => {
+        try { paint(await window.vex.loginItemGet()); }
+        catch (err) { window.VexProblems?.note('Settings', 'Could not read whether Vex starts with Windows', err); }
+      };
+      const change = async (control) => {
+        try { paint(await window.vex.loginItemSet(on.checked, min.checked)); }
+        catch (err) {
+          window.showToast?.('Not changed: ' + String((err && err.message) || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, ''), 'error');
+          await read();
+          return;
+        }
+        window.showToast?.(on.checked ? (min.checked ? 'Vex will start with Windows, minimised' : 'Vex will start with Windows') : 'Vex will not start with Windows');
+      };
+      on.addEventListener('change', () => change(on));
+      min.addEventListener('change', () => change(min));
+      window.addEventListener('focus', read);
+      read();
+    }
+  }
 
   // === Phase 11: UX polish ===
   // Copy URL button

@@ -73,3 +73,28 @@ describe('what is accepted from the renderer', () => {
     expect(Object.keys(clean(many)).length).toBeLessThanOrEqual(200);
   });
 });
+
+// Pictures, Global Privacy Control, the referrer and a site's own User-Agent
+// are kept with the same switches.
+describe('the header and picture switches', () => {
+  const { blocksImages, sendsGpc, keepsReferrer, userAgentFor, validUserAgent } = require('../../src/main/site-rules.js');
+  it('keeps them when off, and a User-Agent only in a shape it can send', () => {
+    expect(clean({ 'a.com': { images: 'off', gpc: 'off', referrer: 'off', ua: 'mobile' } }))
+      .toEqual({ 'a.com': { images: 'off', gpc: 'off', referrer: 'off', ua: 'mobile' } });
+    expect(clean({ 'a.com': { ua: 'x' } })).toEqual({});
+    expect(clean({ 'a.com': { ua: 'Bad\r\nHeader: 1 agent' } })).toEqual({});
+    expect(clean({ 'a.com': { ua: 'MyAgent/1.0 (a custom one)' } })).toEqual({ 'a.com': { ua: 'MyAgent/1.0 (a custom one)' } });
+    expect(validUserAgent('a'.repeat(513))).toBe(false);
+  });
+  it('apply to a site and its subdomains', () => {
+    const r = clean({ 'a.com': { images: 'off', gpc: 'off', referrer: 'off', ua: 'mobile' } });
+    expect(blocksImages(r, 'https://www.a.com/')).toBe(true);
+    expect(blocksImages(r, 'https://b.com/')).toBe(false);
+    expect(sendsGpc(r, 'https://shop.a.com/')).toBe(false);
+    expect(sendsGpc(r, 'https://b.com/')).toBe(true);
+    expect(keepsReferrer(r, 'https://a.com/x', 'https://b.com/')).toBe(true);
+    expect(keepsReferrer(r, 'https://c.com/x', 'https://b.com/')).toBe(false);
+    expect(userAgentFor(r, 'https://a.com/', 'MOBILE')).toMatchObject({ ua: 'MOBILE', mobile: true });
+    expect(userAgentFor(r, 'https://b.com/', 'MOBILE')).toBe(null);
+  });
+});

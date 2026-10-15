@@ -220,6 +220,61 @@ describe('what it changes, and where', () => {
     P.close();
     expect(TabManager.rebuildTab).toHaveBeenCalledWith('t1');
   });
+  it('a site can be asked for as a mobile site, kept with its other switches, and the page reloads', async () => {
+    const { wv } = setup(); const P = load();
+    P.open(); await flush();
+    const ua = document.getElementById('sp-ua');
+    expect(ua.value).toBe('');
+    ua.value = 'mobile'; ua.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush(); await flush();
+    expect(JSON.parse(localStorage.getItem('vex.siteRules'))['news.example']).toEqual({ ua: 'mobile' });
+    expect(window.vex.siteRulesSet).toHaveBeenLastCalledWith({ 'news.example': { ua: 'mobile' } });
+    expect(document.getElementById('sp-ua').value).toBe('mobile');
+    P.close();
+    expect(wv.reload).toHaveBeenCalled();
+  });
+  it('a typed User-Agent is saved, a bad one is refused, and going back to desktop clears it', async () => {
+    setup(); const P = load();
+    P.open(); await flush();
+    const ua = document.getElementById('sp-ua');
+    ua.value = 'custom'; ua.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush();
+    const box = document.getElementById('sp-ua-custom');
+    box.value = 'x';
+    await expect(P._act('ua-save', document.getElementById('sp-ua'))).rejects.toThrow(/8 to 512/);
+    box.value = 'MyBrowser/2.0 (Custom Agent)';
+    await P._act('ua-save', document.getElementById('sp-ua'));
+    expect(JSON.parse(localStorage.getItem('vex.siteRules'))['news.example'].ua).toBe('MyBrowser/2.0 (Custom Agent)');
+    await P._act('ua', { value: '' });
+    expect(localStorage.getItem('vex.siteRules')).toBe('{}');
+  });
+  it('"this site needs the referrer" and Global Privacy Control are site switches too', async () => {
+    setup(); const P = load();
+    P.open(); await flush();
+    const need = document.getElementById('sp-needs-referrer');
+    need.checked = true; need.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush(); await flush();
+    const gpc = document.getElementById('sp-rule-gpc');
+    expect(gpc.checked).toBe(true);
+    gpc.checked = false; gpc.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush(); await flush();
+    expect(JSON.parse(localStorage.getItem('vex.siteRules'))['news.example']).toEqual({ referrer: 'off', gpc: 'off' });
+  });
+  it('pictures off is a switch beside JavaScript and cookies', async () => {
+    setup(); const P = load();
+    P.open(); await flush();
+    const pic = document.getElementById('sp-rule-images');
+    expect(pic.checked).toBe(true);
+    pic.checked = false; pic.dispatchEvent(new Event('change', { bubbles: true }));
+    await flush(); await flush();
+    expect(JSON.parse(localStorage.getItem('vex.siteRules'))['news.example']).toEqual({ images: 'off' });
+  });
+  it('a Tor tab shows the identity controls off and says why', async () => {
+    setup({ partition: 'tor-1' }); const P = load();
+    P.open(); await flush();
+    expect(document.getElementById('sp-ua').closest('.sp-row').textContent).toMatch(/says what every Tor tab says/);
+    for (const id of ['sp-ua', 'sp-rule-gpc', 'sp-needs-referrer']) expect(document.getElementById(id).disabled, id).toBe(true);
+  });
   it('where the site opens is a site rule, the same one Settings › Site rules lists', async () => {
     setup(); const P = load();
     P.open(); await flush();
