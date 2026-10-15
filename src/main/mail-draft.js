@@ -3,9 +3,12 @@
 // and says so, rather than arriving truncated mid-word with no sign.
 const MAX_URL = 1900;
 
-function mailtoUrl(subject, body) {
+// `to` is optional: one address, to answer a message. Anything that is not a
+// plain address is refused rather than put into the link.
+function mailtoUrl(subject, body, to) {
   const enc = (s) => encodeURIComponent(String(s || ''));
-  const head = 'mailto:?subject=' + enc(String(subject || '').slice(0, 200)) + '&body=';
+  if (to != null && to !== '' && !/^[^\s@<>,;?&=]+@[^\s@<>,;?&=]+$/.test(String(to))) throw new Error('That is not a plain email address');
+  const head = 'mailto:' + (to ? enc(to).replace(/%40/g, '@') : '') + '?subject=' + enc(String(subject || '').slice(0, 200)) + '&body=';
   let text = String(body || '').replace(/\r?\n/g, '\r\n');
   if ((head + enc(text)).length <= MAX_URL) return head + enc(text);
   const note = '\r\n\r\n[Shortened: the full text is in Vex.]';

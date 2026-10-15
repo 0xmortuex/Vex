@@ -134,7 +134,7 @@ define('tor:cancel', []);
 define('tor:status tor:stop', []);
 define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);
 define('rss:fetch open-external', [web]);
-define('mail:compose', [shape({ subject: string(300), body: string(8000) })]);
+define('mail:compose', [shape({ subject: string(300), body: string(8000), to: optional(string(320)) })]);
 // The second argument describes the video to float, and comes from the page,
 // so every field is checked rather than trusted.
 const finite = value => typeof value === 'number' && Number.isFinite(value);

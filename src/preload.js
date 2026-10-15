@@ -560,7 +560,7 @@ contextBridge.exposeInMainWorld('vex', {
   setWebsiteAppearance: (source) => ipcRenderer.invoke('theme:set-website-appearance', source),
   onSystemThemeChanged: (cb) => subscribe('system-theme:changed', cb),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  composeMail: (subject, body) => ipcRenderer.invoke('mail:compose', { subject, body }),
+  composeMail: (subject, body, to) => ipcRenderer.invoke('mail:compose', { subject, body, ...(to ? { to } : {}) }),
 
   // Default browser. Attaches the renderer's handler and immediately flushes any
   // URLs that arrived (and were buffered) before this point — see the early

@@ -112,6 +112,7 @@ const InboxTriage = {
           <div style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${who} · ${esc(m.why)}</div>
         </div>
         <div style="font-size:10.5px;color:var(--text-muted)">${esc(when)}</div>
+        ${typeof MailTriage !== 'undefined' ? MailTriage.rowButtons(m, esc) : ''}
       </div>`;
   },
 
@@ -175,7 +176,10 @@ const InboxTriage = {
     catch (err) { summaryEl.textContent = err.message; return; }
     if (overlay.querySelector('[data-account]') && overlay.querySelector('[data-account]').value !== account.id) return;
 
-    const piles = this.sort(inbox.messages || []);
+    // Messages you marked done or snoozed (js/mail-triage-actions.js) are not
+    // listed again; the mailbox itself is unchanged.
+    const shown = typeof MailTriage !== 'undefined' && MailTriage.isEnabled() ? MailTriage.visible(account.id, inbox.messages || []) : (inbox.messages || []);
+    const piles = this.sort(shown);
     summaryEl.textContent = this.summary(piles) + ' Of ' + (inbox.unseen || 0) + ' unread in all.';
     const section = (title, items) => items.length
       ? `<div style="padding:8px 9px 2px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${esc(title)}</div>${items.map(m => this._row(m, esc)).join('')}`
@@ -194,6 +198,17 @@ const InboxTriage = {
     overlay.querySelector('[data-foot]').textContent = account.webmail
       ? 'Vex\'s inbox is read-only, so nothing here is moved or archived — the bulk list opens your webmail with that sender searched, where you can clear it in one go.'
       : 'Vex\'s inbox is read-only, so nothing here is moved or archived. This account has no webmail Vex knows — open these in your mail program.';
+
+    // One-tap Done / Snooze / Mark / Reply on each row, before the rows' own
+    // click (which opens the webmail) is attached: the buttons stop it.
+    if (typeof MailTriage !== 'undefined' && MailTriage.isEnabled()) {
+      const mine = new Map((inbox.messages || []).map(x => [String(x.uid), x]));
+      bodyEl.querySelectorAll('[data-uid]').forEach(row => {
+        const m = mine.get(row.dataset.uid);
+        if (m) MailTriage.wireRow(row, account, m, () => this._show(overlay, account, close, esc));
+      });
+      overlay.querySelector('[data-foot]').textContent += ' Done and Snooze hide a message in Vex only; your mailbox is not changed.';
+    }
 
     // No webmail (a custom server): the rows are not links.
     if (!account.webmail) {
