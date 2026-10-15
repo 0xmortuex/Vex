@@ -1369,6 +1369,7 @@ function vexOwnTextFocused(doc) {
   // address bar button, and checking the Vex Sync mailbox on focus, every
   // 2 minutes and shortly after launch.
   if (typeof Handoff !== 'undefined') Handoff.init();
+  if (typeof DevicesView !== 'undefined') DevicesView.init();
 
   // External link → new tab (target="_blank", window.open, middle-click)
   window.vex?.onTabCreateFromExternal?.((data) => {

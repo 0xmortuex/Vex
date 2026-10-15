@@ -1,0 +1,50 @@
+/* Devices (js/devices-view.js). Tokens only, so every look and theme applies;
+   a11y.css stays last. */
+.dv-overlay {
+  position: fixed; inset: 0; z-index: 100040;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px; box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.35);
+}
+.dv-card {
+  width: 560px; max-width: 100%; max-height: 84vh; overflow-y: auto; box-sizing: border-box;
+  background: var(--vex-bg-elevated, var(--surface)); color: var(--vex-text-primary, var(--text));
+  border: 1px solid var(--vex-border-medium, var(--border)); border-radius: var(--vex-radius-md, 12px);
+  box-shadow: 0 16px 48px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
+  font-size: 13px; padding: 14px 16px 16px;
+}
+.dv-head { display: flex; align-items: center; gap: 8px; }
+.dv-title { flex: 1; margin: 0; font-size: 15px; font-weight: 700; }
+.dv-close, .dv-btn, .dv-open {
+  font: inherit; color: inherit; cursor: pointer; border: none; background: transparent;
+}
+.dv-close { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 6px; color: var(--vex-text-secondary, var(--text-muted)); }
+.dv-close:hover, .dv-open:hover, .dv-mini:hover { background: var(--vex-hover-fill, rgba(127, 127, 127, 0.15)); }
+.dv-close:focus-visible, .dv-open:focus-visible, .dv-btn:focus-visible { outline: 2px solid var(--vex-accent, var(--primary)); outline-offset: 1px; }
+.dv-continue {
+  display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; padding: 10px 12px;
+  border: 1px solid var(--vex-border-medium, var(--border)); border-radius: 8px;
+  background: var(--vex-hover-fill, rgba(127, 127, 127, 0.1));
+}
+.dv-continue-text { flex: 1; display: flex; gap: 8px; align-items: flex-start; }
+.dv-btn { border-radius: 6px; padding: 5px 10px; border: 1px solid var(--vex-border-medium, var(--border)); }
+.dv-primary { background: var(--vex-accent, var(--primary)); color: var(--vex-accent-contrast, #fff); border-color: transparent; font-weight: 600; }
+.dv-note { display: flex; gap: 8px; margin: 10px 0 0; color: var(--vex-text-secondary, var(--text-muted)); font-size: 12px; line-height: 1.45; }
+.dv-list { display: grid; gap: 12px; margin-top: 12px; }
+.dv-device { border: 1px solid var(--vex-border-medium, var(--border)); border-radius: 8px; padding: 8px 10px; }
+.dv-device-head { display: flex; align-items: center; gap: 8px; }
+.dv-device-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-tag { font-weight: 500; font-size: 11px; color: var(--vex-text-secondary, var(--text-muted)); margin-left: 4px; }
+.dv-device-seen { font-size: 12px; color: var(--vex-text-secondary, var(--text-muted)); }
+.dv-stale { opacity: 0.7; }
+.dv-tabs { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
+.dv-tab { display: flex; align-items: center; gap: 6px; }
+.dv-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; padding: 5px 6px; border-radius: 6px; }
+.dv-tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-fav { border-radius: 3px; flex: none; }
+.dv-group { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--vex-hover-fill, rgba(127, 127, 127, 0.15)); }
+.dv-pin { flex: none; display: inline-flex; color: var(--vex-text-secondary, var(--text-muted)); }
+.dv-send { display: inline-flex; gap: 2px; flex: none; }
+.dv-mini { display: inline-flex; align-items: center; gap: 1px; padding: 3px 5px; border: none; opacity: 0.75; }
+.dv-mini:hover, .dv-mini:focus-visible { opacity: 1; }
+.dv-empty, .dv-more { color: var(--vex-text-secondary, var(--text-muted)); font-size: 12px; padding: 4px 6px; }

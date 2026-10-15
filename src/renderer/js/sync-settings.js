@@ -431,6 +431,14 @@ const SyncSettings = (() => {
         </div>` : '';
         })()}
 
+        <div class="sync-subsection" id="sync-devices">
+          <h3>Devices and phone browser</h3>
+          <p class="subsection-desc">See every device on this account with its open tabs, open one here or send one to a single device. A phone without the Vex app can look at the same list, read only, from the companion page: you get a pairing code that works once, for five minutes. Private, Tor and routed tabs and sensitive sites are never shared.</p>
+          <button class="btn-secondary" id="btn-open-devices">Open Devices</button>
+          <button class="btn-secondary" id="btn-pair-phone">Pair a phone browser</button>
+          <button class="btn-secondary" id="btn-unpair-phone">Disconnect phone browser</button>
+        </div>
+
         <div class="sync-subsection" id="sync-choices">
           <h3>Choose what to sync</h3>
           <p class="subsection-desc">What you turn off stays on this device as it is, and this device stops sending and receiving it. Your other devices keep syncing it with each other. The interface size and spacing (Settings › Fonts) always stay per device, since they depend on the screen. Passwords, authenticator codes and passkeys are off until you turn them on here, on each device; Vex asks again first, and they travel end-to-end encrypted with your sync key.</p>
@@ -469,6 +477,9 @@ const SyncSettings = (() => {
   }
 
   function wireSignedInHandlers(container) {
+    document.getElementById('btn-open-devices')?.addEventListener('click', () => { if (typeof DevicesView !== 'undefined') DevicesView.open(); });
+    document.getElementById('btn-pair-phone')?.addEventListener('click', () => { if (typeof DevicesView !== 'undefined') DevicesView.pair(); });
+    document.getElementById('btn-unpair-phone')?.addEventListener('click', () => { if (typeof DevicesView !== 'undefined') DevicesView.stopPairing(); });
     document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-sync-now');
       btn.disabled = true; btn.textContent = 'Syncing...';

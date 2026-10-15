@@ -112,6 +112,10 @@ const SyncEngine = (() => {
     // authenticator code is or is not filled on (js/totp-autofill.js). They
     // travel with the passwords and the authenticator accounts (SYNC_TYPES).
     'vex.pwNever', 'vex.totpSites',
+    // The reading queue (js/readlater.js). Off until chosen (SYNC_TYPES,
+    // readingQueue); items from a tab with a session of its own, and from
+    // sensitive sites, stay on the device (js/live-session.js).
+    'vex.readLater',
   ];
 
   // Lists synced item by item, so two devices' entries merge instead of one
@@ -129,7 +133,8 @@ const SyncEngine = (() => {
     // Colour themes the user made (js/theme-custom.js), merged theme by theme.
     'vex.customThemes',
     // Sites never offered a password save: host names, like vex.forceDarkHosts.
-    'vex.pwNever'];
+    'vex.pwNever',
+    'vex.readLater'];
 
   // Settings › Vex Sync › Choose what to sync. Each kind of data can be left
   // out on this device; there was no way to keep, say, history or AI memory
@@ -156,10 +161,18 @@ const SyncEngine = (() => {
     { id: 'authenticator', label: 'Authenticator (2FA codes)', keys: ['vex.totpSites'], secret: true },
     // Passkeys Vex keeps (main/passkeys.js): only those made while this was on.
     { id: 'passkeys', label: 'Passkeys', keys: [], secret: true },
+    // One browser across devices (docs/SYNC_PROTOCOL.md §4.10). Both are off
+    // until the person turns them on, on each device (optIn): nothing about
+    // an open tab beyond its address and title, and no reading queue, leaves
+    // a device that has not asked for it. `liveTabs` adds the page icon, the
+    // group, pinned, where you were and when it was last used to this
+    // device's open-tab list (the Devices view); it has no records of its own.
+    { id: 'liveTabs', label: 'Live tabs for the Devices view (icons, groups, pinned, last used)', keys: [], optIn: true },
+    { id: 'readingQueue', label: 'Reading queue (Read Later)', keys: ['vex.readLater'], optIn: true },
     // Everything else: site lists, zoom, auto-sleep, keyboard shortcuts...
     { id: 'settings', label: 'Other settings', keys: [] },
   ];
-  const OFF_UNLESS_CHOSEN = SYNC_TYPES.filter(t => t.secret).map(t => t.id);
+  const OFF_UNLESS_CHOSEN = SYNC_TYPES.filter(t => t.secret || t.optIn).map(t => t.id);
   // The sealed lists: { id, t, s } per saved login or authenticator account
   // (SYNC_PROTOCOL.md §4.9).
   const SECRET_SOURCES = { 'secret:passwords': 'passwords', 'secret:authenticator': 'authenticator', 'secret:passkeys': 'passkeys' };
@@ -189,7 +202,7 @@ const SyncEngine = (() => {
     const choice = choices && typeof choices === 'object' ? choices[id] : undefined;
     return OFF_UNLESS_CHOSEN.includes(id) ? choice === true : choice !== false;
   }
-  const secretsOn = () => OFF_UNLESS_CHOSEN.some(typeOn);
+  const secretsOn = () => SYNC_TYPES.some(t => t.secret && typeOn(t.id));
   // While Vex is locked, nothing syncs on a device that syncs passwords or
   // the authenticator: main refuses them then, and the rest waits with them,
   // so the account never gets half a round. What changed goes up on unlock.
@@ -832,13 +845,66 @@ const SyncEngine = (() => {
   // The web pages open on this device, for the other devices' list: what the
   // saved session holds (no private, Tor or off-the-record tab), web
   // addresses only, at most DEVICE_TABS_MAX.
+  // What may leave this device (js/live-session.js shareableTab): not a
+  // private, Tor or routed tab, not a sensitive site, not an address with a
+  // password or token in it.
+  const sensitiveHosts = () => {
+    const list = readJson('vex.liveSensitiveHosts', []);
+    return Array.isArray(list) ? list.filter(h => typeof h === 'string').slice(0, 200) : [];
+  };
+  const shareCtx = () => ({
+    privateWindow: !!(window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow),
+    isRouted: partition => !!(window.VexTabPolicy && window.VexTabPolicy.isRouted(partition)),
+    extraHosts: sensitiveHosts(),
+  });
   async function openTabsToSync() {
     const saved = typeof TabManager !== 'undefined' && Array.isArray(TabManager.tabs)
       ? window.VexTabPolicy.snapshot(TabManager.tabs) : await VexStorage.load('tabs');
     if (!Array.isArray(saved)) return [];
-    return saved.filter(tab => tab && /^https?:\/\//i.test(String(tab.url)) && window.VexDataContracts?.url(tab.url, true) !== false)
+    const live = window.VexLiveSession;
+    const ctx = shareCtx();
+    return saved.filter(tab => tab && /^https?:\/\//i.test(String(tab.url)) && window.VexDataContracts?.url(tab.url, true) !== false
+      && (!live || live.shareableTab(tab, ctx)))
       .slice(0, DEVICE_TABS_MAX)
       .map(tab => ({ url: tab.url, title: String(tab.title || '').slice(0, 300) }));
+  }
+
+  // This device's value of sync:tabs:<id>. Version 1 ({ tabs: [{ url, title }] })
+  // unless Live tabs is on; then version 2, a superset of it (SYNC_PROTOCOL.md
+  // §4.10): the page icon, group, pinned, where you were, when it was last used,
+  // a clock and tombstones for tabs closed since, capped at 24 KB.
+  async function ownTabsValue() {
+    const legacy = { tabs: await openTabsToSync() };
+    const live = window.VexLiveSession;
+    if (!live || !typeOn('liveTabs') || typeof TabManager === 'undefined' || !Array.isArray(TabManager.tabs)) return legacy;
+    const key = JSON.stringify([TABS_SOURCE + state.deviceId, 'value']);
+    const previous = recordDocument && recordDocument.records[key] && !recordDocument.records[key].deleted ? recordDocument.records[key].value : null;
+    const groups = Array.isArray(TabManager.groups) ? TabManager.groups : [];
+    const snapshot = live.buildSnapshot(TabManager.tabs, {
+      ...shareCtx(), prev: previous, now: Date.now(), node: state.deviceId, activeId: TabManager.activeTabId,
+      groupName: id => (groups.find(g => g && g.id === id) || {}).name || '',
+    });
+    // A device that was last seen by a clock far ahead of this one's: keep
+    // this device's clock from falling behind what the account has seen.
+    return { ...snapshot, tabs: snapshot.tabs.slice(0, DEVICE_TABS_MAX) };
+  }
+
+  // The Devices view (js/devices-view.js): every device on the account, with
+  // its tabs, from the last document this device synced; nothing is fetched.
+  // `listed` is the server's device list as last read.
+  function devicesView(now = Date.now()) {
+    const live = window.VexLiveSession;
+    if (!live || !recordDocument || !state.deviceId) return [];
+    const snapshots = {};
+    const values = window.VexSyncRecords.values(recordDocument);
+    for (const [key, value] of Object.entries(values)) {
+      const [source, kind] = JSON.parse(key);
+      if (kind === 'value' && source.startsWith(TABS_SOURCE)) snapshots[source.slice(TABS_SOURCE.length)] = value;
+    }
+    const names = {};
+    for (const id of Object.keys(snapshots)) names[id] = deviceName(id, knownDevices.find(d => d.deviceId === id));
+    for (const d of knownDevices) if (!(d.deviceId in names)) names[d.deviceId] = deviceName(d.deviceId, d);
+    return live.devicesView({ listed: knownDevices, snapshots, names, selfId: state.deviceId, now, extraHosts: sensitiveHosts() });
   }
 
   // The tabs the other devices on the account have open, newest list first:
@@ -912,6 +978,7 @@ const SyncEngine = (() => {
         // Sent as anything but a list, every other device would refuse it
         // ("Invalid synced list"); refuse it here, on the device that has it.
         if (!Array.isArray(list)) throw new Error('Invalid ' + key.slice(4) + ' data');
+        if (key === 'vex.readLater' && window.VexLiveSession) list = window.VexLiveSession.readingQueueForSync(list, sensitiveHosts()).send;
         data['preference:' + key] = key === 'vex.history' ? historyWindow(list) : list;
       } else data['preference:' + key] = raw;
     }
@@ -923,7 +990,7 @@ const SyncEngine = (() => {
       const sealed = await window.vex.syncSecretsSeal(secretKinds);
       for (const [source, kind] of Object.entries(SECRET_SOURCES)) if (secretKinds.includes(kind)) data[source] = sealedItems(sealed && sealed[kind], kind);
     }
-    if (ownsSource(TABS_SOURCE + state.deviceId, gate)) data[TABS_SOURCE + state.deviceId] = { tabs: await openTabsToSync() };
+    if (ownsSource(TABS_SOURCE + state.deviceId, gate)) data[TABS_SOURCE + state.deviceId] = await ownTabsValue();
     const records = window.VexSyncRecords;
     if (!recordDocument) recordDocument = await VexStorage.load('sync-records') || records.empty();
     const original = recordDocument;
@@ -1151,6 +1218,18 @@ const SyncEngine = (() => {
     if (preferenceKeys().includes('vex.history') && ownsSource('preference:vex.history', gate)) {
       const synced = sources['preference:vex.history'];
       sources['preference:vex.history'] = withOlderHistory(Array.isArray(synced) ? synced : [], localHistory, sources['preference:vex.historyClearedAt']);
+    }
+    // Reading-queue items that are held back from the account (their tab had a
+    // session of its own, or the site is sensitive) stay on this device.
+    if (window.VexLiveSession && ownsSource('preference:vex.readLater', gate)) {
+      let localQueue = [];
+      try { const saved = JSON.parse(localStorage.getItem('vex.readLater') || '[]'); if (Array.isArray(saved)) localQueue = saved; }
+      catch (err) { console.error('[Sync] This device’s reading queue could not be read; only the synced queue is kept:', err.message); }
+      const kept = window.VexLiveSession.readingQueueForSync(localQueue, sensitiveHosts()).kept;
+      if (kept.length) {
+        const synced = sources['preference:vex.readLater'];
+        sources['preference:vex.readLater'] = window.VexLiveSession.readingQueueApply(Array.isArray(synced) ? synced : [], kept);
+      }
     }
     const lookBefore = lookSnapshot();
     for (const key of preferenceKeys()) {
@@ -1441,7 +1520,7 @@ const SyncEngine = (() => {
     }
     const choices = readJson(CHOICES_KEY, {});
     const next = choices && typeof choices === 'object' && !Array.isArray(choices) ? { ...choices } : {};
-    if (on) { if (type.secret) next[id] = true; else delete next[id]; } else next[id] = false;
+    if (on) { if (type.secret || type.optIn) next[id] = true; else delete next[id]; } else next[id] = false;
     localStorage.setItem(CHOICES_KEY, JSON.stringify(next));
     const rejoin = rejoining().filter(type => type !== id);
     if (on) {
@@ -1708,6 +1787,8 @@ const SyncEngine = (() => {
     if (!r.ok) throw new Error('Could not load your devices (server returned ' + r.status + ')');
     const data = await r.json().catch(() => null);
     if (!data || !Array.isArray(data.devices)) throw new Error('Could not load your devices (unexpected response)');
+    // The Devices view names and orders devices from this list.
+    knownDevices = data.devices.filter(d => d && typeof d.deviceId === 'string');
     return data.devices;
   }
 
@@ -1862,14 +1943,26 @@ const SyncEngine = (() => {
   // ===== DROP — cross-device tab handoff (SYNC_PROTOCOL.md §7) =====
   // The UI is js/handoff.js: Send to your devices, and the cards on the New
   // Tab page for tabs sent here.
-  async function dropSend(url, title) {
+  // `opts.to` addresses the item to one device (SYNC_PROTOCOL.md §4.10.5): the
+  // mailbox has no addressing, so `to` and `hop` travel inside the encrypted
+  // payload. A device that is not `to` hands the item on (Handoff.receive),
+  // at most DROP_MAX_HOPS times; a device that does not know `to` opens it.
+  const DEVICE_ID_RE = /^[a-f0-9]{32}$/;
+  async function dropSend(url, title, opts = {}) {
     refuseInPrivate();
     if (!state.enabled || !state.sessionToken) {
       throw new Error('Sign in to Vex Sync first (Settings › Vex Sync)');
     }
     requireSyncUrl();
     if (!/^https?:$/.test(new URL(url).protocol)) throw new Error('Only web URLs can be sent');
-    const encryptedBlob = await SyncCrypto.encrypt({ url: url.slice(0,2048), title: String(title || '').slice(0,300) }, state.encryptionKey);
+    const payload = { url: url.slice(0,2048), title: String(title || '').slice(0,300) };
+    if (opts && opts.to != null) {
+      if (typeof opts.to !== 'string' || !DEVICE_ID_RE.test(opts.to)) throw new Error('Unknown device to send to');
+      payload.to = opts.to;
+      const hop = Number.isInteger(opts.hop) ? opts.hop : 0;
+      if (hop > 0) payload.hop = Math.min(hop, 9);
+    }
+    const encryptedBlob = await SyncCrypto.encrypt(payload, state.encryptionKey);
     const r = await (window.VexNet?.fetch || fetch)(`${syncWorkerUrl()}/sync/drop`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.sessionToken}` },
@@ -1908,7 +2001,14 @@ const SyncEngine = (() => {
       // consumed them, so skip only the bad one and say so in the log.
       try {
         const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
-        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) items.push({ ...item, url: payload.url, title: String(payload.title || '') });
+        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) {
+          const got = { ...item, url: payload.url, title: String(payload.title || '') };
+          if (typeof payload.to === 'string' && DEVICE_ID_RE.test(payload.to)) {
+            got.to = payload.to;
+            got.hop = Number.isInteger(payload.hop) && payload.hop > 0 ? Math.min(payload.hop, 9) : 0;
+          }
+          items.push(got);
+        }
         else console.error('[Sync] Skipped a handed-off tab that is not a web address');
       } catch (err) { console.error('[Sync] Skipped a handed-off tab that could not be read:', err); }
     }
@@ -1950,6 +2050,8 @@ const SyncEngine = (() => {
     // devices that waits on (an older Vex, or the phone).
     cleanupState: () => ({ open: compactGate.open, waitingOn: [...compactGate.waitingOn] }),
     otherDeviceTabs,
+    // Every device with its tabs, freshness and clock-safe ordering (js/live-session.js).
+    devicesView,
     pushBeforeClose,
     resumeAfterGame,
     syncTypes: () => SYNC_TYPES.map(t => ({ id: t.id, label: t.label, on: typeOn(t.id) })),

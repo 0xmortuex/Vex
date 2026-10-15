@@ -119,7 +119,15 @@ const Handoff = {
     try {
       const items = await SyncEngine.dropFetch();
       if (!items.length) { this._lastError = ''; return []; }
-      fresh = this.add(items);
+      // An item addressed to another device (SYNC_PROTOCOL.md §4.10.5) was
+      // consumed by this fetch: hand it on so that device can get it.
+      const me = typeof SyncEngine.getState === 'function' ? (SyncEngine.getState() || {}).deviceId : null;
+      const mine = [];
+      for (const it of items) {
+        if (it.to && it.to !== me) await this._forward(it);
+        else mine.push(it);
+      }
+      fresh = this.add(mine);
       this._lastError = '';
     } catch (err) {
       const msg = (err && err.message) || String(err);
@@ -136,6 +144,24 @@ const Handoff = {
       this.notify(fresh);
     }
     return fresh;
+  },
+
+  MAX_HOPS: 4,
+  // Not for this device: put it back in the mailbox with one more hop. A
+  // device that cannot send it on drops it and says so in the log; the item is
+  // never opened here.
+  async _forward(item) {
+    const hop = (Number.isInteger(item.hop) ? item.hop : 0) + 1;
+    if (hop > this.MAX_HOPS) {
+      console.error('[Handoff] dropped a tab addressed to another device after ' + this.MAX_HOPS + ' hand-ons');
+      return false;
+    }
+    try { await SyncEngine.dropSend(item.url, item.title, { to: item.to, hop }); return true; }
+    catch (err) {
+      console.error('[Handoff] could not hand on a tab addressed to another device:', err && err.message);
+      window.VexProblems?.note?.('Send to your devices', 'Could not hand on a tab meant for another device', err);
+      return false;
+    }
   },
 
   // One desktop notification per check, through the main process. Held while
@@ -354,12 +380,13 @@ const Handoff = {
     pop.style.top = Math.round(top) + 'px';
   },
 
-  // Throws, worded by SyncEngine, when it could not be sent.
-  async send(tab) {
+  // Throws, worded by SyncEngine, when it could not be sent. `deviceId`
+  // addresses it to one device; without it whichever opens Vex first gets it.
+  async send(tab, deviceId) {
     const can = this.sendable(tab);
     if (!can.ok) throw new Error(can.why);
     if (typeof SyncEngine === 'undefined') throw new Error('Vex Sync is not available');
-    return SyncEngine.dropSend(tab.url, tab.title || '');
+    return deviceId ? SyncEngine.dropSend(tab.url, tab.title || '', { to: deviceId }) : SyncEngine.dropSend(tab.url, tab.title || '');
   },
 
   init() {

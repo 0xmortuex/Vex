@@ -1,0 +1,17 @@
+name = "vex-companion"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Placeholder: create your own namespace and paste its id here before deploying.
+#   npx wrangler kv namespace create COMPANION_KV
+kv_namespaces = [
+  { binding = "COMPANION_KV", id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" }
+]
+
+# No logs, no traces: the relay is built to keep nothing (README.md).
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = false
+invocation_logs = false
