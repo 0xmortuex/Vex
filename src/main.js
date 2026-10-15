@@ -9514,7 +9514,9 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
     ? [{ name: 'Calendar entry', extensions: ['ics'] }]
     : kind === 'md'
       ? [{ name: 'Markdown', extensions: ['md'] }]
-      : [{ name: 'Text', extensions: ['txt'] }];
+      : kind === 'svg'
+        ? [{ name: 'SVG image', extensions: ['svg'] }]
+        : [{ name: 'Text', extensions: ['txt'] }];
   const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
   const r = await dialog.showSaveDialog(_askingWindow(_e), {
     title: 'Save', defaultPath: path.join(_chosenDownloadFolder() || app.getPath('downloads'), safeName), filters,
