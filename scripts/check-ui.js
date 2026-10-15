@@ -1443,6 +1443,12 @@ const SEEDED_PREFERENCES = {
   // "Welcome to Vex" card instead (.welcome-overlay, z-index 100000) — the
   // cause of "judged 0 foreground colours at classic/oxford".
   'vex.hasRunBefore': 'true',
+  // Game mode (js/game-session.js) asks "Turn on Game mode?" once, the moment
+  // the OS reports a full-screen app in front. The checker runs on a desktop
+  // somebody is using, so that dialog (z-index 2147483600) arrives mid-run and
+  // covers the whole window: "judged 0 foreground colours". An answered
+  // question is what a profile past its first game has.
+  'vex.gameMode': 'off',
 };
 
 function seedProfile(userDataDir) {
