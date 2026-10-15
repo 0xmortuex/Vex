@@ -70,3 +70,18 @@ ab2a912 none                       # v19.71.4 version bump
 ab3f4a15 none                       # v20.30.0 version bump
 21304d73 none                       # v20.31.0 version bump
 60b5a66e none                       # v20.86.6 version bump
+
+dae3bc4 none                       # merge commit (the work is ranked on its own commit)
+66dd0b3 none                       # merge commit (the work is ranked on its own commit)
+bcdd7c9 none                       # merge commit (the work is ranked on its own commit)
+d8f9b5a none                       # merge commit (the work is ranked on its own commit)
+b450a95 none                       # merge commit (the work is ranked on its own commit)
+2747e87 none                       # merge commit (the work is ranked on its own commit)
+0c6498c none                       # merge commit (the work is ranked on its own commit)
+e8fc110 none                       # merge commit (the work is ranked on its own commit)
+564724c none                       # merge commit (the work is ranked on its own commit)
+a2aab44 none                       # merge commit (the work is ranked on its own commit)
+d160bfe none                       # merge commit (the work is ranked on its own commit)
+42febfc none                       # merge commit (the work is ranked on its own commit)
+d6659fe none                       # merge commit (the work is ranked on its own commit)
+075c509 none                       # merge commit (the work is ranked on its own commit)
