@@ -17,8 +17,8 @@
 // costs one conditional request. The rules for "changed" are in
 // js/page-watch-diff.js.
 //
-// Patch Radar hook (not built yet): `source` says who made a watch ('user',
-// or later 'radar:steam-news', 'radar:roblox-version', 'radar:nvidia-driver').
+// Patch Radar (js/patch-radar.js): `source` says who made a watch ('user', or
+// 'radar:patch-notes' for a game's patch notes page).
 // A radar module registers its watches through add({ source, ... }) with the
 // URL of the vendor's endpoint and a `pattern` (kind 'regex') that pulls the
 // version out; the engine, history, backoff, notifications and the panel are
@@ -135,7 +135,7 @@ const PageWatch = {
   // the page can be found again; `render` reads the page as a hidden tab would
   // (for pages built by JavaScript); `wake` asks for Vex to be opened for the
   // check; `summarize` asks the local model for a sentence.
-  add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user' }) {
+  add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user', raw = false }) {
     const s = this.settings();
     const refused = this.refusalFor({ url, partition });
     if (refused) throw new Error(refused);
@@ -160,7 +160,7 @@ const PageWatch = {
       direction: ['up', 'down', 'any', 'below', 'above'].includes(direction) ? direction : 'any',
       target: target == null ? null : Number(target),
       every: ms,
-      render: !!render, wake: !!wake, summarize: summarize == null ? null : !!summarize,
+      raw: !!raw, render: !!render, wake: !!wake, summarize: summarize == null ? null : !!summarize,
       source: String(source || 'user').slice(0, 40),
       paused: false,
       addedAt: Date.now(), lastCheckedAt: 0, lastValue: null, lastChangedAt: 0, failures: 0,
@@ -386,7 +386,15 @@ const PageWatch = {
       const body = String(raw.body || '');
       const type = String((raw.headers && (raw.headers['content-type'] || raw.headers['Content-Type'])) || '').toLowerCase();
       const html = /html|xml/.test(type) || /^\s*</.test(body);
-      text = watch.selector ? this._partOf(body, watch) : (html ? AgentTools.htmlToText(body).text : body);
+      text = watch.selector ? this._partOf(body, watch) : (watch.raw ? body : (html ? AgentTools.htmlToText(body).text : body));
+    } else if (watch.raw && !watch.selector) {
+      // A feed (a radar watch): the markup itself, because the pattern looks
+      // for its tags and the readable-text reader would strip them.
+      const rr = await AgentTools._get(watch.url, conditional);
+      if (rr.status === 304) return { notModified: true };
+      const h = rr.headers || {};
+      etag = h.etag || h.ETag || null; lastModified = h['last-modified'] || h['Last-Modified'] || null;
+      text = String(rr.body || '');
     } else if (!watch.selector) {
       const r = await AgentTools.readUrl(watch.url, { maxText: Infinity, headers: conditional });
       if (r.notModified) return { notModified: true };
@@ -619,6 +627,12 @@ const PageWatch = {
   },
 
   announce(watch, verdict) {
+    // A game's patch notes page speaks for itself, and waits while the game runs.
+    if (typeof watch.source === 'string' && watch.source.startsWith('radar:') && typeof PatchRadar !== 'undefined') {
+      PatchRadar.announce(watch, verdict);
+      document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
+      return;
+    }
     let what;
     if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
     else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');

@@ -228,6 +228,17 @@ const VexI18nUI = {
       'Add this page to which game?': 'Bu sayfa hangi oyuna eklensin?',
       'Add this page to a game’s guide': 'Bu sayfayı bir oyunun rehberine ekle',
       'Off for now — Vex asks once, the first time a game starts.': 'Şimdilik kapalı — Vex, bir oyun ilk kez başladığında bir kez sorar.',
+      // Patch radar (js/patch-radar.js).
+      'Patch notes page': 'Yama notları sayfası', 'Add a patch notes page…': 'Yama notları sayfası ekle…',
+      'Patch notes page for': 'Yama notları sayfası:', 'Address, Steam app number, or GitHub owner/repo': 'Adres, Steam uygulama numarası veya GitHub sahip/depo',
+      'Look': 'Bak', 'new': 'yeni', 'seen': 'görüldü', 'paused': 'duraklatıldı', 'hidden tab': 'gizli sekme',
+      'suggested, unverified': 'önerilen, doğrulanmadı', 'Watch': 'İzle',
+      'New patch notes for': 'Yeni yama notları:', 'patch notes': 'yama notları', 'Patch notes': 'Yama notları',
+      'Watching for patch notes for': 'Yama notları izleniyor:', 'Watch for patch notes for': 'Yama notları izlensin mi:',
+      'This page needs JavaScript': 'Bu sayfa JavaScript gerektiriyor', 'Use the hidden tab': 'Gizli sekmeyi kullan',
+      'A feed. Newest item:': 'Bir besleme. En yeni öğe:',
+      'An ordinary page. Vex will say when its text changes.': 'Sıradan bir sayfa. Vex, metni değişince söyler.',
+      'Checked every 6 hours from this computer. Stop it any time here.': 'Bu bilgisayardan 6 saatte bir kontrol edilir. İstediğin zaman buradan durdurabilirsin.',
       // Game dossier (js/game-dossier.js).
       'Remember what you look at while you play?': 'Oynarken baktıklarınız hatırlansın mı?',
       'While one of your listed games runs, Vex will remember the web pages you open and the searches you make, so you can find that guide or build again. It keeps the address, title, time spent and, if Recall is on and already knows the page, a short snippet. It never records private windows, Tor or burner tabs, sign-in, payment, bank or mail pages, or sites on your never-remember list. It is stored only on this PC, is not synced, and you can delete one page or everything at any time.': 'Listenizdeki bir oyun çalışırken Vex, açtığınız web sayfalarını ve yaptığınız aramaları hatırlar; böylece o rehberi veya yapıyı yeniden bulabilirsiniz. Adresi, başlığı, geçirilen süreyi ve Recall açıksa ve sayfayı zaten biliyorsa kısa bir özeti saklar. Gizli pencereleri, Tor veya tek kullanımlık sekmeleri, giriş, ödeme, banka veya e-posta sayfalarını ve asla hatırlama listenizdeki siteleri kaydetmez. Yalnızca bu bilgisayarda tutulur, eşitlenmez ve istediğiniz zaman tek bir sayfayı ya da her şeyi silebilirsiniz.',

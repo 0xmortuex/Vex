@@ -1190,6 +1190,7 @@ function vexOwnTextFocused(doc) {
   // Pages the user asked to be told about (js/page-watch.js).
   if (typeof PageWatch !== 'undefined') PageWatch.start();
   if (typeof PageWatchUI !== 'undefined') PageWatchUI.init();
+  if (typeof PatchRadar !== 'undefined') { try { PatchRadar.init(); } catch (err) { window.VexProblems?.note('Patch radar', 'Could not start', err); } }
   GitHubWatch.start();
   SponsorSkip.init();
   DownloadsButton.init();

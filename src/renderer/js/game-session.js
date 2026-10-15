@@ -119,6 +119,7 @@ const GameSession = {
     if (pages[id]) { delete pages[id]; this._write(this.KEYS.pages, pages); }
     // Its automatic dossier goes with it (js/game-dossier.js).
     if (typeof GameDossier !== 'undefined') GameDossier.forgetGame(id);
+    if (typeof PatchRadar !== 'undefined') PatchRadar.forgetGame(id);
     if (this.active && this.gameId === id) this.closeGuide();
     this.syncWatch();
   },
@@ -521,6 +522,7 @@ const GameSession = {
       list.appendChild(addHere);
       wrap.appendChild(list);
       if (typeof GameDossier !== 'undefined') GameDossier.renderGame(wrap, g, () => this.renderSettings(host));
+      if (typeof PatchRadar !== 'undefined') PatchRadar.renderGame(wrap, g, () => this.renderSettings(host));
       host.appendChild(wrap);
     }
 

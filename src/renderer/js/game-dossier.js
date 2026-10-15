@@ -691,7 +691,8 @@ const GameDossier = {
       }),
       btn(t('Close'), close, 'vex-dialog-btn'),
     );
-    dlg.append(status, search, bar, aiOut, list);
+    const radar = typeof PatchRadar !== 'undefined' ? PatchRadar.latestBlock(gameId) : null;
+    dlg.append(status, ...(radar ? [radar] : []), search, bar, aiOut, list);
     overlay.appendChild(dlg);
     document.body.appendChild(overlay);
     paint();
