@@ -563,6 +563,9 @@ const SchedulesPanel = {
         built.sessionName = q('#sm-session').value.trim() || 'Auto';
       } else if (actionType === 'reminder') {
         built.message = q('#sm-message').value.trim();
+      } else if (actionType === 'pageScript') {
+        // Chosen in Settings > Page recorder; editing the task keeps it.
+        built.scriptId = action.scriptId;
       }
       return {
         name: q('#sm-name').value.trim(),

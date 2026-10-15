@@ -73,6 +73,12 @@ const PageActions = {
         const sel = selectorOf(m[1]);
         if (sel) steps.push({ op: 'hide', by: 'selector', value: sel });
         else fail('hide needs selector: …');
+      } else if ((m = /^ask\s+(.+)$/i.exec(t))) {
+        // "ask me": a field the script never fills itself (a password, a code).
+        // The run waits for the person to fill it and never reads the value.
+        const sel = selectorOf(m[1]);
+        if (sel) steps.push({ op: 'ask', by: 'selector', value: sel });
+        else fail('ask needs selector: …');
       } else if ((m = /^type\s+selector\s*:\s*(.+?)\s*=\s*("(?:[^"\\]|\\.)*")\s*$/i.exec(t))) {
         steps.push({ op: 'type', by: 'selector', value: m[1].trim(), text: quoted(m[2]) });
       } else {
@@ -85,10 +91,14 @@ const PageActions = {
   // The fixed interpreter handed to the guest. `steps` goes in as JSON data;
   // nothing the user wrote is ever concatenated into the code. It returns one
   // short line per step. No fetch, no storage, no eval.
-  guestCode(steps) {
+  // opts.dry: find every element and say what WOULD happen, change nothing.
+  // opts.noAsk: nobody is there to fill an "ask" field (a scheduled run).
+  guestCode(steps, opts = {}) {
+    const flags = JSON.stringify({ dry: opts.dry === true, noAsk: opts.noAsk === true });
     const data = JSON.stringify(steps.map(s => ({ op: s.op, by: s.by, value: String(s.value == null ? '' : s.value).slice(0, 500), text: s.text == null ? '' : String(s.text).slice(0, 500) })));
     return `(async function(){
   var steps = ${data};
+  var flags = ${flags};
   var out = [];
   var norm = function(s){ return String(s||'').replace(/\\s+/g,' ').trim().toLowerCase(); };
   var visible = function(el){ var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
@@ -108,7 +118,28 @@ const PageActions = {
   for (var n = 0; n < steps.length; n++) {
     var s = steps[n]; var label = (n + 1) + ' ' + s.op;
     try {
-      if (s.op === 'wait') { await sleep(Math.min(5000, Number(s.value) || 0)); out.push(label + ': ok'); continue; }
+      if (s.op === 'wait') { if (!flags.dry) await sleep(Math.min(5000, Number(s.value) || 0)); out.push(label + ': ok' + (flags.dry ? ' (would wait ' + s.value + ' ms)' : '')); continue; }
+      if (s.op === 'ask') {
+        var field = document.querySelector(s.value);
+        if (!field) { out.push(label + ': not found'); continue; }
+        if (flags.dry) { out.push(label + ': ok (would wait for you to fill ' + s.value + ')'); continue; }
+        if (flags.noAsk) { out.push(label + ': needs you'); continue; }
+        field.focus();
+        var waited = 0;
+        while (!field.value && waited < 120000) { await sleep(500); waited += 500; }
+        out.push(label + (field.value ? ': ok' : ': you did not fill it'));
+        continue;
+      }
+      if (flags.dry && s.op === 'scroll' && (s.by === 'top' || s.by === 'bottom')) { out.push(label + ': ok (would scroll ' + s.by + ')'); continue; }
+      if (flags.dry && s.op !== 'wait') {
+        // found? say so and do nothing.
+        var probeEl = null;
+        if (s.op === 'click') probeEl = find(s, 'a,button,[role=button],input[type=button],input[type=submit],summary,label');
+        else if (s.op === 'scroll') probeEl = find(s, 'h1,h2,h3,h4,h5,h6,section,article,[id],[role=heading]');
+        else probeEl = s.by === 'selector' ? document.querySelector(s.value) : null;
+        out.push(label + (probeEl ? ': ok (would ' + s.op + ' ' + (s.by === 'text' ? '"' + s.value + '"' : s.value) + ', found <' + probeEl.tagName.toLowerCase() + '>)' : ': not found'));
+        continue;
+      }
       if (s.op === 'scroll' && s.by === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); out.push(label + ': ok'); continue; }
       if (s.op === 'scroll' && s.by === 'bottom') { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); out.push(label + ': ok'); continue; }
       var el = null;
@@ -139,7 +170,13 @@ const PageActions = {
         && typeof s.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(s.id)
         && typeof s.name === 'string' && typeof s.origin === 'string' && /^https?:\/\/[^/]+$/i.test(s.origin)
         && typeof s.source === 'string' && s.source.length <= this.MAX_SOURCE)
-        .map(s => ({ id: s.id, name: s.name.slice(0, 80), origin: s.origin.toLowerCase(), source: s.source, autoRun: s.autoRun === true }))
+        .map(s => ({ id: s.id, name: s.name.slice(0, 80), origin: s.origin.toLowerCase(), source: s.source, autoRun: s.autoRun === true,
+          // Set by the page recorder (js/page-recorder.js): where a scheduled
+          // run starts, and the fingerprint of the source the person approved
+          // for unattended write steps. Anything else is dropped.
+          startUrl: typeof s.startUrl === 'string' && /^https?:\/\//i.test(s.startUrl) ? s.startUrl.slice(0, 800) : '',
+          scheduleApproval: typeof s.scheduleApproval === 'string' ? s.scheduleApproval.slice(0, 64) : '',
+          recorded: s.recorded === true }))
         .slice(0, this.MAX_SCRIPTS);
     }
     return out;
@@ -202,6 +239,8 @@ const PageActions = {
       s.source = String(source);
       // A changed script is a different script: it asks again before running by itself.
       s.autoRun = false;
+      // …and an unattended-write approval belongs to the text that was read.
+      s.scheduleApproval = '';
     }
     if (name != null) { const n = String(name).trim().slice(0, 80); if (!n) throw new Error('Give the script a name'); s.name = n; }
     this._save(state);
@@ -253,7 +292,8 @@ const PageActions = {
     return this._runOn(s, tab, wv, auto);
   },
 
-  async _runOn(s, tab, wv, auto) {
+  // opts.dry: report what would happen, change nothing. opts.noAsk: unattended.
+  async _runOn(s, tab, wv, auto, opts = {}) {
     const url = tab ? tab.url : '';
     const why = this.refusal(wv, url);
     if (why) throw new Error(why);
@@ -262,10 +302,10 @@ const PageActions = {
     if (parsed.errors.length || !parsed.steps.length) throw new Error('The script has an error: ' + (parsed.errors[0] ? 'line ' + parsed.errors[0].line + ' — ' + parsed.errors[0].message : 'no steps'));
     const total = parsed.steps.reduce((t, st) => t + (st.op === 'wait' ? Number(st.value) : 0), 0);
     if (total > 15000) throw new Error('The script waits more than 15 seconds in total');
-    const result = await wv.executeJavaScript(this.guestCode(parsed.steps));
-    const lines = Array.isArray(result) ? result.map(x => String(x).slice(0, 100)) : [];
-    const bad = lines.filter(l => !/: ok$/.test(l));
-    if (!auto || bad.length) {
+    const result = await wv.executeJavaScript(this.guestCode(parsed.steps, { dry: opts.dry === true, noAsk: opts.noAsk === true }));
+    const lines = Array.isArray(result) ? result.map(x => String(x).slice(0, 140)) : [];
+    const bad = lines.filter(l => !/: ok( \(|$)/.test(l));
+    if (opts.quiet !== true && (!auto || bad.length)) {
       window.showToast?.(bad.length ? s.name + ': ' + bad.join('; ') : s.name + ': done', bad.length ? 'error' : undefined);
     }
     return lines;
