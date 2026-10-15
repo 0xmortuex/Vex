@@ -7,7 +7,7 @@
 // all there is. js/page-watch.js (aiSentence) is the caller; the diff itself
 // comes from js/page-watch-diff.js.
 //
-//   prompt(watch, diff)            the request text (pure)
+//   requestText(watch, diff)            the request text (pure)
 //   clean(out)                     the model's answer as one or two sentences
 //   explain(watch, diff, deps)     { generate, model, signal } -> string
 //   explainStored(watchId, deps)   the same for the last two kept snapshots
@@ -16,7 +16,7 @@ const PageWatchExplain = {
   MAX_LINE: 200,
   MAX_ANSWER: 320,
 
-  prompt(watch, diff) {
+  requestText(watch, diff) {
     const lines = (arr, sign) => (arr || []).slice(0, this.MAX_LINES).map(l => sign + ' ' + String(l).slice(0, this.MAX_LINE)).join('\n');
     const what = watch && (watch.title || watch.url) ? String(watch.title || watch.url).slice(0, 120) : 'a web page';
     return 'A web page the user watches ("' + what + '") changed. Lines removed (-) and added (+):\n'
@@ -40,7 +40,7 @@ const PageWatchExplain = {
     if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', stop, { once: true }); }
     const timer = setTimeout(stop, timeoutMs);
     try {
-      return this.clean(await generate(model, this.prompt(watch, diff), { temperature: 0.2, maxTokens: 110, signal: ctl.signal }));
+      return this.clean(await generate(model, this.requestText(watch, diff), { temperature: 0.2, maxTokens: 110, signal: ctl.signal }));
     } finally {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', stop);

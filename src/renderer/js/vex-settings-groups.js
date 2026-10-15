@@ -20,10 +20,36 @@ const VexSettingsGroups = {
 
   register(def) {
     if (!def || !/^[a-z][a-z0-9-]{0,63}$/.test(String(def.id || ''))) throw new Error('A Settings section needs an id of lowercase letters, digits and dashes');
-    if (typeof def.build !== 'function') throw new Error('Settings section "' + def.id + '" needs build(el)');
-    this._defs.set(def.id, { title: String(def.title || def.id), keywords: String(def.keywords || ''), before: def.before ? String(def.before).toLowerCase() : '', build: def.build });
+    // Two shapes share this one registry: build(el) fills the whole group (the
+    // platform tools), render(body) fills the body under a title the registry
+    // draws (the per-module groups; their element id is setting-<id>).
+    const hasBuild = typeof def.build === 'function', hasRender = typeof def.render === 'function';
+    if (!hasBuild && !hasRender) throw new Error('Settings section "' + def.id + '" needs build(el) or render(body)');
+    if (!hasBuild && (typeof def.title !== 'string' || !def.title.trim())) throw new Error('A settings group needs a title');
+    this._defs.set(def.id, { title: String(def.title || def.id), keywords: String(def.keywords || ''), before: def.before ? String(def.before).toLowerCase() : '', build: hasBuild ? def.build : null, render: hasRender ? def.render : null });
+    this._wrap();
     // Settings already drawn: it appears now, not at the next open.
     this.inject();
+    return def.id;
+  },
+
+  ids() { return Array.from(this._defs.keys()); },
+
+  // Create or refresh every registered group under root (.settings-content).
+  mount(root) { return this.inject(root); },
+
+  // Settings reads the groups present when enhance() runs, so ours go in just
+  // before it. Wrapped once, whichever module registers first.
+  _wrap() {
+    if (typeof SettingsUI === 'undefined' || typeof SettingsUI.enhance !== 'function' || SettingsUI._vexGroupsPatched) return;
+    const original = SettingsUI.enhance;
+    SettingsUI.enhance = function () {
+      try { VexSettingsGroups.inject(); } catch (err) { console.error('[Settings] module groups failed:', err); }
+      const out = original.apply(this, arguments);
+      if (typeof VexUsage !== 'undefined') VexUsage.applyGroups();
+      return out;
+    };
+    SettingsUI._vexGroupsPatched = true;
   },
 
   // The full-screen card the platform tools share (the Backup screen's look,
@@ -97,17 +123,18 @@ const VexSettingsGroups = {
 
   // Idempotent. Puts every registered section in the list (building each one
   // fresh) and returns how many are there.
-  inject() {
+  inject(rootArg) {
     if (typeof document === 'undefined') return 0;
-    const root = document.querySelector('#panel-settings .settings-content');
+    const root = rootArg || document.querySelector('#panel-settings .settings-content');
     if (!root) return 0;
     let n = 0;
     for (const [id, def] of this._defs) {
-      let el = document.getElementById('vex-sg-' + id);
+      const elId = def.build ? 'vex-sg-' + id : 'setting-' + id;
+      let el = root.querySelector(':scope > #' + elId) || (rootArg ? null : document.getElementById(elId));
       const fresh = !el;
       if (fresh) {
         el = document.createElement('div');
-        el.id = 'vex-sg-' + id;
+        el.id = elId;
         el.className = 'setting-group';
         el.dataset.keywords = def.keywords;
       }
@@ -116,8 +143,13 @@ const VexSettingsGroups = {
       label.className = 'setting-label';
       label.textContent = def.title;
       el.appendChild(label);
-      try { def.build(el); }
-      catch (err) { console.error('[Settings] section "' + id + '" could not be built:', err); }
+      let into = el;
+      if (!def.build) { into = document.createElement('div'); into.className = 'vex-module-group-body'; el.appendChild(into); }
+      try { (def.build || def.render)(into); }
+      catch (err) {
+        console.error('[Settings] section "' + id + '" could not be built:', err);
+        if (!def.build) into.textContent = 'This section could not be shown: ' + ((err && err.message) || err);
+      }
       if (fresh) {
         const anchor = def.before
           ? Array.from(root.children).find(c => c.classList && c.classList.contains('setting-group')
@@ -134,16 +166,9 @@ const VexSettingsGroups = {
 
 // Settings builds its chips and tiers from the sections present when
 // enhance() runs, so the sections go in just before it.
-if (typeof SettingsUI !== 'undefined' && typeof SettingsUI.enhance === 'function' && !SettingsUI._vexGroupsPatched) {
-  const original = SettingsUI.enhance;
-  SettingsUI.enhance = function () {
-    VexSettingsGroups.inject();
-    const out = original.apply(this, arguments);
-    if (typeof VexUsage !== 'undefined') VexUsage.applyGroups();
-    return out;
-  };
-  SettingsUI._vexGroupsPatched = true;
-}
+VexSettingsGroups._wrap();
+// A module registered before settings-ui.js was parsed gets wrapped here.
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => VexSettingsGroups._wrap());
 
 if (typeof window !== 'undefined') window.VexSettingsGroups = VexSettingsGroups;
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexSettingsGroups };

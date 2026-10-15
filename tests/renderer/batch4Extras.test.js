@@ -107,7 +107,7 @@ describe('PageWatchExplain', () => {
   const diff = { removed: ['Price $299.00'], added: ['Price $249.00', 'Sale ends Friday'] };
 
   it('asks what changed and whether it matters, with the changed lines', () => {
-    const p = PageWatchExplain.prompt({ title: 'GPU Shop' }, diff);
+    const p = PageWatchExplain.requestText({ title: 'GPU Shop' }, diff);
     expect(p).toContain('GPU Shop');
     expect(p).toContain('- Price $299.00');
     expect(p).toContain('+ Sale ends Friday');
