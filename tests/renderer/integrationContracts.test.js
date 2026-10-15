@@ -129,3 +129,15 @@ describe('toast rate gate', () => {
     expect(() => VexAttention.gate('', '1')).toThrow();
   });
 });
+
+describe('FlashMind and the sidebar', () => {
+  it('uses the public site-panel methods, not the private ones', () => {
+    const fm = fs.readFileSync(path.join(JS, 'flashmind-bridge.js'), 'utf8');
+    expect(fm).not.toMatch(/SidebarManager\._/);
+    expect(fm).toContain('SidebarManager.pinSitePanel(');
+    expect(fm).toContain('SidebarManager.hasSitePanel(');
+    const sb = fs.readFileSync(path.join(JS, 'sidebar.js'), 'utf8');
+    expect(sb).toContain('hasSitePanel(id)');
+    expect(sb).toContain('pinSitePanel({ id, name, url } = {})');
+  });
+});
