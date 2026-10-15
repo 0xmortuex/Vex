@@ -47,8 +47,20 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // even after the toast has sat in Action Center for an hour.
   const xmlEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const inProfile = profile && /^p-[a-z0-9]{8}$/.test(String(profile)) ? '?profile=' + profile : '';
-  function toastXml({ title, body, tag, iconPath: img }) {
+  function toastXml({ title, body, tag, iconPath: img, kind }) {
     const image = img ? `<image placement="appLogoOverride" src="${xmlEsc(img)}"/>` : '';
+    // A news toast (js/ai-news.js) is not an alarm: no reminder scenario, which
+    // would keep it on screen until dismissed, and no Snooze. Its buttons are
+    // Open and "Mute this source" (vex://news-open|news-mute, main.js).
+    if (kind === 'news') {
+      return `<toast activationType="protocol" launch="vex://news-open/${xmlEsc(tag)}${inProfile}">
+  <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
+  <actions>
+    <action content="Open" activationType="protocol" arguments="vex://news-open/${xmlEsc(tag)}${inProfile}"/>
+    <action content="Mute this source" activationType="protocol" arguments="vex://news-mute/${xmlEsc(tag)}${inProfile}"/>
+  </actions>
+</toast>`;
+    }
     return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}${inProfile}">
   <visual><binding template="ToastGeneric">${image}<text>${xmlEsc(title)}</text><text>${xmlEsc(body)}</text></binding></visual>
   <actions>
@@ -63,7 +75,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // both are failures the caller must be able to report.
   // onClick, where given, is this toast's own click (an extension's
   // chrome.notifications.onClicked) in place of the one for every toast.
-  function show({ title, body, silent = false, tag, actions = false, onClick: ownClick } = {}) {
+  function show({ title, body, silent = false, tag, actions = false, kind, onClick: ownClick } = {}) {
     const heading = String(title || '').trim();
     if (!heading) return Promise.reject(new Error('A notification needs a title'));
     if (!isSupported()) return Promise.reject(new Error('This system does not support desktop notifications'));
@@ -83,7 +95,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
         // Buttons need the raw toast XML, which replaces everything above on
         // Windows; the tag is what the buttons carry back.
         if (actions && tag && process.platform === 'win32' && /^[A-Za-z0-9_-]{1,64}$/.test(String(tag))) {
-          opts.toastXml = toastXml({ title: heading, body: String(body || ''), tag, iconPath });
+          opts.toastXml = toastXml({ title: heading, body: String(body || ''), tag, iconPath, kind });
         }
         n = new Notification(opts);
       } catch (err) {

@@ -594,6 +594,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof PageWatchUI !== 'undefined') {
       PageWatchUI.renderSettings(document.getElementById('pagewatch-panel-content'));
     }
+    if (panelName === 'settings' && typeof AINewsUI !== 'undefined') {
+      AINewsUI.renderSettings(document.getElementById('ainews-panel-content'));
+    }
     if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
       FocusMode.renderPanel(document.getElementById('focus-panel-content'));
     }

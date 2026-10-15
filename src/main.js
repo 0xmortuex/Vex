@@ -9191,12 +9191,19 @@ function focusMainWindow() {
 // when the argument was one of ours.
 //   vex://snooze/<id>   push the reminder back nine minutes
 //   vex://open/<id>     open it in the interface
+//   vex://news-open/<tag>  open an AI news item in a tab (js/ai-news.js)
+//   vex://news-mute/<tag>  mute that item's source
 function handleVexAction(arg) {
   // `?profile=<id>`: the profile the toast came from (main/notify.js), already
   // used to pick this profile at launch.
-  const m = /^vex:\/\/(snooze|open)\/([A-Za-z0-9_-]{1,64})\/?(?:\?profile=[a-z0-9-]{1,40})?$/.exec(String(arg || ''));
+  const m = /^vex:\/\/(snooze|open|news-open|news-mute)\/([A-Za-z0-9_-]{1,64})\/?(?:\?profile=[a-z0-9-]{1,40})?$/.exec(String(arg || ''));
   if (!m) return false;
   const [, action, id] = m;
+  if (action === 'news-open' || action === 'news-mute') {
+    // Not a reminder: it never touches them.
+    _newsActivated(action === 'news-open' ? 'open' : 'mute', id);
+    return true;
+  }
   focusMainWindow();
   const send = (channel, payload) => { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload); } catch {} };
   if (!reminders) { console.error('[Reminders] toast action before reminders started:', arg); return true; }
@@ -9211,12 +9218,27 @@ function handleVexAction(arg) {
   return true;
 }
 
+// AI news (js/ai-news.js): a click or a button on a news toast is kept here
+// until the interface has taken it (news:pending), and the interface is told
+// something is waiting. The address a toast was made with is remembered too.
+const _newsToast = require('./main/news-toast');
+const _newsUrls = _newsToast.createUrlTable();
+const _newsPending = [];
+function _newsActivated(action, tag) {
+  if (action === 'open') focusMainWindow();
+  _newsPending.push({ action, tag, url: _newsUrls.get(tag) });
+  while (_newsPending.length > 50) _newsPending.shift();
+  try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('news:waiting', {}); }
+  catch (err) { console.error('[News] could not tell the interface:', err.message); }
+}
+
 const notifier = require('./main/notify').createNotifier({
   Notification, nativeImage,
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
   // Clicking a toast brings Vex forward; a reminder's toast also opens the
   // reminder itself in the interface, with a way to snooze it.
   onClick: ({ tag } = {}) => {
+    if (tag && _newsToast.TAG.test(tag)) { _newsActivated('open', tag); return; }
     focusMainWindow();
     if (tag && reminders && mainWindow && !mainWindow.isDestroyed()) {
       try { mainWindow.webContents.send('reminders:clicked', { id: tag }); } catch {}
@@ -9283,6 +9305,20 @@ ipcMain.handle('notify:show', async (_e, payload) => {
   // Rejections travel to the renderer as the error message; nothing is hidden.
   return notifier.show({ title, body });
 });
+
+// An AI news item as a Windows toast, with Open and "Mute this source"
+// buttons. Only Vex's own window may ask (UI_ONLY_CHANNELS), never a private
+// window (PRIVATE_DISABLED), and the payload is checked again here. While Vex
+// is locked nothing is shown: the headline would be on screen for whoever is
+// at the computer; the interface keeps the item and says so.
+ipcMain.handle('news:notify', async (_e, payload) => {
+  if (_vexLocked) throw new Error('Vex is locked');
+  const n = _newsToast.validateNewsToast(payload);
+  _newsUrls.set(n.tag, n.url);
+  return notifier.show({ title: n.title, body: n.body, silent: n.silent, tag: n.tag, actions: true, kind: 'news' });
+});
+// What was clicked while the interface was not listening, once.
+ipcMain.handle('news:pending', async () => _newsPending.splice(0, _newsPending.length));
 
 // === Userscripts (src/main/userscripts.js, src/userscripts-preload.js) ======
 // A small ==UserScript== manager. The scripts and their saved values live in

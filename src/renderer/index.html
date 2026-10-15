@@ -197,6 +197,9 @@
       <!-- Only visible while a watched page has changed and you have not looked
            (js/page-watch-ui.js). -->
       <button id="btn-page-watch" class="nav-btn" title="Watched pages" aria-label="Watched pages" hidden></button>
+      <!-- Only visible while AI news you follow has not been looked at
+           (js/ai-news-ui.js). -->
+      <button id="btn-ai-news" class="nav-btn" title="AI news" aria-label="AI news" aria-haspopup="dialog" hidden></button>
       <!-- Only visible while userscripts are running on the page in view
            (js/userscripts.js): the count, the list and the off switch. -->
       <button id="btn-userscripts" class="nav-btn" title="Userscripts running on this page" aria-haspopup="dialog" hidden>
@@ -1149,6 +1152,14 @@
               </div>
             </div>
 
+            <!-- AI news: off until turned on; what to follow, how to be told (js/ai-news-ui.js) -->
+            <div class="setting-group" id="settings-ainews">
+              <label class="setting-label">AI news</label>
+              <div id="ainews-panel-content">
+                <div style="color:var(--text-muted);font-size:12px">Loading...</div>
+              </div>
+            </div>
+
             <!-- Focus mode blocklist -->
             <div class="setting-group">
               <label class="setting-label">Focus</label>
@@ -1670,6 +1681,8 @@
   <script src="js/page-watch.js"></script>
   <script src="js/page-watch-ui.js"></script>
   <script src="js/github-watch.js"></script>
+  <script src="js/ai-news.js"></script>
+  <script src="js/ai-news-ui.js"></script>
   <script src="js/patch-radar.js"></script>
   <script src="js/sponsor-skip.js"></script>
   <script src="js/site-volume.js"></script>

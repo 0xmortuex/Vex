@@ -1199,6 +1199,9 @@ function vexOwnTextFocused(doc) {
   if (typeof PageWatchUI !== 'undefined') PageWatchUI.init();
   if (typeof PatchRadar !== 'undefined') { try { PatchRadar.init(); } catch (err) { window.VexProblems?.note('Patch radar', 'Could not start', err); } }
   GitHubWatch.start();
+  // News about AI that you chose to hear (js/ai-news.js); off until turned on.
+  if (typeof AINews !== 'undefined') { try { AINews.init(); } catch (err) { window.VexProblems?.note('AI news', 'Could not start', err); } }
+  if (typeof AINewsUI !== 'undefined') { try { AINewsUI.init(); } catch (err) { window.VexProblems?.note('AI news', 'Could not show the toolbar badge', err); } }
   SponsorSkip.init();
   DownloadsButton.init();
   SiteVolume.init();

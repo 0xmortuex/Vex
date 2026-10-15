@@ -504,6 +504,14 @@ contextBridge.exposeInMainWorld('vex', {
   // file:// page and Chromium denies it the Notification API. Resolves once
   // Windows has shown the toast; rejects with the reason when it did not.
   notify: (title, body) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body) }),
+  // AI news (js/ai-news.js): a Windows toast with Open and "Mute this source"
+  // buttons. `tag` starts "news-"; `url` is https only. A click or a button
+  // arrives as news:waiting, and pending() hands over what was clicked.
+  news: {
+    notify: (payload) => ipcRenderer.invoke('news:notify', payload),
+    pending: () => ipcRenderer.invoke('news:pending'),
+    onWaiting: (cb) => subscribe('news:waiting', cb),
+  },
   // A password or one-time code onto the clipboard; the main process empties
   // it after `seconds` if it is still there, focus or no focus.
   copySecret: (text, seconds) => ipcRenderer.invoke('clipboard:write-secret', text, seconds),

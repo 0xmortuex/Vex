@@ -185,6 +185,15 @@ define('storage-save', [string(64), value => value !== undefined]);
 // A password or one-time code to copy, and how long until it is cleared.
 define('clipboard:write-secret', [value => typeof value === 'string' && value.length > 0 && value.length <= 10000, optional(value => Number.isInteger(value) && value >= 5 && value <= 300)]);
 define('notify:show',[shape({ title: string(200), body: optional(string(2000)) })]);
+// An AI news toast (src/main/news-toast.js checks it again): a tag the toast's
+// buttons carry back, an https address, short text. main.js 'news:notify'.
+const httpsOnly = value => typeof value === 'string' && value.length <= 2048 && (() => { try { return new URL(value).protocol === 'https:'; } catch { return false; } })();
+define('news:notify', [shape({
+  title: string(120), body: optional(string(400)), silent: optional(boolean),
+  tag: value => typeof value === 'string' && /^news-[A-Za-z0-9_-]{1,56}$/.test(value),
+  url: optional(httpsOnly),
+})]);
+define('news:pending', []);
 // A reminder is timed (`at`, optionally repeating) or site-triggered (`site`);
 // either may carry the page it is about and an urgent flag.
 const weekdayList = value => Array.isArray(value) && value.length > 0 && value.length <= 7 && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6);

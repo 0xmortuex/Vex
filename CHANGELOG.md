@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **AI news (Settings › AI news, off until you turn it on):** Vex tells you about new AI stories you chose to follow. Pick topics, companies, models, sources and words to follow or mute, set a minimum importance, and choose how you are told: a Windows notification (with Open and "Mute this source" buttons; Open puts the story in a new tab), a pop-up inside Vex, a toolbar badge with the number you have not looked at, or a daily digest. Quiet hours (the evening to the morning counts) hold pop-ups and tell you once afterwards; a busy hour becomes one "N new stories" line; a game or battery saving holds the check. The panel lists stories by day, one line per story however many sources reported it, and "Why was I notified?" names the rule. It reads one JSON file at an address you can see and change, sends nothing about you, and no AI decides what reaches you. Stories already there when you turn it on are not shown as new. Not in Vex Sync; your choices are in a backup, the stories only if you tick the box.
+
 ## v21.99.8 (2026-10-15) — Game mode and your games, userscripts, a smarter page watcher, battery mode and a calmer browser
 
 ### New
