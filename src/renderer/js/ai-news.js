@@ -78,6 +78,11 @@ const AINews = {
       defaultAction: 'panel',
       minImportance: 40,
       breakingOnly: false,
+      // Which languages are kept: primary language codes ('en', 'tr', 'zh') plus
+      // 'other' for any code not named in LANGUAGES. A story with no language
+      // is read as English ('include') or not kept ('exclude').
+      languages: ['en'],
+      unknownLanguage: 'include',
       sound: true,
       quietHours: { enabled: false, from: '23:00', to: '08:00', allowBreaking: false },
       caps: { windowsPerHour: 4, toastPerHour: 8, catchUpMax: 5 },
@@ -102,6 +107,13 @@ const AINews = {
 
   _list(v, max = this.LIMITS.list * 8) {
     return Array.isArray(v) ? [...new Set(v.filter(x => typeof x === 'string').map(x => x.trim()).filter(Boolean).map(x => x.slice(0, this.LIMITS.word)))].slice(0, max) : [];
+  },
+  // The languages the settings name, as lower-case primary subtags ('en-GB' is 'en'),
+  // plus 'other'. Anything else is left out; the list may come out empty.
+  _langList(v) {
+    if (!Array.isArray(v)) return [];
+    const out = v.filter(x => typeof x === 'string').map(x => x.trim().toLowerCase().split(/[-_]/)[0]).filter(x => x === 'other' || /^[a-z]{2,3}$/.test(x));
+    return [...new Set(out)].slice(0, 20);
   },
   _hhmm(v, fallback) { return typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : fallback; },
   _num(v, lo, hi, fallback) { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback; },
@@ -132,6 +144,9 @@ const AINews = {
       defaultAction: ['panel', 'badge', 'drop'].includes(s.defaultAction) ? s.defaultAction : d.defaultAction,
       minImportance: this._num(s.minImportance, 0, 100, d.minImportance),
       breakingOnly: s.breakingOnly === true,
+      // Stored prefs from before this setting have no list: English only.
+      languages: (() => { const l = this._langList(s.languages); return l.length ? l : d.languages.slice(); })(),
+      unknownLanguage: s.unknownLanguage === 'exclude' ? 'exclude' : 'include',
       sound: s.sound !== false,
       quietHours: {
         enabled: sub('quietHours').enabled === true,
@@ -187,10 +202,44 @@ const AINews = {
       next[k] = v && typeof v === 'object' && !Array.isArray(v) && cur[k] && typeof cur[k] === 'object' && !Array.isArray(cur[k]) ? { ...cur[k], ...v } : v;
     }
     if ('feedUrl' in patch) this.checkFeedUrl(String(patch.feedUrl || '').trim());
+    if ('languages' in patch && !this._langList(patch.languages).length) throw new Error(this.LANGUAGE_REFUSED);
     const clean = this.sanitizePrefs(next);
     this._writeJson(this.PREFS_KEY, clean);
+    // Stories already held in a language that is no longer wanted go now.
+    const removed = this._dropUnwantedLanguages(clean);
+    if (removed) { this.state().languageRemoved = removed; this._save(); }
     this._changed('prefs');
     return clean;
+  },
+
+  LANGUAGE_REFUSED: 'Keep at least one language ticked',
+  // The languages the settings list by name; 'other' is every code not here.
+  LANGUAGES: [{ id: 'en', label: 'English' }, { id: 'tr', label: 'Turkish' }, { id: 'zh', label: 'Chinese' }],
+
+  // An item's primary language code. A story with no language is English when
+  // unknownLanguage is 'include' (the default), and '' (never kept) otherwise.
+  languageOf(item, prefs = this.prefs()) {
+    const raw = typeof (item && item.lang) === 'string' ? item.lang.trim().toLowerCase().split(/[-_]/)[0] : '';
+    if (raw) return raw;
+    return prefs.unknownLanguage === 'exclude' ? '' : 'en';
+  },
+  languageWanted(item, prefs = this.prefs()) {
+    const code = this.languageOf(item, prefs);
+    if (!code) return false;
+    if (prefs.languages.includes(code)) return true;
+    return prefs.languages.includes('other') && !this.LANGUAGES.some(l => l.id === code);
+  },
+  // Removes held stories whose language is no longer wanted (at most the held
+  // 300). Returns how many went; says nothing by itself.
+  _dropUnwantedLanguages(prefs) {
+    const st = this.state();
+    const gone = Object.values(st.items).filter(i => !this.languageWanted(i, prefs)).map(i => i.id);
+    if (!gone.length) return 0;
+    const set = new Set(gone);
+    for (const id of gone) delete st.items[id];
+    st.queue = st.queue.filter(id => !set.has(id));
+    st.digest = st.digest.filter(id => !set.has(id));
+    return gone.length;
   },
 
   PRIVATE_REFUSED: 'A private window does not keep AI news: what it fetched would be remembered after it closes',
@@ -450,7 +499,7 @@ const AINews = {
   // ---- state ------------------------------------------------------------------------
   _blank() {
     return { v: 1, baselined: false, etag: '', lastModified: '', lastPollAt: 0, lastOkAt: 0, nextPollAt: 0, generatedAt: 0, failures: 0, error: '',
-      notModified: 0, items: {}, seen: [], clusters: {}, queue: [], digest: [], digestDay: '', sent: { windows: [], toast: [] }, lastDelivery: null };
+      notModified: 0, filteredLanguage: 0, languageRemoved: 0, items: {}, seen: [], clusters: {}, queue: [], digest: [], digestDay: '', sent: { windows: [], toast: [] }, lastDelivery: null };
   },
   state() {
     if (this._state) return this._state;
@@ -553,6 +602,9 @@ const AINews = {
       st.lastModified = String(h['last-modified'] || h['Last-Modified'] || '').slice(0, 100);
       st.failures = 0; st.error = ''; st.lastOkAt = now; st.generatedAt = feed.generatedAt;
       st.nextPollAt = now + prefs.pollMinutes * 60000;
+      // A change of language choice made before this check removes what is held.
+      const purged = this._dropUnwantedLanguages(prefs);
+      if (purged || st.languageRemoved) st.languageRemoved = purged;
       const summary = await this._ingest(feed.items, now, prefs);
       this._save();
       this._changed('poll');
@@ -561,8 +613,14 @@ const AINews = {
   },
 
   // New items into the store, then through the rules, then out.
-  async _ingest(items, now, prefs) {
+  async _ingest(allItems, now, prefs) {
     const st = this.state();
+    // Language first: a story in a language that is not wanted is never stored,
+    // told, counted or looked at by a rule. It is not marked seen either, so
+    // ticking its language later brings it in as new.
+    const items = allItems.filter(i => this.languageWanted(i, prefs));
+    const filteredLanguage = allItems.length - items.length;
+    st.filteredLanguage = filteredLanguage;
     const seen = new Set(st.seen);
     const fresh = items.filter(i => !seen.has(i.id));
     const baseline = !st.baselined;
@@ -590,14 +648,14 @@ const AINews = {
     }
     st.baselined = true;
     this._trim(st);
-    if (baseline) return { baseline: true, added: fresh.length, delivered: 0 };
+    if (baseline) return { baseline: true, added: fresh.length, delivered: 0, filteredLanguage };
 
     const sent = this._pruneSent(st, now);
     const plan = this.plan(verdicts, { now, prefs, held: this.io().gaming() ? 'a game is running' : '', sentWindows: sent.windows.length, sentToast: sent.toast.length });
     for (const id of plan.digest) if (!st.digest.includes(id)) st.digest.push(id);
     for (const it of plan.queued) if (!st.queue.includes(it.id)) st.queue.push(it.id);
     const delivered = await this._deliver(plan, now);
-    return { added: fresh.length, muted, duplicates, delivered, queued: plan.queued.length, summarised: plan.summary.count, quiet: plan.quiet };
+    return { added: fresh.length, filteredLanguage, muted, duplicates, delivered, queued: plan.queued.length, summarised: plan.summary.count, quiet: plan.quiet };
   },
 
   _pruneSent(st, now) {
@@ -890,6 +948,7 @@ const AINews = {
     else if (st.lastOkAt) parts.push('Last checked ' + new Date(st.lastOkAt).toLocaleTimeString() + ' — ' + Object.keys(st.items).length + ' stories held');
     else parts.push('Not checked yet');
     if (this.inQuietHours(now, p.quietHours)) parts.push('quiet hours until ' + new Date(this.quietEndsAt(now, p.quietHours)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    if (st.languageRemoved) parts.push(st.languageRemoved + ' held ' + (st.languageRemoved === 1 ? 'story' : 'stories') + ' in a language you did not choose removed');
     if (st.queue.length) parts.push(st.queue.length + ' waiting for the end of quiet hours or the game');
     if (st.lastDelivery && st.lastDelivery.error) parts.push('Windows did not show the last notification: ' + st.lastDelivery.error);
     return { text: parts.join(' · '), level: st.error ? 'error' : 'ok' };

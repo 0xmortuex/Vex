@@ -435,3 +435,93 @@ describe('badge and panel logic', () => {
     expect(AINewsUI.filterItems(items, { q: 'paper' }).map(i => i.id)).toEqual(['c']);
   });
 });
+
+describe('language filter', () => {
+  let store, answers, sent, shown;
+  beforeEach(() => {
+    store = {};
+    globalThis.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+    AINews._state = null;
+    answers = []; sent = []; shown = [];
+    AINews._io = {
+      request: async () => { const a = answers.shift(); if (!a) throw new Error('no answer queued'); return a; },
+      notify: async (p) => { sent.push(p); },
+      toast: (t) => { shown.push(t); },
+      gaming: () => false,
+    };
+    AINews.setPrefs({ enabled: true });
+  });
+  const ok = (items) => ({ ok: true, status: 200, headers: { etag: '"v"' }, body: JSON.stringify(feed(items)) });
+  const T = 1_000_000_000_000;
+
+  it('keeps English only by default, matching on the primary subtag', () => {
+    const p = AINews.prefs();
+    expect(p.languages).toEqual(['en']);
+    expect(AINews.languageWanted(item({ lang: 'en' }), p)).toBe(true);
+    expect(AINews.languageWanted(item({ lang: 'en-GB' }), p)).toBe(true);
+    expect(AINews.languageWanted(item({ lang: 'tr' }), p)).toBe(false);
+    const zh = prefs({ languages: ['zh'] });
+    expect(AINews.languageWanted(item({ lang: 'zh-CN' }), zh)).toBe(true);
+    expect(AINews.languageWanted(item({ lang: 'en' }), zh)).toBe(false);
+  });
+  it('a story with no language counts as English', () => {
+    expect(AINews.languageWanted(item({ lang: '' }), prefs())).toBe(true);
+    expect(AINews.languageWanted(item({}), prefs())).toBe(true);
+    expect(AINews.languageWanted(item({}), prefs({ languages: ['tr'] }))).toBe(false);
+    expect(AINews.languageWanted(item({}), prefs({ unknownLanguage: 'exclude' }))).toBe(false);
+  });
+  it('"other" matches any code the settings do not list', () => {
+    const p = prefs({ languages: ['en', 'other'] });
+    expect(AINews.languageWanted(item({ lang: 'de' }), p)).toBe(true);
+    expect(AINews.languageWanted(item({ lang: 'tr' }), p)).toBe(false);
+  });
+  it('old stored prefs without languages get English', () => {
+    store[AINews.PREFS_KEY] = JSON.stringify({ v: 1, enabled: true });
+    expect(AINews.prefs().languages).toEqual(['en']);
+    expect(AINews.sanitizePrefs({ languages: [] }).languages).toEqual(['en']);
+    expect(AINews.sanitizePrefs({ languages: ['TR-tr', 'x', 5] }).languages).toEqual(['tr']);
+  });
+  it('refuses a patch that leaves no language', () => {
+    expect(() => AINews.setPrefs({ languages: [] })).toThrow(/at least one language/);
+    expect(AINews.prefs().languages).toEqual(['en']);
+  });
+  it('filtered items never reach the store, rules, queue or badge, and are counted', async () => {
+    answers.push(ok([mk({ id: 'z' })]));
+    await AINews.poll({ now: T });
+    answers.push(ok([mk({ id: 'z' }), mk({ id: 'tr1', lang: 'tr', cluster: 'x1' }), mk({ id: 'zh1', lang: 'zh', cluster: 'x2' }), mk({ id: 'en1', lang: 'en', cluster: 'x3' })]));
+    const spy = vi.spyOn(AINews, 'evaluate');
+    const r = await AINews.poll({ now: T + 20 * 60000 });
+    expect(r.filteredLanguage).toBe(2);
+    expect(spy.mock.calls.map(c => c[0].id)).toEqual(['en1']);
+    spy.mockRestore();
+    expect(AINews.get('tr1')).toBeNull();
+    expect(AINews.get('zh1')).toBeNull();
+    expect(AINews.get('en1')).not.toBeNull();
+    expect(AINews.unseenCount()).toBe(1);
+    expect(sent.length).toBe(1);
+    expect(AINews.state().filteredLanguage).toBe(2);
+  });
+  it('the baseline does not store filtered items either', async () => {
+    answers.push(ok([mk({ id: 'a' }), mk({ id: 'b', lang: 'tr', cluster: 'b' })]));
+    const r = await AINews.poll({ now: T });
+    expect(r.baseline).toBe(true);
+    expect(r.filteredLanguage).toBe(1);
+    expect(AINews.get('b')).toBeNull();
+  });
+  it('stored stories in an unwanted language are removed when prefs are saved', async () => {
+    AINews.setPrefs({ languages: ['en', 'tr'] });
+    answers.push(ok([mk({ id: 'z' })]));
+    await AINews.poll({ now: T });
+    answers.push(ok([mk({ id: 'z' }), mk({ id: 'tr1', lang: 'tr', cluster: 'x1' }), mk({ id: 'en1', cluster: 'x3' })]));
+    await AINews.poll({ now: T + 20 * 60000 });
+    expect(AINews.get('tr1')).not.toBeNull();
+    AINews.state().queue.push('tr1'); AINews.state().digest.push('tr1');
+    AINews.setPrefs({ languages: ['en'] });
+    expect(AINews.get('tr1')).toBeNull();
+    expect(AINews.get('en1')).not.toBeNull();
+    expect(AINews.state().queue).not.toContain('tr1');
+    expect(AINews.state().digest).not.toContain('tr1');
+    expect(AINews.state().languageRemoved).toBe(1);
+    expect(AINews.status().text).toMatch(/1 held story in a language you did not choose removed/);
+  });
+});

@@ -151,7 +151,9 @@ const AINewsUI = {
 
     const list = document.createElement('div');
     list.id = 'ain-list'; list.className = 'ain-list'; list.setAttribute('aria-live', 'polite');
-    card.append(head, status, filters, list);
+    const langNote = document.createElement('div');
+    langNote.id = 'ain-lang-note'; langNote.className = 'ain-muted'; langNote.hidden = true;
+    card.append(head, status, langNote, filters, list);
     wrap.appendChild(card);
     document.body.appendChild(wrap);
 
@@ -196,6 +198,12 @@ const AINewsUI = {
     }
     const st = document.getElementById('ain-status');
     if (st) { const s = AINews.status(); st.textContent = s.text; st.dataset.level = s.level; }
+    const note = document.getElementById('ain-lang-note');
+    if (note) {
+      const n = AINews.prefs().enabled ? (AINews.state().filteredLanguage || 0) : 0;
+      note.hidden = n === 0;
+      note.textContent = n === 0 ? '' : this._t('N stories in other languages were left out (Settings › AI News › Languages)').replace(/^N/, String(n));
+    }
     list.textContent = '';
     const shown = this.filterItems(all, this._filters);
     if (!shown.length) {
@@ -392,6 +400,27 @@ const AINewsUI = {
     impRow.appendChild(impOut);
     container.appendChild(impRow);
     container.appendChild(toggleRow(t('Notify only for breaking stories'), p.breakingOnly, (on) => save({ breakingOnly: on })));
+
+    // --- languages
+    sectionTitle(t('Languages'));
+    container.appendChild(el('p', 'ain-muted', t('Only stories in the languages ticked here are kept. Nothing is translated; a story that names no language counts as English.')));
+    const langs = el('div', 'ain-chrow');
+    const langOptions = AINews.LANGUAGES.map(l => ({ id: l.id, label: l.label })).concat({ id: 'other', label: 'Other languages' });
+    for (const l of langOptions) {
+      const lab = el('label', 'ain-check');
+      const inp = document.createElement('input');
+      inp.type = 'checkbox'; inp.checked = p.languages.includes(l.id);
+      inp.addEventListener('change', () => {
+        const cur = AINews.prefs().languages.filter(x => x !== l.id);
+        const next = inp.checked ? cur.concat(l.id) : cur;
+        if (!next.length) { inp.checked = true; fail(new Error(t(AINews.LANGUAGE_REFUSED))); return; }
+        save({ languages: next }, true);
+        this.renderSettings(container);
+      });
+      lab.append(inp, document.createTextNode(' ' + t(l.label)));
+      langs.appendChild(lab);
+    }
+    container.appendChild(langs);
 
     // --- what: follow and mute
     sectionTitle(t('What to follow and what to mute'));
