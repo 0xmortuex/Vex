@@ -1214,6 +1214,12 @@ function vexOwnTextFocused(doc) {
   if (typeof SiteLadder !== 'undefined') SiteLadder.init();
   // A meeting that was running when Vex closed (js/meeting-mode.js).
   MeetingMode.init();
+  // Meeting copilot and the renewal radar add their own command-bar entries
+  // and Settings group (js/meeting-copilot.js, js/renewal-radar.js).
+  try {
+    if (window.MeetingCopilot) window.MeetingCopilot.init();
+    if (window.RenewalRadar) window.RenewalRadar.init();
+  } catch (err) { console.error('[Personal ops] could not start:', err); window.VexProblems?.note('Personal ops', 'Could not start', err); }
   // Type @ in the AI box to name a tab (js/tab-mentions.js).
   TabMentions.init();
   // Drop a PDF or a text file on the AI panel (js/chat-file.js).
