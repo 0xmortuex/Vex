@@ -250,3 +250,27 @@ dd.sp-danger { font-weight: 600; }
 .site-settings-info { flex: 1; min-width: 0; }
 .site-settings-host { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .site-settings-what { font-size: 11.5px; color: var(--text-muted); }
+
+/* "This site is broken" (js/site-ladder.js): the card that asks whether each step helped. */
+.slad-card {
+  position: fixed; right: 16px; bottom: 16px; z-index: 100045;
+  width: min(380px, calc(100vw - 32px));
+  background: var(--surface, var(--vex-bg-elevated, #1b1b24)); color: var(--text);
+  border: 1px solid var(--border, var(--vex-border-subtle)); border-radius: 12px;
+  box-shadow: 0 16px 48px var(--vex-shadow-color, rgba(0,0,0,0.42));
+  font-family: var(--vex-font-base, "Outfit", sans-serif); font-size: 12.5px;
+}
+.slad-head { padding: 12px 14px 4px; }
+.slad-title { font-weight: 700; font-size: 13.5px; }
+.slad-body { padding: 4px 14px 8px; }
+.slad-body p { margin: 6px 0; line-height: 1.45; }
+.slad-note { color: var(--text-muted); font-size: 11.5px; }
+.slad-q { font-weight: 600; }
+.slad-rows { list-style: none; margin: 6px 0; padding: 0; }
+.slad-rows li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--vex-border-subtle, var(--border)); }
+.slad-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 14px 12px; }
+.slad-btn { min-height: 28px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border, var(--vex-border-subtle)); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.slad-btn:hover { background: var(--vex-hover-fill, rgba(127,127,127,0.14)); }
+.slad-btn:focus-visible { outline: 2px solid var(--vex-accent, var(--primary)); outline-offset: 1px; }
+.slad-primary { background: var(--vex-accent, var(--primary)); color: var(--vex-on-accent, #fff); border-color: transparent; }
+.slad-link { border-color: transparent; text-decoration: underline; padding: 0 6px; }

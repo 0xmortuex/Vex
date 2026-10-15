@@ -476,7 +476,7 @@ const SitePanel = {
         note: 'Into ' + langName + ', side by side with the original, every time a page of it loads.' + (c.proxyRoute || c.torRoute ? ' Not on its own while it goes through a route.' : '') })}
       ${this._switch('dark', 'Force dark mode', { checked: !!dark, disabled: off || darkGlobal, note: darkGlobal ? 'On for every site (older setting).' : '' })}
       <div class="sp-row">
-        <span class="sp-row-text"><span class="sp-row-label">Custom CSS and JavaScript</span><span class="sp-row-note">${boost ? 'Active on this site.' : 'None yet.'}</span></span>
+        <span class="sp-row-text"><span class="sp-row-label">Custom CSS and JavaScript</span><span class="sp-row-note">${boost ? (VexBoosts.boosts[c.host].paused ? 'Paused by “This site is broken”.' : 'Active on this site.') : 'None yet.'}</span></span>
         <button type="button" class="sp-btn sp-btn-text" data-act="boost" ${off ? 'disabled' : ''}>Edit…</button>
       </div>`);
   },
@@ -508,8 +508,19 @@ const SitePanel = {
     if (typeof SiteRulesUI === 'undefined') return '';
     const off = !c.canSave;
     const rows = SiteRulesUI.WHAT.map(w => this._switch('rule-' + w.id, w.name, { checked: !SiteRulesUI.isOff(c.url, w.id), disabled: off, note: w.note })).join('');
+    // "This site is broken" (js/site-ladder.js): the guided way through the
+    // switches above and the ones in "This site" and "Ads and trackers".
+    let broken = '';
+    if (typeof SiteLadder !== 'undefined') {
+      const kept = SiteLadder.fixes()[c.host];
+      const why = SiteLadder.blockedReason({ web: c.web, tor: c.tor || c.torRoute, privateWindow: c.privateWindow, canSave: c.canSave });
+      broken = `<div class="sp-row">
+        <span class="sp-row-text"><span class="sp-row-label">Does this site not work?</span><span class="sp-row-note">${this._esc(why || (kept ? 'A fix is kept for this site.' : 'Vex tries its own settings one at a time and asks if each one helped.'))}</span></span>
+        <button type="button" class="sp-btn sp-btn-text" data-act="broken" ${why ? 'disabled' : ''}>This site is broken</button>
+      </div>${kept ? `<div class="sp-actions"><button type="button" class="sp-link" data-act="broken-kept">Show what was changed</button></div>` : ''}`;
+    }
     return this._section('switches', 'What this site is allowed', rows
-      + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>`);
+      + `<p class="sp-note">${this._after ? 'The page reloads when you close this panel.' : 'Every page of this site, in every window.'}</p>` + broken);
   },
 
   _containerNames() {
@@ -724,6 +735,14 @@ const SitePanel = {
         SettingsUI.openSection('setting-adblocker');
         return;
       case 'reset-site': return this._resetSite(c);
+      case 'broken':
+        this.close({ keepFocus: true });
+        await SiteLadder.start(c.tab);
+        return;
+      case 'broken-kept':
+        this.close({ keepFocus: true });
+        SiteLadder.showKept(c.host);
+        return;
       default:
         if (act.startsWith('rule-')) {
           this._mustSave(c);
