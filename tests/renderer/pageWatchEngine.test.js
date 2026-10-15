@@ -307,7 +307,7 @@ describe('a sentence from the local model, and only the local one', () => {
     globalThis.AIRouter = { isOllamaAvailable: () => true, getModel: () => 'qwen3:8b', callAI: vi.fn() };
     globalThis.Ollama = { generate: vi.fn(async () => ' The price dropped from $299 to $249.\n') };
     const r = await change();
-    expect(Ollama.generate).toHaveBeenCalledWith('qwen3:8b', expect.stringContaining('$249.00'), expect.objectContaining({ maxTokens: 80 }));
+    expect(Ollama.generate).toHaveBeenCalledWith('qwen3:8b', expect.stringContaining('$249.00'), expect.objectContaining({ maxTokens: 110 }));
     expect(r.sentence).toBe('The price dropped from $299 to $249.');
     expect(window.showToast).toHaveBeenCalledWith('Card changed — The price dropped from $299 to $249.', 'info', 8000);
     expect(AIRouter.callAI).not.toHaveBeenCalled();     // the router (which may be cloud) is never asked
