@@ -59,6 +59,11 @@ define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);
 define('downloads:set-ask', [boolean]);
 // Delete or drag out a finished download (src/main/download-files.js).
 define('downloads:delete-file downloads:start-drag', [string(4096)]);
+// Tidy the downloads folder (src/main/download-tidy.js): preview, apply a
+// preview by its id, undo the newest tidy-up. No path ever comes from here.
+define('downloads:tidy-plan', [value => Number.isSafeInteger(value) && value >= 0 && value <= 3650]);
+define('downloads:tidy-apply', [string(64)]);
+define('downloads:tidy-undo downloads:tidy-history', []);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

@@ -8022,6 +8022,19 @@ ipcMain.handle('downloads:start-drag', async (e, filePath) => {
   try { return await _downloadFiles.startDrag(e.sender, filePath); }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Tidy the downloads folder into Type/year-month (src/main/download-tidy.js).
+// Opt-in: nothing runs unless the user previews and then confirms. The folder
+// is always the one Vex saves downloads to; the interface sends only an age.
+const _downloadTidy = require('./main/download-tidy').createDownloadTidy({
+  fs, logFile: path.join(userDataPath, 'download-tidy-log.json'),
+  // A file Vex downloaded keeps being "ours" after it moves, so Open still works.
+  onMoved: (from, to) => { if (_downloadService.isDownloadedFile(from)) _downloadService._noteFile(to, false); },
+});
+const _tidyCall = (fn) => { try { return { ok: true, ...fn() }; } catch (err) { return { ok: false, error: err.message }; } };
+ipcMain.handle('downloads:tidy-plan', (_e, minAgeDays) => _tidyCall(() => _downloadTidy.plan(_downloadPrefs.get().folder, { minAgeDays })));
+ipcMain.handle('downloads:tidy-apply', (_e, planId) => _tidyCall(() => _downloadTidy.apply(planId)));
+ipcMain.handle('downloads:tidy-undo', () => _tidyCall(() => _downloadTidy.undo()));
+ipcMain.handle('downloads:tidy-history', () => _tidyCall(() => ({ batches: _downloadTidy.history() })));
 ipcMain.handle('downloads:open-folder', async () => {
   try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }

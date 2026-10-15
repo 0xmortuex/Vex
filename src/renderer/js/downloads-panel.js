@@ -290,8 +290,49 @@ const DownloadsPanel = {
       if (r && r.ok) this.showPrefs(r);
       else { ask.checked = !ask.checked; fail('Could not change it', r); }
     });
+    this._bindTidy(fail);
     const r = await window.vex.downloadsPrefs();
     if (r && r.ok) this.showPrefs(r); else fail('Could not read where downloads go', r);
+  },
+
+  // Tidy up (src/main/download-tidy.js): preview, explicit confirm, undo. Only
+  // renames inside the downloads folder; main never deletes and the preview is
+  // what the confirmation applies.
+  _bindTidy(fail) {
+    const go = document.getElementById('setting-download-tidy');
+    const undo = document.getElementById('setting-download-tidy-undo');
+    if (!go || !undo) return;
+    const MIN_AGE_DAYS = 7;
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      try {
+        const p = await window.vex.downloadsTidyPlan(MIN_AGE_DAYS);
+        if (!p || !p.ok) { fail('Could not preview the tidy-up', p); return; }
+        if (!p.moves.length) { window.showToast?.('Nothing to tidy: no loose files older than ' + MIN_AGE_DAYS + ' days'); return; }
+        const byType = {};
+        for (const m of p.moves) byType[m.type] = (byType[m.type] || 0) + 1;
+        const summary = Object.keys(byType).sort().map(t => byType[t] + ' ' + t.toLowerCase()).join(', ');
+        const sample = p.moves.slice(0, 10).map(m => m.name + '  ->  ' + m.folder).join('\n');
+        const more = p.moves.length > 10 ? '\n... and ' + (p.moves.length - 10) + ' more' : '';
+        const ok = await vexConfirm({
+          title: 'Tidy up ' + p.moves.length + ' file' + (p.moves.length === 1 ? '' : 's') + '?',
+          message: summary + '\n\nFiles older than ' + MIN_AGE_DAYS + ' days move into subfolders of ' + p.dir + '. Nothing is deleted, and "Undo last tidy-up" puts every file back.\n\n' + sample + more,
+          okLabel: 'Move them',
+        });
+        if (!ok) return;
+        const r = await window.vex.downloadsTidyApply(p.id);
+        if (!r || !r.ok) { fail('Could not tidy up', r); return; }
+        window.showToast?.('Moved ' + r.moved + ' file' + (r.moved === 1 ? '' : 's') + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : ''), r.failed.length ? 'error' : undefined);
+        if (typeof this.refreshExistence === 'function') this.refreshExistence();
+      } finally { go.disabled = false; }
+    });
+    undo.addEventListener('click', async () => {
+      const ok = await vexConfirm({ title: 'Undo the last tidy-up?', message: 'Every file it moved goes back to where it was.', okLabel: 'Put them back' });
+      if (!ok) return;
+      const r = await window.vex.downloadsTidyUndo();
+      if (!r || !r.ok) { fail('Could not undo', r); return; }
+      window.showToast?.('Put ' + r.restored + ' file' + (r.restored === 1 ? '' : 's') + ' back' + (r.left.length ? '; ' + r.left.length + ' could not be (' + r.left[0].error + ')' : ''), r.left.length ? 'error' : undefined);
+    });
   },
 
   // Sent at startup as well: main reads its own copy from the profile, and

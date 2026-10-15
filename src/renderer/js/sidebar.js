@@ -600,6 +600,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
       FocusMode.renderPanel(document.getElementById('focus-panel-content'));
     }
+    if (panelName === 'settings' && typeof DistractionBudget !== 'undefined') {
+      DistractionBudget.renderPanel(document.getElementById('budget-panel-content'));
+    }
     if (panelName === 'settings' && typeof CommandChains !== 'undefined') {
       CommandChains.renderPanel(document.getElementById('chains-panel-content'));
     }

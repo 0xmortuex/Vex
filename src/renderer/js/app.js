@@ -1281,6 +1281,7 @@ function vexOwnTextFocused(doc) {
 
   // Tier 2/3 extras: compact mode, bookmarks, feeds, command chains
   if (typeof CompactMode !== 'undefined') CompactMode.init();
+  if (typeof DistractionBudget !== 'undefined') DistractionBudget.init();
   if (typeof Bookmarks !== 'undefined') Bookmarks.init();
   if (typeof VexFeeds !== 'undefined') VexFeeds.init();
   if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.init();
