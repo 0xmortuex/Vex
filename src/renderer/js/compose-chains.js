@@ -95,7 +95,13 @@ const CommandChains = {
   async run(chain) {
     const problems = [];
     for (const cid of chain.steps) {
-      const cmd = CommandBar.commands.find(c => c.id === cid);
+      let cmd = CommandBar.commands.find(c => c.id === cid);
+      // A step with an argument ("timer:15 min", "mute:discord") is not a
+      // command-bar entry: js/chain-steps.js knows how to run it.
+      if (!cmd && window.VexChainSteps) {
+        const s = window.VexChainSteps.resolve(cid);
+        if (s) cmd = { label: s.label, action: s.run };
+      }
       if (!cmd) { problems.push(`${cid} (no longer exists)`); continue; }
       try { await cmd.action(); }
       catch (err) { problems.push(`${cmd.label || cid} (${err && err.message ? err.message : 'failed'})`); }
