@@ -5,6 +5,9 @@
 ### New
 - **AI news keeps the languages you choose (Settings › AI News › Languages).** English only by default; tick Turkish, Chinese or Other languages to add more. A story in an unticked language is never stored, told, counted on the badge or looked at by a rule, and one already held is removed. A story that names no language counts as English. Nothing is translated, and the panel says how many stories were left out.
 
+### Improved
+- **AI news panel: see when a story came out and filter by date.** Every story says how old it is ("12 minutes ago", "yesterday") and its local date and time ("Oct 15, 7:41 PM"; a story with no date says "date unknown, first seen ..."). New "Date" filter (Any time, Last hour, Today, Last 24 hours, Last 3, 7 or 14 days; Any time by default) and "Sort by" (Newest first, Most important first, Unread first). A line says "Showing 12 of 300 stories" with the newest and oldest date, your filters are kept while Vex is open, "Clear filters" appears when one is set, and a long list shows 100 stories with "Show more".
+
 ## v22.10.8 (2026-10-15) — AI News: the AI stories you choose, delivered the way you choose
 
 ### New
