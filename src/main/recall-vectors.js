@@ -391,6 +391,6 @@ function createMeaningIndex({ store, records, get, embedder, now = Date.now, onC
 
 module.exports = {
   VectorStore, createOllamaEmbedder, createMeaningIndex,
-  loopbackBase, checkModel, pageInput, fnv, sameModel,
+  loopbackBase, checkModel, pageInput, fnv, sameModel, prefixed, hostOf, hostIn,
   LIMITS, TEXT_CHARS, MIN_SCORE, DEFAULT_BASE_URL, VERSION,
 };

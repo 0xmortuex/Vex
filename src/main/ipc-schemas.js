@@ -369,6 +369,39 @@ const meaningArgs = shape({
 define('recall:meaning-status recall:meaning-step', [meaningArgs]);
 define('recall:meaning-search', [string(512), meaningArgs]);
 define('recall:meaning-forget', []);
+// Knowledge base (src/main/knowledge-ipc.js): what the person keeps. Items come
+// from the renderer's own stores; main refuses private/Tor/routed ones again.
+const kbKind = oneOf(['bookmark', 'note', 'sticky', 'readlater', 'highlight', 'archive']);
+const kbArgs = shape({
+  model: optional(string(100)), baseUrl: optional(string(100)),
+  excluded: optional(value => Array.isArray(value) && value.length <= 1000 && value.every(host => typeof host === 'string' && host.length <= 253)),
+  batch: optional(count(20)), limit: optional(count(100)),
+  since: count(Number.MAX_SAFE_INTEGER), until: count(Number.MAX_SAFE_INTEGER),
+  kinds: optional(value => Array.isArray(value) && value.length <= 6 && value.every(kbKind)),
+  manual: optional(boolean),
+});
+const kbKinds = value => Array.isArray(value) && value.length <= 6 && value.every(kbKind);
+define('kb:plan', [
+  value => Array.isArray(value) && value.length <= 20000 && value.every(e => e && typeof e === 'object' && typeof e.id === 'string' && e.id.length <= 300 && kbKind(e.kind) && typeof e.h === 'string' && e.h.length <= 40),
+  optional(kbKinds),
+]);
+define('kb:put', [
+  value => Array.isArray(value) && value.length <= 100 && value.every(i => i && typeof i === 'object' && typeof i.id === 'string' && i.id.length <= 300 && kbKind(i.kind)
+    && (i.title == null || (typeof i.title === 'string' && i.title.length <= 4096))
+    && (i.text == null || (typeof i.text === 'string' && i.text.length <= 100000))
+    && (i.url == null || (typeof i.url === 'string' && i.url.length <= 8192))
+    && (i.at == null || Number.isFinite(i.at))
+    && (i.h == null || (typeof i.h === 'string' && i.h.length <= 40))
+    && (i.partition == null || (typeof i.partition === 'string' && i.partition.length <= 200))
+    && (i.private == null || typeof i.private === 'boolean') && (i.routed == null || typeof i.routed === 'boolean')),
+  optional(kbArgs),
+]);
+define('kb:sync-archive kb:status kb:step', [optional(kbArgs)]);
+define('kb:search kb:context', [string(512), optional(kbArgs)]);
+define('kb:related', [string(300), optional(kbArgs)]);
+define('kb:related-page', [shape({ title: optional(string(4096)), url: optional(string(8192)), text: optional(string(20000)) }), optional(kbArgs)]);
+define('kb:keep-out', [string(300), optional(boolean)]);
+define('kb:keep-out-clear kb:forget', []);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384), note: optional(string(4096)) })]);
 define('vault:update', [shape({ host: string(253), username: string(4096), newUsername: string(4096), password: optional(string(16384)), note: optional(string(4096)) })]);
 define('vault:export-csv vault:breach-check', []);

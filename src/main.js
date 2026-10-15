@@ -2628,6 +2628,24 @@ ipcMain.handle('pagearchive:save', (_e, wcId, details) => _archiveReply(async ()
   });
   return { entry };
 }));
+// === Knowledge base (src/main/knowledge-base.js, knowledge-ipc.js): what you keep,
+// searchable by words and by meaning, on this PC only. Indexing waits while a
+// game is running and while battery-aware mode is saving power. ===
+const _kbIpc = require('./main/knowledge-ipc').register({
+  ipcMain, userData: app.getPath('userData'), atomicWrite, fs,
+  recallGet: (url) => recallStore().get(url),
+  archive: _archive, archiveDir: path.join(app.getPath('userData'), 'archive'),
+  isHeld: () => (_gameModeSession.held('indexing') ? 'a game is running' : ((_powerWatchLazy && _powerWatchLazy.lean()) ? 'battery-aware mode is saving power' : '')),
+});
+let _kbQuitSaved = false;
+app.on('will-quit', (event) => {
+  if (_kbQuitSaved || !_kbIpc.dirty) return;
+  _kbQuitSaved = true;
+  event.preventDefault();
+  _kbIpc.flush()
+    .catch(err => console.error('[Knowledge] could not save the index on quit:', err && err.message))
+    .finally(() => app.quit());
+});
 ipcMain.handle('pagearchive:list', () => _archiveReply(async () => ({ entries: await _archive.list(), stats: await _archive.stats() })));
 ipcMain.handle('pagearchive:search', (_e, query) => _archiveReply(async () => ({ result: await _archive.search(String(query || '').slice(0, 512)), stats: await _archive.stats() })));
 ipcMain.handle('pagearchive:find', (_e, url) => _archiveReply(async () => ({ entry: await _archive.find(String(url || '')) })));
