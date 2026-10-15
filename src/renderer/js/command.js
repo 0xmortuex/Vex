@@ -270,6 +270,25 @@ const CommandBar = {
     { id: 'freegames', label: 'Free Games This Week', hint: 'What Epic and Steam are giving away to keep right now, and what is coming next', icon: 'gamepad', isPrimary: true, action: async () => { try { await FreeGames.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'clips', label: 'My Clips', hint: 'Your recordings folder, newest first — watch one in a tab, copy its path, or show it in the folder', icon: 'video', isPrimary: true, action: async () => { try { await ClipsInbox.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'treetabs', label: 'Tree Tabs (nest tabs under the one they came from)', hint: 'In the side strip, a tab opened from another sits indented under it — run again to go back to a flat list', icon: 'list', isPrimary: true, action: () => TreeTabs.toggle() },
+    { id: 'github-desk', label: 'Pull Requests and Issues Desk', hint: 'Your open pull requests, review requests and their checks, with the diff one click away', icon: 'git', isPrimary: true, action: async () => { try { await GitHubDesk.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
+    { id: 'find-lost-page', label: 'Find a Page I Lost', hint: 'Search history and saved page text by words and "last week", on this PC only', icon: 'search', isPrimary: true, action: async () => { try { await LostTabFinder.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
+    { id: 'snooze-current', label: 'Snooze This Tab Until...', hint: 'Closes it and brings it back at a time you choose, and shows it in your next brief', icon: 'clock', action: async () => {
+      try {
+        const tab = (typeof TabManager !== 'undefined' && TabManager.getActiveTab) ? TabManager.getActiveTab() : null;
+        if (!tab) throw new Error('There is no tab to snooze');
+        const at = await VexSnooze.ask('Snooze this tab until when?');
+        if (at == null) return;
+        const e = VexSnooze.snoozeTab(tab.id, at);
+        window.showToast?.('Back ' + new Date(e.at).toLocaleString());
+      } catch (err) { window.showToast?.(err.message, 'error'); }
+    } },
+    { id: 'next-action', label: 'What Do I Usually Do Next', hint: 'The step that usually follows what you just did (learned on this PC, off until turned on)', icon: 'zap', action: () => {
+      try {
+        const s = VexNextAction.suggest();
+        if (!s) { window.showToast?.('Nothing certain yet. Turn it on in Settings > Brief actions and use Vex for a few days.'); return; }
+        VexNextAction.run(s);
+      } catch (err) { window.showToast?.(err.message, 'error'); }
+    } },
     { id: 'triage', label: 'What My Inbox Actually Wants', hint: 'Sorts your unread mail into what wants an answer, what is worth a look, and bulk grouped by sender', icon: 'mail', isPrimary: true, action: async () => { try { await InboxTriage.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'smallmodel', label: 'Small Model for Routine Jobs', hint: 'Pick a quick local model for tab grouping, indexing and sorting, while chat and the agent keep yours', icon: 'cpu', action: async () => { try { const models = await Ollama.listModels(); if (!models || !models.length) { window.showToast?.('No local models installed — Settings › AI has the model manager', 'error'); return; } const names = models.map(m => m.name || m.model).filter(Boolean); const now = AIRouter.getSmallModel(); const pick = await window.vexPrompt({ title: 'Small model for routine jobs', message: 'Installed: ' + names.join(', ') + '. Leave it empty to use one model for everything.', label: 'Model name', value: now, okLabel: 'Use it' }); if (pick === null) return; AIRouter.setSmallModel(pick); window.showToast?.(pick.trim() ? 'Routine jobs now go to ' + pick.trim() : 'One model for everything again'); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'forget-routing', label: 'Forget What Vex Learned About My Phrasing', hint: 'Empties the corrections Vex learned from your /chat and /agent overrides', icon: 'undo', action: async () => { const n = RouteLearn.size(); if (!n) { window.showToast?.('Nothing learned yet'); return; } if (await vexConfirm({ title: 'Forget the ' + n + ' words it learned?', message: 'Vex goes back to deciding chat or task from its own rules alone.', okLabel: 'Forget them', danger: true })) { RouteLearn.forget(); window.showToast?.('Forgotten'); } } },

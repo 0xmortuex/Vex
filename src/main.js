@@ -8998,8 +8998,8 @@ ipcMain.handle('get-app-version', () => app.getVersion());
 // modal so GitHub renders properly instead of in an in-app window).
 // A new email in the user's own mail app, with no recipient: Vex's mail is
 // read-only, so a draft is handed to whatever handles mailto:.
-ipcMain.handle('mail:compose', async (_e, { subject, body }) => {
-  const url = require('./main/mail-draft').mailtoUrl(subject, body);
+ipcMain.handle('mail:compose', async (_e, { subject, body, to }) => {
+  const url = require('./main/mail-draft').mailtoUrl(subject, body, to);
   await shell.openExternal(url);
   return { ok: true };
 });
