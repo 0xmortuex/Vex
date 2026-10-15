@@ -218,6 +218,13 @@ contextBridge.exposeInMainWorld('vex', {
   mediaDownload: (wcId, url) => ipcRenderer.invoke('media:download', wcId, url),
   // Keep the page you are on: 'pdf', or 'mhtml' (one file that opens offline).
   pageSave: (wcId, format, title) => ipcRenderer.invoke('page:save', wcId, format, title),
+  pageArchiveSave: (wcId, details) => ipcRenderer.invoke('pagearchive:save', wcId, details),
+  pageArchiveList: () => ipcRenderer.invoke('pagearchive:list'),
+  pageArchiveSearch: (query) => ipcRenderer.invoke('pagearchive:search', query),
+  pageArchiveFind: (url) => ipcRenderer.invoke('pagearchive:find', url),
+  pageArchiveOpen: (id) => ipcRenderer.invoke('pagearchive:open', id),
+  pageArchiveExport: (id) => ipcRenderer.invoke('pagearchive:export', id),
+  pageArchiveRemove: (id) => ipcRenderer.invoke('pagearchive:remove', id),
   // The whole page as one PNG, not just what is on screen.
   captureFullPage: (wcId) => ipcRenderer.invoke('page:capture-full', wcId),
   // One script in every frame of a tab (a player inside an iframe included).

@@ -2337,6 +2337,59 @@ ipcMain.handle('page:save', async (_e, wcId, format, title) => {
   catch (err) { return { ok: false, error: (err && err.message) || 'Could not save the page' }; }
 });
 
+// Archive library: pages you chose to keep, in a folder Vex manages under the
+// user data folder (src/main/archive-library.js), opened in a window that runs
+// no script and fetches nothing (src/main/archive-viewer.js). Never automatic.
+const _archiveMod = require('./main/archive-library');
+const _archiveViewer = require('./main/archive-viewer');
+const _archive = _archiveMod.createArchiveLibrary({ dir: path.join(app.getPath('userData'), 'archive') });
+const _archiveReply = async (fn) => {
+  try { return { ok: true, ...(await fn()) }; }
+  catch (err) {
+    if (err && err.name === 'ArchiveRefused') return { ok: false, refused: err.code, error: err.message, suggest: err.suggest || null };
+    return { ok: false, error: (err && err.message) || 'The archive library could not do that' };
+  }
+};
+ipcMain.handle('pagearchive:save', (_e, wcId, details) => _archiveReply(async () => {
+  const wc = typeof wcId === 'number' ? webContents.fromId(wcId) : null;
+  if (!wc || wc.isDestroyed()) throw new Error('That tab has closed');
+  const url = wc.getURL();
+  const bad = _archiveMod.tabRefusal(secureSessions.partitionOf(wc)) || _archiveMod.sensitiveReason(url);
+  if (bad) throw new _archiveMod.ArchiveRefused('sensitive', bad);
+  // A page with a password box on it is a sign-in, whatever its address says.
+  const signIn = await wc.executeJavaScript('!!document.querySelector(\'input[type="password"]\')', false);
+  if (signIn) throw new _archiveMod.ArchiveRefused('sensitive', 'This page has a password box on it, so it is never archived');
+  const d = details && typeof details === 'object' ? details : {};
+  const entry = await _archive.save({
+    url, title: d.title || wc.getTitle(), text: d.text,
+    write: (file) => wc.savePage(file, 'MHTML'),
+  });
+  return { entry };
+}));
+ipcMain.handle('pagearchive:list', () => _archiveReply(async () => ({ entries: await _archive.list(), stats: await _archive.stats() })));
+ipcMain.handle('pagearchive:search', (_e, query) => _archiveReply(async () => ({ result: await _archive.search(String(query || '').slice(0, 512)), stats: await _archive.stats() })));
+ipcMain.handle('pagearchive:find', (_e, url) => _archiveReply(async () => ({ entry: await _archive.find(String(url || '')) })));
+ipcMain.handle('pagearchive:open', (e, id) => _archiveReply(async () => {
+  const { file, entry } = await _archive.copyPath(String(id || ''));
+  _archiveViewer.openCopy({
+    BrowserWindow, session: secureSessions.fromPartition(_archiveViewer.VIEWER_PARTITION),
+    file, title: entry.title, url: entry.url, at: entry.at, parent: _askingWindow(e),
+  });
+  return { entry };
+}));
+ipcMain.handle('pagearchive:export', (e, id) => _archiveReply(async () => {
+  const { file, entry } = await _archive.copyPath(String(id || ''));
+  const r = await dialog.showSaveDialog(_askingWindow(e), {
+    title: 'Export a copy of this page',
+    defaultPath: path.join(_chosenDownloadFolder() || app.getPath('downloads'), require('./main/page-save').safeFileName(entry.title, 'mhtml')),
+    filters: [{ name: 'Web page, single file', extensions: ['mhtml'] }],
+  });
+  if (r.canceled || !r.filePath) return { cancelled: true };
+  await _archive.exportTo(id, r.filePath);
+  return { path: r.filePath };
+}));
+ipcMain.handle('pagearchive:remove', (_e, id) => _archiveReply(async () => { await _archive.remove(String(id || '')); return {}; }));
+
 // Which links on a page are broken (src/main/link-check.js). Asked from a
 // separate in-memory session: no cookies, no logins — forty sites contacted
 // must not learn who is asking.

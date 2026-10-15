@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Archive library:** Ctrl+K › Archive This Page (or right-click › Archive this page) keeps a self-contained copy and its text in a folder Vex manages, not Downloads; Ctrl+K › Archive Library lists, searches (titles and saved text), opens, exports and deletes copies. Copies open in a window with scripts off that blocks every network request, and when a page you archived will not load or answers 404, Vex offers Open your copy beside the Wayback Machine. Never automatic; refused for private, Tor and routed tabs, excluded sites and sign-in, bank, mail and health pages; 50 MB a page, 500 MB in all, and a full library only suggests the oldest copies. Not synced; an optional backup group carries its one setting.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

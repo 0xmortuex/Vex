@@ -61,6 +61,9 @@ const VexBackup = {
   OPTIONAL: {
     chats: [/^vex\.(aiConversations|aiChatMeta)$/],
     history: [/^vex\.(history|recall)/],
+    // The archive library's one setting (js/archive-library.js). The copies
+    // are files in Vex's data folder, not preferences, and are never in here.
+    archive: [/^vex\.archive\./],
   },
 
   _keys() {
@@ -286,6 +289,7 @@ const VexBackup = {
       + Object.keys(now.items).length + ' things right now.</div>'
       + '<div class="vexsr-row" style="margin-top:12px">'
       + '<label class="vexsr-check"><input type="checkbox" id="bk-chats"> Include my AI conversations</label>'
+      + '<label class="vexsr-check"><input type="checkbox" id="bk-archive"> Include the archive library setting (the saved copies are not in a backup; export the ones you want)</label>'
       + '<button id="bk-save" class="vexsr-go">Save a backup</button>'
       + '</div>'
       + '<div class="vexsr-row" style="margin-top:8px">'
@@ -319,7 +323,9 @@ const VexBackup = {
 
     m.querySelector('#bk-save').addEventListener('click', async () => {
       try {
-        const include = m.querySelector('#bk-chats').checked ? ['chats'] : [];
+        const include = [];
+        if (m.querySelector('#bk-chats').checked) include.push('chats');
+        if (m.querySelector('#bk-archive').checked) include.push('archive');
         const d = await this.save(include);
         msg('Saved ' + (Object.keys(d.items).length + Object.keys(d.stores).length) + ' things to your Downloads folder');
       } catch (err) { msg(err.message, true); }
