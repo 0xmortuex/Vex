@@ -87,11 +87,11 @@ const TranslateSide = {
   // Translates in small batches so the first paragraphs appear while the rest
   // are still coming. A paragraph the translator could not do is left alone
   // rather than blanked.
-  async translateAll(texts, tl, onBatch) {
+  async translateAll(texts, tl, onBatch, host) {
     const done = [];
     for (let i = 0; i < texts.length; i += this.AT_ONCE) {
       const slice = texts.slice(i, i + this.AT_ONCE);
-      const results = await Promise.all(slice.map(t => window.vex.translateText(t, tl).catch(() => null)));
+      const results = await Promise.all(slice.map(t => (window.GlossaryTranslate ? window.GlossaryTranslate.translate(t, tl, host) : window.vex.translateText(t, tl)).catch(() => null)));
       const pairs = [];
       results.forEach((out, j) => {
         const index = i + j;
@@ -120,9 +120,11 @@ const TranslateSide = {
     }
     if (!quiet) window.showToast?.('Translating ' + texts.length + (texts.length === this.MAX_BLOCKS ? ' paragraphs (as far down as Vex goes in one run)' : ' paragraphs') + '…');
     let shown = 0;
+    let host = '';
+    try { host = this._host(wv.getURL()); } catch { host = ''; }
     await this.translateAll(texts, target, async (pairs) => {
       shown += await window.vexGuestEval(wv, this.applyScript(pairs), false, 8000);
-    });
+    }, host);
     if (!shown) throw new Error('The translator did not answer — check your connection and try again');
     if (!quiet) window.showToast?.('Both languages, side by side — run it again to take the translation off', 'success');
     return shown;
