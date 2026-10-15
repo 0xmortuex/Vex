@@ -597,6 +597,9 @@ const SidebarManager = {
     if (panelName === 'settings' && typeof AINewsUI !== 'undefined') {
       AINewsUI.renderSettings(document.getElementById('ainews-panel-content'));
     }
+    if (panelName === 'settings' && typeof VexBrief !== 'undefined') {
+      VexBrief.renderSettings(document.getElementById('brief-panel-content'));
+    }
     if (panelName === 'settings' && typeof FocusMode !== 'undefined') {
       FocusMode.renderPanel(document.getElementById('focus-panel-content'));
     }

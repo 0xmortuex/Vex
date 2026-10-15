@@ -84,7 +84,7 @@ const VexToday = {
           .filter(w => w.lastChangedAt && now - w.lastChangedAt < 24 * 3600 * 1000)
           .sort((a, c) => c.lastChangedAt - a.lastChangedAt)
           .slice(0, this.MAX_PER_KIND)
-          .map(w => ({ id: w.id, text: w.title || w.url, url: w.url, at: w.lastChangedAt }));
+          .map(w => ({ id: w.id, text: w.title || w.url, url: w.url, at: w.lastChangedAt, radar: w.source === 'radar:patch-notes' }));
       }
     } catch (err) { snap.errors.push('watched pages: ' + ((err && err.message) || 'unavailable')); }
 
@@ -115,7 +115,7 @@ const VexToday = {
         snap.events = IcsCalendar.between(startOfDay.getTime(), endOfDay)
           .filter(e => e.end > now)
           .slice(0, this.MAX_PER_KIND)
-          .map(e => ({ text: e.summary, where: e.location || '', at: e.start, allDay: e.allDay, calendar: e.calendar }));
+          .map(e => ({ text: e.summary, where: e.location || '', at: e.start, end: e.end, allDay: e.allDay, calendar: e.calendar }));
         for (const e of IcsCalendar.errors()) snap.errors.push('calendar "' + e.name + '": ' + e.error);
       }
     } catch (err) { snap.errors.push('calendars: ' + ((err && err.message) || 'unavailable')); }
@@ -135,6 +135,12 @@ const VexToday = {
         snap.saved = snap.saved.filter(s => !inCard.has(s.url));
       }
     } catch (err) { snap.errors.push('reading digest: ' + ((err && err.message) || 'unavailable')); }
+
+    // The Morning Brief's sections (js/brief.js), built from what was just
+    // read above. A failure here is the brief's own, never the snapshot's.
+    try {
+      if (typeof VexBrief !== 'undefined') snap.morning = await VexBrief.build({ now, force: !!VexBrief._force, snap });
+    } catch (err) { snap.errors.push('morning brief: ' + ((err && err.message) || 'unavailable')); }
 
     return snap;
   },

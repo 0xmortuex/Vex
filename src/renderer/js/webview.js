@@ -691,6 +691,10 @@ const WebviewManager = {
           } else if (cmd.type === 'handoff-open' || cmd.type === 'handoff-dismiss') {
             // A card for a tab sent from another device (js/handoff.js).
             if (typeof Handoff !== 'undefined') Handoff.onStartCommand(cmd, webview);
+          } else if (typeof cmd.type === 'string' && cmd.type.startsWith('brief-')) {
+            // A button in the Morning Brief on the New Tab page (js/brief.js
+            // accepts only what its last snapshot offered).
+            if (typeof VexBrief !== 'undefined') VexBrief.onStartCommand(cmd, webview);
           }
         } catch (err) {
           console.error('VEX_CMD parse error:', err);
