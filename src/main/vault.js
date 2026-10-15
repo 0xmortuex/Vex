@@ -7,7 +7,7 @@ const OLD_PASSWORD_DAYS = 365;
 // Have I Been Pwned unless it is. fetchRange(prefix) -> the range API's text
 // (a stand-in in tests; never called live there). onChange() runs after every
 // save, so Vex Sync sends the change (main/sync-secrets.js).
-function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null, breachCheckOn = () => false, fetchRange = null, onChange = () => {} }) {
+function createVaultService({ app, safeStorage, ipcMain, isLocked = () => false, dialog = null, windowFor = () => null, breachCheckOn = () => false, fetchRange = null, onChange = () => {}, breachCooldownMs = 60 * 1000, breachNow = () => Date.now() }) {
 let vaultCache = null;
 let writes = Promise.resolve();
 // === Password vault — encrypted at rest with safeStorage (OS keychain/DPAPI) ===
@@ -224,8 +224,17 @@ async function defaultFetchRange(prefix) {
   if (!res.ok) throw new Error('Have I Been Pwned answered ' + res.status);
   return res.text();
 }
+// A run asks the range API once per distinct hash prefix, so a button pressed
+// again and again would be a burst of requests to a free service. One run per
+// cooldown (a failed run counts too: the requests were made).
+let lastBreachRun = 0;
 ipcMain.handle('vault:breach-check', async () => {
   if (!breachCheckOn()) throw new Error('The breach check is off. Turn it on in Password Health first.');
+  const started = breachNow();
+  if (lastBreachRun && started - lastBreachRun < breachCooldownMs) {
+    throw new Error('The breach check ran a moment ago. Wait ' + Math.ceil((breachCooldownMs - (started - lastBreachRun)) / 1000) + ' seconds before running it again.');
+  }
+  lastBreachRun = started;
   const arr = vaultLoad();
   const byPrefix = new Map();
   for (const e of arr) {

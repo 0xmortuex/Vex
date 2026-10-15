@@ -5186,7 +5186,7 @@ async function _extApi(senderUrl, ses, request) {
       const id = args.id ? String(args.id).slice(0, 200) : 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const name = (_extMeta().get(extId) || {}).name || ext.name;
       const body = [o.message, o.contextMessage].filter(x => typeof x === 'string' && x).join('\n');
-      await notifier.show({ title: String(o.title || name), body: `${body}${body ? '\n' : ''}From the extension ${name}`.slice(0, 1000),
+      await notifier.show({ title: String(o.title || name), body: `${body}${body ? '\n' : ''}From the extension ${name}`.slice(0, 1000), site: name,
         onClick: () => { focusMainWindow(); _extEmit(ses, 'notifications.onClicked', (e) => (e.id === extId ? [id] : null)); } });
       return id;
     }
@@ -5278,6 +5278,7 @@ ipcMain.handle('extensions:action-click', async (_event, request) => {
   const ses = _sessionForKey(request.partition);
   const ext = ses && _exts(ses).getExtension(request.id);
   if (!ext) throw new Error('That extension does not run in this tab (private and Tor tabs have none)');
+  if (ext.path) _protect.usage.record(path.basename(ext.path)).catch(err => console.error('[Extensions] could not note a button press:', err.message));
   await _extDispatch(ses, request.id, 'action.onClicked', [_extTabFor(ext, _extPage(ses, request.tab))]);
   return true;
 });
@@ -5405,6 +5406,8 @@ ipcMain.handle('extensions:open-popup', async (_e, request) => {
     const entry = _extEntries().find(e => path.resolve(e.path) === path.resolve(extPath));
     if (!entry || !entry.manifest) return { ok: false, error: 'Not found' };
     const pages = extHelpers.pickPages(entry.manifest);
+    // For the extension audit's "last used" (main/extension-usage.js).
+    _protect.usage.record(entry.folder).catch(err => console.error('[Extensions] could not note a popup open:', err.message));
 
     // Over a container tab the popup belongs in the container's session: from
     // persist:main the extension cannot see that tab, and Dark Reader said
@@ -9310,6 +9313,30 @@ function startReminders() {
   if (process.argv.some(a => /^--reminder=/.test(a))) console.log('[Reminders] launched by the OS for a reminder');
 }
 
+// Privacy report card, extension usage, crash-proof tabs and quiet hours
+// (src/main/protect.js). Quiet hours replaces notifier.show, so this comes
+// before any toast is sent and every sender goes through it.
+const _protect = require('./main/protect').registerProtect({
+  ipcMain,
+  notifier,
+  getSession: () => secureSessions.fromPartition('persist:main'),
+  jsonStore: new (require('./main/file-store').JsonStore)(userDataPath),
+  secretStore,
+  secretsDir: userDataPath,
+  encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+  trackerHosts: () => Object.keys(_trackerTally),
+  extensionEntries: () => _extEntriesOnDisk().map(e => ({ folder: e.folder, path: e.path, manifest: e.manifest })),
+  extensionUpdates: () => {
+    const out = {};
+    try { for (const h of _extUpdates.readState(extensionsDir).history) if (h && h.folder && Number.isFinite(h.at)) out[h.folder] = Math.max(out[h.folder] || 0, h.at); }
+    catch (err) { console.error('[Extensions] the update record is unreadable for the audit:', err.message); }
+    return out;
+  },
+  statMtime: (dir) => { try { return fs.statSync(path.join(dir, 'manifest.json')).mtimeMs; } catch (err) { if (err.code === 'ENOENT') return null; throw err; } },
+  isLocked: () => _vexLocked,
+  log: (m) => console.log(m),
+});
+
 ipcMain.handle('notify:show', async (_e, payload) => {
   const { title, body } = payload || {};
   // Rejections travel to the renderer as the error message; nothing is hidden.
@@ -9325,7 +9352,7 @@ ipcMain.handle('news:notify', async (_e, payload) => {
   if (_vexLocked) throw new Error('Vex is locked');
   const n = _newsToast.validateNewsToast(payload);
   _newsUrls.set(n.tag, n.url);
-  return notifier.show({ title: n.title, body: n.body, silent: n.silent, tag: n.tag, actions: true, kind: 'news' });
+  return notifier.show({ title: n.title, body: n.body, silent: n.silent, tag: n.tag, actions: true, kind: 'news', site: (() => { try { return new URL(n.url).hostname; } catch { return undefined; } })() });
 });
 // What was clicked while the interface was not listening, once.
 ipcMain.handle('news:pending', async () => _newsPending.splice(0, _newsPending.length));
@@ -9439,7 +9466,7 @@ ipcMain.handle('userscripts:gm', async (event, req) => {
       const clip = (v) => String(v == null ? '' : v).slice(0, L.maxNotificationText);
       const title = clip(o.title);
       // Always named after the script, so a page's script cannot pass for Vex.
-      return notifier.show({ title: 'Userscript ' + s.meta.name + (title ? ': ' + title : ''), body: clip(o.text) });
+      return notifier.show({ title: 'Userscript ' + s.meta.name + (title ? ': ' + title : ''), body: clip(o.text), site: s.meta.name });
     }
     case 'openTab': {
       const url = String(args[0] || '');
