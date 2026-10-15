@@ -341,6 +341,13 @@ const ClipToNotes = {
         NotesPanel.notes = notes;
         try { NotesPanel.renderList?.(); } catch {}
       }
+      // A structured record of the clip for the weekly note (js/weekly-note.js).
+      // Never from a private, Tor or routed tab: that page is not recorded.
+      try {
+        if (window.VexWeeklyNote && window.VexTabPolicy && window.VexTabPolicy.canShareTab(t)) {
+          window.VexWeeklyNote.recordClip({ url: t.url, title: t.title || t.url, text: sel.trim() });
+        }
+      } catch (err) { window.VexProblems?.note('Clip to Notes', 'Could not record the clip for the weekly note', err); }
       window.showToast?.(sel ? 'Selection clipped to Notes' : 'Link clipped to Notes');
     } catch (e) { console.error('[ClipToNotes] clip failed:', e.message); window.showToast?.('Clip failed: ' + e.message, 'error'); }
   },
