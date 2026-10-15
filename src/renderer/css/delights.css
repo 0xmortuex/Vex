@@ -1,0 +1,67 @@
+/* Little surprises (js/delights.js and the modules it owns).
+   Everything is drawn from the theme tokens, so every colour theme and every
+   browser look shows it correctly. The widget rules (.vex-widget*) are also
+   meant to be included by the New Tab page, which has its own document: the
+   same tokens exist there under the same names. */
+
+.vex-delight-bar {
+  position: fixed; right: 16px; bottom: 16px; z-index: 9000;
+  display: flex; align-items: center; gap: 8px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 10px;
+  background: var(--surface, var(--bg)); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 28px var(--vex-shadow-color, rgba(0,0,0,.35));
+  font-size: 12.5px;
+}
+.vex-delight-bar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.vex-delight-btn { display: inline-flex; align-items: center; gap: 6px; }
+.vex-delight-iconbtn { display: inline-flex; align-items: center; padding: 4px 6px; }
+.vex-delight-close { background: none; border: 0; color: var(--text-muted); padding: 4px; border-radius: 6px; cursor: pointer; display: inline-flex; }
+.vex-delight-close:hover { background: var(--vex-hover-fill, rgba(127,127,127,.12)); }
+
+.vex-delight-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.4);
+  display: grid; place-items: start center; padding-top: 9vh;
+}
+.vex-delight-card {
+  width: min(560px, 92vw); max-height: 74vh; overflow-y: auto;
+  padding: 16px 18px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 50px var(--vex-shadow-color, rgba(0,0,0,.45));
+}
+.vex-delight-title { margin: 0 0 10px; font-size: 15px; font-weight: 650; }
+.vex-delight-sub { margin: 12px 0 4px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.vex-delight-text { font-size: 13px; overflow-wrap: anywhere; }
+.vex-delight-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: 13px; }
+.vex-delight-kind { min-width: 64px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.vex-delight-link { background: none; border: 0; padding: 0; color: var(--primary, var(--text)); text-align: left; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
+.vex-delight-link:hover { text-decoration: underline; }
+.vex-delight-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.vex-delight-inline { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.vex-delight-detail { margin: 6px 0 14px; }
+
+/* Widgets */
+.vex-widget-cell { min-width: 0; }
+.vex-widget {
+  box-sizing: border-box; margin: 0; padding: 12px 14px;
+  background: var(--surface, var(--bg)); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.vex-widget-quote-text { margin: 0; font-size: 14px; line-height: 1.45; font-style: italic; }
+.vex-widget-quote-by { margin-top: 6px; font-size: 11.5px; color: var(--text-muted); }
+.vex-widget-count { font-size: 22px; font-weight: 650; }
+.vex-widget-label { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.vex-widget-muted { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
+.vex-widget-photo { padding: 0; overflow: hidden; }
+.vex-widget-photo img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: cover; }
+.vex-widget-photo .vex-widget-muted { padding: 12px 14px; }
+.vex-widget-dots { display: flex; gap: 6px; margin-top: 8px; }
+.vex-widget-dot {
+  width: 22px; height: 22px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: transparent; border: 1.5px solid var(--border);
+}
+.vex-widget-dot.is-today { border-color: var(--text-muted); }
+.vex-widget-dot.is-done { background: var(--primary, var(--text)); border-color: var(--primary, var(--text)); }
