@@ -10,6 +10,7 @@ globalThis.AINews = {
   list: () => ITEMS,
   topicsOf: (it) => it.topics || [],
   prefs: () => ({ enabled: true, channels: { badge: true } }),
+  state: () => ({ filteredLanguage: 0 }),
   status: () => ({ text: 'ok', level: 'ok' }),
   markSeen() {},
   unseenCount: () => 0,
