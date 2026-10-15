@@ -2044,6 +2044,122 @@
     })();
   </script>
 
+  <!-- Morning Brief: a greeting and one card per section the person chose
+       (Settings › Morning Brief). The browser hands the sections in
+       (js/brief.js through js/today.js, window.__vexToday.morning); this page
+       has no bridge, so a button here only sends a small command. Display
+       data only, drawn with textContent. Hidden until there is something. -->
+  <section class="brief-section" id="brief-section" aria-labelledby="brief-greeting" hidden>
+    <div class="brief-head">
+      <div class="brief-hello">
+        <h2 id="brief-greeting"></h2>
+        <span id="brief-date"></span>
+      </div>
+      <div class="brief-tools">
+        <button type="button" class="brief-btn" id="brief-refresh" title="Read everything again"></button>
+        <button type="button" class="brief-btn" id="brief-settings" title="Choose and reorder the sections"></button>
+      </div>
+    </div>
+    <div class="brief-grid" id="brief-grid"></div>
+  </section>
+  <style>
+    .brief-section { margin-bottom: 36px; }
+    .brief-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .brief-hello h2 { font-size: 22px; font-weight: 650; color: var(--vex-text-primary); margin: 0; }
+    .brief-hello span { font-size: 13px; color: var(--vex-text-muted); }
+    .brief-tools { display: flex; gap: 8px; }
+    .brief-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font: inherit; font-size: 12.5px; color: var(--vex-text-secondary); background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-radius: var(--vex-radius-md); cursor: pointer; }
+    .brief-btn:hover { color: var(--vex-text-primary); border-color: var(--vex-border-accent); background: var(--vex-accent-glow); }
+    .brief-btn:focus-visible, .brief-act:focus-visible, .brief-item[href]:focus-visible, .brief-item[role="button"]:focus-visible { outline: 2px solid var(--vex-accent, #6366f1); outline-offset: 2px; }
+    .brief-btn[disabled] { opacity: 0.6; cursor: progress; }
+    .brief-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+    .brief-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px; background: var(--vex-glass-light); border: 1px solid var(--vex-border-subtle); border-radius: var(--vex-radius-md); color: var(--vex-text-secondary); }
+    .brief-card h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vex-text-muted); }
+    .brief-card h3 svg { color: var(--vex-accent, var(--vex-text-muted)); }
+    .brief-summary { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--vex-text-primary); }
+    .brief-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+    .brief-stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--vex-text-primary); }
+    .brief-stat span { font-size: 11.5px; color: var(--vex-text-muted); }
+    .brief-items { display: flex; flex-direction: column; gap: 2px; }
+    .brief-item { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; margin: 0 -8px; border-radius: var(--vex-radius-md); color: var(--vex-text-secondary); text-decoration: none; min-width: 0; }
+    .brief-item[href], .brief-item[role="button"] { cursor: pointer; }
+    .brief-item[href]:hover, .brief-item[role="button"]:hover { background: var(--vex-accent-glow); color: var(--vex-text-primary); }
+    .brief-when { flex: none; font-size: 12px; font-weight: 600; color: var(--vex-accent, var(--vex-text-primary)); min-width: 44px; white-space: nowrap; }
+    .brief-main { flex: 1; min-width: 0; }
+    .brief-text { display: block; font-size: 13px; color: var(--vex-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brief-sub { display: block; font-size: 11.5px; color: var(--vex-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brief-badge { flex: none; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--vex-border-accent, var(--vex-border-subtle)); color: var(--vex-text-secondary); white-space: nowrap; }
+    .brief-badge.bad { color: #e5484d; border-color: #e5484d; }
+    .brief-note, .brief-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--vex-text-muted); }
+    .brief-error { margin: 0; font-size: 12.5px; color: #e5484d; }
+    .brief-act { align-self: flex-start; padding: 5px 12px; font: inherit; font-size: 12.5px; font-weight: 600; background: var(--vex-accent, #6366f1); color: var(--on-primary, #fff); border: 1px solid transparent; border-radius: var(--vex-radius-md); cursor: pointer; }
+    .brief-act:hover { filter: brightness(1.08); }
+  </style>
+  <script>
+    (function () {
+      function send(o) { console.log('VEX_CMD:' + JSON.stringify(o)); }
+      function icon(name, size) { return (window.VexIcons && VexIcons.svg) ? VexIcons.svg(name, { size: size || 16 }) : ''; }
+      function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null && text !== '') e.textContent = text; return e; }
+      var BAD = /^(failed|problem|overdue)$/i;
+      function item(it) {
+        var link = it.url ? 'a' : 'div';
+        var row = el(link, 'brief-item');
+        if (it.url) { row.href = it.url; row.addEventListener('click', function (e) { e.preventDefault(); location.href = it.url; }); }
+        else if (it.cmd) {
+          row.setAttribute('role', 'button'); row.tabIndex = 0;
+          var go = function () { send(it.cmd); };
+          row.addEventListener('click', go);
+          row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+        }
+        if (it.when) row.appendChild(el('span', 'brief-when', it.when));
+        var main = el('span', 'brief-main');
+        main.appendChild(el('span', 'brief-text', it.text));
+        if (it.sub) main.appendChild(el('span', 'brief-sub', it.sub));
+        row.appendChild(main);
+        if (it.badge) row.appendChild(el('span', 'brief-badge' + (BAD.test(it.badge) ? ' bad' : ''), it.badge));
+        return row;
+      }
+      function card(s) {
+        var c = el('article', 'brief-card');
+        c.dataset.section = s.id;
+        var h = el('h3'); h.innerHTML = icon(s.icon, 14); h.appendChild(el('span', '', s.title)); c.appendChild(h);
+        if (s.status === 'error') { c.appendChild(el('p', 'brief-error', 'Could not read this section: ' + s.error)); return c; }
+        if (s.status === 'hint') { c.appendChild(el('p', 'brief-hint', s.hint)); return c; }
+        if (s.summary) c.appendChild(el('p', 'brief-summary', s.summary));
+        if (s.stats && s.stats.length) {
+          var st = el('div', 'brief-stats');
+          s.stats.forEach(function (x) { var d = el('div', 'brief-stat'); d.appendChild(el('b', '', x.value)); d.appendChild(el('span', '', x.label)); st.appendChild(d); });
+          c.appendChild(st);
+        }
+        if (s.items && s.items.length) { var list = el('div', 'brief-items'); s.items.forEach(function (it) { list.appendChild(item(it)); }); c.appendChild(list); }
+        if (s.note) c.appendChild(el('p', 'brief-note', s.note));
+        if (s.action) { var a = el('button', 'brief-act', s.action.label); a.type = 'button'; a.addEventListener('click', function () { send(s.action.cmd); }); c.appendChild(a); }
+        return c;
+      }
+      function render() {
+        var sec = document.getElementById('brief-section'), grid = document.getElementById('brief-grid');
+        if (!sec || !grid) return;
+        // Handed in by the browser (window.__vexToday): this page's storage is separate.
+        var m = window.__vexToday && window.__vexToday.morning;
+        grid.innerHTML = '';
+        if (!m || !m.enabled) { sec.hidden = true; return; }
+        document.getElementById('brief-greeting').textContent = m.greeting ? m.greeting.text : 'Today';
+        document.getElementById('brief-date').textContent = m.greeting ? m.greeting.date : '';
+        (m.sections || []).forEach(function (s) { if (s.status !== 'empty') grid.appendChild(card(s)); });
+        var refresh = document.getElementById('brief-refresh');
+        refresh.disabled = false;
+        sec.hidden = false;
+      }
+      var r = document.getElementById('brief-refresh'), s = document.getElementById('brief-settings');
+      r.innerHTML = icon('refresh', 14) + '<span>Refresh</span>';
+      s.innerHTML = icon('sliders', 14) + '<span>Sections</span>';
+      r.addEventListener('click', function () { r.disabled = true; send({ type: 'brief-refresh' }); setTimeout(function () { r.disabled = false; }, 15000); });
+      s.addEventListener('click', function () { send({ type: 'brief-settings' }); });
+      render();
+      window.addEventListener('vex-today', render);
+    })();
+  </script>
+
   <!-- Today: reminders due, tasks about to run, pages that changed, pages saved.
        The browser hands the snapshot in (js/today.js, window.__vexToday);
        this page has no bridge of its own. Hidden until there is something. -->
