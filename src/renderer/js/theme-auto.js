@@ -20,6 +20,13 @@
 // Chrome, Fluent) switch with it, so their chrome changes too.
 //
 // Stored as one JSON value under 'vex.themeAuto' (synced, and cleared by Reset).
+//
+// WIND-DOWN (bottom of this file): independent of the above, off by default.
+// After a set hour a warm, dimming veil fades in over the whole Vex window
+// (every look, every theme, and the New Tab page, which is a webview under
+// that veil) over N minutes, and fades out at the end hour. Optionally it
+// also wears the dark variant for the evening and puts the theme back exactly.
+// Stored under 'vex.windDown' (this device only). See windLevel().
 
 const ThemeAuto = {
   KEY: 'vex.themeAuto',
@@ -236,7 +243,10 @@ const ThemeAuto = {
     this._lastDark = dark;
     // A hand pick held against the hour ends at the switch.
     if (st.held && !this._heldFor(st, dark)) { const rest = { ...st }; delete rest.held; this.save(rest); }
-    const want = this._heldFor(st, dark) || (dark ? st.dark : st.light);
+    let want = this._heldFor(st, dark) || (dark ? st.dark : st.light);
+    // Wind-down wearing the dark variant: that stays until the wind-down ends.
+    const windForced = this._windForced();
+    if (windForced) want = windForced.dark;
     let applied = false;
     if (this._valid(want) && typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme !== want) {
       ThemeManager.applyTheme(want, { auto: true });
@@ -293,6 +303,9 @@ const ThemeAuto = {
   _onThemeChanged(e) {
     const d = e && e.detail;
     if (!d || !d.userChoice || d.auto) return;
+    // A theme picked by hand while the wind-down wears the dark variant is the
+    // user's explicit choice: it stays, and nothing is restored over it.
+    if (this.windState().forced) this._windSave({ ...this.windState(), forced: null });
     // A hand pick decides the look's colours itself (gui-style.js); a later
     // automatic switch must not undo that as if this feature had made it.
     if (this.state().coloursByAuto) this.save({ ...this.state(), coloursByAuto: false });
@@ -359,13 +372,15 @@ const ThemeAuto = {
     document.addEventListener('theme-changed', (e) => this._onThemeChanged(e), { signal: this._abort.signal });
     // A 'ui' job: held while Vex is hidden, and run as soon as it is back, so
     // a laptop that slept through sunset wakes up in the right theme.
-    VexJobs.every('Light and dark', this.TICK_MS, () => this.evaluate());
+    VexJobs.every('Light and dark', this.TICK_MS, () => { this.evaluate(); this.windTick(); });
     if (this._systemDark == null) {
       try { await this._readSystem(); }
       catch (err) { console.error('[ThemeAuto] Windows light/dark mode:', err.message); }
     }
     this.wireSettings();
+    this.wireWind();
     this.evaluate({ force: true });
+    this.windTick({ instant: true });
   },
 
   // Stops listening (tests load a fresh copy each time).
@@ -373,6 +388,8 @@ const ThemeAuto = {
     if (this._abort) this._abort.abort();
     if (typeof this._unsub === 'function') this._unsub();
     if (typeof VexJobs !== 'undefined') VexJobs.stop?.('Light and dark');
+    const veil = typeof document !== 'undefined' && document.getElementById(this.WIND_VEIL_ID);
+    if (veil) veil.remove();
     this._started = false;
   },
 
@@ -495,6 +512,227 @@ const ThemeAuto = {
     return `${now.slice(0, -1)}${at}.${where}` + pickNote;
   },
 };
+
+// --- Wind-down ---------------------------------------------------------------
+
+Object.assign(ThemeAuto, {
+  WIND_KEY: 'vex.windDown',
+  WIND_VEIL_ID: 'wind-down-veil',
+  WIND_DEFAULTS: { on: false, start: '22:00', end: '06:00', rampMin: 30, intensity: 60, forceDark: false, snoozeUntil: 0, forced: null },
+  WIND_RAMPS: [15, 30, 60, 90],
+  WIND_MAX_DIM: 0.45,
+  WIND_MAX_WARM: 0.30,
+  WIND_WARM_RGB: '255,140,40',
+
+  // --- pure -----------------------------------------------------------------
+
+  // How far into the wind-down it is, 0..1. `minutes` is minutes after
+  // midnight and may be fractional. It ramps up over rampMin from `start`,
+  // holds, and ramps down over the same time before `end`; a span shorter
+  // than two ramps peaks at its middle. 0 outside the span.
+  windLevel(minutes, start, end, rampMin) {
+    if (start == null || end == null || start === end) return 0;
+    const span = ((end - start) % 1440 + 1440) % 1440;
+    const m = (((minutes - start) % 1440) + 1440) % 1440;
+    if (m >= span) return 0;
+    const r = Math.max(1, rampMin);
+    return Math.max(0, Math.min(1, m / r, (span - m) / r));
+  },
+
+  // The veil's two alphas for a level and an intensity (1..100).
+  windAlphas(level, intensity) {
+    const k = Math.max(0, Math.min(1, level)) * Math.max(0, Math.min(100, intensity)) / 100;
+    return { dim: +(this.WIND_MAX_DIM * k).toFixed(4), warm: +(this.WIND_MAX_WARM * k).toFixed(4) };
+  },
+
+  // The end (ms) of the wind-down that is running, or of the next one when
+  // none is: what "not tonight" skips up to.
+  windEndMs(now, start, end) {
+    const next = (from, minutes) => {
+      const d = new Date(from.getFullYear(), from.getMonth(), from.getDate(), Math.floor(minutes / 60), minutes % 60, 0, 0);
+      if (d.getTime() <= from.getTime()) d.setDate(d.getDate() + 1);
+      return d;
+    };
+    const cur = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    const span = ((end - start) % 1440 + 1440) % 1440;
+    const m = (((cur - start) % 1440) + 1440) % 1440;
+    if (m < span) return next(now, end).getTime();
+    return next(next(now, start), end).getTime();
+  },
+
+  // --- stored state ---------------------------------------------------------
+
+  windState() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(this.WIND_KEY) || 'null'); }
+    catch (err) { console.error('[ThemeAuto] wind-down value unreadable, treating as off:', err.message); }
+    const d = this.WIND_DEFAULTS;
+    if (!s || typeof s !== 'object') return { ...d };
+    const out = { ...d, ...s, on: s.on === true };
+    if (this.parseHM(out.start) == null) out.start = d.start;
+    if (this.parseHM(out.end) == null) out.end = d.end;
+    out.rampMin = Number(out.rampMin);
+    if (!this.WIND_RAMPS.includes(out.rampMin)) out.rampMin = d.rampMin;
+    const iv = Number(out.intensity);
+    out.intensity = Number.isFinite(iv) ? Math.max(1, Math.min(100, iv)) : d.intensity;
+    out.forceDark = out.forceDark === true;
+    out.snoozeUntil = Number(out.snoozeUntil) || 0;
+    return out;
+  },
+  _windSave(next) { localStorage.setItem(this.WIND_KEY, JSON.stringify(next)); },
+  windSet(patch) {
+    this._windSave({ ...this.windState(), ...patch });
+    this.windTick({ instant: true });
+    this.renderWind();
+  },
+  windSnooze() {
+    const st = this.windState();
+    this.windSet({ snoozeUntil: this.windEndMs(this._clock(), this.parseHM(st.start), this.parseHM(st.end)) });
+    window.showToast?.('Wind-down is off for tonight', 'info', 3000);
+  },
+  windResume() { this.windSet({ snoozeUntil: 0 }); },
+
+  // The level now, 0..1 (the switch and "not tonight" included).
+  windNow() {
+    const st = this.windState();
+    if (!st.on) return 0;
+    const now = this._clock();
+    if (st.snoozeUntil && now.getTime() < st.snoozeUntil) return 0;
+    const cur = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    return this.windLevel(cur, this.parseHM(st.start), this.parseHM(st.end), st.rampMin);
+  },
+
+  // --- applying -------------------------------------------------------------
+
+  _windVeil() {
+    let el = document.getElementById(this.WIND_VEIL_ID);
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = this.WIND_VEIL_ID;
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;opacity:0;background:transparent;';
+    document.body.appendChild(el);
+    return el;
+  },
+
+  _windForced() {
+    const f = this.windState().forced;
+    if (!f || typeof f !== 'object' || !this._valid(f.dark) || !this._valid(f.restore)) return null;
+    return f;
+  },
+
+  // Every tick and on any change. instant: no fade (start-up, a setting).
+  windTick({ instant = false } = {}) {
+    if (typeof document === 'undefined' || !document.body) return 0;
+    const st = this.windState();
+    const level = this.windNow();
+    const veil = this._windVeil();
+    const a = this.windAlphas(level, st.intensity);
+    // Two flat layers on one element: the shade, then the warm tint.
+    veil.style.background = `linear-gradient(rgba(0,0,0,${a.dim}),rgba(0,0,0,${a.dim})),linear-gradient(rgba(${this.WIND_WARM_RGB},${a.warm}),rgba(${this.WIND_WARM_RGB},${a.warm}))`;
+    veil.style.opacity = level > 0 ? '1' : '0';
+    // Ticks are TICK_MS apart: a fade as long keeps a long ramp smooth.
+    veil.style.transition = instant ? 'none' : `background ${Math.round(this.TICK_MS / 1000)}s linear, opacity 1s linear`;
+    veil.dataset.level = String(+level.toFixed(3));
+    this._windTheme(st, level);
+    this.renderWind();
+    return level;
+  },
+
+  // Wear the dark variant during the wind-down, and give the theme back
+  // exactly at its end (or when snoozed or switched off). A theme picked by
+  // hand meanwhile is left alone (_onThemeChanged drops `forced`).
+  _windTheme(st, level) {
+    if (typeof ThemeManager === 'undefined') return;
+    if (typeof ThemeStudio !== 'undefined' && ThemeStudio.isEditing()) return;
+    const f = this._windForced();
+    if (st.forced && !f) {
+      this._windSave({ ...st, forced: null });
+      return this._windTheme(this.windState(), level);
+    }
+    const cur = ThemeManager.currentTheme;
+    const want = st.on && st.forceDark && level > 0;
+    if (want && !f) {
+      const meta = this._themes().find(t => t.id === cur);
+      if (!meta || !this.isLightTheme(meta)) return; // already dark
+      const a = this.state();
+      const dark = this._valid(a.dark) ? a.dark : this.defaultSlots(cur, this._themes()).dark;
+      if (!this._valid(dark)) return;
+      this._windSave({ ...st, forced: { restore: cur, dark } });
+      // persist:false keeps the real theme in storage; a crash comes back to it.
+      ThemeManager.applyTheme(dark, { auto: true, persist: false });
+      return;
+    }
+    if (!want && f) {
+      this._windSave({ ...st, forced: null });
+      // Only when the forced theme is still the one worn.
+      if (cur === f.dark) ThemeManager.applyTheme(f.restore, { auto: true });
+      this.evaluate({ force: true });
+      return;
+    }
+    // After a restart the saved theme is back already: put the dark one on again.
+    if (want && f && cur !== f.dark) {
+      if (cur === f.restore) ThemeManager.applyTheme(f.dark, { auto: true, persist: false });
+      else this._windSave({ ...st, forced: null });
+    }
+  },
+
+  // --- Settings › Appearance ------------------------------------------------
+
+  wireWind() {
+    const on = this._el('setting-wind-down');
+    if (!on || on.dataset.wired) return;
+    on.dataset.wired = '1';
+    const q = id => this._el(id);
+    on.addEventListener('change', () => {
+      this.windSet({ on: on.checked, snoozeUntil: 0 });
+      window.showToast?.(on.checked ? 'Wind-down is on' : 'Wind-down is off', 'info', 2000);
+    });
+    const times = () => {
+      const s = q('setting-wind-down-start'), e = q('setting-wind-down-end');
+      const a = this.parseHM(s.value), b = this.parseHM(e.value);
+      if (a == null || b == null) return;
+      if (a === b) { window.showToast?.('The wind-down needs a start and an end that differ', 'error'); this.renderWind(); return; }
+      this.windSet({ start: s.value, end: e.value, snoozeUntil: 0 });
+    };
+    q('setting-wind-down-start').addEventListener('change', times);
+    q('setting-wind-down-end').addEventListener('change', times);
+    q('setting-wind-down-ramp').addEventListener('change', ev => this.windSet({ rampMin: Number(ev.target.value) }));
+    q('setting-wind-down-intensity').addEventListener('input', ev => this.windSet({ intensity: Number(ev.target.value) }));
+    q('setting-wind-down-dark').addEventListener('change', ev => this.windSet({ forceDark: ev.target.checked }));
+    q('wind-down-snooze').addEventListener('click', () => {
+      if (this.windState().snoozeUntil > this._clock().getTime()) this.windResume(); else this.windSnooze();
+    });
+    this.renderWind();
+  },
+
+  renderWind() {
+    const on = this._el('setting-wind-down');
+    if (!on) return;
+    const st = this.windState();
+    on.checked = st.on;
+    const details = this._el('wind-down-details');
+    if (details) details.style.display = st.on ? '' : 'none';
+    const set = (id, v) => { const e = this._el(id); if (e && e.value !== String(v)) e.value = String(v); };
+    set('setting-wind-down-start', st.start);
+    set('setting-wind-down-end', st.end);
+    set('setting-wind-down-ramp', st.rampMin);
+    set('setting-wind-down-intensity', st.intensity);
+    const dark = this._el('setting-wind-down-dark');
+    if (dark) dark.checked = st.forceDark;
+    const snoozed = st.snoozeUntil > this._clock().getTime();
+    const btn = this._el('wind-down-snooze');
+    if (btn) btn.textContent = snoozed ? 'Turn tonight back on' : 'Not tonight';
+    const status = this._el('wind-down-status');
+    if (status) {
+      const lvl = this.windNow();
+      status.textContent = !st.on ? ''
+        : snoozed ? 'Skipped for tonight. It comes back tomorrow.'
+        : lvl > 0 ? `Winding down now (${Math.round(lvl * 100)}%). It ends at ${st.end}.`
+        : `Starts at ${st.start}, fading in over ${st.rampMin} minutes.`;
+    }
+  },
+});
 
 if (typeof window !== 'undefined') window.ThemeAuto = ThemeAuto;
 if (typeof module !== 'undefined' && module.exports) module.exports = { ThemeAuto };
