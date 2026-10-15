@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Userscripts: Vex can install and run `.user.js` scripts itself** (Settings › Userscripts). Add one from a paste, an address or a file; Vex shows its name, version, the pages it runs on, what it may do and which sites it may contact, and asks before turning it on. Each script can be turned off, run on a site you name, checked for an update (only when you press the button) or deleted. A code icon in the toolbar counts the scripts running on the page in front of you, and "Disable all userscripts" (the icon's menu, Settings or Ctrl+K) switches every one off. They never run in private, Tor, burner or routed tabs, on Vex's own pages, or on banking, mail and sign-in sites unless you add that site to the script. GM_getValue/setValue/deleteValue/listValues, GM_addStyle, GM_xmlhttpRequest (only the hosts the script declares, from a session with no cookies), GM_setClipboard, GM_notification, GM_openInTab and GM_info are supported; @require and @resource are not. Userscripts are in a backup only if you tick the box and never in Vex Sync.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

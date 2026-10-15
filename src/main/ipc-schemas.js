@@ -354,6 +354,18 @@ const profileId = value => typeof value === 'string' && /^(?:default|p-[a-z0-9]{
 const profileLook = value => object(value) && Object.keys(value).every(k => ['name', 'color', 'icon'].includes(k))
   && optional(string(40))(value.name) && optional(v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v))(value.color)
   && optional(v => typeof v === 'string' && /^[a-z][a-z0-9-]{0,23}$/.test(v))(value.icon);
+// Userscripts (main/userscripts.js). A page's own script asks only for its
+// list and, by the id main gave it, one of a few operations; the manager's
+// channels are Vex's own window only (ipc-policy.js).
+define('userscripts:page userscripts:list', []);
+define('userscripts:gm', [shape({ id: string(64), op: oneOf(['setValue', 'deleteValue', 'xhr', 'xhr-abort', 'clipboard', 'notification', 'openTab']), args: value => Array.isArray(value) && value.length <= 4 })]);
+define('userscripts:preview', [string(450000), optional(string(64))]);
+define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)) })]);
+define('userscripts:set-enabled', [string(64), boolean]);
+define('userscripts:remove userscripts:clear-values', [string(64)]);
+define('userscripts:set-global', [boolean]);
+define('userscripts:set-hosts', [string(64), value => Array.isArray(value) && value.length <= 30 && value.every(h => typeof h === 'string' && h.length <= 253)]);
+define('userscripts:fetch', [web]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);

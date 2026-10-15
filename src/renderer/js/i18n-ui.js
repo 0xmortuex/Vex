@@ -122,6 +122,12 @@ const VexI18nUI = {
       // holds the section's mark, so only its text node is translated).
       'Profiles': 'Profiller', 'Data': 'Veriler', 'Permissions': 'İzinler',
       'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar',
+      // Userscripts: the Settings heading, the commands and the toolbar marker.
+      'Userscripts': 'Kullanıcı betikleri', 'Userscripts (manage)': 'Kullanıcı betikleri (yönet)',
+      'Disable all userscripts': 'Tüm kullanıcı betiklerini kapat',
+      'Install, switch off or delete userscripts; one click turns them all off': 'Kullanıcı betiklerini kur, kapat ya da sil; tek tıkla hepsini kapat',
+      'Turn all userscripts off at once; nothing runs until you turn them back on': 'Tüm kullanıcı betiklerini birden kapat; yeniden açana kadar hiçbiri çalışmaz',
+      'Userscripts running on this page': 'Bu sayfada çalışan kullanıcı betikleri',
       'Cloud': 'Bulut', 'About': 'Hakkında', 'AI': 'Yapay zekâ',
       'Search settings…': 'Ayarlarda arayın…',
       'Default Browser': 'Varsayılan tarayıcı', 'Sidebar Buttons': 'Kenar çubuğu düğmeleri',

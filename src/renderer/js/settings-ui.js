@@ -83,7 +83,7 @@ const SettingsUI = {
     { name: 'MCP',             icon: 'plug',     color: '#38bdf8', match: ['mcp'], group: 'AI' },
     { name: 'Skills',          icon: 'star',     color: '#fbbf24', match: ['skill'], group: 'AI' },
     { name: 'AI History',      icon: 'clock',    color: '#7dd3fc', match: ['ai history'], group: 'AI', short: 'History' },
-    { name: 'Boosts',          icon: 'rocket',   color: '#f472b6', match: ['boost'] },
+    { name: 'Boosts',          icon: 'rocket',   color: '#f472b6', match: ['boost', 'userscript'] },
     { name: 'Passwords',       icon: 'key',      color: '#34d399', match: ['password'] },
     { name: 'Passkeys',        icon: 'key',      color: '#2dd4bf', match: ['passkey'] },
     { name: 'Focus',           icon: 'target',   color: '#fb7185', match: ['focus'] },
@@ -161,6 +161,7 @@ const SettingsUI = {
   // and a section still "Loading…" could not be found at all (found
   // 2026-10-10). Turkish words are here too, for a Turkish Settings.
   KEYWORDS: {
+    'userscripts': 'userscript greasemonkey tampermonkey violentmonkey user.js gm script install per-site script kullanıcı betiği',
     'general': 'search engine default search google duckduckgo bing language dil türkçe turkish english simple mode suggestions arama motoru',
     'default browser': 'default app open links make default varsayılan tarayıcı',
     'sidebar buttons': 'sidebar icons panels reorder hide buttons kenar çubuğu',

@@ -62,7 +62,13 @@ const WebviewManager = {
     let crashCount = 0, lastCrash = 0, cancelRecovery = null;
     webview._navigationGeneration = 0;
     onWebview('did-attach', () => { webview._attached = true; });
-    onWebview('did-start-navigation', event => { if (event.isMainFrame !== false) webview._navigationGeneration++; });
+    onWebview('did-start-navigation', event => {
+      if (event.isMainFrame === false) return;
+      webview._navigationGeneration++;
+      // A new page starts with no userscripts running; its own preload reports
+      // the ones it starts (js/userscripts.js).
+      if (!event.isInPlace && typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, null);
+    });
     webview.setAttribute('src', tab.url);
     webview.setAttribute('partition', tab.partition || 'persist:main');
     webview.setAttribute('allowpopups', '');
@@ -365,6 +371,11 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // The userscripts started on this page (userscripts-preload.js).
+      if (e.channel === 'vex-userscripts') {
+        if (typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, (e.args && e.args[0]) || null);
+        return;
+      }
       // An Escape the page left alone (preload-webview.js) stops the page
       // while it loads, as in Chrome. It did nothing in a tab (found
       // 2026-10-10).

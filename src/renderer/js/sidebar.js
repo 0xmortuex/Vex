@@ -522,6 +522,11 @@ const SidebarManager = {
       // Boosts (per-site customization) list each time Settings opens
       VexBoosts.renderPanel(document.getElementById('boosts-panel-content'));
     }
+    if (panelName === 'settings' && typeof VexUserscripts !== 'undefined') {
+      // Userscripts list each time Settings opens
+      VexUserscripts.renderPanel(document.getElementById('userscripts-panel-content'))
+        .catch(err => window.VexProblems?.note('Userscripts', 'Could not show the userscripts list', err));
+    }
     if (panelName === 'settings' && typeof PasswordVault !== 'undefined') {
       // Saved passwords list each time Settings opens
       PasswordVault.renderPanel(document.getElementById('passwords-panel-content'));

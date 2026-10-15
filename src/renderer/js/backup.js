@@ -85,11 +85,16 @@ const VexBackup = {
   // blocker, sleeping tabs, the memory ceiling …) — not in browser storage at
   // all, so they were not in the backup either (found 2026-09-29).
   STORES: ['settings'],
+  // Settings files that are in a backup only when the person ticks the box:
+  // the userscripts (their code and saved values). Never in Vex Sync, and a
+  // restored script comes back switched off (src/main/userscripts.js).
+  OPTIONAL_STORES: { userscripts: ['userscripts'] },
 
-  async collectStores() {
+  async collectStores(include = []) {
     if (typeof VexStorage === 'undefined') throw new Error('Vex settings could not be read for the backup');
     const stores = {};
-    for (const name of this.STORES) {
+    const names = this.STORES.concat(...include.map(w => this.OPTIONAL_STORES[w] || []));
+    for (const name of names) {
       const value = await VexStorage.load(name);
       if (value && typeof value === 'object' && !Array.isArray(value)) stores[name] = value;
     }
@@ -99,7 +104,8 @@ const VexBackup = {
   // Put the settings files back. What was there is kept first, for undo.
   async applyStores(data) {
     const stores = data && data.stores && typeof data.stores === 'object' ? data.stores : {};
-    const names = this.STORES.filter(n => stores[n] && typeof stores[n] === 'object' && !Array.isArray(stores[n]));
+    const known = this.STORES.concat(...Object.values(this.OPTIONAL_STORES));
+    const names = known.filter(n => stores[n] && typeof stores[n] === 'object' && !Array.isArray(stores[n]));
     if (!names.length) return 0;
     if (typeof VexStorage === 'undefined') throw new Error('Vex settings could not be restored');
     this._undoStores = {};
@@ -157,12 +163,14 @@ const VexBackup = {
   describe(data) {
     if (!data || typeof data !== 'object' || data.v !== this.VERSION || !data.items || typeof data.items !== 'object') return null;
     const keys = Object.keys(data.items).filter(k => k.startsWith('vex.') && !this._blocked(k));
-    const stores = data.stores && typeof data.stores === 'object' ? this.STORES.filter(n => data.stores[n] && typeof data.stores[n] === 'object') : [];
+    const known = this.STORES.concat(...Object.values(this.OPTIONAL_STORES));
+    const stores = data.stores && typeof data.stores === 'object' ? known.filter(n => data.stores[n] && typeof data.stores[n] === 'object') : [];
     return {
       count: keys.length + stores.length,
       when: data.at ? new Date(data.at) : null,
       app: data.app || '',
       chats: keys.some(k => this._isOptional(k, 'chats')),
+      userscripts: stores.includes('userscripts'),
       bytes: keys.reduce((n, k) => n + String(data.items[k] || '').length, 0),
     };
   },
@@ -220,7 +228,7 @@ const VexBackup = {
   // the update cover keeps before an update installs (js/update-notifier.js).
   async snapshot(include = []) {
     const data = this.collect(include);
-    data.stores = await this.collectStores();
+    data.stores = await this.collectStores(include);
     return data;
   },
 
@@ -286,6 +294,7 @@ const VexBackup = {
       + Object.keys(now.items).length + ' things right now.</div>'
       + '<div class="vexsr-row" style="margin-top:12px">'
       + '<label class="vexsr-check"><input type="checkbox" id="bk-chats"> Include my AI conversations</label>'
+      + '<label class="vexsr-check"><input type="checkbox" id="bk-userscripts"> Include my userscripts (their code and saved values)</label>'
       + '<button id="bk-save" class="vexsr-go">Save a backup</button>'
       + '</div>'
       + '<div class="vexsr-row" style="margin-top:8px">'
@@ -319,7 +328,9 @@ const VexBackup = {
 
     m.querySelector('#bk-save').addEventListener('click', async () => {
       try {
-        const include = m.querySelector('#bk-chats').checked ? ['chats'] : [];
+        const include = [];
+        if (m.querySelector('#bk-chats').checked) include.push('chats');
+        if (m.querySelector('#bk-userscripts').checked) include.push('userscripts');
         const d = await this.save(include);
         msg('Saved ' + (Object.keys(d.items).length + Object.keys(d.stores).length) + ' things to your Downloads folder');
       } catch (err) { msg(err.message, true); }
@@ -409,6 +420,7 @@ const VexBackup = {
       title: 'Restore this backup?',
       message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
         + (seen.chats ? '\n\nIt includes AI conversations.' : '')
+        + (seen.userscripts ? '\n\nIt includes userscripts. They come back switched off; turn each one on in Settings.' : '')
         + '\n\nEverything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.',
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;
