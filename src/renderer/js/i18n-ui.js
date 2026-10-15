@@ -153,7 +153,7 @@ const VexI18nUI = {
       'Watch this page for changes': 'Bu sayfayı değişiklikler için izle',
       'Tell me when this page changes': 'Bu sayfa değişince bana söyle',
       // AI news: Settings block, toolbar badge and panel.
-      'AI news': 'Yapay zekâ haberleri', 'Tell me about AI news': 'Yapay zekâ haberlerini bana bildir',
+      'AI news': 'Yapay zekâ haberleri', 'AI News': 'Yapay zekâ haberleri', 'Tell me about AI news': 'Yapay zekâ haberlerini bana bildir',
       'Send a test notification': 'Deneme bildirimi gönder', 'Check now': 'Şimdi denetle', 'Open AI news': 'Yapay zekâ haberlerini aç',
       'Where from': 'Kaynak', 'News address': 'Haber adresi', 'Save address': 'Adresi kaydet', 'Use the default address': 'Varsayılan adresi kullan',
       'Check every': 'Denetleme sıklığı', 'How you are told': 'Nasıl haber verilsin',
