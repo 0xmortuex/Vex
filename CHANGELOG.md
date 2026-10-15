@@ -5,6 +5,8 @@
 ### New
 - **"What is slowing my browser?" (Ctrl+K, and a new section at the top of the Memory panel)** ranks sites, panels and extensions by the processor time they used over the last 5 minutes or the session, with their memory and what they downloaded, and says in one sentence which one is the problem. Each row has Sleep, Mute, Close and "Always sleep this site" (the same hold Running tasks has). A renderer shared by several tabs is split equally between them. Private and Tor tabs are one anonymous total, never named and never stored per tab. The figures are kept in memory only, sampled once a minute (every 5 seconds while the panel is open, and not while a game is running).
 
+- **Vex can tell Game Control Center which tab was busy (Settings › Gaming and streaming, off by default).** When you switch it on, Vex writes at most one short line a minute to the PC Black Box folder Game Control Center keeps (%LOCALAPPDATA%\PCBlackBox), naming the site whose tab used the most processor time, and only while a game is running or one site stands out. Game Control Center then shows "a browser tab on example.com was using about 30% of a core" as a possible cause of a lag spike. The file is local and readable by programs on this PC, Vex never creates the folder, and private and Tor tabs only count as one anonymous total.
+
 ## v20.86.6 (2026-10-13) — Password health and CSV import, a keyboard-friendly Vex, and a steadier Settings
 
 ### New

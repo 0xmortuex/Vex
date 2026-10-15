@@ -21,6 +21,11 @@ define('gcc:launch', []);
 define('gcc:get', []);
 define('gcc:pick', []);
 define('gcc:clear', []);
+// Tab cost for Game Control Center's Black Box (src/main/pcbb-link.js). The
+// line itself is checked by the Black Box library's own schema in main.
+define('pcbb:link-set', [boolean]);
+define('pcbb:link-state', []);
+define('pcbb:tabcost', [object]);
 define('legal:gate', [boolean]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).

@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld('vex', {
   gccGet: () => ipcRenderer.invoke('gcc:get'),
   gccPick: () => ipcRenderer.invoke('gcc:pick'),
   gccClear: () => ipcRenderer.invoke('gcc:clear'),
+  // "Tell Game Control Center which tab was busy" (src/main/pcbb-link.js).
+  pcbbLinkSet: (on) => ipcRenderer.invoke('pcbb:link-set', !!on),
+  pcbbLinkState: () => ipcRenderer.invoke('pcbb:link-state'),
+  pcbbTabCost: (data) => ipcRenderer.invoke('pcbb:tabcost', data),
   // It is up, or gone: main's own keys for this window stand aside meanwhile.
   legalGate: (up) => ipcRenderer.send('legal:gate', up),
 

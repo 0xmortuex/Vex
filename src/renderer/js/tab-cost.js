@@ -28,10 +28,11 @@
 // capped; closing Vex ends it.
 //
 // === Event shape: perf.tabcost ==============================================
-// toEvent(snapshot) is the stable, privacy-reduced form a later task can write
-// to the PC Black Box (%LOCALAPPDATA%\PCBlackBox\events-*.ndjson). Vex does not
-// read or write that folder today. One JSON object per sample, no titles, no
-// tab ids, no addresses beyond the host:
+// toEvent(snapshot) is the stable, privacy-reduced form. With the person's
+// opt-in (TabCostLink, below; off by default) a trimmed copy is written to
+// Game Control Center's PC Black Box (%LOCALAPPDATA%\PCBlackBox\events-*.ndjson)
+// by src/main/pcbb-link.js, never creating that folder. One JSON object per
+// sample, no titles, no tab ids, no addresses beyond the host:
 //   {
 //     "kind": "perf.tabcost", "v": 1, "at": <epoch ms>,
 //     "windowMs": 300000,          // how much history the figures cover
@@ -413,7 +414,8 @@ function tabCostVerdict(snap) {
 function tabCostToEvent(snap) {
   const top = snap.rows.filter(r => r.cpuSec > 0 || r.memMB > 0 || r.netBytes > 0).slice(0, 8).map(r => ({
     kind: r.kind,
-    name: r.kind === 'private' || r.kind === 'unknown' || r.kind === 'closed' ? '' : (r.host || r.label),
+    // A site with no host (a new-tab page) is labelled by its tab TITLE, which is not a host: not named.
+    name: r.kind === 'private' || r.kind === 'unknown' || r.kind === 'closed' || (r.kind === 'site' && !r.host) ? '' : (r.host || r.label),
     cpuSec: Math.round(r.cpuSec * 10) / 10,
     cpuPct: Math.round(r.cpuPct * 10) / 10,
     cpuShare: Math.round(r.cpuShare * 100) / 100,
@@ -432,6 +434,38 @@ function tabCostToEvent(snap) {
     top,
     verdict: snap.verdict.level,
   };
+}
+
+// ---- the link to Game Control Center's Black Box --------------------------
+//
+// What a perf.tabcost line holds (the Black Box library's own schema decides
+// what is kept; this only picks the fields): the top five rows, host names
+// only, the private/Tor row as an anonymous total.
+function tabCostLinkPayload(event) {
+  const top = (event.top || []).slice(0, 5).map(r => {
+    const anon = r.kind === 'private' || r.kind === 'unknown' || r.kind === 'closed' || (r.kind === 'site' && !r.name);
+    const row = { kind: r.kind === 'site' && !r.name ? 'unknown' : r.kind, cpuPct: r.cpuPct, cpuShare: r.cpuShare, memMB: r.memMB, tabs: anon ? 0 : r.tabs };
+    if (!anon && r.name) row.name = r.name;
+    return row;
+  });
+  return { windowMs: event.windowMs, spanMs: event.spanMs, totalCpuSec: event.totalCpuSec, cpuMeasured: !!event.cpuMeasured, verdict: event.verdict, top };
+}
+
+// Whether to write one now. Pure: the clock and the game state are passed in.
+//   - never more than one line a minute;
+//   - nothing until there is a measurement (cpu seconds, a few samples);
+//   - while a game runs: every minute, because that is when Game Control
+//     Center is listening;
+//   - otherwise only when a site's tab averages at least the "notable" bar,
+//     so an ordinary day writes nothing.
+const TAB_COST_LINK_GAP_MS = 60 * 1000;
+function tabCostLinkDecision({ event, gaming, now, lastWrittenAt }) {
+  if (lastWrittenAt && now - lastWrittenAt < TAB_COST_LINK_GAP_MS) return { write: false, reason: 'too-soon' };
+  if (!event.cpuMeasured || event.spanMs < 10000) return { write: false, reason: 'no-measurement' };
+  if (gaming) return { write: true, reason: 'gaming' };
+  const site = event.top.find(r => r.kind === 'site' && r.name);
+  if (site && site.cpuPct >= TAB_COST_NOTABLE_PCT) return { write: true, reason: 'notable' };
+  return { write: false, reason: 'quiet' };
 }
 
 // ---- the live ledger -------------------------------------------------------
@@ -554,9 +588,103 @@ const TabCost = {
   },
 };
 
-if (typeof window !== 'undefined') { window.TabCost = TabCost; window.tabCostSnapshot = tabCostSnapshot; }
+// Settings › Gaming and streaming › "Tell Game Control Center which tab was
+// busy". OFF until switched on. It has its own once-a-minute timer on purpose:
+// VexJobs holds the ledger while a game runs, and a game is exactly when this
+// is wanted. One process-list read a minute, and only while the switch is on.
+const TabCostLink = {
+  KEY: 'vex.tabcost.link',
+  _timer: null,
+  _lastWrittenAt: 0,
+  last: null,        // { at, reason, written } for Settings
+
+  enabled() { try { return localStorage.getItem(this.KEY) === 'on'; } catch { return false; } },
+
+  async setEnabled(on) {
+    if (!window.vex || typeof window.vex.pcbbLinkSet !== 'function') throw new Error('Game Control Center link is not available in this window');
+    try { localStorage.setItem(this.KEY, on ? 'on' : 'off'); } catch (err) { throw new Error('Could not save the setting: ' + err.message); }
+    const st = await window.vex.pcbbLinkSet(!!on);
+    this._arm();
+    return st;
+  },
+
+  // Main starts OFF every run; tell it what the person chose.
+  async start() {
+    if (!this.enabled()) return;
+    if (!window.vex || typeof window.vex.pcbbLinkSet !== 'function') return;
+    // A private window never writes, whatever the main window chose.
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) return;
+    await window.vex.pcbbLinkSet(true);
+    this._arm();
+  },
+
+  _arm() {
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    if (!this.enabled()) return;
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this.tick().catch(err => window.VexProblems?.note('Tab cost', 'Could not tell Game Control Center', err)).finally(() => this._arm());
+    }, TAB_COST_LINK_GAP_MS);
+  },
+
+  // One look. Returns { write, reason, written? }.
+  async tick(now = Date.now()) {
+    const gaming = typeof GameMode !== 'undefined' && !!GameMode.gaming;
+    if (!gaming && typeof document !== 'undefined' && document.hidden) return { write: false, reason: 'hidden' };
+    await TabCost.sample({ minGapMs: TAB_COST_LINK_GAP_MS - 10000 });
+    const event = TabCost.event({ scope: 'recent' });
+    const d = tabCostLinkDecision({ event, gaming, now, lastWrittenAt: this._lastWrittenAt });
+    if (!d.write) return d;
+    const r = await window.vex.pcbbTabCost(tabCostLinkPayload(event));
+    this.last = { at: now, reason: r.written ? d.reason : r.reason, written: !!r.written };
+    if (r.written) this._lastWrittenAt = now;
+    return { ...d, written: !!r.written, skipped: r.written ? undefined : r.reason };
+  },
+
+  // The Settings row: a switch, and a plain account of what it does.
+  async renderSettings(host) {
+    if (!host || !window.vex || typeof window.vex.pcbbLinkState !== 'function') return;
+    const wrap = document.createElement('div');
+    wrap.className = 'tabcost-link';
+    const row = document.createElement('div');
+    row.className = 'setting-toggle-row';
+    const label = 'Tell Game Control Center which tab was busy';
+    row.innerHTML = '<span></span><label class="toggle"><input type="checkbox" aria-label="' + label + '"><span class="toggle-slider"></span></label>';
+    row.querySelector('span').textContent = label;
+    const box = row.querySelector('input');
+    box.checked = this.enabled();
+    const info = document.createElement('p');
+    info.className = 'muted';
+    info.id = 'tabcost-link-info';
+    info.textContent = 'Off by default. When on, Vex writes one short line a minute to the PC Black Box folder that Game Control Center keeps '
+      + '(%LOCALAPPDATA%\\PCBlackBox), naming the site whose tab used the most processor time, and only while a game is running or one site stands out. '
+      + 'Game Control Center can then say "a browser tab on example.com was using about 30% of a core" next to a lag spike. '
+      + 'The file is local and readable by any program on this PC; Vex never creates the folder, and private and Tor tabs only ever count as one anonymous total. '
+      + 'Vex cannot see Game Control Center’s own Black Box switch: to stop it from that side, delete the folder.';
+    box.setAttribute('aria-describedby', info.id);
+    const status = document.createElement('p');
+    status.className = 'muted';
+    status.setAttribute('role', 'status');
+    const paint = async () => {
+      const st = await window.vex.pcbbLinkState();
+      status.textContent = !box.checked ? '' : st.folderFound
+        ? 'The Black Box folder was found, so lines will be written.'
+        : 'The Black Box folder was not found (Game Control Center creates it), so nothing is written yet.';
+    };
+    box.addEventListener('change', async () => {
+      try { await this.setEnabled(box.checked); await paint(); }
+      catch (err) { box.checked = !box.checked; window.showToast?.('Game Control Center link: ' + ((err && err.message) || err), 'error'); }
+    });
+    wrap.append(row, info, status);
+    host.appendChild(wrap);
+    paint().catch(err => { status.textContent = 'Could not check the Black Box folder: ' + err.message; });
+  },
+};
+
+if (typeof window !== 'undefined') { window.TabCost = TabCost; window.TabCostLink = TabCostLink; window.tabCostSnapshot = tabCostSnapshot; }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    TabCostLink, tabCostLinkPayload, tabCostLinkDecision, TAB_COST_LINK_GAP_MS,
     TabCost, tabCostNewState, tabCostStep, tabCostSnapshot, tabCostVerdict, tabCostToEvent,
     tabCostIsPrivate, tabCostHost, tabCostActions, TAB_COST_WINDOW_MS, TAB_COST_MAX_ENTITIES,
   };
