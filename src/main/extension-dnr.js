@@ -209,17 +209,27 @@ function buildGlob(p, caseSensitive) {
   };
 }
 // Regular expressions run under a time limit (a JavaScript engine can still
-// go slow on a pattern that looks harmless); one that runs over is switched
-// off after three overruns and said so.
+// go slow on a pattern that looks harmless). The limit is wall-clock time, so a
+// busy PC (a game using every core) can make an innocent pattern overrun once:
+// only a run of overruns in a row switches a rule off, and only a real
+// timeout counts (any other error just skips this one address).
 const vm = require('vm');
-const REGEX_LIMIT_MS = 20;
+const REGEX_LIMIT_MS = 100;
+const REGEX_MAX_OVERRUNS = 5;
 const regexCtx = vm.createContext({ re: null, u: '' });
 const regexScript = new vm.Script('re.test(u)');
 function regexTest(rule, url) {
-  if (rule.timedOut >= 3) return false;
+  if (rule.timedOut >= REGEX_MAX_OVERRUNS) return false;
   regexCtx.re = rule.re; regexCtx.u = url;
-  try { return regexScript.runInContext(regexCtx, { timeout: REGEX_LIMIT_MS }) === true; }
-  catch { rule.timedOut = (rule.timedOut || 0) + 1; return false; }
+  try {
+    const hit = regexScript.runInContext(regexCtx, { timeout: REGEX_LIMIT_MS }) === true;
+    rule.timedOut = 0;   // a normal run ends a streak of overruns
+    return hit;
+  } catch (err) {
+    if (err && err.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') rule.timedOut = (rule.timedOut || 0) + 1;
+    else rule.lastError = String((err && err.message) || err);   // not slowness: this address is skipped, the rule stays on
+    return false;
+  }
 }
 // The longest text the address must contain.
 function needleOf(body, caseSensitive) {
@@ -949,5 +959,5 @@ function createExtensionDnr(deps = {}) {
   return { register, unregister, hasRules, evaluate, api, status, resetStats, forgetTab, applyHeaderOps };
 }
 
-module.exports = { createExtensionDnr, compileRule, checkRegex, normalizeRequest, applyHeaderOps, buildIndex, matchIndex, redirectTarget,
+module.exports = { createExtensionDnr, compileRule, checkRegex, normalizeRequest, applyHeaderOps, buildIndex, matchIndex, redirectTarget, regexTest, REGEX_LIMIT_MS, REGEX_MAX_OVERRUNS,
   parseUrlFilter, buildGlob, LIMITS, TYPES };

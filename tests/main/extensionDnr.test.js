@@ -466,3 +466,30 @@ describe('wiring in main.js', () => {
     expect(ws).not.toMatch(/accepted but block nothing/);
   });
 });
+
+describe('the time limit on a regular expression', () => {
+  const slow = (ms) => ({ test: () => { const end = Date.now() + ms; while (Date.now() < end) { /* spin */ } return true; } });
+  const fast = { test: () => true };
+  const R = (re) => ({ re, timedOut: 0 });
+  it('a rule is switched off only after a run of real overruns', () => {
+    const r = R(slow(dnr.REGEX_LIMIT_MS * 4));
+    for (let i = 0; i < dnr.REGEX_MAX_OVERRUNS; i++) { expect(r.timedOut).toBe(i); expect(dnr.regexTest(r, 'https://a.test/')).toBe(false); }
+    expect(r.timedOut).toBe(dnr.REGEX_MAX_OVERRUNS);
+    r.re = fast;   // switched off for good: even a fast pattern is no longer asked
+    expect(dnr.regexTest(r, 'https://a.test/')).toBe(false);
+  });
+  it('one good run ends the streak, so a busy PC cannot wear a rule out a little at a time', () => {
+    const r = R(slow(dnr.REGEX_LIMIT_MS * 4));
+    for (let i = 0; i < dnr.REGEX_MAX_OVERRUNS - 1; i++) dnr.regexTest(r, 'https://a.test/');
+    expect(r.timedOut).toBe(dnr.REGEX_MAX_OVERRUNS - 1);
+    r.re = fast;
+    expect(dnr.regexTest(r, 'https://a.test/')).toBe(true);
+    expect(r.timedOut).toBe(0);
+  });
+  it('an error that is not a timeout skips the address and keeps the rule on', () => {
+    const r = R({ test: () => { throw new Error('boom'); } });
+    expect(dnr.regexTest(r, 'https://a.test/')).toBe(false);
+    expect(r.timedOut).toBe(0);
+    expect(r.lastError).toBe('boom');
+  });
+});
