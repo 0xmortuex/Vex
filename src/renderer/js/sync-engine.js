@@ -1547,6 +1547,31 @@ const SyncEngine = (() => {
     }
     return out.sort((a, b) => b.at - a.at);
   }
+  // The whole of each version of one conflict, for the side-by-side view
+  // (js/sync-conflict-detail.js): conflictList() cuts every version to a line.
+  // Nothing sealed is ever returned: a saved login or authenticator account is
+  // shown by its label only (`sealed: true`), never its password or secret.
+  // -> { key, what, versions: [{ deleted, at, current, sealed, label, value }] } | null
+  function conflictDetail(key) {
+    const summary = conflictList().find(c => c.key === key);
+    const record = recordDocument && recordDocument.records[key];
+    if (!summary || !record || !(record.conflicts?.length > 1)) return null;
+    const [source] = JSON.parse(key);
+    const sealed = secretSource(source);
+    const bare = value => (value && typeof value === 'object' && 'item' in value ? value.item : value);
+    return {
+      key,
+      what: summary.what,
+      versions: record.conflicts.map((v, i) => ({
+        deleted: !!v.deleted,
+        at: v.at || 0,
+        current: summary.versions[i].current,
+        sealed,
+        label: summary.versions[i].text,
+        value: sealed || v.deleted ? null : structuredClone(bare(v.value)),
+      })),
+    };
+  }
   // Puts back version `index` of the record `key` on this device and makes it
   // the account's, ending the conflict.
   async function resolveConflict(key, index) {
@@ -1954,6 +1979,7 @@ const SyncEngine = (() => {
     resumeAfterGame,
     syncTypes: () => SYNC_TYPES.map(t => ({ id: t.id, label: t.label, on: typeOn(t.id) })),
     conflicts: conflictList,
+    conflictDetail,
     resolveConflict,
     setTypeSynced,
     renameDevice,

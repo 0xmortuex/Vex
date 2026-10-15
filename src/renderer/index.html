@@ -72,6 +72,7 @@
   <link rel="stylesheet" href="css/site-panel.css">
   <link rel="stylesheet" href="css/legal.css">
   <link rel="stylesheet" href="css/passkeys.css">
+  <link rel="stylesheet" href="css/vex-platform.css">
   <link rel="stylesheet" href="css/a11y.css">
 </head>
 <body>
@@ -1696,6 +1697,8 @@
   <script src="js/vex-dialog.js"></script>
   <script src="js/vex-undo.js"></script>
   <script src="js/vex-utils.js"></script>
+  <!-- The feature registry (js/vex-usage.js): before any module that registers. -->
+  <script src="js/vex-usage.js"></script>
   <script src="js/idn.js"></script>
   <script src="js/vex-markdown.js"></script>
   <script src="js/theme-custom.js"></script>
@@ -1903,6 +1906,13 @@
   <script src="js/why-slow.js"></script>
   <script src="js/keys-sheet.js"></script>
   <script src="js/backup.js"></script>
+  <!-- Platform tools: Settings sections they add themselves (js/vex-settings-groups.js). -->
+  <script src="js/vex-settings-groups.js"></script>
+  <script src="js/vex-usage-ui.js"></script>
+  <script src="js/vex-minimal-mode.js"></script>
+  <script src="js/vex-health.js"></script>
+  <script src="js/update-safety-net.js"></script>
+  <script src="js/sync-conflict-detail.js"></script>
   <script src="js/browser-import.js"></script>
   <!-- feature-details.js is lazy-loaded via VexLazy when the Library opens (FeatureLibrary._details) -->
   <script src="js/feature-library.js"></script>

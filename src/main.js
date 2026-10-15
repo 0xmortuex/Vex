@@ -8896,6 +8896,32 @@ ipcMain.handle('updates:backup-read', (event, name) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
+// === Health check and self-repair (src/main/health-check.js, js/vex-health.js) ===
+// Settings › Health check. Only Vex's own main window may ask, and it names
+// repairs by the ids a scan gave it, never by path. Preference keys are removed
+// by the interface (its localStorage shim holds them), so this hands keys back.
+const _health = require('./main/health-check').createHealthCheck({
+  fs, userDataPath, getPersisted: () => preferences.load(),
+});
+function _healthFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can run the health check');
+}
+ipcMain.handle('health:scan', (event) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._health.scan() }; }
+  catch (err) { console.error('[Health] scan failed:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('health:fix', (event, ids, confirmed) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._health.fix(ids, { confirmed: confirmed === true }) }; }
+  catch (err) { console.error('[Health] repair failed:', err); return { ok: false, error: err.message }; }
+});
+ipcMain.handle('health:undo', (event, run) => {
+  _healthFromMainWindow(event);
+  try { return { ok: true, ..._health.undo(run) }; }
+  catch (err) { console.error('[Health] undo failed:', err); return { ok: false, error: err.message }; }
+});
+
 // === Profiles: the switcher (js/profiles-ui.js) and running side by side ====
 // _profile was chosen at the top of this file (src/main/profiles.js). Each
 // profile is its own Vex process; opening one starts Vex with --profile=<id>,

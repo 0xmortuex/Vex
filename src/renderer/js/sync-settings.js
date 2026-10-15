@@ -324,6 +324,7 @@ const SyncSettings = (() => {
           ${conflicts.length ? conflicts.map((c, n) => `
             <div class="sync-conflict" style="margin:12px 0">
               <strong>${escapeHtml(c.what)}</strong>
+              ${typeof VexSyncConflictDetail !== 'undefined' ? `<button class="btn-secondary" style="margin-left:8px" data-compare="${n}">Compare both</button>` : ''}
               ${c.versions.map((v, i) => `
                 <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
                   <div style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(v.text)}</div>
@@ -334,6 +335,10 @@ const SyncSettings = (() => {
           <div style="display:flex;justify-content:flex-end"><button class="btn-primary" id="close-conflicts">Close</button></div>
         </div>`;
       overlay.querySelector('#close-conflicts').addEventListener('click', close);
+      overlay.querySelectorAll('[data-compare]').forEach(btn => btn.addEventListener('click', () => {
+        try { VexSyncConflictDetail.open(conflicts[Number(btn.dataset.compare)].key, { done: draw }); }
+        catch (err) { toast(human(err && err.message), 'error'); }
+      }));
       overlay.querySelectorAll('[data-conflict]').forEach(btn => btn.addEventListener('click', async () => {
         const c = conflicts[Number(btn.dataset.conflict)];
         btn.disabled = true;

@@ -489,6 +489,12 @@ contextBridge.exposeInMainWorld('vex', {
   widevineStatus: () => ipcRenderer.invoke('widevine:status'),
   widevineRetry: () => ipcRenderer.invoke('widevine:retry'),
   // The update cover (js/update-notifier.js, src/main/updates.js).
+  // Settings › Health check (src/main/health-check.js)
+  health: {
+    scan: () => ipcRenderer.invoke('health:scan'),
+    fix: (ids, confirmed) => ipcRenderer.invoke('health:fix', ids, confirmed === true),
+    undo: (run) => ipcRenderer.invoke('health:undo', run),
+  },
   updates: {
     upcomingNotes: (version) => ipcRenderer.invoke('updates:upcoming-notes', version),
     download: (version) => ipcRenderer.invoke('updates:download', version),
