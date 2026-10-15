@@ -84,6 +84,20 @@ const SiteReadability = {
   },
   get(host) { return this.all()[this._bare(host)] || null; },
 
+  // Presets that installed Vex Packs offer (js/packs-consumers.js): in memory
+  // only, never in the person's own list, and the person's own choice wins.
+  _pack: new Map(),
+  setPackPresets(list) {
+    const m = new Map();
+    for (const p of Array.isArray(list) ? list : []) {
+      const h = this._bare(p && p.host);
+      const n = h ? this.normalize({ font: p.font, contrast: p.contrast, width: p.width }) : null;
+      if (n && /^[a-z0-9.-]{1,253}$/.test(h) && !m.has(h)) m.set(h, n);
+    }
+    this._pack = m;
+    return m.size;
+  },
+
   _save(map) {
     try { localStorage.setItem(this.KEY, JSON.stringify(map)); }
     catch (err) { throw new Error('The readability choice could not be saved: ' + ((err && err.message) || err)); }
@@ -125,7 +139,9 @@ const SiteReadability = {
   applyTo(webview, url) {
     if (!webview) return false;
     const host = this.hostOf(url);
-    const cfg = host ? this.get(host) : null;
+    // A pack preset is not the person's own choice: it is never applied in a
+    // private window or a Tor / routed tab (the guard that stops remembering).
+    const cfg = host ? (this.get(host) || (this.canRemember(webview) ? this._pack.get(host) : null) || null) : null;
     // A site with nothing set still clears what an earlier page left behind.
     if (!cfg && !webview._vexReadabilityKey) return false;
     this._write(webview, cfg ? this.buildCss(cfg) : '');
@@ -142,6 +158,15 @@ const SiteReadability = {
       if (!wv) continue;
       try { this.applyTo(wv, tab.url); n++; } catch (err) { console.error('[Readability] refresh failed:', err); }
     }
+    return n;
+  },
+
+  // Every open tab again (a pack's presets came or went).
+  refreshAll() {
+    if (typeof TabManager === 'undefined') return 0;
+    const hosts = new Set((TabManager.tabs || []).map(t => this.hostOf(t.url)).filter(Boolean));
+    let n = 0;
+    for (const h of hosts) n += this.refreshHost(h);
     return n;
   },
 

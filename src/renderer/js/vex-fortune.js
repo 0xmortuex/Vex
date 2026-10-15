@@ -282,9 +282,20 @@ const VexFortune = {
     return (((this.dayNumber(date) % n) * (step % n)) % n + n) % n;
   },
 
+  // Lines from installed Vex Packs (js/packs-consumers.js): in memory only.
+  _pack: [],
+  setPackLines(list) {
+    this._pack = (Array.isArray(list) ? list : [])
+      .filter(e => e && typeof e.text === 'string' && e.text.trim())
+      .slice(0, 100)
+      .map(e => ({ kind: 't', text: e.text.slice(0, 280) + (e.by ? ' - ' + String(e.by).slice(0, 60) : '') }));
+    return this._pack.length;
+  },
+
   today(date) {
     const when = date || new Date();
-    const line = this.LINES[this.indexFor(when, this.LINES.length)];
+    const lines = this.LINES.concat(this._pack);
+    const line = lines[this.indexFor(when, lines.length)];
     return { text: line.text, kind: line.kind, day: this.dayKey(when) };
   },
 

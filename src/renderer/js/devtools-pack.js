@@ -62,6 +62,7 @@ const JsonApiViewer = {
           <textarea id="api-headers" placeholder="Headers — one per line:&#10;Authorization: Bearer …&#10;Content-Type: application/json" spellcheck="false" style="flex:1;height:54px;resize:vertical;padding:6px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;outline:none"></textarea>
           <textarea id="api-body" placeholder="Request body (POST/PUT)…" spellcheck="false" style="flex:1;height:54px;resize:vertical;padding:6px 9px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;outline:none"></textarea>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 14px;font-size:12px;color:var(--text-muted)"><input type="checkbox" id="api-allow-local" aria-label="Allow localhost for this window"> Allow localhost (127.0.0.1, ::1) for this window. Addresses on your local network are never sent to.</label>
         <div id="api-status" style="padding:6px 14px;font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace"></div>
         <div id="api-response" style="flex:1;overflow:auto;padding:6px 14px 16px">
           <div style="color:var(--text-muted);font-size:12.5px;padding:8px">Build a request and hit <strong>Send</strong>. JSON responses render as a collapsible tree; anything else shows raw.</div>
@@ -105,7 +106,8 @@ const JsonApiViewer = {
     const out = m.querySelector('#api-response');
     statusEl.textContent = 'Sending…';
     out.innerHTML = '';
-    const res = await window.vex.apiRequest({ url, method, headers, body }).catch(() => null);
+    const allowLocal = !!(m.querySelector('#api-allow-local') || {}).checked;
+    const res = await window.vex.apiRequest({ url, method, headers, body, viewer: true, allowLocal }).catch(() => null);
     if (!res || !res.ok) { statusEl.innerHTML = `<span style="color:#fca5a5">${VexIcons.svg('x', { size: 12 })} ${this.esc((res && res.error) || 'Request failed')}</span>`; return; }
     const okColor = res.status < 300 ? '#86efac' : res.status < 400 ? '#fbbf24' : '#fca5a5';
     const kb = res.size < 1024 ? res.size + ' B' : (res.size / 1024).toFixed(1) + ' KB';

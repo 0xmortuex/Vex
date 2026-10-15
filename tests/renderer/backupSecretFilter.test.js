@@ -52,3 +52,26 @@ describe('backup secret filter', () => {
     expect('vex.githubToken' in data.items).toBe(false);
   });
 });
+
+describe('page actions never travel in a backup', () => {
+  it('vex.pageActions and the recorder state are denylisted', () => {
+    expect(VexBackup._blocked('vex.pageActions')).toBe(true);
+    expect(VexBackup._blocked('vex.pageRecorder.runs')).toBe(true);
+    expect(VexBackup._blocked('vex.pageRecorder.state')).toBe(true);
+  });
+
+  it('collect leaves them out and restore does not write them, but says so', () => {
+    localStorage.clear();
+    localStorage.setItem('vex.pageActions', JSON.stringify({ enabled: true, scripts: [{ name: 'x' }] }));
+    localStorage.setItem('vex.theme', 'oxford');
+    const out = VexBackup.collect();
+    expect(out.items['vex.pageActions']).toBeUndefined();
+    expect(out.items['vex.theme']).toBe('oxford');
+    const file = { v: 1, at: new Date().toISOString(), items: { 'vex.pageActions': JSON.stringify({ enabled: true, scripts: [] }), 'vex.theme': 'dark' } };
+    localStorage.removeItem('vex.pageActions');
+    expect(VexBackup.describe(file).pageActions).toBe(true);
+    VexBackup.apply(file);
+    expect(localStorage.getItem('vex.pageActions')).toBeNull();
+    expect(localStorage.getItem('vex.theme')).toBe('dark');
+  });
+});

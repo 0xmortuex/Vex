@@ -39,7 +39,20 @@ const StickerSheet = (() => {
     { id: 'heart', name: 'Heart', svg: S('<path d="M32 56C10 40 6 26 12 16c6-8 16-5 20 3 4-8 14-11 20-3 6 10 2 24-20 40z" fill="#ef6a8a" stroke="#7a1f3a" stroke-width="2.4" stroke-linejoin="round"/>') }
   ]);
   const IDS = CATALOG.map(c => c.id);
-  const byId = (id) => CATALOG.find(c => c.id === id) || null;
+  // Stickers from installed Vex Packs (js/packs-consumers.js): in memory only,
+  // never part of what a signal can grant, always free to stick, and drawn as
+  // an image (<img> with a data: SVG), which cannot run script or load anything.
+  let PACK = [];
+  const isPack = (id) => typeof id === 'string' && id.startsWith('pack:') && PACK.some(c => c.id === id);
+  const isKnown = (id) => IDS.includes(id) || isPack(id);
+  const byId = (id) => CATALOG.find(c => c.id === id) || PACK.find(c => c.id === id) || null;
+  function setPackStickers(list) {
+    PACK = (Array.isArray(list) ? list : [])
+      .filter(s => s && typeof s.id === 'string' && typeof s.svg === 'string' && s.svg.length <= 16 * 1024 && /^<svg[\s>]/i.test(s.svg.trim()))
+      .slice(0, 50)
+      .map(s => ({ id: 'pack:' + s.id, name: String(s.name || s.id).slice(0, 40), href: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg), pack: true }));
+    return PACK.length;
+  }
 
   // ---- pure data model ------------------------------------------------------
   const empty = () => ({ v: 1, collected: [], placed: [], seq: 0 });
@@ -48,11 +61,11 @@ const StickerSheet = (() => {
     const m = empty();
     if (!raw || typeof raw !== 'object') return m;
     if (Array.isArray(raw.collected)) {
-      m.collected = raw.collected.filter(c => c && typeof c.key === 'string' && IDS.includes(c.sticker)).slice(0, MAX_COLLECTED)
+      m.collected = raw.collected.filter(c => c && typeof c.key === 'string' && isKnown(c.sticker)).slice(0, MAX_COLLECTED)
         .map(c => ({ key: c.key, sticker: c.sticker, at: Number(c.at) || 0 }));
     }
     if (Array.isArray(raw.placed)) {
-      m.placed = raw.placed.filter(p => p && typeof p.uid === 'string' && IDS.includes(p.sticker)).slice(0, MAX_PLACED)
+      m.placed = raw.placed.filter(p => p && typeof p.uid === 'string' && isKnown(p.sticker)).slice(0, MAX_PLACED)
         .map(p => ({ uid: p.uid, sticker: p.sticker, x: clamp(p.x), y: clamp(p.y), rot: clampRot(p.rot), scale: clampScale(p.scale), z: Number(p.z) || 0 }));
     }
     m.seq = Math.max(Number(raw.seq) || 0, m.placed.length);
@@ -92,7 +105,8 @@ const StickerSheet = (() => {
   const ownedCount = (model, id) => model.collected.filter(c => c.sticker === id).length;
   const placedCount = (model, id) => model.placed.filter(p => p.sticker === id).length;
   // You may stick a sticker as many times as you have earned it.
-  const available = (model, id) => ownedCount(model, id) - placedCount(model, id);
+  // A pack sticker is free: as many as the board takes.
+  const available = (model, id) => (isPack(id) ? 1 : ownedCount(model, id) - placedCount(model, id));
 
   function place(model, id, x, y) {
     if (!byId(id)) throw new Error('Unknown sticker ' + id);
@@ -155,6 +169,17 @@ const StickerSheet = (() => {
   function _svgEl(id) {
     const c = byId(id);
     const NS = 'http://www.w3.org/2000/svg';
+    if (c && c.pack) {
+      const holder = document.createElementNS(NS, 'svg');
+      holder.setAttribute('viewBox', '0 0 64 64');
+      holder.setAttribute('aria-hidden', 'true');
+      const im = document.createElementNS(NS, 'image');
+      im.setAttribute('href', c.href);
+      im.setAttribute('width', '64');
+      im.setAttribute('height', '64');
+      holder.appendChild(im);
+      return holder;
+    }
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 64 64');
     svg.setAttribute('aria-hidden', 'true');
@@ -204,7 +229,7 @@ const StickerSheet = (() => {
         board.appendChild(d);
       }
       tray.textContent = '';
-      for (const c of CATALOG) {
+      for (const c of CATALOG.concat(PACK)) {
         const left = available(model, c.id);
         if (left <= 0) continue;
         const b = document.createElement('button');
@@ -285,7 +310,7 @@ const StickerSheet = (() => {
   }
 
   return {
-    CATALOG, IDS, MAX_COLLECTED, MAX_PLACED, KEY,
+    CATALOG, IDS, MAX_COLLECTED, MAX_PLACED, KEY, setPackStickers,
     normalize, signalKey, stickerForKey, grant, place, move, rotate, resize, raise, remove,
     available, ownedCount, placedCount, load, save, onMedal, listen, mount, unmount, snapshot,
     _reset() { _mounted = null; _listening = false; }

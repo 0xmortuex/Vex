@@ -44,6 +44,12 @@ const VexBackup = {
     // in a preference; should a key with their name ever appear, it is a
     // passkey store and stays out. Only the two site lists are settings.
     /^vex\.passkey(?!(?:SuppressedHosts|AllowedHosts)$)/i,
+    // Page actions are scripts that act as you on a site (js/page-actions.js).
+    // They never travel in a backup, so a restore cannot switch them on behind
+    // the warning that turning them on shows; the recorder's runs and state go
+    // with them.
+    /^vex\.pageActions$/i,
+    /^vex\.pageRecorder\./i,
   ],
 
   // True of this machine, not of this person.
@@ -178,6 +184,8 @@ const VexBackup = {
       app: data.app || '',
       chats: keys.some(k => this._isOptional(k, 'chats')),
       userscripts: stores.includes('userscripts'),
+      // An older file may still carry them: they are named, and not restored.
+      pageActions: Object.prototype.hasOwnProperty.call(data.items, 'vex.pageActions'),
       bytes: keys.reduce((n, k) => n + String(data.items[k] || '').length, 0),
     };
   },
@@ -434,6 +442,7 @@ const VexBackup = {
       message: 'It holds ' + seen.count + ' things, saved on ' + when + (seen.app ? ' by Vex ' + seen.app : '') + '.'
         + (seen.chats ? '\n\nIt includes AI conversations.' : '')
         + (seen.userscripts ? '\n\nIt includes userscripts. They come back switched off; turn each one on in Settings.' : '')
+        + (seen.pageActions ? '\n\nIt includes page actions. They are not restored: turn them on again in Settings and read the warning again.' : '')
         + '\n\nEverything in it is written over what Vex has now; what it does not have is left as it is. You can undo it until you close Vex.',
       okLabel: 'Restore', cancelLabel: 'Cancel', danger: true,
     }) : true;

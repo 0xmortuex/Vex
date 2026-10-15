@@ -186,6 +186,68 @@ const BriefIntegration = {
     };
   },
 
+  // ---- Vex Pack sections ---------------------------------------------------
+  // A pack's brief section is data: text, https links and https URL templates.
+  // It becomes a registry section here; a template that needs a query is not
+  // offered (the brief has none) and one that needs the open page is filled
+  // only from a normal tab, never a private, Tor or routed one.
+  _packIds: new Set(),
+
+  _activePage() {
+    try {
+      const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
+      if (!tab || !/^https:/i.test(tab.url || '')) return null;
+      const wv = typeof WebviewManager !== 'undefined' && WebviewManager.webviews ? WebviewManager.webviews.get(tab.id) : null;
+      const pol = typeof window !== 'undefined' ? window.VexTabPolicy : null;
+      if (!pol || !wv || typeof pol.canReadWebview !== 'function' || !pol.canReadWebview(wv)) return null;
+      if (typeof pol.canShareTab === 'function' && !pol.canShareTab(tab)) return null;
+      const u = new URL(tab.url);
+      return { url: tab.url, host: u.hostname };
+    } catch { return null; }
+  },
+
+  packLines(item) {
+    const out = [];
+    for (const b of item.blocks || []) {
+      if (b.kind === 'text') out.push({ text: b.text });
+      else if (b.kind === 'link' && /^https:\/\//i.test(b.url)) out.push({ text: b.label, actions: [{ label: 'Open', url: b.url }] });
+      else if (b.kind === 'url-template') {
+        if (b.template.includes('{query}')) continue;
+        let url = b.template;
+        if (/\{tab-(url|host)\}/.test(url)) {
+          const page = this._activePage();
+          if (!page) continue;
+          url = url.replace(/\{tab-url\}/g, encodeURIComponent(page.url)).replace(/\{tab-host\}/g, encodeURIComponent(page.host));
+        }
+        if (/^https:\/\//i.test(url)) out.push({ text: b.label, actions: [{ label: 'Open', url }] });
+      }
+    }
+    return out;
+  },
+
+  // entries: VexPacks.items('brief-section') -> [{ packId, packName, item }]
+  setPackSections(entries, brief) {
+    const reg = brief || (typeof VexBrief !== 'undefined' ? VexBrief : null);
+    if (!reg || typeof reg.register !== 'function') return 0;
+    for (const id of this._packIds) { if (typeof reg.unregister === 'function') reg.unregister(id); this._synced.delete(id); }
+    this._packIds.clear();
+    let n = 0;
+    for (const { packId, packName, item } of Array.isArray(entries) ? entries : []) {
+      if (!item || !Array.isArray(item.blocks)) continue;
+      const id = 'pack-' + packId + '-' + item.id;
+      const mod = {
+        id, title: item.title + (packName ? ' (' + packName + ')' : ''), icon: 'box',
+        isEnabled: () => true,
+        build: () => { const lines = this.packLines(item); return lines.length ? { lines } : null; },
+      };
+      reg.register({ ...this.sectionFor(mod, { order: 140, maxItems: 8, icon: 'box' }), defaultOn: true });
+      this._packIds.add(id);
+      this._synced.add(id);
+      n++;
+    }
+    return n;
+  },
+
   // ---- registering ---------------------------------------------------------
   // Idempotent. Called before every build, so a module that arrives late (the
   // memory tools start with the app, not with the page) is picked up.

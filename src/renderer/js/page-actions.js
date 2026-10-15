@@ -282,10 +282,28 @@ const PageActions = {
     return '';
   },
 
+  // Scripts that installed Vex Packs offer (js/packs-consumers.js): in memory
+  // only, run only by the person choosing them (never automatically), and held
+  // to the same rules as their own: the master switch, the exact origin, no
+  // private / Tor / routed tab.
+  _pack: new Map(),
+  setPackScripts(list) {
+    const m = new Map();
+    for (const p of Array.isArray(list) ? list : []) {
+      if (!p || typeof p.id !== 'string' || typeof p.origin !== 'string' || typeof p.source !== 'string') continue;
+      const id = 'pack:' + p.id;
+      m.set(id, { id, name: String(p.name || p.id).slice(0, 80), origin: p.origin.toLowerCase(), source: p.source, packName: String(p.packName || '').slice(0, 60) });
+    }
+    this._pack = m;
+    this._registerCommands();
+    return m.size;
+  },
+
   async run(id, { auto = false } = {}) {
     const state = this._load();
     if (!state.enabled || !this.available()) throw new Error('Page actions are turned off (Settings › Boosts)');
-    const s = state.scripts.find(x => x.id === id);
+    if (typeof id === 'string' && id.startsWith('pack:') && auto) throw new Error('A pack\'s page action only runs when you choose it');
+    const s = (typeof id === 'string' && id.startsWith('pack:')) ? this._pack.get(id) : state.scripts.find(x => x.id === id);
     if (!s) throw new Error('That script no longer exists');
     const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
     const wv = tab && typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(tab.id) : null;
@@ -417,9 +435,9 @@ const PageActions = {
         id: 'pageaction:new', label: 'New page action for this site', hint: 'Write a small click-and-scroll script for the open site', icon: 'terminal',
         action: () => { try { this.edit(null); } catch (err) { window.showToast?.(err.message, 'error'); } },
       });
-      for (const s of this._load().scripts) {
+      for (const s of [...this._load().scripts, ...this._pack.values()]) {
         list.push({
-          id: 'pageaction:run:' + s.id, label: 'Run page action: ' + s.name, hint: s.origin, icon: 'play',
+          id: 'pageaction:run:' + s.id, label: 'Run page action: ' + s.name, hint: s.origin + (s.packName ? ' (pack "' + s.packName + '")' : ''), icon: 'play',
           action: async () => { try { await this.run(s.id); } catch (err) { window.showToast?.(err.message, 'error'); } },
         });
       }

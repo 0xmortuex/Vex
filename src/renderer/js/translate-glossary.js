@@ -13,13 +13,16 @@
 // change it. This uses the existing translator — there is no local-model
 // translation here; the local model is not involved at all.
 //
-// If the translator mangles a placeholder so a term cannot be put back, that
-// paragraph is translated again without protection rather than shown with a
-// stray token in it, and the count of such paragraphs is kept in `stats`.
+// If the translator mangles a placeholder so a term cannot be put back, the
+// paragraph is NOT sent again (that would hand the term to the translator after
+// all, silently). It is shown as translated, with the terms that did survive
+// put back, stray tokens removed and a visible "glossary not applied" marker in
+// front. The count of such paragraphs is kept in `stats`.
 
 const GlossaryTranslate = {
   KEY: 'vex.translateGlossary',     // { "<host>" | "*": [{ term, to }] }
   MAX_TERMS: 200,
+  NOT_APPLIED: '[glossary not applied] ',
   stats: { protectedTerms: 0, unprotected: 0 },
 
   // --- storage -------------------------------------------------------------
@@ -120,6 +123,15 @@ const GlossaryTranslate = {
     return out;
   },
 
+  // What can be recovered from an answer that lost a placeholder: the terms
+  // that survived go back, the broken tokens go.
+  restorePartial(text, found) {
+    return String(text)
+      .replace(/Z\s?X\s?Q\s?(\d+)\s?Q\s?X\s?Z/gi, (m, n) => (found[Number(n)] === undefined ? '' : found[Number(n)]))
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  },
+
   // One paragraph through the translator, with the glossary applied.
   async translate(text, tl, host) {
     const send = (t) => window.vex.translateText(t, tl);
@@ -131,8 +143,9 @@ const GlossaryTranslate = {
     if (raw == null) return raw;
     const back = this.restore(raw, p.found);
     if (back !== null) { this.stats.protectedTerms += p.found.length; return back; }
+    // Not sent again: the term would reach the translator. Say so instead.
     this.stats.unprotected++;
-    return send(text);
+    return this.NOT_APPLIED + this.restorePartial(raw, p.found);
   },
 
   // --- running it on the front tab -----------------------------------------

@@ -1302,6 +1302,8 @@ function vexOwnTextFocused(doc) {
   if (typeof VexChainSteps !== 'undefined') VexChainSteps.init();
   if (typeof ReleaseRadar !== 'undefined') ReleaseRadar.init();
   if (typeof VexPacks !== 'undefined') VexPacks.init();
+  // Installed packs reach the features that read them (aliases, presets, quotes...).
+  if (typeof VexPackConsumers !== 'undefined') VexPackConsumers.init();
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
 

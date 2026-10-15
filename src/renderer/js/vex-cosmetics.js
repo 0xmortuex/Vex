@@ -95,7 +95,29 @@ const VexCosmetics = {
     return { equipped: eq };
   },
 
-  _find(kind, id) { return this.CATALOG.find(c => c.kind === kind && c.id === id) || null; },
+  // Frames from installed Vex Packs (js/packs-consumers.js): in memory only,
+  // free to wear, and drawn as an IMAGE (an <image> with a data: SVG inside an
+  // <svg>), which cannot run script or load anything.
+  _pack: [],
+  setPackFrames(list) {
+    this._pack = (Array.isArray(list) ? list : [])
+      .filter(f => f && typeof f.id === 'string' && typeof f.svg === 'string' && f.svg.length <= 16 * 1024 && /^<svg[\s>]/i.test(f.svg.trim()))
+      .slice(0, 50)
+      .map(f => {
+        const href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(f.svg);
+        return {
+          kind: 'frame', id: 'pack:' + f.id, name: String(f.name || f.id).slice(0, 40),
+          desc: 'From the pack "' + String(f.packName || '').slice(0, 60) + '".', unlock: { free: true },
+          draw: () => '<image href="' + href + '" x="0" y="0" width="96" height="96"/>',
+        };
+      });
+    // A frame that went away with its pack is no longer worn.
+    try { this._emit('frame', this.equipped().frame); } catch (err) { console.error('[Cosmetics] could not refresh the frame:', err); }
+    return this._pack.length;
+  },
+  _all() { return this.CATALOG.concat(this._pack); },
+
+  _find(kind, id) { return this._all().find(c => c.kind === kind && c.id === id) || null; },
 
   _unlock() {
     if (typeof VexUnlock === 'undefined') throw new Error('The unlock rules are not loaded');
@@ -104,7 +126,7 @@ const VexCosmetics = {
 
   owned(kind) {
     if (!this.KINDS.includes(kind)) throw new Error('Unknown kind: ' + kind);
-    const items = this.CATALOG.filter(c => c.kind === kind);
+    const items = this._all().filter(c => c.kind === kind);
     const ids = new Set(this._unlock().settle('cosmetic-' + kind, items));
     return items.filter(i => ids.has(i.id)).map(i => i.id);
   },
@@ -124,7 +146,7 @@ const VexCosmetics = {
     if (!this.KINDS.includes(kind)) throw new Error('Unknown kind: ' + kind);
     const own = new Set(this.owned(kind));
     const cur = this.equipped()[kind];
-    return this.CATALOG.filter(c => c.kind === kind).map(c => ({
+    return this._all().filter(c => c.kind === kind).map(c => ({
       id: c.id, kind: c.kind, name: c.name, desc: c.desc, unlock: c.unlock,
       owned: own.has(c.id), equipped: cur === c.id,
       how: own.has(c.id) ? '' : this._unlock().describe(c.unlock),

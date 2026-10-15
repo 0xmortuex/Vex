@@ -74,7 +74,17 @@ const VexWidgets = {
   },
   _hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; },
 
-  quoteOfDay(date, list = this.QUOTES) {
+  // Quotes from installed Vex Packs (js/packs-consumers.js): in memory only.
+  _packQuotes: [],
+  setPackQuotes(list) {
+    this._packQuotes = (Array.isArray(list) ? list : [])
+      .filter(e => e && typeof e.text === 'string' && e.text.trim())
+      .slice(0, 100)
+      .map(e => ({ t: e.text.slice(0, 280), a: e.by ? String(e.by).slice(0, 60) : '' }));
+    return this._packQuotes.length;
+  },
+
+  quoteOfDay(date, list = this.QUOTES.concat(this._packQuotes)) {
     return list[this._hash(this.dayKey(date)) % list.length];
   },
 

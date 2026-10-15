@@ -65,12 +65,26 @@ describe('translate', () => {
     expect(window.vex.translateText).toHaveBeenCalledWith('hello world', 'tr');
   });
 
-  it('a mangled placeholder is translated again unprotected and counted', async () => {
+  it('a mangled placeholder is not translated again: the paragraph is marked, and counted', async () => {
     G.stats.unprotected = 0;
     G.addTerm('a.test', 'Ollama', '');
     window.vex.translateText = vi.fn(async (t) => (t.includes('ZXQ') ? 'garbled' : 'clean ' + t));
     const out = await G.translate('run Ollama now', 'tr', 'a.test');
-    expect(out).toBe('clean run Ollama now');
+    // one request only: the term was never sent in the clear
+    expect(window.vex.translateText).toHaveBeenCalledTimes(1);
+    expect(window.vex.translateText.mock.calls[0][0]).not.toContain('Ollama');
+    expect(out.startsWith(G.NOT_APPLIED)).toBe(true);
     expect(G.stats.unprotected).toBe(1);
+  });
+
+  it('keeps the terms that did survive and drops the broken token', async () => {
+    G.stats.unprotected = 0;
+    G.addTerm('a.test', 'Ollama', '');
+    G.addTerm('a.test', 'Vex', '');
+    window.vex.translateText = vi.fn(async (t) => t.replace(/ZXQ1QXZ/g, 'broken'));
+    const out = await G.translate('Ollama and Vex', 'tr', 'a.test');
+    expect(out).toContain('Ollama');
+    expect(out).not.toMatch(/ZXQ|QXZ/);
+    expect(out.startsWith(G.NOT_APPLIED)).toBe(true);
   });
 });

@@ -9,6 +9,8 @@ const NOW = Date.UTC(2026, 9, 16);
 
 beforeEach(() => {
   localStorage.clear();
+  // Indexing is opt-in: these tests are about a knowledge base that was turned on.
+  localStorage.setItem('vex.kb.enabled', 'true');
   delete window.vex;
   delete window.VexTabPolicy;
   delete globalThis.AIRouter;
@@ -170,6 +172,20 @@ describe('related block (brief-ready)', () => {
   });
 });
 
+describe('opt-in', () => {
+  it('is off until it is switched on, and nothing is indexed or asked while off', async () => {
+    localStorage.clear();
+    expect(Knowledge.enabled()).toBe(false);
+    window.vex = { kbPlan: vi.fn(), kbRelatedPage: vi.fn() };
+    expect(await Knowledge.tick()).toBeNull();
+    expect((await Knowledge.relatedBlock({ title: 'x' })).items).toEqual([]);
+    expect(window.vex.kbPlan).not.toHaveBeenCalled();
+    expect(window.vex.kbRelatedPage).not.toHaveBeenCalled();
+    localStorage.setItem('vex.kb.enabled', 'true');
+    expect(Knowledge.enabled()).toBe(true);
+  });
+});
+
 describe('the indexing slice', () => {
   it('sends only what the plan asks for, in batches, with the exclusion list', async () => {
     localStorage.setItem('vex.notes', JSON.stringify([{ id: 'n1', title: 'A', content: 'alpha words', updatedAt: '2026-10-01T00:00:00Z' }, { id: 'n2', title: 'B', content: 'beta words', updatedAt: '2026-10-02T00:00:00Z' }]));
@@ -192,9 +208,30 @@ describe('the indexing slice', () => {
     window.vex = { kbPlan: vi.fn() };
     localStorage.setItem('vex.kb.enabled', 'false');
     expect(await Knowledge.tick()).toBeNull();
-    localStorage.removeItem('vex.kb.enabled');
+    localStorage.setItem('vex.kb.enabled', 'true');
     window.VexTabPolicy = { isPrivateWindow: true };
     expect(await Knowledge.tick()).toBeNull();
     expect(window.vex.kbPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe('source provider for Sources into a document', () => {
+  it('offers what is kept when the base is on, nothing when it is off, and registers itself', async () => {
+    localStorage.setItem('vex.notes', JSON.stringify([{ id: 'n1', title: 'Plan', content: 'ship on friday', updatedAt: '2026-10-01T00:00:00Z' }]));
+    const p = Knowledge.sourceProvider();
+    expect(p.id).toBe('knowledge');
+    const list = await p.list();
+    expect(list.map(i => i.id)).toContain('note:n1');
+    expect(await p.read('note:n1')).toContain('ship on friday');
+    await expect(p.read('note:missing')).rejects.toThrow(/no longer/);
+    localStorage.setItem('vex.kb.enabled', 'false');
+    expect(await p.list()).toEqual([]);
+    await expect(p.read('note:n1')).rejects.toThrow(/off/);
+    const seen = [];
+    globalThis.ProjectCompiler = { registerProvider: (x) => seen.push(x.id) };
+    Knowledge._inited = false;
+    Knowledge.init();
+    expect(seen).toEqual(['knowledge']);
+    delete globalThis.ProjectCompiler;
   });
 });

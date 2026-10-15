@@ -199,8 +199,9 @@ const Knowledge = {
   _api() { return window.vex || null; },
   _unavailable() { return !!(window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow); },
 
-  // On unless switched off (Forget switches it off; Rebuild switches it on).
-  enabled() { try { return localStorage.getItem(this.ENABLED_KEY) !== 'false'; } catch { return true; } },
+  // OFF until the person turns it on (owner decision 2026-10: indexing what
+  // you keep is opt-in). Forget switches it off; Rebuild switches it on.
+  enabled() { try { return localStorage.getItem(this.ENABLED_KEY) === 'true'; } catch { return false; } },
   setEnabled(on) {
     try { localStorage.setItem(this.ENABLED_KEY, on ? 'true' : 'false'); } catch (err) { console.error('[Knowledge] could not save the switch:', err); }
     this._sync();
@@ -689,7 +690,7 @@ const Knowledge = {
     const info = document.createElement('p');
     info.className = 'setting-info muted';
     info.style.marginBottom = '8px';
-    info.textContent = 'A search over what you keep: bookmarks, notes, highlights, read-later and archived pages. Local only; private tabs and the sites Recall ignores are never included.';
+    info.textContent = 'A search over what you keep: bookmarks, notes, highlights, read-later and archived pages. Off until you turn it on. Local only; private tabs and the sites Recall ignores are never included.';
     const stat = document.createElement('p');
     stat.className = 'setting-info muted';
     stat.setAttribute('role', 'status');
@@ -751,6 +752,29 @@ const Knowledge = {
     );
   },
 
+  // What "Sources into a document" (js/project-compiler.js) can draw on: what
+  // is kept, as the knowledge base sees it. Nothing is offered while the base is
+  // off (it is opt-in) or in a private window.
+  sourceProvider() {
+    const self = this;
+    return {
+      id: 'knowledge',
+      kind: 'knowledge',
+      label: 'My knowledge base',
+      async list() {
+        if (self._unavailable() || !self.enabled()) return [];
+        return self.collect().filter(i => i.text || i.title).slice(0, 200)
+          .map(i => ({ id: i.id, title: i.title || i.url, url: i.url, detail: i.kind }));
+      },
+      async read(id) {
+        if (self._unavailable() || !self.enabled()) throw new Error('The knowledge base is off');
+        const hit = self.collect().find(i => i.id === id);
+        if (!hit) throw new Error('That item is no longer in the knowledge base');
+        return (hit.title ? hit.title + '\n\n' : '') + (hit.text || hit.url || '');
+      },
+    };
+  },
+
   init() {
     if (this._inited) return;
     this._inited = true;
@@ -758,6 +782,9 @@ const Knowledge = {
     if (this._unavailable()) return;
     this._injectCommands();
     this._injectSettings();
+    if (typeof ProjectCompiler !== 'undefined' && typeof ProjectCompiler.registerProvider === 'function') {
+      ProjectCompiler.registerProvider(this.sourceProvider());
+    }
     this._sync();
   },
 };

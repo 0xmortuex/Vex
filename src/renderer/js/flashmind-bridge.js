@@ -288,26 +288,15 @@ const FlashMindBridge = {
   // FlashMind as a pinned site panel, through Vex's own pinned-site mechanism
   // (SidebarManager, vex.sitePanels): the same webview, icon and menu.
   panelPinned() {
-    if (typeof SidebarManager === 'undefined' || typeof SidebarManager._sitePanels !== 'function') return false;
-    return SidebarManager._sitePanels().some(p => p.id === this.PANEL_ID);
+    if (typeof SidebarManager === 'undefined' || typeof SidebarManager.hasSitePanel !== 'function') return false;
+    return SidebarManager.hasSitePanel(this.PANEL_ID);
   },
 
   ensurePanel() {
-    if (typeof SidebarManager === 'undefined' || typeof SidebarManager._mountSitePanel !== 'function') {
+    if (typeof SidebarManager === 'undefined' || typeof SidebarManager.pinSitePanel !== 'function') {
       throw new Error('The sidebar is not available');
     }
-    const url = this.url();
-    const list = SidebarManager._sitePanels();
-    let p = list.find(x => x.id === this.PANEL_ID);
-    if (!p) {
-      p = { id: this.PANEL_ID, name: 'FlashMind', url };
-      list.push(p);
-      SidebarManager._saveSitePanels(list);
-      SidebarManager._mountSitePanel(p);
-    } else if (!document.getElementById('panel-' + this.PANEL_ID)) {
-      SidebarManager._mountSitePanel(p);
-    }
-    return p;
+    return SidebarManager.pinSitePanel({ id: this.PANEL_ID, name: 'FlashMind', url: this.url() });
   },
 
   removePanel() {

@@ -2021,8 +2021,18 @@ ipcMain.handle('calendar:fetch', async (_e, url) => {
 ipcMain.handle('api:request', async (_e, opts = {}) => {
   const t0 = Date.now();
   try {
-    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null, publicOnly = false } = opts || {};
+    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null, publicOnly = false, viewer = false, allowLocal = false } = opts || {};
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
+    // The built-in API viewer (js/devtools-pack.js) is a person's own request
+    // builder: it follows the playground's rules. Public addresses only, and
+    // this machine only when "allow localhost" was ticked for this open; the
+    // local network is never sent to (main/api-playground.js).
+    if (viewer === true) {
+      const r = await _apiPlayground.send({ method, url, headers, body: body == null ? '' : String(body), allowLocal: allowLocal === true });
+      const hdrs = {};
+      for (const [k, v] of r.headers) hdrs[k] = v;
+      return { ok: true, status: r.status, statusText: r.statusText, headers: hdrs, body: r.body, size: r.size, capped: false, timeMs: r.timeMs };
+    }
     const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? { ...headers } : {} };
     // An MCP server's token, kept encrypted in main (mcp:auth-set).
     if (mcpServer) {

@@ -232,6 +232,28 @@ const SidebarManager = {
   _sitePanels() { try { const a = JSON.parse(localStorage.getItem(this.SITE_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } },
   _saveSitePanels(a) { try { localStorage.setItem(this.SITE_KEY, JSON.stringify(a)); } catch {} },
 
+  // Public, for a module that pins one fixed site panel of its own (FlashMind):
+  // it must not reach for the underscore methods above.
+  hasSitePanel(id) { return this._sitePanels().some(p => p.id === id); },
+  // Adds the panel when it is not pinned and mounts it when its element is
+  // missing; returns the panel record. Throws when the arguments are not a panel.
+  pinSitePanel({ id, name, url } = {}) {
+    if (typeof id !== 'string' || !id || typeof name !== 'string' || !name || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new Error('A site panel needs an id, a name and an http(s) address');
+    }
+    const list = this._sitePanels();
+    let p = list.find(x => x.id === id);
+    if (!p) {
+      p = { id, name, url };
+      list.push(p);
+      this._saveSitePanels(list);
+      this._mountSitePanel(p);
+    } else if (!document.getElementById('panel-' + id)) {
+      this._mountSitePanel(p);
+    }
+    return p;
+  },
+
   loadSitePanels() {
     this._sitePanels().forEach(p => this._mountSitePanel(p));
   },

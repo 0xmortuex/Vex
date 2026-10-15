@@ -129,10 +129,27 @@ const VexAliases = {
     return n;
   },
 
+  // Shortcuts that installed Vex Packs offer (js/packs-consumers.js). Kept in
+  // memory only: never written into the person's own list, and gone when the
+  // pack is switched off or removed. The person's own word always wins.
+  _pack: new Map(),
+  setPackEntries(list) {
+    const m = new Map();
+    for (const e of Array.isArray(list) ? list : []) {
+      const w = this.normalize(e && e.word);
+      if (!this.NAME.test(w) || typeof e.command !== 'string' || !e.command || m.has(w)) continue;
+      m.set(w, e.command);
+    }
+    this._pack = m;
+    return m.size;
+  },
+
   lookup(word) {
     if (!this.prefs().enabled) return null;
-    const a = this.all().aliases[this.normalize(word)];
-    return a ? a.id : null;
+    const w = this.normalize(word);
+    const a = this.all().aliases[w];
+    if (a) return a.id;
+    return this._pack.get(w) || null;
   },
 
   // ---- the command bar's two calls ----
