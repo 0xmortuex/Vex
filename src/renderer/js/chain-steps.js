@@ -180,7 +180,7 @@ const VexChainSteps = {
       close();
       window.showToast?.(ok ? 'Chain “' + name + '” saved — run it from Ctrl+K' : 'Available for now, but the chain could not be saved', ok ? undefined : 'error');
       const box = document.getElementById('workflow-panel-content');
-      if (box && typeof VexWorkflow !== 'undefined') VexWorkflow.renderSettings(box);
+      if (box && !!window.VexWorkflow) window.VexWorkflow.renderSettings(box);
       const old = document.getElementById('chains-panel-content');
       if (old) CommandChains.renderPanel(old);
     });
@@ -218,11 +218,11 @@ const VexChainSteps = {
   },
 
   init() {
-    VexWorkflow.addCommand({ id: 'chain-new', label: 'New command chain…', hint: 'Name a sequence of steps (open tabs, timer, mute…) and run it from Ctrl+K', icon: 'link', action: () => this.open().catch(err => window.showToast?.(err.message, 'error')) });
+    window.VexWorkflow.addCommand({ id: 'chain-new', label: 'New command chain…', hint: 'Name a sequence of steps (open tabs, timer, mute…) and run it from Ctrl+K', icon: 'link', action: () => this.open().catch(err => window.showToast?.(err.message, 'error')) });
   },
 };
 
-VexWorkflow.register({
+window.VexWorkflow.register({
   id: 'chains', title: 'Command chains', icon: 'link',
   render: (box) => VexChainSteps.render(box),
   snapshot: () => VexChainSteps.snapshot(),

@@ -31,7 +31,7 @@ const FocusProfiles = {
     { id: 'gaming', name: 'Gaming', rule: { anyGame: true }, theme: 'cyberpunk', dim: false, block: false },
   ],
 
-  enabled() { return VexWorkflow.pref('focusAuto', false) === true; },
+  enabled() { return window.VexWorkflow.pref('focusAuto', false) === true; },
 
   _all() {
     try { const o = JSON.parse(localStorage.getItem(this.KEY) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
@@ -193,8 +193,8 @@ const FocusProfiles = {
   },
 
   render(box) {
-    box.appendChild(VexWorkflow.toggleRow('Switch focus profiles by itself', 'by weekday, time, or a running game', this.enabled(), (on) => {
-      if (!VexWorkflow.setPref('focusAuto', on)) window.showToast?.('The choice could not be saved', 'error');
+    box.appendChild(window.VexWorkflow.toggleRow('Switch focus profiles by itself', 'by weekday, time, or a running game', this.enabled(), (on) => {
+      if (!window.VexWorkflow.setPref('focusAuto', on)) window.showToast?.('The choice could not be saved', 'error');
       if (on) this.init();
     }));
     const note = document.createElement('div');
@@ -305,7 +305,7 @@ const FocusProfiles = {
   },
 };
 
-VexWorkflow.register({
+window.VexWorkflow.register({
   id: 'focus', title: 'Focus profiles', icon: 'target',
   render: (box) => FocusProfiles.render(box),
   snapshot: () => FocusProfiles.snapshot(),

@@ -24,9 +24,9 @@ const VexAskTabs = {
   PER_TAB_CHARS: 3500,
   _last: null,   // { at, asked, used, left } — counts only, never text
 
-  enabled() { return VexWorkflow.pref('askTabs', false) === true; },
+  enabled() { return window.VexWorkflow.pref('askTabs', false) === true; },
   userExcluded() {
-    const a = VexWorkflow.pref('askTabsExclude', []);
+    const a = window.VexWorkflow.pref('askTabsExclude', []);
     return Array.isArray(a) ? a.map(s => String(s).trim().toLowerCase()).filter(Boolean) : [];
   },
 
@@ -125,7 +125,7 @@ const VexAskTabs = {
         okLabel: 'Turn on',
       });
       if (!ok) return;
-      if (!VexWorkflow.setPref('askTabs', true)) { window.showToast?.('The choice could not be saved', 'error'); return; }
+      if (!window.VexWorkflow.setPref('askTabs', true)) { window.showToast?.('The choice could not be saved', 'error'); return; }
     }
     document.getElementById('vex-asktabs')?.remove();
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
@@ -187,8 +187,8 @@ const VexAskTabs = {
   },
 
   render(box) {
-    box.appendChild(VexWorkflow.toggleRow('Ask across my tabs', 'local model only, off until you turn it on', this.enabled(), (on) => {
-      if (!VexWorkflow.setPref('askTabs', on)) window.showToast?.('The choice could not be saved', 'error');
+    box.appendChild(window.VexWorkflow.toggleRow('Ask across my tabs', 'local model only, off until you turn it on', this.enabled(), (on) => {
+      if (!window.VexWorkflow.setPref('askTabs', on)) window.showToast?.('The choice could not be saved', 'error');
     }));
     const wrap = document.createElement('div');
     wrap.style.cssText = 'margin:4px 0 6px';
@@ -200,18 +200,18 @@ const VexAskTabs = {
     ta.value = this.userExcluded().join('\n');
     ta.addEventListener('change', () => {
       const list = ta.value.split('\n').map(s => s.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase()).filter(Boolean);
-      if (!VexWorkflow.setPref('askTabsExclude', list)) window.showToast?.('The list could not be saved', 'error');
+      if (!window.VexWorkflow.setPref('askTabsExclude', list)) window.showToast?.('The list could not be saved', 'error');
     });
     wrap.appendChild(ta);
     box.appendChild(wrap);
   },
 
   init() {
-    VexWorkflow.addCommand({ id: 'ask-tabs', label: 'Ask across my tabs', hint: 'Answer a question from the text of your open tabs, locally, with links back', icon: 'search', action: () => this.open() });
+    window.VexWorkflow.addCommand({ id: 'ask-tabs', label: 'Ask across my tabs', hint: 'Answer a question from the text of your open tabs, locally, with links back', icon: 'search', action: () => this.open() });
   },
 };
 
-VexWorkflow.register({
+window.VexWorkflow.register({
   id: 'askTabs', title: 'Ask across my tabs', icon: 'search',
   render: (box) => VexAskTabs.render(box),
   snapshot: () => VexAskTabs.snapshot(),
