@@ -193,6 +193,7 @@ const SettingsUI = {
     'page watcher': 'watch page changes monitor price drop restock version update diff notify tell me when it changes watched pages sayfa izleyici değişiklik izle',
     'ai news': 'ai news model release openai anthropic google meta notify notification toast badge breaking digest quiet hours follow mute topic company feed haber yapay zeka bildirim sessiz saatler',
     'personalization': 'name greeting homepage home page start page new tab page weather github başlangıç sayfası ana sayfa',
+    'workflow': 'resume workday end of day focus profile work study gaming ask across tabs weekly note clip release radar whats new chain timer',
     'cloud services': 'worker cloudflare self-hosted token api key bulut',
     'about': 'update updates version check for updates changelog release notes whats new stable channel güncelleme sürüm hakkında',
   },
