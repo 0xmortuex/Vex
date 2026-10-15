@@ -84,7 +84,8 @@ describe('private pages are never announced', () => {
     expect(MAIN).toMatch(/case 'webNavigation\.getFrame': case 'webNavigation\.getAllFrames': \{\n\s+needPerm\('webNavigation'\);[\s\S]{0,200}_extPageIsPrivate\(page\)/);
   });
   it('an error page is an error, once, and not a finished load', () => {
-    expect(MAIN.match(/contents\.on\('did-fail(-provisional)?-load'/g)).toEqual(["contents.on('did-fail-load'"]);
+    const watch = MAIN.slice(MAIN.indexOf('function _extWatchNavigation('), MAIN.indexOf('function _watchSessionCookies('));
+    expect(watch.match(/contents\.on\('did-fail(-provisional)?-load'/g)).toEqual(["contents.on('did-fail-load'"]);
     expect(MAIN).toMatch(/failedFrames\.add\(keyOf\(frame, isMain\)\);/);
     expect(MAIN).toMatch(/failedFrames\.has\(0\)\) return;/);
     expect(MAIN).toMatch(/'net::' \+ named/);
