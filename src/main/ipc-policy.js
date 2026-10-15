@@ -34,17 +34,15 @@ const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:
 // back the owner's desktop picture (main/wallpaper.js).
 // The sync-secrets-* channels read and write saved passwords and authenticator
 // accounts for Vex Sync (main/sync-secrets.js).
-<<<<<<< HEAD
 const UI_ONLY_CHANNELS = new Set([
+  // Knowledge base (main/knowledge-base.js): the index holds page text.
+  'kb:plan', 'kb:put', 'kb:sync-archive', 'kb:status', 'kb:step', 'kb:search', 'kb:context', 'kb:related', 'kb:related-page', 'kb:keep-out', 'kb:keep-out-clear', 'kb:forget',
   // Cookie report and cleanup, extension usage, crash-proof tab snapshots
   // (they hold typed text) and quiet hours (main/protect.js): never a page's
   // or an extension's call.
   'privacy:report', 'privacy:report-clean', 'extensions:usage-audit', 'tabsnap:save', 'tabsnap:load', 'tabsnap:clear',
   'quiet:get', 'quiet:set', 'quiet:held', 'quiet:release', 'quiet:drop',
   'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
-=======
-const UI_ONLY_CHANNELS = new Set(['kb:plan', 'kb:put', 'kb:sync-archive', 'kb:status', 'kb:step', 'kb:search', 'kb:context', 'kb:related', 'kb:related-page', 'kb:keep-out', 'kb:keep-out-clear', 'kb:forget', 'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
->>>>>>> worktree-agent-ad5850075a2159292
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).
   'health:scan', 'health:fix', 'health:undo',
