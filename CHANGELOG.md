@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Improved
+- **AI news panel: see when a story came out and filter by date.** Every story says how old it is ("12 minutes ago", "yesterday") and its local date and time ("Oct 15, 7:41 PM"; a story with no date says "date unknown, first seen ..."). New "Date" filter (Any time, Last hour, Today, Last 24 hours, Last 3, 7 or 14 days; Any time by default) and "Sort by" (Newest first, Most important first, Unread first). A line says "Showing 12 of 300 stories" with the newest and oldest date, your filters are kept while Vex is open, "Clear filters" appears when one is set, and a long list shows 100 stories with "Show more".
+
 ## v22.10.8 (2026-10-15) — AI News: the AI stories you choose, delivered the way you choose
 
 ### New

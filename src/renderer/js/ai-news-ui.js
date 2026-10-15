@@ -43,7 +43,141 @@ const AINewsUI = {
   },
 
   // --- the panel -----------------------------------------------------------
-  _filters: { unreadOnly: false, topic: '', source: '', q: '' },
+  // Kept in this object, so the choices survive closing and opening the panel
+  // again for as long as Vex's window lives (not saved to disk).
+  // date: 'any' (the default: only 300 stories are held, so the list is short
+  // already and a hidden older story would look like a missing one), '1h',
+  // 'today', '24h', '3d', '7d', '14d'. sort: 'newest' | 'important' | 'unread'.
+  _filters: { unreadOnly: false, topic: '', source: '', q: '', date: 'any', sort: 'newest' },
+  PAGE_SIZE: 100,
+  _limit: 100,
+
+  DATE_RANGES: [
+    ['any', 'Any time'], ['1h', 'Last hour'], ['today', 'Today'], ['24h', 'Last 24 hours'],
+    ['3d', 'Last 3 days'], ['7d', 'Last 7 days'], ['14d', 'Last 14 days'],
+  ],
+  SORTS: [['newest', 'Newest first'], ['important', 'Most important first'], ['unread', 'Unread first, then newest']],
+
+  // The moment a story is placed at: when it came out, else when Vex first saw it.
+  _ts(it) { return it.publishedAt || it.firstSeenAt || 0; },
+
+  _midnight(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); },
+
+  // '12 minutes ago', '3 hours ago', 'yesterday', '5 days ago'. A time in the
+  // future (a clock that is off) reads 'just now'.
+  relativeAge(ts, now = Date.now()) {
+    const s = Math.floor((now - ts) / 1000);
+    if (!(s >= 60)) return this._t('just now');
+    const n = (one, many, v) => this._t(v === 1 ? one : many).replace('%n', String(v));
+    const min = Math.floor(s / 60);
+    if (min < 60) return n('%n minute ago', '%n minutes ago', min);
+    const h = Math.floor(min / 60);
+    if (h < 24) return n('%n hour ago', '%n hours ago', h);
+    const days = Math.max(1, Math.round((this._midnight(now) - this._midnight(ts)) / 86400000));
+    if (days === 1) return this._t('yesterday');
+    if (days < 30) return n('%n day ago', '%n days ago', days);
+    return n('%n month ago', '%n months ago', Math.floor(days / 30));
+  },
+
+  // 'Oct 15, 7:41 PM' (with the year when it is not this year).
+  absoluteTime(ts, now = Date.now(), full = false) {
+    const d = new Date(ts);
+    const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+    if (full) { opts.weekday = 'long'; opts.year = 'numeric'; } else if (d.getFullYear() !== new Date(now).getFullYear()) opts.year = 'numeric';
+    return d.toLocaleString(undefined, opts);
+  },
+
+  // What a card says about time: { text, title }.
+  whenOf(it, now = Date.now()) {
+    if (it.publishedAt) {
+      return { text: this.relativeAge(it.publishedAt, now) + ' · ' + this.absoluteTime(it.publishedAt, now), title: this.absoluteTime(it.publishedAt, now, true) };
+    }
+    const seen = it.firstSeenAt || 0;
+    return {
+      text: this._t('date unknown, first seen %s').replace('%s', seen ? this.relativeAge(seen, now) : this._t('just now')),
+      title: seen ? this._t('First seen') + ': ' + this.absoluteTime(seen, now, true) : this._t('Date unknown'),
+    };
+  },
+
+  // The oldest moment a date range lets through (0 = no limit).
+  dateCutoff(range, now = Date.now()) {
+    const H = 3600000;
+    switch (range) {
+      case '1h': return now - H;
+      case 'today': return this._midnight(now);
+      case '24h': return now - 24 * H;
+      case '3d': return now - 72 * H;
+      case '7d': return now - 168 * H;
+      case '14d': return now - 336 * H;
+      default: return 0;
+    }
+  },
+
+  // A copy of items in the order the sort asks for (ties: the newer first).
+  sortItems(items, sort) {
+    const byNew = (a, b) => this._ts(b) - this._ts(a);
+    const list = items.slice();
+    if (sort === 'important') list.sort((a, b) => ((b.importance || 0) - (a.importance || 0)) || byNew(a, b));
+    else if (sort === 'unread') list.sort((a, b) => ((a.read ? 1 : 0) - (b.read ? 1 : 0)) || byNew(a, b));
+    else list.sort(byNew);
+    return list;
+  },
+
+  // Sections to draw: by day (a heading each) when sorted by newest, else one
+  // section without a heading, clusters in sorted order.
+  arrange(items, sort) {
+    const sorted = this.sortItems(items, sort);
+    if (sort && sort !== 'newest') {
+      const clusters = new Map();
+      for (const it of sorted) {
+        const c = it.cluster || it.id;
+        if (!clusters.has(c)) clusters.set(c, []);
+        clusters.get(c).push(it);
+      }
+      const groups = [...clusters.values()].map(list => {
+        const best = list.slice().sort((a, b) => (b.importance - a.importance) || (this._ts(b) - this._ts(a)));
+        return { main: best[0], others: best.slice(1) };
+      });
+      return groups.length ? [{ key: null, ts: 0, groups }] : [];
+    }
+    return this.group(sorted);
+  },
+
+  // Cut sections to at most `limit` cards: { days, shown, left }.
+  limitCards(days, limit) {
+    const out = [];
+    let shown = 0, total = 0;
+    for (const d of days) total += d.groups.length;
+    for (const d of days) {
+      if (shown >= limit) break;
+      const groups = d.groups.slice(0, limit - shown);
+      shown += groups.length;
+      out.push({ ...d, groups });
+    }
+    return { days: out, shown, left: total - shown };
+  },
+
+  filtersActive(f = this._filters) {
+    return !!(String(f.q || '').trim() || f.unreadOnly || f.topic || f.source || (f.date && f.date !== 'any') || (f.sort && f.sort !== 'newest'));
+  },
+
+  clearFilters() {
+    this._filters = { unreadOnly: false, topic: '', source: '', q: '', date: 'any', sort: 'newest' };
+    this._limit = this.PAGE_SIZE;
+  },
+
+  // 'Showing 12 of 300 stories · newest Oct 15, 7:41 PM · oldest Oct 9, 8:00 AM'
+  summaryText(shown, total, now = Date.now()) {
+    const t = (k) => this._t(k);
+    let s = t(total === 1 ? 'Showing %n of %t story' : 'Showing %n of %t stories').replace('%n', String(shown.length)).replace('%t', String(total));
+    if (shown.length) {
+      const stamps = shown.map(i => this._ts(i)).filter(Boolean);
+      if (stamps.length) {
+        s += ' · ' + t('newest') + ' ' + this.absoluteTime(Math.max(...stamps), now) + ' · ' + t('oldest') + ' ' + this.absoluteTime(Math.min(...stamps), now);
+      }
+    }
+    return s;
+  },
 
   _dayLabel(ts) {
     const d = new Date(ts);
@@ -79,9 +213,11 @@ const AINewsUI = {
     }));
   },
 
-  filterItems(items, f) {
+  filterItems(items, f, now = Date.now()) {
     const q = String(f.q || '').trim().toLowerCase();
+    const since = this.dateCutoff(f.date, now);
     return items.filter(it => {
+      if (since && this._ts(it) < since) return false;
       if (f.unreadOnly && it.read) return false;
       if (f.topic && !AINews.topicsOf(it).includes(f.topic)) return false;
       if (f.source && it.source !== f.source) return false;
@@ -94,6 +230,7 @@ const AINewsUI = {
     if (typeof AINews === 'undefined') { window.showToast?.('AI news is not available in this build', 'error'); return null; }
     this._injectStyle();
     document.getElementById('ain-panel')?.remove();
+    this._limit = this.PAGE_SIZE;
     const wrap = document.createElement('div');
     wrap.id = 'ain-panel';
     wrap.className = 'ain-overlay';
@@ -131,27 +268,49 @@ const AINewsUI = {
     const search = document.createElement('input');
     search.type = 'search'; search.className = 'ain-input'; search.placeholder = this._t('Search stories'); search.setAttribute('aria-label', this._t('Search stories'));
     search.value = this._filters.q;
-    search.addEventListener('input', () => { this._filters.q = search.value; this._drawList(); });
+    // A changed filter starts the list from its top card again.
+    const changed = (key, value) => { this._filters[key] = value; this._limit = this.PAGE_SIZE; this._drawList(); };
+    search.addEventListener('input', () => changed('q', search.value));
     const topic = document.createElement('select');
     topic.className = 'ain-input'; topic.setAttribute('aria-label', this._t('Topic'));
     topic.append(new Option(this._t('All topics'), ''));
     for (const t of AINews.TOPICS) topic.append(new Option(this._t(t.label), t.id));
     topic.value = this._filters.topic;
-    topic.addEventListener('change', () => { this._filters.topic = topic.value; this._drawList(); });
+    topic.addEventListener('change', () => changed('topic', topic.value));
     const source = document.createElement('select');
     source.id = 'ain-source'; source.className = 'ain-input'; source.setAttribute('aria-label', this._t('Source'));
-    source.addEventListener('change', () => { this._filters.source = source.value; this._drawList(); });
+    source.addEventListener('change', () => changed('source', source.value));
+    const date = document.createElement('select');
+    date.className = 'ain-input'; date.setAttribute('aria-label', this._t('Date'));
+    for (const [id, label] of this.DATE_RANGES) date.append(new Option(this._t(label), id));
+    date.value = this._filters.date;
+    date.addEventListener('change', () => changed('date', date.value));
+    const sort = document.createElement('select');
+    sort.className = 'ain-input'; sort.setAttribute('aria-label', this._t('Sort by'));
+    for (const [id, label] of this.SORTS) sort.append(new Option(this._t(label), id));
+    sort.value = this._filters.sort;
+    sort.addEventListener('change', () => changed('sort', sort.value));
     const unreadLabel = document.createElement('label');
     unreadLabel.className = 'ain-check';
     const unread = document.createElement('input');
     unread.type = 'checkbox'; unread.checked = this._filters.unreadOnly;
-    unread.addEventListener('change', () => { this._filters.unreadOnly = unread.checked; this._drawList(); });
+    unread.addEventListener('change', () => changed('unreadOnly', unread.checked));
     unreadLabel.append(unread, document.createTextNode(' ' + this._t('Unread only')));
-    filters.append(search, topic, source, unreadLabel);
+    const clear = document.createElement('button');
+    clear.id = 'ain-clear'; clear.type = 'button'; clear.className = 'ain-btn'; clear.textContent = this._t('Clear filters');
+    clear.addEventListener('click', () => {
+      this.clearFilters();
+      search.value = ''; topic.value = ''; date.value = 'any'; sort.value = 'newest'; unread.checked = false;
+      this._drawList();
+      search.focus({ preventScroll: true });
+    });
+    filters.append(search, topic, source, date, sort, unreadLabel, clear);
 
+    const summary = document.createElement('div');
+    summary.id = 'ain-summary'; summary.className = 'ain-muted ain-summary-line'; summary.setAttribute('role', 'status');
     const list = document.createElement('div');
     list.id = 'ain-list'; list.className = 'ain-list'; list.setAttribute('aria-live', 'polite');
-    card.append(head, status, filters, list);
+    card.append(head, status, filters, summary, list);
     wrap.appendChild(card);
     document.body.appendChild(wrap);
 
@@ -196,8 +355,14 @@ const AINewsUI = {
     }
     const st = document.getElementById('ain-status');
     if (st) { const s = AINews.status(); st.textContent = s.text; st.dataset.level = s.level; }
+    const keepScroll = list.scrollTop;
     list.textContent = '';
-    const shown = this.filterItems(all, this._filters);
+    const now = Date.now();
+    const shown = this.filterItems(all, this._filters, now);
+    const clearBtn = document.getElementById('ain-clear');
+    if (clearBtn) clearBtn.hidden = !this.filtersActive();
+    const sum = document.getElementById('ain-summary');
+    if (sum) sum.textContent = all.length ? this.summaryText(shown, all.length, now) : '';
     if (!shown.length) {
       const p = document.createElement('p');
       p.className = 'ain-muted ain-empty';
@@ -207,15 +372,26 @@ const AINewsUI = {
       list.appendChild(p);
       return;
     }
-    for (const day of this.group(shown)) {
-      const h = document.createElement('h3');
-      h.className = 'ain-day'; h.textContent = this._dayLabel(day.ts);
-      list.appendChild(h);
-      for (const g of day.groups) list.appendChild(this._row(g));
+    const cut = this.limitCards(this.arrange(shown, this._filters.sort), this._limit);
+    for (const day of cut.days) {
+      if (day.key != null) {
+        const h = document.createElement('h3');
+        h.className = 'ain-day'; h.textContent = this._dayLabel(day.ts);
+        list.appendChild(h);
+      }
+      for (const g of day.groups) list.appendChild(this._row(g, now));
     }
+    if (cut.left > 0) {
+      const more = document.createElement('button');
+      more.type = 'button'; more.className = 'ain-btn ain-more';
+      more.textContent = this._t('Show more') + ' (' + cut.left + ')';
+      more.addEventListener('click', () => { this._limit += this.PAGE_SIZE; this._drawList(); });
+      list.appendChild(more);
+    }
+    list.scrollTop = keepScroll;
   },
 
-  _row({ main, others }) {
+  _row({ main, others }, now = Date.now()) {
     const row = document.createElement('article');
     row.className = 'ain-row' + (main.read ? '' : ' ain-unread');
     row.dataset.id = main.id;
@@ -230,8 +406,14 @@ const AINewsUI = {
     top.appendChild(title);
     const meta = document.createElement('div');
     meta.className = 'ain-muted';
-    const when = main.publishedAt ? new Date(main.publishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    meta.textContent = [main.source, when, main.importance ? this._t('importance') + ' ' + main.importance : '', main.breaking ? this._t('breaking') : '', main.kind !== 'other' ? main.kind : ''].filter(Boolean).join(' · ');
+    const w = this.whenOf(main, now);
+    const timeEl = document.createElement('time');
+    timeEl.className = 'ain-when'; timeEl.textContent = w.text; timeEl.title = w.title;
+    const ts = this._ts(main);
+    if (ts) timeEl.dateTime = new Date(ts).toISOString();
+    const rest = [main.importance ? this._t('importance') + ' ' + main.importance : '', main.breaking ? this._t('breaking') : '', main.kind !== 'other' ? main.kind : ''].filter(Boolean).join(' · ');
+    meta.append(document.createTextNode(main.source + ' · '), timeEl);
+    if (rest) meta.append(document.createTextNode(' · ' + rest));
     row.append(top, meta);
     if (main.summary) {
       const s = document.createElement('p');
@@ -660,6 +842,8 @@ const AINewsUI = {
       .ain-summary { margin:4px 0; font-size:12.5px; color:var(--text); }
       .ain-row-btns { margin-top:6px; }
       .ain-empty { padding:18px 4px; }
+      .ain-summary-line { margin:0 0 6px; }
+      .ain-more { display:block; margin:8px auto 4px; }
       .ain-sub { margin:16px 0 4px; font-weight:600; font-size:12.5px; }
       .ain-field { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0; font-size:12.5px; }
       .ain-field input[type=text], .ain-field input[type=url] { flex:1 1 260px; }
