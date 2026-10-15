@@ -244,6 +244,8 @@ const VexBackup = {
   async save(include = []) {
     const data = await this.snapshot(include);
     this._download(JSON.stringify(data, null, 2), this.fileName());
+    // When the last file was written, for the weekly backup reminder.
+    try { localStorage.setItem('vex.backup.lastAt', String(Date.now())); } catch { /* the reminder may come early */ }
     return data;
   },
 

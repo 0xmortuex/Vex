@@ -72,6 +72,12 @@ const VexReview = {
       }
     } catch (err) { r.errors.push('watched pages: ' + ((err && err.message) || 'unavailable')); }
     try {
+      // The game log (js/memory-tools.js).
+      r.games = (window.VexMemoryTools && VexMemoryTools.gameLogSince)
+        ? VexMemoryTools.gameLogSince(weekAgo).map(g => ({ text: VexMemoryTools.gameLine(g), at: g.start }))
+        : [];
+    } catch (err) { r.errors.push('game log: ' + ((err && err.message) || 'unavailable')); }
+    try {
       const counts = {};
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
@@ -130,6 +136,7 @@ const VexReview = {
     section('Reminders that fired', data.reminders.list.slice(0, 8), (x) => link(x.text, null, fmt(x.at)));
     section('Saved and not yet read', data.saved.unread.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
     section('Watched pages that changed', data.changed.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
+    section('Games you played', data.games || [], (x) => link(x.text, null, ''));
     section('Tools you used', data.tools, (x) => link(x.name, null, x.n + ' result' + (x.n === 1 ? '' : 's')));
     for (const e of data.errors) { const d = document.createElement('div'); d.className = 'rv-error'; d.textContent = 'Could not read ' + e; body.appendChild(d); }
     const close = () => wrap.remove();
