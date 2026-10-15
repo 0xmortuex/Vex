@@ -100,3 +100,7 @@ b1bdf7a3 none                       # merge commit (the work is ranked on its ow
 d3a94ca5 none                       # merge commit (the work is ranked on its own commit)
 c3a0b6d1 none                       # merge commit (the work is ranked on its own commit)
 7398ffee none                       # merge commit (the work is ranked on its own commit)
+58392023 none                       # a Settings groups registry declared twice: made and fixed inside this batch
+e379f007 none                       # scan fixes for modules of this batch
+7f0c34c6 none                       # merge fallout of this batch fixed in the same batch
+f8849cf9 none                       # boot crash made by the knowledge base wiring, fixed in the same batch
