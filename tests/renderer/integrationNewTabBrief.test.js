@@ -154,6 +154,15 @@ describe('the start page consumer', () => {
     expect(w.querySelector('img')).toBeNull();
   });
 
+  it('draws the pet as the pet module writes it, with no xmlns, in the SVG namespace', () => {
+    const { VexPet } = require('../../src/renderer/js/fun/vex-pet.js');
+    run({ v: 1, quiet: false, pet: { label: 'Your pet', svg: VexPet.art('calm') } });
+    const svg = document.querySelector('#vex-newtab-pet svg');
+    expect(svg).not.toBeNull();
+    expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(svg.querySelectorAll('path').length).toBeGreaterThan(2);
+  });
+
   it('puts the Today block before the brief for a project or reading day', () => {
     run({ v: 1, quiet: false, profile: { profile: 'reading', label: 'Reading' } });
     const kids = [...document.body.children].map(e => e.id);
