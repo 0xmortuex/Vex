@@ -90,6 +90,7 @@ const SelectionAIBar = {
     const ico = (n) => (window.VexIcons ? VexIcons.svg(n, { size: 14 }) : '');
     el.innerHTML = `
       <button type="button" data-act="explain">${ico('bulb')}<span>Explain</span></button>
+      <button type="button" data-act="explain-local" title="Plain English, from the model on this computer only">${ico('bulb')}<span>Explain (local)</span></button>
       <button type="button" data-act="debug" title="An error message: what it means, the likely cause, and the fix">${ico('warning')}<span>Debug</span></button>
       <button type="button" data-act="summarize">${ico('note')}<span>Summarize</span></button>
       <button type="button" data-act="translate">${ico('globe')}<span>Translate</span></button>
@@ -114,6 +115,8 @@ const SelectionAIBar = {
     // In-place edit actions (Rewrite/Fix/Shorten) only make sense when the
     // selection sits in an editable field we can write back into.
     this._el.querySelectorAll('[data-edit]').forEach(n => { n.style.display = editable ? '' : 'none'; });
+    const local = this._el.querySelector('[data-act="explain-local"]');
+    if (local) local.style.display = (typeof ExplainPage !== 'undefined' && ExplainPage.barEnabled()) ? '' : 'none';
     this._el.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
     // Guest-viewport coords → host window coords via the webview's position.
     let host = { left: 0, top: 0 };
@@ -152,6 +155,10 @@ const SelectionAIBar = {
     if (this._EDIT_PROMPTS[act]) { this._runEdit(act, text); return; }
 
     this.hide();
+    if (act === 'explain-local') {
+      if (typeof ExplainPage !== 'undefined') ExplainPage.explainSelection(this._webview, text).catch((err) => window.showToast?.(err.message, 'error'));
+      return;
+    }
     if (typeof AIPanel === 'undefined') return;
     AIPanel.open();
     if (act === 'explain') AIPanel.sendMessage('explain', { selectedText: text });
