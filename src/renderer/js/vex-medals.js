@@ -398,6 +398,6 @@
     });
   }
 
-  root.VexMedals = VexMedals;
+  globalThis.VexMedals = VexMedals;
   if (typeof module !== 'undefined' && module.exports) module.exports = { VexMedals };
 })(typeof window !== 'undefined' ? window : globalThis);

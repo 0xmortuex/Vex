@@ -424,7 +424,7 @@ describe('keyboard trainer', () => {
 
   it('phrases it as "in N keys"', () => {
     const c = VexKeyTrainer.candidates(all)[0];
-    expect(VexKeyTrainer.prompt(c)).toBe('Command Bar in 2 keys');
+    expect(VexKeyTrainer.challengeText(c)).toBe('Command Bar in 2 keys');
   });
 
   it('makes a distinct deck from the real registry', () => {

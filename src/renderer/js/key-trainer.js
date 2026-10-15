@@ -63,7 +63,7 @@ const VexKeyTrainer = {
   },
 
   // The prompt for one challenge, in the words the trainer is about.
-  prompt(c) {
+  challengeText(c) {
     return c.label.replace(/\s*\(.*?\)\s*$/, '') + ' in ' + c.keys + ' key' + (c.keys === 1 ? '' : 's');
   },
 
@@ -116,7 +116,7 @@ const VexKeyTrainer = {
       shown = false;
       dlg.body.innerHTML = `
         <div style="font-size:11.5px;color:var(--text-muted)">${i + 1} of ${cards.length}</div>
-        <div style="font-size:16px;font-weight:650;margin:6px 0 8px" data-kt-prompt>${X.esc(this.prompt(c))}</div>
+        <div style="font-size:16px;font-weight:650;margin:6px 0 8px" data-kt-prompt>${X.esc(this.challengeText(c))}</div>
         <div style="font-size:12.5px;color:var(--text-muted);min-height:20px" data-kt-feedback>${feedback || 'Press the keys now. Nothing underneath will react.'}</div>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button type="button" class="btn-secondary" data-kt-show>Show me</button>

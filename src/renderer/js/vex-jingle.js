@@ -136,7 +136,7 @@ const VexJingle = {
 
   _ctx: null,
   _context() {
-    const AC = (typeof AudioContext !== 'undefined' && AudioContext) || (typeof webkitAudioContext !== 'undefined' && webkitAudioContext);
+    const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) throw new Error('This window has no audio output');
     if (!this._ctx || this._ctx.state === 'closed') this._ctx = new AC();
     return this._ctx;

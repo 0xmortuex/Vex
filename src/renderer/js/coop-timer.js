@@ -80,9 +80,9 @@
   function consented() { return rawGet(K.consent) === '1'; }
   async function ensureConsent() {
     if (consented()) return true;
-    const confirm = typeof root.vexConfirm === 'function' ? root.vexConfirm : null;
-    if (!confirm) throw new Error('The confirmation dialog is not available');
-    const ok = await confirm({
+    const askConfirm = typeof root.vexConfirm === 'function' ? root.vexConfirm : null;
+    if (!askConfirm) throw new Error('The confirmation dialog is not available');
+    const ok = await askConfirm({
       title: 'Share a focus timer?',
       message: CONSENT_TEXT.replace('%RELAY%', relayUrl() || 'not set'),
       okLabel: 'Share timer',
@@ -110,7 +110,7 @@
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (secret) headers.authorization = 'Bearer ' + secret;
     let res;
-    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const ctl = typeof root.AbortController === 'function' ? new root.AbortController() : null;
     const t = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
     try {
       res = await root.fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctl ? ctl.signal : undefined, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });

@@ -70,13 +70,13 @@
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
 }
 /* Meaning is in shape and weight as well as colour. */
-.vexfun-tile.is-hit { background: var(--vex-accent, #6366f1); color: #fff; border-color: transparent; }
+.vexfun-tile.is-hit { background: var(--vex-accent, #6366f1); color: var(--on-primary, #ffffff); border-color: transparent; }
 .vexfun-tile.is-near { border: 2px solid var(--vex-accent, #6366f1); }
 .vexfun-tile.is-miss { opacity: 0.55; }
 .vexfun-word-form { display: flex; gap: 8px; justify-content: center; margin: 8px 0; }
 .vexfun-word-keys { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; font-size: 11px; }
 .vexfun-key { min-width: 20px; text-align: center; padding: 3px 4px; border-radius: 5px; border: 1px solid var(--border); color: var(--text-muted); }
-.vexfun-key.is-hit { background: var(--vex-accent, #6366f1); color: #fff; border-color: transparent; }
+.vexfun-key.is-hit { background: var(--vex-accent, #6366f1); color: var(--on-primary, #ffffff); border-color: transparent; }
 .vexfun-key.is-near { border: 2px solid var(--vex-accent, #6366f1); color: var(--text); }
 .vexfun-key.is-miss { opacity: 0.4; text-decoration: line-through; }
 .vexfun-scramble-letters { display: flex; gap: 6px; justify-content: center; margin: 14px 0; }
