@@ -38,7 +38,9 @@ const PermissionPrompts = (() => {
     'display-capture':{ icon: ICONS.screen, ask: 'share your screen', label: 'screen sharing', note: 'You choose which screen or window next.' },
     'clipboard-read': { icon: ICONS.clipboard, ask: 'read what you last copied', label: 'clipboard' },
     // A page's second download with no click (src/main/downloads.js).
-    'automatic-downloads': { icon: ICONS.download, ask: 'download several files', label: 'automatic downloads', note: 'It started another download by itself. A file you click always downloads.' }
+    'automatic-downloads': { icon: ICONS.download, ask: 'download several files', label: 'automatic downloads', note: 'It started another download by itself. A file you click always downloads.' },
+    // A program or script from a site with no standing (src/main/web-safety.js).
+    'risky-download': { icon: ICONS.shield, ask: 'send you a file that can run code', label: 'a risky download', note: 'The file waits unopened until you decide.' }
   };
 
   function _esc(s) { return window.escapeHtml(s); }
@@ -81,7 +83,14 @@ const PermissionPrompts = (() => {
     // choice 'allow-block': just the two, kept for the site — or, remember
     // false (a private window, a Tor tab), kept by nothing but the tab.
     const keep = entry.data.remember === false ? 'false' : 'true';
-    const actions = entry.data.choice === 'allow-block'
+    // choice 'risky': a file waiting in the holding folder. Nothing is kept
+    // unless "Always allow" is pressed, and that is only offered where the
+    // answer can be kept (not a private window or a Tor tab).
+    const actions = riskyFile
+      ? `<button class="btn-danger-sm" data-decision="deny" data-remember="false">Don't download</button>
+        <button class="btn-secondary-sm" data-decision="allow" data-remember="false">Download anyway</button>
+        ${entry.data.remember === false ? '' : '<button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow from this site</button>'}`
+      : entry.data.choice === 'allow-block'
       ? `<button class="btn-danger-sm" data-decision="deny" data-remember="${keep}">Block</button>
         <button class="btn-primary-sm" data-decision="allow" data-remember="${keep}">Allow</button>`
       : entry.data.once
@@ -92,13 +101,33 @@ const PermissionPrompts = (() => {
         <button class="btn-secondary-sm" data-decision="allow" data-remember="day">Allow for a day</button>
         <button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow</button>`;
 
+    // What the site is asking for in plain words, and whether it asks for more
+    // than it should (main: src/main/web-safety.js). Nothing is drawn when main
+    // sent none, which is what the "off" setting does.
+    const risk = entry.data.risk || null;
+    const riskyFile = entry.data.choice === 'risky';
+    const riskHtml = !risk ? '' : (() => {
+      const level = risk.level || 'normal';
+      const line = riskyFile ? (risk.line || '') : (risk.riskLine || '');
+      const why = Array.isArray(risk.reasons) ? risk.reasons : (Array.isArray(risk.why) ? risk.why : []);
+      const head = !riskyFile && risk.summary ? `<div class="perm-risk-head">${_esc(risk.summary)}</div>` : '';
+      const reasons = why.length
+        ? `<details class="perm-risk-why"><summary>Why was this flagged?</summary><ul>${why.map(w => `<li>${_esc(w)}</li>`).join('')}</ul></details>` : '';
+      const quiet = (why.length || riskyFile) && !riskyFile ? `<button type="button" class="perm-risk-quiet" data-quiet>Don't warn me about this site</button>` : '';
+      return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reasons}${quiet}</div>`;
+    })();
+    const messageHtml = riskyFile
+      ? `is sending <strong>${_esc(entry.data.fileName || 'a file')}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`
+      : `wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`;
+
     const prompt = document.createElement('div');
     prompt.className = 'permission-prompt';
     prompt.innerHTML = `
       <div class="perm-icon">${info.icon}</div>
       <div class="perm-content">
         <div class="perm-origin">${_esc(origin)}</div>
-        <div class="perm-message">wants to <strong>${_esc(info.ask)}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}</div>
+        <div class="perm-message">${messageHtml}</div>
+        ${riskHtml}
       </div>
       <div class="perm-actions">
         ${actions}
@@ -146,6 +175,19 @@ const PermissionPrompts = (() => {
         window.showToast(`${decision === 'allow' ? 'Allowed' : 'Blocked'}${how}: ${origin} \u2192 ${info.label}`, 'info', 3000);
       }
     };
+    // "Don't warn me about this site": the site goes on the allow list; this
+    // question is still the person's to answer.
+    const quiet = prompt.querySelector('[data-quiet]');
+    if (quiet) {
+      quiet.addEventListener('click', async () => {
+        try {
+          if (!window.vex || !window.vex.webSafety) throw new Error('Web safety is not available here');
+          await window.vex.webSafety.allowHost(origin);
+          quiet.textContent = 'Vex will not flag this site again';
+          quiet.disabled = true;
+        } catch (err) { window.showToast?.(err.message || 'Could not save that', 'error'); }
+      });
+    }
     prompt.querySelectorAll('[data-decision]').forEach(btn => {
       btn.addEventListener('click', () => {
         // 'session' lasts until Vex closes and is never written down.

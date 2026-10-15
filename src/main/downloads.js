@@ -7,7 +7,10 @@ const path = require('path');
 // lastGestureAt(contents): when the page last had a click or key press
 // (main.js, _watchGestures). askAutoDownloads: permissions.js
 // askAutomaticDownloads; without it no download is ever asked about.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null }) {
+// judgeDownload / askRiskyDownload (web-safety.js classifyDownload,
+// permissions.js askRiskyDownload): a program or script from a site with no
+// standing waits in the holding folder for a confirm; without them none is.
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -212,12 +215,28 @@ function wireDownloadsOnSession(ses, tag) {
     // A page's second download with no click: allowed, blocked, or asked
     // (a Promise) — see autoDownloadCheck. Blocked never reaches the panel.
     const auto = autoDownloadCheck(contents, chain, partition);
-    const answer = auto ? askAutoDownloads(contents, auto.origin, { remember: auto.remember }) : true;
+    let answer = auto ? askAutoDownloads(contents, auto.origin, { remember: auto.remember }) : true;
     if (answer === false) {
       console.log(`[Downloads] (${tag || 'session'}) blocked a download ${auto.origin} started by itself`);
       event.preventDefault();
       return;
     }
+    // A program, script or installer from a site with no standing, or one
+    // wearing a document's name: asked before it is kept. Not a retry made
+    // with no page (that file was already allowed once).
+    let risky = null;
+    if (contents && judgeDownload && typeof askRiskyDownload === 'function') {
+      const risk = judgeDownload({ filename: item.getFilename(), url: item.getURL(), pageUrl: safeCall(contents, 'getURL', '') });
+      if (risk && risk.warn) {
+        const remember = (!partition || (partition.startsWith('persist:') && !partition.startsWith('persist:route-tor')))
+          && !(contents.session && contents.session.__vexTor);
+        const asked = askRiskyDownload(contents, { url: item.getURL(), fileName: item.getFilename(), risk }, { remember });
+        risky = risk;
+        console.log(`[Downloads] (${tag || 'session'}) asking before keeping ${item.getFilename()}: ${risk.kind}`);
+        answer = answer === true ? asked : answer.then(ok => (ok ? asked : false));
+      }
+    }
+    const what = risky ? `a risky file (${risky.kind})` : `what ${auto ? auto.origin : 'a page'} started by itself`;
     // A sorting rule can put this in a folder of its own and rename it
     // (src/main/download-rules.js). No rule matching leaves both alone.
     const placed = require('./download-rules').place(rules(), { filename: item.getFilename(), url: item.getURL() });
@@ -339,7 +358,7 @@ function wireDownloadsOnSession(ses, tag) {
     if (!held) { begin(); return; }
     // Blocked, or the Save dialog cancelled: never in the panel, nothing kept.
     const drop = (why) => {
-      console.log(`[Downloads] (${tag || 'session'}) not downloading what ${auto.origin} started by itself: ${why}`);
+      console.log(`[Downloads] (${tag || 'session'}) not downloading ${what}: ${why}`);
       if (!heldDone) { item.once('done', () => _removeHeld(heldDir)); item.cancel(); }
       _removeHeld(heldDir);
     };
@@ -356,7 +375,7 @@ function wireDownloadsOnSession(ses, tag) {
       begin();
       if (!heldDone) item.resume();
     }).catch((err) => {
-      console.error('[Downloads] could not ask about a download ' + auto.origin + ' started by itself; not downloading it:', err.message);
+      console.error('[Downloads] could not ask about ' + what + '; not downloading it:', err.message);
       drop('the question failed');
     });
   });

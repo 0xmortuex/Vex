@@ -70,7 +70,11 @@ function isVexUi(contents) {
 
 // isLocked: whether Vex is locked (js/vex-lock.js); a site's notification is
 // not shown then, or its text would be on screen for anyone at the computer.
-function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked }) {
+// webSafety (src/main/web-safety.js): its sensitivity setting, per-site "paranoid"
+// origins and the risk summary shown on a prompt. lastGestureAt(contents): when
+// the page last had a click or key press (main.js, _watchGestures). Without
+// them every prompt is exactly as it was.
+function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked, webSafety = null, lastGestureAt = () => undefined }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie. Kept per partition: one map for
 // every window let "Allow this visit" in a private window allow the same site
@@ -317,6 +321,14 @@ function wirePermissionsOnSession(ses, tag, opts) {
       console.log(`[Permissions] DENIED (unlisted): ${permission}`);
       return callback(false);
     }
+    // A site in "paranoid mode" is never asked and never granted: no saved
+    // answer, however old, can open a camera or a location for it.
+    let topOrigin;
+    try { topOrigin = new URL(webContents.getURL()).origin; } catch { topOrigin = ''; }
+    if (webSafety && (webSafety.isParanoid(origin) || webSafety.isParanoid(topOrigin))) {
+      console.log(`[Permissions] DENIED (paranoid mode): ${origin} asked for ${permission}`);
+      return callback(false);
+    }
 
     // Check persisted decisions — under what is really being asked for.
     const parts = mediaParts(permission, details);
@@ -329,7 +341,14 @@ function wirePermissionsOnSession(ses, tag, opts) {
     const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     Object.assign(callback, { _host: secureSessions.owner(webContents), _contents: webContents, _origin: origin, _permission: asked, _parts: parts });
     pendingPermissions.set(id, callback);
-    sendPermissionRequest({ id, origin, permission: asked });
+    // What the site is asking for, said plainly, and whether it is asking for
+    // more than it should (src/main/web-safety.js). Nothing is added when the
+    // setting is off.
+    const risk = webSafety ? webSafety.judgePermission({
+      permission: asked, origin, topOrigin,
+      gesture: require('../main-helpers').hasRecentGesture(lastGestureAt(webContents)),
+    }) : null;
+    sendPermissionRequest({ id, origin, permission: asked, ...(risk && risk.show ? { risk } : {}) });
 
     // Safety timeout — if the user ignores the prompt for 2 minutes, deny.
     // The window is told, so its prompt goes: it stayed on screen and only
@@ -373,6 +392,8 @@ function wirePermissionsOnSession(ses, tag, opts) {
     const kind = details && details.mediaType;
     if (isVexUi(_wc) && ((permission === 'media' && kind === 'audio') || permission === 'microphone')) return true;
     const parts = permission === 'media' ? (kind === 'audio' ? ['microphone'] : kind === 'video' ? ['camera'] : ['camera', 'microphone']) : [permission];
+    // A site in paranoid mode is granted nothing, whatever it was allowed before.
+    if (webSafety && webSafety.isParanoid(requestingOrigin)) return false;
     return savedDecision(decisionsFor(_wc), requestingOrigin, parts, sessionDecisionsFor(_wc)) === 'allow';
   });
 }
@@ -458,6 +479,38 @@ function askAutomaticDownloads(contents, origin, { remember = true } = {}) {
   }).finally(() => _autoDownloadPending.delete(key));
   _autoDownloadPending.set(key, answer);
   return answer;
+}
+
+// An executable, script or installer a page is sending from a site with no
+// standing (src/main/web-safety.js, classifyDownload), asked about before it
+// is kept: the file waits in the holding folder (downloads.js). "Download
+// anyway" is this once; "Don't warn me about this site" is kept like any
+// site permission, so Settings > Site permissions lists and revokes it.
+// remember false (a private window, a Tor tab) keeps nothing.
+const RISKY_DOWNLOAD = 'risky-download';
+function askRiskyDownload(contents, { url, fileName, risk }, { remember = true } = {}) {
+  const origin = originKey(url);
+  if (!/^https?:\/\//.test(origin)) return Promise.resolve(false);
+  if (remember) {
+    const saved = savedDecision(decisionsFor(contents), origin, [RISKY_DOWNLOAD], sessionDecisionsFor(contents));
+    if (saved === 'allow') return Promise.resolve(true);
+  }
+  const host = secureSessions.owner(contents);
+  if (!host) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const id = `perm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const callback = (ok) => resolve(!!ok);
+    Object.assign(callback, { _host: host, _contents: contents, _origin: origin, _permission: RISKY_DOWNLOAD, _parts: [RISKY_DOWNLOAD], _noRemember: !remember });
+    pendingPermissions.set(id, callback);
+    sendPermissionRequest({ id, origin, permission: RISKY_DOWNLOAD, choice: 'risky', remember, fileName: String(fileName || ''), risk });
+    setTimeout(() => {
+      if (!pendingPermissions.has(id)) return;
+      pendingPermissions.delete(id);
+      resolve(false);
+      try { if (!host.win.isDestroyed()) host.win.webContents.send('permission:expired', { id }); }
+      catch (err) { console.warn('[Permissions] could not say a request ran out:', err.message); }
+    }, 120000);
+  });
 }
 
 ipcMain.handle('permission:respond', async (_e, payload) => {
@@ -565,6 +618,6 @@ async function restorePageDecisions(snapshot) {
 }
 
 function permissionsReady() { _permissionsRendererReady = true; _flushPermissionQueue('renderer ready'); }
-return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, flushPermissions: () => writes };
+return { setPageDecision, resetPageDecisions, restorePageDecisions, sessionDecisions, sessionDecisionsFor, pendingPermissions, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, askExternalApp, askAutomaticDownloads, askRiskyDownload, flushPermissions: () => writes };
 }
 module.exports = { createPermissionService, originKey, mediaParts, savedDecision, isVexUi, isDiscordOrigin };

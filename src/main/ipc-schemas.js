@@ -414,6 +414,14 @@ define('userscripts:remove userscripts:clear-values', [string(64)]);
 define('userscripts:set-global', [boolean]);
 define('userscripts:set-hosts', [string(64), value => Array.isArray(value) && value.length <= 30 && value.every(h => typeof h === 'string' && h.length <= 253)]);
 define('userscripts:fetch', [web]);
+// Web safety (src/main/web-safety.js, js/web-safety-ui.js): the sensitivity,
+// the sites not to warn about, paranoid mode per origin, and a check of one
+// address. Vex's own window only.
+define('websafety:get', []);
+define('websafety:set-sensitivity', [oneOf(['off', 'standard', 'strict'])]);
+define('websafety:allow-host websafety:forget-host', [string(253)]);
+define('websafety:set-paranoid', [string(2048), boolean]);
+define('websafety:check', [string(2048)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);
