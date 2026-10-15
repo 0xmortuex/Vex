@@ -183,7 +183,6 @@ const VexI18nUI = {
       'Open the library': 'Kitaplığı aç',
       'Open library': 'Kitaplığı aç',
       'Open your copy': 'Kopyanızı açın',
-      'Wayback Machine': 'Wayback Machine',
       'Search titles and the saved text': 'Başlıklarda ve kayıtlı metinde arayın',
       'Search your copies': 'Kopyalarınızda arayın',
       'No copies yet': 'Henüz kopya yok',

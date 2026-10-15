@@ -1428,7 +1428,7 @@ body.vex-locked webview { visibility: hidden !important; }
   -webkit-app-region: no-drag;
 }
 #battery-saving[hidden] { display: none; }
-#battery-saving .battery-saving-icon { display: inline-flex; color: #22c55e; }
+#battery-saving .battery-saving-icon { display: inline-flex; color: var(--success, #16a34a); }
 #battery-saving .battery-saving-icon svg { width: 14px; height: 14px; }
 #battery-saving-open {
   height: 20px;

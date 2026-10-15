@@ -316,7 +316,7 @@ const BatteryMode = {
     const row = (label, hint, checked, onChange, id) => {
       const r = document.createElement('div');
       r.className = 'setting-toggle-row';
-      r.innerHTML = '<span></span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>';
+      r.innerHTML = '<span></span><label class="toggle"><input type="checkbox" aria-label="Setting"><span class="toggle-slider"></span></label>';
       r.querySelector('span').textContent = label;
       if (hint) r.querySelector('span').title = hint;
       const box = r.querySelector('input');
