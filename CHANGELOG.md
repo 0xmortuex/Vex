@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v21.99.8 (2026-10-15) — Game mode and your games, userscripts, a smarter page watcher, battery mode and a calmer browser
 
 ### New
 - **Game mode (Settings › Privacy Hardening › Gaming and streaming):** while one of your games runs, Vex stays out of its way. Background tabs sleep, sync, AI tasks, indexing and extension updates wait, animations stop, Vex runs at a lower priority, and a chip in the toolbar says so. You list your games in Settings; a game can have its own guide pages that open as side panels when it starts. Ctrl+K has "Game Mode: Turn Off for Now". The first time a full-screen app is in front it asks once: "Turn on" saves it, "Not now" only skips that app until Vex restarts, and "Don't ask again" turns it off.
