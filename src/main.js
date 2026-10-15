@@ -403,8 +403,38 @@ function _httpsUpgradeURL(details) {
 // containers' sessions asked before; private windows, off-the-record and
 // burner tabs, New Identity and Tor tabs loaded http as it came (SE3).
 function _httpsAnswer(details) {
+  if (_lookalikeGuard(details)) return { cancel: true };
   const upgraded = _httpsUpgradeURL(details);
   return upgraded ? { redirectURL: upgraded } : { cancel: false };
+}
+// === Lookalike addresses (src/main/web-safety.js) ===========================
+// A page address that is made to be mistaken for another site is not loaded:
+// the tab shows a page saying why, with "Continue this once" and "do not warn
+// again". Every session's onBeforeRequest reaches this through _httpsAnswer,
+// so private windows and containers are covered the same way. Only the page
+// itself (a main-frame request in a tab); a pass is per tab and per name.
+const _wsPassedHosts = new Map();   // page id -> Set<host> the person went on to
+const _wsShown = new Map();         // page id -> the address its lookalike page stands for
+function _lookalikeGuard(details) {
+  if (details.resourceType !== 'mainFrame' || !details.webContentsId) return false;
+  let u;
+  try { u = new URL(details.url); } catch { return false; }
+  if (!/^https?:$/.test(u.protocol)) return false;
+  const passed = _wsPassedHosts.get(details.webContentsId);
+  if (passed && passed.has(u.hostname)) return false;
+  const verdict = _webSafety.analyze(u.hostname);
+  if (!verdict.flagged) return false;
+  const contents = webContents.fromId(details.webContentsId);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') return false;
+  console.log(`[WebSafety] not loading ${u.hostname}: ${verdict.kind} of ${verdict.resembles || 'another site'}`);
+  setTimeout(() => _lookalikePage(details.webContentsId, details.url, verdict), 0);
+  return true;
+}
+function _lookalikePage(id, url, verdict) {
+  const contents = webContents.fromId(id);
+  if (!contents || contents.isDestroyed()) return;
+  _wsShown.set(id, url);
+  _showVexPage(contents, require('./main/web-safety-pages').lookalikePageHtml(url, verdict), url, 'lookalike page', url);
 }
 // A tab's page (the main session, a container or route, a private window, an
 // off-the-record, burner, New Identity or Tor tab), not an app panel's.
@@ -815,8 +845,38 @@ function _broadcastDownloadEvent(channel, data, { skipPrivate = false } = {}) {
     try { w.webContents.send(channel, data); } catch {}
   });
 }
+// Lookalike addresses, risky downloads and over-asking pages (src/main/web-safety.js):
+// the person's choices live in web-safety.json; the sites they use most come from
+// their history, read lazily (preferences is created further down).
+const _webSafetyFile = path.join(userDataPath, 'web-safety.json');
+let _topHostsCache = { at: 0, hosts: [] };
+function _webSafetyTopHosts() {
+  const now = Date.now();
+  if (now - _topHostsCache.at < 5 * 60 * 1000) return _topHostsCache.hosts;
+  let list = [];
+  try {
+    const raw = _persistLoad()['vex.history'];
+    const parsed = raw ? JSON.parse(raw) : [];
+    list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.entries) ? parsed.entries : []);
+  } catch (err) { console.error('[WebSafety] could not read the history for your most-used sites:', err.message); }
+  const count = new Map();
+  for (const e of list) {
+    let host;
+    try { host = new URL(e && e.url).hostname; } catch { continue; }
+    const reg = require('./main/web-safety').registrable(host);
+    if (reg) count.set(reg, (count.get(reg) || 0) + 1);
+  }
+  const hosts = [...count].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 60).map(([h]) => h);
+  _topHostsCache = { at: now, hosts };
+  return hosts;
+}
+const _webSafety = require('./main/web-safety').createWebSafety({
+  read: () => { try { return fs.readFileSync(_webSafetyFile, 'utf8'); } catch (err) { if (err.code === 'ENOENT') return null; throw err; } },
+  write: (text) => require('./main/file-store').atomicWrite(_webSafetyFile, text),
+  topHosts: () => _webSafetyTopHosts(),
+});
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked });
+const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id) });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -2255,6 +2315,42 @@ ipcMain.handle('permissions:reset-for-page', async (e, id) => {
   setTimeout(() => _resetPagePermissions.delete(token), 10 * 60 * 1000).unref?.();
   return { decisions: _decisionsInForce(decisionsFor(page)), undo: token };
 });
+// === Web safety settings (src/main/web-safety.js) ============================
+// Sensitivity, the sites the person said not to warn about, and the origins in
+// paranoid mode. Vex's own window only (ipc-policy.js, UI_ONLY_CHANNELS); not
+// in a private window, whose choices must not land in the main profile.
+ipcMain.handle('websafety:get', () => _webSafety.snapshot());
+ipcMain.handle('websafety:set-sensitivity', async (_e, level) => { await _webSafety.setSensitivity(level); return _webSafety.snapshot(); });
+ipcMain.handle('websafety:allow-host', async (_e, host) => { await _webSafety.allowHost(host); return _webSafety.snapshot(); });
+ipcMain.handle('websafety:forget-host', async (_e, host) => { await _webSafety.forgetHost(host); return _webSafety.snapshot(); });
+ipcMain.handle('websafety:set-paranoid', async (_e, origin, on) => {
+  await _webSafety.setParanoid(origin, on);
+  _reapplyParanoidWebRtc();
+  return _webSafety.snapshot();
+});
+// "Is this address a lookalike, and why": what the interstitial would say, for
+// the Web safety panel's "check an address" box.
+ipcMain.handle('websafety:check', (_e, address) => {
+  const ws = require('./main/web-safety');
+  let host;
+  try { host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(address) ? address : 'https://' + address).hostname; } catch { throw new Error('That is not an address'); }
+  return { host, ...ws.analyzeHost(host, { sensitivity: _webSafety.sensitivity === 'off' ? 'strict' : _webSafety.sensitivity, topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow }) };
+});
+// WebRTC would otherwise show a site the computer's own network address. A
+// page in paranoid mode gets the strictest policy; one that leaves it gets
+// back what its session had (the same three cases as web-contents-created).
+function _applyParanoidWebRtc(contents) {
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') return;
+  const paranoid = _webSafety.isParanoid(contents.getURL());
+  if (paranoid) { contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); contents.__vexParanoidRtc = true; return; }
+  if (!contents.__vexParanoidRtc) return;
+  contents.__vexParanoidRtc = false;
+  const ses = contents.session || {};
+  contents.setWebRTCIPHandlingPolicy(ses.__vexTor || ses.__vexRouted ? 'disable_non_proxied_udp' : ses.__vexEphemeral ? 'default_public_interface_only' : 'default');
+}
+function _reapplyParanoidWebRtc() {
+  for (const c of webContents.getAllWebContents()) _applyParanoidWebRtc(c);
+}
 ipcMain.handle('permissions:reset-for-page-undo', async (e, token) => {
   const kept = _resetPagePermissions.get(token);
   if (!kept || kept.sender !== e.sender.id) return { ok: false, error: 'There is nothing to put back any more' };
@@ -2456,6 +2552,10 @@ function wireClientHintsOnSession(ses) {
     _dnrRequestHeaders(ses, details, h);
     // A site whose cookies are switched off is sent none.
     if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
+      for (const k of Object.keys(h)) if (k.toLowerCase() === 'cookie') delete h[k];
+    }
+    // A site in paranoid mode: no cookie goes to anyone but the site itself.
+    if (_paranoidThirdParty(details)) {
       for (const k of Object.keys(h)) if (k.toLowerCase() === 'cookie') delete h[k];
     }
     // Per-session override (set for ephemeral "New Identity" sessions) keeps the
@@ -2998,7 +3098,22 @@ function _dropServiceWorkersOfScriptsOff(before, after) {
 // to inside a tab already open ran its scripts regardless (found 2026-09-29).
 // A frame inside such a page is held to it too: a policy does not reach into
 // a frame from another host by itself.
+// A request a page in paranoid mode (src/main/web-safety.js) makes to a site
+// that is not its own: it is sent no cookies and may set none, so a tracker
+// embedded in it has nothing to remember it by.
+function _paranoidThirdParty(details) {
+  if (details.resourceType === 'mainFrame' || !details.webContentsId) return false;
+  const page = _pageUrlOf(details.webContentsId);
+  if (!page || !_webSafety.isParanoid(page)) return false;
+  const ws = require('./main/web-safety');
+  try { return ws.registrable(new URL(details.url).hostname) !== ws.registrable(new URL(page).hostname); } catch { return false; }
+}
 function _scriptsOffCsp(details, responseHeaders) {
+  // Called on every response in every session, so this is where paranoid
+  // mode's "may set none" lives, ahead of the site-rules early return below.
+  if (_paranoidThirdParty(details)) {
+    for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === 'set-cookie') delete responseHeaders[k];
+  }
   if (!Object.keys(_siteRules).length) return;
   if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return;
   let off = SiteRules.blocksScripts(_siteRules, details.url);
@@ -3063,6 +3178,8 @@ const _downloadService = require('./main/downloads').createDownloadService({ app
   // A page's second download with no click asks first (Chrome's automatic
   // downloads); a click or key press is read from _watchGestures.
   lastGestureAt: (contents) => _lastGestureAt.get(contents.id), askAutoDownloads: askAutomaticDownloads,
+  // A program or script from a site with no standing is asked about first (web-safety.js).
+  judgeDownload: (info) => _webSafety.judgeDownload(info), askRiskyDownload,
   // Read lazily, the first time a download finishes or is opened.
   knownBefore: () => {
     const list = JSON.parse(_persistLoad()['vex.downloads'] || '[]');
@@ -5687,7 +5804,9 @@ const _popupBlocker = require('./main/popup-blocker').createPopupBlocker({
   sitePopups: (contents, origin) => savedDecision(decisionsFor(contents), origin, ['popups'], sessionDecisionsFor(contents)),
 });
 function _popupRefused(contents, openerUrl, url) {
-  const { block, origin } = _popupBlocker.judge(contents, openerUrl);
+  // Paranoid mode: no window opens for the site, click or not.
+  const paranoid = _webSafety.isParanoid(openerUrl);
+  const { block, origin } = paranoid ? { block: true, origin: require('./main/popup-blocker').originOf(openerUrl) } : _popupBlocker.judge(contents, openerUrl);
   if (!block) return false;
   console.log(`[new-window] pop-up from ${origin || 'a page with no site'} blocked: nobody clicked`);
   const host = secureSessions.owner(contents);
@@ -5821,6 +5940,8 @@ app.on('web-contents-created', (_event, contents) => {
     _httpsUpgradedByWc.delete(createdContentsId);
     _httpsNoHttpsShown.delete(createdContentsId);
     _claudeGoogleClick.delete(createdContentsId);
+    _wsPassedHosts.delete(createdContentsId);
+    _wsShown.delete(createdContentsId);
   });
 
   // HTTPS-Only: a page WE upgraded to https that can't load (no https, a
@@ -5877,6 +5998,46 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (evt, url) => {
     const to = (evt && evt.url) || url;
     if (_adVerdict.takeBlockedPage(contents.id, to)) _adVerdict.allowOnce(contents.id, to);
+  });
+  // The lookalike page (_lookalikePage): "Continue this once" is the page's own
+  // link to the address it stands for; "do not warn again" is the .invalid
+  // address in web-safety-pages.js. Both count only while this tab is showing
+  // that page, for that address - a page of the site cannot send one.
+  contents.on('will-navigate', (evt, url) => {
+    const to = (evt && evt.url) || url;
+    const shown = _wsShown.get(contents.id);
+    if (!shown) return;
+    const pages = require('./main/web-safety-pages');
+    const same = (a, b) => { try { return new URL(a).href === new URL(b).href; } catch { return a === b; } };
+    if (same(to, shown)) {
+      _wsShown.delete(contents.id);
+      let host; try { host = new URL(shown).hostname; } catch { return; }
+      if (!_wsPassedHosts.has(contents.id)) _wsPassedHosts.set(contents.id, new Set());
+      _wsPassedHosts.get(contents.id).add(host);
+      return;
+    }
+    if (to.startsWith(pages.ALLOW_PREFIX)) {
+      evt.preventDefault();
+      let target;
+      try { target = decodeURIComponent(to.slice(pages.ALLOW_PREFIX.length)); } catch { return; }
+      if (!same(target, shown)) return;
+      _wsShown.delete(contents.id);
+      const host = new URL(shown).hostname;
+      if (!_wsPassedHosts.has(contents.id)) _wsPassedHosts.set(contents.id, new Set());
+      _wsPassedHosts.get(contents.id).add(host);
+      // A private window's trust is the tab's alone; it is never written to the profile.
+      const persistent = (secureSessions.partitionOf(contents) || '').startsWith('persist:');
+      Promise.resolve(persistent ? _webSafety.allowHost(host) : null)
+        .then(() => { if (!contents.isDestroyed()) return contents.loadURL(shown); })
+        .catch(err => console.error('[WebSafety] could not trust ' + host + ':', err.message));
+    }
+  });
+  const _paranoidRtc = () => { try { _applyParanoidWebRtc(contents); } catch (err) { console.error('[WebSafety] could not set the WebRTC policy:', err.message); } };
+  contents.on('did-navigate', _paranoidRtc);
+  contents.on('did-navigate-in-page', _paranoidRtc);
+  // Once another page commits, the lookalike page is no longer on screen.
+  contents.on('did-navigate', (_e, url) => {
+    if (_wsShown.has(contents.id) && !/^data:/i.test(url || '')) _wsShown.delete(contents.id);
   });
   // A clean main-frame load means there's no pending upgrade left to fall back
   // for on this tab — clearing avoids a stale entry ever downgrading a later nav.

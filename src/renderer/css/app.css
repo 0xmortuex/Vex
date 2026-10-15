@@ -1086,6 +1086,16 @@ body.private-mode #vex-logo::after {
 .perm-message { color: var(--vex-text-secondary); font-size: 12px; margin-top: 3px; line-height: 1.4; }
 .perm-message strong { color: var(--vex-text-primary); }
 .perm-note { display: block; font-size: 11px; opacity: 0.8; }
+/* What a site is really asking for, and the "asks for more than it should"
+   line (src/main/web-safety.js). Tokens only, so every look and the light theme work. */
+.perm-risk { margin-top: 8px; padding: 7px 9px; border-radius: var(--vex-radius-sm); border: 1px solid var(--vex-border); font-size: 11.5px; line-height: 1.45; color: var(--vex-text-secondary); }
+.perm-risk-caution, .perm-risk-high { border-color: color-mix(in srgb, var(--vex-danger) 55%, transparent); background: color-mix(in srgb, var(--vex-danger) 8%, transparent); }
+.perm-risk-head { color: var(--vex-danger); font-weight: 600; margin-bottom: 2px; }
+.perm-risk-why { margin-top: 4px; }
+.perm-risk-why summary { cursor: pointer; color: var(--vex-text-muted); }
+.perm-risk-why ul { margin: 4px 0 0; padding-left: 18px; }
+.perm-risk-quiet { margin-top: 6px; background: none; border: 0; padding: 0; color: var(--vex-accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.perm-risk-quiet:disabled { color: var(--vex-text-muted); text-decoration: none; cursor: default; }
 .perm-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .perm-remember { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--vex-text-muted); cursor: pointer; }
 .perm-remember input { accent-color: var(--vex-accent); }

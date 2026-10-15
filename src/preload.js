@@ -563,6 +563,17 @@ contextBridge.exposeInMainWorld('vex', {
   // A password or one-time code onto the clipboard; the main process empties
   // it after `seconds` if it is still there, focus or no focus.
   copySecret: (text, seconds) => ipcRenderer.invoke('clipboard:write-secret', text, seconds),
+  // Web safety (main/web-safety.js): lookalike addresses, risky downloads,
+  // over-asking prompts and per-site paranoid mode. Each answers the whole
+  // current state: { sensitivity, allow: [host], paranoid: [origin] }.
+  webSafety: {
+    get: () => ipcRenderer.invoke('websafety:get'),
+    setSensitivity: (level) => ipcRenderer.invoke('websafety:set-sensitivity', level),
+    allowHost: (host) => ipcRenderer.invoke('websafety:allow-host', host),
+    forgetHost: (host) => ipcRenderer.invoke('websafety:forget-host', host),
+    setParanoid: (origin, on) => ipcRenderer.invoke('websafety:set-paranoid', origin, !!on),
+    check: (address) => ipcRenderer.invoke('websafety:check', address),
+  },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.
   reminders: {

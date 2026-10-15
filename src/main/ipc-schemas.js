@@ -502,6 +502,14 @@ define('packs:untrust-key', [string(40)]);
 define('packs:generate-key', [optional(boolean)]);
 define('packs:export', [shape({ id: string(64), name: string(80), authorName: string(60), description: optional(string(600)), sign: boolean,
   items: value => Array.isArray(value) && value.length >= 1 && value.length <= 200 && value.every(object) })]);
+// Web safety (src/main/web-safety.js, js/web-safety-ui.js): the sensitivity,
+// the sites not to warn about, paranoid mode per origin, and a check of one
+// address. Vex's own window only.
+define('websafety:get', []);
+define('websafety:set-sensitivity', [oneOf(['off', 'standard', 'strict'])]);
+define('websafety:allow-host websafety:forget-host', [string(253)]);
+define('websafety:set-paranoid', [string(2048), boolean]);
+define('websafety:check', [string(2048)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);
