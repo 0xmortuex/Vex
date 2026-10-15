@@ -1,0 +1,34 @@
+/* Platform tools: feature usage, Minimal Vex, Health check, Update safety net,
+   Sync conflict compare (js/vex-usage*.js, vex-minimal-mode.js, vex-health.js,
+   update-safety-net.js, sync-conflict-detail.js). The dialogs reuse the
+   Backup screen's .vexsr-* look (skins.css); this adds only what it lacks. */
+
+/* A Settings section its feature has been switched off from (VexUsage). */
+.setting-group.vex-usage-hidden { display: none !important; }
+
+.vex-platform-body { display: block; }
+.vex-platform-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 6px 0 10px;
+  overflow-wrap: anywhere;
+}
+.vex-platform-body .vexsr-rule { flex-wrap: wrap; align-items: center; gap: 8px; }
+.vex-platform-body .vexsr-list { max-height: 50vh; overflow: auto; }
+
+.vex-health-row { align-items: flex-start; }
+.vex-health-row input[type="checkbox"] { margin-top: 3px; flex: none; }
+.vex-health-text { flex: 1; min-width: 0; }
+.vex-health-text .vexsr-mode { white-space: normal; overflow-wrap: anywhere; }
+.vex-health-row[data-severity="error"] .vexsr-host { color: var(--danger, #ef4444); }
+
+.vex-sync-scroll { overflow: auto; max-height: 55vh; border: 1px solid var(--border-subtle, var(--border, rgba(127, 127, 127, .3))); border-radius: 8px; }
+.vex-sync-compare { border-collapse: collapse; width: 100%; font-size: 12px; }
+.vex-sync-compare th,
+.vex-sync-compare td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--border-subtle, rgba(127, 127, 127, .25)); }
+.vex-sync-compare td { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-mono, ui-monospace, monospace); }
+.vex-sync-when { font-weight: 400; font-size: 11px; color: var(--text-muted); }
+.vex-sync-differs th,
+.vex-sync-differs td { background: var(--vex-hover-fill, rgba(127, 127, 127, .12)); }
+.vex-sync-missing { color: var(--text-muted); font-style: italic; }
