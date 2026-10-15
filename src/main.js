@@ -9621,6 +9621,8 @@ ipcMain.handle('file:save-text', async (_e, { name, text, kind } = {}) => {
       ? [{ name: 'Markdown', extensions: ['md'] }]
       : kind === 'csv'
         ? [{ name: 'CSV', extensions: ['csv'] }]
+        : kind === 'svg'
+          ? [{ name: 'SVG image', extensions: ['svg'] }]
         : [{ name: 'Text', extensions: ['txt'] }];
   const safeName = String(name || 'vex.txt').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120);
   const r = await dialog.showSaveDialog(_askingWindow(_e), {
