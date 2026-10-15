@@ -109,6 +109,19 @@
 .memory-proc-table tr.busy td.num.cpu { color: var(--vex-danger); }
 .memory-item-kept { font-size: 10px; color: var(--vex-text-muted); margin-left: 6px; }
 
+/* What is slowing Vex down (memory-panel.js renderCost, js/tab-cost.js). */
+.memory-cost { margin-top: 12px; }
+.memory-cost-verdict { font-size: 12px; line-height: 1.5; color: var(--vex-text-secondary); padding: 8px 10px; border-radius: var(--vex-radius-sm); background: var(--vex-glass-input); border: 1px solid var(--vex-border-subtle); margin-bottom: 8px; }
+.memory-cost-verdict strong { display: block; color: var(--vex-text-primary); font-weight: 600; }
+.memory-cost-verdict.heavy { border-color: var(--vex-danger); }
+.memory-cost-verdict.notable { border-color: var(--vex-accent); }
+.memory-section-head button[aria-pressed="true"] { border-color: var(--vex-accent); color: var(--vex-text-primary); }
+.memory-cost-bar { height: 3px; margin-top: 3px; border-radius: 2px; background: var(--vex-border-subtle); position: relative; overflow: hidden; }
+.memory-cost-bar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); background: var(--vex-accent); }
+.memory-proc-table tr.busy .memory-cost-bar::after { background: var(--vex-danger); }
+.memory-cost-actions { white-space: normal; }
+.memory-cost-act { margin: 0 4px 4px 0; font-size: 11px; padding: 2px 8px; }
+
 /* Trend since launch (memory-panel.js renderTrend): an inline chart. */
 .memory-trend { margin: 10px 0 4px; color: var(--vex-accent); }
 .memory-trend svg { display: block; width: 100%; height: 48px; overflow: visible; }

@@ -71,6 +71,8 @@ const VexFeatures = {
       what: 'Every key Vex answers to, over whatever you are doing, with the ones that matter where you are first.' },
     { id: 'why-slow', phrases: 'why is vex slow lagging stuttering sluggish what is making it slow slow down', cat: 'tabs', cmd: 'why-slow', name: 'Why is Vex slow right now?',
       what: 'One screen: what is holding a processor core, what is holding the memory, whether a route is on and whether a game has the card \u2014 each with the button that fixes it.' },
+    { id: 'tab-cost', phrases: 'what is slowing my browser battery draining fan loud cpu hot which tab site extension heavy using processor', cat: 'tabs', cmd: 'tab-cost', name: 'What is slowing my browser?',
+      what: 'Ranks tabs, sites, panels and extensions by processor time, memory and downloads over the last five minutes or the session, says in a sentence which one is the problem, and puts sleep, mute, close and “always sleep this site” beside it. Private and Tor tabs count as one anonymous total.' },
     { id: 'tasks', phrases: 'task manager end task what is using my memory processes kill', cat: 'tabs', cmd: 'tasks', name: 'Running tasks',
       what: 'Every process Vex is running, biggest first, named — and a button to end one, or keep it off for an hour, eight hours, or until you let it back. Right-click any tab or panel → “What is this using?”.' },
     { id: 'keep-awake', cat: 'tabs', name: 'Keep a tab awake', manual: true,
@@ -597,7 +599,7 @@ const VexFeatures = {
   GROUPS: {
     tabs: [
       { name: 'The tab strip', ids: ['vertical-tabs', 'treetabs', 'tab-groups', 'reopen', 'closeduplicates', 'switchtoopen', 'open-links', 'gestures'] },
-      { name: 'Memory, and sleeping', ids: ['why-slow', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
+      { name: 'Memory, and sleeping', ids: ['why-slow', 'tab-cost', 'keys-sheet', 'tab-sleep', 'memory-saver', 'tab-health', 'memory-panel', 'tasks', 'keep-awake', 'memceiling'] },
       { name: 'More than one thing at once', ids: ['split', 'pip', 'peek', 'workspaces', 'containers', 'pinsite', 'openasapp'] },
       { name: 'Getting back to where you were', ids: ['sessions', 'wsnap', 'tabtrail', 'apps-not-links'] },
     ],

@@ -951,6 +951,11 @@ ipcMain.handle('app:processes', () => {
     rows.set(m.pid, {
       pid: m.pid, type: m.type, name: m.name || m.serviceName || '', sandboxed: !!m.sandboxed,
       cpu: (m.cpu && m.cpu.percentCPUUsage) || 0,
+      // tab-cost: begin — total CPU seconds since the process started (null
+      // where Electron leaves it out), so a tab's share of the processor can be
+      // worked out over any window, not just "right now".
+      cum: (m.cpu && typeof m.cpu.cumulativeCPUUsage === 'number') ? m.cpu.cumulativeCPUUsage : null,
+      // tab-cost: end
       memKB: (m.memory && m.memory.workingSetSize) || 0,
       privKB: (m.memory && m.memory.privateBytes) || 0,
       contents: [],
@@ -970,6 +975,9 @@ ipcMain.handle('app:processes', () => {
       row.contents.push({
         id: wc.id, kind: wc.getType(), url: url.slice(0, 200), title: (wc.getTitle() || '').slice(0, 120),
         partition: _partitionNameOf(wc.session), extension,
+        // tab-cost: begin — bytes this page's requests have downloaded (see _countNetBytes)
+        net: _netByWc.get(wc.id) || { bytes: 0, requests: 0, unsized: 0 },
+        // tab-cost: end
       });
     } catch { /* a page mid-teardown */ }
   }
@@ -2315,6 +2323,23 @@ function wireSpellcheckOnSession(ses) {
 // We keep playlists (.m3u8/.mpd) but skip their individual .ts/.m4s segments
 // (noise). Cleared on main-frame navigation / tab destroy (see web-contents-created).
 const _mediaByWc = new Map(); // webContentsId -> Map(url -> {url,kind,mime,sizeKB})
+// tab-cost: begin — how much each page has downloaded, for "what is slowing my
+// browser". Counted from the same onCompleted hook as the media sniffer (a
+// session takes one listener), by the Content-Length the server sent: a
+// response with none (chunked) counts as a request of unknown size, not zero
+// bytes. Cache hits transfer nothing and are skipped. Page requests only —
+// service-worker and extension fetches carry no page id. In memory, per page.
+const _netByWc = new Map(); // webContentsId -> { bytes, requests, unsized }
+function _countNetBytes(details) {
+  const id = details.webContentsId;
+  if (!id || details.fromCache) return;
+  let n = _netByWc.get(id);
+  if (!n) { n = { bytes: 0, requests: 0, unsized: 0 }; _netByWc.set(id, n); }
+  n.requests++;
+  const len = parseInt(_hdrVal(details.responseHeaders, 'content-length'), 10);
+  if (Number.isFinite(len) && len >= 0) n.bytes += len; else n.unsized++;
+}
+// tab-cost: end
 function _hdrVal(headers, name) {
   if (!headers) return '';
   const k = Object.keys(headers).find(h => h.toLowerCase() === name);
@@ -2334,6 +2359,7 @@ function wireMediaSnifferOnSession(ses) {
   ses.__vexMediaWired = true;
   ses.webRequest.onCompleted({ urls: ['http://*/*', 'https://*/*'] }, (details) => {
     _extRequestCompleted(ses, details);
+    _countNetBytes(details); // tab-cost
     try {
       const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
       if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
@@ -5249,6 +5275,7 @@ app.on('web-contents-created', (_event, contents) => {
   const createdContentsId = contents.id;
   contents.on('destroyed', () => {
     _mediaByWc.delete(createdContentsId);
+    _netByWc.delete(createdContentsId); // tab-cost
     _httpsUpgradedByWc.delete(createdContentsId);
     _httpsNoHttpsShown.delete(createdContentsId);
     _claudeGoogleClick.delete(createdContentsId);

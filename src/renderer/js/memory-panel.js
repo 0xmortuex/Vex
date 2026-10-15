@@ -26,6 +26,12 @@ const MemoryPanel = {
           <button id="memory-sleep-all">Sleep inactive tabs</button>
           <button id="memory-reload-all">Reload all tabs</button>
         </div>
+        <div class="memory-section memory-cost" id="memory-cost-section">
+          <div class="memory-section-head"><h3 id="memory-cost-title" tabindex="-1">What is slowing Vex down</h3>
+            <span class="memory-section-note">Processor time, memory and downloads by site, panel and extension. Private and Tor tabs count as one anonymous total.</span>
+            <button id="memory-cost-recent" aria-pressed="true">Last 5 minutes</button><button id="memory-cost-session" aria-pressed="false">This session</button></div>
+          <div id="memory-cost" aria-live="polite"></div>
+        </div>
         <div class="memory-trend" id="memory-trend" title="Total memory since launch, sampled every 30 seconds; dots mark what Vex did"></div>
         <div class="memory-list" id="memory-list">
           <div style="padding:40px;text-align:center;color:var(--text-muted)">Loading...</div>
@@ -95,8 +101,74 @@ const MemoryPanel = {
       }
     });
 
+    for (const scope of ['recent', 'session']) {
+      document.getElementById('memory-cost-' + scope)?.addEventListener('click', () => { this._costScope = scope; this.renderCost(); });
+    }
+
     this.refresh();
     this.startAutoRefresh();
+  },
+
+  // ---- What is slowing Vex down (js/tab-cost.js) ----------------------------
+  // The ledger samples itself once a minute; while this panel is open its own
+  // refresh asks for one every 5 s, so the numbers move as you watch.
+  _costScope: 'recent',
+  _costRows: [],
+
+  async refreshCost() {
+    const host = document.getElementById('memory-cost');
+    if (!host) return;
+    if (typeof TabCost === 'undefined') { host.textContent = 'This build cannot attribute cost to sites.'; return; }
+    try { await TabCost.sample({ minGapMs: TabCost.PANEL_GAP_MS }); }
+    catch (err) {
+      console.error('[memory] could not sample tab cost:', err);
+      host.textContent = 'Could not measure: ' + ((err && err.message) || 'unknown error');
+      return;
+    }
+    this.renderCost();
+  },
+
+  renderCost() {
+    const host = document.getElementById('memory-cost');
+    if (!host || typeof TabCost === 'undefined') return;
+    for (const scope of ['recent', 'session']) {
+      const b = document.getElementById('memory-cost-' + scope);
+      if (b) b.setAttribute('aria-pressed', String(this._costScope === scope));
+    }
+    const snap = TabCost.snapshot({ scope: this._costScope });
+    const v = snap.verdict;
+    const rows = snap.rows.filter(r => r.cpuSec > 0 || r.memMB >= 50 || r.netBytes > 0).slice(0, 8);
+    this._costRows = rows;
+    const mb = (n) => this._fmt(Math.round(n));
+    const bytes = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : b >= 1024 ? Math.round(b / 1024) + ' KB' : '0';
+    const head = `<div class="memory-cost-verdict ${this._esc(v.level)}"><strong>${this._esc(v.headline)}</strong>${v.lines.map(l => `<div>${this._esc(l)}</div>`).join('')}</div>`;
+    if (!rows.length) { host.innerHTML = head; return; }
+    host.innerHTML = head + `<table class="memory-proc-table memory-cost-table"><thead><tr><th>What</th><th>Processor</th><th>Memory</th><th>Downloaded</th><th></th></tr></thead><tbody>${rows.map((r, i) => {
+      const sleeping = r.kind === 'site' && r.tabCount === 0;
+      const sub = r.kind === 'site' ? (r.tabCount ? r.tabCount + ' tab' + (r.tabCount === 1 ? '' : 's') : 'closed or asleep') + (r.shared ? ' · shares a process' : '')
+        : r.kind === 'private' ? 'not itemised, by design' : r.kind;
+      const acts = (r.actions || []).map(a => `<button class="memory-cost-act" data-i="${i}" data-act="${this._esc(a)}">${this._esc(TabCost.ACTION_LABELS[a] || a)}</button>`).join('');
+      const unsized = r.netUnsized ? `<div class="memory-proc-kind">${r.netUnsized} of ${r.netRequests} requests had no size</div>` : '';
+      return `<tr class="${r.cpuPct >= 25 ? 'busy' : ''}${sleeping ? ' memory-sleeping' : ''}"><td><div class="memory-proc-what">${this._esc(r.label)}</div><div class="memory-proc-kind">${this._esc(sub)}</div></td>
+        <td class="num cpu">${r.cpuPct.toFixed(r.cpuPct < 10 ? 1 : 0)}%<div class="memory-cost-bar" style="--w:${Math.round(r.cpuShare * 100)}%" title="${Math.round(r.cpuShare * 100)}% of all processor time"></div></td>
+        <td class="num">${r.memMB >= 1 ? mb(r.memMB) : '—'}</td>
+        <td class="num">${r.netBytes ? bytes(r.netBytes) : '—'}${unsized}</td>
+        <td class="memory-cost-actions">${acts}</td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="memory-proc-kind">Processor is the average share of one core over ${this._esc(snap.scope === 'session' ? 'the session' : 'the window')}. A renderer shared by several tabs is split equally between them. Downloaded counts what pages fetched, by the size servers state.</div>`;
+    host.querySelectorAll('.memory-cost-act').forEach(b => b.addEventListener('click', async () => {
+      const row = this._costRows[Number(b.dataset.i)];
+      b.disabled = true;
+      try { window.showToast?.(await TabCost.act(b.dataset.act, row), 'success'); }
+      catch (err) { window.showToast?.((err && err.message) || 'That did not work', 'error'); }
+      setTimeout(() => this.refresh(), 600);
+    }));
+  },
+
+  // Ctrl+K › "What is slowing my browser?" opens the panel on this section.
+  focusCost() {
+    const h = document.getElementById('memory-cost-title');
+    if (h) { h.scrollIntoView({ block: 'start' }); h.focus(); }
   },
 
   // Every stored setting, for the saved report. Short values are shown; long
@@ -236,6 +308,7 @@ const MemoryPanel = {
     });
 
     this.renderPanels(panels, mem);
+    await this.refreshCost();
     this.renderTrend();
     // Who holds the microphone or camera — named on the capture utilities' rows.
     const captures = [];

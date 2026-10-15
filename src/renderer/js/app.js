@@ -1791,6 +1791,9 @@ function vexOwnTextFocused(doc) {
   // A task held off (js/tasks.js) has to be kept off, so the check runs
   // whether or not the Running tasks window is open.
   if (typeof VexTasks !== 'undefined') VexTasks.start();
+  // What each site has cost over the last five minutes (js/tab-cost.js): one
+  // sample a minute, held while a game runs.
+  if (typeof TabCost !== 'undefined') TabCost.start();
 
   // The font Vex wears (js/fonts.js). Applied before anything is measured, so
   // nothing is laid out in one face and then redrawn in another.

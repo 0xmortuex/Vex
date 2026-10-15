@@ -35,6 +35,8 @@ const WhySlow = {
       out.rows = await VexTasks.rows();
       out.totalMB = out.rows.reduce((n, r) => n + (r.memMB || 0), 0);
     } catch (err) { out.error = err.message; }
+    // tab-cost: the last five minutes, not just this instant (js/tab-cost.js)
+    try { if (typeof TabCost !== 'undefined') out.cost = TabCost.snapshot({ scope: 'recent' }); } catch { /* the rest still answers */ }
     try { out.route = await window.vex.routingGetAll(); } catch { /* the rest still answers */ }
     try { out.gpu = await window.vex.gpu(); } catch { /* no card reading; say nothing about it */ }
     try { out.game = typeof GameMode !== 'undefined' && GameMode.on(); } catch { /* not a reason then */ }
@@ -69,6 +71,22 @@ const WhySlow = {
         fix: r.tabs.length ? 'go-tab' : (r.panels.length ? 'go-panel' : null),
         tab: r.tabs[0] || null,
         panel: r.panels[0] || null,
+      });
+    }
+
+    // tab-cost: a site that has held the processor over the whole window — the
+    // sustained answer the instantaneous percentage above cannot give.
+    const cost = d.cost && d.cost.verdict && d.cost.verdict.level === 'heavy' ? d.cost.rows.find(r => r.key === d.cost.verdict.top) : null;
+    if (cost && cost.kind !== 'private' && cost.kind !== 'system') {
+      const tab = cost.tabList && cost.tabList.find(t => !t.active);
+      found.push({
+        id: 'site:' + cost.key,
+        weight: 900,
+        title: d.cost.verdict.headline,
+        detail: 'Over five minutes, not a moment: this is what drains a battery. "What is slowing my browser?" has the sleep, mute and close buttons.',
+        fix: tab ? 'go-tab' : null,
+        tab: tab ? tab.id : null,
+        panel: null,
       });
     }
 
