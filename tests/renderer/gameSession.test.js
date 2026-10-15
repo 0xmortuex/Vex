@@ -49,7 +49,7 @@ beforeEach(() => {
     gameModeGames: vi.fn(async () => ({})),
   };
   GameSession.active = false; GameSession.app = ''; GameSession.gameId = '';
-  GameSession._suspended = false; GameSession._asked = false; GameSession._last = null;
+  GameSession._suspended = false; GameSession._asked = false; GameSession._last = null; GameSession._declined = new Set();
   GameSession._guide = null; GameSession._calm = false; GameSession._wired = false;
   GameMode.gaming = false; GameMode._gamingReport = null;
   globalThis.TabManager = { tabs: [], activeTabId: 1, getActiveTab: () => ({ id: 1, url: 'https://wiki.example/roblox/build', title: 'Build guide' }), sleepTab: vi.fn(), isCapturing: () => false, mayAskSiteForIcon: () => false };
@@ -338,15 +338,71 @@ describe('the first game: ask once, remember the answer', () => {
     expect(window.vexConfirm.mock.calls[0][0].message).toMatch(/never touches the game/);
   });
 
-  it('no is remembered and never asked again', async () => {
+  it('names a listed game by name', async () => {
+    setUp({ mode: null });
+    window.vexConfirm = vi.fn(() => new Promise(() => {}));
+    GameSession.onState(START);
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalled());
+    const m = window.vexConfirm.mock.calls[0][0].message;
+    expect(m).toMatch(/^Roblox is running\./);
+    expect(m).not.toMatch(/full-screen/);
+    expect(window.vexConfirm.mock.calls[0][0].extra.label).toMatch(/ask again/);
+  });
+
+  it('says a full-screen app is in front, and names it, when the app is not in the list', async () => {
+    setUp({ mode: null, games: [] });
+    window.vexConfirm = vi.fn(() => new Promise(() => {}));
+    GameSession.onState({ game: true, app: 'vlc', id: '', listed: false, fullscreen: true });
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalled());
+    const m = window.vexConfirm.mock.calls[0][0].message;
+    expect(m).toMatch(/^A full-screen app \(vlc\) is in front\. If it is a game, Game mode makes Vex stay out/);
+    expect(m).toMatch(/never touches the game/);
+    expect(m).not.toMatch(/^A game is running/);
+  });
+
+  it('Not now keeps the choice at ask, skips that app until restart and asks again for another app', async () => {
+    setUp({ mode: null, games: [] });
+    window.vexConfirm = vi.fn(async () => false);
+    const VLC = { game: true, app: 'vlc', id: '', listed: false, fullscreen: true };
+    GameSession.onState(VLC);
+    await vi.waitFor(() => expect(window.showToast).toHaveBeenCalled());
+    expect(GameSession.mode()).toBe('ask');
+    expect(localStorage.getItem('vex.gameMode')).toBe(null);
+    expect(window.showToast.mock.calls[0][0]).toMatch(/ask again for a different app.*Settings › Privacy Hardening › Gaming and streaming/);
+    GameSession.onState(STOP);
+    GameSession.onState({ ...VLC, app: 'VLC.exe' });          // same program, spelled differently
+    await new Promise(r => setTimeout(r, 5));
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    GameSession.onState(STOP);
+    GameSession.onState({ game: true, app: 'chrome', id: '', listed: false, fullscreen: true });
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalledTimes(2));
+    expect(GameSession.mode()).toBe('ask');
+    // A restart forgets it: nothing was saved.
+    GameSession._declined = new Set();
+    GameSession.onState(STOP);
+    GameSession.onState(VLC);
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalledTimes(3));
+  });
+
+  it('a listed game still asks (once per run) when the mode is ask', async () => {
     setUp({ mode: null });
     window.vexConfirm = vi.fn(async () => false);
+    GameSession.onState(START);
+    await vi.waitFor(() => expect(window.vexConfirm).toHaveBeenCalledTimes(1));
+    GameSession.onState(START);
+    await new Promise(r => setTimeout(r, 5));
+    expect(window.vexConfirm).toHaveBeenCalledTimes(1);
+    expect(GameSession.mode()).toBe('ask');
+  });
+
+  it('the extra button, Don’t ask again, is the one answer that saves off', async () => {
+    setUp({ mode: null });
+    window.vexConfirm = vi.fn(async (o) => { o.extra.run(); return false; });
     GameSession.onState(START);
     await vi.waitFor(() => expect(GameSession.mode()).toBe('off'));
     GameSession.onState(STOP);
     GameSession.onState(START);
     expect(window.vexConfirm).toHaveBeenCalledTimes(1);
-    expect(GameSession.active).toBe(false);
   });
 
   it('asks once per game, however many times the state is reported', async () => {
