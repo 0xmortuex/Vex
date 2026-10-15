@@ -390,7 +390,7 @@ const CommandBar = {
     { id: 'translate-ai', label: 'AI Translate', hint: 'Translate page content with AI', icon: 'sparkles', action: () => { AIPanel.open(); AIPanel.sendMessage('translate', { targetLanguage: AIPanel.translateTarget() }); } },
     { id: 'compare-tabs', label: 'Compare Tabs', hint: 'AI compares all open tabs', icon: 'scale', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Compare these tabs side-by-side.',TabManager.tabs); } },
     { id: 'summarize-tabs', label: 'Summarize All Tabs', hint: 'AI summary of every open tab', icon: 'list', action: () => { if(typeof TabSelector!=='undefined')TabSelector.setMode('all'); AIPanel.open(); AIPanel._sendMultiTab('Summarize all tabs collectively.',TabManager.tabs); } },
-    { id: 'schedules', label: 'Schedules', hint: 'View scheduled AI tasks', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
+    { id: 'schedules', label: 'Schedules', hint: 'Scheduled tasks, in the Clock panel', shortcut: 'Ctrl+Shift+L', icon: 'alarm', isPrimary: true, action: () => SidebarManager.openPanel('schedules') },
     { id: 'repeat', label: 'Repeat a task', hint: 'Run a saved agent task again — the same steps, no AI, no waiting', icon: 'refresh', isPrimary: true, action: async () => {
       if (typeof AgentLoop === 'undefined' || typeof AgentLoop.macros !== 'function') { window.showToast?.('Not available in this build', 'error'); return; }
       const list = AgentLoop.macros();

@@ -113,7 +113,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 ### 🧩 Sidebar apps & panels
 - **App web‑panels** — WhatsApp, Claude, Spotify, Netflix, **Discord** (with a stay‑connected fix + optional Vencord), GitHub, Roblox — each in its own persistent isolated session.
 - **Pin any site** to the sidebar as a web panel; **unread badges** from each app's title appear on its icon.
-- **Native panels** — Notes & Scratchpad, Downloads, Library (Read Later + auto‑archive), Bookmarks (folders), Feeds (RSS), Highlights, Recall, Authenticator, Privacy, History, Memory, Schedules, Queue, Shortcuts.
+- **Native panels** — Notes & Scratchpad, Downloads, Library (Read Later + auto‑archive), Bookmarks (folders), Feeds (RSS), Highlights, Recall, Authenticator, Privacy, History, Memory, Clock (alarms, timers, stopwatch, world clock and Scheduled tasks), Queue, Shortcuts.
 
 ### 🔑 Autofill & logins
 - **Password vault** — encrypted at rest with the OS keychain (DPAPI/safeStorage); offers to save on login, autofills on return.
@@ -229,7 +229,7 @@ Features that don't exist in other browsers — built by combining Vex's own sta
 | `Ctrl+Alt+N` | Private window | | `F11` / `F12` | Fullscreen / DevTools |
 | `Ctrl+1`…`Ctrl+9` | Jump to tab N | | `Alt+←` / `Alt+→` | Back / forward |
 | `Ctrl++` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / reset | | `Ctrl+Shift+M` | Memory panel |
-| `Ctrl+Shift+N` | Notes | | `Ctrl+Shift+L` | Schedules |
+| `Ctrl+Shift+N` | Notes | | `Ctrl+Shift+L` | Scheduled tasks (Clock) |
 | `Ctrl+Alt+S` | Screenshot | | `Ctrl+Alt+1/2/3` | Run command‑chain 1/2/3 |
 | `Ctrl+Alt+H` | Boss key — hide/show all windows | | `Esc` | Close overlays / popups |
 

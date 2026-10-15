@@ -82,6 +82,9 @@ const VexI18nUI = {
       'Bookmarks': 'Yer imleri', 'Notes': 'Notlar', 'Memory': 'Bellek',
       'Library': 'Kitaplık', 'Feeds': 'Akışlar', 'Highlights': 'Vurgular',
       'Recall': 'Geri çağırma', 'Schedules': 'Zamanlanmış görevler',
+      // Schedules is now the Clock panel's "Scheduled tasks" sub-tab.
+      'Clock and schedules': 'Saat ve zamanlanmış görevler', 'Scheduled tasks': 'Zamanlanmış görevler',
+      'Clock and schedules — alarms, timers, stopwatch, world clock, scheduled tasks (Ctrl+Shift+L)': 'Saat ve zamanlanmış görevler — alarmlar, zamanlayıcılar, kronometre, dünya saati, zamanlanmış görevler (Ctrl+Shift+L)',
       'Authenticator': 'Kimlik doğrulayıcı', 'Privacy': 'Gizlilik',
       'Fill code from authenticator': 'Kimlik doğrulayıcıdan kod doldur',
       'Search accounts': 'Hesaplarda ara', 'Rename account': 'Hesabı yeniden adlandır', 'Remove account': 'Hesabı kaldır',

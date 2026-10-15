@@ -387,6 +387,10 @@ const VexClock = {
   _loadSw() { try { const s = JSON.parse(localStorage.getItem(this.KEY_STOPWATCH) || 'null'); if (s && typeof s === 'object') this._sw = { running: !!s.running, startedAt: +s.startedAt || 0, elapsed: +s.elapsed || 0, laps: Array.isArray(s.laps) ? s.laps : [] }; } catch { /* fresh */ } },
 
   // -------------------------------------------------------------- the panel
+  // 'schedules' is the Scheduled tasks sub-tab: the former Schedules panel
+  // (js/schedules-panel.js) drawn into this panel's body. SidebarManager routes
+  // every old way of opening 'schedules' here with _tab set to it.
+  TABS: [['alarms', 'Alarms', 'alarm'], ['timers', 'Timer', 'timer'], ['stopwatch', 'Stopwatch', 'clock'], ['world', 'World', 'globe'], ['schedules', 'Scheduled tasks', 'calendar']],
   _tab: 'alarms',
   _container: null,
   _clockTimer: null,
@@ -400,17 +404,19 @@ const VexClock = {
     this._loadSw();
     const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 14 }) : '';
     container.innerHTML = `
-      <div class="panel-header"><h2>Clock</h2></div>
-      <div class="ck-tabs" role="tablist">
-        ${[['alarms', 'Alarms', 'alarm'], ['timers', 'Timer', 'timer'], ['stopwatch', 'Stopwatch', 'clock'], ['world', 'World', 'globe']].map(([id, label, ic]) =>
-          `<button class="ck-tab${this._tab === id ? ' on' : ''}" data-tab="${id}" role="tab" aria-selected="${this._tab === id}">${icon(ic, 13)}<span>${label}</span></button>`).join('')}
+      <div class="panel-header"><h2>Clock and schedules</h2></div>
+      <div class="ck-tabs" role="tablist" aria-label="Clock and schedules">
+        ${this.TABS.map(([id, label, ic]) =>
+          `<button class="ck-tab${this._tab === id ? ' on' : ''}" id="ck-tab-${id}" data-tab="${id}" role="tab" aria-selected="${this._tab === id}" aria-controls="clock-body">${icon(ic, 13)}<span>${label}</span></button>`).join('')}
       </div>
-      <div class="ck-body" id="clock-body"></div>`;
+      <div class="ck-body" id="clock-body" role="tabpanel" aria-labelledby="ck-tab-${this._tab}"></div>`;
     container.querySelectorAll('.ck-tab').forEach(b => b.addEventListener('click', () => { this._tab = b.dataset.tab; this.renderPanel(container); }));
     this._renderTab();
   },
 
-  _rerender() { if (this._container && this._container.isConnected && getComputedStyle(this._container).display !== 'none') this._renderTab(); },
+  // Scheduled tasks redraws itself from the Scheduler's own change event; a
+  // timer ticking over must not rebuild it under the user's hands.
+  _rerender() { if (this._tab !== 'schedules' && this._container && this._container.isConnected && getComputedStyle(this._container).display !== 'none') this._renderTab(); },
 
   _renderTab() {
     const body = this._container && this._container.querySelector('#clock-body');
@@ -419,6 +425,10 @@ const VexClock = {
     if (this._tab === 'alarms') this._renderAlarms(body);
     else if (this._tab === 'timers') this._renderTimers(body);
     else if (this._tab === 'stopwatch') this._renderStopwatch(body);
+    else if (this._tab === 'schedules') {
+      if (typeof SchedulesPanel === 'undefined') throw new Error('Scheduled tasks cannot be shown: js/schedules-panel.js did not load');
+      SchedulesPanel.init(body);
+    }
     else this._renderWorld(body);
   },
 
