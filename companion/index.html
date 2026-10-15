@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https: http://127.0.0.1:* http://localhost:*; base-uri 'none'; form-action 'none'">
+<title>Vex Devices</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Your devices</h1>
+  <section id="pairing">
+    <p>On your computer open Vex, then Settings, Vex Sync, Pair a phone browser. Enter the address of your relay and the code it shows. The code works once, for five minutes.</p>
+    <form id="pair-form" autocomplete="off">
+      <label for="relay">Relay address</label>
+      <input id="relay" type="url" inputmode="url" placeholder="https://vex-companion.example.workers.dev" required>
+      <label for="code">Pairing code</label>
+      <input id="code" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKMN" required>
+      <button type="submit">Show my devices</button>
+    </form>
+  </section>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <div id="devices"></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

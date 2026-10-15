@@ -186,6 +186,10 @@ define('adblocker-set-state discord:set-bypass roblox:set-bypass', [boolean]);
 define('gui-style:set', [oneOf(['classic','glass'])]);
 define('cloud:token-save', [string(4096)]);
 define('sync-save-key', [value => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)]);
+// Phone browser (src/main/companion.js): the Devices view, re-checked in main.
+define('companion:start', [shape({ relayUrl: string(2048), view: value => object(value) && Array.isArray(value.devices) && value.devices.length <= 20 })]);
+define('companion:publish', [value => object(value) && Array.isArray(value.devices) && value.devices.length <= 20]);
+define('companion:status companion:stop', []);
 // Saved passwords and authenticator accounts in Vex Sync (main/sync-secrets.js):
 // sealed items { id, t, s } only, never a password or a secret.
 const secretKind = oneOf(['passwords', 'authenticator', 'passkeys']);

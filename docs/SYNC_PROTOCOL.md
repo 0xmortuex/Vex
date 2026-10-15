@@ -575,6 +575,49 @@ A third sealed kind, sealed exactly as above (same keys, same `s` layout, AAD `v
 - Only passkeys **made while sync was on** (those that told the site they are backup eligible, the BE flag, which cannot change afterwards) are sealed; the others stay on the device that made them.
 - A phone or other client MUST copy these records verbatim (§6 rule 1) unless it implements this section exactly.
 
+### 4.10 One browser across devices (from the release after v22.24.6)
+
+Everything here is **additive**: no schema, level, endpoint or encryption changes, and a client that knows none of it keeps working (§4.10.6).
+
+#### 4.10.1 The device snapshot (`sync:tabs:<deviceId>`, version 2)
+Version 1 (§4.8) is `{"tabs":[{"url","title"}]}`. Version 2 is a **superset** of it, written only by a desktop that turned on **Live tabs** (Settings › Vex Sync › Choose what to sync, `liveTabs`, off by default; it has no records of its own). A reader that understands only version 1 reads `tabs[].url` and `tabs[].title` and ignores the rest.
+
+```json
+{ "v": 2, "hlc": "<HLC>", "seen": 1767225600000, "la": 1767225590000, "active": "t3", "cut": 0,
+  "tabs":   [ { "id": "t3", "url": "https://a.test/x", "title": "X", "h": "<HLC>",
+                "fav": "https://a.test/f.ico", "g": "Work", "p": 1, "s": 1500, "a": 1767225590000 } ],
+  "closed": [ { "id": "t2", "h": "<HLC>" } ] }
+```
+- `tabs[]` (at most 100): `id` the device's own tab id (`[\w-]{1,40}`); `url` http(s), at most 2048; `title` at most 300; `h` the HLC of the tab's last change (address, title, group, pinned); optional `fav` (an http(s) icon address, at most 512), `g` group name (at most 60), `p` 1 when pinned, `s` scroll hint in px rounded to 500, `a` last used (ms, the device's clock).
+- `closed[]` tombstones for tabs that were open and are not: `id` and the HLC `h` they closed at; at most 50, none older than 7 days.
+- `seen` when the device last wrote the snapshot, refreshed at most once a day while nothing changes; `la` the newest `a`; `active` the id of the tab in front; `cut` how many tabs were left out to fit the size cap.
+- **Size cap: 24 KB of JSON per device.** Over it, the device drops icons, then shortens titles to 100, then drops tombstones, then drops the tabs used longest ago (pinned ones last) and sets `cut`.
+- Every address obeys §4.10.4. A reader MUST ignore a tab whose address it would not have sent itself.
+
+#### 4.10.2 Clocks and freshness
+- **HLC string**: `<wall ms, base 36, 9 digits>.<counter, base 36, 4 digits>.<node, 1-16 of [0-9a-z]>`, compared as plain strings. A new local event takes `max(previous.wall, now)` with the counter reset, or incremented when the wall did not move. A received HLC is believed at most **1 hour** ahead of the receiver's own clock, so one wrong clock cannot drag the others.
+- The record's own version vector (§4.4) still decides which write of the record wins; HLCs order the *tabs inside* a snapshot, so two copies of one device's snapshot (a cached one and one that just arrived) merge per tab: the newer `h` wins, a tombstone newer than a tab removes it, a tab newer than its tombstone stands. The merge is commutative, associative and idempotent (`js/live-session.js mergeSnapshots`).
+- **Last seen** of a device is the server's `lastSeenAt` (§1.4 `GET /sync/devices`), the clock everyone shares; a snapshot's `seen` is used only for a device the server does not list, and never later than now. A device not seen for 14 days is shown as stale.
+- Last-writer-wins for the shared lists (bookmarks, workspaces, reading queue) is the existing record merge (§5.2) and its conflict viewer (Settings › Vex Sync › Sync conflicts); nothing new is added there.
+
+#### 4.10.3 Reading queue (`preference:vex.readLater`)
+A list preference (§4.5), items `{id, url, title, at, read, ownSession?, minutes?, ...}` as `js/readlater.js` writes them, off by default (`readingQueue`). Items with `ownSession: true` (saved from a tab with a session of its own) and items whose address §4.10.4 would refuse are **not** sent, and a pull never removes them from the device that holds them. A client MUST carry unknown item fields through (§6 rule 13) and copy the records verbatim when it does not own the source (§6 rule 1).
+
+#### 4.10.4 What never leaves a device
+Whatever the person turned on: tabs of a private window, a private, Off-the-Record or Tor tab, a tab on a route (`persist:route-*`, `persist:container-tor-*`, or a container with a Tor or proxy route), a tab with `ownSession`; addresses that are not http(s), carry a user name or password, carry a query parameter named like a secret (`token`, `code`, `session`, `key`, `password`, `otp`, `jwt`, `state`, ...), or have a host that is `localhost`, an IP literal, a single label, `*.local`, `*.internal` and the like; and hosts of money, identity, mail or health (banks, payment providers, password managers, webmail, `accounts.`/`login.`/`sso.` hosts, tax authorities), plus any hosts the person lists in `localStorage['vex.liveSensitiveHosts']`. The same rules apply to the version 1 list. The list is `js/live-session.js`.
+
+#### 4.10.5 Addressed handoff (§7)
+The mailbox has no addressing. An item's encrypted payload MAY carry, besides `url` and `title`, `to` (a 32-hex device id) and `hop` (integer, default 0). A device that fetches an item whose `to` is another device puts it back (§7 `POST /sync/drop`) with `hop + 1`, and drops it after **4** hand-ons; the device it names opens it. A device that does not know `to` (an older desktop, or an app that ignores unknown fields) opens it as before, which is the unaddressed behaviour. Cost of this design: a few extra mailbox writes while the intended device is offline; an addressed item for a device that never returns is dropped after four hops, not kept.
+
+#### 4.10.6 Compatibility
+| Reader | What it sees |
+|---|---|
+| a desktop before this release | version 2 values: `tabs[].url`/`title` work; other fields ignored; unknown source `preference:vex.readLater` copied verbatim (§6 rule 1), as on any level-2 desktop. A level-1 device of v2.34.3 to v2.35.1 still tombstones sources it does not know (§6 rule 1), so the reading queue should not be turned on while one is on the account |
+| a client reading only §8.2 | `sync:tabs:<id>` as in §4.8 |
+| a mailbox reader that ignores `to` and `hop` | opens every item, as before |
+
+The marker level stays 2. Nothing in this section changes how a document is validated (§4.1) or encrypted (§3).
+
 ---
 
 ## 5. Merge algorithm
@@ -727,7 +770,7 @@ A small per-account mailbox, separate from the record document.
 ## 8. Synced sources: what a mobile client can use
 
 ### 8.1 Complete list (from `SYNC_KEYS`, `preferenceKeys()`, `STORE_KEYS` and `TILE_LISTS`)
-- **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`, `vex.neverSleepHosts`, `vex.translateAlwaysHosts`, `vex.customThemes`, and from the release after v18.59.3 `vex.pwNever` (with passwords, §4.9).
+- **List preferences** (arrays): `vex.bookmarks`, `vex.sessions`, `vex.history`, `vex.notes`, `vex.tools`, `vex.schedules`, `vex.personas`, `vex.reminders`, `vex.forceDarkHosts`, `vex.neverSleepHosts`, `vex.translateAlwaysHosts`, `vex.customThemes`, and from the release after v18.59.3 `vex.pwNever` (with passwords, §4.9), and from the release after v22.24.6 `vex.readLater` (the reading queue, off until chosen, §4.10.3).
 - **Scalar preferences** (raw localStorage strings): `vex.historyClearedAt`, `vex.workspaces`, `vex.agentMode`, `vex.aiIndexingEnabled`, `vex.zooms`, `vex.forceDarkSites`, `vex.autoSleepPrefs`, `vex.aiRouting`, `vex.preferLocalAI`, `vex.forceCloudAI`, `vex.activePersona`, `vex.aiMemory`, `vex.autoGroupSuggest`, `vex.autoAddToGroups`, `vex.groupPatterns`, `vex.userShortcuts`, `vex.tabLayout`, `vex.themeAuto`, `vex.whatsNewCard`, and from the release after v14.72.3 `vex.guiStyle`, `vex.guiColors`, `vex.skinPattern`, `vex.skinShape`, `vex.skinGlow`, `vex.skinStrength`, `vex.font`, `vex.fontMono`, `vex.a11y` (the browser look, skin, fonts and reading aids; the interface size and spacing stay per device), and from the release after v18.59.3 `vex.totpSites` (with the authenticator, §4.9). All are prefixed `preference:`.
 - **History window** (from the release after v14.72.3): the desktop owns `preference:vex.history` but sends only its newest **1,000** visits, and none whose `visitedAt` is more than **90 days** old. A visit that falls out of that window becomes a tombstone once (and is cleared out later, §4.7); every desktop keeps its own older visits locally and does not delete them when they are missing from, or tombstoned in, the account. `vex.historyClearedAt` (an ISO time, written by History › Clear History) is how a clear reaches those older visits: a desktop removes every visit with `visitedAt` at or before it.
 - **No longer synced** (removed after v2.36.4): `vex.autosleep`, `vex.autosleepMinutes`, `vex.autosleepExcludePinned` (never written by anything; auto-sleep travels as `vex.autoSleepPrefs`), `vex.customCommands`, `vex.settings` and `vex-theme`. A newer desktop no longer owns these, so records an older desktop still sends under them are copied verbatim (§6 rule 1) and never applied. Once every device is at level 2 they are cleared out of the document (§4.7).

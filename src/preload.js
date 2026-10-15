@@ -716,6 +716,11 @@ contextBridge.exposeInMainWorld('vex', {
   syncClearState: () => ipcRenderer.invoke('sync-clear-state'),
   // Saved passwords and authenticator accounts in Vex Sync: sealed and opened
   // by main (main/sync-secrets.js); this window carries only sealed items.
+  // Phone browser (main/companion.js).
+  companionStart: (request) => ipcRenderer.invoke('companion:start', request),
+  companionPublish: (view) => ipcRenderer.invoke('companion:publish', view),
+  companionStatus: () => ipcRenderer.invoke('companion:status'),
+  companionStop: () => ipcRenderer.invoke('companion:stop'),
   syncSecretsSeal: (kinds) => ipcRenderer.invoke('sync-secrets-seal', kinds),
   syncSecretsApply: (lists) => ipcRenderer.invoke('sync-secrets-apply', lists),
   syncSecretsDescribe: (items) => ipcRenderer.invoke('sync-secrets-describe', items),

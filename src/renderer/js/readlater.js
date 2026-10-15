@@ -15,6 +15,15 @@ const ReadLater = {
     try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); this.items = Array.isArray(a) ? a : []; } catch { this.items = []; }
     this._baseline = this.items.slice();
     this._badge();
+    // A queue that arrived from another device (Vex Sync › Reading queue).
+    if (!this._syncWatched && typeof window !== 'undefined') {
+      this._syncWatched = true;
+      window.addEventListener('vex-sync-data-applied', () => {
+        try { const a = JSON.parse(localStorage.getItem(this.KEY) || '[]'); this.items = Array.isArray(a) ? a : this.items; } catch { return; }
+        this._baseline = this.items.slice();
+        this._badge();
+      });
+    }
   },
   // Delta-merged so a second window's saved articles survive (collection-store.js).
   save() {

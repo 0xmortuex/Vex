@@ -107,9 +107,9 @@ describe('choose what to sync', () => {
     const host = document.getElementById('sync-panel-content');
     await window.SyncSettings.renderSyncPanel(host);
     const boxes = [...host.querySelectorAll('[data-sync-type]')];
-    expect(boxes.map(b => b.dataset.syncType)).toEqual(['bookmarks', 'history', 'tabs', 'notes', 'shortcuts', 'reminders', 'ai', 'look', 'passwords', 'authenticator', 'passkeys', 'settings']);
-    // Passwords, authenticator codes and passkeys stay off until turned on (syncSecrets.test.js).
-    expect(boxes.filter(b => !b.checked).map(b => b.dataset.syncType)).toEqual(['passwords', 'authenticator', 'passkeys']);
+    expect(boxes.map(b => b.dataset.syncType)).toEqual(['bookmarks', 'history', 'tabs', 'notes', 'shortcuts', 'reminders', 'ai', 'look', 'passwords', 'authenticator', 'passkeys', 'liveTabs', 'readingQueue', 'settings']);
+    // Passwords, authenticator codes, passkeys, Live tabs and the reading queue stay off until turned on (syncSecrets.test.js, liveSessionSync.test.js).
+    expect(boxes.filter(b => !b.checked).map(b => b.dataset.syncType)).toEqual(['passwords', 'authenticator', 'passkeys', 'liveTabs', 'readingQueue']);
     const history = boxes.find(b => b.dataset.syncType === 'history');
     history.checked = false;
     history.dispatchEvent(new Event('change'));

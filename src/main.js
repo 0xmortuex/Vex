@@ -6677,6 +6677,16 @@ ipcMain.handle('sync-clear-state', async () => {
   await Promise.all([secretStore.clear(syncKeyFile), secretStore.clear(syncMetaFile)]);
   return true;
 });
+// Phone browser (companion/): pairing code and the sealed, read-only Devices
+// view sent to the relay the owner deployed (main/companion.js).
+{
+  const companion = require('./main/companion').createCompanion({});
+  ipcMain.handle('companion:start', (_e, req) => companion.start({ relayUrl: req.relayUrl, devices: req.view }));
+  ipcMain.handle('companion:publish', (_e, view) => companion.publish(view));
+  ipcMain.handle('companion:status', () => companion.status());
+  ipcMain.handle('companion:stop', () => companion.stop());
+  app.on('before-quit', () => { companion.stop().catch(() => {}); });
+}
 // Saved passwords and authenticator accounts in Vex Sync, when turned on in
 // Settings › Vex Sync › Choose what to sync: sealed and opened here, never
 // readable in the window (main/sync-secrets.js).
