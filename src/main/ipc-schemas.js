@@ -314,6 +314,17 @@ define('recall:search', [string(512), optional(shape({
   since: count(Number.MAX_SAFE_INTEGER), until: count(Number.MAX_SAFE_INTEGER), site: optional(string(253)),
 }))]);
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
+// Recall by meaning (src/main/recall-vectors.js): the embedding model and the
+// local Ollama address, the hosts Recall is told to stay out of, and how many
+// pages one step may read.
+const meaningArgs = shape({
+  model: optional(string(100)), baseUrl: optional(string(100)),
+  excluded: optional(value => Array.isArray(value) && value.length <= 1000 && value.every(host => typeof host === 'string' && host.length <= 253)),
+  batch: optional(count(20)), limit: optional(count(100)),
+});
+define('recall:meaning-status recall:meaning-step', [meaningArgs]);
+define('recall:meaning-search', [string(512), meaningArgs]);
+define('recall:meaning-forget', []);
 define('vault:save', [shape({ host: string(253), username: string(4096), password: string(16384), note: optional(string(4096)) })]);
 define('vault:update', [shape({ host: string(253), username: string(4096), newUsername: string(4096), password: optional(string(16384)), note: optional(string(4096)) })]);
 define('vault:export-csv vault:breach-check', []);

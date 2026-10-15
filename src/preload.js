@@ -279,6 +279,11 @@ contextBridge.exposeInMainWorld('vex', {
   recallStats: () => ipcRenderer.invoke('recall:stats'),
   recallForget: (target) => ipcRenderer.invoke('recall:forget', target),
   recallClear: () => ipcRenderer.invoke('recall:clear'),
+  // Recall by meaning (local Ollama embeddings only).
+  recallMeaningStatus: (args) => ipcRenderer.invoke('recall:meaning-status', args),
+  recallMeaningStep: (args) => ipcRenderer.invoke('recall:meaning-step', args),
+  recallMeaningSearch: (q, args) => ipcRenderer.invoke('recall:meaning-search', q, args),
+  recallMeaningForget: () => ipcRenderer.invoke('recall:meaning-forget'),
   translateText: (text, tl) => ipcRenderer.invoke('translate:text', { text, tl }),
 
   // Privacy hardening (fingerprint farbling, DoH, tracker tally) — all in main

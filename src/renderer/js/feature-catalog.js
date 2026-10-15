@@ -140,6 +140,8 @@ const VexFeatures = {
       what: 'Tasks that run on their own — every morning, every Monday, or on a cron expression. Including runs missed while Vex was closed.' },
     { id: 'recall', cat: 'ai', cmd: 'recall', panel: 'recall',
       what: 'Full-text search of every page you have actually read. For when you remember the sentence but not the site.' },
+    { id: 'recall-meaning', cat: 'ai', panel: 'recall', name: 'Recall by meaning', phrases: 'semantic search embeddings find by meaning that article about sourdough',
+      what: 'An optional "By meaning" switch in Recall: finds the page you half remember even when you share no words with it. Runs on a small model in your own Ollama; nothing leaves this PC.' },
     { id: 'remember', cat: 'ai', cmd: 'remember',
       what: 'Finds a page by what it was about rather than what it was called — "that article about DPI".' },
     { id: 'catchup', cat: 'ai', cmd: 'catchup', panel: 'library', phrases: 'reading digest catch me up summarise read later daily digest morning digest',
@@ -609,7 +611,7 @@ const VexFeatures = {
       { name: 'Asking it things', ids: ['ai-panel', 'askvex', 'summarize', 'selection-bar', 'compose', 'tabmentions', 'chatfile', 'show-thinking', 'twomodels'] },
       { name: 'Having it do the work', ids: ['agent', 'agent-pause', 'agent-schedule', 'teach', 'skills', 'schedules', 'tabai'] },
       { name: 'Which model, and what it knows about you', ids: ['ai-router', 'ondevice', 'smallmodel', 'personas', 'ai-memory', 'routelearn', 'mcp'] },
-      { name: 'Finding what you have read', ids: ['recall', 'remember', 'catchup', 'screenshot-code'] },
+      { name: 'Finding what you have read', ids: ['recall', 'recall-meaning', 'remember', 'catchup', 'screenshot-code'] },
     ],
     privacy: [
       { name: 'Blocking, and being followed', ids: ['adblock', 'consent-banners', 'privacy-report', 'trackerreceipts', 'fingerprint'] },

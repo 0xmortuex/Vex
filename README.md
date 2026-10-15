@@ -90,7 +90,7 @@ Vex is a Chromium desktop browser (via [castLabs Electron](https://github.com/ca
 - **Selection AI bar** — Explain / Summarize / Translate on any highlighted text.
 - **Summarize page · Explain · Translate · Compare/summarize all tabs.**
 - **Screenshot → Code** — capture a page, AI rebuilds it as HTML / Tailwind / React.
-- **Recall** — local full‑text search of every page you've read ("what was that article…").
+- **Recall** — local full‑text search of every page you've read ("what was that article…"). Optional "By meaning" search finds a page without its words, using an embedding model in your own Ollama (nothing leaves your PC).
 - **AI history indexing & semantic search** — find pages by *meaning*, indexed on‑device.
 - **AI Personas** — 5 built‑in + custom personalities, a **different persona per tab**, and `@mention` switching mid‑chat.
 - **AI Memory** — facts you tell it once, injected into every chat (works on cloud *and* local).
