@@ -1,0 +1,27 @@
+# Co-op focus timer relay. NOT deployed by Vex: the owner deploys it.
+# Change `name` to your own worker name before `wrangler deploy`.
+name = "your-coop-timer-name"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Origins a browser page may call this relay from, comma separated.
+# Vex's window is a local file page, which sends the origin "null".
+# Add a site origin only if you host your own page that talks to the relay.
+ALLOWED_ORIGINS = "null"
+
+[[durable_objects.bindings]]
+name = "COOP_ROOMS"
+class_name = "CoopRoom"
+
+[[durable_objects.bindings]]
+name = "COOP_GATE"
+class_name = "CoopGate"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CoopRoom", "CoopGate"]
+
+# No request logs and no traces: room codes must not end up in a dashboard.
+[observability]
+enabled = false
