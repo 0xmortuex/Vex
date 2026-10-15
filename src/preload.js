@@ -300,6 +300,19 @@ contextBridge.exposeInMainWorld('vex', {
   recallMeaningStep: (args) => ipcRenderer.invoke('recall:meaning-step', args),
   recallMeaningSearch: (q, args) => ipcRenderer.invoke('recall:meaning-search', q, args),
   recallMeaningForget: () => ipcRenderer.invoke('recall:meaning-forget'),
+  // Knowledge base: what you keep, searchable on this PC (src/main/knowledge-ipc.js).
+  kbPlan: (entries, covers) => ipcRenderer.invoke('kb:plan', entries, covers),
+  kbPut: (items, args) => ipcRenderer.invoke('kb:put', items, args),
+  kbSyncArchive: (args) => ipcRenderer.invoke('kb:sync-archive', args),
+  kbStatus: (args) => ipcRenderer.invoke('kb:status', args),
+  kbStep: (args) => ipcRenderer.invoke('kb:step', args),
+  kbSearch: (question, args) => ipcRenderer.invoke('kb:search', question, args),
+  kbContext: (question, args) => ipcRenderer.invoke('kb:context', question, args),
+  kbRelated: (id, args) => ipcRenderer.invoke('kb:related', id, args),
+  kbRelatedPage: (page, args) => ipcRenderer.invoke('kb:related-page', page, args),
+  kbKeepOut: (id, on) => ipcRenderer.invoke('kb:keep-out', id, on),
+  kbKeepOutClear: () => ipcRenderer.invoke('kb:keep-out-clear'),
+  kbForget: () => ipcRenderer.invoke('kb:forget'),
   translateText: (text, tl) => ipcRenderer.invoke('translate:text', { text, tl }),
 
   // Privacy hardening (fingerprint farbling, DoH, tracker tally) — all in main
