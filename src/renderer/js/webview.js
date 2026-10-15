@@ -471,6 +471,8 @@ const WebviewManager = {
     if (window.Snippets) window.Snippets.attach(webview);
     // Note the price on product pages that publish one (private and Tor tabs are refused inside)
     if (window.PriceHistory) window.PriceHistory.attach(webview);
+    // "You searched this on …": a results page you have searched before (private and Tor tabs are refused inside)
+    if (window.VexSearchAgain) window.VexSearchAgain.attach(webview, tab.id);
     // Apply the saved master-volume level to this page's media (and keep it
     // enforced as media loads). Re-checked per navigation; no-op at 100%.
     onWebview('dom-ready', () => {
