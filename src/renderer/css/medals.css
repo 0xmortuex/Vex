@@ -1,0 +1,145 @@
+/* Profile and medals (js/vex-medals-profile.js). Colours come from the legacy
+   token family (--surface/--text/--border/--primary), which every look and
+   theme, the Firefox look included, redefines. */
+
+.vm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vm-profile {
+  width: min(980px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface, #1c1d22);
+  color: var(--text, #eee);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+  border-radius: var(--vex-radius-lg, 14px);
+  padding: 22px 24px 24px;
+  box-shadow: 0 24px 60px var(--vex-shadow-color, rgba(0, 0, 0, 0.45));
+  font-family: var(--vex-font-base, inherit);
+}
+
+.vm-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.vm-head-main { flex: 1 1 260px; min-width: 0; }
+.vm-name {
+  width: 100%;
+  max-width: 340px;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text, inherit);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin-left: -8px;
+}
+.vm-name:hover { border-color: var(--border, rgba(128, 128, 128, 0.4)); }
+.vm-name:focus-visible { border-color: var(--primary, currentColor); }
+.vm-level { margin-top: 4px; font-size: 13px; color: var(--text-muted, inherit); }
+.vm-xp {
+  margin-top: 8px;
+  height: 10px;
+  max-width: 340px;
+  border-radius: 6px;
+  background: var(--vex-hover-fill, rgba(128, 128, 128, 0.2));
+  overflow: hidden;
+  border: 1px solid var(--border, transparent);
+}
+.vm-xp > span { display: block; height: 100%; background: linear-gradient(90deg, #f5b81c, #ff7a59); border-radius: 6px; }
+.vm-close { margin-left: auto; }
+
+.vm-avatars { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.vm-avatar-pick {
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+.vm-avatar-pick[aria-checked="true"] { border-color: var(--primary, currentColor); }
+.vm-avatar-pick:hover { background: var(--vex-hover-fill, rgba(128, 128, 128, 0.18)); }
+
+.vm-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 18px 0; }
+.vm-stat {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.35));
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--vex-hover-fill, rgba(128, 128, 128, 0.08));
+}
+.vm-stat b { display: block; font-size: 22px; line-height: 1.2; }
+.vm-stat span { font-size: 12px; color: var(--text-muted, inherit); }
+.vm-honest { font-size: 11.5px; color: var(--text-muted, inherit); margin-top: 3px; display: block; }
+
+.vm-h { font-size: 13px; font-weight: 600; margin: 18px 0 8px; letter-spacing: 0.02em; }
+.vm-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 8px; }
+.vm-strip .vm-mini { flex: 0 0 auto; width: 84px; text-align: center; font-size: 11.5px; }
+
+.vm-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.vm-chip {
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.4));
+  background: transparent;
+  color: var(--text, inherit);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.vm-chip:hover { background: var(--vex-hover-fill, rgba(128, 128, 128, 0.15)); }
+.vm-chip[aria-pressed="true"] { background: var(--primary, #4a7); color: var(--on-primary, #fff); border-color: transparent; }
+.vm-select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text, inherit);
+  background: var(--surface, transparent);
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.4));
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.vm-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.vm-card {
+  position: relative;
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.35));
+  border-radius: 12px;
+  padding: 12px 10px 10px;
+  text-align: center;
+  background: var(--vex-hover-fill, rgba(128, 128, 128, 0.07));
+  overflow: hidden;
+}
+.vm-card.vm-locked { color: var(--text-muted, inherit); }
+.vm-card h4 { margin: 8px 0 2px; font-size: 13px; font-weight: 600; }
+.vm-card p { margin: 0; font-size: 11.5px; color: var(--text-muted, inherit); line-height: 1.35; }
+.vm-card .vm-tier { position: absolute; top: 6px; right: 8px; font-size: 10.5px; color: var(--text-muted, inherit); }
+.vm-prog { display: flex; justify-content: center; margin-top: 6px; color: var(--text-muted, inherit); font-size: 11px; gap: 6px; align-items: center; }
+
+.vmedal { display: inline-block; vertical-align: middle; overflow: visible; }
+.vmedal-shine { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .vm-card:hover .vmedal-shine, .vm-card:focus-within .vmedal-shine { animation: vm-shine 0.9s ease-out; }
+}
+@keyframes vm-shine {
+  0% { transform: translateX(0) rotate(25deg); opacity: 0.45; }
+  100% { transform: translateX(120px) rotate(25deg); opacity: 0; }
+}
+
+.vm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+
+/* Settings group */
+.vm-set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.vm-set-note { font-size: 12px; color: var(--text-muted, inherit); margin: 4px 0; }
+
+/* High contrast: keep the art as drawn, give the cards a system border. */
+@media (forced-colors: active) {
+  .vmedal, .vavatar { forced-color-adjust: none; }
+  .vm-card, .vm-stat, .vm-chip, .vm-profile { border: 1px solid CanvasText; }
+  .vm-chip[aria-pressed="true"] { background: Highlight; color: HighlightText; }
+}
