@@ -649,6 +649,28 @@ contextBridge.exposeInMainWorld('vex', {
   extensionsCommands:       () => ipcRenderer.invoke('extensions:commands'),
   extensionsSetCommandKey:  (request) => ipcRenderer.invoke('extensions:set-command-key', request),
   extensionsSetPinned:      (folderName, pinned) => ipcRenderer.invoke('extensions:set-pinned', folderName, pinned),
+  // When each extension last changed and was last used (main/extension-usage.js).
+  extensionsUsageAudit:     () => ipcRenderer.invoke('extensions:usage-audit'),
+
+  // Privacy report card (main/privacy-report.js): the cookie half of the weekly
+  // page, and its one-click cleanup by registrable domain.
+  privacyReport:            () => ipcRenderer.invoke('privacy:report'),
+  privacyReportClean:       (domains) => ipcRenderer.invoke('privacy:report-clean', domains),
+  // Crash-proof tabs (main/tab-snapshots.js): scroll position and typed text,
+  // never from a password field or a private, Tor or burner tab.
+  tabSnapshots: {
+    save: (payload) => ipcRenderer.invoke('tabsnap:save', payload),
+    load: () => ipcRenderer.invoke('tabsnap:load'),
+    clear: () => ipcRenderer.invoke('tabsnap:clear'),
+  },
+  // Quiet hours (main/quiet-hours.js).
+  quiet: {
+    get: () => ipcRenderer.invoke('quiet:get'),
+    set: (cfg) => ipcRenderer.invoke('quiet:set', cfg),
+    held: () => ipcRenderer.invoke('quiet:held'),
+    release: () => ipcRenderer.invoke('quiet:release'),
+    drop: () => ipcRenderer.invoke('quiet:drop'),
+  },
 
   // Phase 13: Vex Sync — encryption key + session metadata
   syncSaveKey: (hex) => ipcRenderer.invoke('sync-save-key', hex),

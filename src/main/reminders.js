@@ -138,7 +138,7 @@ function createReminders({ store, notifier, osScheduler, now = () => Date.now(),
     try {
       // Reminders and alarms get Snooze / Open buttons on the toast itself;
       // a timer or the weekly review has nothing to snooze.
-      await notifier.show({ title: r.kind === 'alarm' ? 'Alarm' : (r.urgent ? 'Reminder — urgent' : 'Reminder'), body, tag: r.id, actions: r.kind !== 'timer' && r.kind !== 'review' });
+      await notifier.show({ title: r.kind === 'alarm' ? 'Alarm' : (r.urgent ? 'Reminder — urgent' : 'Reminder'), body, tag: r.id, actions: r.kind !== 'timer' && r.kind !== 'review', kind: 'reminder' });
       r.delivered = 'toast';
       note(`[Reminders] fired ${r.id}${late ? ' (late)' : ''}${r.repeat ? ' (repeats ' + r.repeat + ')' : ''}`);
     } catch (err) {

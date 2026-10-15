@@ -427,6 +427,16 @@ define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);
 define('profiles:open profiles:delete profiles:shortcut', [profileId]);
+// Privacy report card, extension usage audit, crash-proof tabs and quiet hours
+// (src/main/protect.js). Reads take no argument; the cleanup names at most 50
+// sites; a snapshot is bounded again in main/tab-snapshots.js.
+define('privacy:report extensions:usage-audit tabsnap:load tabsnap:clear quiet:get quiet:held quiet:release quiet:drop', []);
+define('privacy:report-clean', [value => Array.isArray(value) && value.length >= 1 && value.length <= 50 && value.every(string(255))]);
+define('tabsnap:save', [shape({
+  entries: value => Array.isArray(value) && value.length <= 60 && value.every(object),
+  keepUrls: value => Array.isArray(value) && value.length <= 200 && value.every(string(2048)),
+})]);
+define('quiet:set', [object]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.
   const checks = schemas.get(channel);
