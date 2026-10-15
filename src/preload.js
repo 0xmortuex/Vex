@@ -187,6 +187,20 @@ contextBridge.exposeInMainWorld('vex', {
   gameModeGames: (games, watch) => ipcRenderer.invoke('gamemode:games', games, !!watch),
   gameModeSession: (s) => ipcRenderer.invoke('gamemode:session', s),
   gameModeState: () => ipcRenderer.invoke('gamemode:state'),
+  // Time travel (src/main/state-journal.js; js/time-travel.js) and the tuning
+  // advisor (src/main/tuning-advisor.js; js/tuning-advisor-ui.js).
+  journalPush: (snapshot) => ipcRenderer.invoke('journal:push', snapshot),
+  journalList: (range) => ipcRenderer.invoke('journal:list', range),
+  journalAt: (ts) => ipcRenderer.invoke('journal:at', ts),
+  journalDiff: (a, b) => ipcRenderer.invoke('journal:diff', a, b),
+  journalNoteVersions: (id) => ipcRenderer.invoke('journal:note-versions', id),
+  journalNoteVersion: (id, ts) => ipcRenderer.invoke('journal:note-version', id, ts),
+  journalStats: () => ipcRenderer.invoke('journal:stats'),
+  journalConfigure: (cfg) => ipcRenderer.invoke('journal:configure', cfg),
+  journalForget: () => ipcRenderer.invoke('journal:forget'),
+  tuningAdvise: (metrics) => ipcRenderer.invoke('tuning:advise', metrics),
+  tuningHistory: () => ipcRenderer.invoke('tuning:history'),
+  tuningForget: () => ipcRenderer.invoke('tuning:forget'),
   // On battery or on mains (src/main/power-watch.js; js/battery-mode.js).
   powerWatch: (on) => ipcRenderer.invoke('power:watch', !!on),
   powerStatus: () => ipcRenderer.invoke('power:status'),

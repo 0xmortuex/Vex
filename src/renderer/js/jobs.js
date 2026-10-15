@@ -29,6 +29,7 @@ const VexJobs = {
     if (when !== 'ui' && when !== 'background') throw new Error('VexJobs.every: unknown kind ' + when);
     const job = { name, ms, fn, when, deferOnBattery: !!deferOnBattery, next: Date.now() + ms, owed: false, running: false, runs: 0, held: 0 };
     this._jobs.set(name, job);
+    job.since = Date.now();
     this._start();
     return { stop: () => this.stop(name) };
   },
@@ -75,11 +76,27 @@ const VexJobs = {
     job.runs++;
     const done = () => { job.running = false; };
     const failed = (err) => { job.running = false; window.VexProblems?.note('Background job', job.name + ' failed', err); };
+    // The time the job held the interface thread: the synchronous part only.
+    // What an async job awaits (a network reply) costs the thread nothing, so
+    // it is not counted. Read by timings() for the tuning advisor.
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const took = () => {
+      const ms = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
+      job.totalMs = (job.totalMs || 0) + ms;
+      if (ms > (job.maxMs || 0)) job.maxMs = ms;
+    };
     try {
       const r = job.fn();
+      took();
       if (r && typeof r.then === 'function') r.then(done, failed);
       else done();
-    } catch (err) { failed(err); }
+    } catch (err) { took(); failed(err); }
+  },
+
+  // Per-job cost since the first job was registered. → [{ name, runs, held,
+  // totalMs, maxMs, spanMs }]
+  timings(now = Date.now()) {
+    return [...this._jobs.values()].map(j => ({ name: j.name, runs: j.runs, held: j.held, totalMs: j.totalMs || 0, maxMs: j.maxMs || 0, spanMs: Math.max(0, now - (j.since || now)) }));
   },
 
   _start() {
