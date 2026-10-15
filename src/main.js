@@ -9472,6 +9472,59 @@ ipcMain.handle('userscripts:fetch', async (_e, url) => {
   if (res.status < 200 || res.status >= 300) throw new Error('The site answered ' + res.status);
   return { source: res.responseText, finalUrl: res.finalUrl };
 });
+// === Vex Packs (src/main/packs.js, packs-store.js, docs/packs.md) ===========
+// Declarative-only packs: a signed JSON file of themes, chains, page actions,
+// aliases and the like. Nothing in one is ever run as code, there is no network
+// path to fetch one (a local file or a drag-and-drop only), and the window can
+// install only a pack main itself previewed. Vex's own window only
+// (ipc-policy.js UI_ONLY_CHANNELS), and closed in private windows.
+const _packsFs = require('node:fs');
+const _packsDir = path.join(app.getPath('userData'), 'packs');
+const _packs = require('./main/packs-store').createPackStore({
+  dir: _packsDir, fs: _packsFs, log: console,
+  seal: (bytes) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption is unavailable, so a signing key cannot be protected');
+    return safeStorage.encryptString(Buffer.from(bytes).toString('base64'));
+  },
+  unseal: (sealed) => Buffer.from(safeStorage.decryptString(sealed), 'base64'),
+});
+_packs.load().catch(err => console.error('[Packs] could not read the installed packs:', err && err.message));
+ipcMain.handle('packs:list', () => _packs.list());
+ipcMain.handle('packs:items', () => _packs.enabledItems());
+ipcMain.handle('packs:preview', (_e, text) => _packs.preview(text, 'dropped file'));
+ipcMain.handle('packs:pick-file', async (e) => {
+  const r = await dialog.showOpenDialog(_askingWindow(e), {
+    title: 'Open a Vex pack', properties: ['openFile'],
+    filters: [{ name: 'Vex pack', extensions: ['vexpack'] }],
+  });
+  if (r.canceled || !r.filePaths[0]) return { cancelled: true };
+  const file = r.filePaths[0];
+  const st = await _packsFs.promises.stat(file);
+  if (!st.isFile()) throw new Error('That is not a file');
+  if (st.size > 256 * 1024) throw new Error('A Vex pack is at most 256 KB; this file is ' + Math.ceil(st.size / 1024) + ' KB');
+  const text = await _packsFs.promises.readFile(file, 'utf8');
+  return { cancelled: false, preview: await _packs.preview(text, path.basename(file)) };
+});
+ipcMain.handle('packs:install', (_e, token, trustKey) => _packs.install(token, { trustKey: !!trustKey }));
+ipcMain.handle('packs:discard', (_e, token) => { _packs.discard(token); return true; });
+ipcMain.handle('packs:set-enabled', (_e, id, on) => _packs.setEnabled(id, on));
+ipcMain.handle('packs:uninstall', (_e, id) => _packs.uninstall(id));
+ipcMain.handle('packs:set-global', (_e, on) => _packs.setGlobalEnabled(on));
+ipcMain.handle('packs:trust-key', (_e, id, label) => _packs.trustKey(id, label));
+ipcMain.handle('packs:untrust-key', (_e, fingerprint) => _packs.untrustKey(fingerprint));
+ipcMain.handle('packs:generate-key', (_e, replace) => _packs.generateAuthorKey({ replace: !!replace }));
+ipcMain.handle('packs:export', async (e, req) => {
+  const out = await _packs.exportPack({ id: req.id, name: req.name, authorName: req.authorName, description: req.description || '', items: req.items, sign: req.sign });
+  const r = await dialog.showSaveDialog(_askingWindow(e), {
+    title: 'Save your Vex pack', defaultPath: path.join(app.getPath('documents'), out.id + '.vexpack'),
+    filters: [{ name: 'Vex pack', extensions: ['vexpack'] }],
+  });
+  if (r.canceled || !r.filePath) return { cancelled: true };
+  const target = r.filePath.toLowerCase().endsWith('.vexpack') ? r.filePath : r.filePath + '.vexpack';
+  await _packsFs.promises.writeFile(target, out.text, 'utf8');
+  return { cancelled: false, path: target, trust: out.trust };
+});
+
 ipcMain.handle('reminders:create', async (_e, payload) => {
   if (!reminders) throw new Error('Reminders have not started yet');
   return reminders.create(payload || {});

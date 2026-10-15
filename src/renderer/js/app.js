@@ -1285,6 +1285,7 @@ function vexOwnTextFocused(doc) {
   if (typeof VexFeeds !== 'undefined') VexFeeds.init();
   if (typeof WorkspaceSnapshots !== 'undefined') WorkspaceSnapshots.init();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
+  if (typeof VexPacks !== 'undefined') VexPacks.init();
 
   // What you copied off a page, so the last copy isn't the only copy
   if (window.ClipboardHistory) window.ClipboardHistory.init();
