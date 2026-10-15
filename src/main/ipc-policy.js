@@ -26,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo)|privacy:report|tabsnap:|quiet:)/;
+const PRIVATE_DISABLED = /^(?:siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo)|privacy:report|tabsnap:|quiet:|playground:)/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -64,7 +64,10 @@ const UI_ONLY_CHANNELS = new Set([
   'news:notify', 'news:pending',
   // The userscript manager (main/userscripts.js): installing, switching and
   // deleting code that runs on sites is never a page's call.
-  'userscripts:list', 'userscripts:preview', 'userscripts:install', 'userscripts:set-enabled', 'userscripts:remove', 'userscripts:set-global', 'userscripts:set-hosts', 'userscripts:clear-values', 'userscripts:fetch']);
+  'userscripts:list', 'userscripts:preview', 'userscripts:install', 'userscripts:set-enabled', 'userscripts:remove', 'userscripts:set-global', 'userscripts:set-hosts', 'userscripts:clear-values', 'userscripts:fetch',
+  // The API playground (main/api-playground.js): sending a request with
+  // headers the person wrote is never a page's or an extension's call.
+  'playground:send']);
 function validatePayload(channel, args) {
   require('./ipc-schemas').validate(channel, args);
   const dataContracts = require('../renderer/js/data-contracts');

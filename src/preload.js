@@ -317,6 +317,9 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Generic HTTP request (API client + page-change monitor), runs in main
   apiRequest: (opts) => ipcRenderer.invoke('api:request', opts),
+  // API playground (js/api-playground.js): one request, sent from main with a
+  // short timeout; resolves { ok, status, … } or { ok:false, error }.
+  playgroundSend: (req) => ipcRenderer.invoke('playground:send', req),
   // An MCP server's token, kept encrypted in main; '' removes it.
   mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
 

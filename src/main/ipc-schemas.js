@@ -389,6 +389,10 @@ define('image:for-ai', [integer, web, optional(boolean)]);
 // mcpServer: the id of an MCP server whose token main adds to the request.
 // publicOnly: the AI agent's reads, refused for this machine and the local network.
 define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean) })]);
+// API playground (main/api-playground.js): one request from the request
+// builder. Headers are name/value text; main checks every name and value.
+// allowLocal: the person switched on "Allow localhost" for this request.
+define('playground:send', [shape({ url: web, method: oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']), headers: optional(object), body: optional(string(1024 * 1024)), allowLocal: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);
 define('privacy:set-config', [object]);
