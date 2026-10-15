@@ -1,0 +1,124 @@
+/* Play: mini games, Tab Tetris, the daily word (js/vex-fun.js and friends).
+   Colours come from the theme tokens, so every look and theme matches. */
+
+.vexfun-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vexfun-box {
+  width: 440px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--vex-radius-lg, 12px);
+  padding: 16px;
+  box-shadow: 0 24px 60px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
+  font-family: var(--vex-font-base, 'Outfit', sans-serif);
+}
+.vexfun-box.vexfun-wide { width: min(1040px, 94vw); }
+.vexfun-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.vexfun-title { font-size: 15px; font-weight: 700; }
+.vexfun-close {
+  background: transparent; border: 0; color: var(--text-muted); cursor: pointer;
+  padding: 6px; border-radius: 8px; display: inline-flex;
+}
+.vexfun-close:hover { background: var(--vex-hover-fill); color: var(--text); }
+.vexfun-msg { font-size: 12.5px; color: var(--text-muted); min-height: 1.4em; margin: 8px 0; }
+.vexfun-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+
+/* the offline button */
+.vexfun-chip {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147482000;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 999px;
+  box-shadow: 0 6px 20px var(--vex-shadow-color, rgba(0, 0, 0, 0.3));
+  cursor: pointer; font: inherit; font-size: 13px;
+}
+.vexfun-chip:hover { background: var(--vex-hover-fill); }
+
+/* the games menu */
+.vexfun-menu { display: grid; gap: 8px; }
+.vexfun-menu-item {
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 12px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font: inherit;
+}
+.vexfun-menu-item:hover { background: var(--vex-hover-fill); }
+.vexfun-menu-item span { display: grid; }
+.vexfun-menu-item small { color: var(--text-muted); font-size: 11.5px; }
+.vexfun-canvas { width: 100%; height: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+
+/* tiles: the daily word and scramble */
+.vexfun-word-grid { display: grid; gap: 6px; justify-content: center; margin: 6px 0; }
+.vexfun-word-row { display: flex; gap: 6px; justify-content: center; }
+.vexfun-tile {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 20px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+}
+/* Meaning is in shape and weight as well as colour. */
+.vexfun-tile.is-hit { background: var(--vex-accent, #6366f1); color: #fff; border-color: transparent; }
+.vexfun-tile.is-near { border: 2px solid var(--vex-accent, #6366f1); }
+.vexfun-tile.is-miss { opacity: 0.55; }
+.vexfun-word-form { display: flex; gap: 8px; justify-content: center; margin: 8px 0; }
+.vexfun-word-keys { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; font-size: 11px; }
+.vexfun-key { min-width: 20px; text-align: center; padding: 3px 4px; border-radius: 5px; border: 1px solid var(--border); color: var(--text-muted); }
+.vexfun-key.is-hit { background: var(--vex-accent, #6366f1); color: #fff; border-color: transparent; }
+.vexfun-key.is-near { border: 2px solid var(--vex-accent, #6366f1); color: var(--text); }
+.vexfun-key.is-miss { opacity: 0.4; text-decoration: line-through; }
+.vexfun-scramble-letters { display: flex; gap: 6px; justify-content: center; margin: 14px 0; }
+.vexfun-flip { animation: vexfun-flip 0.35s ease both; }
+@keyframes vexfun-flip { from { transform: rotateX(90deg); opacity: 0.3; } to { transform: rotateX(0); opacity: 1; } }
+
+/* Lights Out */
+.vexfun-lights { display: grid; gap: 6px; width: 260px; margin: 10px auto; }
+.vexfun-light {
+  aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); cursor: pointer;
+}
+.vexfun-light.is-on { background: var(--vex-accent, #6366f1); border-color: transparent; }
+
+/* Tab Tetris */
+.vexfun-stage { position: relative; margin: 8px auto; }
+.vexfun-cluster {
+  position: absolute; left: 0; height: 58px; display: flex; align-items: flex-end; gap: 8px;
+  padding-bottom: 6px; font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.vexfun-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.vexfun-link {
+  background: transparent; border: 0; color: var(--text-muted); cursor: pointer;
+  font: inherit; font-size: 12px; text-decoration: underline; margin-left: 6px;
+}
+.vexfun-link:hover { color: var(--text); }
+.vexfun-block {
+  position: absolute; box-sizing: border-box; overflow: hidden; text-align: left;
+  padding: 8px 10px; font: inherit; font-size: 12px; line-height: 1.25; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-left: 5px solid var(--block, var(--text-muted));
+  border-radius: 8px; cursor: grab;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.vexfun-block:hover { background: var(--vex-hover-fill); }
+.vexfun-block.is-picked { outline: 2px solid var(--vex-accent, #6366f1); outline-offset: 1px; }
+.vexfun-clear { animation: vexfun-clear 0.28s ease-in forwards; }
+@keyframes vexfun-clear { to { transform: scale(0.6); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vexfun-flip, .vexfun-clear { animation: none; }
+  .vexfun-block { transition: none; }
+}
+html[data-reduce-motion] .vexfun-flip,
+html[data-reduce-motion] .vexfun-clear { animation: none; }
+html[data-reduce-motion] .vexfun-block { transition: none; }

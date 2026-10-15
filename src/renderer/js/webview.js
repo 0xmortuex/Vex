@@ -136,6 +136,9 @@ const WebviewManager = {
     onWebview('did-fail-load', (e) => {
       if (e.isMainFrame === false || e.errorCode === -3) return;
       tab._loadFailed = { code: e.errorCode, url: e.validatedURL };
+      // Told to whoever offers something to do on a page that did not load
+      // (js/vex-mini-games.js); nothing is required to be listening.
+      document.dispatchEvent(new CustomEvent('vex:page-load-failed', { detail: { tabId: tab.id, code: e.errorCode, url: e.validatedURL } }));
       if (typeof SitePanel !== 'undefined' && TabManager.activeTabId === tab.id) SitePanel.refreshIcon();
       // A page you archived that will not load: offer your copy (and Wayback).
       if (typeof ArchiveLibrary !== 'undefined' && TabManager.activeTabId === tab.id) ArchiveLibrary.offerForDeadPage(e.validatedURL, { isMainFrame: true, errorCode: e.errorCode });
@@ -569,7 +572,7 @@ const WebviewManager = {
     });
     // A full load, once the page is there to be talked to (js/sponsor-skip.js).
     onWebview('did-finish-load', () => {
-      try { document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: webview.getURL() } })); }
+      try { document.dispatchEvent(new CustomEvent('vex:tab-navigated', { detail: { tabId: tab.id, url: webview.getURL(), failed: !!tab._loadFailed } })); }
       catch (err) { window.VexProblems?.note('Tabs', 'Could not announce a page load', err); }
     });
 

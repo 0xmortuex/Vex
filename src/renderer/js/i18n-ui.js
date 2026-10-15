@@ -124,7 +124,7 @@ const VexI18nUI = {
       // The chips that stayed English, and every section heading (a heading
       // holds the section's mark, so only its text node is translated).
       'Profiles': 'Profiller', 'Data': 'Veriler', 'Permissions': 'İzinler',
-      'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar',
+      'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar', 'Play': 'Oyun',
       // Userscripts: the Settings heading, the commands and the toolbar marker.
       'Userscripts': 'Kullanıcı betikleri', 'Userscripts (manage)': 'Kullanıcı betikleri (yönet)',
       'Disable all userscripts': 'Tüm kullanıcı betiklerini kapat',
