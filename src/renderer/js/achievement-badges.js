@@ -162,7 +162,7 @@ const VexBadges = {
       try { this.noteActivity(); } catch (err) { window.VexProblems?.note('Badges', 'Could not note activity', err); }
     });
     document.addEventListener('vex:badge-earned', (e) => {
-      if (this.isEnabled() && e.detail) window.showToast?.('Badge earned: ' + e.detail.label, 'success', 6000);
+      if (this.isEnabled() && e.detail && (typeof VexAttention === 'undefined' || VexAttention.gate('badge', e.detail.label))) window.showToast?.('Badge earned: ' + e.detail.label, 'success', 6000);
     });
     return true;
   },

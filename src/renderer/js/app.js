@@ -1302,6 +1302,8 @@ function vexOwnTextFocused(doc) {
   if (typeof VexChainSteps !== 'undefined') VexChainSteps.init();
   if (typeof ReleaseRadar !== 'undefined') ReleaseRadar.init();
   if (typeof VexPacks !== 'undefined') VexPacks.init();
+  // Every feature switch is described to the usage record once all modules exist.
+  if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
 
   // What you copied off a page, so the last copy isn't the only copy
   if (window.ClipboardHistory) window.ClipboardHistory.init();

@@ -119,6 +119,7 @@ const VexTabReason = {
   // ---- asking ----
   ask(due) {
     if (typeof window === 'undefined' || typeof window.showToast !== 'function') return null;
+    if (!(typeof VexAttention === 'undefined' || VexAttention.gate('tab-reason', due.tab.id))) return null;
     const id = due.tab.id;
     const short = due.text.length > 70 ? due.text.slice(0, 69) + '…' : due.text;
     return window.showToast('You opened this tab ' + due.days + ' days ago for: ' + short, 'info', 15000, {

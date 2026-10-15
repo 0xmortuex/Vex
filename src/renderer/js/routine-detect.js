@@ -212,6 +212,7 @@ const RoutineDetect = {
 
   // The offer.
   offer(s) {
+    if (!(typeof VexAttention === 'undefined' || VexAttention.gate('routine-offer', s.sites.join(',')))) return null;
     const actions = [];
     if (this._keeper) actions.push({ label: 'Save as a command chain', run: () => this._keeper(s) });
     actions.push({ label: 'Turn off', run: () => { this.setMode('off'); window.showToast?.('Vex will not watch for routines. The log is cleared.'); } });

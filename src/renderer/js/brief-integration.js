@@ -33,7 +33,65 @@ const BriefIntegration = {
     { id: 'news-actions', order: 12, icon: 'newspaper', maxItems: 4, get: () => (typeof VexBriefNewsActions !== 'undefined' ? VexBriefNewsActions : null) },
     { id: 'streaks-goals', order: 102, icon: 'target', maxItems: 3, get: () => (typeof VexBriefStreaks !== 'undefined' ? VexBriefStreaks : null) },
     { id: 'one-new-thing', order: 105, icon: 'sparkles', maxItems: 2, get: () => (typeof VexBriefOneNew !== 'undefined' ? VexBriefOneNew : null) },
+    // 2026-10 modules that already answer in the extras shape.
+    { id: 'flashmind-due', order: 60, icon: 'graduation', maxItems: 3, get: () => (typeof VexBriefFlashMind !== 'undefined' ? VexBriefFlashMind : null) },
+    { id: 'weekly-world', order: 70, icon: 'globe', maxItems: 6, get: () => (typeof VexWeeklyWorld !== 'undefined' ? VexWeeklyWorld : null) },
+    { id: 'offline-pages', order: 72, icon: 'download', maxItems: 4, get: () => (typeof VexOfflinePages !== 'undefined' ? VexOfflinePages : null) },
+    { id: 'year-in-vex', order: 74, icon: 'calendar', maxItems: 4, get: () => (typeof VexYearInVex !== 'undefined' ? VexYearInVex : null) },
+    { id: 'fortune', order: 108, icon: 'sparkles', maxItems: 1, get: () => (typeof VexFortune !== 'undefined' ? VexFortune.brief : null) },
+    { id: 'speed-run-best', order: 109, icon: 'timer', maxItems: 4, get: () => (typeof VexSpeedRun !== 'undefined' ? VexSpeedRun.brief : null) },
+    // Modules that answer with a data hook or a string list are wrapped below.
+    { id: 'time-travel', order: 80, icon: 'history', maxItems: 5, get: () => BriefIntegration.adapters().timeTravel },
+    { id: 'tuning', order: 82, icon: 'activity', maxItems: 5, get: () => BriefIntegration.adapters().tuning },
+    { id: 'renewals', order: 84, icon: 'calendar', maxItems: 5, get: () => BriefIntegration.adapters().renewals },
+    { id: 'meeting-copilot', order: 20, icon: 'users', maxItems: 2, get: () => BriefIntegration.adapters().meeting },
   ],
+
+  // Adapters for the modules whose answer is not { lines } with objects.
+  // Each is { id, title, icon, isEnabled(), build() -> { lines } | null }.
+  // A module that is not loaded gives null, and is simply not registered.
+  adapters() {
+    const lines = (arr) => arr.filter(t => typeof t === 'string' && t).map(text => ({ text }));
+    const priv = () => typeof window !== 'undefined' && window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow;
+    return {
+      timeTravel: typeof VexTimeTravel === 'undefined' || typeof VexTimeTravel.briefSection !== 'function' ? null : {
+        id: 'time-travel', title: 'This time yesterday', icon: 'history',
+        isEnabled: () => !priv(),
+        async build() {
+          const s = await VexTimeTravel.briefSection();
+          return s && Array.isArray(s.lines) ? { lines: lines(s.lines) } : null;
+        },
+      },
+      tuning: typeof VexTuning === 'undefined' || typeof VexTuning.briefSection !== 'function' ? null : {
+        id: 'tuning', title: 'What slowed Vex down since yesterday', icon: 'activity',
+        isEnabled: () => !priv(),
+        async build() {
+          const s = await VexTuning.briefSection();
+          return s && Array.isArray(s.lines) ? { lines: lines(s.lines) } : null;
+        },
+      },
+      renewals: typeof RenewalRadar === 'undefined' || typeof RenewalRadar.snapshot !== 'function' ? null : {
+        id: 'renewals', title: 'Renewals coming up', icon: 'calendar',
+        isEnabled: () => true,
+        build() {
+          const s = RenewalRadar.snapshot();
+          if (!s) return null;
+          const out = (s.upcoming || []).slice(0, 5).map(u => ({ text: u.name + ' renews ' + u.next, detail: u.cost != null ? u.cost + ' ' + (u.currency || '') : '' }));
+          if (s.toConfirm) out.push({ text: s.toConfirm + ' possible subscription' + (s.toConfirm === 1 ? '' : 's') + ' to confirm' });
+          return out.length ? { lines: out } : null;
+        },
+      },
+      meeting: typeof MeetingCopilot === 'undefined' || typeof MeetingCopilot.snapshot !== 'function' ? null : {
+        id: 'meeting-copilot', title: 'Meeting in progress', icon: 'users',
+        isEnabled: () => true,
+        build() {
+          const s = MeetingCopilot.snapshot();
+          if (!s || s.ended) return null;
+          return { lines: [{ text: s.title || 'Meeting', detail: s.decisions + ' decision' + (s.decisions === 1 ? '' : 's') + ', ' + s.actions + ' action' + (s.actions === 1 ? '' : 's') }] };
+        },
+      },
+    };
+  },
   // Memory tools: the ids its _makeBrief() hands out.
   MEMORY: {
     'dashboards': { order: 45, icon: 'activity', maxItems: 6 },
@@ -144,6 +202,11 @@ const BriefIntegration = {
     for (const e of this.EXTRAS) {
       const mod = e.get();
       if (mod) put(this.sectionFor(mod, e));
+    }
+    // Autopilot builds its own card; it joins through here so it is registered
+    // once, with the others, whichever loaded first.
+    if (typeof VexAutopilot !== 'undefined' && typeof VexAutopilot.registerWithBrief === 'function') {
+      try { VexAutopilot.registerWithBrief(); } catch (err) { window.VexProblems?.note('Autopilot', 'Could not join the Morning Brief', err); }
     }
     const mods = Array.isArray(window.VexBriefModules) ? window.VexBriefModules : [];
     for (const mod of mods) {

@@ -86,7 +86,7 @@ const VexLevels = {
       if (level >= 10) VexProgress.medal('level-10');
       try { document.dispatchEvent(new CustomEvent('vex:level-up', { detail: { level, title: res.title } })); } catch { /* no document */ }
       // A quiet toast, and never over a game.
-      if (!VexProgress.silenced() && typeof window !== 'undefined' && typeof window.showToast === 'function') {
+      if (!VexProgress.silenced() && typeof window !== 'undefined' && typeof window.showToast === 'function' && (typeof VexAttention === 'undefined' || VexAttention.gate('level-up', level))) {
         window.showToast('Level ' + level + ': ' + res.title);
       }
     }

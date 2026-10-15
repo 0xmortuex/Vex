@@ -45,7 +45,7 @@ const FocusOS = {
     } catch { return false; }
   },
   // Toasts are the one thing Game mode silences outright.
-  _say(text, kind) { if (this._gaming()) return; try { window.showToast?.(text, kind || 'info'); } catch { /* no toast layer */ } },
+  _say(text, kind) { if (this._gaming()) return; if (typeof VexAttention !== 'undefined' && !VexAttention.gate('focus-os', text)) return; try { window.showToast?.(text, kind || 'info'); } catch { /* no toast layer */ } },
   _medal(id) {
     const s = this.state();
     if (s.milestones[id]) return;

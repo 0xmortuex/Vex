@@ -186,7 +186,7 @@ const VexSnooze = {
     const fresh = list.filter(e => e.at <= now && !e.told && !e.native);
     if (!fresh.length) return [];
     this._write(list.map(e => (fresh.includes(e) ? { ...e, told: true } : e)));
-    window.showToast?.(fresh.length === 1 ? 'Back as you asked: ' + fresh[0].title : fresh.length + ' snoozed items are back');
+    if ((typeof VexAttention === 'undefined' || VexAttention.gate('snooze-due', fresh.map(e => e.id).join(',')))) window.showToast?.(fresh.length === 1 ? 'Back as you asked: ' + fresh[0].title : fresh.length + ' snoozed items are back');
     try { document.dispatchEvent(new CustomEvent('vex:snooze-due', { detail: { count: fresh.length } })); } catch { /* no document */ }
     return fresh;
   },

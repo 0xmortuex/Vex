@@ -136,6 +136,13 @@ const VexToday = {
       }
     } catch (err) { snap.errors.push('reading digest: ' + ((err && err.message) || 'unavailable')); }
 
+    // What the New Tab page may show beyond the brief: time-of-day ordering,
+    // the pet, the widget shelf and the living layers. Bounded, and `{ v: 1 }`
+    // when nothing is on (js/vex-integration.js).
+    try {
+      if (typeof VexNewTab !== 'undefined') snap.newtab = VexNewTab.snapshot();
+    } catch (err) { snap.errors.push('new tab extras: ' + ((err && err.message) || 'unavailable')); }
+
     // The Morning Brief's sections (js/brief.js), built from what was just
     // read above. A failure here is the brief's own, never the snapshot's.
     try {

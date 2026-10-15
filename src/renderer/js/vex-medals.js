@@ -128,7 +128,8 @@
   function flush() {
     if (!queue.length || gaming()) return;
     const items = queue.splice(0, queue.length);
-    toast(summaryText(items));
+    // A medal toast is a nicety: it goes through the shared rate gate.
+    if (typeof root.VexAttention === 'undefined' || root.VexAttention.gate('medal', items.map(m => m.id).join(','))) toast(summaryText(items));
   }
   function notify(def) {
     queue.push({ id: def.id, title: def.title });

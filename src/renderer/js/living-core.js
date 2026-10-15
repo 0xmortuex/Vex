@@ -100,6 +100,7 @@ const VexLiving = (() => {
   function quietReason(env) {
     const e = env || {};
     if (e.settings && e.settings.animations === false) return 'animations-off';
+    if (e.quietSwitch) return 'quiet-switch';
     if (e.gameActive) return 'game-mode';
     if (e.hidden) return 'hidden';
     if (e.stillWhileGaming) return 'still';
@@ -107,13 +108,15 @@ const VexLiving = (() => {
     if (e.custom) return 'custom';
     return '';
   }
-  const HARD = Object.freeze(['animations-off', 'game-mode', 'hidden', 'custom']);
+  const HARD = Object.freeze(['animations-off', 'quiet-switch', 'game-mode', 'hidden', 'custom']);
   const isHardStop = (reason) => HARD.includes(reason);
 
   let _gameFlag = false;     // kept from the vex:game-mode event (start page has no GameSession)
   function readEnv(opts) {
     const o = opts || {};
-    const env = { settings: o.settings || read(o.storage), gameActive: _gameFlag, hidden: false, reducedMotion: false, stillWhileGaming: false, custom: false };
+    const env = { settings: o.settings || read(o.storage), gameActive: _gameFlag, hidden: false, reducedMotion: false, stillWhileGaming: false, custom: false, quietSwitch: false };
+    // The ONE quiet switch (Settings > Play, js/vex-fun.js): vex.fun.quiet === '1'.
+    try { const st = _store(o.storage); env.quietSwitch = !!st && st.getItem('vex.fun.quiet') === '1'; } catch { env.quietSwitch = false; }
     try {
       if (typeof GameSession !== 'undefined' && GameSession && GameSession.active) env.gameActive = true;
       if (typeof GameMode !== 'undefined' && GameMode && GameMode.gaming) env.gameActive = true;

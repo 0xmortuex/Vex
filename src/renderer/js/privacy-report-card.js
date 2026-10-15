@@ -128,6 +128,7 @@ const PrivacyReportCard = {
     const last = Number(this._get(this.SEEN_KEY, 0)) || 0;
     if (Date.now() - last < this.WEEK_MS) return false;
     if (typeof window.showToast !== 'function') return false;
+    if (!(typeof VexAttention === 'undefined' || VexAttention.gate('privacy-report', 'weekly'))) return false;
     window.showToast('Your weekly privacy report is ready', 'info', 12000, { action: { label: 'Open', run: () => { this.open().catch(err => window.showToast('The report could not open: ' + this._msg(err), 'error')); } } });
     // Counts as seen so it is not repeated every launch until it is opened.
     this._set(this.SEEN_KEY, Date.now());

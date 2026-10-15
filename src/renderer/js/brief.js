@@ -266,6 +266,14 @@ const VexBrief = {
         TabManager.createTab(cmd.url, true);
         return;
       }
+      if (cmd.type === 'autopilot-open') {
+        // The Autopilot card's button (js/autopilot.js). Only offered when the last build listed it.
+        if (!this._offered('autopilot', 'autopilot-open')) throw new Error('Autopilot is not on offer');
+        if (typeof VexAutopilot === 'undefined') throw new Error('Autopilot is not loaded');
+        // Autopilot listens for this and opens its own panel (js/autopilot.js).
+        document.dispatchEvent(new CustomEvent('vex:autopilot-open'));
+        return;
+      }
       if (cmd.type === 'brief-open-panel' && typeof cmd.panel === 'string') {
         if (!this._offered('panel', cmd.panel)) throw new Error('That panel is not on offer');
         if (typeof SidebarManager !== 'undefined') SidebarManager.openPanel(cmd.panel);
@@ -281,6 +289,7 @@ const VexBrief = {
       (kind === 'session' && c.type === 'brief-resume' && c.id === value) ||
       (kind === 'file' && c.type === 'brief-open-file' && c.path === value) ||
       (kind === 'action' && c.type === 'brief-action' && c.key === value) ||
+      (kind === 'autopilot' && c.type === 'autopilot-open') ||
       (kind === 'url' && c.type === 'brief-open-url' && c.url === value && /^https?:\/\//i.test(String(value))) ||
       (kind === 'panel' && c.type === 'brief-open-panel' && c.panel === value));
     return secs.some(s => (s.items || []).some(i => hit(i.cmd) || (i.actions || []).some(a => hit(a.cmd))) || hit(s.action && s.action.cmd));

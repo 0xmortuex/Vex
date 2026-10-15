@@ -3522,5 +3522,106 @@
 
     loadGitHubActivity();
   </script>
+  <!-- New Tab extras: time-of-day ordering, Vex Pet, the widget shelf and the
+       living layers. ALL OFF by default: the browser hands in
+       window.__vexToday.newtab (js/vex-integration.js, VexNewTab) and it holds
+       only what the person turned on, bounded. This page has no bridge, so
+       nothing here can ask for more. Display data only (textContent; the pet's
+       drawing is parsed and only svg shapes are kept). -->
+  <div id="vex-newtab-layer" aria-hidden="true" hidden style="position:fixed;inset:0;z-index:0;pointer-events:none"></div>
+  <aside id="vex-newtab-extras" hidden style="position:fixed;right:18px;bottom:18px;z-index:5;max-width:min(280px,40vw)">
+    <div id="vex-newtab-widgets"></div>
+    <div id="vex-newtab-pet" role="img" style="line-height:0;color:var(--vex-text-primary,currentColor)"></div>
+  </aside>
+  <style>
+    #vex-newtab-extras:not([hidden]) { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    #vex-newtab-widgets { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+    .vex-nt-widget { font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: var(--vex-radius-md, 10px); background: var(--vex-glass-light, rgba(128,128,128,.12)); border: 1px solid var(--vex-border-subtle, rgba(128,128,128,.25)); color: var(--vex-text-primary, inherit); }
+    #vex-newtab-pet .vp-fill { fill: var(--vex-accent, #7aa2ff); fill-opacity: .9; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+    #vex-newtab-pet .vp-line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    #vex-newtab-pet .vp-ink { fill: currentColor; }
+    #vex-newtab-pet .vp-cheek { stroke: currentColor; stroke-opacity: .35; stroke-width: 5; stroke-linecap: round; }
+    @media (prefers-reduced-motion: reduce) { #vex-newtab-pet * { animation: none !important; } }
+  </style>
+  <script src="js/living-core.js"></script>
+  <script src="js/seasonal-worlds.js"></script>
+  <script src="js/weather-layer.js"></script>
+  <script>
+    (function () {
+      var SVG_OK = { svg: 1, g: 1, path: 1, circle: 1, ellipse: 1, rect: 1, line: 1 };
+      var ATTR_OK = { d: 1, cx: 1, cy: 1, r: 1, rx: 1, ry: 1, x: 1, y: 1, width: 1, height: 1, viewBox: 1, fill: 1, 'class': 1, transform: 1, 'aria-hidden': 1, x1: 1, y1: 1, x2: 1, y2: 1 };
+      function cleanSvg(text) {
+        var doc = new DOMParser().parseFromString(String(text), 'image/svg+xml');
+        var root = doc.documentElement;
+        if (!root || root.nodeName !== 'svg' || doc.querySelector('parsererror')) return null;
+        (function walk(node) {
+          Array.prototype.slice.call(node.children).forEach(function (c) {
+            if (!SVG_OK[c.nodeName]) { c.remove(); return; }
+            walk(c);
+          });
+          Array.prototype.slice.call(node.attributes).forEach(function (a) {
+            if (!ATTR_OK[a.name] || /^\s*(javascript|data):/i.test(a.value)) node.removeAttribute(a.name);
+          });
+        })(root);
+        return document.importNode(root, true);
+      }
+      var layers = { seasonal: false, weather: false };
+      function memoryStorage(seed) {
+        var m = seed || {};
+        return { getItem: function (k) { return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } };
+      }
+      function living(n) {
+        var host = document.getElementById('vex-newtab-layer');
+        if (!host || typeof VexLiving === 'undefined') return;
+        if (!n || !n.living || n.quiet) {
+          if (typeof SeasonalWorlds !== 'undefined') try { SeasonalWorlds.unmount(); } catch (e) { console.error(e); }
+          if (typeof WeatherLayer !== 'undefined') try { WeatherLayer.unmount(); } catch (e) { console.error(e); }
+          layers.seasonal = layers.weather = false; host.hidden = true; return;
+        }
+        var st = n.living.settings || {};
+        var store = memoryStorage({ 'vex.living': JSON.stringify(st) });
+        host.hidden = false;
+        if (st.world && st.world !== 'off' && typeof SeasonalWorlds !== 'undefined' && !layers.seasonal) {
+          layers.seasonal = !!SeasonalWorlds.mount(host, { storage: store });
+        }
+        // The weather layer reads this page's own saved forecast (its storage), as before.
+        if (st.weatherLayer && typeof WeatherLayer !== 'undefined' && !layers.weather) {
+          layers.weather = !!WeatherLayer.mount(host, { storage: store, facilityStorage: window.localStorage });
+        }
+      }
+      function render() {
+        var n = window.__vexToday && window.__vexToday.newtab;
+        var box = document.getElementById('vex-newtab-extras');
+        if (!n || n.v !== 1 || !box) { if (box) box.hidden = true; return; }
+        // Time of day: only an ordering hint. The Today block comes before the
+        // brief when the day is a project or reading one.
+        var prof = n.profile && n.profile.profile;
+        document.body.dataset.newtabProfile = prof || '';
+        var brief = document.getElementById('brief-section'), today = document.getElementById('today-section');
+        if (brief && today && brief.parentNode === today.parentNode) {
+          if (prof === 'project' || prof === 'reading') brief.parentNode.insertBefore(today, brief);
+          else brief.parentNode.insertBefore(brief, today);
+        }
+        var shelf = document.getElementById('vex-newtab-widgets');
+        shelf.textContent = '';
+        (Array.isArray(n.widgets) ? n.widgets : []).slice(0, 8).forEach(function (w) {
+          var d = document.createElement('div');
+          d.className = 'vex-nt-widget';
+          d.textContent = String(w.text || '').slice(0, 200);
+          shelf.appendChild(d);
+        });
+        var petBox = document.getElementById('vex-newtab-pet');
+        petBox.textContent = '';
+        if (n.pet && typeof n.pet.svg === 'string' && n.pet.svg.length <= 6000) {
+          var svg = cleanSvg(n.pet.svg);
+          if (svg) { petBox.appendChild(svg); petBox.setAttribute('aria-label', String(n.pet.label || 'Vex Pet').slice(0, 80)); }
+        }
+        box.hidden = !shelf.childNodes.length && !petBox.childNodes.length;
+        living(n);
+      }
+      render();
+      window.addEventListener('vex-today', render);
+    })();
+  </script>
 </body>
 </html>
