@@ -3108,12 +3108,11 @@ function _paranoidThirdParty(details) {
   const ws = require('./main/web-safety');
   try { return ws.registrable(new URL(details.url).hostname) !== ws.registrable(new URL(page).hostname); } catch { return false; }
 }
+function _paranoidSetCookie(details, responseHeaders) {
+  if (!_paranoidThirdParty(details)) return;
+  for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === 'set-cookie') delete responseHeaders[k];
+}
 function _scriptsOffCsp(details, responseHeaders) {
-  // Called on every response in every session, so this is where paranoid
-  // mode's "may set none" lives, ahead of the site-rules early return below.
-  if (_paranoidThirdParty(details)) {
-    for (const k of Object.keys(responseHeaders)) if (k.toLowerCase() === 'set-cookie') delete responseHeaders[k];
-  }
   if (!Object.keys(_siteRules).length) return;
   if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return;
   let off = SiteRules.blocksScripts(_siteRules, details.url);
@@ -6956,6 +6955,7 @@ function createWindow() {
     const responseHeaders = { ...details.responseHeaders };
     _dnrResponseHeaders(session.defaultSession, details, responseHeaders);
     _addMediaCorsHeaders(details, responseHeaders);
+    _paranoidSetCookie(details, responseHeaders);
     _scriptsOffCsp(details, responseHeaders);
     callback({ responseHeaders });
   });
@@ -7298,6 +7298,7 @@ function createWindow() {
         const responseHeaders = { ...details.responseHeaders };
         _dnrResponseHeaders(secureSessions.fromPartition(p), details, responseHeaders);
         _addMediaCorsHeaders(details, responseHeaders);
+        _paranoidSetCookie(details, responseHeaders);
         _scriptsOffCsp(details, responseHeaders);
         callback({ responseHeaders });
       });
@@ -8354,6 +8355,7 @@ ipcMain.handle('identity:create', () => {
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
+      _paranoidSetCookie(details, rh);
       _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
@@ -8575,6 +8577,7 @@ ipcMain.handle('tor:create', async (event) => {
     ses.webRequest.onHeadersReceived((details, callback) => {
       const rh = { ...details.responseHeaders };
       _addMediaCorsHeaders(details, rh);   // Master Volume's boost (as in a normal tab)
+      _paranoidSetCookie(details, rh);
       _scriptsOffCsp(details, rh);
       callback({ responseHeaders: rh });
     });
@@ -8925,6 +8928,7 @@ function _wireBrowsingSession(ses, partition) {
       const responseHeaders = { ...details.responseHeaders };
       _dnrResponseHeaders(ses, details, responseHeaders);
       _addMediaCorsHeaders(details, responseHeaders);
+      _paranoidSetCookie(details, responseHeaders);
       _scriptsOffCsp(details, responseHeaders);
       callback({ responseHeaders });
     });
@@ -8973,6 +8977,7 @@ function _wireEphemeralBrowsing(ses, tag) {
     // Master Volume's boost works in a private window too (it had no header, so a
     // cross-origin player stayed at 100% there; found 2026-10-12).
     _addMediaCorsHeaders(details, rh);
+    _paranoidSetCookie(details, rh);
     _scriptsOffCsp(details, rh);
     callback({ responseHeaders: rh });
   });

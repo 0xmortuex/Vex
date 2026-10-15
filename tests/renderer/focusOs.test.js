@@ -103,7 +103,7 @@ describe('proposing and confirming', () => {
     const first = FocusOS.proposed(g.id).length;
     await FocusOS.propose(g.id, at(MON, 8, 30));
     expect(FocusOS.proposed(g.id).length).toBe(first);
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     const b = FocusOS.blocks(g.id)[0];
     await FocusOS.start(b.id, { now: at(MON, 9) });
     await FocusOS.finish(b.id, { now: at(MON, 9, 50), quiet: true });
@@ -115,9 +115,9 @@ describe('proposing and confirming', () => {
   it('confirm turns the proposal into planned blocks and discard removes it', async () => {
     const g = goal();
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     expect(FocusOS.blocks(g.id).every(b => b.state === 'planned')).toBe(true);
-    await expect(FocusOS.confirm(g.id)).rejects.toThrow(/nothing proposed/);
+    await expect(FocusOS.confirmGoal(g.id)).rejects.toThrow(/nothing proposed/);
     const g2 = goal({ title: 'Other' });
     await FocusOS.propose(g2.id, at(MON, 8, 30));
     await FocusOS.discard(g2.id);
@@ -130,11 +130,11 @@ describe('proposing and confirming', () => {
     const plain = goal();
     await FocusOS.propose(plain.id, at(MON, 8, 30));
     expect(create).not.toHaveBeenCalled();
-    await FocusOS.confirm(plain.id);
+    await FocusOS.confirmGoal(plain.id);
     expect(create).not.toHaveBeenCalled();
     const asked = goal({ title: 'With reminders', remind: true, estimateMin: 60 });
     await FocusOS.propose(asked.id, at(MON, 8, 30));
-    await FocusOS.confirm(asked.id);
+    await FocusOS.confirmGoal(asked.id);
     expect(create).toHaveBeenCalledTimes(FocusOS.blocks(asked.id).length);   // 60 min = a 50 and a 10
     expect(create.mock.calls[0][2]).toMatchObject({ focusOsBlock: expect.any(String) });
   });
@@ -148,7 +148,7 @@ describe('running a block', () => {
   async function planned(extra) {
     g = goal({ estimateMin: 100, ...extra });
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     b = FocusOS.blocks(g.id)[0];
     return b;
   }
@@ -249,7 +249,7 @@ describe('the minute check', () => {
   async function planFor(extra) {
     const g = goal({ estimateMin: 50, ...extra });
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     return { g, b: FocusOS.blocks(g.id)[0] };
   }
 
@@ -306,7 +306,7 @@ describe('milestones', () => {
     document.addEventListener('vex:medal-signal', on);
     const g = goal({ estimateMin: 50 });
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     const b = FocusOS.blocks(g.id)[0];
     await FocusOS.start(b.id, { now: b.start });
     await FocusOS.finish(b.id, { now: b.start + 3000000 });
@@ -335,7 +335,7 @@ describe('joining other modules', () => {
     expect(def.build()).toBeNull();
     const g = goal({ estimateMin: 50 });
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     expect(def.isEnabled()).toBe(true);
     const out = def.build();
     expect(out.summary).toBe('0 of 1 block done');
@@ -354,7 +354,7 @@ describe('joining other modules', () => {
     expect(FocusOS.registerReview()).toBe(true);
     const g = goal({ estimateMin: 50 });
     await FocusOS.propose(g.id, at(MON, 8, 30));
-    await FocusOS.confirm(g.id);
+    await FocusOS.confirmGoal(g.id);
     const b = FocusOS.blocks(g.id)[0];
     await FocusOS.start(b.id, { now: b.start });
     await FocusOS.finish(b.id, { now: b.start + 50 * 60000, quiet: true });

@@ -22,9 +22,9 @@ const TUNING_ACTION_KINDS = ['sleep-tab', 'battery-mode-on', 'reduce-motion-on',
 
 // The only door an action goes through. `env` holds the existing APIs;
 // `confirm` is vexConfirm. → { applied, undo? }.
-async function tuningRunAction(action, { confirm, env }) {
+async function tuningRunAction(action, { confirm: confirmFn, env }) {
   if (!action || !TUNING_ACTION_KINDS.includes(action.kind)) throw new Error('Unknown tuning action: ' + (action && action.kind));
-  if (typeof confirm !== 'function') throw new Error('A tuning action needs a confirmation function');
+  if (typeof confirmFn !== 'function') throw new Error('A tuning action needs a confirmation function');
   if (!env || typeof env !== 'object') throw new Error('A tuning action needs the environment');
   const need = (name) => { if (typeof env[name] !== 'function') throw new Error('Not available in this build: ' + name); return env[name]; };
   const ids = Array.isArray(action.tabIds) ? action.tabIds : [];
@@ -34,7 +34,7 @@ async function tuningRunAction(action, { confirm, env }) {
     'reduce-motion-on': () => 'Turn on reduced motion? Vex’s animations stop; you can turn it off in Settings.',
     'recall-off': () => 'Turn off ' + (action.label || 'Recall') + '? Pages are no longer indexed until you turn it back on.',
   }[action.kind]();
-  const ok = await confirm({ title: 'Apply this change?', message: ask, okLabel: 'Apply' });
+  const ok = await confirmFn({ title: 'Apply this change?', message: ask, okLabel: 'Apply' });
   if (!ok) return { applied: false };
   if (action.kind === 'sleep-tab') {
     const sleep = need('sleepTab'), wake = need('wakeTab');

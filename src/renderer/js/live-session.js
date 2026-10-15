@@ -15,7 +15,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (root) root.VexLiveSession = api;
+  if (root) globalThis.VexLiveSession = api;
 })(typeof window !== 'undefined' ? window : null, function () {
   'use strict';
 

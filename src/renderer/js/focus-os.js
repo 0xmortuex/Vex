@@ -256,7 +256,7 @@ const FocusOS = {
   },
 
   // The user said yes.
-  async confirm(goalId) {
+  async confirmGoal(goalId) {
     const P = this._P(), s = this.state(), g = this.goal(goalId);
     if (!g) throw new Error('That goal is gone');
     const mine = this.proposed(goalId);

@@ -50,7 +50,7 @@ describe('the window', () => {
 
   it('starts a block only from its button', async () => {
     const g = FocusOS.addGoal({ title: 'Write', deadline: at(23, 18), estimateMin: 50 });
-    await FocusOS.propose(g.id, at(19, 8, 30)); await FocusOS.confirm(g.id);
+    await FocusOS.propose(g.id, at(19, 8, 30)); await FocusOS.confirmGoal(g.id);
     FocusOSUI.open();
     expect(FocusOS.active()).toBeNull();
     [...document.querySelectorAll('#vex-focusos button')].find(b => b.textContent.includes('Start')).click();

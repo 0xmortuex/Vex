@@ -82,6 +82,7 @@ const PermissionPrompts = (() => {
     // file from the internet), so the only choices are this time or Block.
     // choice 'allow-block': just the two, kept for the site — or, remember
     // false (a private window, a Tor tab), kept by nothing but the tab.
+    const riskyFile = entry.data.choice === 'risky';
     const keep = entry.data.remember === false ? 'false' : 'true';
     // choice 'risky': a file waiting in the holding folder. Nothing is kept
     // unless "Always allow" is pressed, and that is only offered where the
@@ -105,7 +106,6 @@ const PermissionPrompts = (() => {
     // than it should (main: src/main/web-safety.js). Nothing is drawn when main
     // sent none, which is what the "off" setting does.
     const risk = entry.data.risk || null;
-    const riskyFile = entry.data.choice === 'risky';
     const riskHtml = !risk ? '' : (() => {
       const level = risk.level || 'normal';
       const line = riskyFile ? (risk.line || '') : (risk.riskLine || '');
