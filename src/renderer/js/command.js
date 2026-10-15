@@ -782,6 +782,12 @@ const CommandBar = {
     const bare = typeof VexQuickCommands !== 'undefined' && VexQuickCommands.withoutOpener ? VexQuickCommands.withoutOpener(q) : q;
     const exact = this.results.find(r => r && typeof r.label === 'string' && [q, bare].includes(r.label.replace(/<[^>]+>/g, '').trim().toLowerCase()));
     if (exact && this.results[0] !== exact) this.results = [exact, ...this.results.filter(r => r !== exact)];
+    // A shortcut word of the user's, or one Vex learned (js/command-aliases.js):
+    // its command first, whatever else matched.
+    if (typeof VexAliases !== 'undefined' && q && !q.startsWith('>')) {
+      try { this.results = VexAliases.apply(q, this.results, this.commands, c => this._shown(c)); }
+      catch (err) { console.error('[Command] shortcut words failed:', err); }
+    }
     this.selectedIndex = 0;
     this.renderResults();
   },
@@ -1028,6 +1034,12 @@ const CommandBar = {
 
   _execute(item) {
     this._recordUsage(item);
+    // What was typed to get here, for the shortcut words (js/command-aliases.js).
+    // Only from the open bar: Do That Again runs with whatever was left in the box.
+    if (this.isOpen && typeof VexAliases !== 'undefined') {
+      try { VexAliases.learn((document.getElementById('command-input') || {}).value, item, this.commands, this.selectedIndex); }
+      catch (err) { console.error('[Command] could not learn a shortcut word:', err); }
+    }
     this.close();
     // An action that fails says so. Called bare, a rejected promise became an
     // unhandled rejection in the console and silence on screen.

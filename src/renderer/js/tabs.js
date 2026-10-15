@@ -1212,12 +1212,18 @@ const TabManager = {
     for (const cls of this.SESSION_MARKERS) el.classList.toggle(cls, cls === mark);
     // Hovering says it in full. The page's own title stays first, because
     // that is what you are hovering to read; the session follows it.
-    if (words) {
-      el.dataset.session = words;
-      el.title = (tab.title ? tab.title + ' — ' : '') + words;
+    // The tab's own reason for being open (js/tab-reason.js) goes in the same
+    // tooltip, after the title.
+    let why = '';
+    try { if (typeof VexTabReason !== 'undefined') why = VexTabReason.tooltip(tab); } catch { /* no reason line is better than a broken strip */ }
+    if (words) el.dataset.session = words; else delete el.dataset.session;
+    const extra = [why, words].filter(Boolean).join(' — ');
+    if (extra) {
+      el.title = (tab.title ? tab.title + ' — ' : '') + extra;
+      if (why) el.dataset.why = '1'; else delete el.dataset.why;
     } else {
-      delete el.dataset.session;
-      if (el.title && el.title.includes(' — This tab ')) el.title = tab.title || '';
+      if (el.dataset.why || (el.title && el.title.includes(' — This tab '))) el.title = tab.title || '';
+      delete el.dataset.why;
     }
     return mark;
   },
@@ -2076,7 +2082,7 @@ const TabManager = {
         const el = document.createElement('div');
         el.className = `pinned-tab${tab.id === this.activeTabId ? ' active' : ''}`;
         el.dataset.tabId = tab.id;
-        el.title = tab.title;
+        el.title = tab.title + ((typeof VexTabReason !== 'undefined' && VexTabReason.tooltip(tab)) ? ' — ' + VexTabReason.tooltip(tab) : '');
         el.innerHTML = tab.favicon
           ? '<img alt="">'
           : '<div class="pinned-placeholder"></div>';

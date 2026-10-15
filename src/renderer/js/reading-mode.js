@@ -636,9 +636,16 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     const p = this.cleanPrefs(prefs);
     const title = String((article && article.title) || 'Reading mode');
     const blocks = this._dropTitleHeading(article && article.blocks, title);
-    const body = this._render(blocks)
+    let body = this._render(blocks)
       || (article && article.fallbackText ? `<p>${this._esc(article.fallbackText)}</p>` : '');
-    if (!body) return null;
+    // The checklist of a recipe, trip or documentation page, above the text.
+    const rich = (typeof VexReaderKinds !== 'undefined' && article && article.structured)
+      ? VexReaderKinds.render(article.structured, (s) => this._esc(s)) : null;
+    if (!body && !rich) return null;
+    if (rich) {
+      const keep = VexReaderKinds.prefs().keepArticle;
+      body = rich.html + (body && keep ? `<details class="vk-more"><summary>The article as written</summary>${body}</details>` : '');
+    }
     const words = Number.isFinite(Number(article && article.wordCount)) && Number(article.wordCount) > 0
       ? Math.round(Number(article.wordCount))
       : this._plain(blocks).split(/\s+/).filter(Boolean).length;
@@ -663,10 +670,10 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     return `<!DOCTYPE html><html${lang ? ` lang="${lang}"` : ''}${dir} data-theme="${p.theme}"><head><meta charset="UTF-8">`
       + `<meta name="vex-reading-source" content="${this._esc(sourceUrl)}">`
       + `<meta name="viewport" content="width=device-width, initial-scale=1">`
-      + `<title>${this._esc(title)}</title><style>${this._css(colors || this._vexColors())}</style></head><body>`
+      + `<title>${this._esc(title)}</title><style>${this._css(colors || this._vexColors())}${rich ? rich.css : ''}</style></head><body>`
       + bar
       + `<main id="vr-main" tabindex="-1"><article><h1>${this._esc(title)}</h1><p class="vr-meta">${meta.join(' &middot; ')}</p>${article && article.summarySlot ? this._summarySlot() : ''}${body}</article></main>`
-      + `<script>${this._script(p)}</script></body></html>`;
+      + `<script>${this._script(p)}</script>${rich ? `<script>${rich.script}</script>` : ''}</body></html>`;
   },
 
   // The page a Vex reader page was made from, read from the address of the
@@ -724,6 +731,14 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       return null;
     }
     if (opts && opts.summary && article) article.summarySlot = true;
+
+    // A recipe, trip or documentation page that says so in its structured
+    // data gets a checklist on top (js/reader-kinds.js). Missing or unreadable
+    // data leaves the ordinary article.
+    if (typeof VexReaderKinds !== 'undefined' && article && typeof article === 'object') {
+      try { article.structured = await VexReaderKinds.probe(wv); }
+      catch (err) { console.warn('[ReadingMode] structured data was not read:', err && err.message); }
+    }
 
     let html = this.buildHtml(article || {}, currentUrl, this.prefs());
     if (!html) {
