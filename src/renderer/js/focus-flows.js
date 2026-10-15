@@ -147,7 +147,9 @@ const FocusFlows = {
   },
 
   // ---- Activate / end ----
-  activate(flow) {
+  // opts.source: the flow as saved, when `flow` is a trimmed copy of it (an
+  // automatic switch from js/focus-profiles.js opens no tabs).
+  activate(flow, opts) {
     try {
       if (this._active) this.end();
       const did = [];
@@ -194,6 +196,8 @@ const FocusFlows = {
       }
 
       this._active = { flow, styleEl, pollTimer };
+      // Theme, tab group and panels from its profile rule (js/focus-profiles.js).
+      try { if (window.FocusProfiles) window.FocusProfiles.applyExtras(flow, (opts && opts.source) || flow); } catch {}
       this._showEndBar(flow);
       window.showToast?.(flow.name + (did.length ? ' — ' + did.join(', ') : ''));
     } catch (e) { try { window.showToast?.('Could not start the flow'); } catch {} }
@@ -206,6 +210,7 @@ const FocusFlows = {
       try { document.body.classList.remove('focus-flow-dim'); } catch {}
       try { document.getElementById('focus-flow-endbar')?.remove(); } catch {}
       this._active = null;
+      try { if (window.FocusProfiles) window.FocusProfiles.onEnded(a.flow && a.flow.id); } catch {}
       window.showToast?.('Flow ended');
     } catch {}
   },

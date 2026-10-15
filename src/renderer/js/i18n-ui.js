@@ -142,6 +142,7 @@ const VexI18nUI = {
       'Private routing': 'Özel yönlendirme', 'Site Settings': 'Site ayarları',
       'Site Permissions': 'Site izinleri', 'Chrome Extensions': 'Chrome eklentileri',
       'Smart Tab Grouping': 'Akıllı sekme gruplama', 'Command Chains': 'Komut zincirleri',
+      'Workflow and chains': 'İş akışı ve zincirler',
       // Page watcher: the Settings block, the toolbar badge and its commands.
       'Page watcher': 'Sayfa izleyici', 'Watched pages': 'İzlenen sayfalar', 'Watched pages…': 'İzlenen sayfalar…',
       'Watch pages for changes': 'Sayfaları değişiklikler için izle',
