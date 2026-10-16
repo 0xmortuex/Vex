@@ -61,6 +61,9 @@ const VexDisclosure = {
     return { today: shown.filter(t => t >= this.dayStart(now)).length, week: shown.filter(t => t >= this.weekStart(now)).length };
   },
 
+  // When this scheduler showed something in the last seven days (VexRegistry.nudgesInWeek).
+  nudgeTimes(now = this._now()) { return Object.values(this._read().shown).filter(t => now - t < 7 * 24 * 3600 * 1000); },
+
   _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; },
 
   // ---- the choice (pure over what it is given) -------------------------------------------
@@ -80,6 +83,8 @@ const VexDisclosure = {
     if (typeof VexFeatures === 'undefined') throw new Error('The feature catalogue is not loaded (js/feature-catalog.js)');
     const c = this.counts(now);
     if (c.today >= this.PER_DAY || c.week >= this.PER_WEEK) return null;
+    // The one nudge budget (VexRegistry.nudgeRoom): "try it" offers and "hidden until needed" offers count too.
+    if (typeof VexRegistry !== 'undefined' && VexRegistry.nudgeRoom(now) <= 0) return null;
     const unused = VexFeatures.unused().filter(f => this._reachable(f));
     if (!unused.length) return null;
     const usedByCat = {};
@@ -113,6 +118,8 @@ const VexDisclosure = {
   open(id) {
     const f = VexFeatures.get(id);
     if (!f) throw new Error('No feature "' + id + '" in the catalogue');
+    // A feature that a calm new profile keeps out of sight comes back when it is the one being shown.
+    if (typeof VexQuietDefaults !== 'undefined') VexQuietDefaults.revealForFeature(id, { by: 'New for you' });
     if (typeof VexDiscover === 'undefined') throw new Error('Discover is not loaded');
     if (VexFeatures.command(f) || f.panel || f.setting) return VexDiscover.openFeature(id);
     return VexDiscover.showMe(id);

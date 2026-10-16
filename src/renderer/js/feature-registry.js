@@ -274,7 +274,21 @@ const VexRegistry = {
     this._offerSinks.push(fn);
   },
   // At most OFFERS_PER_WEEK offers in any seven days: the rest stay pending and are offered on a later start.
+  // ONE budget for every way Vex nudges you about a feature: a "try it" offer here, a "New for you" row
+  // (js/disclosure.js) and a "hidden until needed" offer (js/quiet-defaults.js) all count against the same
+  // three in seven days, so they never add up to a stream. Each of those exposes nudgeTimes(now).
   OFFERS_PER_WEEK: 3,
+  NUDGE_SOURCES: ['VexDisclosure', 'VexQuietDefaults'],
+  nudgesInWeek(now = Date.now()) {
+    const week = 7 * 24 * 3600 * 1000;
+    let n = this._load().offerLog.filter(t => now - t < week).length;
+    for (const name of this.NUDGE_SOURCES) {
+      const src = typeof window !== 'undefined' ? window[name] : undefined;
+      if (src && typeof src.nudgeTimes === 'function') n += src.nudgeTimes(now).length;
+    }
+    return n;
+  },
+  nudgeRoom(now = Date.now()) { return Math.max(0, this.OFFERS_PER_WEEK - this.nudgesInWeek(now)); },
   offerTry(ids = this.pendingOffers(), now = Date.now()) {
     const st = this._load();
     st.offerLog = st.offerLog.filter(t => now - t < 7 * 24 * 3600 * 1000);
@@ -282,7 +296,7 @@ const VexRegistry = {
     for (const id of ids) {
       const m = this._m.get(id);
       if (!m || st.offered[id]) continue;
-      if (st.offerLog.length >= this.OFFERS_PER_WEEK) break;
+      if (this.nudgeRoom(now) <= 0) break;
       const text = (m.maturity === 'new' ? 'New in Vex: ' : 'Beta: ') + m.title + '. It is off until you try it.';
       const turnOn = () => this.switchOn(id).then(() => { st.offered[id] = Date.now(); this._save(); }).catch(err => { console.error('[Registry] could not turn on "' + id + '":', err); window.showToast?.('Could not turn on ' + m.title + ': ' + err.message, 'error'); });
       if (this._offerSinks.length) {

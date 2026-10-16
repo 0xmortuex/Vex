@@ -32,13 +32,13 @@ const VexQuietDefaults = {
 
   // Most useful to meet first. 'panel' items are hidden by the sidebar's lean default (see above).
   ITEMS: [
-    { id: 'clock-timer', kind: 'clock-tab', tab: 'timers', label: 'Timer', what: 'Count down from a time you set, from the Clock panel. Reminders stay where they are.' },
-    { id: 'clock-stopwatch', kind: 'clock-tab', tab: 'stopwatch', label: 'Stopwatch', what: 'A stopwatch with laps, in the Clock panel.' },
+    { id: 'clock-timer', kind: 'clock-tab', tab: 'timers', catalog: 'clock', label: 'Timer', what: 'Count down from a time you set, from the Clock panel. Reminders stay where they are.' },
+    { id: 'clock-stopwatch', kind: 'clock-tab', tab: 'stopwatch', catalog: 'clock', label: 'Stopwatch', what: 'A stopwatch with laps, in the Clock panel.' },
     { id: 'site-dark', kind: 'site-row', label: 'Force dark mode for a site', what: 'In the site panel (the lock at the address): turn a bright site dark.' },
     { id: 'site-boosts', kind: 'site-row', label: 'Custom CSS and JavaScript for a site', what: 'In the site panel: make a site look or behave the way you want, only on that site.' },
-    { id: 'panel-bookmarks', kind: 'panel', panel: 'bookmarks', label: 'Bookmarks panel', what: 'Your saved sites in a side panel (they are always in the address bar menu).' },
-    { id: 'panel-annotations', kind: 'panel', panel: 'annotations', label: 'Highlights panel', what: 'Everything you highlighted on pages, in one list.' },
-    { id: 'panel-feeds', kind: 'panel', panel: 'feeds', label: 'Feeds panel', what: 'RSS and news feeds you follow, in a side panel.' },
+    { id: 'panel-bookmarks', kind: 'panel', panel: 'bookmarks', catalog: 'bookmarks', label: 'Bookmarks panel', what: 'Your saved sites in a side panel (they are always in the address bar menu).' },
+    { id: 'panel-annotations', kind: 'panel', panel: 'annotations', catalog: 'annotations', label: 'Highlights panel', what: 'Everything you highlighted on pages, in one list.' },
+    { id: 'panel-feeds', kind: 'panel', panel: 'feeds', catalog: 'feeds', label: 'Feeds panel', what: 'RSS and news feeds you follow, in a side panel.' },
   ],
 
   item(id) {
@@ -99,6 +99,15 @@ const VexQuietDefaults = {
     }
     return true;
   },
+  // The "New for you" scheduler (js/disclosure.js) shows a catalogue feature; if the rarely used parts
+  // that belong to it are out of sight, they come back now. Returns the ids shown.
+  revealForFeature(catalogId, { by = 'New for you' } = {}) {
+    const shown = [];
+    for (const it of this.ITEMS.filter(i => i.catalog === catalogId)) if (this.reveal(it.id, { by })) shown.push(it.id);
+    return shown;
+  },
+  // When something was offered in the last seven days (VexRegistry.nudgesInWeek: one nudge budget).
+  nudgeTimes(now = this._now()) { return Object.values(this._rec().offered).filter(t => now - t < 7 * 24 * 3600 * 1000); },
   // Undo of reveal(): put it out of sight again.
   hideAgain(id) {
     const it = this.item(id);
@@ -169,6 +178,7 @@ const VexQuietDefaults = {
     if (!it) return null;
     const rec = this._rec();
     if (now - rec.last < this.OFFER_EVERY_MS) return null;
+    if (typeof VexRegistry !== 'undefined' && VexRegistry.nudgeRoom(now) <= 0) return null;   // the one nudge budget
     if (typeof VexAttention === 'undefined') throw new Error('The attention budget is not loaded (js/vex-attention.js)');
     const added = VexAttention.suggest({
       feature: 'quiet-defaults', label: 'Hidden until needed', id: it.id, title: 'Try: ' + it.label,

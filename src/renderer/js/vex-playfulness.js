@@ -77,6 +77,7 @@ const VexPlayfulness = {
     { id: 'rabbit-hole', file: 'rabbit-hole.js', explicit: true, why: 'opens a page only when the person runs the command; its small bar is the answer to that command' },
     { id: 'time-capsule', file: 'time-capsule.js', explicit: true, why: 'a reminder the person set for a date they chose; it is a tool, not decoration' },
     { id: 'focus-scenes', file: 'focus-scenes.js', explicit: true, why: 'the soundscape starts only when the person presses play (or opted in to start with a focus session) and never in Game mode' },
+    { id: 'version-review', file: 'version-review.js', explicit: true, why: 'a review the person chooses to write; the medal and the one XP for a version arrive only after they submit it, through the gated medals and levels modules; no sound, no Brief or New Tab card' },
   ],
   // Audio that is NOT playful: it does a job the person asked for. Listed so the test can tell it from a new toy.
   FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js'],
