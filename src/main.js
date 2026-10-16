@@ -7739,7 +7739,7 @@ app.whenReady().then(async () => {
         // a chunk that threw while loading took the files after it with it.
         if (s && s.bundle && s.bundle.ran !== s.bundle.of) { finish(false, `window bundle: ${s.bundle.ran} of ${s.bundle.of} chunks finished loading`); return; }
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
-          if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE) {
+          if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE || process.env.VEX_DRM_SMOKE === '1') {
             if (securityVerifying) return;
             securityVerifying = true;
             try {
@@ -7747,6 +7747,7 @@ app.whenReady().then(async () => {
               if (process.env.VEX_RESTART_PHASE) details.push(await require('./main/restart-smoke').run({ mainWindow, phase: process.env.VEX_RESTART_PHASE }));
               if (process.env.VEX_SECURITY_SMOKE === '1') details.push(await require('./main/security-smoke').run({ mainWindow, security: secureSessions, userData: userDataPath }));
               if (process.env.VEX_UI_SMOKE === '1') details.push(await require('./main/ui-smoke').run({ mainWindow }));
+              if (process.env.VEX_DRM_SMOKE === '1') details.push(await require('./main/drm-smoke').run({ mainWindow, status: () => _widevineStatus, isPackaged: app.isPackaged }));
               finish(true, details.join('; '));
             }
             catch (error) { finish(false, error.message); }

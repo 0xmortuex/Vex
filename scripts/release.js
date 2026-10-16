@@ -76,6 +76,15 @@ if (!flags.has('--any-version')) {
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
 if (!changelog.includes(`## v${version} `)) fail(`CHANGELOG.md has no "## v${version} " entry — write the release notes first`);
 
+// 1a. DRM gate, first half: can this machine sign and verify the castLabs VMP
+//     signature at all? Checked before any file changes, so a release that
+//     would ship "DRM failed" stops now, not after the build. The second half
+//     (the built app's signature and Widevine) is in `npm run publish`.
+{
+  try { console.log('release: DRM gate - ' + require('./verify-drm.js').preflight()); }
+  catch (err) { fail('DRM gate: ' + err.message); }
+}
+
 // 1b. Refuse (before any file changes) when the version, or the CHANGELOG
 //     heading of a published release, is already on GitHub, or when CI is red
 //     or still running for HEAD. scripts/release-guard.js; read-only gh calls.
