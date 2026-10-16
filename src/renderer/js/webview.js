@@ -482,6 +482,13 @@ const WebviewManager = {
     onWebview('dom-ready', () => {
       if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(webview);
     });
+    // Text snippets (js/text-snippets.js): a fixed script, only into pages that may be read.
+    onWebview('dom-ready', () => {
+      if (typeof VexSnippets === 'undefined') return;
+      let url = '';
+      try { url = webview.getURL(); } catch (err) { return; }   // not attached: nothing to set up yet
+      VexSnippets.applyTo(webview, url).catch(err => window.VexProblems?.note('Text snippets', 'Could not set up a page', err));
+    });
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
     onWebview('did-navigate', (e) => {
@@ -1655,6 +1662,8 @@ const WebviewManager = {
       // "Reset this site" clears this host's saved zoom and dark-mode override.
       { label: this._shouldForceDark(curUrl) ? 'Dark mode: on for this site' : 'Dark mode for this site',
         action: () => this.toggleForceDarkForSite(webview) },
+      ...(typeof TableExtract !== 'undefined' && TableExtract.enabled() ? [{ label: 'Copy a table or list from this page…', action: () => TableExtract.pick(webview).catch(err => window.showToast?.(err.message, 'error')) }] : []),
+      ...(typeof VideoTools !== 'undefined' && VideoTools.enabled() ? [{ label: 'Video transcript, chapters and loop…', action: () => VideoTools.open(webview).catch(err => window.showToast?.(err.message, 'error')) }] : []),
       { label: 'Zap element (hide it forever)', action: () => { try { if (typeof VexBoosts !== 'undefined') VexBoosts.startZapper(); } catch {} } },
       { label: 'Reset this site’s settings', action: () => this.resetSite(webview) }
     ];

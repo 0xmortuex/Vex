@@ -83,6 +83,7 @@ const ScreenshotTool = {
           <button class="ss-annotate">Annotate</button>
           <button class="ss-save">Save</button>
           <button class="ss-copy">Copy</button>
+          <button class="ss-redact" title="Cover emails, numbers and anything else you do not want to share">Redact</button>
           <button class="ss-ocr" title="Read the words in the picture and copy them">Copy text</button>
           <button class="ss-note" title="Save the picture, its page and the text in it as a note">Save to note</button>
           <button class="ss-close">Close</button>
@@ -119,6 +120,12 @@ const ScreenshotTool = {
         window.showToast?.('Copy failed');
       }
       this.hidePreview();
+    });
+
+    overlay.querySelector('.ss-redact')?.addEventListener('click', () => {
+      this.hidePreview();
+      if (typeof VexRedact === 'undefined' || !VexRedact.enabled()) { window.showToast?.('Redaction is switched off', 'error'); return; }
+      VexRedact.open(dataUrl).catch(err => window.showToast?.('Could not open the redaction tool: ' + ((err && err.message) || ''), 'error'));
     });
 
     overlay.querySelector('.ss-ocr')?.addEventListener('click', () => {
