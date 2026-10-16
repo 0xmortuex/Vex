@@ -9057,6 +9057,8 @@ ipcMain.handle('downloads:release-assist', async (_e, filePath) => {
 const _modDesk = require('./main/download-desk').createModDesk({
   fs, logFile: path.join(userDataPath, 'mod-desk-log.json'),
   openZip: (file) => new (require('adm-zip'))(file), validateZip: (zip) => require('./main/archive-security').validateZip(zip),
+  // The "downloaded from the internet" mark is checked across each move, as in the tidy-up above.
+  motw: _downloadService.markOfTheWeb,
 });
 ipcMain.handle('downloads:mods-plan', (_e) => _tidyCall(() => _modDesk.plan(_downloadPrefs.get().folder)));
 ipcMain.handle('downloads:mods-apply', (_e, planId) => _tidyCall(() => _modDesk.apply(planId)));

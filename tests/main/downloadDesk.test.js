@@ -123,6 +123,19 @@ describe('mod metadata and the mod desk', () => {
     expect(() => d.undo()).toThrow(/nothing to undo/i);
   });
 
+  it('moves go through the mark-of-the-web wrapper, and a mark that could not be kept is counted', () => {
+    jar('sodium-2.jar', { 'fabric.mod.json': FABRIC('0.5.8', '1.20.1') });
+    const seen = [];
+    const motw = { move: (from, to, doMove) => { doMove(); seen.push([path.basename(from), path.basename(to)]); return { carried: true, kept: false, restored: false, error: 'lost' }; } };
+    const d = D.createModDesk({ fs, logFile, openZip: (f) => new AdmZip(f), validateZip, motw });
+    const r = d.apply(d.plan(dir).id);
+    expect(r).toMatchObject({ moved: 1, failed: [], markLost: ['sodium-2.jar'] });
+    expect(seen).toEqual([['sodium-2.jar', 'sodium-2.jar']]);
+    const u = d.undo();
+    expect(u).toMatchObject({ restored: 1, markLost: ['sodium-2.jar'] });
+    expect(seen).toHaveLength(2);
+  });
+
   it('reports a file that vanished between preview and apply, and skips an oversized metadata file', () => {
     jar('a.jar', { 'fabric.mod.json': FABRIC('1', '1.20.1') });
     jar('big.jar', { 'fabric.mod.json': 'x'.repeat(600 * 1024) });

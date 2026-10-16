@@ -213,9 +213,16 @@ function readModMeta(zip, name) {
   return null;
 }
 
-function createModDesk({ fs, logFile, openZip, validateZip, now = () => Date.now() }) {
+// motw (mark-of-the-web.js, T3-111): when given, each move is wrapped like the downloads tidy-up does, so a jar's
+// "downloaded from the internet" mark is checked across the move; one that could not be kept is counted in `markLost`.
+function createModDesk({ fs, logFile, openZip, validateZip, motw, now = () => Date.now() }) {
   const plans = new Map();
   const ROOT = 'Minecraft mods';
+  const rename = (from, to, lost) => {
+    if (!motw) { fs.renameSync(from, to); return; }
+    const r = motw.move(from, to, () => fs.renameSync(from, to));
+    if (r.carried && !r.kept && !r.restored) lost.push(path.basename(to));
+  };
 
   function readLog() {
     try {
@@ -288,6 +295,7 @@ function createModDesk({ fs, logFile, openZip, validateZip, now = () => Date.now
     plans.delete(planId);
     const batch = { id: crypto.randomBytes(8).toString('hex'), at: now(), dir: p.dir, moves: [], undoneAt: null, pending: true };
     const failed = [];
+    const markLost = [];
     const log = readLog();
     log.push(batch);
     writeLog(log);
@@ -304,14 +312,14 @@ function createModDesk({ fs, logFile, openZip, validateZip, now = () => Date.now
         let cur = p.dir;
         for (const part of path.relative(p.dir, destDir).split(path.sep)) { cur = path.join(cur, part); mk(cur); }
         const to = unique(m.to);
-        fs.renameSync(m.from, to);
+        rename(m.from, to, markLost);
         batch.moves.push({ from: m.from, to });
       } catch (err) { failed.push({ name: m.name, error: err.message }); }
     }
     batch.pending = false;
     batch.created = [...created];
     writeLog(log);
-    return { id: batch.id, moved: batch.moves.length, failed };
+    return { id: batch.id, moved: batch.moves.length, failed, markLost };
   }
 
   function history() {
@@ -323,13 +331,13 @@ function createModDesk({ fs, logFile, openZip, validateZip, now = () => Date.now
     const batch = batchId ? log.find(b => b.id === batchId) : [...log].reverse().find(b => !b.undoneAt && b.moves && b.moves.length);
     if (!batch) throw new Error('There is nothing to undo');
     if (batch.undoneAt) throw new Error('That mod desk batch was already undone');
-    const restored = [], left = [];
+    const restored = [], left = [], markLost = [];
     for (const m of [...batch.moves].reverse()) {
       try {
         if (path.dirname(m.from) !== batch.dir || !String(m.to).startsWith(batch.dir + path.sep)) throw new Error('not a place this batch used');
         if (!fs.existsSync(m.to)) throw new Error('the file is no longer there');
         if (fs.existsSync(m.from)) throw new Error('a file with the old name is there now');
-        fs.renameSync(m.to, m.from);
+        rename(m.to, m.from, markLost);
         restored.push(m.from);
       } catch (err) { left.push({ name: path.basename(m.to), error: err.message }); }
     }
@@ -340,7 +348,7 @@ function createModDesk({ fs, logFile, openZip, validateZip, now = () => Date.now
     if (!left.length) batch.undoneAt = now();
     else batch.moves = batch.moves.filter(m => left.some(l => l.name === path.basename(m.to)));
     writeLog(log);
-    return { id: batch.id, restored: restored.length, left };
+    return { id: batch.id, restored: restored.length, left, markLost };
   }
 
   return { plan, apply, undo, history };
