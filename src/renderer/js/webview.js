@@ -2001,7 +2001,13 @@ const WebviewManager = {
     return !!(window.SiteRulesUI && typeof SiteRulesUI.scriptsOff === 'function' && SiteRulesUI.scriptsOff(url));
   },
 
-  async _letSitesAsk(webview) {
+  // mediaOnly: a sidebar panel (js/sidebar.js). Its page is only told it may
+  // ask for the microphone and camera; notifications and location are left as
+  // they were there. A call in WhatsApp's panel showed its own "Allow
+  // microphone — click the icon next to the address bar" box because the
+  // never-asked microphone read 'denied' (main/permissions.js check handler
+  // answers yes only for a saved Allow).
+  async _letSitesAsk(webview, { mediaOnly = false } = {}) {
     if (!window.vex || typeof window.vex.permissionsListForPage !== 'function') return false;
     let url = '';
     try { url = webview.getURL() || ''; } catch { return false; }
@@ -2014,21 +2020,34 @@ const WebviewManager = {
     // The page's own session's decisions: a container keeps its own, and a
     // container tab was told what persist:main had decided (found 2026-09-30).
     try { decisions = (await window.vex.permissionsListForPage(webview.getWebContentsId())) || {}; } catch { return false; }
-    const states = {
+    const states = mediaOnly ? {} : {
       notifications: this.shouldOfferNotificationPrompt(decisions, origin) ? 'prompt' : null,
       geolocation: this.permissionStateFor(decisions, origin, 'geolocation'),
+    };
+    // Microphone and camera: Chromium already answers 'granted' where Vex
+    // allows them for the session or for a Discord page, so these are used
+    // only where Chromium says 'denied'.
+    const media = {
+      microphone: this.permissionStateFor(decisions, origin, 'microphone'),
+      camera: this.permissionStateFor(decisions, origin, 'camera'),
     };
     await webview.executeJavaScript(`(() => {
       try {
         if (window.__vexPermAsk) return;
         window.__vexPermAsk = true;
         const S = ${JSON.stringify(states)};
+        const M = ${JSON.stringify(media)};
         const N = window.Notification;
         // Chromium reports 'denied' where Vex means 'nobody has asked'.
         if (N && S.notifications === 'prompt') Object.defineProperty(N, 'permission', { configurable: true, get: () => 'default' });
         const query = navigator.permissions && navigator.permissions.query;
         if (query) {
           navigator.permissions.query = function (d) {
+            const fake = (state) => ({ state, status: state, name: d.name, onchange: null,
+              addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; } });
+            if (d && M[d.name]) {
+              return query.call(this, d).then((r) => (r && r.state === 'denied' ? fake(M[d.name]) : r));
+            }
             const state = d && S[d.name];
             if (state) {
               return Promise.resolve({ state, status: state, name: d.name, onchange: null,
@@ -2045,7 +2064,11 @@ const WebviewManager = {
   // What navigator.permissions.query should say about one permission, from
   // what the user decided in Vex.
   permissionStateFor(decisions, origin, name) {
-    const saved = (decisions || {})[origin + '::' + name];
+    const d = decisions || {};
+    // An answer saved before camera and microphone were told apart sits under
+    // '::media' and counts for both (main/permissions.js savedDecision).
+    const legacy = (name === 'camera' || name === 'microphone') ? d[origin + '::media'] : undefined;
+    const saved = d[origin + '::' + name] || legacy;
     if (saved === 'allow') return 'granted';
     if (saved === 'deny') return 'denied';
     return 'prompt';

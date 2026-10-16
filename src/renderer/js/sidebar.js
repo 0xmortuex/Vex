@@ -737,6 +737,15 @@ const SidebarManager = {
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }
       if (window.DiscordTheme) DiscordTheme.onPageReady(wv);
     });
+    // A never-asked microphone/camera reads 'denied' to the page, so a site
+    // like WhatsApp shows its own "allow it in the address bar" box instead of
+    // asking (js/webview.js _letSitesAsk; tabs get the same). Typeof guard:
+    // WebviewManager is a top-level const, not window.WebviewManager.
+    wv.addEventListener('did-finish-load', () => {
+      if (typeof WebviewManager === 'undefined') throw new Error('WebviewManager is not loaded; a panel cannot be told it may ask for the microphone');
+      WebviewManager._letSitesAsk(wv, { mediaOnly: true })
+        .catch(err => console.warn('[Vex] panel permission state:', err && err.message));
+    });
     // ---- brought back when Windows kills it --------------------------------
     // A game wants the memory, Windows takes it from the biggest processes,
     // and the Discord panel is the biggest thing Vex has. The renderer is
