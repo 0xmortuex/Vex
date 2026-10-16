@@ -138,6 +138,7 @@ const VexUsageRegistry = {
       WorkspaceMetrics: () => (typeof WorkspaceMetrics !== 'undefined' ? WorkspaceMetrics : null),
       VexFortune: () => (typeof VexFortune !== 'undefined' ? VexFortune : null),
       PageActions: () => (typeof PageActions !== 'undefined' ? PageActions : null),
+      VexSelfTest: () => (typeof VexSelfTest !== 'undefined' ? VexSelfTest : null),
       DistractionBudget: () => (typeof DistractionBudget !== 'undefined' ? DistractionBudget : null),
       SmartBookmarks: () => (typeof SmartBookmarks !== 'undefined' ? SmartBookmarks : null),
       VexSearchAgain: () => (typeof VexSearchAgain !== 'undefined' ? VexSearchAgain : null),
@@ -178,6 +179,8 @@ const VexUsageRegistry = {
       ['fortune', 'Fortune', 'Fun and expression', A.api(G.VexFortune, 'isEnabled', 'setEnabled')],
       // Page actions: turning them back on asks its own confirmation again.
       ['page-actions', 'Page actions', 'Page actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
+      // The check after an update (js/post-update-selftest.js)
+      ['update-self-test', 'Check after an update', 'Update self-test', A.api(G.VexSelfTest, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', 'Vex Pet', 'Play: fun and progress', A.progress('pet')],
       ['fun-discovery', 'Discovery log', 'Play: fun and progress', A.progress('discovery')],

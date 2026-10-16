@@ -1536,6 +1536,8 @@ ipcMain.handle('app:diagnostics', () => {
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
     safeMode: _boot.safeMode, bootFails: _boot.fails, extensionTimes: _diag.extensionTimes,
     crashHistory: _crashLog.recent(),
+    // Crash kinds this version has that no earlier version had (js/post-update-selftest.js).
+    crashKindsNew: require('./main/crash-log').newKinds(_crashLog.all(), app.getVersion()),
     // The Windows build, for a problem report (js/report-problem.js).
     os: process.getSystemVersion(), arch: process.arch,
   };
@@ -7665,12 +7667,15 @@ app.whenReady().then(async () => {
           wv: document.querySelectorAll('webview').length,
           sb: typeof SidebarManager!=='undefined',
           cb: typeof CommandBar!=='undefined',
+          st: (typeof VexSelfTest!=='undefined'&&typeof VexProblems!=='undefined')?VexSelfTest.startFailures().map(function(f){return f.area+(f.detail?' ('+f.detail+')':'');}):null,
           bundle: (function(){var m=document.querySelector('meta[name="vex-window-bundle"]');return m&&document.readyState!=='loading'?{ran:(typeof VexWindowBundle!=='undefined'?VexWindowBundle.length:0),of:+m.content}:null;})()
         };}catch(e){return {err:String(e)};}})()`, true);
         // The packaged window's scripts come in chunks (scripts/window-bundle.js);
         // a chunk that threw while loading took the files after it with it.
         if (s && s.bundle && s.bundle.ran !== s.bundle.of) { finish(false, `window bundle: ${s.bundle.ran} of ${s.bundle.of} chunks finished loading`); return; }
         if (s && s.tm && s.tabs >= 1 && s.wvm && s.wv >= 1 && s.sb && s.cb) {
+          // The check after an update (js/post-update-selftest.js): a feature that failed to start fails the boot.
+          if (Array.isArray(s.st) && s.st.length && process.env.VEX_SMOKE_ALLOW_START_FAILURES !== '1') { finish(false, s.st.length + ' feature(s) failed to start: ' + s.st.join('; ')); return; }
           if (process.env.VEX_SECURITY_SMOKE === '1' || process.env.VEX_UI_SMOKE === '1' || process.env.VEX_RESTART_PHASE) {
             if (securityVerifying) return;
             securityVerifying = true;
