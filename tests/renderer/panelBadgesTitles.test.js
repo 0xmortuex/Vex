@@ -33,6 +33,30 @@ describe('reading an unread count from a title', () => {
   });
 });
 
+describe('Gmail title form', () => {
+  const gmail = 'https://mail.google.com/mail/u/0/';
+
+  it('reads "Inbox (6,693)" with the separators stripped', () => {
+    expect(PanelBadges._unreadFromTitle('Inbox (6,693) - name@gmail.com - Gmail', 'site-gmail', gmail)).toBe(6693);
+    expect(PanelBadges._unreadFromTitle('Gelen Kutusu (12) - name@gmail.com - Gmail', 'site-gmail', gmail)).toBe(12);
+  });
+
+  it('shows no badge when Gmail has no count', () => {
+    expect(PanelBadges._unreadFromTitle('Inbox - name@gmail.com - Gmail', 'site-gmail', gmail)).toBe(0);
+  });
+
+  it('ignores the same title shape on any other site', () => {
+    expect(PanelBadges._unreadFromTitle('Inbox (6,693) - name@example.com - Mail', 'site-x', 'https://example.com/')).toBe(0);
+    expect(PanelBadges._unreadFromTitle('Inbox (6,693) - name@gmail.com - Gmail', 'site-x')).toBe(0);
+    expect(PanelBadges._unreadFromTitle('Inbox (5)', 'site-x', 'https://evilmail.google.com.example.org/')).toBe(0);
+  });
+
+  it('keeps the leading "(N)" form on Gmail and elsewhere', () => {
+    expect(PanelBadges._unreadFromTitle('(5) Discord', 'discord', 'https://discord.com/app')).toBe(5);
+    expect(PanelBadges._unreadFromTitle('(5) Gmail', 'site-gmail', gmail)).toBe(5);
+  });
+});
+
 describe('a slept panel', () => {
   beforeEach(() => {
     document.body.innerHTML = `
