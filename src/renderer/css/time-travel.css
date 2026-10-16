@@ -43,3 +43,9 @@
 .vex-tn-table th, .vex-tn-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .vex-tn-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .vex-tt-btn { transition: none; } }
+/* A panel that could not draw (js/vex-breaker.js guardPanel): an inline card, not an empty pane. */
+.vex-panel-failed { margin: 14px; padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--danger, #d33); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px; line-height: 1.5; }
+.vex-panel-failed strong { display: block; font-size: 13px; margin-bottom: 4px; }
+.vex-panel-failed p { margin: 0 0 8px; color: var(--text-muted); overflow-wrap: anywhere; }
+.vex-panel-failed-retry { padding: 6px 11px; font-size: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.vex-panel-failed-retry:hover { background: var(--vex-hover-fill); }

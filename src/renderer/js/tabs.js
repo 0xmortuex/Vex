@@ -2616,7 +2616,23 @@ const TabManager = {
         if (now - t.lastViewedAt >= threshold) due.push(t);
       });
       if (!due.length) return;
-      const sleep = () => due.forEach(t => this.sleepTab(t.id));
+      const sleep = () => {
+        const asked = due.map(t => ({ id: t.id, url: t.url || '', title: String(t.title || '') }));
+        Promise.all(due.map(t => this.sleepTab(t.id))).then(() => {
+          // What Vex did by itself goes in the "Why did that happen?" list (js/vex-ledger.js).
+          const slept = asked.filter(a => { const t = this.tabs.find(x => x.id === a.id); return t && t.sleeping; });
+          if (!slept.length || typeof VexLedger === 'undefined') return;
+          VexLedger.note({
+            feature: 'tab-auto-sleep',
+            what: slept.length === 1 ? 'Slept “' + (slept[0].title || 'a tab').slice(0, 50) + '”' : 'Slept ' + slept.length + ' idle tabs',
+            why: (slept.length === 1 ? 'It had' : 'They had') + ' been idle for ' + minutes + ' minutes, and you let idle tabs sleep.',
+            undo: { kind: 'wake-tabs', tabs: slept.slice(0, 20).map(s => ({ id: s.id, url: s.url.slice(0, 500) })) },
+          });
+        }).catch(err => {
+          console.error('[tabs] auto-sleep failed:', err);
+          if (typeof VexProblems !== 'undefined') VexProblems.note('Tabs', 'Idle tabs could not be put to sleep', err);
+        });
+      };
       // A tab that sleeps behind your back has reloaded by the time you come
       // back to it, losing the place you were in — which is why this asks
       // (js/sleep-consent.js). This is the ONE idle timer for tabs: the hidden
@@ -3764,6 +3780,22 @@ if (typeof document !== "undefined") document.addEventListener("mousemove", () =
     document.querySelectorAll(".context-menu-overlay").forEach(o => o.remove());
     console.warn("[Vex menu] removed a stray dismissal overlay that was swallowing clicks");
 }, true);
+
+// "Why did that happen?" (js/vex-ledger.js): waking the tabs Vex put to sleep by itself.
+// The token is plain data kept across restarts; a tab is found by its id, else by
+// the address it was asleep on.
+if (typeof VexLedger !== 'undefined') {
+  VexLedger.registerUndo('wake-tabs', async (token) => {
+    let woke = 0;
+    for (const want of token.tabs || []) {
+      const tab = TabManager.tabs.find(t => t.id === want.id && t.sleeping) || TabManager.tabs.find(t => t.sleeping && want.url && t.url === want.url);
+      if (!tab) continue;
+      TabManager.wakeTab(tab.id);
+      woke++;
+    }
+    if (!woke) throw new Error('Those tabs are no longer asleep, or have been closed');
+  });
+}
 
 // Renderer-safe export (Phase 4a — for tests/renderer/tabStacksData.test.js).
 // The renderer loads this file via <script> tag where `module` is undefined,

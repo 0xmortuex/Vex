@@ -102,6 +102,8 @@ const VexReport = (() => {
       `- Look: ${lookLabel(info.style, info.colors)} · Theme: ${info.theme || '?'}`,
     ];
     if (info.safeMode) env.push('- Started in safe mode');
+    // Features Vex switched off by itself for repeated failures or going over their budget (js/vex-breaker.js).
+    if (info.tripped && info.tripped.length) env.push('- Switched off for a while after failing: ' + info.tripped.join(', '));
     const log = lines.length
       ? ['```', ...lines, '```']
       : ['Nothing in Vex\'s problem or crash lists.'];
@@ -174,6 +176,7 @@ const VexReport = (() => {
       style: gs && typeof gs.get === 'function' ? gs.get() : '',
       colors: gs && typeof gs.getColors === 'function' && typeof gs.isBrowserLook === 'function' && gs.isBrowserLook() ? gs.getColors() : '',
       theme: (typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme) || '',
+      tripped: typeof VexBreaker !== 'undefined' ? VexBreaker.status().filter(t => t.state === 'open').map(t => t.id) : [],
     };
     return { info, lines: logLines(d, problems) };
   }

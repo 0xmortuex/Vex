@@ -188,6 +188,15 @@ const VexSnooze = {
     this._write(list.map(e => (fresh.includes(e) ? { ...e, told: true } : e)));
     if ((typeof VexAttention === 'undefined' || VexAttention.gate('snooze-due', fresh.map(e => e.id).join(',')))) window.showToast?.(fresh.length === 1 ? 'Back as you asked: ' + fresh[0].title : fresh.length + ' snoozed items are back');
     try { document.dispatchEvent(new CustomEvent('vex:snooze-due', { detail: { count: fresh.length } })); } catch { /* no document */ }
+    // The "Why did that happen?" list (js/vex-ledger.js); Undo snoozes them again for an hour.
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({
+        feature: 'brief-snooze',
+        what: fresh.length === 1 ? 'Brought back "' + String(fresh[0].title || 'a snoozed item').slice(0, 60) + '"' : 'Brought back ' + fresh.length + ' snoozed items',
+        why: 'You snoozed ' + (fresh.length === 1 ? 'it' : 'them') + ' until about now.',
+        undo: { kind: 'resnooze', ids: fresh.slice(0, 30).map(e => e.id), minutes: 60 },
+      });
+    }
     return fresh;
   },
 
@@ -231,6 +240,17 @@ const VexSnooze = {
     defaultOn: true, maxItems: 8,
   },
 };
+
+if (typeof VexLedger !== 'undefined') {
+  VexLedger.registerUndo('resnooze', async (token) => {
+    const list = VexSnooze._read();
+    const back = Date.now() + (Number(token.minutes) || 60) * 60000;
+    let n = 0;
+    for (const e of list) if ((token.ids || []).includes(e.id)) { e.at = back; e.told = false; n++; }
+    if (!n) throw new Error('Those items are no longer snoozed');
+    if (!VexSnooze._write(list)) throw new Error('The snooze could not be saved');
+  });
+}
 
 if (typeof window !== 'undefined') window.VexSnooze = VexSnooze;
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexSnooze };

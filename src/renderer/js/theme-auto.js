@@ -249,13 +249,30 @@ const ThemeAuto = {
     if (windForced) want = windForced.dark;
     let applied = false;
     if (this._valid(want) && typeof ThemeManager !== 'undefined' && ThemeManager.currentTheme !== want) {
+      const before = ThemeManager.currentTheme;
       ThemeManager.applyTheme(want, { auto: true });
       applied = true;
+      this._noteChange(before, want, dark, st.mode, !!windForced);
     }
     if (changed || force) this._applyLook(dark);
     if ((changed || force || applied) && this._valid(want)) this._applyColours(want);
     this.renderSettings();
     return dark;
+  },
+
+  // The "Why did that happen?" list (js/vex-ledger.js): the theme changed by itself, and the one before.
+  _noteChange(before, want, dark, mode, wind) {
+    if (typeof VexLedger === 'undefined') return;
+    const reason = wind ? 'The evening wind-down is wearing the dark version.'
+      : mode === 'system' ? 'Windows is in ' + (dark ? 'dark' : 'light') + ' mode.'
+        : mode === 'sun' ? (dark ? 'The sun has set where you are.' : 'The sun has risen where you are.')
+          : 'Your schedule says ' + (dark ? 'dark' : 'light') + ' now.';
+    VexLedger.note({
+      feature: 'theme-auto',
+      what: 'Changed the theme to ' + this._label(want),
+      why: reason,
+      undo: this._valid(before) ? { kind: 'theme-restore', theme: before } : null,
+    });
   },
 
   _applyLook(dark) {
@@ -734,6 +751,14 @@ Object.assign(ThemeAuto, {
     }
   },
 });
+
+// Undo of an automatic theme change (js/vex-ledger.js): the theme that was on before.
+if (typeof VexLedger !== 'undefined') {
+  VexLedger.registerUndo('theme-restore', async (token) => {
+    if (!ThemeAuto._valid(token.theme)) throw new Error('That theme is not available any more');
+    ThemeManager.applyTheme(token.theme);
+  });
+}
 
 if (typeof window !== 'undefined') window.ThemeAuto = ThemeAuto;
 if (typeof module !== 'undefined' && module.exports) module.exports = { ThemeAuto };

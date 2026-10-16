@@ -17,6 +17,7 @@ const PrivacyDashboard = {
           <button id="pd-reset" class="pd-reset" title="Reset the counters for this session">Reset</button>
         </div>
         <div id="pd-body" class="pd-body"><div class="pd-empty">Loading…</div></div>
+        <div id="pd-egress" class="pd-egress"></div>
       </div>`;
     this._injectStyles();
     el.querySelector('#pd-reset').addEventListener('click', async () => {
@@ -24,6 +25,7 @@ const PrivacyDashboard = {
       catch (err) { console.error('[Privacy] counter reset failed:', err.message); window.showToast?.('Could not reset the counters', 'error'); return; }
       this._refresh();
     });
+    this._egressBuild(el);
     await this._refresh();
     this._startTicking();
   },
@@ -45,8 +47,123 @@ const PrivacyDashboard = {
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
   },
 
+  // ---- What left this computer (main/egress-ledger.js) -----------------------
+  // Every request Vex itself made, by feature and host, with sizes and never any
+  // content; filters; and the proof line. Pages you browse are not in it.
+  KIND_LABEL: { ai: 'Cloud AI', sync: 'Vex Sync', update: 'Updates', news: 'News', breach: 'Breach check', extension: 'Extensions', fetch: 'Other fetches', other: 'Other' },
+  _egFilter: { kind: '', feature: '', host: '' },
+
+  _fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B'; },
+
+  _egressBuild(el) {
+    const host = el.querySelector('#pd-egress');
+    if (!host) return;
+    host.textContent = '';
+    const sectionHead = document.createElement('div');
+    sectionHead.className = 'pd-section-title';
+    sectionHead.textContent = 'What left this computer';
+    const proof = document.createElement('div');
+    proof.className = 'pd-egress-proof';
+    proof.id = 'pd-egress-proof';
+    proof.setAttribute('role', 'status');
+    const filters = document.createElement('div');
+    filters.className = 'pd-egress-filters';
+    const kindSel = document.createElement('select');
+    kindSel.id = 'pd-egress-kind';
+    kindSel.setAttribute('aria-label', 'Filter by kind');
+    for (const [v, t] of [['', 'All kinds'], ...Object.entries(this.KIND_LABEL)]) { const o = document.createElement('option'); o.value = v; o.textContent = t; kindSel.appendChild(o); }
+    const featSel = document.createElement('select');
+    featSel.id = 'pd-egress-feature';
+    featSel.setAttribute('aria-label', 'Filter by feature');
+    const hostIn = document.createElement('input');
+    hostIn.type = 'text'; hostIn.id = 'pd-egress-host'; hostIn.placeholder = 'Host'; hostIn.setAttribute('aria-label', 'Filter by host');
+    const forget = document.createElement('button');
+    forget.type = 'button'; forget.className = 'pd-reset'; forget.textContent = 'Forget this list';
+    filters.append(kindSel, featSel, hostIn, forget);
+    const list = document.createElement('div');
+    list.id = 'pd-egress-list';
+    list.className = 'pd-egress-list';
+    const note = document.createElement('div');
+    note.className = 'pd-own-note';
+    note.textContent = 'Only requests Vex itself makes: the host, the feature and how many bytes, never what was in them. Pages you browse are not listed. Kept for 30 days at most.';
+    host.append(sectionHead, proof, filters, list, note);
+    const changed = () => { this._egFilter = { kind: kindSel.value, feature: featSel.value, host: hostIn.value.trim().toLowerCase() }; this._egressRefresh(); };
+    kindSel.addEventListener('change', changed);
+    featSel.addEventListener('change', changed);
+    hostIn.addEventListener('input', changed);
+    forget.addEventListener('click', async () => {
+      const ok = await vexConfirm({ title: 'Forget this list?', message: 'The record of what Vex sent out is deleted. This does not stop Vex making requests.', okLabel: 'Forget', danger: true });
+      if (!ok) return;
+      try { await window.vex.egressClear(); }
+      catch (err) { console.error('[Privacy] could not forget the list:', err.message); window.showToast?.('Could not forget the list: ' + err.message, 'error'); return; }
+      this._egressRefresh();
+    });
+  },
+
+  async _egressRefresh() {
+    const el = this._el; if (!el) return;
+    const proof = el.querySelector('#pd-egress-proof'); if (!proof) return;
+    const list = el.querySelector('#pd-egress-list');
+    let sum, rows;
+    try {
+      sum = await window.vex.egressSummary(24 * 3600 * 1000);
+      rows = await window.vex.egressList({ ...this._egFilter, sinceMs: 7 * 24 * 3600 * 1000, limit: 100 });
+    } catch (err) {
+      console.error('[Privacy] the egress list could not be read:', err.message);
+      proof.textContent = 'The list of what left this computer is not available here (' + err.message + ').';
+      list.textContent = '';
+      return;
+    }
+    this._egressPaint(el, sum, rows);
+  },
+
+  // Paints the proof line, the feature filter and the rows. Pure over its arguments.
+  _egressPaint(el, sum, rows) {
+    const proof = el.querySelector('#pd-egress-proof');
+    const list = el.querySelector('#pd-egress-list');
+    const keptHours = Math.max(0, Math.floor((Date.now() - sum.keptSince) / 3600000));
+    if (sum.nothingLeft) {
+      proof.textContent = keptHours >= 24
+        ? 'Nothing left this computer in the last 24 hours.'
+        : 'Nothing has left this computer in the ' + (keptHours < 1 ? 'last hour' : keptHours + ' hours') + ' this list has been kept (it counts back 24 hours once it is a day old).';
+      proof.dataset.state = 'none';
+    } else {
+      proof.textContent = sum.count + ' request' + (sum.count === 1 ? '' : 's') + ' in the last 24 hours: ' + this._fmtBytes(sum.bytesOut) + ' sent, ' + this._fmtBytes(sum.bytesIn) + ' received.';
+      proof.dataset.state = 'some';
+    }
+    const featSel = el.querySelector('#pd-egress-feature');
+    const chosen = this._egFilter.feature;
+    const names = sum.byFeature.map(f => f.name);
+    if (chosen && !names.includes(chosen)) names.push(chosen);
+    featSel.textContent = '';
+    for (const n of ['', ...names]) { const o = document.createElement('option'); o.value = n; o.textContent = n || 'All features'; featSel.appendChild(o); }
+    featSel.value = chosen;
+    list.textContent = '';
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'pd-empty';
+      empty.textContent = 'Nothing to show for this filter.';
+      list.appendChild(empty);
+      return;
+    }
+    for (const r of rows) {
+      const row = document.createElement('div');
+      row.className = 'pd-cross-item';
+      const left = document.createElement('span');
+      left.className = 'pd-host';
+      left.title = r.host;
+      left.textContent = r.feature + ' → ' + r.host;
+      const right = document.createElement('span');
+      right.className = 'pd-cross-count';
+      right.textContent = new Date(r.t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' · ' + this._fmtBytes(r.out) + ' out, ' + this._fmtBytes(r.in) + ' in' + (r.ok ? '' : ' · failed');
+      row.append(left, right);
+      list.appendChild(row);
+    }
+  },
+
   async _refresh() {
     const el = this._el; if (!el) return;
+    this._egressRefresh();
     const body = el.querySelector('#pd-body'); if (!body) return;
     let stats = null;
     try { stats = await window.vex.privacyTrackerStats(); }
@@ -157,6 +274,12 @@ const PrivacyDashboard = {
       .pd-count{font-size:11.5px;color:var(--text-muted);flex-shrink:0;margin-left:8px;font-variant-numeric:tabular-nums}
       .pd-bar{height:5px;background:rgba(127,127,127,.14);border-radius:3px;overflow:hidden}
       .pd-bar-fill{height:100%;background:linear-gradient(90deg,var(--primary),color-mix(in srgb,var(--primary) 55%,#a855f7));border-radius:3px;transition:width .3s ease}
+      .pd-egress{flex-shrink:0;max-height:42%;overflow-y:auto;padding:0 14px 14px;border-top:1px solid var(--border)}
+      .pd-egress-proof{font-size:12px;line-height:1.5;padding:8px 10px;border-radius:10px;background:color-mix(in srgb, var(--primary) 9%, transparent);margin-bottom:8px}
+      .pd-egress-proof[data-state=none]{background:color-mix(in srgb, var(--success,#2e9d5b) 14%, transparent)}
+      .pd-egress-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+      .pd-egress-filters select,.pd-egress-filters input{font:inherit;font-size:11.5px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 8px;min-width:0;flex:1 1 90px}
+      .pd-egress-list{display:flex;flex-direction:column;gap:5px}
       .pd-foot{margin-top:16px;font-size:10.5px;color:var(--text-muted);text-align:center;line-height:1.5}`;
     document.head.appendChild(s);
   },

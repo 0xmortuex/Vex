@@ -214,6 +214,15 @@ contextBridge.exposeInMainWorld('vex', {
   safeMode: () => ipcRenderer.invoke('app:safe-mode'),
   // "The interface is up": what stops this launch counting as a failed one.
   started: () => ipcRenderer.send('app:started'),
+  // Feature isolation (js/vex-breaker.js): "I am starting this feature" / "it started".
+  bootFeature: (id, phase) => ipcRenderer.send('app:boot-feature', id, phase),
+  // The features a repeated start-up crash left out of this launch, read once
+  // before any interface script runs (main/safe-mode.js).
+  bootDisabled: () => ipcRenderer.sendSync('app:boot-disabled'),
+  // What left this computer (main/egress-ledger.js): host and sizes, never content.
+  egressSummary: (sinceMs) => ipcRenderer.invoke('egress:summary', sinceMs),
+  egressList: (filter) => ipcRenderer.invoke('egress:list', filter),
+  egressClear: () => ipcRenderer.invoke('egress:clear'),
   // "Read free": clear one site's data in its partition to reset metered paywalls.
   clearSiteData: (opts) => ipcRenderer.invoke('site:clear-data', opts),
   // One cookie at a time, in the tab's own partition.

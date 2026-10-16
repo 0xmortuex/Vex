@@ -1131,10 +1131,14 @@ const VexMemoryTools = {
     if (this._started) return false;
     this._started = true;
     const guard = (what, fn) => () => { try { const r = fn(); if (r && typeof r.catch === 'function') r.catch(err => this._note(what, err)); } catch (err) { this._note(what, err); } };
-    later(guard('journal', () => this.tickJournal()), 15000);
-    every(guard('journal', () => this.tickJournal()), 15 * 60000);
-    later(guard('links', () => this.scanLinks()), 25000);
-    every(guard('links', () => this.scanLinks()), 10 * 60000);
+    // Writing the journal and reading link text are heavy: they wait for a quiet moment and are
+    // refused in Game mode or when memory is low (VexJobs.heavy); the next timer asks again.
+    const journal = () => VexJobs.heavy('Journal', () => this.tickJournal(), { kind: 'summary', feature: 'memory-tools' });
+    const links = () => VexJobs.heavy('Link memory', () => this.scanLinks(), { kind: 'index', feature: 'memory-tools' });
+    later(guard('journal', journal), 15000);
+    every(guard('journal', journal), 15 * 60000);
+    later(guard('links', links), 25000);
+    every(guard('links', links), 10 * 60000);
     later(guard('backup', () => this.maybeNudge()), 60000);
     every(guard('backup', () => this.maybeNudge()), 60 * 60000);
     return true;

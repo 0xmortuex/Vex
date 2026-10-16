@@ -549,16 +549,26 @@ const SidebarManager = {
     if (panelName === 'memory') MemoryPanel.init();
     if (panelName === 'shortcuts') ShortcutsPanel.init();   // redrawn each open: your keys may have changed
     if (panelName === 'queue') QueuePanel.init();
-    if (panelName === 'bookmarks' && typeof Bookmarks !== 'undefined') Bookmarks.renderPanel(panelEl);
-    if (panelName === 'feeds' && typeof VexFeeds !== 'undefined') VexFeeds.renderPanel(panelEl);
-    if (panelName === 'library' && typeof ReadLater !== 'undefined') ReadLater.renderPanel(panelEl);
-    if (panelName === 'annotations' && typeof Annotations !== 'undefined') Annotations.renderPanel(panelEl);
-    if (panelName === 'recall' && typeof Recall !== 'undefined') Recall.renderPanel(panelEl);
-    if (panelName === 'authenticator' && typeof Authenticator !== 'undefined') Authenticator.renderPanel(panelEl);
-    if (panelName === 'privacy' && typeof PrivacyDashboard !== 'undefined') PrivacyDashboard.renderPanel(panelEl);
-    if (panelName === 'work' && typeof WorkPanel !== 'undefined') WorkPanel.renderPanel(panelEl);
-    if (panelName === 'clock' && typeof VexClock !== 'undefined') VexClock.renderPanel(panelEl);
-    if (panelName === 'devtools-dash' && typeof VexDevMode !== 'undefined') VexDevMode.renderPanel(panelEl);
+    // A panel whose drawing throws becomes an inline "this panel failed" card with Try again
+    // instead of an empty pane (js/vex-breaker.js guardPanel).
+    const drawn = {
+      bookmarks: ['Bookmarks', () => typeof Bookmarks !== 'undefined' && Bookmarks],
+      feeds: ['Feeds', () => typeof VexFeeds !== 'undefined' && VexFeeds],
+      library: ['Library', () => typeof ReadLater !== 'undefined' && ReadLater],
+      annotations: ['Annotations', () => typeof Annotations !== 'undefined' && Annotations],
+      recall: ['Recall', () => typeof Recall !== 'undefined' && Recall],
+      authenticator: ['Authenticator', () => typeof Authenticator !== 'undefined' && Authenticator],
+      privacy: ['Privacy', () => typeof PrivacyDashboard !== 'undefined' && PrivacyDashboard],
+      work: ['Work', () => typeof WorkPanel !== 'undefined' && WorkPanel],
+      clock: ['Clock', () => typeof VexClock !== 'undefined' && VexClock],
+      'devtools-dash': ['Developer', () => typeof VexDevMode !== 'undefined' && VexDevMode],
+    }[panelName];
+    const owner = drawn && drawn[1]();
+    if (owner) {
+      const draw = () => owner.renderPanel(panelEl);
+      if (typeof VexBreaker !== 'undefined') VexBreaker.guardPanel(panelEl, 'panel:' + panelName, drawn[0], draw);
+      else draw();
+    }
     if (panelName === 'settings' && typeof SyncSettings !== 'undefined') {
       // Phase 13: render the Vex Sync section whenever Settings opens
       const c = document.getElementById('sync-panel-content');

@@ -165,6 +165,19 @@ const VexTuning = {
     await this._paint();
   },
 
+  // → html. Pure over VexCost.report() / VexBreaker.status(); empty when neither is loaded.
+  budgetSection(e, report = (typeof VexCost !== 'undefined' ? VexCost.report() : []), tripped = (typeof VexBreaker !== 'undefined' ? VexBreaker.status().filter(s => s.state !== 'closed') : [])) {
+    if (!report.length && !tripped.length) return '';
+    const over = report.filter(r => r.over.length);
+    const used = report.filter(r => r.totalMs || r.fetches || r.ipc || r.over.length).slice(0, 12);
+    const off = tripped.map(t => '<div class="vex-tn-rec sev-medium"><div class="vex-tn-rec-main"><div class="vex-tn-rec-title">' + e(t.id) + ' is switched off for now</div><div class="vex-tn-rec-detail">' + e(t.reason || 'It failed repeatedly') + '</div></div></div>').join('');
+    const overHtml = over.map(r => '<div class="vex-tn-rec sev-medium"><div class="vex-tn-rec-main"><div class="vex-tn-rec-title">' + e(r.title) + ' is over what it declared</div><div class="vex-tn-rec-detail">' + r.over.map(o => e(o.item + ': ' + o.used + ' against ' + o.budget + (o.unit ? ' ' + o.unit : ''))).join('; ') + '</div></div></div>').join('');
+    const rows = used.map(r => '<tr><td>' + e(r.title) + '</td><td class="n">' + r.jobMsPerMin + ' ms/min</td><td class="n">' + r.fetchesLastHour + '/h</td><td class="n">' + r.gameFetches + '</td><td class="n">' + r.domNodes + '</td><td class="n">' + r.storageKB + ' KB</td></tr>').join('');
+    return '<div class="vex-tt-h">What each feature costs, against what it declared</div>' + off + overHtml
+      + (rows ? '<table class="vex-tn-table"><thead><tr><th>Feature</th><th>Timers</th><th>Requests</th><th>In a game</th><th>Elements</th><th>Storage</th></tr></thead><tbody>' + rows + '</tbody></table>'
+        : '<div class="vex-tt-empty">Nothing has run long enough to measure yet. Nothing is over its budget.</div>');
+  },
+
   async _paint() {
     const body = document.getElementById('vex-tn-body');
     if (!body) return;
@@ -181,6 +194,9 @@ const VexTuning = {
       : '<div class="vex-tt-empty">Nothing stands out. Vex is using its share quietly.</div>';
     const rowHtml = t.rows.slice(0, 25).map(r => '<tr><td>' + e(r.name) + '</td><td>' + e(r.kind) + '</td><td class="n">' + r.memMB + ' MB</td><td class="n">' + r.cpuPct + '%</td><td class="n">' + (r.tabs || '') + '</td></tr>').join('');
     const jobHtml = t.jobs.slice(0, 12).map(j => '<tr><td>' + e(j.name) + '</td><td class="n">' + j.runs + '</td><td class="n">' + (j.totalMs / 1000).toFixed(2) + ' s</td><td class="n">' + j.pct + '%</td></tr>').join('');
+    // What each feature costs against what its manifest declared (js/vex-cost.js), and any
+    // feature the breaker has switched off for a while (js/vex-breaker.js).
+    const budgetHtml = this.budgetSection(e);
     const cmpHtml = cmp && cmp.haveBaseline
       ? '<div class="vex-tn-cmp"><strong>' + e(cmp.summary) + '</strong>' + (cmp.items.length ? '<ul>' + cmp.items.map(i => '<li>' + e(this.describeItem(i)) + '</li>').join('') + '</ul>' : '') + '</div>'
       : '<div class="vex-tn-cmp">' + e((cmp && cmp.summary) || '') + '</div>';
@@ -188,6 +204,7 @@ const VexTuning = {
       + '<div class="vex-tt-h">Recommendations</div>' + recHtml
       + '<div class="vex-tt-h">Cost by site, panel and extension' + (t.startupMs ? ' · started in ' + (t.startupMs / 1000).toFixed(1) + ' s' : '') + '</div>'
       + '<table class="vex-tn-table"><thead><tr><th>Name</th><th>Kind</th><th>Memory</th><th>CPU</th><th>Tabs</th></tr></thead><tbody>' + (rowHtml || '<tr><td colspan="5">No measurements yet.</td></tr>') + '</tbody></table>'
+      + budgetHtml
       + '<div class="vex-tt-h">Background jobs (time on the interface thread)</div>'
       + '<table class="vex-tn-table"><thead><tr><th>Job</th><th>Runs</th><th>Total</th><th>Share</th></tr></thead><tbody>' + (jobHtml || '<tr><td colspan="4">No jobs measured yet.</td></tr>') + '</tbody></table>'
       + '<div class="vex-tt-settings"><span>Samples hold names and numbers only.</span><button class="vex-tt-btn danger" id="vex-tn-forget">' + this._icon('trash') + ' Forget history</button></div>';

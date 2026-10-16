@@ -121,9 +121,15 @@ const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
 const { createSessionSecurity } = require('./main/session-security');
 const secureSessions = createSessionSecurity({ session, BrowserWindow, webContents, root: __dirname, isPipContents });
-const boundedNetFetch = require('./main/network').createBoundedFetch(net.fetch.bind(net));
+// "What left this computer" (main/egress-ledger.js): every request Vex itself
+// makes through these two is noted with its host and sizes, never its content.
+// The ledger file lives in the profile folder, so it is created once that path
+// is known (below); until then a request is simply not noted.
+let _egress = null;
+const _egressFetch = (impl, defaults) => (url, init) => (_egress ? _egress.wrap(impl, defaults)(url, init) : impl(url, init && init.egress ? { ...init, egress: undefined } : init));
+const boundedNetFetch = require('./main/network').createBoundedFetch(_egressFetch(net.fetch.bind(net), {}));
 // The AI agent's page reads: public internet only, every redirect re-checked (main/public-fetch.js).
-const boundedPublicFetch = require('./main/network').createBoundedFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }));
+const boundedPublicFetch = require('./main/network').createBoundedFetch(_egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }), { feature: 'Vex Agent page reads', kind: 'fetch' }));
 require('./main/ipc-policy').installIpcPolicy(ipcMain, secureSessions);
 ipcMain.on('storage:flushed', event => {
   const host = secureSessions.owner(event.sender);
@@ -829,6 +835,12 @@ app.on('open-url', (event, url) => {
 
 // Storage helpers
 const userDataPath = app.getPath('userData');
+{
+  const egressLedger = require('./main/egress-ledger');
+  _egress = egressLedger.createEgressLedger({ file: path.join(userDataPath, 'egress-ledger.json'), fs, log: (m) => console.error(m) });
+  egressLedger.setShared(_egress);
+  app.on('will-quit', () => { try { _egress.flush(); } catch (err) { console.error('[Egress] could not save the ledger on quit:', err.message); } });
+}
 
 // Local sidebar config (userData/sidebar-config.json) — lets the renderer
 // fetch personalized tool URLs that must stay out of the public repo.
@@ -1589,6 +1601,26 @@ ipcMain.handle('clips-inbox:remove', (_e, id) => ({ ok: _captureInbox().remove(i
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
 ipcMain.on('app:started', () => _bootGuard.started());
+// Feature isolation (main/safe-mode.js): the interface says which feature it is
+// starting and when it has started, so a launch that dies in between is blamed
+// on that feature alone. The features left out of this launch are read once,
+// synchronously, by the preload before any interface script runs.
+ipcMain.on('app:boot-feature', (_e, id, phase) => {
+  try {
+    if (phase === 'start') _bootGuard.featureStarting(id);
+    else if (phase === 'done') _bootGuard.featureStarted(id);
+    else throw new Error('Unknown boot phase: ' + String(phase).slice(0, 20));
+  } catch (err) { console.error('[SafeMode] boot-feature:', err.message); }
+});
+ipcMain.on('app:boot-disabled', (e) => { e.returnValue = Array.isArray(_boot.disabledFeatures) ? _boot.disabledFeatures.slice() : []; });
+
+// === What left this computer (main/egress-ledger.js) =========================
+ipcMain.handle('egress:summary', (_e, sinceMs) => _egress.summary({ sinceMs: Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs : undefined }));
+ipcMain.handle('egress:list', (_e, filter) => _egress.list({
+  sinceMs: Number(filter && filter.sinceMs) || 0, feature: String((filter && filter.feature) || ''),
+  host: String((filter && filter.host) || ''), kind: String((filter && filter.kind) || ''), limit: Math.min(1000, Number(filter && filter.limit) || 300),
+}));
+ipcMain.handle('egress:clear', () => ({ ok: _egress.clear() }));
 // A failed backup at this first start is told once, to the first window that asks.
 let _bootBackupToTell = _boot.updateBackup && !_boot.updateBackup.ok ? _boot.updateBackup : null;
 ipcMain.handle('app:safe-mode', () => {
@@ -6712,7 +6744,7 @@ ipcMain.handle('cloud:request', async (_event, body) => {
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');
   const token = await secretStore.read(path.join(userDataPath, 'ai-token.enc'));
   if (!token) throw new Error('Set your AI access token in Cloud Services');
-  const response = await boundedNetFetch(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body), timeoutMs: 25000 });
+  const response = await boundedNetFetch(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body), timeoutMs: 25000, egress: { feature: 'Cloud AI (' + String((body && body.action) || 'chat').slice(0, 30) + ')', kind: 'ai' } });
   return { status: response.status, body: await response.text() };
 });
 
@@ -9158,7 +9190,7 @@ ipcMain.handle('open-clean-window', (_e, url, look, uiMode) => openPrivateWindow
 // of the unsigned installer. Download, checksum and install are Vex's own.
 // net.fetch follows GitHub's redirect to its file storage.
 const _updater = require('./main/updates').createUpdater({
-  fetch: (url, init) => net.fetch(url, init),
+  fetch: (url, init) => _egress.wrap((u, i) => net.fetch(u, i), { feature: 'Vex updates', kind: 'update' })(url, init),
   fs, dir: path.join(app.getPath('userData'), 'updates'), currentVersion: app.getVersion(),
   spawn: require('child_process').spawn, parseChangelogList: _mainHelpers.parseChangelogList,
 });
@@ -10123,7 +10155,7 @@ ipcMain.handle('fx:rates', async () => {
   if (fresh(_fxCache)) return _fxCache;
   try { const disk = JSON.parse(fs.readFileSync(file, 'utf8')); if (fresh(disk)) { _fxCache = disk; return disk; } } catch {}
   try {
-    const res = await boundedNetFetch('https://open.er-api.com/v6/latest/USD');
+    const res = await boundedNetFetch('https://open.er-api.com/v6/latest/USD', { egress: { feature: 'Currency rates', kind: 'fetch' } });
     const j = await res.json();
     if (j && j.rates) {
       _fxCache = { base: j.base_code || 'USD', rates: j.rates, at: Date.now() };

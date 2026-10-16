@@ -218,7 +218,8 @@ const Recall = {
     if (typeof VexJobs === 'undefined') return;
     const want = this.enabled() && this.meaningOn();
     if (want && !this._meaningJob) {
-      this._meaningJob = VexJobs.every(this.MEANING_JOB, this.MEANING_EVERY_MS, () => this.meaningStep(), { when: 'ui' });
+      // Embedding pages with the local model is heavy work: idle moments only, never in Game mode (VexJobs.heavy).
+      this._meaningJob = VexJobs.every(this.MEANING_JOB, this.MEANING_EVERY_MS, () => VexJobs.heavy(this.MEANING_JOB, () => this.meaningStep(), { kind: 'local-ai', feature: 'recall' }), { when: 'ui' });
     } else if (!want && this._meaningJob) {
       VexJobs.stop(this.MEANING_JOB);
       this._meaningJob = null;

@@ -221,8 +221,12 @@ const crypto = require('crypto');
 async function defaultFetchRange(prefix) {
   const { net } = require('electron');
   const res = await net.fetch('https://api.pwnedpasswords.com/range/' + prefix, { headers: { 'Add-Padding': 'true', 'User-Agent': 'Vex-browser' } });
+  // Recorded in the "what left this computer" ledger: the host and sizes only.
+  const ledger = require('./egress-ledger').getShared();
+  const text = res.ok ? await res.text() : '';
+  if (ledger) ledger.record({ feature: 'Password breach check', url: 'https://api.pwnedpasswords.com/range/', kind: 'breach', bytesOut: 5, bytesIn: Buffer.byteLength(text), ok: res.ok, status: res.status });
   if (!res.ok) throw new Error('Have I Been Pwned answered ' + res.status);
-  return res.text();
+  return text;
 }
 // A run asks the range API once per distinct hash prefix, so a button pressed
 // again and again would be a burst of requests to a free service. One run per

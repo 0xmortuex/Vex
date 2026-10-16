@@ -384,6 +384,26 @@ const TabGrouper = (() => {
       .map(([w]) => w);
   }
 
+  // The "Why did that happen?" list (js/vex-ledger.js): which tab Vex moved, why, and how to put it back.
+  function _noteAutoGroup(tab, groupId, pd, why) {
+    if (typeof VexLedger === 'undefined') return;
+    VexLedger.note({
+      feature: 'tab-auto-group',
+      what: 'Added "' + String(tab.title || tab.url || 'a tab').slice(0, 50) + '" to the group "' + String(pd.groupName || 'a group').slice(0, 40) + '"',
+      why: 'A new tab joined a group on its own because ' + why + '.',
+      undo: { kind: 'ungroup-tab', tabId: tab.id, groupId },
+    });
+  }
+  if (typeof VexLedger !== 'undefined') {
+    VexLedger.registerUndo('ungroup-tab', async (token) => {
+      const tab = typeof TabManager !== 'undefined' ? TabManager.tabs.find(t => t.id === token.tabId) : null;
+      if (!tab) throw new Error('That tab is closed');
+      if (tab.groupId !== token.groupId) throw new Error('That tab is no longer in that group');
+      _assignTabToGroup(tab.id, null);
+      _afterGroupChanges();
+    });
+  }
+
   // ---------- Auto-assign new tab into an existing group (local-only) ----------
   // Purely pattern-based: domain match first, then title keyword. No AI calls
   // per-tab — those are expensive and add seconds of latency to every tab.
@@ -407,6 +427,7 @@ const TabGrouper = (() => {
       if (Array.isArray(pd.domains) && pd.domains.includes(domain)) {
         _assignTabToGroup(tab.id, gid);
         _afterGroupChanges();
+        _noteAutoGroup(tab, gid, pd, 'its address (' + domain + ') matches the group');
         _toast(`Added to "${pd.groupName}" (matched domain)`, 'info', 2500);
         return;
       }
@@ -416,6 +437,7 @@ const TabGrouper = (() => {
         && pd.keywords.some(k => titleLower.includes(k))) {
         _assignTabToGroup(tab.id, gid);
         _afterGroupChanges();
+        _noteAutoGroup(tab, gid, pd, 'its title has a word this group collects');
         _toast(`Added to "${pd.groupName}" (matched keyword)`, 'info', 2500);
         return;
       }

@@ -1299,17 +1299,30 @@ function vexOwnTextFocused(doc) {
   if (typeof VexTimeTravel !== 'undefined') VexTimeTravel.start();
   if (typeof CommandChains !== 'undefined') CommandChains.init();
   // Workflow features (js/resume-workday.js hub): each is opt-out/opt-in in Settings › Workflow.
-  if (typeof VexWorkday !== 'undefined') VexWorkday.init();
-  if (typeof FocusProfiles !== 'undefined' && FocusProfiles.enabled()) FocusProfiles.init();
-  if (typeof VexAskTabs !== 'undefined') VexAskTabs.init();
-  if (typeof VexWeeklyNote !== 'undefined') VexWeeklyNote.init();
+  // Each registry feature starts through VexBreaker.bootStep: main notes which one
+  // is starting, so a start-up that keeps crashing in one of them leaves out that
+  // one alone instead of putting the whole app in safe mode (main/safe-mode.js).
+  const bootStep = (id, fn) => (typeof VexBreaker !== 'undefined' ? VexBreaker.bootStep(id, fn) : fn());
+  if (typeof VexWorkday !== 'undefined') bootStep('workflow-resume-workday', () => VexWorkday.init());
+  if (typeof FocusProfiles !== 'undefined' && FocusProfiles.enabled()) bootStep('workflow-focus-auto', () => FocusProfiles.init());
+  if (typeof VexAskTabs !== 'undefined') bootStep('workflow-ask-tabs', () => VexAskTabs.init());
+  if (typeof VexWeeklyNote !== 'undefined') bootStep('workflow-weekly-note', () => VexWeeklyNote.init());
   if (typeof VexChainSteps !== 'undefined') VexChainSteps.init();
-  if (typeof ReleaseRadar !== 'undefined') ReleaseRadar.init();
+  if (typeof ReleaseRadar !== 'undefined') bootStep('workflow-release-radar', () => ReleaseRadar.init());
   if (typeof VexPacks !== 'undefined') VexPacks.init();
   // Installed packs reach the features that read them (aliases, presets, quotes...).
   if (typeof VexPackConsumers !== 'undefined') VexPackConsumers.init();
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
+  // New and beta features arrive off on a profile that already existed, with a
+  // "try it" offer (js/feature-registry.js). Every manifest shipped so far is
+  // stable, so today this changes nothing; it is what keeps the next one dark.
+  if (typeof VexRegistry !== 'undefined') {
+    VexRegistry.stage().then(() => VexRegistry.offerTry()).catch(err => {
+      console.error('[Registry] staged enablement failed:', err);
+      if (typeof VexProblems !== 'undefined') VexProblems.note('Features', 'Could not stage the new features', err);
+    });
+  }
 
   // What you copied off a page, so the last copy isn't the only copy
   if (window.ClipboardHistory) window.ClipboardHistory.init();

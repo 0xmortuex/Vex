@@ -15,6 +15,12 @@ define('extensions:install-catalog', [string(60)]);
 // The documents Vex ships, by name (src/main/legal-docs.js), and "Quit Vex".
 define('legal:read', [oneOf(['PRIVACY.md', 'TERMS.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'])]);
 define('app:quit', []);
+// Feature isolation in safe mode (main/safe-mode.js) and the ledger of what left this computer (main/egress-ledger.js).
+define('app:boot-feature', [string(64), oneOf(['start', 'done'])]);
+define('app:boot-disabled', []);
+define('egress:summary', [optional(value => Number.isFinite(value) && value > 0 && value <= 31 * 24 * 3600 * 1000)]);
+define('egress:list', [optional(object)]);
+define('egress:clear', []);
 // Game Control Center (src/main/game-control-center.js): no arguments at all,
 // so a caller cannot name a program or a path to start.
 define('gcc:launch', []);
