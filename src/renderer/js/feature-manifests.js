@@ -188,6 +188,27 @@
       commands: ['deploy-desk'], permissions: { reads: ['how often your history visited the deploy hosts'], writes: ['the pages you pinned'], sends: [] } },
     { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
       permissions: { reads: ['the list of repositories you gave'], writes: ['the list of repositories you gave'], sends: [] } },
+    // ---- Wave 3: developer shortcuts, local tools and the AI judgement tools --------------------
+    // All 'new' (staged off for an existing profile). No group: a switched-off one must not hide the
+    // Settings section that holds its switch. Local services and the webhook inspector are off by default.
+    { id: 'cloudflare-shortcuts', title: 'Cloudflare dashboard shortcuts', maturity: 'new', storageKeys: ['vex.cfShortcuts'], usesKeys: ['vex.endpoints'], commands: ['cloudflare-shortcuts'],
+      permissions: { reads: ['your account id, worker names and KV namespace ids, and the workers.dev addresses on the endpoint board'], writes: ['those saved names'], sends: [] } },
+    { id: 'roblox-resolver', title: 'Roblox id resolver', maturity: 'new', storageKeys: ['vex.robloxResolver'], commands: ['roblox-resolve'], budget: { fetchesPerHour: 30 },
+      permissions: { reads: ['the id or address you paste'], writes: ['the clipboard, when you press Copy'], sends: ['The one id to economy.roblox.com, apis.roblox.com and games.roblox.com (public pages, no cookie, no login), only when you resolve it'] } },
+    { id: 'repo-skim', title: 'Repo skim', maturity: 'new', storageKeys: ['vex.repoSkim'], commands: ['repo-skim'], budget: { fetchesPerHour: 60 },
+      permissions: { reads: ['the repository you name: description, licence, commits, README, top-level files'], writes: ['the clipboard, when you press Copy'], sends: ['Read requests to api.github.com (with your read-only token if you saved one); the README only to your local model, only when you ask'] } },
+    { id: 'local-services', title: 'Local services', maturity: 'new', storageKeys: ['vex.localServices'], commands: ['local-services'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the folders you picked and the commands you added'], writes: ['starts and stops only the programs you added, after a box Vex shows itself; a list in the profile folder'], sends: [] } },
+    { id: 'webhook-inspector', title: 'Webhook inspector', maturity: 'new', storageKeys: ['vex.webhookInspector'], jobs: ['Webhook inspector view'], commands: ['webhook-inspector'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['requests sent to a port on 127.0.0.1 that you opened'], writes: ['nothing on disk; requests are kept in memory until it stops'], sends: [] } },
+    { id: 'reading-triage', title: 'Reading triage by goals', maturity: 'new', storageKeys: ['vex.readingTriage'], usesKeys: ['vex.readLater'], commands: ['reading-triage'],
+      permissions: { reads: ['your read-later list and the goals you typed'], writes: ['your goals'], sends: ['The titles and sites of up to 15 items to your local model, only when you ask for reasons'] } },
+    { id: 'seen-before', title: 'Have I seen this before?', maturity: 'new', storageKeys: ['vex.seenBefore'], usesKeys: ['vex.history', 'vex.notes', 'vex.annotations', 'vex.readLater'], commands: ['seen-before'],
+      permissions: { reads: ['the page in front, your history, notes, highlights and read-later list'], writes: ['its own switch'], sends: [] } },
+    { id: 'ai-recipes', title: 'Scheduled AI recipes', maturity: 'new', storageKeys: ['vex.aiRecipes'], usesKeys: ['vex.skills', 'vex.reminders'], commands: ['ai-recipes'],
+      permissions: { reads: ['your AI skills'], writes: ['your recipes and one reminder per recipe'], sends: ['Nothing by itself: the skill runs through your AI backend only when you press Run'] } },
+    { id: 'watch-judgement', title: 'Watch with judgement', maturity: 'new', storageKeys: ['vex.watchJudge'], usesKeys: ['vex.pageWatches', 'vex.ledger'], commands: ['watch-judgement'],
+      permissions: { reads: ['the changed lines of a page you watch, when the watch has a condition'], writes: ['your conditions, the list of changes held back, and a line in "Why did that happen?" for each'], sends: ['The changed lines only to your local model'] } },
     // ---- Developer helpers (js/dev-helpers.js, Settings > Developer helpers) -------------------
     // New: each arrives OFF on a profile that already existed and is offered ("try it").
     { id: 'repo-registry', title: 'Repository registry and groups', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.repos', 'vex.repos.enabled'], commands: ['repos:manage'],
