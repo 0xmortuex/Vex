@@ -285,6 +285,17 @@ const VexUsageRegistry = {
       OrdersHub: () => (typeof OrdersHub !== 'undefined' ? OrdersHub : null),
       ExamCalendar: () => (typeof ExamCalendar !== 'undefined' ? ExamCalendar : null),
       ReceiptLocker: () => (typeof ReceiptLocker !== 'undefined' ? ReceiptLocker : null),
+      VexCarry: () => (typeof VexCarry !== 'undefined' ? VexCarry : null),
+      VexWhen: () => (typeof VexWhen !== 'undefined' ? VexWhen : null),
+      VexCloseDay: () => (typeof VexCloseDay !== 'undefined' ? VexCloseDay : null),
+      VexDayShape: () => (typeof VexDayShape !== 'undefined' ? VexDayShape : null),
+      VexRefind: () => (typeof VexRefind !== 'undefined' ? VexRefind : null),
+      VexTabIntent: () => (typeof VexTabIntent !== 'undefined' ? VexTabIntent : null),
+      VexChanged: () => (typeof VexChanged !== 'undefined' ? VexChanged : null),
+      VexFocusCal: () => (typeof VexFocusCal !== 'undefined' ? VexFocusCal : null),
+      VexChores: () => (typeof VexChores !== 'undefined' ? VexChores : null),
+      VexWeekSkeleton: () => (typeof VexWeekSkeleton !== 'undefined' ? VexWeekSkeleton : null),
+      VexTriage: () => (typeof VexTriage !== 'undefined' ? VexTriage : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -440,6 +451,18 @@ const VexUsageRegistry = {
       ['orders-hub', A.api(G.OrdersHub, 'enabled', 'setEnabled')],
       ['exam-calendar', A.api(G.ExamCalendar, 'enabled', 'setEnabled')],
       ['receipt-locker', A.api(G.ReceiptLocker, 'enabled', 'setEnabled')],
+      // Wave 2, daily planning: new features, staged off on a profile that already existed.
+      ['carry-forward', A.api(G.VexCarry, 'enabled', 'setEnabled')],
+      ['snooze-syntax', A.api(G.VexWhen, 'enabled', 'setEnabled')],
+      ['close-day', A.api(G.VexCloseDay, 'enabled', 'setEnabled')],
+      ['day-shape', A.api(G.VexDayShape, 'enabled', 'setEnabled')],
+      ['refind', A.api(G.VexRefind, 'enabled', 'setEnabled')],
+      ['tab-intent', A.api(G.VexTabIntent, 'enabled', 'setEnabled')],
+      ['workspace-changes', A.api(G.VexChanged, 'enabled', 'setEnabled')],
+      ['focus-calibration', A.api(G.VexFocusCal, 'enabled', 'setEnabled')],
+      ['chores', A.api(G.VexChores, 'enabled', 'setEnabled')],
+      ['week-skeleton', A.api(G.VexWeekSkeleton, 'enabled', 'setEnabled')],
+      ['weekly-triage', A.api(G.VexTriage, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

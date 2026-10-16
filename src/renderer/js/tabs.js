@@ -415,6 +415,8 @@ const TabManager = {
     // Where this tab came from: the page that was in front when it opened
     // (js/tab-trail.js). A tab opened from nothing records nothing.
     if (typeof TabTrail !== 'undefined') TabTrail.record(tab, opener || this.getActiveTab());
+    // And why: the opener's title and what was searched there (js/tab-intent.js, shown on the hover card).
+    if (typeof VexTabIntent !== 'undefined') VexTabIntent.record(tab, opener || this.getActiveTab());
 
     // A copy (duplicateTab) goes straight after its original, not after the
     // tabs the original opened, and starts no run of its own.
