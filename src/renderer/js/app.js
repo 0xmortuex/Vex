@@ -1390,6 +1390,16 @@ function vexOwnTextFocused(doc) {
   if (typeof VexNavHistoryMenu !== 'undefined') bootStep('nav-history-menu', () => VexNavHistoryMenu.init());
   if (typeof VexStripActions !== 'undefined') bootStep('strip-actions', () => VexStripActions.init());
   if (typeof VexTabToolsSettings !== 'undefined') VexTabToolsSettings.init();
+  // Wave 3 tab tools, links and windows, taskbar actions and the gesture editor: each starts on its own.
+  if (typeof VexTabSelect !== 'undefined') bootStep('tab-select', () => VexTabSelect.init());
+  if (typeof VexTabHold !== 'undefined') bootStep('tab-hold', () => VexTabHold.init());
+  if (typeof VexTabThumbs !== 'undefined') bootStep('tab-thumbs', () => VexTabThumbs.init());
+  if (typeof VexLinkHints !== 'undefined') bootStep('link-hints', () => VexLinkHints.init());
+  if (typeof VexSplitKeys !== 'undefined') bootStep('split-keys', () => VexSplitKeys.init());
+  if (typeof VexJumpActions !== 'undefined') bootStep('jump-actions', () => VexJumpActions.init());
+  if (typeof VexLinksWindowsSettings !== 'undefined') VexLinksWindowsSettings.init();
+  if (typeof VexGestureEditor !== 'undefined') VexGestureEditor.init();
+  if (typeof VexMoreTabToolsSettings !== 'undefined') VexMoreTabToolsSettings.init();
   if (typeof NightCoach !== 'undefined') bootStep('night-coach', () => NightCoach.init());
   if (typeof AnnounceDesk !== 'undefined') bootStep('announce-desk', () => AnnounceDesk.init());
   // Wave 2, daily planning: each starts through bootStep so a crash in one leaves out that one alone.

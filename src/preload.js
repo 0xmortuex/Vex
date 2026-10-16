@@ -489,6 +489,14 @@ contextBridge.exposeInMainWorld('vex', {
   carryTabHistory:      (token, partition, list) => ipcRenderer.send('tabs:carry-history', token, partition, list),
   // A tab's icon fetched through the tab's own session, as a data: URL.
   tabFavicon:           (pageId, url) => ipcRenderer.invoke('tabs:favicon', pageId, url),
+  // Connect ahead to a link's site while the pointer rests on it (js/preconnect.js, main/preconnect.js).
+  tabPreconnect:        (pageId, url) => ipcRenderer.invoke('tabs:preconnect', pageId, url),
+  // Taskbar actions (js/jump-actions.js, main/jump-list.js): the one waiting for the interface, and a nudge that one arrived.
+  windowsState:         () => ipcRenderer.invoke('windows:state'),
+  windowsReopenClosed:  () => ipcRenderer.invoke('windows:reopen-closed'),
+  jumpTake:             () => ipcRenderer.invoke('jump:take'),
+  jumpListApply:        () => ipcRenderer.invoke('jumplist:apply'),
+  onJumpWaiting:        (callback) => subscribe('jump:waiting', callback),
   // Which sites the main window's Tor and proxy rules name (for a private window).
   siteRoutesRoutedHosts: () => ipcRenderer.invoke('siteroutes:routed-hosts'),
   permissionsRevoke:    (key) => ipcRenderer.invoke('permissions:revoke', key),

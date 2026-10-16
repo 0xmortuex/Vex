@@ -2814,6 +2814,173 @@ let _vexStartPageOwn = null;
   }, true);
 })();
 
+// === Alt+click on a link → the other split pane (T3-054, js/split-keys.js) ===
+// Alt+click normally saves the link. Only once Vex has said the feature is on
+// ('vex-altlink', true) is it taken, and the page only reports the address; the
+// window checks it and decides what to do. A made-up click does nothing.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost || !ipcRenderer.on) return;
+  let armed = false;
+  ipcRenderer.on("vex-altlink", (_e, on) => { armed = on === true; });
+  document.addEventListener("click", (e) => {
+    if (!armed || !e.isTrusted || e.button !== 0 || !e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+    const a = path.find((n) => n && n.tagName === "A" && typeof n.href === "string" && n.href);
+    if (!a || !/^https?:/i.test(a.href)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    try { ipcRenderer.sendToHost("vex-alt-link", a.href); } catch (err) { console.error("[Vex] Alt+click could not tell the window:", err && err.message); }
+  }, true);
+})();
+
+// === Keyboard link hints (T3-113, js/link-hints.js) =============================
+// Vex asks for them ('vex-hints', 'start'); nothing here listens for a key of its
+// own, so a page keeps every key it has. Each link, button and field in view gets
+// a short label; typing it clicks (or, for a field, focuses) the thing, Shift
+// with the last letter opens a link in a background tab, Backspace takes a
+// letter back, Escape or a click or scrolling puts the labels away. The labels
+// are drawn in a closed shadow root that takes no clicks. Only keys the person
+// typed (isTrusted) are read, and the page never sees them while hints are up.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost || !ipcRenderer.on) return;
+  const ALPHA = "sadfjklewcmpgh";
+  const MAX = ALPHA.length * ALPHA.length;
+  const SELECTOR = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [onclick], [contenteditable=""], [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+  let state = null; // { host, items: [{el, label, tag}], typed, timer }
+
+  function visible(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || cs.pointerEvents === "none") return null;
+    const x = Math.min(innerWidth - 1, Math.max(0, r.left + Math.min(r.width / 2, 12)));
+    const y = Math.min(innerHeight - 1, Math.max(0, r.top + Math.min(r.height / 2, 12)));
+    const top = document.elementFromPoint(x, y);
+    if (!top || !(top === el || el.contains(top) || top.contains(el))) return null;
+    return r;
+  }
+  function labelsFor(n) {
+    const out = [];
+    if (n <= ALPHA.length) { for (let i = 0; i < n; i++) out.push(ALPHA[i]); return out; }
+    for (let i = 0; i < ALPHA.length && out.length < n; i++) for (let j = 0; j < ALPHA.length && out.length < n; j++) out.push(ALPHA[i] + ALPHA[j]);
+    return out;
+  }
+  function stop() {
+    if (!state) return;
+    clearTimeout(state.timer);
+    try { state.host.remove(); } catch (err) { console.error("[Vex] hints could not be removed:", err && err.message); }
+    window.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("mousedown", stop, true);
+    window.removeEventListener("scroll", stop, true);
+    window.removeEventListener("blur", stop, true);
+    state = null;
+  }
+  function paint() {
+    for (const it of state.items) {
+      const on = it.label.startsWith(state.typed);
+      it.node.style.display = on ? "" : "none";
+      it.node.firstChild.textContent = state.typed;
+      it.node.lastChild.textContent = it.label.slice(state.typed.length);
+    }
+  }
+  function onKey(e) {
+    if (!state) return;
+    if (!e.isTrusted) return;
+    if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.key === "Escape") { stop(); return; }
+    if (e.key === "Backspace") { state.typed = state.typed.slice(0, -1); paint(); return; }
+    const k = e.key.length === 1 ? e.key.toLowerCase() : "";
+    if (!k || e.ctrlKey || e.metaKey || e.altKey) return;
+    const next = state.typed + k;
+    const matches = state.items.filter((it) => it.label.startsWith(next));
+    if (!matches.length) return;
+    state.typed = next;
+    const hit = matches.length === 1 ? matches[0] : null;
+    if (!hit) { paint(); return; }
+    const el = hit.el, background = e.shiftKey, tag = hit.tag;
+    stop();
+    try {
+      if (background && tag === "A" && /^https?:/i.test(el.href || "")) { ipcRenderer.sendToHost("vex-hint-tab", el.href); return; }
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable) {
+        const t = (el.type || "").toLowerCase();
+        if (tag === "INPUT" && (t === "checkbox" || t === "radio" || t === "button" || t === "submit" || t === "reset" || t === "file" || t === "image")) el.click(); else el.focus();
+      } else { el.click(); }
+    } catch (err) { console.error("[Vex] a hinted element could not be used:", err && err.message); }
+  }
+  function start() {
+    stop();
+    const seen = [];
+    for (const el of document.querySelectorAll(SELECTOR)) {
+      if (seen.length >= MAX) break;
+      const r = visible(el);
+      if (r) seen.push({ el, r, tag: el.tagName });
+    }
+    if (!seen.length) { ipcRenderer.sendToHost("vex-hints-none"); return; }
+    const labels = labelsFor(seen.length);
+    const host = document.createElement("div");
+    host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
+    const root = host.attachShadow({ mode: "closed" });
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(".h{position:fixed;font:700 11px/1 Consolas,monospace;padding:2px 4px;border-radius:3px;background:#ffd24a;color:#222;border:1px solid #b8860b;box-shadow:0 1px 3px rgba(0,0,0,.4);text-transform:uppercase;pointer-events:none}.h b{color:#b8860b}");
+    root.adoptedStyleSheets = [sheet];
+    const items = seen.map((s, i) => {
+      const node = document.createElement("span");
+      node.className = "h";
+      node.style.left = Math.max(0, Math.round(s.r.left)) + "px";
+      node.style.top = Math.max(0, Math.round(s.r.top)) + "px";
+      const typed = document.createElement("b");
+      const rest = document.createElement("span");
+      rest.textContent = labels[i];
+      node.append(typed, rest);
+      root.appendChild(node);
+      return { el: s.el, tag: s.tag, label: labels[i], node };
+    });
+    document.documentElement.appendChild(host);
+    state = { host, items, typed: "", timer: setTimeout(stop, 20000) };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("mousedown", stop, true);
+    window.addEventListener("scroll", stop, true);
+    window.addEventListener("blur", stop, true);
+  }
+  ipcRenderer.on("vex-hints", (_e, what) => {
+    if (what === "start") start(); else stop();
+  });
+})();
+
+// === Resting on a link → the window may warm the connection (T3-075) =========
+// Vex says whether it wants to hear ('vex-preconnect-arm', true); the page then
+// reports a link the pointer has rested on for 150 ms, and nothing else. The
+// window and main decide whether anything is done (same site, or allow-listed,
+// never in a private or Tor tab, main/preconnect.js). A made-up mouse event is ignored.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost || !ipcRenderer.on) return;
+  let armed = false, timer = null, lastHref = "";
+  ipcRenderer.on("vex-preconnect-arm", (_e, on) => { armed = on === true; if (!armed) clearTimeout(timer); });
+  document.addEventListener("mouseover", (e) => {
+    clearTimeout(timer);
+    if (!armed || !e.isTrusted) return;
+    const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+    const a = path.find((n) => n && n.tagName === "A" && typeof n.href === "string" && n.href);
+    if (!a || !/^https?:/i.test(a.href) || a.href === lastHref) return;
+    timer = setTimeout(() => {
+      lastHref = a.href;
+      try { ipcRenderer.sendToHost("vex-link-hover", a.href); } catch (err) { console.error("[Vex] a link hover could not be reported:", err && err.message); }
+    }, 150);
+  }, true);
+  document.addEventListener("mouseout", () => clearTimeout(timer), true);
+})();
+
 // === The picture under a right-click =======================================
 // Chromium only calls a right-click an image when the <img> itself is the
 // topmost thing hit. Galleries rarely leave it that way: Gemini's image viewer

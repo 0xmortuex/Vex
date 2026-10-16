@@ -202,6 +202,9 @@ let adBlockerEnabled = true;
 // Starts the ad-block engine (set once the window is ready; see initAdblockEngine).
 let _startAdblockEngine = null;
 let pendingOpenUrl = null;
+// A taskbar action (src/main/jump-list.js) waiting for the interface to take it: set by a
+// start from the jump list, or by a second start while Vex runs (second-instance).
+let _jumpPending = require('./main/jump-list').actionFromArgv(process.argv);
 // The main window's own keys (before-input-event), set once Vex has started
 // (app.whenReady below), so a main window made again gets them too.
 let _wireMainWindowKeys = null;
@@ -822,6 +825,11 @@ if (!gotTheLock) {
     const url = findLaunchUrl(commandLine);
     console.log('[Vex URL]   normalized URL:', url);
     console.log('[Vex URL]   mainWindow present:', !!mainWindow);
+    // A taskbar action (right-click on Vex in the taskbar; src/main/jump-list.js).
+    const jump = require('./main/jump-list').actionFromArgv(commandLine);
+    if (jump) { _jumpFromSecondStart(jump); return; }
+    // A link from another program, in a small window of its own when that is switched on (main/mini-window.js).
+    if (url && _miniWindows().take(url)) { console.log('[Vex URL]   opened in a mini window'); return; }
     if (url && mainWindow) {
       console.log('[Vex URL]   sending open-url IPC to renderer');
       mainWindow.webContents.send('open-url', url);
@@ -1283,11 +1291,13 @@ app.whenReady().then(() => {
   // the first window is on screen instead of holding up the start.
   if (process.platform === 'win32' && app.isPackaged) {
     app.once('browser-window-created', (_ev, win) => win.once('show', () => setTimeout(() => {
-      try {
-        app.setUserTasks([{ program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' }]);
-      } catch (err) { console.error('[SafeMode] could not add the taskbar entry:', err.message); }
+      try { _applyJumpList(); }
+      catch (err) { console.error('[SafeMode] could not add the taskbar entries:', err.message); }
     }, 1000)));
   }
+  // Started by a taskbar action with Vex not yet running: quick capture needs no window; the
+  // others wait for the interface to ask (jump:take).
+  if (_jumpPending === 'quick-capture') { _jumpPending = null; openQuickCapture(); }
   // Vex's own Start menu and desktop shortcuts that open a Vex.exe that is
   // gone are pointed back at this one (src/main/shortcut-repair.js; found
   // 2026-10-09). Every start, not only after an update: the installer starts
@@ -7374,12 +7384,30 @@ function _savedWindowPlace() {
   return wp.clamp(saved, _screenWorkAreas()).bounds;
 }
 
+// Where the windows were left (src/main/window-set.js; vex.windowSet = { on, apps }):
+// the main window's size, place and monitor, the Open as App windows that were open, and
+// the windows closed lately. With no record it is on; a profile that existed before this
+// is switched off explicitly by staged enablement.
+const _windowSet = require('./main/window-set').createWindowSet({
+  file: path.join(userDataPath, 'window-set.json'), fs,
+  getWorkAreas: () => require('electron').screen.getAllDisplays().map(d => d.workArea),
+  getPrimaryWorkArea: () => require('electron').screen.getPrimaryDisplay().workArea,
+  getPrefs: () => _readPersistString('vex.windowSet', null),
+  log: (m) => console.warn(m),
+});
+app.on('before-quit', () => _windowSet.beginQuit());
+let _appWindowsRestored = false;
+
 function createWindow() {
-  const _place = _savedWindowPlace();
+  // The window set (Settings > Links and windows) decides when it is on; when it is off the
+  // always-on place memory of T2-082 still applies, so the Wave 2 behaviour is not lost.
+  const _placement = _windowSet.mainPlacement();
+  const _place = _placement ? null : _savedWindowPlace();
   mainWindow = new BrowserWindow({
     width: _place ? _place.width : 1400,
     height: _place ? _place.height : 900,
     ...(_place ? { x: _place.x, y: _place.y } : {}),
+    ...(_placement ? _placement.bounds : {}),
     minWidth: 800,
     minHeight: 600,
     frame: false,
@@ -7398,6 +7426,18 @@ function createWindow() {
   });
 
   secureSessions.registerHost(mainWindow);
+  // Where it was left, and the Open as App windows of last time (src/main/window-set.js).
+  if (_placement && _placement.maximized) mainWindow.maximize();
+  _windowSet.trackMain(mainWindow);
+  if (!_appWindowsRestored) {
+    _appWindowsRestored = true;
+    mainWindow.webContents.once('did-finish-load', () => setTimeout(() => {
+      for (const a of _windowSet.appsToRestore()) {
+        try { _openAppWindow(a.url, a.title, a.partition, a.bounds); }
+        catch (err) { console.error('[WindowSet] could not bring back ' + a.url + ':', err.message); }
+      }
+    }, 2500));
+  }
   // Stopped answering: written in the crash log with what was open, and a
   // Reload window offered instead of a dead window (src/main/window-hang.js).
   require('./main/window-hang').createWindowHangGuard({
@@ -10150,6 +10190,63 @@ function _raiseGuard() {
 // that already runs while any Gaming switch is on (src/main/game-watch.js).
 function _fullscreenGameNow() { return !!_gameWatch.state().game; }
 
+// The jump list: the four taskbar actions and the safe-mode entry (src/main/jump-list.js).
+// vex.jumpList = { on }: with no record the entries are shown; a profile that existed
+// before this is switched off explicitly by staged enablement. Off, only the safe-mode
+// entry stays. Only the installed app, as the safe-mode entry always was.
+function _applyJumpList() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const saved = _readPersistString('vex.jumpList', null);
+  const enabled = !(saved && typeof saved === 'object' && saved.on === false);
+  const safe = { program: process.execPath, arguments: '--safe-mode', iconPath: process.execPath, iconIndex: 0, title: 'Start in safe mode', description: 'Starts without extensions' };
+  app.setUserTasks(require('./main/jump-list').buildTasks({
+    execPath: process.execPath, enabled, keep: [safe],
+    extraArgs: process.argv.filter(a => /^--user-data-dir=/.test(a)).concat(_profile.id === 'default' ? [] : ['--profile=' + _profile.id]),
+  }));
+}
+// A second start from a taskbar entry while Vex runs.
+function _jumpFromSecondStart(action) {
+  if (action === 'quick-capture') { openQuickCapture(); return; }
+  _jumpPending = action;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    focusMainWindow('a taskbar action', { user: true });
+    if (!mainWindow.webContents.isLoading()) mainWindow.webContents.send('jump:waiting');
+  } else _reopenMainWindow(null);
+}
+// The interface asks for the action waiting for it; only the main window may.
+ipcMain.handle('jump:take', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return null;
+  const action = _jumpPending;
+  _jumpPending = null;
+  return action;
+});
+ipcMain.handle('jumplist:apply', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can change the jump list');
+  _applyJumpList();
+  return { ok: true };
+});
+
+// Links handed over by other programs open in a small window of their own when
+// Settings > Links and windows says so (src/main/mini-window.js; vex.miniWindow,
+// off unless chosen). The window is shown by the raise guard, so over a
+// full-screen game it appears without the focus and a dot goes on the taskbar button.
+let _miniInst = null;
+function _miniWindows() {
+  if (_miniInst) return _miniInst;
+  _miniInst = require('./main/mini-window').createMiniWindows({
+    BrowserWindow,
+    getPrefs: () => _readPersistString('vex.miniWindow', null),
+    register: (win) => { secureSessions.registerWebWindow(win.webContents); _openLinksAsTabs(win.webContents); },
+    reveal: (win, why) => _raiseGuard().reveal(win, why),
+    openAsTab: (url) => {
+      if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.webContents.send('open-url', url); _raiseGuard().raise(mainWindow, 'a mini window made into a tab', { user: true }); }
+      else _reopenMainWindow(url);
+    },
+    log: (m) => console.log(m),
+  });
+  return _miniInst;
+}
+
 // A button on a Windows toast reaches Vex as a vex:// URL in argv — on a cold
 // start, or through second-instance when Vex is already running. Returns true
 // when the argument was one of ours.
@@ -10638,6 +10735,27 @@ ipcMain.handle('image:for-ai', async (_e, pageId, url, confirmed) => {
 const _faviconFetch = require('./main/favicon-fetch').createFaviconFetch({ webContents });
 ipcMain.handle('tabs:favicon', (_e, guestId, url) => _faviconFetch.fetchIcon(guestId, url));
 
+// Opening the connection to a link's site while the pointer rests on it
+// (src/main/preconnect.js): only for the page's own site or an allow-listed one,
+// never from a private or Tor tab. The switch and the list are Settings >
+// Links and windows (vex.preconnect); with no record the feature is on, because a
+// profile that existed before it is switched off explicitly by staged enablement.
+const _preconnect = require('./main/preconnect').createPreconnect({
+  webContents,
+  getPrefs: () => {
+    const saved = _readPersistString('vex.preconnect', null);
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : { on: true, allow: [] };
+  },
+  isPrivate: (guest) => {
+    if (guest.session && guest.session.__vexTor) return true;
+    let partition;
+    try { partition = secureSessions.partitionOf(guest); }
+    catch (err) { console.error('[Preconnect] could not tell which session a tab is in; not connecting:', err.message); return true; }
+    return !/^persist:/.test(String(partition || ''));
+  },
+});
+ipcMain.handle('tabs:preconnect', (_e, guestId, url) => _preconnect.preconnect(guestId, url));
+
 // The readable part of a page as an e-book (renderer: PageExport.saveEpub).
 ipcMain.handle('page:save-epub', async (_e, { title, url, xhtml }) => {
   const book = require('./main/epub').buildEpub({ title, url, xhtmlBody: xhtml });
@@ -10711,25 +10829,50 @@ function _openLinksAsTabs(contents) {
 }
 // Open a URL in its own chromeless window ("open as app" / site-specific
 // browser). Shares the main persistent session so you stay signed in.
+// One "open as app" window: chromeless, its own size, in the given saved session.
+// Used by the button below and by restoring the windows that were open at the last
+// quit (src/main/window-set.js); `bounds` is where it was, when it is known.
+function _openAppWindow(url, title, partition, bounds) {
+  _refuseMainProfileCopy(partition);
+  // The tab's own session: from a container tab it opened signed in to the
+  // main profile instead, with that profile's cookies (audit TA5).
+  const appPartition = partition || 'persist:main';
+  secureSessions.fromPartition(appPartition);
+  const win = new BrowserWindow({
+    width: 1024, height: 720, ...(bounds || {}), autoHideMenuBar: true, title: title || 'Vex',
+    // --vex-web-window: the guest preload sends no Vex shortcuts from here.
+    webPreferences: { partition: appPartition, contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, additionalArguments: ['--vex-web-window'] },
+  });
+  secureSessions.registerWebWindow(win.webContents);
+  _openLinksAsTabs(win.webContents);
+  win.setMenuBarVisibility(false);
+  win.loadURL(url);
+  _windowSet.trackApp(win, { url, title, partition: appPartition });
+  return win;
+}
 ipcMain.handle('app:open-as-app', (_e, url, title, partition) => {
   try {
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false };
-    _refuseMainProfileCopy(partition);
-    // The tab's own session: from a container tab it opened signed in to the
-    // main profile instead, with that profile's cookies (audit TA5).
-    const appPartition = partition || 'persist:main';
-    secureSessions.fromPartition(appPartition);
-    const win = new BrowserWindow({
-      width: 1024, height: 720, autoHideMenuBar: true, title: title || 'Vex',
-      // --vex-web-window: the guest preload sends no Vex shortcuts from here.
-      webPreferences: { partition: appPartition, contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true, additionalArguments: ['--vex-web-window'] },
-    });
-    secureSessions.registerWebWindow(win.webContents);
-    _openLinksAsTabs(win.webContents);
-    win.setMenuBarVisibility(false);
-    win.loadURL(url);
+    _openAppWindow(url, title, partition, null);
     return { ok: true };
   } catch (e) { return { ok: false, error: e && e.message }; }
+});
+
+// The windows of last time (src/main/window-set.js; Settings > Links and windows).
+// Both are for Vex's own main window.
+function _windowsFromMainWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Only the main Vex window can do this');
+}
+ipcMain.handle('windows:state', (event) => {
+  _windowsFromMainWindow(event);
+  return { enabled: _windowSet.enabled(), closed: _windowSet.closedList() };
+});
+ipcMain.handle('windows:reopen-closed', (event) => {
+  _windowsFromMainWindow(event);
+  const c = _windowSet.takeClosed();
+  if (!c) return { ok: false, reason: 'No closed window to bring back' };
+  _openAppWindow(c.url, c.title, c.partition, c.bounds);
+  return { ok: true, url: c.url };
 });
 
 // Set as default browser — opens Windows Default Apps settings

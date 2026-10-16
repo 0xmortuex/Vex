@@ -431,6 +431,12 @@ define('tabs:carry-history', [value => typeof value === 'string' && /^c\d{1,9}$/
 // A tab's icon fetched through the tab's own session, by its page's id
 // (src/main/favicon-fetch.js).
 define('tabs:favicon', [integer, web]);
+// Connect ahead to a link's site (main/preconnect.js): the page by its id, the link's address.
+define('tabs:preconnect', [integer, web]);
+// A taskbar action waiting for the interface, and the jump list being rewritten (main/jump-list.js).
+define('jump:take jumplist:apply', []);
+// The windows of last time (main/window-set.js): what is remembered, and bringing the latest closed one back.
+define('windows:state windows:reopen-closed', []);
 // A private window asking which sites the main window's Tor and proxy rules
 // name, to say they do not apply there (js/site-routes.js).
 define('siteroutes:routed-hosts', []);

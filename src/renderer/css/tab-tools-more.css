@@ -1,0 +1,36 @@
+/* === More tab tools: picked tabs, the bulk bar, hint chips, wake picture, gesture editor ===
+ * Layers over the window, never children of the tab strip, so none can change its height. */
+.top-tab.multi-selected, .tab-item.multi-selected, .pinned-tab.multi-selected {
+  outline: 2px solid var(--primary); outline-offset: -2px;
+  background-image: linear-gradient(color-mix(in srgb, var(--primary) 18%, transparent), color-mix(in srgb, var(--primary) 18%, transparent));
+}
+.ts-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 100057;
+  display: flex; align-items: center; gap: 4px; padding: 4px 6px; max-width: 94vw; flex-wrap: wrap;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 6px 20px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
+}
+.ts-count { padding: 0 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ts-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; font: inherit; font-size: 12px;
+  color: inherit; background: none; border: none; border-radius: 6px; cursor: pointer;
+}
+.ts-btn:hover, .ts-btn:focus-visible { background: var(--vex-hover-fill); }
+.ts-btn.danger { color: var(--danger, #e5484d); }
+.all-tabs-flags { display: inline-flex; gap: 6px; margin-left: auto; color: var(--text-muted); }
+.lh-layer { position: fixed; inset: 0; z-index: 100070; pointer-events: none; }
+.lh-chip {
+  position: fixed; padding: 2px 5px; font: 700 11px/1 Consolas, monospace; text-transform: uppercase;
+  background: #ffd24a; color: #222; border: 1px solid #b8860b; border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.lh-chip b { color: #b8860b; }
+.tw-shot {
+  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4;
+  object-fit: cover; object-position: top left; background: #fff; pointer-events: none;
+}
+.gx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; margin: 8px 0 12px; }
+.gx-row { display: flex; align-items: center; gap: 8px; }
+.gx-dir { min-width: 3em; font-size: 16px; text-align: center; color: var(--text-muted); }
+.gx-select { flex: 1; min-width: 0; }

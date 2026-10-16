@@ -150,7 +150,9 @@ const HorizontalTabs = (() => {
       if (String(tab.partition).startsWith('tor-')) el.classList.add('tor-tab');
     }
     el.dataset.tabId = tab.id;
-    el.title = `${tab.title || 'New Tab'}\n${tab.url || ''}`;
+    if (typeof VexTabSelect !== 'undefined') VexTabSelect.mark(el, tab);
+    const shownTitle = (typeof VexTabNames !== 'undefined' && VexTabNames.display(tab)) || tab.title;
+    el.title = `${shownTitle || 'New Tab'}\n${tab.url || ''}`;
     // Drag-to-reorder (native HTML5 DnD, same as the vertical sidebar).
     // Stack CHIPS are not draggable (no data-tab-id), but expanded members
     // are — dragging one onto the strip pulls it out of its stack.
@@ -178,7 +180,7 @@ const HorizontalTabs = (() => {
       ${favicon ? `<img class="tab-favicon" src="${_esc(favicon)}" data-image-fallback="hide">` : '<span class="tab-favicon"></span>'}
       ${audio}
       ${priv}
-      <span class="tab-title">${_esc(tab.title || 'New Tab')}</span>
+      <span class="tab-title">${_esc(shownTitle || 'New Tab')}</span>
       ${TabManager.noteBadge(tab)}
       ${TabManager.errorBadge(tab)}
       ${sleep}
@@ -207,10 +209,17 @@ const HorizontalTabs = (() => {
         else TabManager.toggleMuteTab(tab.id);
         return;
       }
+      // Ctrl or Shift-click picks several tabs (js/tab-select.js).
+      if (typeof VexTabSelect !== 'undefined' && VexTabSelect.handleClick(e, tab)) return;
       TabManager.switchTab(tab.id);
     });
     el.addEventListener('auxclick', (e) => {
-      if (e.button === 1) { e.preventDefault(); e.stopPropagation(); TabManager.requestClose(tab.id); }
+      if (e.button === 1) {
+        e.preventDefault(); e.stopPropagation();
+        // The tabs keep their widths while the pointer stays on the bar (js/tab-hold.js).
+        if (typeof VexTabHold !== 'undefined') VexTabHold.beforeClose(el.parentElement);
+        TabManager.requestClose(tab.id);
+      }
     });
     const closeBtn = el.querySelector('.tab-close');
     if (closeBtn) {
@@ -226,6 +235,8 @@ const HorizontalTabs = (() => {
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
+        // The tabs keep their widths while the pointer stays on the bar (js/tab-hold.js).
+        if (typeof VexTabHold !== 'undefined') VexTabHold.beforeClose(el.parentElement);
         TabManager.requestClose(tab.id);
       });
     }
@@ -364,6 +375,8 @@ const HorizontalTabs = (() => {
     // bunched left of a dead gap at the strip's right edge. Clamp it.
     const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
     if (container.scrollLeft > maxScroll) container.scrollLeft = maxScroll;
+    // Tabs held at their old width keep the size classes that width gives them (js/tab-hold.js).
+    if (typeof VexTabHold !== 'undefined') VexTabHold.applyClasses();
   }
 
   // With more tabs than fit, the strip scrolls sideways; nothing moved it to
@@ -385,6 +398,8 @@ const HorizontalTabs = (() => {
   const _origRender = render;
   render = function () {
     _origRender();
+    // After a close with X the tabs keep their widths until the pointer leaves the bar (js/tab-hold.js).
+    if (typeof VexTabHold !== 'undefined') VexTabHold.apply();
     requestAnimationFrame(() => { applyTabSizeClasses(); revealActiveTab(); });
   };
 
@@ -437,7 +452,15 @@ const HorizontalTabs = (() => {
       if (group) item.style.setProperty('--group-color', group.color || '#6366f1');
       item.innerHTML = `${tab.favicon ? '<img class="all-tabs-favicon" alt="" data-image-fallback="hide">' : '<span class="all-tabs-favicon"></span>'}<span class="all-tabs-title"></span>`;
       if (tab.favicon) item.querySelector('img').src = tab.favicon;
-      item.querySelector('.all-tabs-title').textContent = tab.title || tab.url || 'New Tab';
+      item.querySelector('.all-tabs-title').textContent = (typeof VexTabNames !== 'undefined' && VexTabNames.display(tab)) || tab.title || tab.url || 'New Tab';
+      // Sound, muted and asleep, marked in the list as they are on the strip.
+      const marks = [tab.audible && !tab.muted ? ['volume', 'Playing sound'] : null, tab.muted ? ['mute', 'Muted'] : null, tab.sleeping ? ['sleep', 'Asleep'] : null].filter(Boolean);
+      if (marks.length && typeof VexIcons !== 'undefined') {
+        const flags = document.createElement('span');
+        flags.className = 'all-tabs-flags';
+        flags.innerHTML = marks.map(([icon, label]) => '<span title="' + label + '" aria-label="' + label + '">' + VexIcons.svg(icon, { size: 12 }) + '</span>').join('');
+        item.appendChild(flags);
+      }
       item.title = `${tab.title || 'New Tab'}\n${tab.url || ''}${group ? `\nGroup: ${group.name}` : ''}`;
       item.addEventListener('click', () => pickFromAllTabs(tab.id));
       menu.appendChild(item);
@@ -516,7 +539,7 @@ const HorizontalTabs = (() => {
     requestAnimationFrame(() => requestAnimationFrame(applyTabSizeClasses));
   }
 
-  return { init, render, reorderTab, openAllTabsMenu, closeAllTabsMenu };
+  return { init, render, reorderTab, openAllTabsMenu, closeAllTabsMenu, applyTabSizeClasses };
 })();
 
 window.HorizontalTabs = HorizontalTabs;

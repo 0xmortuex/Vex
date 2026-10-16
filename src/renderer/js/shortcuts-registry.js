@@ -106,7 +106,12 @@ const ShortcutsRegistry = (() => {
     'tab-search':     { default: 'Ctrl+Alt+Z',   label: 'Search open tabs',           category: 'Tabs',       cmd: 'tab-search' },
     // Wave 3 tab comforts. Ctrl+Alt+E and Ctrl+Alt+F were free.
     'essentials':     { default: 'Ctrl+Alt+E',   label: 'Essential tabs (kept in every workspace)', category: 'Tabs', cmd: 'essentials' },
-    'tab-text-find':  { default: 'Ctrl+Alt+F',   label: 'Find text in all tabs',      category: 'Tabs',       cmd: 'tab-text-find' }
+    'tab-text-find':  { default: 'Ctrl+Alt+F',   label: 'Find text in all tabs',      category: 'Tabs',       cmd: 'tab-text-find' },
+    // Wave 3: split view panes, and keyboard hints for links and tabs (Ctrl+Alt letters with no Turkish AltGr character).
+    'split-focus':    { default: 'Ctrl+Alt+O',   label: 'Split view: next pane',      category: 'Tabs',       cmd: 'split-focus-next' },
+    'split-swap':     { default: 'Ctrl+Alt+Y',   label: 'Split view: swap panes',     category: 'Tabs',       cmd: 'split-swap-panes' },
+    'link-hints':     { default: 'Ctrl+Alt+I',   label: 'Hints: click with the keyboard', category: 'Navigation', cmd: 'link-hints' },
+    'tab-hints':      { default: 'Ctrl+Alt+Q',   label: 'Hints: go to a tab',         category: 'Tabs',       cmd: 'tab-hints' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.
