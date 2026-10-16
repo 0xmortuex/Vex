@@ -219,6 +219,13 @@ const VexUsageRegistry = {
       VexPark: () => (typeof VexPark !== 'undefined' ? VexPark : null),
       VexCopySource: () => (typeof VexCopySource !== 'undefined' ? VexCopySource : null),
       VexDeadlines: () => (typeof VexDeadlines !== 'undefined' ? VexDeadlines : null),
+      PanelCapture: () => (typeof PanelCapture !== 'undefined' ? PanelCapture : null),
+      VipRules: () => (typeof VipRules !== 'undefined' ? VipRules : null),
+      NeedsMe: () => (typeof NeedsMe !== 'undefined' ? NeedsMe : null),
+      PanelState: () => (typeof PanelState !== 'undefined' ? PanelState : null),
+      AwayMode: () => (typeof AwayMode !== 'undefined' ? AwayMode : null),
+      AttentionDigest: () => (typeof AttentionDigest !== 'undefined' ? AttentionDigest : null),
+      CloseProtect: () => (typeof CloseProtect !== 'undefined' ? CloseProtect : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -292,6 +299,15 @@ const VexUsageRegistry = {
       ['park-resume', A.api(G.VexPark, 'enabled', 'setEnabled')],
       ['copy-source', A.api(G.VexCopySource, 'enabled', 'setEnabled')],
       ['deadline-extractor', A.api(G.VexDeadlines, 'enabled', 'setEnabled')],
+      // Panels and messages (js/panels-comms-ui.js draws them). Turning notifications from panels back on
+      // needs the consent the person gave, so it never comes back by itself without it.
+      ['panel-capture', A.api(G.PanelCapture, 'enabled', 'setEnabled')],
+      ['vip-rules', A.api(G.VipRules, 'enabled', 'setEnabled')],
+      ['needs-me', A.api(G.NeedsMe, 'enabled', 'setEnabled')],
+      ['panel-state', A.api(G.PanelState, 'enabled', 'setEnabled')],
+      ['away-mode', A.api(G.AwayMode, 'enabled', 'setEnabled')],
+      ['attention-digest', A.api(G.AttentionDigest, 'enabled', 'setEnabled')],
+      ['close-protect', A.api(G.CloseProtect, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

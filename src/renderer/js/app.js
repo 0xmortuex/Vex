@@ -278,7 +278,7 @@ function vexOwnTextFocused(doc) {
   window.vex.onNewTab(() => TabManager.createTab(START_URL, true));
   window.vex.onCloseTab(() => {
     const tab = TabManager.getActiveTab();
-    if (tab) TabManager.closeTab(tab.id);
+    if (tab) TabManager.requestClose(tab.id);
   });
   // From a page, main names it: a side panel's page never moves the website.
   window.vex.onReloadTab((from) => NavLock.run('reload', from));
@@ -1563,7 +1563,7 @@ function vexOwnTextFocused(doc) {
     ShortcutsRegistry.register('sleep-tab',      () => TabManager.sleepActiveTab());
     ShortcutsRegistry.register('reopen-tab',     () => TabManager?.reopenLastClosed?.());
     ShortcutsRegistry.register('new-tab',        () => TabManager?.createTab?.(typeof START_URL !== 'undefined' ? START_URL : 'vex://start', true));
-    ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.closeTab(t.id); });
+    ShortcutsRegistry.register('close-tab',      () => { const t = TabManager?.getActiveTab?.(); if (t) TabManager.requestClose(t.id); });
     ShortcutsRegistry.register('reload',         () => NavLock.run('reload'));
     ShortcutsRegistry.register('hard-reload',    () => NavLock.run('hardReload'));
     ShortcutsRegistry.register('zoom-reset',     () => WebviewManager?.zoomReset?.());
@@ -1837,7 +1837,7 @@ function vexOwnTextFocused(doc) {
     if (e.button === 1) {
       const item = e.target.closest('.tab-item');
       // A stack header has no tab id of its own; closing undefined did nothing useful.
-      if (item && item.dataset.tabId) { e.preventDefault(); TabManager.closeTab(item.dataset.tabId); }
+      if (item && item.dataset.tabId) { e.preventDefault(); TabManager.requestClose(item.dataset.tabId); }
     }
   });
 

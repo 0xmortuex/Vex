@@ -336,7 +336,7 @@ const CommandBar = {
     { id: 'devices', label: 'Devices', hint: 'See your other devices and their tabs, open one here or send one there (Vex Sync)', icon: 'monitor',
       when: () => typeof DevicesView !== 'undefined' && DevicesView.ready(),
       action: () => DevicesView.open() },
-    { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.closeTab(t.id); } },
+    { id: 'close', label: 'Close Tab', hint: 'Close the current tab', shortcut: 'Ctrl+W', icon: 'x', action: () => { const t = TabManager.getActiveTab(); if (t) TabManager.requestClose(t.id); } },
     { id: 'whatsapp', label: 'WhatsApp', hint: 'Open WhatsApp panel', icon: 'message', isPrimary: true, action: () => SidebarManager.openPanel('whatsapp') },
     { id: 'claude', label: 'Claude AI', hint: 'Open Claude panel', icon: 'sparkles', isPrimary: true, action: () => SidebarManager.openPanel('claude') },
     { id: 'spotify', label: 'Spotify', hint: 'Open Spotify panel', icon: 'music', isPrimary: true, action: () => SidebarManager.openPanel('spotify') },

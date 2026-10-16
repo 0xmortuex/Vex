@@ -1583,8 +1583,9 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
 // up the panel it lives in, so the click did nothing you could see. The page's
 // Notification is wrapped (on these two sites only) so a click also tells the
 // host, which opens that panel and brings Vex to the front
-// (js/sidebar.js, 'vex-notification-click'). Nothing about the notification
-// is sent: only that one was clicked.
+// (js/sidebar.js, 'vex-notification-click'). Its title and body (cut short)
+// also go to the host window, never to the page, as 'vex-notification-seen';
+// the host drops them unless the person opted this site in (js/panel-capture.js).
 (function () {
   let host = '';
   try { host = (window.location && window.location.protocol === 'https:' && window.location.hostname) || ''; } catch { return; }
@@ -1593,10 +1594,18 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
   if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
   const clicked = () => { try { ipcRenderer.sendToHost('vex-notification-click'); } catch { /* host gone */ } };
-  function wrapNotification(clicked) {
+  // What the notification said, title and body only and cut short, to the host
+  // window (never to the page). The host throws it away unless the person opted
+  // this site into "Notifications from panels" (js/panel-capture.js).
+  const seen = (title, body) => {
+    try { ipcRenderer.sendToHost('vex-notification-seen', { title: String(title).slice(0, 200), body: String(body).slice(0, 300) }); }
+    catch { /* vex-allow-empty-catch: host gone */ }
+  };
+  function wrapNotification(clicked, seen) {
     const N = window.Notification;
     if (typeof N !== 'function' || N.__vexWrapped) return;
     const Wrapped = function Notification(title, options) {
+      try { seen(title == null ? '' : title, options && options.body != null ? options.body : ''); } catch (e) { /* vex-allow-empty-catch: a notification that cannot be reported still shows */ }
       const n = new N(title, options);
       try { n.addEventListener('click', () => clicked()); } catch (e) { /* a notification that cannot be listened to still shows */ }
       return n;
@@ -1609,7 +1618,7 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
     window.Notification = Wrapped;
   }
   function inject() {
-    try { contextBridge.executeInMainWorld({ func: wrapNotification, args: [clicked] }); }
+    try { contextBridge.executeInMainWorld({ func: wrapNotification, args: [clicked, seen] }); }
     catch (err) { console.error('[Vex] notification clicks cannot reach the panel on this page:', err && err.message); }
   }
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });

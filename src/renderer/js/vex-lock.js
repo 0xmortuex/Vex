@@ -94,6 +94,7 @@ const VexLock = {
     // Main refuses the vault and new private windows while this is set.
     window.vex?.setLockState?.(true);
     document.body.classList.add('vex-locked');
+    window.dispatchEvent(new CustomEvent('vex-locked'));   // Away mode starts by itself (js/away-mode.js)
     document.activeElement?.blur?.();
     const el = document.createElement('div');
     el.className = 'vex-lock-screen';
