@@ -589,6 +589,14 @@ const PageWatch = {
     }
     this._save(list);
     if (announce) {
+      // A condition in the person's words (js/ai-judgement.js): a change that does not meet it is held
+      // back and listed (with an Undo); one that does is announced with the evidence. Never the other way:
+      // when the local model cannot be asked, review() says notify.
+      if (typeof WatchJudgement !== 'undefined' && WatchJudgement.applies(watch)) {
+        const review = await WatchJudgement.review(watch, verdict, diff);
+        if (!review.notify) return { ok: true, ...verdict, held: true, ...(diff ? { diff } : {}) };
+        if (review.judged) verdict.judged = review.judged;
+      }
       const wantAi = watch.summarize == null ? settings.summarize : watch.summarize;
       if (wantAi && diff) {
         const sentence = await this.aiSentence(watch, diff);
@@ -638,6 +646,7 @@ const PageWatch = {
     let what;
     if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
     else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');
+    if (verdict.judged) what += ' (matters: ' + verdict.judged.why + (verdict.judged.evidence ? '; "' + verdict.judged.evidence + '"' : '') + ')';
     window.showToast?.(what, 'info', 8000);
     // A desktop notification as well: the point of a watch is that you are not
     // looking at Vex (js/notify goes through the main process).
