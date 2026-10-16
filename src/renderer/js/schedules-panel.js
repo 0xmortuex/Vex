@@ -513,6 +513,14 @@ const SchedulesPanel = {
         <textarea id="sm-message" placeholder="Time to...">${this._esc(action.message || '')}</textarea>
       </div>
 
+      <div class="sm-afield" data-for="chain">
+        <label for="sm-chain">Chain</label>
+        <select id="sm-chain">
+          ${opt('', typeof CommandChains !== 'undefined' && CommandChains.chains.length ? 'Pick a chain' : 'No chains yet (make one in Ctrl+K › Chains)', !action.chainId)}
+          ${(typeof CommandChains !== 'undefined' ? CommandChains.chains : []).map(c => opt(c.id, c.name, action.chainId === c.id)).join('')}
+        </select>
+      </div>
+
       <div class="sm-afield" data-for="clearBrowsingData">
         <div class="sm-warn">This wipes cache, cookies, history and saved sessions every time it runs. You will be signed out of sites.</div>
       </div>
@@ -563,6 +571,8 @@ const SchedulesPanel = {
         built.sessionName = q('#sm-session').value.trim() || 'Auto';
       } else if (actionType === 'reminder') {
         built.message = q('#sm-message').value.trim();
+      } else if (actionType === 'chain') {
+        built.chainId = q('#sm-chain').value;
       } else if (actionType === 'pageScript') {
         // Chosen in Settings > Page recorder; editing the task keeps it.
         built.scriptId = action.scriptId;
@@ -652,10 +662,21 @@ const SchedulesPanel = {
     }
 
     q('#sm-cancel').addEventListener('click', () => modal.classList.remove('visible'));
-    q('#sm-save').addEventListener('click', () => {
+    q('#sm-save').addEventListener('click', async () => {
       const data = collect();
       const errors = refresh();
       if (errors.length) { window.showToast?.(errors[0]); return; }
+
+      // A chain with command-bar steps runs unattended only after the person approved those steps.
+      if (data.action.type === 'chain') {
+        const chain = CommandChains.chains.find(c => c.id === data.action.chainId);
+        if (CommandChains.unattendedRefusal(chain)) {
+          let approved = false;
+          try { approved = await CommandChains.approveUnattended(chain.id); }
+          catch (err) { window.showToast?.(err.message, 'error'); return; }
+          if (!approved) { window.showToast?.('Not saved: the chain was not approved to run without you'); return; }
+        }
+      }
 
       if (isEdit) Scheduler.updateTask(existing.id, data);
       else Scheduler.createTask(data);
