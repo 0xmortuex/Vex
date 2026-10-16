@@ -16,12 +16,18 @@ const PanelBadges = {
   // Only the forms a message count takes: a LEADING "(5)" — "(5) Discord" —
   // or "3 new" / "3 unread". A number in brackets anywhere ("Thriller (1982)")
   // or after a bullet ("In Da Club • 50 Cent", Spotify) is part of a name.
-  _unreadFromTitle(title, panel) {
+  // Gmail alone puts the count after a (localised) folder word with thousands
+  // separators — "Inbox (6,693) - me@gmail.com - Gmail", "Gelen Kutusu (12) …"
+  // (one to three words) — so that form is read
+  // only when the panel's page is on mail.google.com.
+  _unreadFromTitle(title, panel, url) {
     if (!title || (panel && this.NO_COUNT.includes(panel))) return 0;
+    const gmail = /^https?:\/\/mail\.google\.com(?:[/:?#]|$)/i.test(url || '');
     const m = /^\s*\((\d+)\)/.exec(title)
-           || /(?:^|[^\w])(\d+)\s+(?:new|unread)\b/i.exec(title);
+           || /(?:^|[^\w])(\d+)\s+(?:new|unread)\b/i.exec(title)
+           || (gmail && /^\s*(?:[^\s(]+\s+){1,3}\((\d[\d.,]*)\)/.exec(title));
     if (!m) return 0;
-    const n = parseInt(m[1], 10);
+    const n = parseInt(m[1].replace(/[.,]/g, ''), 10);
     return Number.isFinite(n) && n > 0 && n < 100000 ? n : 0;
   },
 
@@ -61,7 +67,9 @@ const PanelBadges = {
         const wv = SidebarManager.panelWebviews[panel];
         let title = '';
         try { title = (wv && typeof wv.getTitle === 'function') ? wv.getTitle() : ''; } catch {}
-        const n = this._unreadFromTitle(title, panel);
+        let url = '';
+        try { url = (wv && typeof wv.getURL === 'function') ? wv.getURL() : ''; } catch {}
+        const n = this._unreadFromTitle(title, panel, url);
         this._setBadge(panel, n);
         counts[panel] = n;
         total += n;
