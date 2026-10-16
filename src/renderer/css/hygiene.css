@@ -1,0 +1,38 @@
+/* Wave 2 gates and security surfaces: the camera/microphone/location pill in the address bar
+   (js/permission-hygiene-ui.js), the incident checklist's step results (js/incident-playbooks.js)
+   and the signed-in list rows (js/signed-in-ui.js). Theme tokens only; a11y.css stays last. */
+
+#url-perm-live {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--vex-danger, #9c2a1a);
+  background: transparent;
+  color: var(--vex-danger, #9c2a1a);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+#url-perm-live[hidden] { display: none; }
+#url-perm-live:hover { background: var(--vex-hover-fill, rgba(255, 255, 255, 0.06)); }
+#url-perm-live:focus-visible { outline: 2px solid var(--vex-accent); outline-offset: 1px; }
+
+.vex-incident-result {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--vex-accent);
+  background: var(--vex-hover-fill, rgba(255, 255, 255, 0.04));
+  color: var(--vex-text-primary, var(--text));
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.vex-incident-result strong { display: block; margin-bottom: 2px; }
+
+.vex-signedin-row { align-items: center; gap: 8px; }
+.vex-signedin-row .vexsr-host { flex: 1; min-width: 0; }

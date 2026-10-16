@@ -637,6 +637,20 @@ window.__vexCheckUi = (function () {
     }
     var root = document.querySelector('#panel-settings .settings-content');
     if (!root || !root.clientWidth) return { blocks: 0, findings: findings };
+    // Every section is inside the scroll area, and every section a module registered is there
+    // and not squeezed (T2-058: groups once landed outside .settings-content, drawn apart).
+    var allGroups = document.querySelectorAll('#panel-settings .setting-group');
+    for (var og = 0; og < allGroups.length; og++) {
+      if (!root.contains(allGroups[og])) add('settings-orphan', allGroups[og], 'is a Settings section outside the scroll area (.settings-content), so it is drawn apart from the others', {});
+    }
+    var registry = window.VexSettingsGroups;
+    if (registry && registry._defs && typeof registry._defs.forEach === 'function') {
+      registry._defs.forEach(function (def, gid) {
+        var gel = document.getElementById(def.build ? 'vex-sg-' + gid : 'setting-' + gid);
+        if (!gel || !root.contains(gel)) { add('settings-missing-group', root, 'the section "' + def.title + '" is registered but not in the scroll area', {}); return; }
+        if (gel.getClientRects().length && gel.getBoundingClientRect().width < 200) add('settings-narrow-group', gel, 'the section "' + def.title + '" is only ' + n(gel.getBoundingClientRect().width) + 'px wide', { px: n(gel.getBoundingClientRect().width) });
+      });
+    }
     var zoom = root.offsetWidth ? root.getBoundingClientRect().width / root.offsetWidth : 1;
     var blocks = Array.prototype.slice.call(root.children).filter(function (e) {
       return e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
@@ -1058,6 +1072,10 @@ const themeArg = (args.find(a => a.startsWith('--theme=')) || '').split('=')[1] 
 const FULL = flags.has('--full');
 const JSON_OUT = flags.has('--json');
 const KEEP_OPEN = flags.has('--keep-open');
+// --sweep: after every surface it closes, run VexLayer.sweep() (js/vex-layer.js) and flag an overlay left
+// covering the window or a point of the window that no longer reaches the page (T2-014). Off by default
+// until it has run clean once on the owner's machine; --full turns it on.
+const SWEEP = flags.has('--sweep') || FULL;
 
 for (const a of args) {
   if (!/^--(full|json|keep-open|style=.+|theme=.+)$/.test(a)) fail('unknown argument: ' + a);
@@ -1117,6 +1135,14 @@ const A11Y_ONLY_SURFACES = [
   { name: 'the scheduled tasks tab', sel: '#panel-clock', open: "SidebarManager.openPanel('schedules')", close: 'SidebarManager.hideActivePanel()' },
 ];
 
+// After a surface was closed: nothing may still take the window's clicks.
+async function sweepClicks(cdp, surface, style, theme, findings) {
+  const r = await evaluate(cdp, 'new Promise(r => requestAnimationFrame(() => r(window.VexLayer ? window.VexLayer.sweep() : null)))');
+  if (!r) throw new Error('VexLayer is not loaded, so the click sweep would be reporting on nothing');
+  for (const b of r.blockers) findings.push({ check: 'overlay-blocks-clicks', element: b.element, message: 'after closing ' + surface + ', ' + b.element + ' still covers ' + b.covers + '% of the window and takes clicks (z-index ' + b.zIndex + ')', numbers: { covers: b.covers }, style, colors: 'overlay sweep', theme });
+  for (const p of r.blockedPoints) findings.push({ check: 'overlay-blocks-clicks', element: p.under || p.hit, message: 'after closing ' + surface + ', a click at ' + p.x + ',' + p.y + ' lands on ' + p.hit + (p.under ? ' inside ' + p.under : '') + ' instead of the page', numbers: { x: p.x, y: p.y }, style, colors: 'overlay sweep', theme });
+}
+
 async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, summaries) {
   // The New Tab page: its own target, its own copy of the audit library. A
   // look change can reload it, so the library is put back whenever it is gone.
@@ -1152,6 +1178,7 @@ async function scanSurfaces(cdp, port, exceptions, styles, themes, findings, sum
           const res = await evaluate(cdp, 'window.__vexCheckUi.scanSurface(' + JSON.stringify(exceptions) + ', ' + JSON.stringify(style) + ', ' + JSON.stringify(s.name) + ', ' + JSON.stringify(s.sel) + ')');
           const ax = await runA11yScan(cdp, exceptions, style, s.name, s.sel, s.dialog);
           await evaluate(cdp, '(() => { ' + s.close + '; return true; })()');
+          if (SWEEP) await sweepClicks(cdp, s.name, style, theme, findings);
           for (const f of ax.findings) findings.push({ ...f, style, colors: 'keyboard', theme });
           count += ax.findings.length;
           if (!res.roots || !res.judged) throw new Error('judged no text in ' + s.name + ' (' + style + '/' + theme + ') — it did not open, or the check would be reporting on nothing');

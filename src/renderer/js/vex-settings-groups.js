@@ -89,6 +89,7 @@ const VexSettingsGroups = {
     card.appendChild(body);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id });
     const onKey = (e) => {
       if (!overlay.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
       if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;

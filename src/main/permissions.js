@@ -74,7 +74,7 @@ function isVexUi(contents) {
 // origins and the risk summary shown on a prompt. lastGestureAt(contents): when
 // the page last had a click or key press (main.js, _watchGestures). Without
 // them every prompt is exactly as it was.
-function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked, webSafety = null, lastGestureAt = () => undefined }) {
+function createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked, webSafety = null, lastGestureAt = () => undefined, hygiene = null }) {
 // Answers that last until Vex closes. Never written to disk: "just this visit"
 // that survived a restart would be a lie. Kept per partition: one map for
 // every window let "Allow this visit" in a private window allow the same site
@@ -333,8 +333,13 @@ function wirePermissionsOnSession(ses, tag, opts) {
     // Check persisted decisions — under what is really being asked for.
     const parts = mediaParts(permission, details);
     const saved = savedDecision(decisionsFor(webContents), origin, parts, sessionDecisionsFor(webContents));
-    if (saved === 'allow') return callback(true);
+    if (saved === 'allow') { if (hygiene) hygiene.noteUse(webContents, origin, parts); return callback(true); }
     if (saved === 'deny')  return callback(false);
+    // Permission hygiene (src/main/permission-hygiene.js): a prompt nobody triggered is answered "no" once and listed.
+    if (hygiene && parts.length === 1) {
+      const quiet = hygiene.trap({ origin, permission: parts[0], gesture: require('../main-helpers').hasRecentGesture(lastGestureAt(webContents)), contentsId: webContents.id });
+      if (quiet) { console.log(`[Permissions] QUIETED (no click or key press): ${origin} asked for ${parts[0]}`); return callback(false); }
+    }
     const asked = parts.length > 1 ? 'media' : parts[0];
 
     // Ask the user — queued if the renderer isn't listening yet (cold start).
@@ -520,6 +525,7 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
   if (cb._host !== secureSessions.owner(_e.sender) || !['allow', 'deny'].includes(decision)) return { ok: false, error: 'Invalid permission response' };
   pendingPermissions.delete(id);
   try { cb(decision === 'allow'); } catch {}
+  if (decision === 'allow' && hygiene && cb._contents) hygiene.noteUse(cb._contents, cb._origin, cb._parts || [cb._permission]);
   // remember: true = keep it; 'day' = for 24 hours; 'session' = until Vex
   // closes; false = this once.
   // "Allow" used to mean for ever or not at all, and the box was ticked by
@@ -535,6 +541,9 @@ ipcMain.handle('permission:respond', async (_e, payload) => {
         const key = `${cb._origin}::${part}`;
         d[key] = decision;
         if (remember === 'day') until[key] = Date.now() + DAY_MS; else delete until[key];
+        // Kept for ever, but not for ever when permission hygiene is on (a pinned site is exempt).
+        const ends = decision === 'allow' && remember === true && hygiene ? hygiene.expiryFor(cb._origin, part) : null;
+        if (ends) until[key] = ends;
       }
       if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
       await saveDecisionsFor(cb._contents, d);
@@ -569,6 +578,8 @@ function setPageDecision(contents, origin, permission, decision) {
   }
   for (const key of keys) { delete d[key]; delete until[key]; sessionDecisionsFor(contents).delete(key); }
   if (decision !== 'ask') d[keys[0]] = decision;
+  const ends = decision === 'allow' && hygiene ? hygiene.expiryFor(origin, permission) : null;
+  if (ends) until[keys[0]] = ends;
   if (Object.keys(until).length) d.__until__ = until; else delete d.__until__;
   return saveDecisionsFor(contents, d);
 }
