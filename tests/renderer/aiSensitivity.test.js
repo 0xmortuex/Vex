@@ -191,6 +191,19 @@ describe('AIRouter: history is local by default and the gate sits on every cloud
     expect(globalThis.Ollama.generate).not.toHaveBeenCalled();
   });
 
+  it('a request reshaped by the Turkish/English profile (Wave 2) still passes the gate before the cloud', async () => {
+    const fetchAI = vi.fn();
+    globalThis.window = {
+      VexConfig: { aiWorkerUrl: () => 'https://w.example', fetchAI }, vexConfirm: vi.fn(async () => false),
+      VexLocaleTranslate: { shapeRequest: (feature, req) => ({ ...req, message: String(req.message || '') + ' (answer in Turkish)' }) },
+    };
+    globalThis.Ollama = { ping: vi.fn(async () => true), generate: vi.fn(), chat: vi.fn() };
+    const AIRouter = await loadRouter();
+    AIRouter.setRoutingPrefs({ chat: 'cloud' });
+    await expect(AIRouter.callAI('chat', { message: 'my card ' + CARD, historyEntries: [{ url: 'https://a.example/' }] })).rejects.toMatchObject({ code: 'vex-sensitive' });
+    expect(fetchAI).not.toHaveBeenCalled();
+  });
+
   it('an allowed request reaches the worker and carries the redacted text', async () => {
     const fetchAI = vi.fn(async () => ({ ok: true, json: async () => ({ result: 'ok' }) }));
     globalThis.window = { VexConfig: { aiWorkerUrl: () => 'https://w.example', fetchAI }, vexConfirm: vi.fn(async () => true) };
