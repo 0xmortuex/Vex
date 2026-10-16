@@ -85,6 +85,8 @@ const VexFeatures = {
       what: 'One screen: what is holding a processor core, what is holding the memory, whether a route is on and whether a game has the card \u2014 each with the button that fixes it.' },
     { id: 'tab-cost', phrases: 'what is slowing my browser battery draining fan loud cpu hot which tab site extension heavy using processor', cat: 'tabs', cmd: 'tab-cost', name: 'What is slowing my browser?',
       what: 'Ranks tabs, sites, panels and extensions by processor time, memory and downloads over the last five minutes or the session, says in a sentence which one is the problem, and puts sleep, mute, close and “always sleep this site” beside it. Private and Tor tabs count as one anonymous total.' },
+    { id: 'discord-why-big', phrases: 'why is discord big using so much memory ram gigabytes heavy slow discord memory', cat: 'tabs', cmd: 'discord-why-big', name: 'Why is Discord big?',
+      what: 'Measures the Discord panel when you ask: what its process holds, how much is JavaScript, whether heavy Vencord plugins, extensions, keep-awake, the always-visible setting or Lighter Discord are in play, and why no memory notice came. Plain text with a Copy button; it changes nothing and sends nothing. Also a Why big? button on the Discord row in the Memory panel.' },
     { id: 'tasks', phrases: 'task manager end task what is using my memory processes kill', cat: 'tabs', cmd: 'tasks', name: 'Running tasks',
       what: 'Every process Vex is running, biggest first, named — and a button to end one, or keep it off for an hour, eight hours, or until you let it back. Right-click any tab or panel → “What is this using?”.' },
     { id: 'keep-awake', cat: 'tabs', name: 'Keep a tab awake', manual: true,

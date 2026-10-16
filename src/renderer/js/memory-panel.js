@@ -376,6 +376,7 @@ const MemoryPanel = {
           <div class="memory-item-actions">
             ${p.loaded && !p.open ? '<button class="mem-panel-sleep" title="Sleep">Sleep</button>' : ''}
             ${p.loaded ? '<button class="mem-panel-reload" title="Reload">Reload</button>' : ''}
+            ${p.name === 'discord' && p.loaded ? '<button class="mem-panel-why" title="Measure what Discord is holding and which settings let it grow. Changes nothing.">Why big?</button>' : ''}
             ${!p.open ? '<button class="mem-panel-open" title="Open">Open</button>' : ''}
           </div>
         </div>`;
@@ -390,6 +391,10 @@ const MemoryPanel = {
       el.querySelector('.mem-panel-reload')?.addEventListener('click', () => {
         const wv = SidebarManager.panelWebviews[name];
         try { if (wv) wv.reload(); } catch (err) { window.showToast?.(err.message, 'error'); }
+      });
+      el.querySelector('.mem-panel-why')?.addEventListener('click', () => {
+        if (typeof DiscordMemory === 'undefined') { window.showToast?.('The Discord report is not loaded', 'error'); return; }
+        DiscordMemory.showWhyBig().catch(err => window.showToast?.(err.message, 'error'));
       });
       el.querySelector('.mem-panel-open')?.addEventListener('click', () => SidebarManager.showPanel(name));
     });

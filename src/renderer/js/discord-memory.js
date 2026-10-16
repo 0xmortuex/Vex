@@ -127,6 +127,149 @@ const DiscordMemory = {
     return off;
   },
 
+  // ---- "Why is Discord big?" -----------------------------------------------------------
+  // A report, built only when asked for (Memory panel > Discord row, or Ctrl+K).
+  // It reads what Vex already knows - the process list, the page's own JS heap,
+  // the extensions, the keep-awake / throttling / visibility choices - and
+  // writes nothing, sends nothing. A part that cannot be read says so in the
+  // report instead of being left out.
+  async collect() {
+    const d = { problems: [], mode: this.mode(), pid: null, wsMB: null, privMB: null, sharedWith: 0, cpu: null,
+      heap: null, domNodes: null, plugins: null, spoofed: null, keepAwake: null, throttled: null,
+      lite: this.lite(), extensions: null, limit: null };
+    const sb = this._sidebar();
+    const wv = this.webview();
+    if (!wv) { d.problems.push('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure'); return d; }
+    let id = null;
+    try { id = wv.getWebContentsId(); } catch (err) { d.problems.push('Discord has no process yet: ' + err.message); }
+    if (id != null) {
+      if (!window.vex || typeof window.vex.processes !== 'function') d.problems.push('The process list is not available in this build');
+      else {
+        try {
+          const got = await window.vex.processes();
+          const procs = Array.isArray(got) ? got : (got && got.processes) || [];
+          const mine = procs.find(p => Array.isArray(p.contents) && p.contents.some(c => c.id === id));
+          if (!mine) d.problems.push('Discord’s process was not in the process list');
+          else {
+            d.pid = mine.pid;
+            d.wsMB = Math.round(mine.memKB / 1024);
+            d.privMB = mine.privKB ? Math.round(mine.privKB / 1024) : null;
+            d.cpu = mine.cpu;
+            d.sharedWith = mine.contents.filter(c => c.id !== id && c.kind === 'webview').length;
+          }
+        } catch (err) { d.problems.push('The process list could not be read: ' + err.message); }
+      }
+      const scriptsOff = typeof WebviewManager !== 'undefined' && typeof WebviewManager.scriptsOffIn === 'function' && WebviewManager.scriptsOffIn(wv);
+      if (scriptsOff) d.problems.push('JavaScript is off for this page, so its heap, plugins and visibility could not be read');
+      else {
+        try {
+          const page = await window.vexGuestEval(wv, `(() => {
+            const m = performance.memory;
+            const p = window.Vencord && Vencord.Settings && Vencord.Settings.plugins;
+            const own = Object.getOwnPropertyDescriptor(document, 'hidden');
+            return {
+              heap: m ? { used: m.usedJSHeapSize, total: m.totalJSHeapSize, limit: m.jsHeapSizeLimit } : null,
+              nodes: document.getElementsByTagName('*').length,
+              vencord: !!p,
+              heavy: p ? ${JSON.stringify(this.HEAVY_PLUGINS)}.filter(n => p[n] && p[n].enabled) : [],
+              enabledPlugins: p ? Object.keys(p).filter(n => p[n] && p[n].enabled).length : 0,
+              spoofed: !!(own && own.get),
+            };
+          })()`, false, 5000);
+          if (page) {
+            const mb = (n) => Math.round(n / 1048576);
+            if (page.heap) d.heap = { usedMB: mb(page.heap.used), totalMB: mb(page.heap.total), limitMB: mb(page.heap.limit) };
+            d.domNodes = page.nodes;
+            d.plugins = page.vencord ? { heavy: page.heavy, enabled: page.enabledPlugins } : null;
+            d.spoofed = page.spoofed;
+          }
+        } catch (err) { d.problems.push('The page could not be asked: ' + err.message); }
+      }
+    }
+    try {
+      const keep = sb && typeof sb.keepAwakeFor === 'function' ? sb.keepAwakeFor('discord') : null;
+      d.keepAwake = keep ? { mode: keep.mode, now: !!(typeof sb.keptAwakeNow === 'function' && sb.keptAwakeNow('discord')) } : null;
+      d.throttled = sb && typeof sb._discordThrottled === 'boolean' ? sb._discordThrottled : null;
+    } catch (err) { d.problems.push('The keep-awake choice could not be read: ' + err.message); }
+    if (!window.vex || typeof window.vex.extensionsList !== 'function') d.problems.push('The extension list is not available in this build');
+    else {
+      try {
+        const list = await window.vex.extensionsList();
+        d.extensions = (Array.isArray(list) ? list : []).filter(e => e.enabled && Array.isArray(e.where) && e.where.includes(this.PARTITION)).map(e => e.name || e.folder);
+      } catch (err) { d.problems.push('The extension list could not be read: ' + err.message); }
+    }
+    let why = null;
+    try { why = await this.reasonToWait(Date.now(), { ignoreGap: false }); } catch (err) { d.problems.push('Why no notice came could not be worked out: ' + err.message); }
+    d.limit = { savedMB: this.limitMB(), effectiveMB: this.effectiveLimitMB(), consent: this.consent(), blockedBy: why,
+      quiet: Date.now() < this._quietUntil, toldMB: this._toldMB };
+    return d;
+  },
+
+  // Plain text, the biggest measured part first, then the choices that let it
+  // grow. Pure: the same data gives the same words (tested).
+  buildReport(d) {
+    const out = ['Why is Discord big?', ''];
+    const size = (mb) => mb == null ? 'unknown' : (mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb + ' MB');
+    out.push('Discord opens as a ' + d.mode + '.');
+    if (d.wsMB == null) {
+      for (const p of d.problems) out.push('Could not measure: ' + p);
+      return out.join('\n');
+    }
+    out.push('Process ' + d.pid + ': ' + size(d.wsMB) + ' in memory' + (d.privMB != null ? ', ' + size(d.privMB) + ' private to it' : '') + (d.cpu != null ? ', ' + d.cpu.toFixed(0) + '% of a core now' : '') + '.');
+    if (d.sharedWith) out.push('Another ' + d.sharedWith + ' page' + (d.sharedWith === 1 ? '' : 's') + ' shares this process, so part of the number is not Discord’s.');
+    out.push('', 'Where the memory is, biggest first:');
+    const base = d.privMB != null ? d.privMB : d.wsMB;
+    const parts = [];
+    if (d.heap) {
+      parts.push([d.heap.usedMB, 'JavaScript objects in use (Discord itself, Vencord and its plugins)']);
+      if (d.heap.totalMB > d.heap.usedMB) parts.push([d.heap.totalMB - d.heap.usedMB, 'JavaScript memory held but not in use']);
+      parts.push([Math.max(0, base - d.heap.totalMB), 'Everything else in the process: the page tree, decoded images, video and the compositor']);
+    } else parts.push([base, 'The whole process (the JavaScript heap could not be split out)']);
+    parts.sort((a, b) => b[0] - a[0]);
+    for (const [mb, what] of parts) out.push('  ' + size(mb) + ' - ' + what);
+    if (d.domNodes != null) out.push('  The page has ' + d.domNodes.toLocaleString() + ' elements' + (d.domNodes > 30000 ? ' (a lot: a long channel, or a big member list, is open)' : '') + '.');
+    out.push('', 'What lets it grow, and what each costs to change:');
+    if (d.plugins && d.plugins.heavy.length) out.push('  Heavy Vencord plugins are on: ' + d.plugins.heavy.join(', ') + '. Settings > Performance > "Turn off the heaviest Vencord plugins" (you lose message logging and the like).');
+    else if (d.plugins) out.push('  None of the heaviest Vencord plugins are on (' + d.plugins.enabled + ' plugins are on in all).');
+    else out.push('  Vencord is not running in this Discord.');
+    if (d.keepAwake) out.push('  Kept awake: ' + (d.keepAwake.now ? 'yes (' + d.keepAwake.mode + ')' : 'no (' + d.keepAwake.mode + ')') + '. While it is, it is never slept or reloaded, so it only grows. Changing it costs Discord notifications while it sleeps.');
+    if (d.throttled === false) out.push('  Background throttling is off (the panel was made unthrottled and is shown or in a call). Vex turns it back on after two minutes hidden with no call.');
+    else if (d.throttled === true) out.push('  Background throttling is on while it is hidden (normal).');
+    if (d.spoofed === true) out.push('  Discord is told it is always visible (built in, so it does not drop its connection when hidden). It therefore never goes into its own idle mode. Removing it would cost reconnects and loading screens.');
+    else if (d.spoofed === false) out.push('  Discord is not being told it is always visible.');
+    out.push('  Lighter Discord is ' + (d.lite ? 'on' : 'off') + (d.lite ? '.' : ': turning it on keeps avatars, emoji and stickers still.'));
+    if (d.extensions) out.push('  Extensions loaded into Discord’s session: ' + (d.extensions.length ? d.extensions.length + ' (' + d.extensions.join(', ') + '). Each one adds its own scripts to Discord’s page; Extensions can limit where one runs.' : 'none.'));
+    if (d.limit) {
+      out.push('', 'Why no notice came:');
+      out.push('  Limit ' + (d.limit.effectiveMB ? size(d.limit.effectiveMB) + (d.limit.effectiveMB > d.limit.savedMB ? ' (raised from ' + size(d.limit.savedMB) + ' this session)' : '') : 'Never') + '; sleep choice "' + d.limit.consent + '" (only "auto" refreshes by itself).');
+      if (d.limit.blockedBy) out.push('  Right now it would wait because: ' + d.limit.blockedBy + '.');
+      if (d.limit.quiet) out.push('  You pressed Later / Not now less than four hours ago.');
+      if (d.limit.toldMB) out.push('  It already asked at ' + size(d.limit.toldMB) + ' and asks again only after another ' + this.GROWTH_MB + ' MB of growth.');
+    }
+    for (const p of d.problems) out.push('', 'Could not read: ' + p);
+    return out.join('\n');
+  },
+
+  async showWhyBig() {
+    if (typeof VexSettingsGroups === 'undefined') throw new Error('The report window is not loaded');
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-discord-why-big', title: 'Why is Discord big?', sub: 'Measured now, on this computer only. Nothing is changed or sent.' });
+    body.appendChild(VexSettingsGroups.note('Measuring...'));
+    let text;
+    try { text = this.buildReport(await this.collect()); }
+    catch (err) { body.textContent = ''; body.appendChild(VexSettingsGroups.note('Could not measure: ' + err.message)); throw err; }
+    body.textContent = '';
+    const pre = document.createElement('pre');
+    pre.className = 'vex-platform-note';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.textContent = text;
+    body.appendChild(pre);
+    body.appendChild(VexSettingsGroups.button('Copy', async () => {
+      try { await navigator.clipboard.writeText(text); window.showToast?.('Report copied'); }
+      catch (err) { window.showToast?.('Could not copy: ' + err.message, 'error'); }
+    }));
+    return text;
+  },
+
   // ---- clear its caches when it is hidden ---------------------------------------
   CLEAR_AFTER_MS: 20000,
   _watchHide() {
