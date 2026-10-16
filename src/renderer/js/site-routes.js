@@ -51,6 +51,16 @@ const SiteRoutes = {
       }));
   },
 
+  // null when the saved rules are absent or a readable list; an Error when they are not.
+  rulesProblem() {
+    const raw = localStorage.getItem(this.KEY);
+    if (raw === null || raw === '') return null;
+    let list;
+    try { list = JSON.parse(raw); } catch (err) { return new Error('the saved site rules are not valid JSON', { cause: err }); }
+    if (list === null || Array.isArray(list)) return null;
+    return new Error('the saved site rules are not a list');
+  },
+
   // A container name as typed, reduced to something that can be a partition:
   // letters, digits and dashes. 'Work Email' and 'work-email' are one
   // container, which is what anyone typing either of them meant.
@@ -224,8 +234,15 @@ const SiteRoutes = {
       const part = this.partitionFor(rule);
       if (part) seen.add(part);
     }
+    // Saved rules that cannot be read are NOT the same as no rules: pruning with an empty list would
+    // forget every saved Tor or proxy route. Say so and leave the routes alone.
+    const unreadable = this.rulesProblem();
+    if (unreadable) {
+      console.error('[SiteRoutes] saved routes are not pruned:', unreadable.message, unreadable.cause || '');
+      if (window.VexProblems && typeof window.VexProblems.note === 'function') window.VexProblems.note('Site routes', 'The saved site rules could not be read, so no old route was forgotten', unreadable);
+    }
     // A private window may not change routes (ipc-policy.js); the main one does it.
-    if (window.vex && typeof window.vex.routingPrune === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
+    if (!unreadable && window.vex && typeof window.vex.routingPrune === 'function' && !window.VexTabPolicy?.isPrivateWindow) {
       Promise.resolve(window.vex.routingPrune([...seen]))
         .then(r => { if (!r || !r.ok) console.error('[SiteRoutes] old routes could not be forgotten:', (r && r.error) || 'unknown'); })
         .catch(err => console.error('[SiteRoutes] old routes could not be forgotten:', err.message));

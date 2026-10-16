@@ -243,3 +243,37 @@ describe('how a ruled tab behaves once it is open', () => {
     expect(setAudioMuted).not.toHaveBeenCalled();
   });
 });
+
+describe('forgetting old routes at start', () => {
+  beforeEach(() => {
+    window.vex.routingPrune = vi.fn(async () => ({ ok: true }));
+    window.VexProblems = { note: vi.fn() };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('does not prune, and says why, when the saved rules are not valid JSON', () => {
+    localStorage.setItem(SiteRoutes.KEY, '{not json');
+    SiteRoutes.armAll();
+    expect(window.vex.routingPrune).not.toHaveBeenCalled();
+    expect(window.VexProblems.note).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('does not prune when the saved rules are not a list', () => {
+    localStorage.setItem(SiteRoutes.KEY, '{"host":"a.com"}');
+    SiteRoutes.armAll();
+    expect(window.vex.routingPrune).not.toHaveBeenCalled();
+    expect(window.VexProblems.note).toHaveBeenCalledTimes(1);
+  });
+
+  it('prunes as before for a valid empty list and for no saved rules', () => {
+    localStorage.setItem(SiteRoutes.KEY, '[]');
+    SiteRoutes.armAll();
+    expect(window.vex.routingPrune).toHaveBeenCalledWith([]);
+    window.vex.routingPrune.mockClear();
+    localStorage.clear();
+    SiteRoutes.armAll();
+    expect(window.vex.routingPrune).toHaveBeenCalledWith([]);
+    expect(window.VexProblems.note).not.toHaveBeenCalled();
+  });
+});
