@@ -15,20 +15,27 @@
 //   quotes (quote)      VexWidgets.setPackQuotes
 //   sticker             StickerSheet.setPackStickers     (drawn as an image)
 //   medal-frame         VexCosmetics.setPackFrames       (drawn as an image)
-//   theme, chain        js/packs-ui.js itself            (theme list, Ctrl+K chains)
+//   playbook            VexIncident.setPackPlaybooks     (buttons are a fixed list of actions)
+//   snippets            VexPackContent.setSnippets       (phrases to copy)
+//   dates               VexPackContent.setDates          (holidays)
+//   theme, chain, skills  js/packs-ui.js itself          (theme list, Ctrl+K chains, "Add to my skills")
 //
 // Pack data is never written into a feature's own storage: switch the pack off
 // or remove it and the feature goes back to exactly its own data. A private
 // window gets no items at all (VexPacks.items() is empty there). A type whose
 // consumer is not in this build is left alone and listed by status().
 const VexPackConsumers = {
-  TYPES: ['theme', 'chain', 'page-action', 'brief-section', 'readability-preset', 'sticker', 'medal-frame', 'aliases', 'quotes'],
+  TYPES: ['theme', 'chain', 'page-action', 'brief-section', 'readability-preset', 'sticker', 'medal-frame', 'aliases', 'quotes', 'skills', 'playbook', 'snippets', 'dates'],
 
   // type -> true when something in this build reads it.
   _consumers() {
     return {
       theme: typeof VexPacks !== 'undefined',
       chain: typeof VexPacks !== 'undefined' && typeof CommandChains !== 'undefined',
+      skills: typeof VexPacks !== 'undefined' && typeof VexSkills !== 'undefined',
+      playbook: typeof VexIncident !== 'undefined' && typeof VexIncident.setPackPlaybooks === 'function',
+      snippets: typeof VexPackContent !== 'undefined' && typeof VexPackContent.setSnippets === 'function',
+      dates: typeof VexPackContent !== 'undefined' && typeof VexPackContent.setDates === 'function',
       'page-action': typeof PageActions !== 'undefined' && typeof PageActions.setPackScripts === 'function',
       'brief-section': typeof BriefIntegration !== 'undefined' && typeof BriefIntegration.setPackSections === 'function',
       'readability-preset': typeof SiteReadability !== 'undefined' && typeof SiteReadability.setPackPresets === 'function',
@@ -82,6 +89,14 @@ const VexPackConsumers = {
     }
     if (typeof VexCosmetics !== 'undefined' && typeof VexCosmetics.setPackFrames === 'function') {
       run('medal-frame', () => VexCosmetics.setPackFrames(of('medal-frame').map(x => ({ id: x.packId + ':' + x.item.id, name: x.item.name, svg: x.item.svg, packName: x.packName }))));
+    }
+    if (typeof VexIncident !== 'undefined' && typeof VexIncident.setPackPlaybooks === 'function') {
+      run('playbook', () => VexIncident.setPackPlaybooks(of('playbook')));
+    }
+    if (typeof VexPackContent !== 'undefined' && typeof VexPackContent.setSnippets === 'function') {
+      run('snippets', () => VexPackContent.setSnippets(of('snippets')));
+      run('dates', () => VexPackContent.setDates(of('dates')));
+      run('pack-content-commands', () => VexPackContent._registerCommands());
     }
     return out;
   },

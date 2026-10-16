@@ -25,8 +25,12 @@ const everyItem = () => ([
   { type: 'medal-frame', id: 'm1', name: 'Ring', svg: GOOD_SVG },
   { type: 'aliases', id: 'a1', name: 'Short words', entries: [{ word: 'rd', command: 'reading-mode' }] },
   { type: 'quotes', id: 'q1', name: 'Wise', kind: 'quote', entries: [{ text: 'Less is more.', by: 'Someone' }, { text: 'Go slow.' }] },
+  { type: 'skills', id: 'k1', name: 'Quiz me', icon: 'brain', prompt: 'Write 5 questions about {{title}}.', output: 'text', sites: ['example.com'] },
+  { type: 'playbook', id: 'pb1', title: 'Hacked', sub: 'Go in order', verified: '2026-10-16', steps: [{ id: 'look', title: 'Look', text: 'Look at the downloads folder.', run: 'downloads' }, { id: 'think', title: 'Think', text: 'Change the passwords.', run: '' }] },
+  { type: 'snippets', id: 'sn1', name: 'Phrases', entries: [{ label: 'Point of order', text: 'Point of order.' }] },
+  { type: 'dates', id: 'd1', name: 'Holidays', region: 'TR', entries: [{ date: '2026-10-29', name: 'Cumhuriyet Bayramı', kind: 'fixed', verify: false }] },
 ]);
-const ALL_PERMS = ['runs:commands', 'runs-on:origin', 'opens:links', 'reads:tabs', 'styles:pages'];
+const ALL_PERMS = ['runs:commands', 'runs-on:origin', 'opens:links', 'reads:tabs', 'styles:pages', 'runs:checks'];
 
 function base(over = {}) {
   return { format: 'vex-pack', version: 1, id: 'night-owl', name: 'Night owl pack', author: 'Ada', description: 'A little of everything.', items: everyItem(), permissions: ALL_PERMS.slice(), ...over };
@@ -40,13 +44,13 @@ describe('a valid pack', () => {
   it('accepts every item type and lists each one and each permission in plain words', () => {
     const r = packs.parsePack(text(base()));
     expect(r.trust).toBe('unsigned');
-    expect(r.summary.items.map(i => i.type).sort()).toEqual(['aliases', 'brief-section', 'chain', 'medal-frame', 'page-action', 'quotes', 'readability-preset', 'sticker', 'theme']);
+    expect(r.summary.items.map(i => i.type).sort()).toEqual(['aliases', 'brief-section', 'chain', 'dates', 'medal-frame', 'page-action', 'playbook', 'quotes', 'readability-preset', 'skills', 'snippets', 'sticker', 'theme']);
     expect(r.summary.items.every(i => i.line.length > 10)).toBe(true);
     expect(r.summary.permissions.map(p => p.id).sort()).toEqual(ALL_PERMS.slice().sort());
     expect(r.summary.items.find(i => i.type === 'page-action').line).toContain('Click the button or link with the words "Accept all"');
   });
   it('knows exactly the documented item types and permissions', () => {
-    expect(packs.ITEM_TYPE_NAMES.slice().sort()).toEqual(['aliases', 'brief-section', 'chain', 'medal-frame', 'page-action', 'quotes', 'readability-preset', 'sticker', 'theme']);
+    expect(packs.ITEM_TYPE_NAMES.slice().sort()).toEqual(['aliases', 'brief-section', 'chain', 'dates', 'medal-frame', 'page-action', 'playbook', 'quotes', 'readability-preset', 'skills', 'snippets', 'sticker', 'theme']);
     expect(Object.keys(packs.PERMISSIONS).sort()).toEqual(ALL_PERMS.slice().sort());
   });
   it('a signed pack from an unknown key is "unknown-key", from a trusted key "trusted"', () => {

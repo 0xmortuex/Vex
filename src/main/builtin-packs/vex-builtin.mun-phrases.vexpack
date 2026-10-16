@@ -1,0 +1,146 @@
+{
+  "format": "vex-pack",
+  "version": 1,
+  "id": "vex-builtin.mun-phrases",
+  "name": "Model UN procedure phrases",
+  "author": "Vex",
+  "description": "Generic phrases to copy while you draft speeches and points. Conferences differ in their rules of procedure (names, order of motions, time limits and voting thresholds), so check the one you attend. Nothing here is a rule.",
+  "items": [
+    {
+      "type": "snippets",
+      "id": "procedure",
+      "name": "Motions and points",
+      "entries": [
+        {
+          "label": "Point of order",
+          "text": "Point of order: the delegate would like to raise a concern about how the rules of procedure are being applied."
+        },
+        {
+          "label": "Point of personal privilege",
+          "text": "Point of personal privilege: the delegate asks the Chair to address a matter that affects their ability to take part in the debate, such as audibility or comfort."
+        },
+        {
+          "label": "Point of parliamentary inquiry",
+          "text": "Point of parliamentary inquiry: could the Chair clarify what the next step in the procedure is?"
+        },
+        {
+          "label": "Open the speakers list",
+          "text": "Motion to open the speakers list."
+        },
+        {
+          "label": "Moderated caucus",
+          "text": "Motion for a moderated caucus on [topic], for a total of [minutes] minutes, with [seconds] seconds per speaker."
+        },
+        {
+          "label": "Unmoderated caucus",
+          "text": "Motion for an unmoderated caucus for a total of [minutes] minutes, so that delegations can work together on draft text."
+        },
+        {
+          "label": "Extend the caucus",
+          "text": "Motion to extend the caucus by [minutes] minutes."
+        },
+        {
+          "label": "Set the speaking time",
+          "text": "Motion to set the speaking time to [seconds] seconds."
+        },
+        {
+          "label": "Close the speakers list",
+          "text": "Motion to close the speakers list."
+        },
+        {
+          "label": "Close debate",
+          "text": "Motion to close debate on the topic and move into voting procedure."
+        },
+        {
+          "label": "Introduce the draft",
+          "text": "Motion to introduce the draft resolution [code], submitted by [sponsors]."
+        },
+        {
+          "label": "Friendly amendment",
+          "text": "The sponsors accept this as a friendly amendment."
+        },
+        {
+          "label": "Right of reply",
+          "text": "Point of right of reply: the delegate believes that remarks about their country were inaccurate and asks the Chair to allow a short response."
+        },
+        {
+          "label": "Yield to the Chair",
+          "text": "The delegate yields the remainder of their time to the Chair."
+        },
+        {
+          "label": "Yield to questions",
+          "text": "The delegate yields the remainder of their time to questions."
+        },
+        {
+          "label": "Yield to a delegate",
+          "text": "The delegate yields the remainder of their time to the delegate of [country]."
+        },
+        {
+          "label": "Ask a question",
+          "text": "Would the delegate of [country] clarify how their proposal would be paid for and monitored?"
+        }
+      ]
+    },
+    {
+      "type": "snippets",
+      "id": "speech",
+      "name": "Speeches and clauses",
+      "entries": [
+        {
+          "label": "Open a speech",
+          "text": "Honourable Chair, fellow delegates, [country] thanks the Chair for the floor. On the topic of [topic], my delegation wishes to make three points."
+        },
+        {
+          "label": "State a position",
+          "text": "The position of [country] is that [position], because [reason]."
+        },
+        {
+          "label": "Cite your own policy",
+          "text": "This is consistent with [country]'s national policy on [issue], as set out in [document]."
+        },
+        {
+          "label": "Ask for cooperation",
+          "text": "My delegation invites all delegations that share this concern to work with us in the next caucus."
+        },
+        {
+          "label": "Disagree politely",
+          "text": "While [country] respects the position of the delegate of [country], we cannot support it, because [reason]."
+        },
+        {
+          "label": "Close a speech",
+          "text": "In conclusion, [country] urges the committee to [action]. Thank you, Chair."
+        },
+        {
+          "label": "Preambulatory: recalling",
+          "text": "Recalling [resolution or treaty],"
+        },
+        {
+          "label": "Preambulatory: noting with concern",
+          "text": "Noting with concern [fact],"
+        },
+        {
+          "label": "Preambulatory: emphasizing",
+          "text": "Emphasizing the need for [aim],"
+        },
+        {
+          "label": "Operative: calls upon",
+          "text": "1. Calls upon [who] to [action];"
+        },
+        {
+          "label": "Operative: encourages",
+          "text": "2. Encourages [who] to [action];"
+        },
+        {
+          "label": "Operative: requests",
+          "text": "3. Requests the Secretary-General to [action] and to report to [body] by [date];"
+        },
+        {
+          "label": "Operative: decides",
+          "text": "4. Decides to remain seized of the matter."
+        }
+      ]
+    }
+  ],
+  "permissions": [],
+  "hash": "223cd9a9ff89f2870f2527eb03c174b41752759358f067c1d7c72605710bb19c"
+}

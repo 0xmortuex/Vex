@@ -47,8 +47,22 @@ describe('pack IPC wiring', () => {
   });
 });
 
+describe('built-in packs are wired in main only', () => {
+  it('main loads them from the app folder through the loader and hands them to the store', () => {
+    const main = read('src/main.js');
+    expect(main).toContain("require('./main/packs-builtin').loadBuiltinPacks({ fs: _packsFs })");
+    expect(main).toContain('builtins: _builtinPacks');
+  });
+  it('no channel lets the window name a built-in file or send one', () => {
+    const preload = read('src/preload.js');
+    const start = preload.indexOf('packs: {');
+    const block = preload.slice(start, preload.indexOf('\n});', start));
+    expect(block).not.toMatch(/builtin/i);
+  });
+});
+
 describe('no code is ever made from pack content', () => {
-  const FILES = ['src/main/packs.js', 'src/main/packs-store.js', 'src/renderer/js/packs-ui.js', 'src/renderer/js/packs-consumers.js'];
+  const FILES = ['src/main/packs.js', 'src/main/packs-store.js', 'src/main/packs-builtin.js', 'src/renderer/js/packs-ui.js', 'src/renderer/js/packs-consumers.js', 'src/renderer/js/pack-content.js'];
   for (const f of FILES) {
     it(f + ' has no eval, Function, dynamic import, script injection or markup built from pack text', () => {
       const src = read(f).replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');

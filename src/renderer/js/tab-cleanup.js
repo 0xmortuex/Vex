@@ -14,6 +14,11 @@
 // sound, one you kept awake, a tab in a group, private and Tor tabs, and
 // Vex's own pages. Off until you leave it on "Ask me".
 //
+// Each tab on the card carries ONE line on why you might keep it (you highlighted text on it, it is
+// bookmarked, saved for later, or nothing says you need it), a tick to archive it, and a "Keep" button
+// that asks for a few words and leaves the tab alone for KEEP_DAYS. "Archive This Tab and Close It" in
+// Ctrl+K does the same archive-instead-of-close for the tab in front.
+//
 // `propose` is pure (tabs in, list out) so it is tested without a window;
 // `snapshot()` is the data hook for other surfaces.
 const TabCleanup = {
@@ -21,20 +26,23 @@ const TabCleanup = {
   HOUR_KEY: 'vex.tabCleanup.hour',            // 0-23, default 18
   DAYS_KEY: 'vex.tabCleanup.days',            // idle this long, default 3
   LAST_KEY: 'vex.tabCleanup.lastDay',
+  KEEP_KEY: 'vex.tabCleanup.keep',            // { "<url without #>": { why, at } }: tabs you said to keep, and why
+  KEEP_DAYS: 30,
+  MAX_KEEP: 100,
   DEFAULT_HOUR: 18,
   DEFAULT_DAYS: 3,
   MAX: 25,
   EVERY_MS: 10 * 60 * 1000,
 
-  // tabs: TabManager.tabs. ctx: { now, days, activeId, isAwake(tab), canPersist(tab) }.
+  // tabs: TabManager.tabs. ctx: { now, days, activeId, isAwake(tab), canPersist(tab), kept(url) }.
   // → [{ id, url, title, host, why: 'idle'|'duplicate', idleDays }], longest idle first.
-  propose(tabs, { now = Date.now(), days = this.DEFAULT_DAYS, activeId = null, isAwake = () => false, canPersist = () => true, max = this.MAX } = {}) {
+  propose(tabs, { now = Date.now(), days = this.DEFAULT_DAYS, activeId = null, isAwake = () => false, canPersist = () => true, kept = () => false, max = this.MAX } = {}) {
     const cutoff = now - days * 86400000;
     const seen = new Map();          // url -> the tab we keep
     const out = [];
     const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
     const eligible = (t) => t && t.url && !t.pinned && t.id !== activeId && !t.groupId && !t.audible
-      && !/^(file|vex|about|chrome|devtools):/i.test(t.url) && canPersist(t) && !isAwake(t);
+      && !/^(file|vex|about|chrome|devtools):/i.test(t.url) && canPersist(t) && !isAwake(t) && !kept(t.url);
     // The most recently used copy is the one kept.
     const byRecent = [...tabs].sort((a, b) => (b._lastActive || 0) - (a._lastActive || 0));
     for (const t of byRecent) {
@@ -79,7 +87,72 @@ const TabCleanup = {
       now, days: this.days(), activeId: TabManager.activeTabId,
       isAwake: (t) => (typeof TabManager._isKeptAwake === 'function' ? TabManager._isKeptAwake(t) : false),
       canPersist: (t) => (window.VexTabPolicy ? window.VexTabPolicy.canPersist(t) : true),
+      kept: (u) => !!this.keeps(now)[this.keyOf(u)],
     };
+  },
+
+  // --- tabs you said to keep ------------------------------------------------------
+  keyOf(url) { return String(url).replace(/#.*$/, ''); },
+  // The live ones ({ key: { why, at } }); an old entry is dropped when read.
+  keeps(now = Date.now()) {
+    const raw = localStorage.getItem(this.KEEP_KEY);
+    if (raw === null) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The tabs you chose to keep are not readable', { cause: err }); }
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    const out = {};
+    for (const [k, v] of Object.entries(o)) if (v && typeof v.why === 'string' && now - Number(v.at) < this.KEEP_DAYS * 86400000) out[k] = { why: v.why, at: Number(v.at) };
+    return out;
+  },
+  keep(url, why, now = Date.now()) {
+    const text = String(why == null ? '' : why).replace(/\s+/g, ' ').trim();
+    if (!text) throw new Error('Say in a few words why you keep it');
+    if (text.length > 120) throw new Error('Keep it to 120 characters');
+    const all = this.keeps(now);
+    all[this.keyOf(url)] = { why: text, at: now };
+    const keys = Object.keys(all);
+    if (keys.length > this.MAX_KEEP) for (const k of keys.sort((a, b) => all[a].at - all[b].at).slice(0, keys.length - this.MAX_KEEP)) delete all[k];
+    localStorage.setItem(this.KEEP_KEY, JSON.stringify(all));
+    return all[this.keyOf(url)];
+  },
+  unkeep(url) {
+    const all = this.keeps();
+    if (!all[this.keyOf(url)]) return false;
+    delete all[this.keyOf(url)];
+    localStorage.setItem(this.KEEP_KEY, JSON.stringify(all));
+    return true;
+  },
+
+  // --- one line on why you might keep a tab ------------------------------------------
+  // Pure. facts: { annotated, bookmarked, readLater }. -> { line, strong }. `strong` means you put
+  // work into the page, so the card does not tick it for you.
+  keepLine(item, facts = {}) {
+    if (facts.annotated) return { strong: true, line: 'Why keep it: you highlighted text on this page. Archiving keeps the page and your highlights in the Library.' };
+    if (facts.readLater) return { strong: false, line: 'Why keep it: it is on your read-later list, so closing the tab loses nothing.' };
+    if (facts.bookmarked) return { strong: false, line: 'Why keep it: it is bookmarked, so closing the tab loses nothing.' };
+    if (item.why === 'duplicate') return { strong: false, line: 'Why keep it: no reason; it is a second copy of a tab you have open.' };
+    return { strong: false, line: 'Why keep it: nothing says you need it open. Archiving saves a copy in the Library.' };
+  },
+  factsFor(url) {
+    const key = this.keyOf(url);
+    const marks = typeof Annotations !== 'undefined' && Annotations.store ? Annotations.store[url] || Annotations.store[key] : null;
+    return {
+      annotated: Array.isArray(marks) && marks.length > 0,
+      bookmarked: typeof Bookmarks !== 'undefined' && typeof Bookmarks.has === 'function' && (Bookmarks.has(url) || Bookmarks.has(key)),
+      readLater: typeof ReadLater !== 'undefined' && Array.isArray(ReadLater.items) && ReadLater.items.some(r => r && (r.url === url || r.url === key)),
+    };
+  },
+  // The proposed items, each with its `keep` line.
+  describe(items) { return items.map(i => ({ ...i, keep: this.keepLine(i, this.factsFor(i.url)) })); },
+
+  // Archive the tab in front instead of closing it (Ctrl+K). Undo brings it back.
+  archiveActive() {
+    if (typeof TabManager === 'undefined') throw new Error('Tabs are not available');
+    const t = TabManager.getActiveTab();
+    if (!t || !t.url) throw new Error('There is no tab to archive');
+    if (/^(file|vex|about|chrome|devtools):/i.test(t.url)) throw new Error('Vex\'s own pages are not archived');
+    if (window.VexTabPolicy && !window.VexTabPolicy.canPersist(t)) throw new Error('A private or Tor tab is not archived: it would be remembered after it closes');
+    return this.acceptWithUndo([{ id: t.id, url: t.url, title: t.title || t.url }]);
   },
 
   // Data hook: what would be proposed right now. Draws and changes nothing.
@@ -130,52 +203,75 @@ const TabCleanup = {
   },
 
   // --- the evening card ----------------------------------------------------------
+  // One row per tab: a tick (archived when ticked), the tab, how long idle, ONE line saying why you
+  // might keep it, and "Keep" to say so in a few words (it is then left alone for KEEP_DAYS). A tab
+  // you highlighted text on starts unticked: it is worth more than an idle page.
   showCard(items) {
     document.querySelector('.vex-tabcleanup')?.remove();
-    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     const btn = 'font-size:11.5px;color:var(--text);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;cursor:pointer';
+    const described = this.describe(items);
     const idle = items.filter(i => i.why === 'idle').length, dup = items.length - idle;
     const lines = [];
     if (idle) lines.push(idle + ' not looked at for ' + this.days() + ' days or more');
     if (dup) lines.push(dup + ' ' + (dup === 1 ? 'is a second copy' : 'are second copies') + ' of a tab you have open');
+    const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
     const card = document.createElement('div');
     card.className = 'vex-tabcleanup';
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-label', 'Tidy your tabs');
-    card.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9000;width:min(380px,92vw);background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px var(--vex-shadow-color,rgba(0,0,0,0.4));padding:12px 14px';
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="display:inline-flex;color:var(--primary)">${window.VexIcons.svg('broom', { size: 16 })}</span>
-        <div style="flex:1;font-size:13px;font-weight:650">Tidy ${items.length} tab${items.length === 1 ? '' : 's'}?</div>
-        <button data-dismiss type="button" aria-label="Not now" style="display:inline-flex;background:none;border:none;color:var(--text-muted);cursor:pointer">${window.VexIcons.svg('x', { size: 14 })}</button>
-      </div>
-      <div style="margin-top:6px;font-size:11.5px;color:var(--text-muted)">${lines.map(esc).join(' · ')}. They go to the Library archive, and Undo brings them back.</div>
-      <div data-list style="margin-top:8px;max-height:140px;overflow-y:auto">
-        ${items.map(i => `<div style="font-size:11.5px;display:flex;gap:6px;padding:2px 0"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</span><span style="color:var(--text-muted);white-space:nowrap">${esc(i.why === 'duplicate' ? 'copy' : i.idleDays + ' d')}</span></div>`).join('')}
-      </div>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <button data-accept type="button" class="btn-primary" style="font-size:11.5px;padding:4px 11px;border-radius:6px;cursor:pointer">Archive them</button>
-        <button data-later type="button" style="${btn}">Not tonight</button>
-      </div>`;
+    card.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9000;width:min(420px,92vw);background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px var(--vex-shadow-color,rgba(0,0,0,0.4));padding:12px 14px';
+    const head = el('div', 'display:flex;align-items:center;gap:8px');
+    const ic = el('span', 'display:inline-flex;color:var(--primary)'); ic.innerHTML = window.VexIcons.svg('broom', { size: 16 });
+    const title = el('div', 'flex:1;font-size:13px;font-weight:650');
+    const dismiss = el('button', 'display:inline-flex;background:none;border:none;color:var(--text-muted);cursor:pointer'); dismiss.type = 'button'; dismiss.setAttribute('aria-label', 'Not now'); dismiss.innerHTML = window.VexIcons.svg('x', { size: 14 });
+    head.append(ic, title, dismiss);
+    const sub = el('div', 'margin-top:6px;font-size:11.5px;color:var(--text-muted)', lines.join(' · ') + '. Ticked tabs go to the Library archive, and Undo brings them back.');
+    const list = el('div', 'margin-top:8px;max-height:220px;overflow-y:auto');
+    const boxes = new Map();
+    const accept = el('button', 'font-size:11.5px;padding:4px 11px;border-radius:6px;cursor:pointer'); accept.type = 'button'; accept.className = 'btn-primary';
+    const later = el('button', btn, 'Not tonight'); later.type = 'button';
+    const refresh = () => {
+      const n = [...boxes.values()].filter(b => b.checked).length;
+      title.textContent = 'Tidy ' + n + ' of ' + described.length + ' tab' + (described.length === 1 ? '' : 's') + '?';
+      accept.textContent = n ? 'Archive ' + n + (n === 1 ? ' tab' : ' tabs') : 'Nothing ticked';
+      accept.disabled = !n;
+    };
+    for (const i of described) {
+      const row = el('div', 'padding:4px 0;border-top:1px solid var(--border)');
+      const top = el('div', 'display:flex;gap:6px;align-items:center;font-size:11.5px');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !i.keep.strong;
+      cb.setAttribute('aria-label', 'Archive: ' + i.title);
+      cb.addEventListener('change', refresh);
+      boxes.set(i.id, cb);
+      const name = el('span', 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap', i.title);
+      const age = el('span', 'color:var(--text-muted);white-space:nowrap', i.why === 'duplicate' ? 'copy' : i.idleDays + ' d');
+      const keepBtn = el('button', btn.replace('padding:3px 9px', 'padding:1px 7px'), 'Keep'); keepBtn.type = 'button';
+      keepBtn.setAttribute('aria-label', 'Keep this tab and say why: ' + i.title);
+      keepBtn.addEventListener('click', async () => {
+        try {
+          const why = await vexPrompt({ title: 'Why keep this tab?', label: 'A few words, so you remember (it is left alone for ' + this.KEEP_DAYS + ' days)', value: '', okLabel: 'Keep it' });
+          if (why == null) return;
+          this.keep(i.url, why);
+          row.remove(); boxes.delete(i.id); refresh();
+          if (!boxes.size) close();
+        } catch (err) { window.showToast?.(err.message, 'error'); }
+      });
+      top.append(cb, name, age, keepBtn);
+      row.appendChild(top);
+      row.appendChild(el('div', 'margin:1px 0 0 22px;font-size:11px;color:var(--text-muted)', i.keep.line));
+      list.appendChild(row);
+    }
+    const actions = el('div', 'display:flex;gap:6px;margin-top:10px');
+    actions.append(accept, later);
+    card.append(head, sub, list, actions);
+    refresh();
     const close = () => { card.remove(); document.removeEventListener('keydown', onKey, true); };
     const onKey = (e) => { if (e.key === 'Escape' && card.isConnected && !document.querySelector('.vex-dialog-overlay')) close(); };
-    card.querySelector('[data-dismiss]').addEventListener('click', close);
-    card.querySelector('[data-later]').addEventListener('click', close);
-    // The shared dry-run list (js/plan-preview.js): every tab with a tick, nothing archived until the button.
-    card.querySelector('[data-accept]').addEventListener('click', async () => {
-      try {
-        const r = await VexPlan.confirm({
-          title: 'Archive ' + items.length + ' tab' + (items.length === 1 ? '' : 's') + '?',
-          intro: 'They go to the Library archive, and Undo brings them back. Take the tick off any you want to keep open.',
-          items: items.map(i => ({ id: i.id, label: i.title || i.url || 'Untitled', detail: i.why === 'idle' ? 'not used for days' : 'second copy' })),
-          okLabel: 'Archive them', noun: 'tab',
-          snapshot: (chosen) => VexPlan.snapshotTabs(TabManager.tabs.filter(t => chosen.includes(t.id))),
-        });
-        if (!r.ok) return;
-        const wanted = new Set(r.chosen);
-        this.acceptWithUndo(items.filter(i => wanted.has(i.id)));
-        close();
-      } catch (err) { window.showToast?.(err.message, 'error'); }
+    dismiss.addEventListener('click', close);
+    later.addEventListener('click', close);
+    accept.addEventListener('click', () => {
+      try { this.acceptWithUndo(items.filter(i => boxes.get(i.id) && boxes.get(i.id).checked)); close(); }
+      catch (err) { window.showToast?.(err.message, 'error'); }
     });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(card);

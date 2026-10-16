@@ -532,7 +532,7 @@ define('cloud:request', [shape({ feature: optional(string(80)) })]);
 define('image:for-ai', [integer, web, optional(boolean)]);
 // mcpServer: the id of an MCP server whose token main adds to the request.
 // publicOnly: the AI agent's reads, refused for this machine and the local network.
-define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean), viewer: optional(boolean), allowLocal: optional(boolean) })]);
+define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean), viewer: optional(boolean), allowLocal: optional(boolean), egress: optional(string(40)) })]);
 // API playground (main/api-playground.js): one request from the request
 // builder. Headers are name/value text; main checks every name and value.
 // allowLocal: the person switched on "Allow localhost" for this request.

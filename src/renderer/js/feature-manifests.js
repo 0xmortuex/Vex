@@ -97,8 +97,8 @@
       jobs: ['Meeting prep'], permissions: quiet({ reads: ['your calendar and notes'] }) },
     { id: 'routine-detect', title: 'Routine detection', group: 'Routine', storageKeys: ['vex.routine.dismissed', 'vex.routine.log', 'vex.routine.mode'],
       jobs: ['Routine check'], permissions: quiet({ reads: ['which sites you open and when'], writes: ['a short log of routines'] }) },
-    { id: 'tab-cleanup', title: 'Evening tab cleanup', group: 'Tab cleanup', storageKeys: ['vex.tabCleanup.days', 'vex.tabCleanup.hour', 'vex.tabCleanup.lastDay', 'vex.tabCleanup.mode'],
-      jobs: ['Tab cleanup'], permissions: quiet({ reads: ['when each tab was last used'], writes: ['closes tabs you approve'] }) },
+    { id: 'tab-cleanup', title: 'Evening tab cleanup', group: 'Tab cleanup', storageKeys: ['vex.tabCleanup.days', 'vex.tabCleanup.hour', 'vex.tabCleanup.keep', 'vex.tabCleanup.lastDay', 'vex.tabCleanup.mode'], commands: ['archive-tab-close'],
+      jobs: ['Tab cleanup'], permissions: quiet({ reads: ['when each tab was last used', 'whether a tab is bookmarked, saved for later or has your highlights'], writes: ['closes tabs you approve', 'the short reason you gave for keeping a tab'] }) },
 
     // ---- what Vex does on its own to tabs and the theme -----------------------------
     // Kept on in Minimal Vex: they are the app's housekeeping (js/vex-minimal-mode.js reads tiers.minimal).
@@ -741,6 +741,18 @@
     { id: 'turkish-helpers', title: 'Turkish dictionary and typing helpers', group: 'Study helpers', maturity: 'new',
       storageKeys: ['vex.turkishHelpers', 'vex.turkishHelpers.enabled'], commands: ['turkish-helpers'],
       permissions: { reads: ['text you selected or pasted'], writes: ['your own dictionary; a selection in a text box only after you confirm the diff'], sends: ['The one word you click "TDK\'de ara" on, to sozluk.gov.tr in a new tab'] } },
+    // ---- Wave 4: content from packs, watch templates, held-while-playing, brief cards -------------------
+    // All new, so an existing profile has them off until it tries them (staged enablement).
+    { id: 'pack-content', title: 'Holidays and phrases from packs', group: 'Holidays and phrases from packs', maturity: 'new', storageKeys: ['vex.packContent.enabled'], commands: ['pack-phrases', 'pack-holidays'],
+      permissions: { reads: ['the holiday and phrase packs you switched on'], writes: ['its own switch', 'a text shortcut, only when you press "Make a :shortcut"'], sends: [] } },
+    { id: 'page-watch-templates', title: 'Watch templates (seats, fares, wishlist, sale dates)', group: 'Watch templates', maturity: 'new', storageKeys: ['vex.pageWatchTemplates.enabled'],
+      commands: ['watch-seats', 'watch-fare', 'watch-wishlist-low', 'watch-sale-date', 'claim-reminder'],
+      permissions: { reads: ['the address and title of the page you are on'], writes: ['a page watch, or a reminder with a link back to the page, only when you confirm'], sends: ['A watch asks its own page from this computer, as a visitor would (the page watcher\'s rules)'] } },
+    { id: 'game-holds', title: 'Held while you played', group: 'Held while you played', maturity: 'new', storageKeys: ['vex.gameHolds.enabled', 'vex.gameHolds.log', 'vex.gameHolds.rules'], commands: ['game-holds'], usesKeys: ['vex.attention.denied'],
+      permissions: { reads: ['the toasts Vex shows during Game mode', 'what the Attention Budget and the main process held back', 'the Attention Inbox'], writes: ['the list of the last game session (200 messages at most) and your word rules'], sends: [] } },
+    { id: 'brief-cards', title: 'Brief cards (permissions, service status, old highlight, flagged pages)', group: 'Brief cards', maturity: 'new', storageKeys: ['vex.briefCards.enabled', 'vex.briefCards.prefs', 'vex.briefCards.status'],
+      jobs: ['Platform status'], commands: ['brief-flag-page'], usesKeys: ['vex.permHygiene.enabled', 'vex.resurface'],
+      permissions: { reads: ['the permission summary', 'your highlights and notes', 'the pages you flagged'], writes: ['your switches', 'the last service status', 'a page watch for a page you flag'], sends: ['Only when you switch on the service status card: a read-only request to the public status page of Discord, GitHub, Cloudflare and Roblox every 20 minutes, with no cookies and nothing of yours in it, never during Game mode'] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

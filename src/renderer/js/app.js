@@ -2207,6 +2207,8 @@ function vexOwnTextFocused(doc) {
   function showToast(message, type, duration, opts) {
     type = type || 'info';
     duration = duration || 3000;
+    // While Game mode is on every toast is also noted for the "Held while you played" list (js/game-holds.js).
+    if (window.GameHolds) window.GameHolds.noteToast(message, type);
     const actions = opts && (Array.isArray(opts.actions) && opts.actions.length ? opts.actions : (opts.action ? [opts.action] : null));
     const action = actions && actions[0];
     let container = document.getElementById('toast-container');

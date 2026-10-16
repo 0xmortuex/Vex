@@ -12,8 +12,10 @@
 // Security, because starting programs is not something a page of steps should do.
 //
 // The checklists are written here, in Vex, and are not downloaded. Each carries the date
-// it was last checked against the services it names. A signed content pack that adds
-// more of them is not built (it needs the owner's decision on who signs).
+// it was last checked against the services it names. More of them come as a content pack
+// ('playbook' items, e.g. the built-in "vex-builtin.incident-extra"): plain data whose
+// buttons can only be one of the fixed actions below, read in memory by setPackPlaybooks
+// and gone when the pack is switched off. Ticks are kept per checklist id.
 const VexIncident = {
   KEY: 'vex.incident.enabled',     // '0' = off
   TICKS: 'vex.incident.ticks',     // { "<playbook>": { "<step id>": ticked-at-ms } }
@@ -56,6 +58,26 @@ const VexIncident = {
     },
   },
 
+  // ---- checklists from packs ------------------------------------------------------------------
+  _pack: {},     // 'pack:<pack id>:<item id>' -> a checklist in the same shape as PLAYBOOKS, plus verified and packName
+  setPackPlaybooks(list) {
+    const next = {};
+    for (const { packId, packName, item } of Array.isArray(list) ? list : []) {
+      if (!item || item.type !== 'playbook') continue;
+      const id = 'pack:' + packId + ':' + item.id;
+      next[id] = {
+        title: item.title, sub: item.sub, verified: item.verified, packName,
+        steps: item.steps.map(s => (s.run && ['downloads', 'extensions', 'signedin', 'logins', 'kill'].includes(s.run)
+          ? { id: s.id, title: s.title, text: s.text, run: s.run }
+          : { id: s.id, title: s.title, text: s.text, manual: true })),
+      };
+    }
+    this._pack = next;
+    return Object.keys(next).length;
+  },
+  // One checklist by id, built in or from a pack; null when there is none.
+  get(id) { return this.PLAYBOOKS[id] || this._pack[id] || null; },
+
   // ---- ticks (pure, tests) -----------------------------------------------------------------
   _readAll() {
     const raw = localStorage.getItem(this.TICKS);
@@ -65,7 +87,8 @@ const VexIncident = {
   },
   ticked(playbook) { return this._readAll()[playbook] || {}; },
   setTick(playbook, id, on) {
-    if (!this.PLAYBOOKS[playbook] || !this.PLAYBOOKS[playbook].steps.some(s => s.id === id)) throw new Error('No step "' + id + '" in "' + playbook + '"');
+    const pb = this.get(playbook);
+    if (!pb || !pb.steps.some(s => s.id === id)) throw new Error('No step "' + id + '" in "' + playbook + '"');
     const all = this._readAll();
     const mine = all[playbook] || {};
     if (on) mine[id] = Date.now(); else delete mine[id];
@@ -79,7 +102,7 @@ const VexIncident = {
     localStorage.setItem(this.TICKS, JSON.stringify(all));
   },
   progress(playbook) {
-    const p = this.PLAYBOOKS[playbook];
+    const p = this.get(playbook);
     if (!p) throw new Error('No checklist called "' + playbook + '"');
     const t = this.ticked(playbook);
     return { done: p.steps.filter(s => t[s.id]).length, total: p.steps.length };
@@ -123,12 +146,12 @@ const VexIncident = {
   },
 
   // ---- the screen -------------------------------------------------------------------------------
-  list() { return Object.entries(this.PLAYBOOKS).map(([id, p]) => ({ id, title: p.title, sub: p.sub, ...this.progress(id) })); },
+  list() { return [...Object.entries(this.PLAYBOOKS), ...Object.entries(this._pack)].map(([id, p]) => ({ id, title: p.title, sub: p.sub, ...this.progress(id) })); },
 
   async open(playbook = null) {
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
     if (!playbook) return this.openChooser();
-    const pb = this.PLAYBOOKS[playbook];
+    const pb = this.get(playbook);
     if (!pb) throw new Error('No checklist called "' + playbook + '"');
     const { body } = VexSettingsGroups.dialog({ id: 'vex-incident', title: pb.title, sub: pb.sub });
     const results = {};
@@ -137,7 +160,7 @@ const VexIncident = {
       const p = this.progress(playbook);
       const top = document.createElement('div');
       top.className = 'vex-platform-note';
-      top.textContent = p.done + ' of ' + p.total + ' done. Checked against the services it names on ' + this.VERIFIED + '. Ticks stay on this computer.';
+      top.textContent = p.done + ' of ' + p.total + ' done. Checked against the services it names on ' + (pb.verified || this.VERIFIED) + (pb.packName ? ' (from the pack "' + pb.packName + '")' : '') + '. Ticks stay on this computer.';
       body.appendChild(top);
       const ticks = this.ticked(playbook);
       const wrap = document.createElement('div');

@@ -33,6 +33,11 @@ const BriefIntegration = {
     { id: 'news-actions', order: 12, icon: 'newspaper', maxItems: 4, get: () => (typeof VexBriefNewsActions !== 'undefined' ? VexBriefNewsActions : null) },
     { id: 'streaks-goals', order: 102, icon: 'target', maxItems: 3, get: () => (typeof VexBriefStreaks !== 'undefined' ? VexBriefStreaks : null) },
     { id: 'one-new-thing', order: 105, icon: 'sparkles', maxItems: 2, get: () => (typeof VexBriefOneNew !== 'undefined' ? VexBriefOneNew : null) },
+    // Wave 4 cards (js/brief-extras/foldin-cards.js): each is also a candidate for a New Tab slot.
+    { id: 'platform-status', order: 3, icon: 'warning', maxItems: 4, get: () => (typeof VexBriefPlatformStatus !== 'undefined' ? VexBriefPlatformStatus : null) },
+    { id: 'watch-flag', order: 9, icon: 'cloud', maxItems: 3, get: () => (typeof VexBriefWatchFlag !== 'undefined' ? VexBriefWatchFlag : null) },
+    { id: 'perm-audit', order: 103, icon: 'shield', maxItems: 1, get: () => (typeof VexBriefPermAudit !== 'undefined' ? VexBriefPermAudit : null) },
+    { id: 'old-highlight', order: 106, icon: 'bulb', maxItems: 1, get: () => (typeof VexBriefOldHighlight !== 'undefined' ? VexBriefOldHighlight : null) },
     // 2026-10 modules that already answer in the extras shape.
     { id: 'flashmind-due', order: 60, icon: 'graduation', maxItems: 3, get: () => (typeof VexBriefFlashMind !== 'undefined' ? VexBriefFlashMind : null) },
     { id: 'weekly-world', order: 70, icon: 'globe', maxItems: 6, get: () => (typeof VexWeeklyWorld !== 'undefined' ? VexWeeklyWorld : null) },

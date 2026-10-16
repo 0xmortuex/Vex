@@ -52,7 +52,23 @@ const PERMISSIONS = Object.freeze({
   'styles:pages': 'Change the text size, contrast and width of the websites it names.',
   'opens:links': 'Show links that open web pages when you click them.',
   'reads:tabs': 'Read the address or the site of the page you are on, to fill in a link it builds.',
+  'runs:checks': 'Show checklist buttons that, when you press one, look at the names of files in your downloads folder, list your extensions, or open Vex\'s own signed-in and saved-logins screens. Nothing is opened, scanned or sent.',
 });
+
+// Fixed lists the content item types may name. They are copies of what the
+// features that read them accept (js/skills.js, js/incident-playbooks.js); a
+// test keeps them in step.
+const SKILL_ICONS = Object.freeze(['sparkles', 'pin', 'list', 'check', 'edit', 'search', 'bulb', 'brain', 'book-open',
+  'message', 'clipboard', 'code', 'chart-bar', 'flag', 'target', 'wand', 'zap', 'type']);
+const SKILL_OUTPUTS = Object.freeze(['text', 'checklist', 'table', 'note', 'reminder']);
+const SKILL_VARS = Object.freeze(['selection', 'url', 'title', 'host', 'date', 'time', 'ask']);
+// fixed = a national holiday on a set date; religious = follows the religious calendar; half-day = the afternoon before one; bridge = an announced extension.
+const DATE_KINDS = Object.freeze(['fixed', 'religious', 'half-day', 'bridge']);
+const PLAYBOOK_ACTIONS = Object.freeze(['downloads', 'extensions', 'signedin', 'logins', 'kill']);
+// The ids of the packs that ship inside Vex. Only the built-in loader
+// (main/packs-builtin.js) may produce a pack with such an id; a file a person
+// opens or drops is refused if it uses one, so nothing can pose as a built-in.
+const BUILTIN_PREFIX = 'vex-builtin.';
 
 class PackError extends Error {
   constructor(code, message) { super(message); this.name = 'PackError'; this.code = code; }
@@ -543,6 +559,98 @@ const ITEM_TYPES = {
       return { item: { type: 'quotes', id, name, kind: raw.kind, entries }, needs: [], line: (raw.kind === 'quote' ? 'Quote list' : 'Fortune list') + ' "' + name + '" (' + entries.length + ' entries)' };
     },
   },
+  // --- content types added with the built-in packs (Wave 4) ---------------------
+  // All four are plain data that an existing Vex feature already reads; none can
+  // run anything. `skills` is a prompt library entry (the AI Skills feature keeps
+  // its own history, diff, export and import; a pack only offers prompts that the
+  // person copies into their skills with a button). `playbook` is a checklist whose
+  // buttons are a FIXED list of Vex actions (never a command string). `snippets`
+  // are phrases to copy. `dates` is a dated list (holidays), each marked when it
+  // has to be checked against the official source.
+  skills: {
+    label: 'AI skills (prompts)', fields: ['name', 'icon', 'prompt', 'output', 'sites'],
+    build(raw, where, id) {
+      const name = text(raw.name, where + ' name', { max: 80 });
+      if (!SKILL_ICONS.includes(raw.icon)) fail('bad-type', where + ' icon must be one of: ' + SKILL_ICONS.join(', '));
+      const prompt = text(raw.prompt, where + ' prompt', { max: 4000, multiline: true });
+      for (const m of prompt.matchAll(/\{\{\s*([a-z]+)(?::([^{}]{0,80}))?\s*\}\}/gi)) {
+        const v = m[1].toLowerCase();
+        if (!SKILL_VARS.includes(v)) fail('bad-template', where + ' prompt uses the unknown variable {{' + m[1].slice(0, 20) + '}}');
+        if (v === 'ask' && !(m[2] || '').trim()) fail('bad-template', where + ' prompt has {{ask:}} without a question');
+        if (v !== 'ask' && m[2]) fail('bad-template', where + ' prompt gives {{' + v + '}} an argument');
+      }
+      if (!SKILL_OUTPUTS.includes(raw.output)) fail('bad-type', where + ' output must be one of: ' + SKILL_OUTPUTS.join(', '));
+      if (!Array.isArray(raw.sites) || raw.sites.length > 10) fail('bad-type', where + ' sites must be a list of at most 10');
+      const sites = raw.sites.map((h, k) => { const s = text(h, where + ' site ' + (k + 1), { max: 253 }); if (!HOST.test(s)) fail('bad-host', where + ' site ' + (k + 1) + ' must be a site name such as example.com'); return s; });
+      return {
+        item: { type: 'skills', id, name, icon: raw.icon, prompt, output: raw.output, sites }, needs: [],
+        line: 'AI skill "' + name + '" (a prompt your AI receives only when you run it): ' + prompt.replace(/\s+/g, ' ').slice(0, 160),
+      };
+    },
+  },
+  playbook: {
+    label: 'Checklist', fields: ['title', 'sub', 'verified', 'steps'],
+    build(raw, where, id) {
+      const title = text(raw.title, where + ' title', { max: 80 });
+      const sub = text(raw.sub, where + ' sub', { max: 300 });
+      const verified = text(raw.verified, where + ' verified', { max: 10 });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(verified) || Number.isNaN(Date.parse(verified + 'T00:00:00Z')) || new Date(verified + 'T00:00:00Z').toISOString().slice(0, 10) !== verified) {
+        fail('bad-date', where + ' verified must be a real date like 2026-10-16 (when it was last checked against the services it names)');
+      }
+      if (!Array.isArray(raw.steps) || raw.steps.length < 1 || raw.steps.length > 20) fail('bad-type', where + ' steps must be 1 to 20');
+      const seen = new Set();
+      let buttons = 0;
+      const steps = raw.steps.map((s, k) => {
+        const w = where + ' step ' + (k + 1);
+        exact(s, w, ['id', 'title', 'text', 'run']);
+        const sid = itemId(s.id, w + ' id');
+        if (seen.has(sid)) fail('duplicate-id', w + ' repeats the step id "' + sid + '"');
+        seen.add(sid);
+        if (typeof s.run !== 'string' || (s.run !== '' && !PLAYBOOK_ACTIONS.includes(s.run))) fail('bad-action', w + ' run must be empty or one of: ' + PLAYBOOK_ACTIONS.join(', '));
+        if (s.run) buttons++;
+        return { id: sid, title: text(s.title, w + ' title', { max: 100 }), text: text(s.text, w + ' text', { max: 500, multiline: true }), run: s.run };
+      });
+      return {
+        item: { type: 'playbook', id, title, sub, verified, steps }, needs: buttons ? ['runs:checks'] : [],
+        line: 'Checklist "' + title + '" (' + steps.length + ' steps, ' + buttons + ' with a button, last checked ' + verified + ')',
+      };
+    },
+  },
+  snippets: {
+    label: 'Phrases to copy', fields: ['name', 'entries'],
+    build(raw, where, id) {
+      const name = text(raw.name, where + ' name', { max: 60 });
+      if (!Array.isArray(raw.entries) || raw.entries.length < 1 || raw.entries.length > 100) fail('bad-type', where + ' entries must be 1 to 100');
+      const labels = new Set();
+      const entries = raw.entries.map((e, k) => {
+        const w = where + ' entry ' + (k + 1);
+        exact(e, w, ['label', 'text']);
+        const label = text(e.label, w + ' label', { max: 60 });
+        if (labels.has(label)) fail('duplicate-id', w + ' repeats the label "' + label + '"');
+        labels.add(label);
+        return { label, text: text(e.text, w + ' text', { max: 400, multiline: true }) };
+      });
+      return { item: { type: 'snippets', id, name, entries }, needs: [], line: 'Phrases "' + name + '" (' + entries.length + ' to copy)' };
+    },
+  },
+  dates: {
+    label: 'Dated list', fields: ['name', 'region', 'entries'],
+    build(raw, where, id) {
+      const name = text(raw.name, where + ' name', { max: 60 });
+      const region = text(raw.region, where + ' region', { max: 20 });
+      if (!Array.isArray(raw.entries) || raw.entries.length < 1 || raw.entries.length > 150) fail('bad-type', where + ' entries must be 1 to 150');
+      const entries = raw.entries.map((e, k) => {
+        const w = where + ' entry ' + (k + 1);
+        exact(e, w, ['date', 'name', 'kind', 'verify']);
+        const date = text(e.date, w + ' date', { max: 10 });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date) fail('bad-date', w + ' date must be a real date like 2026-10-29');
+        if (!DATE_KINDS.includes(e.kind)) fail('bad-type', w + ' kind must be one of: ' + DATE_KINDS.join(', '));
+        if (typeof e.verify !== 'boolean') fail('bad-type', w + ' verify must be true or false');
+        return { date, name: text(e.name, w + ' name', { max: 80 }), kind: e.kind, verify: e.verify };
+      });
+      return { item: { type: 'dates', id, name, region, entries }, needs: [], line: 'Dated list "' + name + '" (' + region + ', ' + entries.length + ' dates)' };
+    },
+  },
 };
 const ITEM_TYPE_NAMES = Object.freeze(Object.keys(ITEM_TYPES));
 
@@ -607,7 +715,7 @@ function withHash(pack) { return { ...contentOf(pack), hash: contentHash(pack) }
 //   trust: 'unsigned' | 'unknown-key' | 'trusted'
 // `trustedKeys` is a Set of fingerprints. Every refusal is a thrown PackError
 // with a code; nothing is returned half-valid.
-function parsePack(input, { trustedKeys = new Set() } = {}) {
+function parsePack(input, { trustedKeys = new Set(), builtin = false } = {}) {
   if (typeof input !== 'string') fail('not-text', 'A pack must be text');
   if (Buffer.byteLength(input, 'utf8') > LIMITS.maxBytes) fail('too-large', 'The pack is larger than ' + (LIMITS.maxBytes / 1024) + ' KB');
   const raw = parseStrictJson(input);
@@ -615,6 +723,8 @@ function parsePack(input, { trustedKeys = new Set() } = {}) {
   if (raw.format !== FORMAT) fail('bad-format', 'This is not a Vex pack (format must be "' + FORMAT + '")');
   if (raw.version !== VERSION) fail('bad-version', 'This pack is version ' + show(raw.version) + '; this Vex reads version ' + VERSION);
   const id = packId(raw.id, 'The pack id');
+  if (id.startsWith(BUILTIN_PREFIX) && builtin !== true) fail('reserved-id', 'The pack id "' + id.slice(0, 40) + '" is reserved for the packs that ship inside Vex');
+  if (builtin === true && !id.startsWith(BUILTIN_PREFIX)) fail('bad-id', 'A built-in pack id must start with "' + BUILTIN_PREFIX + '"');
   const name = text(raw.name, 'The pack name', { max: LIMITS.maxNameChars });
   const author = text(raw.author, 'The author', { max: 60 });
   const description = text(raw.description, 'The description', { max: LIMITS.maxDescriptionChars, multiline: true, min: 0 });
@@ -680,7 +790,7 @@ function serializePack(pack) {
 
 // Builds and validates a pack from loose parts (the export path). The same
 // validators run, so an export can never produce a file Vex would refuse.
-function buildPack({ id, name, author, description = '', items }) {
+function buildPack({ id, name, author, description = '', items }, { builtin = false } = {}) {
   const content = { format: FORMAT, version: VERSION, id, name, author, description, items: [], permissions: [] };
   if (!Array.isArray(items)) fail('bad-type', 'items must be a list');
   const built = items.map((it, k) => validateItem(it, k));
@@ -688,12 +798,12 @@ function buildPack({ id, name, author, description = '', items }) {
   const need = [...new Set(built.flatMap(b => b.needs))];
   content.permissions = need;
   const hashed = withHash(content);
-  const checked = parsePack(JSON.stringify(hashed));
+  const checked = parsePack(JSON.stringify(hashed), { builtin });
   return checked.pack;
 }
 
 module.exports = {
-  FORMAT, VERSION, LIMITS, PERMISSIONS, ITEM_TYPE_NAMES, PackError,
+  FORMAT, VERSION, LIMITS, PERMISSIONS, ITEM_TYPE_NAMES, PackError, BUILTIN_PREFIX, SKILL_ICONS, SKILL_OUTPUTS, SKILL_VARS, PLAYBOOK_ACTIONS, DATE_KINDS,
   parseStrictJson, parsePack, serializePack, buildPack, sanitizeSvg, parseActionSource,
   canonicalize, contentHash, signPack, generateKeyPair, fingerprintOf, rawPublicKey, publicKeyObject,
   packId, itemId, withHash,

@@ -395,6 +395,10 @@ const VexUsageRegistry = {
       VexMunToolkit: () => (typeof VexMunToolkit !== 'undefined' ? VexMunToolkit : null),
       VexSpeechTimer: () => (typeof VexSpeechTimer !== 'undefined' ? VexSpeechTimer : null),
       VexTurkishHelpers: () => (typeof VexTurkishHelpers !== 'undefined' ? VexTurkishHelpers : null),
+      VexPackContent: () => (typeof VexPackContent !== 'undefined' ? VexPackContent : null),
+      PageWatchTemplates: () => (typeof PageWatchTemplates !== 'undefined' ? PageWatchTemplates : null),
+      GameHolds: () => (typeof GameHolds !== 'undefined' ? GameHolds : null),
+      VexBriefCards: () => (typeof VexBriefCards !== 'undefined' ? VexBriefCards : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -462,6 +466,11 @@ const VexUsageRegistry = {
       ['perm-hygiene', A.api(G.VexPermHygiene, 'enabled', 'setEnabled')],
       ['signed-in', A.api(G.VexSignedIn, 'enabled', 'setEnabled')],
       ['incident-playbooks', A.api(G.VexIncident, 'enabled', 'setEnabled')],
+      // Wave 4 fold-ins: holidays and phrases from packs, watch templates, the held-while-playing list, four brief cards.
+      ['pack-content', A.api(G.VexPackContent, 'enabled', 'setEnabled')],
+      ['page-watch-templates', A.api(G.PageWatchTemplates, 'enabled', 'setEnabled')],
+      ['game-holds', A.api(G.GameHolds, 'enabled', 'setEnabled')],
+      ['brief-cards', A.api(G.VexBriefCards, 'enabled', 'setEnabled')],
       ['credential-interlock', A.api(G.CredentialInterlock, 'enabled', 'setEnabled')],
       // Wave 3: they act by themselves, so each can be switched off (and starts off on an existing profile).
       ['progressive-disclosure', A.api(G.VexDisclosure, 'enabled', 'setEnabled')],

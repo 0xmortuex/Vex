@@ -39,6 +39,7 @@
 }
 .vex-packs-badge.trusted { color: var(--success, #30a46c); border-color: var(--success, #30a46c); }
 .vex-packs-badge.unsigned { color: var(--warning, #f5a524); border-color: var(--warning, #f5a524); }
+.vex-packs-badge.builtin { color: var(--primary, #4f8cff); border-color: var(--primary, #4f8cff); }
 .vex-packs-desc { font-size: 12.5px; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .vex-packs-items ul, .vex-packs-perms ul, .vex-packs-log { margin: 6px 0 6px 18px; padding: 0; font-size: 12.5px; }
 .vex-packs-items li .vex-packs-btn { margin-left: 8px; padding: 2px 8px; }

@@ -184,6 +184,42 @@ const VexPacks = {
     this._saveAdopted(a);
   },
 
+  // ---- skills: a pack offers prompts; a button copies one into the person's own skills --------
+  // The copy is theirs (editable, with the history and changes AI Skills keeps) and stays when
+  // the pack is switched off or removed. It remembers which pack item it came from so it can
+  // be compared with the pack's current wording later.
+  _skillFromPack(packId, itemId) {
+    return typeof VexSkills !== 'undefined' && VexSkills.skills.find(s => s.fromPack === packId + ':' + itemId) || null;
+  },
+  addSkillToMine(packName, packId, item) {
+    if (typeof VexSkills === 'undefined') throw new Error('AI Skills are not available here');
+    if (this._skillFromPack(packId, item.id)) throw new Error('"' + item.name + '" is already in your skills. Use "Compare with my copy" to see how it differs.');
+    // The same checks as importing a skills file: prompt text only, variables checked, sites cleaned.
+    const [checked] = VexSkills.parseImport(JSON.stringify({ vexSkills: 1, skills: [{ name: item.name, icon: item.icon, prompt: item.prompt, output: item.output, sites: item.sites }] }));
+    VexSkills.skills.push({ id: vexId('sk_'), ...checked, imported: true, fromPack: packId + ':' + item.id });
+    if (!VexSkills.save()) throw new Error('The skill could not be saved');
+    this._toast('Added "' + item.name + '" to your skills (from "' + packName + '")');
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('pack-content');
+  },
+  async compareSkill(packId, item) {
+    const mine = this._skillFromPack(packId, item.id);
+    if (!mine) throw new Error('You have not added "' + item.name + '" to your skills');
+    if (mine.prompt === item.prompt) { this._toast('Your copy of "' + item.name + '" is the same as the one in the pack'); return false; }
+    // Plain text, with the pack's wording marked [+like this+] and yours [-like this-].
+    const shown = VexSkills.diff(mine.prompt, item.prompt).map(seg => (seg.t === 'del' ? '[-' + seg.text + '-]' : seg.t === 'add' ? '[+' + seg.text + '+]' : seg.text)).join('');
+    const ok = await vexConfirm({
+      title: 'Your copy of "' + item.name + '" differs from the pack',
+      message: 'Text in [-minus brackets-] is only in your copy; text in [+plus brackets+] is only in the pack.\n\n' + shown + '\n\nUse the wording from the pack? Yours is kept in the skill\'s earlier wordings.',
+      okLabel: 'Use the pack wording', wide: true,
+    });
+    if (!ok) return false;
+    VexSkills.pushVersion(mine, item.prompt);
+    mine.prompt = item.prompt;
+    if (!VexSkills.save()) throw new Error('The skill could not be saved');
+    this._toast('Updated "' + item.name + '"');
+    return true;
+  },
+
   // ---- the manager ---------------------------------------------------------------
   async open() {
     if (this._isPrivate()) { await vexAlert({ title: 'Vex Packs', message: 'Packs are not available in a private window.' }); return; }
@@ -214,7 +250,7 @@ const VexPacks = {
     });
     return b;
   },
-  _trustLabel(t) { return t === 'trusted' ? 'Trusted key' : t === 'unknown-key' ? 'Signed, key not trusted' : 'Not signed'; },
+  _trustLabel(t) { return t === 'builtin' ? 'Built in to Vex' : t === 'trusted' ? 'Trusted key' : t === 'unknown-key' ? 'Signed, key not trusted' : 'Not signed'; },
 
   _draw() {
     const st = this._state;
@@ -283,7 +319,7 @@ const VexPacks = {
     const badge = this._el('span', 'vex-packs-badge ' + p.trust, this._trustLabel(p.trust));
     top.append(name, badge);
     card.appendChild(top);
-    card.appendChild(this._el('div', 'vex-packs-sub', 'by ' + p.author + (p.fingerprint ? ' - key ' + p.fingerprint : '')));
+    card.appendChild(this._el('div', 'vex-packs-sub', p.builtin ? 'ships with Vex - it is part of the app, so it is not signed, and it cannot be removed, only switched off' : 'by ' + p.author + (p.fingerprint ? ' - key ' + p.fingerprint : '')));
     if (p.description) card.appendChild(this._el('div', 'vex-packs-desc', p.description));
 
     const items = this._el('details', 'vex-packs-items');
@@ -294,6 +330,13 @@ const VexPacks = {
       if (it.type === 'theme') {
         const item = this._items.find(x => x.packId === p.id && x.item.id === it.id);
         if (item) li.appendChild(this._btn('Add to My themes', async () => this.addThemeToMine(p.id, item.item)));
+      }
+      if (it.type === 'skills') {
+        const item = this._items.find(x => x.packId === p.id && x.item.id === it.id);
+        if (item) {
+          li.appendChild(this._btn('Add to my skills', async () => this.addSkillToMine(p.name, p.id, item.item)));
+          if (this._skillFromPack(p.id, item.item.id)) li.appendChild(this._btn('Compare with my copy', async () => this.compareSkill(p.id, item.item)));
+        }
       }
       ul.appendChild(li);
     }
@@ -321,7 +364,7 @@ const VexPacks = {
         await this._api().trustKey(p.id, p.author); await this.refresh(); this._draw();
       }, { icon: 'key' }));
     }
-    row.appendChild(this._btn('Remove', async () => {
+    if (!p.builtin) row.appendChild(this._btn('Remove', async () => {
       const ok = await vexConfirm({ title: 'Remove "' + p.name + '"?', message: 'Everything this pack added goes away, including themes you copied from it to My themes.', okLabel: 'Remove', danger: true });
       if (!ok) return;
       await this._api().uninstall(p.id);
@@ -330,6 +373,7 @@ const VexPacks = {
       this._draw();
     }, { danger: true, icon: 'trash' }));
     card.appendChild(row);
+    if (p.builtin && !p.enabled) card.appendChild(this._el('div', 'vex-packs-sub', 'Off until you switch it on. Switching it on shows its items here and makes them available to the features that read them.'));
     return card;
   },
 
@@ -389,11 +433,14 @@ const VexPacks = {
       if (typeof VexAliases === 'undefined') throw new Error('Command shortcuts are not available in this build');
       const entries = Object.entries(VexAliases.all().aliases).map(([word, v]) => ({ word, command: v.id }));
       if (entries.length) out.push({ type: 'aliases', id: 'aliases-1', name: 'My command shortcuts', entries: entries.slice(0, 50) });
-    } else throw new Error('Choose themes, chains or aliases');
+    } else if (kind === 'skills') {
+      if (typeof VexSkills === 'undefined') throw new Error('AI Skills are not available here');
+      VexSkills.skills.slice(0, 50).forEach((s, i) => out.push({ type: 'skills', id: 'skill-' + (i + 1), name: s.name, icon: s.icon, prompt: s.prompt, output: s.output || 'text', sites: Array.isArray(s.sites) ? s.sites.slice() : [] }));
+    } else throw new Error('Choose themes, chains, aliases or skills');
     return out;
   },
   async exportMine() {
-    const kind = await vexPrompt({ title: 'Export my items as a pack', label: 'What to export: themes, chains or aliases', value: 'themes', okLabel: 'Next' });
+    const kind = await vexPrompt({ title: 'Export my items as a pack', label: 'What to export: themes, chains, aliases or skills (your prompts, to share or back up)', value: 'themes', okLabel: 'Next' });
     if (kind == null) return false;
     const k = String(kind).trim().toLowerCase();
     const items = this._collect(k);

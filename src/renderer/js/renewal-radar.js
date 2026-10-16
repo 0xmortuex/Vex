@@ -20,6 +20,16 @@
 //
 // The date math, the detection and the CSV are pure functions of plain data,
 // tested without a window. Reminders use the app's existing reminders.
+//
+// Two additions (Wave 4):
+//   * Trial capture. At signup, one Ctrl+K command ("Remind me before this trial ends")
+//     asks three short things (its name, when it ends, the cancel page) and files a
+//     CONFIRMED trial with a reminder N days before (2 by default). The reminder carries the
+//     cancel-page link, so pressing it opens the page where you cancel. Only https links are
+//     kept. Nothing leaves this computer; the radar still owns the list.
+//   * A monthly admin reminder (off until you switch it on): one reminder on the first
+//     working day of the month to look at the list and cancel what you do not use. With a
+//     holiday pack switched on, a holiday is skipped.
 
 const RenewalRadar = {
   KEY: 'vex.renewals',
@@ -165,6 +175,7 @@ const RenewalRadar = {
     if (cycle && !this.CYCLES.includes(cycle)) throw new Error('Unknown billing cycle: ' + cycle);
     const anchor = raw.anchor || '';
     if (anchor && !this.isoOk(anchor)) throw new Error('The date is not a real date');
+    const cancelUrl = this.cleanCancelUrl(raw.cancelUrl);
     const remindDays = raw.remindDays == null || raw.remindDays === '' ? null : Math.round(Number(raw.remindDays));
     if (remindDays != null && !(remindDays >= 0 && remindDays <= 60)) throw new Error('Remind between 0 and 60 days before');
     return {
@@ -173,7 +184,20 @@ const RenewalRadar = {
       anchor, source: raw.source || 'manual', evidence: String(raw.evidence || '').slice(0, 300),
       status: ['detected', 'confirmed', 'dismissed'].includes(raw.status) ? raw.status : 'confirmed',
       remindDays, reminderId: raw.reminderId || '', remindedFor: raw.remindedFor || '', cancelled: !!raw.cancelled,
+      ...(cancelUrl ? { cancelUrl } : {}),
     };
+  },
+  // The page where a subscription is cancelled: https only, no user name or password in it.
+  // '' for none; a bad one throws, so a typo is not saved as if it were a link.
+  cleanCancelUrl(raw) {
+    const s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    if (s.length > 500) throw new Error('The cancel link is longer than 500 characters');
+    let u;
+    try { u = new URL(s); } catch (err) { throw new Error('The cancel link is not a web address', { cause: err }); }
+    if (u.protocol !== 'https:') throw new Error('The cancel link must start with https://');
+    if (u.username || u.password) throw new Error('Do not put a user name or password in the cancel link');
+    return u.href;
   },
 
   // When to remind: 09:00 local, N days before; if that time has gone but the
@@ -189,7 +213,7 @@ const RenewalRadar = {
     if (at.getTime() <= now.getTime()) at = new Date(now.getTime() + 60000);
     const what = item.kind === 'trial' ? item.name + ' free trial ends' : item.name + ' renews';
     const cost = item.kind === 'subscription' && item.cost != null ? ' (' + item.cost.toFixed(2) + ' ' + (item.currency || '') + ')' : '';
-    return { at, message: what + ' ' + (days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'on ' + next) + cost, forDate: next, days };
+    return { at, message: what + ' ' + (days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'on ' + next) + cost + (item.cancelUrl ? '. Press to open the cancel page' : ''), forDate: next, days, url: item.cancelUrl || '' };
   },
 
   // --- detection --------------------------------------------------------------
@@ -467,11 +491,110 @@ const RenewalRadar = {
   items() { const a = this._read(this.KEY, []); return Array.isArray(a) ? a : []; },
   _save(items) { localStorage.setItem(this.KEY, JSON.stringify(items)); },
   dismissedKeys() { const a = this._read(this.DISMISSED_KEY, []); return Array.isArray(a) ? a : []; },
-  settings() { const o = this._read(this.SETTINGS_KEY, {}); return { remindDays: Number.isInteger(o.remindDays) && o.remindDays >= 0 && o.remindDays <= 60 ? o.remindDays : this.DEFAULT_REMIND_DAYS }; },
+  _rawSettings() { const o = this._read(this.SETTINGS_KEY, {}); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; },
+  settings() {
+    const o = this._rawSettings();
+    return { remindDays: Number.isInteger(o.remindDays) && o.remindDays >= 0 && o.remindDays <= 60 ? o.remindDays : this.DEFAULT_REMIND_DAYS, monthlyAdmin: o.monthlyAdmin === true };
+  },
   setRemindDays(n) {
     const v = Math.round(Number(n));
     if (!(v >= 0 && v <= 60)) throw new Error('Choose between 0 and 60 days');
-    localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({ ...this.settings(), remindDays: v }));
+    localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({ ...this._rawSettings(), remindDays: v }));
+  },
+
+  // --- trial capture ---------------------------------------------------------------
+  CAPTURE_DAYS: 2,
+  // "2026-11-03", "3 Nov", "Nov 3 2026", "in 7 days", or just "7" (a 7-day trial that starts today).
+  // -> an ISO date, or '' when it cannot be read (never a guess).
+  parseTrialEnd(text, todayIso = this.today()) {
+    const s = String(text || '').trim();
+    const days = /^(?:in\s+)?(\d{1,3})(?:\s*days?)?$/i.exec(s);
+    if (days) { const n = Number(days[1]); return n >= 1 && n <= 366 ? this.trialEnd(todayIso, n) : ''; }
+    const d = this.parseTextDate(s, todayIso);
+    return d && d >= todayIso ? d : '';
+  },
+  // Files a confirmed trial with its reminder. The reminder is set by syncReminders; its
+  // failure is thrown, not reported as a success.
+  async captureTrial({ name, endIso, cancelUrl = '', daysBefore = this.CAPTURE_DAYS }, now = new Date()) {
+    if (!this.isoOk(endIso)) throw new Error('The end date is not a real date');
+    if (endIso < this.today(now)) throw new Error('That date has already passed');
+    const item = this.upsert({ name, kind: 'trial', anchor: endIso, status: 'confirmed', source: 'capture', cancelUrl, remindDays: daysBefore, evidence: 'Captured by you at signup' });
+    const r = await this.syncReminders(now);
+    const mine = r.failed.find(f => f.name === item.name);
+    if (mine) throw new Error('The trial is saved, but its reminder could not be set: ' + mine.error);
+    return this.items().find(i => i.id === item.id) || item;
+  },
+  _siteName(url) {
+    try {
+      const h = new URL(url).hostname.replace(/^www\./, '').split('.');
+      const w = h.length > 1 ? h[h.length - 2] : h[0];
+      return w ? w.charAt(0).toUpperCase() + w.slice(1) : '';
+    } catch (err) { console.error('[Renewals] could not read the tab address:', err.message); return ''; }
+  },
+  async captureFromTab() {
+    if (typeof vexPrompt !== 'function') throw new Error('Vex could not ask you, so nothing was saved');
+    const tab = typeof TabManager !== 'undefined' && typeof TabManager.getActiveTab === 'function' ? TabManager.getActiveTab() : null;
+    const url = tab && /^https:\/\//i.test(tab.url || '') ? tab.url : '';
+    const name = await vexPrompt({ title: 'Remind me before this trial ends', label: 'What is the trial for?', value: this._siteName(url), okLabel: 'Next' });
+    if (name == null) return null;
+    const ends = await vexPrompt({ title: 'When does the free trial end?', label: 'A date (3 Nov, 2026-11-03) or how long it lasts (7 days)', value: '', okLabel: 'Next' });
+    if (ends == null) return null;
+    const endIso = this.parseTrialEnd(ends);
+    if (!endIso) throw new Error('Vex could not read "' + String(ends).slice(0, 40) + '" as a date. Try 3 Nov, 2026-11-03 or 7 days.');
+    const link = await vexPrompt({ title: 'Where do you cancel?', label: 'The cancel page (an https link). Empty for none; the page you are on is offered.', value: url, okLabel: 'Remind me' });
+    if (link == null) return null;
+    const item = await this.captureTrial({ name, endIso, cancelUrl: link });
+    window.showToast?.('Reminder set: the ' + item.name + ' trial, ' + this.CAPTURE_DAYS + ' days before ' + endIso);
+    return item;
+  },
+
+  // --- the monthly admin reminder --------------------------------------------------------
+  ADMIN_MESSAGE: 'Subscriptions: look at the list and cancel what you do not use (Ctrl+K, Subscriptions and Renewals)',
+  // The first working day of the month on or after today (this month's 1st while it is still that
+  // day before 10:00, otherwise next month's). A holiday from a switched-on holiday pack is skipped.
+  adminDate(now = new Date()) {
+    const today = this.today(now);
+    const p = this._parts(today);
+    let first = this._fmt(p.y, p.m, 1);
+    if (first < today || (first === today && now.getHours() >= 10)) first = this.addMonths(first, 1);
+    let d = first;
+    for (let i = 0; i < 10; i++, d = this.addDays(d, 1)) {
+      const wd = new Date(d + 'T00:00:00Z').getUTCDay();
+      if (wd === 0 || wd === 6) continue;
+      if (typeof VexPackContent !== 'undefined' && typeof VexPackContent.isHoliday === 'function' && VexPackContent.isHoliday(d)) continue;
+      return d;
+    }
+    throw new Error('No working day found after ' + first);
+  },
+  async setMonthlyAdmin(on) {
+    localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({ ...this._rawSettings(), monthlyAdmin: !!on }));
+    return this.syncAdmin();
+  },
+  // Keeps exactly one admin reminder: the next one when it is on, none when it is off.
+  async syncAdmin(now = new Date()) {
+    const raw = this._rawSettings();
+    const bridge = window.vex && window.vex.reminders;
+    const drop = async () => { if (raw.adminReminderId && bridge && typeof bridge.delete === 'function') await bridge.delete(raw.adminReminderId); };
+    if (raw.monthlyAdmin !== true) {
+      if (!raw.adminReminderId) return false;
+      await drop();
+      delete raw.adminReminderId; delete raw.adminFor;
+      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(raw));
+      return false;
+    }
+    const date = this.adminDate(now);
+    if (raw.adminFor === date && raw.adminReminderId) return true;
+    await drop();
+    const p = this._parts(date);
+    const at = new Date(p.y, p.m - 1, p.d, 10, 0, 0);
+    let made;
+    if (typeof VexQuickReminder !== 'undefined') made = await VexQuickReminder.create(this.ADMIN_MESSAGE, at);
+    else if (bridge) made = await bridge.create(this.ADMIN_MESSAGE, at.getTime());
+    else throw new Error('Reminders are not available');
+    raw.adminReminderId = made && made.id ? String(made.id) : '';
+    raw.adminFor = date;
+    localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(raw));
+    return true;
   },
 
   upsert(raw) {
@@ -566,13 +689,13 @@ const RenewalRadar = {
     let changed = false;
     for (const it of items) {
       const plan = this.reminderPlan(it, { now, defaultDays: defaults });
-      const stamp = plan ? plan.forDate + ':' + plan.days : '';
+      const stamp = plan ? plan.forDate + ':' + plan.days + ':' + plan.url : '';
       if (!plan || it.remindedFor === stamp) continue;
       try {
         if (it.reminderId && window.vex && window.vex.reminders && typeof window.vex.reminders.delete === 'function') await window.vex.reminders.delete(it.reminderId);
         let made;
-        if (typeof VexQuickReminder !== 'undefined') made = await VexQuickReminder.create(plan.message, plan.at);
-        else if (window.vex && window.vex.reminders) made = await window.vex.reminders.create(plan.message, plan.at.getTime());
+        if (typeof VexQuickReminder !== 'undefined') made = await VexQuickReminder.create(plan.message, plan.at, plan.url ? { url: plan.url } : undefined);
+        else if (window.vex && window.vex.reminders) made = await window.vex.reminders.create(plan.message, plan.at.getTime(), plan.url ? { url: plan.url } : undefined);
         else throw new Error('Reminders are not available');
         it.reminderId = made && made.id ? String(made.id) : '';
         it.remindedFor = stamp;
@@ -735,9 +858,10 @@ const RenewalRadar = {
   // --- command bar and Settings, added at runtime ---------------------------------
   registerCommands() {
     if (typeof CommandBar === 'undefined' || !Array.isArray(CommandBar.commands)) return false;
-    CommandBar.commands = CommandBar.commands.filter(c => !String(c.id || '').startsWith('renewal-radar'));
+    CommandBar.commands = CommandBar.commands.filter(c => !String(c.id || '').startsWith('renewal-radar') && c.id !== 'trial-capture');
     CommandBar.commands.push(
       { id: 'renewal-radar', label: 'Subscriptions and Renewals', hint: 'Trials and subscriptions found in your local data, the next renewal date, and what they cost a month', icon: 'card', action: () => this.open().catch(err => window.showToast?.(err.message, 'error')) },
+      { id: 'trial-capture', label: 'Remind me before this trial ends', hint: 'At signup: the end date and the cancel page, and a reminder 2 days before with the link', icon: 'clock', action: () => this.captureFromTab().catch(err => window.showToast?.(err.message, 'error')) },
       { id: 'renewal-radar-export', label: 'Export Subscriptions as CSV', hint: 'Your confirmed and proposed subscriptions as a spreadsheet file', icon: 'download', action: async () => {
         try {
           const items = this.items().filter(i => i.status !== 'dismissed');
@@ -763,7 +887,14 @@ const RenewalRadar = {
       <div class="setting-info muted">Finds trials and subscriptions from your saved logins' site names, the mail subjects Vex already keeps, and text you clipped. It contacts no service, reads no message body and never opens a saved password. You confirm each one.</div>
       <div class="setting-toggle-row" style="margin-top:8px"><span>Remind me this many days before a renewal or trial end</span>
         <input type="number" min="0" max="60" class="set-input" style="width:80px" data-days value="${days}" aria-label="Days before a renewal to remind"></div>
+      <div class="setting-toggle-row" style="margin-top:8px"><span>Remind me on the first working day of each month to look at the list</span>
+        <input type="checkbox" data-admin aria-label="Monthly reminder to review subscriptions"></div>
       <div style="margin-top:8px"><button type="button" class="btn-secondary" data-open>Open subscriptions and renewals</button></div>`;
+    const admin = group.querySelector('[data-admin]');
+    try { admin.checked = this.settings().monthlyAdmin; } catch (err) { console.error('[Renewals] could not read the monthly reminder setting:', err.message); admin.checked = false; }
+    admin.addEventListener('change', () => {
+      this.setMonthlyAdmin(admin.checked).then(() => window.showToast?.(admin.checked ? 'Monthly reminder set' : 'Monthly reminder removed'), (err) => { window.showToast?.(err.message, 'error'); admin.checked = !admin.checked; });
+    });
     group.querySelector('[data-days]').addEventListener('change', (e) => {
       try { this.setRemindDays(e.target.value); window.showToast?.('Saved. It applies to reminders set from now on.'); }
       catch (err) { window.showToast?.(err.message, 'error'); e.target.value = String(this.settings().remindDays); }
@@ -775,6 +906,7 @@ const RenewalRadar = {
 
   async tick(now = new Date()) {
     const r = await this.syncReminders(now);
+    await this.syncAdmin(now);
     if (r.failed.length) throw new Error('Could not set ' + r.failed.length + ' renewal reminder' + (r.failed.length === 1 ? '' : 's') + ': ' + r.failed[0].error);
     return r;
   },
