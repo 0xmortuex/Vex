@@ -486,7 +486,7 @@ const WebviewManager = {
     // Apply the saved master-volume level to this page's media (and keep it
     // enforced as media loads). Re-checked per navigation; no-op at 100%.
     onWebview('dom-ready', () => {
-      if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(webview);
+      if (typeof MasterVolume !== 'undefined' && MasterVolume.needsApply(webview)) MasterVolume.applyToWebview(webview);
     });
     // Now Playing mini-bar (which tab is making noise)
     if (typeof NowPlaying !== 'undefined') NowPlaying.register(webview, tab);
@@ -626,6 +626,8 @@ const WebviewManager = {
 
     onWebview('new-window', (e) => {
       e.preventDefault();
+      // A link to a site that has a panel opens in the panel (js/link-routing.js; off until turned on).
+      if (typeof LinkRouting !== 'undefined' && LinkRouting.intercept(e.url, tab, { disposition: e.disposition })) return;
       TabManager.createTab(e.url, true, null, { partition: tab.partition });
     });
 

@@ -355,6 +355,15 @@ const PriceStock = {
       .filter(p => p.v != null);
   },
 
+  // The changes AND what each check saw in between, oldest first: a price that held
+  // still shows as a flat line with a dot per sample instead of a single point.
+  allPoints(id) {
+    const byAt = new Map();
+    for (const p of this.points(id)) byAt.set(p.at, { at: p.at, v: p.v });
+    for (const s of (typeof PageWatch.samples === 'function' ? PageWatch.samples(id) : [])) if (!byAt.has(s.at)) byAt.set(s.at, { at: s.at, v: s.v });
+    return [...byAt.values()].sort((a, b) => a.at - b.at);
+  },
+
   chartSvg(points) {
     const W = 560, H = 200, L = 52, R = 14, T = 14, B = 28;
     const vs = points.map(p => p.v);
@@ -385,15 +394,16 @@ const PriceStock = {
     if (!w) { WebTaming.toast('That watch is gone', 'error'); return; }
     const hist = PageWatch.history(id);
     let body;
-    const pts = this.points(id);
+    const pts = this.allPoints(id);
     // A price watch made as "It changes" is a pattern watch whose values are
     // all prices; those chart too. A stock status is words, so it is a list.
-    if (w.kind === 'number' || (w.kind === 'regex' && pts.length > 0 && pts.length === hist.length)) {
-      if (pts.length < 2) body = `<p class="wt-muted">${pts.length ? 'Only one value has been recorded so far (' + WebTaming.esc(String(pts[0].v)) + '). The chart grows when it changes.' : 'Nothing recorded yet.'}</p>`;
+    if (w.kind === 'number' || (w.kind === 'regex' && pts.length > 0 && pts.length >= hist.length)) {
+      const line = typeof PageWatch.checkLine === 'function' ? PageWatch.checkLine(w) : '';
+      if (pts.length < 2) body = `<p class="wt-muted">${pts.length ? 'Only one value has been seen so far (' + WebTaming.esc(String(pts[0].v)) + ')' + (line ? ': ' + WebTaming.esc(line) : '') + '. The chart grows with each check.' : 'Nothing recorded yet.'}</p>`;
       else {
         const first = pts[0].v, last = pts[pts.length - 1].v;
         const lows = Math.min(...pts.map(p => p.v));
-        body = this.chartSvg(pts) + `<p class="wt-muted">First ${WebTaming.esc(String(first))}, now ${WebTaming.esc(String(last))}, lowest ${WebTaming.esc(String(lows))}. A point is added when the value changes.</p>`;
+        body = this.chartSvg(pts) + `<p class="wt-muted">First ${WebTaming.esc(String(first))}, now ${WebTaming.esc(String(last))}, lowest ${WebTaming.esc(String(lows))}. ${WebTaming.esc(line)}. A dot is a check that saw the value; the line steps when it changes.</p>`;
       }
     } else {
       body = hist.length

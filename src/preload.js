@@ -185,6 +185,7 @@ contextBridge.exposeInMainWorld('vex', {
   onGameState: (cb) => subscribe('game:state', cb),
   // Game mode (src/main/game-mode.js).
   gameModeGames: (games, watch) => ipcRenderer.invoke('gamemode:games', games, !!watch),
+  gameModeLibrary: () => ipcRenderer.invoke('gamemode:library'),
   gameModeSession: (s) => ipcRenderer.invoke('gamemode:session', s),
   gameModeState: () => ipcRenderer.invoke('gamemode:state'),
   // Time travel (src/main/state-journal.js; js/time-travel.js) and the tuning
@@ -304,6 +305,7 @@ contextBridge.exposeInMainWorld('vex', {
   // opts = { preset?: number (>=0 forces, else auto-tune), custom?: string }.
   // Returns { ok, mode, preset?, auto?, port?, error? }.
   setDiscordBypassMode: (mode, opts) => ipcRenderer.invoke('discord:set-bypass-mode', mode, opts),
+  probeBypass: (url) => ipcRenderer.invoke('bypass:probe', url),
   // One-click Vencord install into the Discord panel.
   installVencord: () => ipcRenderer.invoke('discord:install-vencord'),
   // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional
@@ -331,6 +333,7 @@ contextBridge.exposeInMainWorld('vex', {
   recallIndex: (entry) => ipcRenderer.invoke('recall:index', entry),
   recallSearch: (q, options) => ipcRenderer.invoke('recall:search', q, options),
   recallStats: () => ipcRenderer.invoke('recall:stats'),
+  recallLimits: (limits) => ipcRenderer.invoke('recall:limits', limits),
   recallForget: (target) => ipcRenderer.invoke('recall:forget', target),
   recallClear: () => ipcRenderer.invoke('recall:clear'),
   // Recall by meaning (local Ollama embeddings only).

@@ -65,7 +65,7 @@ const GitHubWatch = {
       const run = await this._get(`/repos/${w.owner}/${w.repo}/actions/runs/${w.id}`);
       if (run.status !== 'completed') return { told: null, done: false, last: run.status };
       const how = { success: 'passed', failure: 'failed', cancelled: 'was cancelled', timed_out: 'timed out', skipped: 'was skipped' }[run.conclusion] || 'finished (' + run.conclusion + ')';
-      return { told: `${run.name || 'The run'} ${how} — ${w.owner}/${w.repo}${run.display_title ? ': ' + run.display_title : ''}`, done: true, last: run.conclusion, url: run.html_url };
+      return { told: `${run.name || 'The run'} ${how} — ${w.owner}/${w.repo}${run.display_title ? ': ' + run.display_title : ''}`, done: true, last: run.conclusion, url: run.html_url, detail: { kind: 'run', owner: w.owner, repo: w.repo, conclusion: run.conclusion, success: run.conclusion === 'success', branch: run.head_branch || '' } };
     }
     const rel = await this._get(`/repos/${w.owner}/${w.repo}/releases/latest`);
     const tag = rel.tag_name;
@@ -83,7 +83,7 @@ const GitHubWatch = {
       catch (err) { this._update(w.id, { lastCheckedAt: now, error: err.message }); out.push({ id: w.id, error: err.message }); continue; }
       if (r.done) this.remove(w.id);
       else this._update(w.id, { lastCheckedAt: now, last: r.last, error: null });
-      if (r.told) this.announce(r.told, r.url);
+      if (r.told) this.announce(r.told, r.url, r.detail);
       out.push({ id: w.id, ...r });
     }
     return out;
@@ -91,14 +91,19 @@ const GitHubWatch = {
 
   _update(id, patch) { this._save(this.list().map(w => (w.id === id ? { ...w, ...patch } : w))); },
 
-  announce(text, url) {
-    window.showToast?.(text, 'info', 10000);
-    if (typeof window.vex?.notify === 'function') {
-      (typeof VexAttention !== 'undefined'
-        ? VexAttention.osNotify({ feature: 'github-watch', label: 'GitHub watch', urgency: 'useful', id: text, title: 'Vex — GitHub', body: text })
-        : window.vex.notify('Vex — GitHub', text)).catch(err => window.VexProblems?.note('GitHub watch', 'Could not show the desktop notification', err));
-    }
-    document.dispatchEvent(new CustomEvent('vex:github-watch', { detail: { text, url } }));
+  announce(text, url, detail) {
+    const show = () => {
+      window.showToast?.(text, 'info', 10000);
+      if (typeof window.vex?.notify === 'function') {
+        (typeof VexAttention !== 'undefined'
+          ? VexAttention.osNotify({ feature: 'github-watch', label: 'GitHub watch', urgency: 'useful', id: text, title: 'Vex — GitHub', body: text })
+          : window.vex.notify('Vex — GitHub', text)).catch(err => window.VexProblems?.note('GitHub watch', 'Could not show the desktop notification', err));
+      }
+    };
+    // One alert per change, digest first (js/watch-alerts.js; off = shown at once, as before).
+    const repo = detail && detail.owner ? 'https://github.com/' + detail.owner + '/' + detail.repo : url;
+    if (typeof WatchAlerts === 'undefined' || !WatchAlerts.route({ source: 'github-watch', entity: repo, title: text, url: url || '', show })) show();
+    document.dispatchEvent(new CustomEvent('vex:github-watch', { detail: { text, url, ...(detail || {}) } }));
   },
 
   start() {

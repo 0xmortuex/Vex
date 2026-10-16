@@ -1766,6 +1766,7 @@ function vexOwnTextFocused(doc) {
     // While the agreement is outstanding the link waits, and opens right
     // after "I agree" (js/legal.js).
     const held = !VexLegal.openFromOutside(url, (link) => {
+      if (typeof LinkRouting !== 'undefined' && LinkRouting.intercept(link, null)) return;
       try {
         const tab = TabManager.createTab(link, true);
         console.log('[Vex URL] renderer: TabManager.createTab returned:', tab && tab.id ? `tab id=${tab.id}` : tab);

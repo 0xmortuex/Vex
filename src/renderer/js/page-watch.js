@@ -284,6 +284,36 @@ const PageWatch = {
     return Number.isFinite(n) ? n : null;
   },
 
+  // ---- What each check saw (T2-074) ---------------------------------------------------------
+  // The history keeps the first look and every CHANGE, so a price that never moved had
+  // exactly one point however many times it was checked, and looked like a tracker that
+  // did not track. Each check is now counted on the watch, and a number or price watch
+  // also keeps a short series of what it saw (one sample at most every half hour unless
+  // the value moved), so the chart has points and "never changed in N checks" is true.
+  SAMPLE_GAP_MS: 30 * 60 * 1000,
+  MAX_SAMPLES: 60,
+  noteCheck(watch, now, value) {
+    watch.checks = (watch.checks || 0) + 1;
+    if (watch.kind !== 'number' && watch.kind !== 'regex') return;
+    const v = typeof value === 'number' ? value : this.firstNumber(value);
+    if (v == null) return;
+    const s = Array.isArray(watch.samples) ? watch.samples : (watch.samples = []);
+    const last = s[s.length - 1];
+    if (last && last.v === v && now - last.at < this.SAMPLE_GAP_MS) return;
+    s.push({ at: now, v });
+    while (s.length > this.MAX_SAMPLES) s.shift();
+  },
+  samples(id) { const w = this.list().find(x => x.id === id); return w && Array.isArray(w.samples) ? w.samples.slice() : []; },
+  // "12 checks, never changed" / "12 checks, last change 3 days ago".
+  checkLine(w, now = Date.now()) {
+    const n = w.checks || 0;
+    if (!n) return w.lastCheckedAt ? 'checked before counting began' : 'not checked yet';
+    const word = n + ' check' + (n === 1 ? '' : 's');
+    if (!w.lastChangedAt) return word + ', never changed';
+    const days = Math.floor((now - w.lastChangedAt) / 86400000);
+    return word + ', last change ' + (days < 1 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+  },
+
   // Is this worth telling the user about?
   // → { changed, from, to, why } — `why` is the sentence they see.
   judge(watch, value) {
@@ -533,6 +563,7 @@ const PageWatch = {
     if (page.notModified) {
       watch.lastCheckedAt = now;
       watch.lastError = null;
+      this.noteCheck(watch, now, watch.lastValue);
       this._save(list);
       return { ok: true, changed: false, from: watch.lastValue, to: watch.lastValue, why: 'not modified' };
     }
@@ -570,6 +601,7 @@ const PageWatch = {
     }
     watch.lastCheckedAt = now;
     watch.lastError = null;
+    this.noteCheck(watch, now, value);
     if (page.etag) watch.etag = page.etag; else if (!watch.render) delete watch.etag;
     if (page.lastModified) watch.lastModified = page.lastModified; else if (!watch.render) delete watch.lastModified;
     if (verdict.changed) watch.lastChangedAt = now;
@@ -638,11 +670,16 @@ const PageWatch = {
     let what;
     if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
     else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');
-    window.showToast?.(what, 'info', 8000);
-    // A desktop notification as well: the point of a watch is that you are not
-    // looking at Vex (js/notify goes through the main process).
     const body = verdict.summary && !verdict.sentence ? what + '\n' + verdict.summary : what;
-    try { window.vex?.notify?.('Vex — a page changed', body); } catch {}
+    const show = () => {
+      window.showToast?.(what, 'info', 8000);
+      // A desktop notification as well: the point of a watch is that you are not
+      // looking at Vex (js/notify goes through the main process).
+      try { window.vex?.notify?.('Vex — a page changed', body); } catch {}
+    };
+    // One alert per change, waiting for the next digest unless the person asked for it at once
+    // (js/watch-alerts.js; off = the lines above, as before).
+    if (typeof WatchAlerts === 'undefined' || !WatchAlerts.route({ source: 'page-watch', entity: watch.url, title: what, body: verdict.summary || '', url: watch.url, show })) show();
     document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
   },
 
@@ -790,7 +827,7 @@ const PageWatch = {
         <span style="width:8px;height:8px;border-radius:50%;background:${dot};flex:none"></span>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(w.title)}${fresh ? ' <span style="color:var(--success);font-size:11px">changed</span>' : ''}${w.paused ? ' <span style="color:var(--text-muted);font-size:11px">paused</span>' : ''}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))}${w.wake ? ' · wakes Vex' : ''}${w.render ? ' · hidden tab' : ''} · checked ${esc(when)}${w.lastChangedAt ? ' · changed ' + esc(ago(w.lastChangedAt)) : ''}${state ? ' · ' + esc(state) : ''}${w.source && w.source !== 'user' ? ' · from ' + esc(w.source) : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(host + what)} · ${esc(this._everyLabel(w.every))}${w.wake ? ' · wakes Vex' : ''}${w.render ? ' · hidden tab' : ''} · checked ${esc(when)}${w.lastChangedAt ? ' · changed ' + esc(ago(w.lastChangedAt)) : ''}${(w.kind === 'number' || w.kind === 'regex') ? ' · ' + esc(this.checkLine(w)) : ''}${state ? ' · ' + esc(state) : ''}${w.source && w.source !== 'user' ? ' · from ' + esc(w.source) : ''}</div>
           ${w.lastSummary ? `<div style="font-size:11.5px;color:var(--text)">${esc(w.lastSummary)}</div>` : ''}
           ${w.local ? `<div class="pw-local-note" style="font-size:11px;color:var(--text-muted)">${esc(this.localNote(w))}</div>` : ''}
         </div>

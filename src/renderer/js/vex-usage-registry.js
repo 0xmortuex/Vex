@@ -238,6 +238,12 @@ const VexUsageRegistry = {
       VexEmbedManager: () => (typeof VexEmbedManager !== 'undefined' ? VexEmbedManager : null),
       VexAnswerCitations: () => (typeof VexAnswerCitations !== 'undefined' ? VexAnswerCitations : null),
       VexSkills: () => (typeof VexSkills !== 'undefined' ? VexSkills : null),
+      GameLibrary: () => (typeof GameLibrary !== 'undefined' ? GameLibrary : null),
+      MasterVolume: () => (typeof MasterVolume !== 'undefined' ? MasterVolume : null),
+      LinkRouting: () => (typeof LinkRouting !== 'undefined' ? LinkRouting : null),
+      RefreshOnDeploy: () => (typeof RefreshOnDeploy !== 'undefined' ? RefreshOnDeploy : null),
+      BypassDoctor: () => (typeof BypassDoctor !== 'undefined' ? BypassDoctor : null),
+      WatchAlerts: () => (typeof WatchAlerts !== 'undefined' ? WatchAlerts : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -334,6 +340,13 @@ const VexUsageRegistry = {
       ['embedding-manager', A.api(G.VexEmbedManager, 'enabled', 'setEnabled')],
       ['answer-citations', A.api(G.VexAnswerCitations, 'enabled', 'setEnabled')],
       ['site-instructions', A.api(G.VexSkills, 'siteEnabled', 'setSiteEnabled')],
+      // Wave 2 (fixes and foundations)
+      ['game-library', A.api(G.GameLibrary, 'enabled', 'setEnabled')],
+      ['site-audio-memory', A.api(G.MasterVolume, 'siteMemoryEnabled', 'setSiteMemoryEnabled')],
+      ['link-routing', A.api(G.LinkRouting, 'enabled', 'setEnabled')],
+      ['refresh-on-deploy', A.api(G.RefreshOnDeploy, 'enabled', 'setEnabled')],
+      ['bypass-doctor', A.api(G.BypassDoctor, 'enabled', 'setEnabled')],
+      ['watch-alerts', A.api(G.WatchAlerts, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
