@@ -5,7 +5,7 @@
 // section wider than the spacing, text cut off, a switch squeezed. Full
 // screen once broke all four (the owner, 2026-10-12). This runs that check
 // on made-up layouts, so it is known to catch each one.
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
@@ -124,5 +124,34 @@ describe('check:ui settingsGrow', () => {
     const res = await window.__vexCheckUi.settingsGrow([], 'firefox', '1920x1080, test', { columns: 'auto' });
     expect(res.findings.map(f => f.check)).toContain('settings-overlap');
     expect(a.querySelector('div')).toBeNull();   // put back
+  });
+});
+
+// T2-058: every section is inside the scroll area, and every registered section is there and not squeezed.
+describe('check:ui settingsLayout, sections outside the scroll area', () => {
+  afterEach(() => { delete window.VexSettingsGroups; });
+
+  it('flags a section that landed outside .settings-content', () => {
+    lay([['a', 32, 100, 600, 300]]);
+    const stray = document.createElement('div');
+    stray.className = 'setting-group';
+    stray.id = 'stray';
+    document.getElementById('panel-settings').appendChild(stray);
+    expect(run()).toContain('settings-orphan');
+  });
+
+  it('flags a registered section that is not in the scroll area, and one squeezed narrow', () => {
+    lay([['vex-sg-gone-not-here', 32, 100, 100, 100]]);
+    window.VexSettingsGroups = { _defs: new Map([['missing', { title: 'Missing', build: () => {} }], ['not-here', { title: 'Narrow', build: () => {} }]]) };
+    const checks = run();
+    expect(checks).toContain('settings-missing-group');
+    document.getElementById('vex-sg-gone-not-here').id = 'vex-sg-not-here';
+    expect(run()).toContain('settings-narrow-group');
+  });
+
+  it('passes when every registered section is inside and wide enough', () => {
+    lay([['vex-sg-fine', 32, 100, 600, 100]]);
+    window.VexSettingsGroups = { _defs: new Map([['fine', { title: 'Fine', build: () => {} }]]) };
+    expect(run()).toEqual([]);
   });
 });

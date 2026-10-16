@@ -118,8 +118,19 @@
       permissions: { reads: ['which sites you were signed in to'], writes: ['what it already told you'], sends: [] } },
     { id: 'commit-guard', title: 'Protect Windows from running out of memory', group: 'Game mode', storageKeys: ['vex.game.commitGuard'],
       permissions: { reads: ['the memory Windows has left'], writes: ['puts Vex background work on hold while you play'], sends: [] } },
-    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled'], commands: ['release-check'],
-      permissions: { reads: ['the change list of this version'], writes: ['which items you ticked'], sends: [] } },
+    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled', 'vex.releaseCheck.auto'], commands: ['release-check'],
+      permissions: { reads: ['the change list of this version', 'which Ctrl+K commands you run'], writes: ['which items you ticked', 'which items Vex saw opened'], sends: [] } },
+
+    // ---- Wave 2: gates and security ---------------------------------------------------------------
+    // All new, so an existing profile has them off until it tries them (staged enablement).
+    { id: 'perm-hygiene', title: 'Permission hygiene', group: 'Permission hygiene', maturity: 'new', storageKeys: ['vex.permHygiene.enabled', 'vex.permHygiene.config', 'vex.permHygiene.weekly'], jobs: ['Permission summary'], commands: ['perm-hygiene'],
+      permissions: { reads: ['which sites you allowed to use the camera, microphone, location, screen, clipboard or notifications', 'which tab was just given them'], writes: ['the end date of a kept permission', 'a pin that keeps one'], sends: [] } },
+    { id: 'signed-in', title: 'What am I signed in to', group: 'What am I signed in to', maturity: 'new', storageKeys: ['vex.signedIn.enabled'], commands: ['signed-in', 'session-leaked'],
+      permissions: { reads: ['cookie names and dates (never values) and which sites have a saved login'], writes: ['clears one site's cookies and stored data in every container, only when you confirm'], sends: [] } },
+    { id: 'incident-playbooks', title: 'If something went wrong', group: 'If something went wrong', maturity: 'new', storageKeys: ['vex.incident.enabled', 'vex.incident.ticks'], commands: ['incident-playbooks'],
+      permissions: { reads: ['the names, sizes and dates of files in your downloads folder (no file is opened)', 'your extension list'], writes: ['which steps you ticked'], sends: [] } },
+    { id: 'credential-interlock', title: 'Password page check', group: 'Password page check', maturity: 'new', storageKeys: ['vex.credGuard.enabled'],
+      permissions: { reads: ['the address of a page whose password field you focused, against the sites you have logins for'], writes: [], sends: [] } },
     { id: 'playfulness', title: 'Playfulness', group: 'Playfulness', storageKeys: ['vex.playfulness.prior'], usesKeys: ['vex.fun.quiet'],
       permissions: { reads: ['your Playfulness level, Game mode and the quiet switch'], writes: ['the level you chose'], sends: [] } },
     { id: 'attention-inbox', title: 'Attention Inbox', group: 'Attention', storageKeys: ['vex.attention.inbox', 'vex.attention.inboxOn'],

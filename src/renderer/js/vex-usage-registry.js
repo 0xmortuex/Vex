@@ -236,6 +236,11 @@ const VexUsageRegistry = {
       ['commit-guard', A.api(G.CommitGuard, 'enabled', 'setEnabled')],
       // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
       ['release-check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
+      // Wave 2: permission hygiene, the signed-in list and kill switch, the incident checklists, the password-page check.
+      ['perm-hygiene', A.api(G.VexPermHygiene, 'enabled', 'setEnabled')],
+      ['signed-in', A.api(G.VexSignedIn, 'enabled', 'setEnabled')],
+      ['incident-playbooks', A.api(G.VexIncident, 'enabled', 'setEnabled')],
+      ['credential-interlock', A.api(G.CredentialInterlock, 'enabled', 'setEnabled')],
       // Attention (js/vex-playfulness.js, js/attention-inbox.js). The New Tab layout (js/newtab-slots.js)
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],

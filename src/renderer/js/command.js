@@ -1235,6 +1235,8 @@ const CommandBar = {
 
   _execute(item) {
     this._recordUsage(item);
+    // The release hand-check ticks the item that names this command (js/release-checklist.js).
+    if (typeof VexReleaseChecklist !== 'undefined') VexReleaseChecklist.noteCommand(item.label).catch(err => console.error('[ReleaseCheck] could not note the command:', err.message));
     // What was typed to get here, for the shortcut words (js/command-aliases.js).
     // Only from the open bar: Do That Again runs with whatever was left in the box.
     if (this.isOpen && typeof VexAliases !== 'undefined') {

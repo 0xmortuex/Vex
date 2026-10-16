@@ -887,8 +887,20 @@ const _webSafety = require('./main/web-safety').createWebSafety({
   write: (text) => require('./main/file-store').atomicWrite(_webSafetyFile, text),
   topHosts: () => _webSafetyTopHosts(),
 });
+// Permission hygiene (src/main/permission-hygiene.js): expiry, the trap guard and the
+// live camera/mic/location indicator. Off until Settings switches the feature on.
+const _permHygiene = require('./main/permission-hygiene').createPermissionHygiene({
+  file: path.join(userDataPath, 'permission-hygiene.json'),
+  emit: (what, payload) => {
+    const contents = payload && payload.contentsId != null ? webContents.fromId(payload.contentsId) : null;
+    const host = contents && !contents.isDestroyed() ? secureSessions.owner(contents) : null;
+    if (host && host.win && !host.win.isDestroyed()) host.win.webContents.send('hygiene:' + what, payload);
+  },
+});
 const { savedDecision } = require('./main/permissions');
-const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id) });
+const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermissions, sessionDecisions, sessionDecisionsFor, decisionsFor, sendPermissionRequest, wirePermissionsOnSession, loadPermissionDecisions, savePermissionDecisions, clearAllDecisions, restoreDecisions, permissionsReady, flushPermissions, askExternalApp, askAutomaticDownloads, askRiskyDownload } = require('./main/permissions').createPermissionService({ userDataPath, secureSessions, ipcMain, isLocked: () => _vexLocked, webSafety: _webSafety, lastGestureAt: (contents) => _lastGestureAt.get(contents.id), hygiene: _permHygiene });
+require('./main/permission-hygiene').registerPermissionHygiene({ ipcMain, hygiene: _permHygiene, loadDecisions: loadPermissionDecisions, saveDecisions: savePermissionDecisions, setPageDecision,
+  getContents: (id) => { const c = webContents.fromId(id); return c && !c.isDestroyed() ? c : null; }, ownerOf: (c) => secureSessions.owner(c), isLocked: () => _vexLocked });
 
 // === Screen share (getDisplayMedia) — Electron ships no picker, so without a
 // DisplayMediaRequestHandler the Discord "Share Screen" / Go Live button silently
@@ -9788,6 +9800,23 @@ const _protect = require('./main/protect').registerProtect({
   isLocked: () => _vexLocked,
   log: (m) => console.log(m),
 });
+
+// What am I signed in to, and the "my session leaked" kill switch (src/main/signed-in.js):
+// cookie names and dates only, across the main profile and the three containers.
+require('./main/signed-in').registerSignedIn({
+  ipcMain,
+  sessions: () => Object.fromEntries(BROWSING_SESSIONS.map(p => [p, secureSessions.fromPartition(p)])),
+  vaultHosts: () => _vaultLoad().map(e => e.host),
+  noteAction: (action, domains) => _protect.signout.noteAction(action, domains),
+  isLocked: () => _vexLocked,
+});
+
+// The password-field interlock (src/main/credential-guard.js) and the "I clicked something"
+// downloads-folder name check (src/main/incident-scan.js; names, sizes and dates only).
+require('./main/credential-guard').registerCredentialGuard({
+  ipcMain, savedHosts: () => _vaultLoad().map(e => e.host), topHosts: () => _webSafetyTopHosts(), allow: () => _webSafety.snapshot().allow, isLocked: () => _vexLocked,
+});
+require('./main/incident-scan').registerIncidentScan({ ipcMain, fs, folder: () => _chosenDownloadFolder() || app.getPath('downloads'), isLocked: () => _vexLocked });
 
 ipcMain.handle('notify:show', async (_e, payload) => {
   const { title, body, urgency, feature } = payload || {};

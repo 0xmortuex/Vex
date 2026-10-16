@@ -19,6 +19,7 @@
 const VexReleaseChecklist = {
   KEY: 'vex.releaseCheck',          // { "<version>": { "<item id>": ticked-at-ms } }
   PREF: 'vex.releaseCheck.enabled', // 'off' to hide the Settings section (Minimal Vex)
+  AUTO: 'vex.releaseCheck.auto',    // { "<version>": { "<item id>": { at, how } } } what Vex saw happen itself
   MAX_EXPECT: 240,
 
   // ---- parsing (pure) -----------------------------------------------------------
@@ -93,6 +94,10 @@ const VexReleaseChecklist = {
         doThis,
         expect: fixed ? 'It no longer happens: ' + expectText : expectText,
         route,
+        // Only a thing the app can SEE happen (a command ran, a feature or its Settings section opened) can be
+        // ticked by the app, and then only as "opened": whether the result matches the Expect line is for you.
+        // A fix ("repeat what went wrong") and an item with nowhere to go are manual only, always.
+        manual: fixed || !(route.command || route.settings),
       });
       cur = null;
     };
@@ -117,14 +122,15 @@ const VexReleaseChecklist = {
   markdown(entry, ticked) { return this.markdownOf(this.build(entry), ticked); },
 
   // list: what build() returns.
-  markdownOf(list, ticked) {
+  markdownOf(list, ticked, auto) {
     const done = ticked || {};
+    const seen = auto || {};
     const out = [`# Release check: v${list.version}`, '', list.name ? `_${list.name}_` : '', '',
       `${list.items.length} item(s). Do the first line, compare with the second, tick the box.`, ''];
     let section = null;
     for (const it of list.items) {
       if (it.section !== section) { section = it.section; out.push('', `## ${section}`, ''); }
-      out.push(`- [${done[it.id] ? 'x' : ' '}] **${it.title}**`);
+      out.push(`- [${done[it.id] || seen[it.id] ? 'x' : ' '}] **${it.title}**${!done[it.id] && seen[it.id] ? ' (opened; not checked by you)' : ''}`);
       out.push(`  - Do this: ${it.doThis}`);
       out.push(`  - Expect: ${it.expect}`);
     }
@@ -160,8 +166,58 @@ const VexReleaseChecklist = {
     return 0;
   },
   progress(version, items) {
-    const t = this.ticked(version);
-    return { done: items.filter(i => t[i.id]).length, total: items.length };
+    const t = this.ticked(version), a = this.autoTicked(version);
+    return { done: items.filter(i => t[i.id] || a[i.id]).length, total: items.length, auto: items.filter(i => !t[i.id] && a[i.id]).length };
+  },
+
+  // ---- what the app saw happen (T2-008) -------------------------------------------------
+  _readAuto() {
+    const raw = localStorage.getItem(this.AUTO);
+    if (!raw) return {};
+    try { const o = JSON.parse(raw); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+    catch (err) { throw new Error('The saved automatic ticks are not readable: ' + err.message); }
+  },
+  autoTicked(version) { return this._readAuto()[version] || {}; },
+  // Records that the app saw `item` opened (how: 'command', 'feature' or 'settings'). A manual-only item is refused.
+  autoTick(version, item, how) {
+    if (!item || item.manual) throw new Error('"' + (item && item.title) + '" can only be ticked by you');
+    if (!['command', 'feature', 'settings'].includes(how)) throw new Error('Unknown way of opening: ' + how);
+    const all = this._readAuto();
+    const mine = all[version] || {};
+    if (!mine[item.id]) mine[item.id] = { at: Date.now(), how };
+    all[version] = mine;
+    const keep = Object.keys(all).sort((a, b) => this._cmp(b, a)).slice(0, 5);
+    for (const k of Object.keys(all)) if (!keep.includes(k)) delete all[k];
+    localStorage.setItem(this.AUTO, JSON.stringify(all));
+    return mine[item.id];
+  },
+  clearAuto(version, id) {
+    const all = this._readAuto();
+    if (all[version] && all[version][id]) { delete all[version][id]; localStorage.setItem(this.AUTO, JSON.stringify(all)); }
+  },
+
+  // The list of the running version, kept for noteCommand (loaded on first use).
+  _current: null,
+  async current() {
+    if (!this._current) this._current = this.build(await this._entry());
+    return this._current;
+  },
+  // A Ctrl+K command ran (js/command.js): tick the item that names it, when there is one.
+  async noteCommand(label) {
+    if (!this.enabled() || !label) return false;
+    let list;
+    try { list = await this.current(); }
+    catch (err) {
+      // No CHANGELOG entry for this build (a development run): said once, then quiet.
+      if (!this._warned) { this._warned = true; console.error('[ReleaseCheck] commands are not ticked automatically:', err.message); }
+      return false;
+    }
+    const want = String(label).toLowerCase();
+    let hit = false;
+    for (const it of list.items) {
+      if (!it.manual && it.route.command && it.route.command.toLowerCase() === want) { this.autoTick(list.version, it, 'command'); hit = true; }
+    }
+    return hit;
   },
 
   // ---- the Usage record's switch (Minimal Vex can hide the section) -------------
@@ -179,19 +235,26 @@ const VexReleaseChecklist = {
     if (item.route.command && typeof CommandBar !== 'undefined' && Array.isArray(CommandBar.commands)) {
       const want = item.route.command.toLowerCase();
       const cmd = CommandBar.commands.find(c => String(c.label || '').toLowerCase() === want);
-      if (cmd && typeof cmd.action === 'function') { cmd.action(); return 'command'; }
+      if (cmd && typeof cmd.action === 'function') { cmd.action(); this._seen(item, 'command'); return 'command'; }
     }
     if (typeof VexFeatures !== 'undefined' && Array.isArray(VexFeatures.ITEMS) && typeof VexGuide !== 'undefined') {
       // The title without a trailing "(Settings > ...)" note, matched whole or as its first words.
       const title = item.title.replace(/\s*\(.*$/, '').trim().toLowerCase();
       const hit = VexFeatures.ITEMS.find(f => { const n = String(VexFeatures.nameOf(f) || '').toLowerCase(); return n.length > 3 && (title === n || title.startsWith(n + ' ')); });
-      if (hit) { VexGuide.run(hit); return 'feature'; }
+      if (hit) { VexGuide.run(hit); this._seen(item, 'feature'); return 'feature'; }
     }
     if (item.route.settings && typeof SettingsUI !== 'undefined' && typeof SidebarManager !== 'undefined') {
       this._openSettings(item.route.settings[0]);
+      this._seen(item, 'settings');
       return 'settings';
     }
     return null;
+  },
+
+  // Try it opened `item`: the app saw it, so it is marked (never a manual-only item).
+  _seen(item, how) {
+    if (item.manual || !this._current) return;
+    this.autoTick(this._current.version, item, how);
   },
 
   _openSettings(heading) {
@@ -228,18 +291,19 @@ const VexReleaseChecklist = {
     if (typeof VexUsage !== 'undefined') VexUsage.touch('release-check');
     const { body } = VexSettingsGroups.dialog({ id: 'vex-release-check', title: 'Release check', sub: 'Do the first line for each change, compare with the second, tick it. Kept on this computer only.' });
     let list;
-    try { list = this.build(await this._entry()); }
+    try { list = await this.current(); }
     catch (err) { body.appendChild(VexSettingsGroups.note(err.message)); return; }
     const draw = () => {
       body.textContent = '';
       const p = this.progress(list.version, list.items);
-      body.appendChild(VexSettingsGroups.note('v' + list.version + ': ' + p.done + ' of ' + p.total + ' ticked.'));
+      body.appendChild(VexSettingsGroups.note('v' + list.version + ': ' + p.done + ' of ' + p.total + ' ticked' + (p.auto ? ' (' + p.auto + ' of them only opened by Vex: you still compare the result)' : '') + '.'));
       const copy = VexSettingsGroups.button('Copy as a checklist', async () => {
-        try { await navigator.clipboard.writeText(this.markdownOf(list, this.ticked(list.version))); window.showToast?.('Checklist copied'); }
+        try { await navigator.clipboard.writeText(this.markdownOf(list, this.ticked(list.version), this.autoTicked(list.version))); window.showToast?.('Checklist copied'); }
         catch (err) { window.showToast?.('Could not copy: ' + (err && err.message), 'error'); }
       });
       body.appendChild(copy);
       const ticked = this.ticked(list.version);
+      const seen = this.autoTicked(list.version);
       let section = null, wrap = null;
       for (const it of list.items) {
         if (it.section !== section) {
@@ -258,9 +322,9 @@ const VexReleaseChecklist = {
         row.dataset.item = it.id;
         const box = document.createElement('input');
         box.type = 'checkbox';
-        box.checked = !!ticked[it.id];
+        box.checked = !!ticked[it.id] || !!seen[it.id];
         box.setAttribute('aria-label', 'Checked: ' + it.title);
-        box.addEventListener('change', () => { this.setTick(list.version, it.id, box.checked); draw(); });
+        box.addEventListener('change', () => { this.setTick(list.version, it.id, box.checked); if (!box.checked) this.clearAuto(list.version, it.id); draw(); });
         const text = document.createElement('span');
         text.className = 'vexsr-host';
         text.style.wordBreak = 'normal';
@@ -269,12 +333,18 @@ const VexReleaseChecklist = {
         const d = document.createElement('div');
         d.className = 'vexsr-mode';
         d.style.whiteSpace = 'normal';
-        d.textContent = 'Do this: ' + it.doThis;
+        d.textContent = 'Do this: ' + it.doThis + (it.manual ? ' (only you can tick this one)' : '');
         const e = document.createElement('div');
         e.className = 'vexsr-mode';
         e.style.whiteSpace = 'normal';
         e.textContent = 'Expect: ' + it.expect;
         text.append(t, d, e);
+        if (!ticked[it.id] && seen[it.id]) {
+          const a = document.createElement('div');
+          a.className = 'vexsr-mode';
+          a.textContent = 'Vex saw this opened (' + seen[it.id].how + '). Compare the result with Expect, then tick it yourself.';
+          text.appendChild(a);
+        }
         const go = VexSettingsGroups.button('Try it', () => {
           let how = null;
           try { how = this.tryIt(it); }

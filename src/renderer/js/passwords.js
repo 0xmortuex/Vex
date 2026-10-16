@@ -53,6 +53,12 @@ const PasswordVault = {
       ? (ev, fn) => webview._lifecycle.listen(webview, ev, fn)
       : (ev, fn) => webview.addEventListener(ev, fn);
     on('ipc-message', async (e) => {
+      // A password field took focus (preload-webview.js): is this the site a login belongs to? Asked
+      // before the fill policy below, because a Tor or private tab needs the warning just as much.
+      if (e.channel === 'vex-cred-focus') {
+        if (typeof CredentialInterlock !== 'undefined') CredentialInterlock.onFocus(webview, (e.args && e.args[0]) || {});
+        return;
+      }
       if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
       let actualHost;
       try { const current = new URL(webview.getURL()); if (current.protocol !== 'https:') return; actualHost = this._host(current.hostname); } catch { return; }

@@ -3451,3 +3451,23 @@ function vexPageDialogs(ask) {
 // Pop-ups are judged in main from the input the page really got
 // (src/main/popup-blocker.js); the page's own word (navigator.userActivation,
 // which it can redefine) is no longer asked.
+
+// === Credential-entry interlock (T2-089): a password field took focus =========
+// Tells the host the page's host name, once per page. The host (js/credential-interlock.js)
+// asks main whether that name is somewhere a saved login belongs, and warns if it is a
+// lookalike. No field value, no page text and no URL path leave the page here.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+  if (!/^https?:$/.test(location.protocol)) return;
+  let told = false;
+  document.addEventListener("focusin", (e) => {
+    if (told) return;
+    const el = e.target;
+    if (!el || el.tagName !== "INPUT" || String(el.type || "").toLowerCase() !== "password") return;
+    told = true;
+    try { ipcRenderer.sendToHost("vex-cred-focus", { host: location.hostname.replace(/^www\./, "") }); } catch { /* vex-allow-empty-catch: the host is gone, so there is nothing to warn */ }
+  }, true);
+})();

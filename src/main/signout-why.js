@@ -52,6 +52,7 @@ const VEX_ACTIONS = {
   'clear-all': { cause: 'vex-cleared-all', line: 'You (or a schedule) ran Clear browsing data, which removes every site\'s cookies.', where: 'Settings > Privacy > Clear browsing data' },
   'clear-site': { cause: 'vex-cleared-site', line: 'This site\'s data was cleared with "Clear this site\'s data".', where: 'Site settings > Clear data' },
   'privacy-cleanup': { cause: 'vex-cleanup', line: 'The cookie cleanup in the privacy report card removed this site\'s cookies.', where: 'Privacy report card > Clean up' },
+  'kill-switch': { cause: 'vex-kill-switch', line: 'You used "My session leaked" on this site, which removes its cookies and stored data in every container.', where: 'Settings > What am I signed in to' },
   'cookie-tool': { cause: 'vex-cookie-tool', line: 'A cookie was deleted with the cookie tool (or an extension using it).', where: 'The cookie tool / extension that called it' },
 };
 
@@ -60,7 +61,7 @@ function when(t) { return new Date(t).toISOString().slice(0, 10); }
 // The one sentence for an event.
 function lineFor(e) {
   switch (e.cause) {
-    case 'vex-cleared-all': case 'vex-cleared-site': case 'vex-cleanup': case 'vex-cookie-tool':
+    case 'vex-cleared-all': case 'vex-cleared-site': case 'vex-cleanup': case 'vex-cookie-tool': case 'vex-kill-switch':
       return VEX_ACTIONS[e.action].line;
     case 'site-removed':
       return `${e.domain} removed its own sign-in cookie "${e.name}" (usually when you sign out there, or when it decides the session is no longer valid). Vex did not clear it.`;
