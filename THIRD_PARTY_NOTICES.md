@@ -46,7 +46,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 
 ## npm packages shipped with Vex
 
-96 packages. Licence names are as each package declares them in its `package.json`.
+101 packages. Licence names are as each package declares them in its `package.json`.
 
 | Package | Version | Licence |
 |---|---|---|
@@ -57,6 +57,8 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | @ghostery/adblocker-extended-selectors | 2.18.0 | MPL-2.0 |
 | @ghostery/url-parser | 1.3.1 | MPL-2.0 |
 | @isaacs/fs-minipass | 4.0.1 | ISC |
+| @pdf-lib/standard-fonts | 1.0.0 | MIT |
+| @pdf-lib/upng | 1.0.1 | MIT |
 | @pinojs/redact | 0.4.0 | MIT |
 | @remusao/guess-url-type | 2.1.0 | MPL-2.0 |
 | @remusao/small | 2.1.0 | MPL-2.0 |
@@ -109,8 +111,10 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | p-limit | 2.3.0 | MIT |
 | p-locate | 4.1.0 | MIT |
 | p-try | 2.2.0 | MIT |
+| pako | 1.0.11 | (MIT AND Zlib) |
 | parseley | 0.13.1 | MIT |
 | path-exists | 4.0.0 | MIT |
+| pdf-lib | 1.17.1 | MIT |
 | peberminta | 0.10.0 | MIT |
 | pino | 10.3.1 | MIT |
 | pino-abstract-transport | 3.0.0 | MIT |
@@ -139,6 +143,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | tlds | 1.261.0 | MIT |
 | tldts-core | 7.4.2 | MIT |
 | tldts-experimental | 7.4.2 | MIT |
+| tslib | 1.14.1 | 0BSD |
 | uc.micro | 2.1.0 | MIT |
 | which-module | 2.0.1 | ISC |
 | wrap-ansi | 6.2.0 | MIT |
@@ -196,6 +201,8 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 
 Used by Electron, castLabs Electron and the packages below. Each package's copyright line(s) are listed; the licence text that applies to all of them follows.
 
+- **@pdf-lib/standard-fonts@1.0.0** — Copyright (c) 2018 Andrew Dillon
+- **@pdf-lib/upng@1.0.1** — Copyright (c) 2017 Photopea
 - **@pinojs/redact@0.4.0** — Copyright (c) 2025 pinojs contributors
 - **@selderee/plugin-htmlparser2@0.12.0** — Copyright (c) 2021-2026 KillyMXI <killy@mxii.eu.org>
 - **adm-zip@0.6.1** — Copyright (c) 2012 Another-D-Mention Software and other contributors
@@ -230,6 +237,7 @@ Used by Electron, castLabs Electron and the packages below. Each package's copyr
 - **p-try@2.2.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 - **parseley@0.13.1** — Copyright (c) 2021-2025 KillyMXI <killy@mxii.eu.org>
 - **path-exists@4.0.0** — Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+- **pdf-lib@1.17.1** — Copyright (c) 2019 Andrew Dillon
 - **peberminta@0.10.0** — Copyright (c) 2021-2025 KillyMXI <killy@mxii.eu.org>
 - **pino@10.3.1** — Copyright (c) 2016-2025 Matteo Collina, David Mark Clements and the Pino contributors listed at <https://github.com/pinojs/pino#the-team> and in the README file.
 - **pino-abstract-transport@3.0.0** — Copyright (c) 2021 pino
@@ -2099,6 +2107,53 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+#### pako@1.0.11 — (MIT AND Zlib)
+
+```
+(The MIT License)
+
+Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+The zlib part of this licence (pako is a port of zlib):
+
+(C) 1995-2013 Jean-loup Gailly and Mark Adler
+(C) 2014-2017 Vitaly Puzrin and Andrey Tupitsin
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+```
+
 #### @protobufjs/aspromise@1.1.2, @protobufjs/base64@1.1.2, @protobufjs/codegen@2.0.5, @protobufjs/eventemitter@1.1.1, @protobufjs/fetch@1.1.1, @protobufjs/float@1.0.2, @protobufjs/path@1.1.2, @protobufjs/pool@1.1.0, @protobufjs/utf8@1.1.2 — BSD-3-Clause
 
 ```
@@ -2172,6 +2227,23 @@ Code generated by the command line utilities is owned by the owner
 of the input file used when generating it. This code is not
 standalone and requires a support library to be linked with it. This
 support library is itself covered by the above license.
+```
+
+#### tslib@1.14.1 — 0BSD
+
+```
+Copyright (c) Microsoft Corporation.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
 ```
 
 #### webidl-conversions@3.0.1 — BSD-2-Clause
