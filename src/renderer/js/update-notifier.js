@@ -121,6 +121,7 @@ const UpdateNotifier = {
   },
 
   async checkOnStartup() {
+    if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
@@ -152,6 +153,7 @@ const UpdateNotifier = {
   // alone: one asking, downloading or installing stays exactly as it is.
   async checkWhileOpen() {
     if (window.VexTabPolicy?.isPrivateWindow || !this.checksOnStart() || this._el) return;
+    if (window.VexExamSafeMode && window.VexExamSafeMode.holds('updates')) return;   // exam safe mode: no update check
     let r;
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }

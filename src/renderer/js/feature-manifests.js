@@ -128,6 +128,29 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 2: study and Turkish ---------------------------------------------------
+    // All local; none sends anything by itself. New: staged OFF on an existing profile.
+    { id: 'turkish-parse', title: 'Turkish dates and amounts', group: 'Turkish and English', maturity: 'new', storageKeys: ['vex.tr.enabled'],
+      permissions: quiet({ reads: ['the text of a reminder or quick capture you typed'], writes: ['nothing: it only reads the words'] }) },
+    { id: 'locale-translate', title: 'Turkish and English translation helpers', group: 'Turkish and English', maturity: 'new',
+      storageKeys: ['vex.localeTranslate', 'vex.localeTranslate.enabled'], usesKeys: ['vex.translateGlossary', 'vex.translateAlwaysHosts'], commands: ['compose-bilingual'],
+      permissions: { reads: ['paragraphs of the page you translate, to tell their language'], writes: ['your language profile and the sites never translated'], sends: ['The text of the two-language box, to the page translator, only when you press Translate'] } },
+    { id: 'study-block', title: 'Strict study block', group: 'Study block', maturity: 'new', storageKeys: ['vex.studyBlock', 'vex.studyBlock.enabled'], commands: ['study-block'],
+      permissions: quiet({ reads: ['the address of each page you open during a block'], writes: ['the block, its saved lists and a log of why you left'] }) },
+    { id: 'exam-planner', title: 'Exam countdown planner', group: 'Exams', maturity: 'new', storageKeys: ['vex.exams', 'vex.exams.enabled'], usesKeys: ['vex.focusOS', 'vex.reminders.recent'],
+      jobs: ['Exam planner'], commands: ['exams'],
+      permissions: quiet({ reads: ['your calendar, reminders and Focus OS blocks to find free time'], writes: ['exams; reminders and a Focus OS goal, only after you confirm'] }) },
+    { id: 'exam-safe-mode', title: 'Exam-day pack and exam mode', group: 'Exam-day pack', maturity: 'new', storageKeys: ['vex.examMode', 'vex.examMode.enabled'], commands: ['exam-pack'],
+      permissions: quiet({ reads: ['the pages you list'], writes: ['packs; while on, holds update checks and sync, keeps tabs awake and Vex quiet'] }) },
+    { id: 'paper-session', title: 'Past-paper session recorder', group: 'Past papers', maturity: 'new', storageKeys: ['vex.paperSessions', 'vex.paperSessions.enabled'], commands: ['paper-session'],
+      permissions: quiet({ reads: ['text you selected on a page, when you log a question'], writes: ['papers, questions and scores'] }) },
+    { id: 'course-spaces', title: 'Course spaces', group: 'Courses', maturity: 'new', storageKeys: ['vex.courses', 'vex.courses.enabled'], usesKeys: ['vex.projectSpaces', 'vex.projectSpaces.active', 'vex.notes'], commands: ['courses'],
+      permissions: quiet({ reads: ['your project spaces, exams and notes'], writes: ['courses; switches space only when you ask'] }) },
+    { id: 'paper-brief', title: 'Paper brief', group: 'Paper brief', maturity: 'new', storageKeys: ['vex.paperBrief.enabled'], commands: ['paper-brief'], budget: { jobMsPerMin: 4000 },
+      permissions: { reads: ['a PDF you choose'], writes: ['a note, only when you save it'], sends: [] } },
+    { id: 'mun-dossier', title: 'Model UN dossier', group: 'Model UN dossier', maturity: 'new', storageKeys: ['vex.mun', 'vex.mun.enabled'], usesKeys: ['vex.researchBoard', 'vex.notes'], commands: ['mun-dossier'],
+      permissions: quiet({ reads: ['the research board and the page you ask to add from'], writes: ['dossiers and notes with their sources'] }) },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

@@ -90,4 +90,85 @@ function extract(buffer, inflate) {
   return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_TEXT);
 }
 
-module.exports = { extract, streams, textFromContent, unescapePdf, MAX_TEXT };
+// === The text page by page ================================================
+// A paper brief has to say WHERE a claim is, so the pages are kept apart. Where the file's
+// objects are readable (not packed into compressed object streams), the page tree is followed
+// in order: /Pages -> /Kids -> each /Page -> its /Contents streams. When it is not, every text
+// stream counts as one page in file order and `approx` is true: the page numbers are then a
+// best guess and the caller must say so.
+const MAX_PAGES = 400;
+const MAX_PAGE_TEXT = 30000;
+
+function objectsOf(buffer, inflate) {
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+  const latin = bytes.toString('latin1');
+  const objs = new Map();      // number -> { dict (text before the stream), content (inflated stream or '') }
+  const head = /(\d+)\s+(\d+)\s+obj\b/g;
+  let m;
+  while ((m = head.exec(latin))) {
+    const bodyStart = m.index + m[0].length;
+    const end = latin.indexOf('endobj', bodyStart);
+    if (end < 0) break;
+    const body = latin.slice(bodyStart, end);
+    const si = body.search(/stream\r?\n?/);
+    let dict = body, content = '';
+    if (si >= 0) {
+      dict = body.slice(0, si);
+      const after = body.slice(si).match(/^stream\r?\n?/)[0].length;
+      const es = body.lastIndexOf('endstream');
+      const raw = bytes.subarray(bodyStart + si + after, es >= 0 ? bodyStart + es : end);
+      if (/FlateDecode/.test(dict)) { try { content = inflate(raw).toString('latin1'); } catch { content = ''; } }
+      else if (!/\/(DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode|RunLengthDecode|LZWDecode)/.test(dict)) content = raw.toString('latin1');
+    }
+    objs.set(Number(m[1]), { dict, content });
+    head.lastIndex = end + 6;
+  }
+  return objs;
+}
+
+function refs(text) { return [...String(text).matchAll(/(\d+)\s+\d+\s+R\b/g)].map(r => Number(r[1])); }
+
+function extractPages(buffer, inflate) {
+  const objs = objectsOf(buffer, inflate);
+  const isPage = (o) => /\/Type\s*\/Page(?![A-Za-z])/.test(o.dict);
+  const pageNums = [...objs.entries()].filter(([, o]) => isPage(o)).map(([n]) => n);
+  const textOf = (n) => {
+    const o = objs.get(n);
+    if (!o) return '';
+    const c = /\/Contents\s*(\[[^\]]*\]|\d+\s+\d+\s+R)/.exec(o.dict);
+    if (!c) return '';
+    return refs(c[1]).map(r => { const s = objs.get(r); return s && s.content && /\bBT\b|\bTj\b|\bTJ\b/.test(s.content) ? textFromContent(s.content) : ''; }).filter(Boolean).join('\n');
+  };
+  let order = null;
+  if (pageNums.length) {
+    // Follow /Kids from the root (a /Pages object with no /Parent).
+    const root = [...objs.entries()].find(([, o]) => /\/Type\s*\/Pages(?![A-Za-z])/.test(o.dict) && !/\/Parent\b/.test(o.dict));
+    if (root) {
+      const out = [];
+      const walk = (n, depth) => {
+        const o = objs.get(n);
+        if (!o || depth > 12 || out.length > MAX_PAGES) return;
+        if (isPage(o)) { out.push(n); return; }
+        const k = /\/Kids\s*\[([^\]]*)\]/.exec(o.dict);
+        if (k) for (const r of refs(k[1])) walk(r, depth + 1);
+      };
+      walk(root[0], 0);
+      if (out.length === pageNums.length) order = out;
+    }
+  }
+  if (order) {
+    const pages = order.slice(0, MAX_PAGES).map(n => textOf(n).replace(/\n{3,}/g, '\n\n').trim().slice(0, MAX_PAGE_TEXT));
+    if (pages.some(Boolean)) return { pages, approx: false };
+  }
+  // The file's objects could not give the page order: every text stream is a page, in file order.
+  const pages = [];
+  for (const content of streams(buffer, inflate)) {
+    if (!/\bBT\b|\bTj\b|\bTJ\b/.test(content)) continue;
+    const t = textFromContent(content).trim();
+    if (t) pages.push(t.slice(0, MAX_PAGE_TEXT));
+    if (pages.length >= MAX_PAGES) break;
+  }
+  return { pages, approx: true };
+}
+
+module.exports = { extract, extractPages, streams, textFromContent, unescapePdf, MAX_TEXT };

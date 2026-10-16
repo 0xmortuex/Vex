@@ -7,7 +7,7 @@
 //
 //   AttentionState.get() -> {
 //     quiet: boolean,
-//     reason: 'game' | 'meeting' | 'focus' | 'quiet-hours' | 'wind-down' | 'quiet-switch' | '',
+//     reason: 'game' | 'exam' | 'meeting' | 'focus' | 'study' | 'quiet-hours' | 'wind-down' | 'quiet-switch' | '',
 //     until: number | 0,            // ms epoch when the reason ends, 0 when unknown
 //     sources: [{ id, until }],     // every reason that applies, strongest first
 //   }
@@ -25,7 +25,7 @@
 // hidden.
 const AttentionState = {
   // Strongest first: the first one that applies is the `reason`.
-  ORDER: ['game', 'meeting', 'focus', 'quiet-hours', 'wind-down', 'quiet-switch'],
+  ORDER: ['game', 'exam', 'meeting', 'focus', 'study', 'quiet-hours', 'wind-down', 'quiet-switch'],
   QUIET_HOURS_TTL_MS: 30 * 1000,
 
   _qh: null,           // { at, inWindow, until } from the main process
@@ -58,6 +58,15 @@ const AttentionState = {
   _focus() {
     if (typeof FocusMode !== 'undefined' && FocusMode && FocusMode.active) return { until: Number(FocusMode.until) || 0 };
     if (typeof FocusFlows !== 'undefined' && FocusFlows && FocusFlows._active && FocusFlows._active.flow) return { until: 0 };
+    return null;
+  },
+  // Exam safe mode and a strict study block (js/exam-safe-mode.js, js/study-block.js) publish themselves here.
+  _exam() {
+    if (typeof VexExamSafeMode !== 'undefined' && VexExamSafeMode && typeof VexExamSafeMode.active === 'function' && VexExamSafeMode.active()) return { until: Number(VexExamSafeMode.until && VexExamSafeMode.until()) || 0 };
+    return null;
+  },
+  _study() {
+    if (typeof VexStudyBlock !== 'undefined' && VexStudyBlock && typeof VexStudyBlock.active === 'function' && VexStudyBlock.active()) return { until: Number(VexStudyBlock.until && VexStudyBlock.until()) || 0 };
     return null;
   },
   _wind() {
@@ -107,7 +116,7 @@ const AttentionState = {
 
   get() {
     const readers = {
-      game: () => this._game(), meeting: () => this._meeting(), focus: () => this._focus(),
+      game: () => this._game(), exam: () => this._exam(), meeting: () => this._meeting(), focus: () => this._focus(), study: () => this._study(),
       'quiet-hours': () => this._quietHours(), 'wind-down': () => this._wind(), 'quiet-switch': () => this._switch(),
     };
     const sources = [];

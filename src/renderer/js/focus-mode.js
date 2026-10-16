@@ -117,6 +117,8 @@ const FocusMode = {
       try { if (webview.canGoBack()) webview.goBack(); else webview.loadURL(typeof START_URL !== 'undefined' ? START_URL : 'about:blank'); } catch {}
       return true;
     }
+    // A strict study block (js/study-block.js): sites off its list are bounced, with a cooldown to leave.
+    if (typeof VexStudyBlock !== 'undefined' && VexStudyBlock.guard(webview, url)) return true;
     if (!this.shouldBlock(url)) return false;
     const mins = Math.max(1, Math.ceil((this.until - Date.now()) / 60000));
     window.showToast?.(`Blocked during focus (${mins} min left)`);

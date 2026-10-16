@@ -1991,9 +1991,13 @@ ipcMain.handle('doc:text', async (_e, bytes, name) => {
   try {
     const buffer = Buffer.from(bytes.buffer || bytes, bytes.byteOffset || 0, bytes.byteLength || bytes.length);
     if (/\.pdf$/i.test(filename) || buffer.subarray(0, 5).toString('latin1') === '%PDF-') {
-      const text = require('./main/pdf-text').extract(buffer, (raw) => require('zlib').inflateSync(raw));
+      const pdf = require('./main/pdf-text');
+      const inflate = (raw) => require('zlib').inflateSync(raw);
+      const text = pdf.extract(buffer, inflate);
       if (!text) return { ok: false, error: 'There is no text in that PDF to read — it is probably a scan of paper, or it is locked' };
-      return { ok: true, text, kind: 'pdf' };
+      // The pages apart, for a brief that cites page numbers (js/paper-brief.js); approx = the order is a best guess.
+      const split = pdf.extractPages(buffer, inflate);
+      return { ok: true, text, kind: 'pdf', pages: split.pages, pagesApprox: split.approx };
     }
     const text = buffer.toString('utf8').replace(/\u0000/g, '');
     if (!text.trim()) return { ok: false, error: 'That file has no text in it' };

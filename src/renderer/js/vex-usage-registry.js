@@ -195,6 +195,15 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexTrParse: () => (typeof VexTrParse !== 'undefined' ? VexTrParse : null),
+      VexLocaleTranslate: () => (typeof VexLocaleTranslate !== 'undefined' ? VexLocaleTranslate : null),
+      VexStudyBlock: () => (typeof VexStudyBlock !== 'undefined' ? VexStudyBlock : null),
+      VexExamPlanner: () => (typeof VexExamPlanner !== 'undefined' ? VexExamPlanner : null),
+      VexExamSafeMode: () => (typeof VexExamSafeMode !== 'undefined' ? VexExamSafeMode : null),
+      VexPaperSession: () => (typeof VexPaperSession !== 'undefined' ? VexPaperSession : null),
+      VexCourseSpaces: () => (typeof VexCourseSpaces !== 'undefined' ? VexCourseSpaces : null),
+      VexPaperBrief: () => (typeof VexPaperBrief !== 'undefined' ? VexPaperBrief : null),
+      VexMunDossier: () => (typeof VexMunDossier !== 'undefined' ? VexMunDossier : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +249,16 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Study and Turkish (Wave 2)
+      ['turkish-parse', A.api(G.VexTrParse, 'enabled', 'setEnabled')],
+      ['locale-translate', A.api(G.VexLocaleTranslate, 'enabled', 'setEnabled')],
+      ['study-block', A.api(G.VexStudyBlock, 'enabled', 'setEnabled')],
+      ['exam-planner', A.api(G.VexExamPlanner, 'enabled', 'setEnabled')],
+      ['exam-safe-mode', A.api(G.VexExamSafeMode, 'enabled', 'setEnabled')],
+      ['paper-session', A.api(G.VexPaperSession, 'enabled', 'setEnabled')],
+      ['course-spaces', A.api(G.VexCourseSpaces, 'enabled', 'setEnabled')],
+      ['paper-brief', A.api(G.VexPaperBrief, 'enabled', 'setEnabled')],
+      ['mun-dossier', A.api(G.VexMunDossier, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
