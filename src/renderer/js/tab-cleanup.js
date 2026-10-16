@@ -185,11 +185,25 @@ const TabCleanup = {
     const items = this.propose(TabManager.tabs, this._ctx(now));
     if (!items.length) return null;
     try { localStorage.setItem(this.LAST_KEY, day); } catch (err) { console.warn('[TabCleanup] could not remember today:', err.message); }
+    // Tidying is a suggestion, not an interruption: it waits in the Attention
+    // Inbox, and the card opens when the person asks for it.
+    if (typeof VexAttention !== 'undefined') {
+      VexAttention.suggest({ feature: 'tab-cleanup', label: 'Tab cleanup', id: day, title: 'Tidy ' + items.length + ' tab' + (items.length === 1 ? '' : 's') + '?', body: 'Tabs you have not used for days, or second copies. They go to the Library archive and Undo brings them back.', action: { label: 'Review', key: 'review' } });
+      return items;
+    }
     this.showCard(items);
     return items;
   },
 
   start() {
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('tab-cleanup', (key) => {
+        if (key !== 'review') throw new Error('Unknown tab cleanup action ' + key);
+        const now = this.propose(TabManager.tabs, this._ctx(Date.now()));
+        if (!now.length) { window.showToast?.('Nothing to tidy right now'); return null; }
+        return this.showCard(now);
+      });
+    }
     if (this._job) return;
     if (typeof VexJobs === 'undefined') throw new Error('TabCleanup needs VexJobs');
     this._job = VexJobs.every('Tab cleanup', this.EVERY_MS, () => this.tick(), { when: 'ui', deferOnBattery: true });

@@ -81,7 +81,11 @@ const LiveChannels = {
     if (!quiet && fresh.length) {
       const first = fresh[0];
       const rest = fresh.length > 1 ? ' (and ' + (fresh.length - 1) + ' more)' : '';
-      window.vex.notify?.(first.name + ' is live', (first.title || 'on ' + (first.kind === 'twitch' ? 'Twitch' : 'YouTube')) + rest)
+      const liveBody = (first.title || 'on ' + (first.kind === 'twitch' ? 'Twitch' : 'YouTube')) + rest;
+      const send = typeof VexAttention !== 'undefined'
+        ? VexAttention.osNotify({ feature: 'live-channels', label: 'Live channels', urgency: 'useful', id: first.name, title: first.name + ' is live', body: liveBody })
+        : window.vex.notify?.(first.name + ' is live', liveBody);
+      send
         .catch(err => window.VexProblems?.note('Live channels', 'Could not show the notification', err));
     }
     return statuses;

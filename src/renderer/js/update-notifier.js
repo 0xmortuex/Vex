@@ -125,7 +125,26 @@ const UpdateNotifier = {
     try { r = await window.vex.checkForUpdates(); }
     catch (err) { VexProblems?.note('Updates', 'Could not check for updates', err); return; }
     this.noteSeen(r);
-    if (this.shouldAnnounce(r)) this.showCover(r);
+    if (this.shouldAnnounce(r)) this.announce(r);
+  },
+
+  // An update the person did not ask about. It goes through the Attention gate:
+  // at a good moment it opens the cover as before; during a game, a meeting,
+  // Focus, quiet hours or the wind-down it waits in the Attention Inbox instead
+  // (js/attention-inbox.js) and the next check offers it again.
+  _waiting: null,
+  announce(info) {
+    if (typeof VexAttention === 'undefined') return this.showCover(info);
+    this._waiting = info;
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('update', (key) => {
+        if (key !== 'show' || !this._waiting) throw new Error('Unknown update action ' + key);
+        return this.showCover(this._waiting);
+      });
+    }
+    const d = VexAttention.notify({ feature: 'update', label: 'Update reminder', urgency: 'useful', id: info.latest, title: 'Vex ' + info.latest + ' is available', body: 'See what is new and update when it suits you.', action: { label: 'See what is new', key: 'show' } },
+      () => this.showCover(info));
+    return d;
   },
 
   // The six-hourly check. Same rules as the one at start (channel, skipped
@@ -139,7 +158,7 @@ const UpdateNotifier = {
     this.noteSeen(r);
     // A cover opened from Settings while the check was out wins.
     if (this._el) return;
-    if (this.shouldAnnounce(r)) this.showCover(r);
+    if (this.shouldAnnounce(r)) this.announce(r);
   },
 
   // Settings › About. Asked for, so the channel and a skipped version do not

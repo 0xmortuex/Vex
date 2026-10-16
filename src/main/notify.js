@@ -116,6 +116,82 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   return { show, isSupported, toastXml };
 }
 
+// === The Attention Budget for OS toasts ====================================
+//
+// The renderer's VexAttention (js/vex-attention.js) rules the toasts inside the
+// window; this is the same rule set for the ones Windows shows, so that ~150
+// features cannot each add a notification. Every toast says how urgent it is:
+//
+//   critical  reminders and alarms (kind 'reminder' is critical on its own)
+//   asked     the person pressed something, or an extension / userscript they
+//             installed raised it. This is also what a toast with no urgency is:
+//             nothing that existed before changes class
+//   useful    worth knowing, not worth an interruption (AI news, a free game, a
+//             channel going live, a GitHub change)
+//   ambient   nice to have
+//
+// critical and asked always pass. useful and ambient are refused (not queued) while
+// the renderer says it is a bad moment (setState: Game mode, a meeting, Focus,
+// the wind-down, the quiet switch), when the same toast was shown in the last
+// repeatMs, or over the per-minute / per-hour / per-day caps. A refusal resolves
+// { ok:false, suppressed:true, reason } -- not an error -- and is listed (denied()),
+// so the renderer can move it into the Attention Inbox and Settings can show it.
+const URGENCIES = ['critical', 'asked', 'useful', 'ambient'];
+
+function createNotifyGate({ show, now = () => Date.now(), log, minuteCap = 3, hourCap = 3, dayCap = 12, repeatMs = 10 * 60 * 1000, maxDenied = 50 }) {
+  if (typeof show !== 'function') throw new Error("createNotifyGate needs the notifier's show function");
+  const note = typeof log === 'function' ? log : () => {};
+  let state = { quiet: false, reason: '', until: 0 };
+  let sent = [];                 // timestamps of useful/ambient toasts let through
+  const seen = new Map();        // 'feature::key' -> timestamp
+  const denied = [];             // newest first
+
+  function classify(opts) {
+    if (opts && opts.urgency != null) {
+      if (!URGENCIES.includes(opts.urgency)) throw new Error('Urgency must be one of ' + URGENCIES.join(', '));
+      return opts.urgency;
+    }
+    return opts && opts.kind === 'reminder' ? 'critical' : 'asked';
+  }
+
+  function setState(next) {
+    if (!next || typeof next !== 'object' || typeof next.quiet !== 'boolean') throw new Error('The attention state needs a quiet flag');
+    state = { quiet: next.quiet, reason: String(next.reason || '').slice(0, 40), until: Number.isFinite(next.until) ? next.until : 0 };
+    return state;
+  }
+
+  function deny(opts, urgency, reason, record = true) {
+    if (record) {
+      denied.unshift({ feature: String(opts.feature || opts.kind || 'app').slice(0, 64), title: String(opts.title || '').slice(0, 120), reason, urgency, t: now() });
+      while (denied.length > maxDenied) denied.pop();
+    }
+    note('[Notify] held back (' + reason + '): ' + String(opts.title || '').slice(0, 60));
+    return { ok: false, suppressed: true, reason };
+  }
+
+  async function gated(opts = {}) {
+    const urgency = classify(opts);
+    if (urgency === 'critical' || urgency === 'asked') return show(opts);
+    const t = now();
+    const feature = String(opts.feature || opts.kind || 'app');
+    const key = feature + '::' + String(opts.tag || opts.title || '');
+    const last = seen.get(key);
+    if (last !== undefined && t - last < repeatMs) return deny(opts, urgency, 'repeat', false);
+    if (state.quiet) return deny(opts, urgency, 'quiet: ' + state.reason);
+    sent = sent.filter(x => t - x < 24 * 3600 * 1000);
+    if (sent.filter(x => t - x < 60 * 1000).length >= minuteCap) return deny(opts, urgency, 'too many in a minute');
+    if (sent.filter(x => t - x < 3600 * 1000).length >= hourCap) return deny(opts, urgency, 'hourly limit');
+    if (sent.length >= dayCap) return deny(opts, urgency, 'daily limit');
+    const result = await show(opts);          // a refused toast is not counted
+    sent.push(t);
+    seen.set(key, t);
+    if (seen.size > 200) for (const [k, at] of seen) if (t - at >= repeatMs) seen.delete(k);
+    return result;
+  }
+
+  return { gated, setState, getState: () => ({ ...state }), classify, denied: () => denied.map(d => ({ ...d })), clearDenied: () => { denied.length = 0; } };
+}
+
 // A Start Menu shortcut for the development binary.
 //
 // Windows heads a toast with the name of the Start Menu shortcut whose target
@@ -167,4 +243,4 @@ function ensureDevShortcut({ shell, fs, packaged, platform = process.platform, s
   return { ok: true, file, created: !exists, removedStray };
 }
 
-module.exports = { createNotifier, ensureDevShortcut };
+module.exports = { createNotifier, ensureDevShortcut, createNotifyGate, URGENCIES };

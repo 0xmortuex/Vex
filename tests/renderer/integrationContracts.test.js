@@ -94,6 +94,7 @@ describe('one quiet switch', () => {
     const { VexProgress } = fresh('fun/fun-core.js');
     const { VexLiving } = fresh('living-core.js');
     globalThis.VexLiving = VexLiving;
+    globalThis.AttentionState = fresh('attention-state.js').AttentionState;
     const { VexAttention } = fresh('vex-attention.js');
     VexAttention.reset();
     expect(VexProgress.silenced()).toBe(false);
@@ -113,8 +114,12 @@ describe('one quiet switch', () => {
 
 describe('toast rate gate', () => {
   it('lets three through a minute, never the same one twice, and nothing while quiet', () => {
+    globalThis.AttentionState = fresh('attention-state.js').AttentionState;
     const { VexAttention } = fresh('vex-attention.js');
     VexAttention.reset();
+    // This test is about the per-minute and repeat rules; the hourly and daily
+    // caps have their own test (attentionGate.test.js).
+    VexAttention.HOUR_CAP = 99; VexAttention.DAY_CAP = 99;
     let now = 1000000;
     VexAttention._now = () => now;
     expect(VexAttention.gate('a', '1')).toBe(true);

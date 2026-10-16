@@ -9668,9 +9668,11 @@ const _protect = require('./main/protect').registerProtect({
 });
 
 ipcMain.handle('notify:show', async (_e, payload) => {
-  const { title, body } = payload || {};
+  const { title, body, urgency, feature } = payload || {};
   // Rejections travel to the renderer as the error message; nothing is hidden.
-  return notifier.show({ title, body });
+  // urgency / feature feed the Attention Budget (main/notify.js); a held-back toast
+  // resolves { suppressed: true, reason } rather than failing.
+  return notifier.show({ title, body, urgency, feature });
 });
 
 // An AI news item as a Windows toast, with Open and "Mute this source"
@@ -9682,7 +9684,7 @@ ipcMain.handle('news:notify', async (_e, payload) => {
   if (_vexLocked) throw new Error('Vex is locked');
   const n = _newsToast.validateNewsToast(payload);
   _newsUrls.set(n.tag, n.url);
-  return notifier.show({ title: n.title, body: n.body, silent: n.silent, tag: n.tag, actions: true, kind: 'news', site: (() => { try { return new URL(n.url).hostname; } catch { return undefined; } })() });
+  return notifier.show({ title: n.title, body: n.body, silent: n.silent, tag: n.tag, actions: true, kind: 'news', urgency: 'useful', feature: 'ai-news', site: (() => { try { return new URL(n.url).hostname; } catch { return undefined; } })() });
 });
 // What was clicked while the interface was not listening, once.
 ipcMain.handle('news:pending', async () => _newsPending.splice(0, _newsPending.length));

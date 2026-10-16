@@ -42,9 +42,11 @@ const PanelBadges = {
     if (!icon) return;
     let b = icon.querySelector(':scope > .panel-badge');
     if (count > 0) {
-      if (!b) { b = document.createElement('span'); b.className = 'panel-badge'; icon.appendChild(b); }
+      // data-vex-dot: counted with Vex's other dots, at most three (js/attention-inbox.js).
+      if (!b) { b = document.createElement('span'); b.className = 'panel-badge'; b.setAttribute('data-vex-dot', 'panel'); icon.appendChild(b); }
       b.textContent = count > 99 ? '99+' : String(count);
     } else if (b) { b.remove(); }
+    if (typeof AttentionInbox !== 'undefined') AttentionInbox.refresh();
   },
 
   sweep() {
