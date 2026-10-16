@@ -58,7 +58,9 @@ const PriceHistory = {
   // "1299.00" → 129900. Structured data uses a dot and no thousands
   // separators; anything else is skipped rather than misread.
   toCents(price) {
-    const s = String(price == null ? '' : price).trim();
+    let s = String(price == null ? '' : price).trim();
+    // A Turkish shop's "1.250,50" (comma decimal, 1-2 digits after it) goes through the shared Turkish number helper.
+    if (/^\d{1,3}(\.\d{3})*,\d{1,2}$|^\d+,\d{1,2}$/.test(s) && typeof VexTrParse !== 'undefined') s = String(VexTrParse.parseNumber(s));
     if (!/^\d{1,9}(\.\d{1,4})?$/.test(s)) return null;
     const cents = Math.round(Number(s) * 100);
     return cents > 0 ? cents : null;

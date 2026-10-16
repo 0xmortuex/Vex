@@ -293,6 +293,8 @@ const AIRouter = (() => {
       _dbg(`[AIRouter] holding ${feature} — saving battery`);
       return null;
     }
+    // The reply language / formality / keep-names profile (Settings › Turkish and English) shapes summaries and chat.
+    if (typeof window !== 'undefined' && window.VexLocaleTranslate) request = window.VexLocaleTranslate.shapeRequest(feature, request);
     const primary = await resolveBackend(feature);
     if (primary === 'skip') {
       _dbg(`[AIRouter] skipping ${feature} — no local backend`);

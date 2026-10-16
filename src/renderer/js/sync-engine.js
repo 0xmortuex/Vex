@@ -1775,7 +1775,7 @@ const SyncEngine = (() => {
   // A manual "Sync now" is never held, and neither is the last upload before
   // the window closes.
   let owedAfterGame = false;
-  function gameHolds() { return !!(window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('sync')); }
+  function gameHolds() { return !!(window.GameSession && typeof window.GameSession.holds === 'function' && window.GameSession.holds('sync')) || !!(window.VexExamSafeMode && window.VexExamSafeMode.holds('sync')); }
   // The game ended: whatever was held goes now, as one pull and one push.
   function resumeAfterGame() {
     if (!owedAfterGame) return false;

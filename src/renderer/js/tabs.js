@@ -2356,6 +2356,7 @@ const TabManager = {
   _isKeptAwake(tab) {
     if (!tab) return false;
     if (this.isCapturing(tab)) return true;   // recording: never slept from under it
+    if (window.VexExamSafeMode && window.VexExamSafeMode.active()) return true;   // exam mode: no page is slept (js/exam-safe-mode.js)
     if (tab.keepAwakeUntil && Date.now() < tab.keepAwakeUntil) return true;
     const h = this._hostOfTab(tab);
     return !!(h && this._neverSleepHosts().has(h));

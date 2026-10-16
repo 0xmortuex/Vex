@@ -91,7 +91,7 @@ const TranslateSide = {
     const done = [];
     for (let i = 0; i < texts.length; i += this.AT_ONCE) {
       const slice = texts.slice(i, i + this.AT_ONCE);
-      const results = await Promise.all(slice.map(t => (window.GlossaryTranslate ? window.GlossaryTranslate.translate(t, tl, host) : window.vex.translateText(t, tl)).catch(() => null)));
+      const results = await Promise.all(slice.map(t => (window.VexLocaleTranslate && window.VexLocaleTranslate.skips(t, tl) ? Promise.resolve(null) : window.GlossaryTranslate ? window.GlossaryTranslate.translate(t, tl, host) : window.vex.translateText(t, tl)).catch(() => null)));
       const pairs = [];
       results.forEach((out, j) => {
         const index = i + j;
@@ -158,7 +158,7 @@ const TranslateSide = {
   },
   // A tab finished loading a page: translate it if its site is always translated.
   async autoTranslate(tabId, url) {
-    if (!this.isAlways(url) || typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') return 0;
+    if (!this.isAlways(url) || (window.VexLocaleTranslate && window.VexLocaleTranslate.isNever(url)) || typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') return 0;
     const tab = TabManager.tabs.find(t => t.id === tabId);
     if (!tab || !this.mayTranslateOnItsOwn(tab.partition)) return 0;
     const wv = WebviewManager.webviews.get(tabId);
