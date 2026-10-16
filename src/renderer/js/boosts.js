@@ -40,8 +40,11 @@ const VexBoosts = {
     // is kept but not applied until it is put back.
     if (!b || b.paused) { this._writeCss(webview, ''); return; }
     const cssParts = [];
-    if (Array.isArray(b.zaps) && b.zaps.length) {
-      cssParts.push(b.zaps.map(sel => `${sel}{display:none!important;visibility:hidden!important}`).join('\n'));
+    // Hidden elements are not applied on a banking, payment, sign-in or mail page, even on a site
+    // that was zapped elsewhere (T3-090): a hidden "Confirm" or "Cancel" there costs more than an ad.
+    const zapsOk = !(typeof VexPageSensitivity !== 'undefined' && VexPageSensitivity.reason(url));
+    if (zapsOk && Array.isArray(b.zaps) && b.zaps.length) {
+      cssParts.push(b.zaps.filter(sel => this.safeSelector(sel)).map(sel => `${sel}{display:none!important;visibility:hidden!important}`).join('\n'));
     }
     if (b.css) cssParts.push(b.css);
     this._writeCss(webview, cssParts.join('\n'));
@@ -105,6 +108,10 @@ const VexBoosts = {
     const wv = this._activeWv();
     const host = this._activeHost();
     if (!wv || !host) { window.showToast?.('Open a page first'); return; }
+    // Never on a banking, payment, sign-in or mail page (T3-090): said once, before the picker starts.
+    const pageUrl = (() => { try { return wv.getURL(); } catch { return ''; } })() || ('https://' + host + '/');
+    const refused = typeof VexPageSensitivity !== 'undefined' ? VexPageSensitivity.reason(pageUrl) : null;
+    if (refused) { window.showToast?.(refused, 'warn', 6000); return; }
     window.showToast?.('Zap mode: click an element to hide it (Esc cancels)');
     const picker = `new Promise((resolve) => {
       const prev = { el: null, outline: '' };
@@ -134,23 +141,106 @@ const VexBoosts = {
         document.removeEventListener('keydown', onKey, true);
         resolve(val);
       };
-      const onClick = (e) => { e.preventDefault(); e.stopPropagation(); done(cssPath(e.target)); };
+      const onClick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const el = e.target;
+        const sel = cssPath(el);
+        let matches = [];
+        try { matches = Array.from(document.querySelectorAll(sel)); } catch (err) { done({ error: 'Could not make a rule for that element' }); return; }
+        if (el === document.documentElement || el === document.body || el === document.head) { done({ error: 'The whole page cannot be hidden' }); return; }
+        if (!matches.includes(el)) { done({ error: 'Could not make a rule that matches only that element' }); return; }
+        done({ sel: sel, count: matches.length, tag: el.tagName.toLowerCase(), text: String(el.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 60) });
+      };
       const onKey = (e) => { if (e.key === 'Escape') done(null); };
       document.addEventListener('mousemove', onMove, true);
       document.addEventListener('click', onClick, true);
       document.addEventListener('keydown', onKey, true);
     })`;
-    let sel = null;
-    try { sel = await wv.executeJavaScript(picker, true); } catch (err) { console.warn('[Boosts] zapper failed:', err); }
-    if (!sel) { window.showToast?.('Zap cancelled'); return; }
+    let picked = null;
+    try { picked = await wv.executeJavaScript(picker, true); }
+    catch (err) { window.showToast?.('Could not pick an element on this page: ' + ((err && err.message) || err), 'error'); return; }
+    if (!picked) { window.showToast?.('Zap cancelled'); return; }
+    if (picked.error) { window.showToast?.(picked.error, 'warn'); return; }
+    const sel = String(picked.sel || '');
+    if (!this.safeSelector(sel)) { window.showToast?.('Could not make a safe rule for that element', 'error'); return; }
+    // A rule that would hide a lot more than the one thing clicked is said, not hidden quietly.
+    if (picked.count > 25) { window.showToast?.('That rule would hide ' + picked.count + ' elements, so nothing was hidden. Click a more specific element.', 'warn', 7000); return; }
+    const b = this.boosts[host] || (this.boosts[host] = { zaps: [], css: '', js: '' });
+    if (!Array.isArray(b.zaps)) b.zaps = [];
+    const added = !b.zaps.includes(sel);
+    if (added) b.zaps.push(sel);
+    const saved = this.save();
+    this.applyTo(wv, pageUrl);
+    const what = (picked.text ? '“' + picked.text + '”' : 'a <' + picked.tag + '>') + (picked.count > 1 ? ' and ' + (picked.count - 1) + ' like it' : '');
+    if (!saved) { window.showToast?.('Hidden for now, but the zap could not be saved — it will come back when you restart Vex', 'error'); return; }
+    if (!added) { window.showToast?.('That element is already hidden on ' + host); return; }
+    window.VexUndo.offer({
+      message: 'Hid ' + what + ' on ' + host,
+      undo: () => this.removeZap(host, sel),
+    });
+  },
+
+  // A stored hide rule is a CSS selector put in front of a declaration block, so it must not be able to
+  // close that block or start another rule. The picker only writes plain selectors; this also covers a
+  // rule that was edited into storage.
+  safeSelector(sel) {
+    return typeof sel === 'string' && sel.length > 0 && sel.length <= 600 && !/[{};<>@]|\/\*|\*\//.test(sel);
+  },
+
+  // One hidden element back. Used by the Undo on a zap and by the list of hidden elements.
+  removeZap(host, sel) {
+    const b = this.boosts[host];
+    if (!b || !Array.isArray(b.zaps) || !b.zaps.includes(sel)) throw new Error('That element is not hidden any more');
+    b.zaps = b.zaps.filter(s => s !== sel);
+    if (!b.zaps.length && !b.css && !b.js) delete this.boosts[host];
+    const saved = this.save();
+    this.refreshHost(host);
+    if (!saved) throw new Error('The change could not be saved; it comes back when you restart Vex');
+    return b.zaps.length;
+  },
+
+  // Hide a rule again after removeZap (the Undo of the list's Remove).
+  addZap(host, sel) {
+    if (!this.safeSelector(sel)) throw new Error('That is not a safe rule');
     const b = this.boosts[host] || (this.boosts[host] = { zaps: [], css: '', js: '' });
     if (!Array.isArray(b.zaps)) b.zaps = [];
     if (!b.zaps.includes(sel)) b.zaps.push(sel);
     const saved = this.save();
-    this.applyTo(wv, 'https://' + host + '/');
-    window.showToast?.(saved
-      ? 'Zapped — hidden on ' + host
-      : 'Hidden for now, but the zap could not be saved — it will come back when you restart Vex', saved ? undefined : 'error');
+    this.refreshHost(host);
+    if (!saved) throw new Error('The change could not be saved');
+    return b.zaps.length;
+  },
+
+  // Ctrl+K › Hidden elements on this site: each rule with a Remove (Undo on the toast).
+  openZapList(host) {
+    host = host || this._activeHost();
+    if (!host) { window.showToast?.('Open a page first'); return null; }
+    if (typeof VexSettingsGroups === 'undefined') throw new Error('Settings sections are not loaded');
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-zap-list', title: 'Hidden elements on ' + host, sub: 'Each rule hides one element of this site. Remove one and it comes back.' });
+    const draw = () => {
+      body.textContent = '';
+      const zaps = ((this.boosts[host] || {}).zaps || []).slice();
+      if (!zaps.length) { body.appendChild(VexSettingsGroups.note('Nothing is hidden on ' + host + '. Ctrl+K › Zap Element hides one.')); return; }
+      for (const sel of zaps) {
+        const row = document.createElement('div');
+        row.className = 'vexsr-rule';
+        const text = document.createElement('span');
+        text.className = 'vexsr-host';
+        text.style.wordBreak = 'break-all';
+        text.textContent = sel;
+        const rm = VexSettingsGroups.button('Remove', () => {
+          try {
+            this.removeZap(host, sel);
+            window.VexUndo.offer({ message: 'Brought back a hidden element on ' + host, undo: () => { this.addZap(host, sel); if (body.isConnected) draw(); } });
+            draw();
+          } catch (err) { window.showToast?.(err.message, 'error'); }
+        }, { danger: true, label: 'Remove the rule ' + sel });
+        row.append(text, rm);
+        body.appendChild(row);
+      }
+    };
+    draw();
+    return body;
   },
 
   // --- Boost editor: per-site custom CSS / JS ---
