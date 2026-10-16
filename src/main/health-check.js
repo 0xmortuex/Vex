@@ -65,6 +65,8 @@ function createHealthCheck({ fs, userDataPath, getPersisted, now = () => new Dat
     // 1. Settings JSON validity: the settings file and every data store.
     checked.push('settings file', 'data stores');
     const files = [persistFile];
+    const volatileFile = nodePath.join(userDataPath, 'vex-persist-volatile.json');
+    if (stat(volatileFile)) files.push(volatileFile);
     for (const n of readdir(storageDir)) if (STORE_FILE.test(n)) files.push(nodePath.join(storageDir, n));
     for (const file of files) {
       const bad = jsonProblem(file);

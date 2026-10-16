@@ -13,7 +13,9 @@ describe('durable storage', () => {
     const file = path.join(await directory(), 'preferences.json');
     const store = createPreferenceStore(file);
     await Promise.all([store.set('vex.a', 'a'), store.set('vex.b', 'b'), store.delete('vex.a')]);
-    expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual({ 'vex.b': 'b', __vexPreferenceStore: 1 });
+    const { __vexChecksum, ...saved } = JSON.parse(await fs.readFile(file, 'utf8'));
+    expect(__vexChecksum).toMatch(/^[0-9a-f]{64}$/);
+    expect(saved).toEqual({ 'vex.b': 'b', __vexPreferenceStore: 1 });
     expect(store.load()).toEqual({ 'vex.b': 'b', __vexPreferenceStore: 1 });
     await store.delete('vex.b');
     expect(createPreferenceStore(file).load()).toEqual({ __vexPreferenceStore: 1 });

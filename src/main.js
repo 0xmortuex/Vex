@@ -1128,7 +1128,7 @@ const _bootGuard = require('./main/safe-mode').createBootGuard({
   fs,
   argv: process.argv,
   version: app.getVersion(),
-  backupFirstStart: (o) => _updateBackups.saveAtFirstStart({ ...o, persistFile: path.join(userDataPath, 'vex-persist.json') }),
+  backupFirstStart: (o) => _updateBackups.saveAtFirstStart({ ...o, persistFile: path.join(userDataPath, 'vex-persist.json'), volatileFile: path.join(userDataPath, 'vex-persist-volatile.json') }),
   log: (m) => console.log(m),
 });
 const _boot = _bootGuard.begin();
@@ -6652,7 +6652,13 @@ function getStorageFile(key) {
 // === Persistent key/value store (survives reinstalls / Chromium-origin changes) ===
 // Backs the localStorage shim in the renderer. Single JSON file, atomic writes.
 const persistFile = path.join(userDataPath, 'vex-persist.json');
-const preferences = require('./main/storage').createPreferenceStore(persistFile);
+// The history-like keys move to vex-persist-volatile.json only when asked: the
+// vex.volatileSplit preference is "1" or VEX_VOLATILE_SPLIT=1 (off by default;
+// switching it off merges the files again). main/storage.js has the details.
+const preferences = require('./main/storage').createPreferenceStore(persistFile, {
+  volatileFile: path.join(userDataPath, 'vex-persist-volatile.json'),
+  splitEnabled: (data) => data['vex.volatileSplit'] === '1' || process.env.VEX_VOLATILE_SPLIT === '1',
+});
 const _persistLoad = preferences.load;
 // History is kept once, in vex.history: visits still only in the old second
 // copy (vex-storage/history.json) join it before the interface reads it, and

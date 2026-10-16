@@ -122,14 +122,21 @@ function createUpdateBackups({ fs, dir, now = () => new Date(), log = console })
   // left them, unless the update cover already did since that version started
   // (`since`, ms). -> null when there is nothing to back up or it was made
   // already, else what save() returns. Throws when it cannot be made.
-  function saveAtFirstStart({ version, from, persistFile, since = 0 }) {
+  function saveAtFirstStart({ version, from, persistFile, volatileFile, since = 0 }) {
     let have;
     try { have = list(); }
     catch (err) { throw new Error(`Vex could not read its backups folder (${err.code || 'unknown error'})`, { cause: err }); }
     const done = have.find(b => b.kind === 'before' && b.version === version && b.at >= since - 2000);
     if (done) return null;
     let persisted;
-    try { persisted = readPersisted(persistFile); }
+    try {
+      persisted = readPersisted(persistFile);
+      // The history-like keys kept in a second file (main/storage.js) belong to the settings.
+      if (volatileFile && persisted.__vexSplit === 1) {
+        try { persisted = { ...persisted, ...readPersisted(volatileFile) }; }
+        catch (err) { if (err.code !== 'ENOENT') throw err; }
+      }
+    }
     catch (err) {
       if (err.code === 'ENOENT') return null;
       throw new Error('Vex could not read its settings to back them up (' + (err.code || err.message) + ')', { cause: err });
