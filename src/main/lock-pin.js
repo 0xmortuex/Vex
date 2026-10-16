@@ -121,8 +121,17 @@ function createLockGate({ readRecord, now = () => Date.now(), store }) {
     return out;
   }
 
+  // One guess at a time: parallel calls would read the same wrong-PIN count
+  // and so count as one failure between them (audit, 2026-10).
+  let chain = Promise.resolve();
+  function tryUnlock(pin) {
+    const run = chain.then(() => checkPin(pin));
+    chain = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   // -> { ok: true } or { ok: false, error }
-  async function tryUnlock(pin) {
+  async function checkPin(pin) {
     // Not even the right length for any kind of record: refused before the record is read.
     if (typeof pin !== 'string' || pin.length < 4 || pin.length > PASSPHRASE_MAX) return { ok: false, error: 'Wrong PIN' };
     const st = await load();
