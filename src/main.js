@@ -789,8 +789,7 @@ if (!gotTheLock) {
     if (url && mainWindow) {
       console.log('[Vex URL]   sending open-url IPC to renderer');
       mainWindow.webContents.send('open-url', url);
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
+      _raiseGuard().raise(mainWindow, 'a link opened from another program');
     } else if (url && !mainWindow) {
       console.log('[Vex URL]   no mainWindow — opening it again (or stashing as pendingOpenUrl while starting)');
       _reopenMainWindow(url);
@@ -826,8 +825,7 @@ app.on('open-url', (event, url) => {
   event.preventDefault();
   if (mainWindow) {
     mainWindow.webContents.send('open-url', url);
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    _raiseGuard().raise(mainWindow, 'a link opened from another program');
   } else {
     pendingOpenUrl = url;
   }
@@ -1350,6 +1348,7 @@ const _gameWatch = require('./main/game-watch').createGameWatch({
   log: (m) => console.log(m),
   onChange: (s) => {
     console.log('[GameWatch] ' + (s.game ? 'game running: ' + s.app : 'no game'));
+    if (!s.game && _raiseGuardInst) _raiseGuardInst.release();
     _sendGameState();
   },
 });
@@ -1368,12 +1367,14 @@ function _runningProgramNames() {
 const _gameProcs = _gameMode.createProcessWatch({
   list: _runningProgramNames,
   log: (m) => console.error(m),
-  onChange: (s) => { console.log('[GameMode] ' + (s.game ? 'listed game running: ' + s.app : 'no listed game')); _sendGameState(); },
+  onChange: (s) => { console.log('[GameMode] ' + (s.game ? 'listed game running: ' + s.app : (s.launcher ? 'launcher open: ' + s.launcherApp : 'no listed game'))); _sendGameState(); },
 });
 function _mergedGameState() {
   const fs_ = _gameWatch.state();
   const listed = _gameProcs.state();
-  return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '' };
+  // launcher: a launcher from the list is open and no game is (js/game-warmdown.js).
+  const launcher = !!listed.launcher && !fs_.game && !listed.game;
+  return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '', ...(launcher ? { launcher: true, launcherApp: listed.launcherApp || '' } : {}) };
 }
 function _sendGameState() {
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
@@ -1394,7 +1395,8 @@ ipcMain.handle('gamemode:games', async (_e, games, watch) => {
   if (watch && games.length) await _gameProcs.start(); else _gameProcs.stop();
   return { watching: !!(watch && games.length), ..._gameProcs.state() };
 });
-ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end()));
+// warm: the pre-launch warm-down (a launcher is open): only the holds, nothing is lowered.
+ipcMain.handle('gamemode:session', (_e, s) => (s.warm ? _gameModeSession.warm(s.on, s.holds) : (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end())));
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
 // Commit-charge guard (src/main/commit-guard.js): Windows' commit headroom, read
 // every 15 s with one system call. A change of level goes to the interface
@@ -5370,8 +5372,9 @@ async function _extWindowsApi(op, args, senderUrl, ses) {
         else if (info.state === 'normal') { if (win.isMinimized()) win.restore(); if (win.isMaximized()) win.unmaximize(); }
         else throw new Error(`Vex does not let an extension make a window ${info.state}`);
       }
-      if (info.focused === true) { if (win.isMinimized()) win.restore(); win.focus(); }
-      if (info.drawAttention === true) win.flashFrame(true);
+      // An extension asking for focus is not the person asking: not over a full-screen game (T1-038).
+      if (info.focused === true) _raiseGuard().raise(win, 'an extension asked for focus');
+      if (info.drawAttention === true) _raiseGuard().flash(win, 'an extension asked for attention');
       return _extWindowInfo(win);
     }
     // A new window is a tab (or tabs) in the window in front: Vex opens no
@@ -7053,11 +7056,13 @@ function createWindow() {
           return;
         }
         _startMinimisedDone = true;
-        mainWindow.show();
-        mainWindow.focus();
+        // Behind a full-screen game when one is in front (src/main/raise-guard.js).
+        _raiseGuard().reveal(mainWindow, 'Vex started');
       }
     } catch {}
   };
+  // Looking at Vex takes the dot off its taskbar button (src/main/raise-guard.js).
+  mainWindow.on('focus', () => { if (_raiseGuardInst) _raiseGuardInst.release(); });
   mainWindow.once('ready-to-show', _showMainWindow);
   mainWindow.once('ready-to-show', () => { _vexStartupMs = Math.round(process.uptime() * 1000); });
   setTimeout(_showMainWindow, 4000);
@@ -9378,7 +9383,7 @@ ipcMain.handle('profiles:update', (event, id, patch) => {
 ipcMain.handle('profiles:open', (event, id) => {
   _profilesFromMainWindow(event);
   _profile.store.get(id);
-  if (id === _profile.id) { focusMainWindow(); return { ok: true, focused: true }; }
+  if (id === _profile.id) { focusMainWindow('the profile menu', { user: true }); return { ok: true, focused: true }; }
   _launchProfile(id);
   return { ok: true };
 });
@@ -9641,14 +9646,29 @@ ipcMain.handle('app:restart', () => {
 // reminder whose timer lived in the renderer died with a reload, and could not
 // fire at all with Vex closed. src/main/reminders.js holds the timer; on
 // Windows, Task Scheduler launches Vex at the time if it is not running.
-function focusMainWindow() {
+// Every caller but the profile menu is Windows or another program asking (a toast
+// clicked, a reminder waking Vex), so a full-screen game keeps the screen and the
+// taskbar button gets a dot instead (src/main/raise-guard.js, T1-038).
+function focusMainWindow(why = 'a notification', opts = {}) {
   try {
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    _raiseGuard().raise(mainWindow, why, opts);
   } catch (err) { console.error('[Reminders] could not focus the window:', err.message); }
 }
+let _raiseGuardInst = null;
+function _raiseGuard() {
+  if (_raiseGuardInst) return _raiseGuardInst;
+  const guard = require('./main/raise-guard');
+  _raiseGuardInst = guard.createRaiseGuard({
+    fullscreenGame: _fullscreenGameNow,
+    makeBadge: () => nativeImage.createFromBuffer(guard.dotPng()),
+    log: (m) => console.log(m),
+  });
+  return _raiseGuardInst;
+}
+// Is a full-screen game in front right now? Windows' own answer, from the watcher
+// that already runs while any Gaming switch is on (src/main/game-watch.js).
+function _fullscreenGameNow() { return !!_gameWatch.state().game; }
 
 // A button on a Windows toast reaches Vex as a vex:// URL in argv — on a cold
 // start, or through second-instance when Vex is already running. Returns true
@@ -9699,6 +9719,8 @@ function _newsActivated(action, tag) {
 const notifier = require('./main/notify').createNotifier({
   Notification, nativeImage,
   iconPath: path.join(app.getAppPath(), 'assets', 'icon.ico'),
+  // No sound over a full-screen game (T1-038): the toast still goes to Action Center.
+  quiet: _fullscreenGameNow,
   // Clicking a toast brings Vex forward; a reminder's toast also opens the
   // reminder itself in the interface, with a way to snooze it.
   onClick: ({ tag } = {}) => {

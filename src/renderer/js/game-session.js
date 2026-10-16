@@ -180,7 +180,8 @@ const GameSession = {
   sleepAllowed() { return this.enabled() && !this._suspended; },
   suspended() { return this._suspended; },
   // Is this kind of work waiting right now? (sync engine, history indexer, Recall)
-  holds(kind) { return this.active && this.HOLDS.includes(kind); },
+  // A launcher is open and Game mode is on: the same work waits (js/game-warmdown.js).
+  holds(kind) { return (this.active || (typeof GameWarmdown !== 'undefined' && GameWarmdown.active)) && this.HOLDS.includes(kind); },
 
   // Should the older full-screen gaming code run for this state? A full-screen
   // game always did; a game that is only on the list does when Game mode is on.
@@ -194,6 +195,8 @@ const GameSession = {
   // ---- the state machine -----------------------------------------------------
   onState(s) {
     this._last = s || { game: false };
+    // The helpers around Game mode hear the same news first (js/game-helpers.js).
+    if (typeof GameHelpers !== 'undefined') GameHelpers.onState(s);
     const game = !!(s && s.game);
     if (!game) {
       this._suspended = false;
@@ -270,10 +273,13 @@ const GameSession = {
 
   // Work that was held, once: one sync round, and the history queue picks up.
   _resume() {
-    try { if (window.SyncEngine && SyncEngine.resumeAfterGame) SyncEngine.resumeAfterGame(); }
+    // What was owed, kept for the after-game card (js/game-pitstop.js).
+    const r = { sync: false, indexQueue: 0 };
+    try { if (window.SyncEngine && SyncEngine.resumeAfterGame) r.sync = SyncEngine.resumeAfterGame() === true; }
     catch (err) { this._note('Could not catch Vex Sync up', err); }
-    try { if (window.HistoryIndexer && HistoryIndexer.resume) HistoryIndexer.resume(); }
+    try { if (window.HistoryIndexer && HistoryIndexer.resume) r.indexQueue = Number(HistoryIndexer.resume()) || 0; }
     catch (err) { this._note('Could not catch the history index up', err); }
+    this._lastResume = r;
   },
 
   // The chip's button: all of it comes back now, for the rest of this game.
@@ -297,7 +303,10 @@ const GameSession = {
     const b = window.vex;
     if (!b || typeof b.gameModeGames !== 'function') return Promise.resolve(null);
     const games = this.games().map(g => ({ id: g.id, name: g.name, exe: g.exe }));
-    return Promise.resolve(b.gameModeGames(games, this.mode() !== 'off' && games.length > 0))
+    // Launchers (Steam, Epic ...) ride the same list, marked, for the pre-launch warm-down.
+    const launchers = typeof GameWarmdown !== 'undefined' ? GameWarmdown.watchList() : [];
+    const all = games.concat(launchers);
+    return Promise.resolve(b.gameModeGames(all, this.mode() !== 'off' && all.length > 0))
       .catch(err => this._note('Could not watch for your games', err));
   },
 

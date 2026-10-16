@@ -195,6 +195,10 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      GameFlush: () => (typeof GameFlush !== 'undefined' ? GameFlush : null),
+      GameWarmdown: () => (typeof GameWarmdown !== 'undefined' ? GameWarmdown : null),
+      GamePitstop: () => (typeof GamePitstop !== 'undefined' ? GamePitstop : null),
+      GameChecklist: () => (typeof GameChecklist !== 'undefined' ? GameChecklist : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -234,6 +238,11 @@ const VexUsageRegistry = {
       ['signout-why', A.api(G.VexSignoutWhy, 'enabled', 'setEnabled')],
       // Sheds Vex's own load when Windows is short of memory during Game mode (js/commit-guard.js).
       ['commit-guard', A.api(G.CommitGuard, 'enabled', 'setEnabled')],
+      // Game mode helpers (js/game-helpers.js): save before a game, warm-down, the after-game card, the opt-in checklist.
+      ['game-flush', A.api(G.GameFlush, 'enabled', 'setEnabled')],
+      ['game-warmdown', A.api(G.GameWarmdown, 'enabled', 'setEnabled')],
+      ['game-pitstop', A.api(G.GamePitstop, 'enabled', 'setEnabled')],
+      ['game-checklist', A.api(G.GameChecklist, 'enabled', 'setEnabled')],
       // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
       ['release-check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
       // Attention (js/vex-playfulness.js, js/attention-inbox.js). The New Tab layout (js/newtab-slots.js)

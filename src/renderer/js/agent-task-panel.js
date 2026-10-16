@@ -159,7 +159,7 @@ const AgentTaskPanel = {
     if (!AgentSafety.enabled()) throw new Error('The Vex agent is off');
     const prefs = AgentSafety.prefs();
     const budget = new AgentBudget({ maxSteps: prefs.maxSteps, maxMs: prefs.maxMinutes * 60000 });
-    const run = new TaskRun({ goal: this._plan.goal, steps: this._plan.steps, deps: this._deps(), budget, backend: this._plan.backend });
+    const run = new TaskRun({ goal: this._plan.goal, steps: this._plan.steps, deps: this._deps(), budget, backend: this._plan.backend, scope: { readOnly: this._plan.readOnly === true } });
     this._run = run;
     this._plan = null;
     this._renderRun();
@@ -269,12 +269,15 @@ const AgentTaskPanel = {
     const p = this._plan;
     box.innerHTML = `<h3 class="vex-at-h">Plan - ${p.steps.length} step${p.steps.length === 1 ? '' : 's'}</h3>
       ${p.trimmed ? `<div class="vex-at-note">The plan was longer than your budget; ${p.trimmed} step${p.trimmed === 1 ? ' was' : 's were'} cut.</div>` : ''}
-      <ol class="vex-at-steps">${p.steps.map(s => `<li class="vex-at-step vex-at-${s.kind}"><span class="vex-at-badge">${s.kind === 'write' ? 'asks you first' : 'looks only'}</span> ${this._esc(AgentTaskRunner.describeStep(s))}</li>`).join('')}</ol>
+      <ol class="vex-at-steps">${p.steps.map(s => `<li class="vex-at-step vex-at-${s.kind}"><span class="vex-at-badge">${s.kind === 'write' ? 'asks you first' : 'looks only'}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${this._explainBlock(s, null)}</li>`).join('')}</ol>
+      ${p.steps.some(s => s.kind === 'write') ? `<label class="vex-at-note"><input type="checkbox" data-act="readonly" ${p.readOnly ? 'checked' : ''}> Read-only run: skip every step that types, chooses or clicks</label>` : ''}
       <div class="vex-at-actions">
         <button type="button" class="vex-at-btn vex-at-primary" data-act="approve">${this._icon('play', 14)} Approve and run</button>
         <button type="button" class="vex-at-btn" data-act="discard">Discard</button>
       </div>`;
     box.querySelector('[data-act=discard]').addEventListener('click', () => { this._plan = null; box.innerHTML = ''; });
+    box.querySelector('[data-act=readonly]')?.addEventListener('change', (e) => { p.readOnly = e.target.checked; });
+    this._wireWhy(box, () => this._renderPlan());
     box.querySelector('[data-act=approve]').addEventListener('click', () => this.startRun().catch(err => { window.showToast?.(err.message, 'error'); this._run = null; this._render(); }));
   },
 
@@ -322,7 +325,8 @@ const AgentTaskPanel = {
             <button type="button" class="vex-at-btn" data-act="skip">Skip it</button>
             <button type="button" class="vex-at-btn vex-at-danger" data-act="stopstep">Stop the task</button>
           </div></div>` : ''}
-        <ol class="vex-at-steps">${r.steps.map(s => `<li class="vex-at-step vex-at-${s.status}"><span class="vex-at-badge">${mark[s.status] || s.status}</span> ${this._esc(AgentTaskRunner.describeStep(s))}${s.result ? `<div class="vex-at-result">${this._esc(s.result)}</div>` : ''}</li>`).join('')}</ol>
+        <ol class="vex-at-steps">${r.steps.map(s => `<li class="vex-at-step vex-at-${s.status}"><span class="vex-at-badge">${mark[s.status] || s.status}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${s.result ? `<div class="vex-at-result">${this._esc(s.result)}</div>` : ''}${this._explainBlock(s, r)}</li>`).join('')}</ol>
+        ${r.shield && r.shield.hits ? `<div class="vex-at-note">${r.shield.hits} instruction-like phrase${r.shield.hits === 1 ? '' : 's'} on the pages ${r.shield.hits === 1 ? 'was' : 'were'} removed before the model saw ${r.shield.hits === 1 ? 'it' : 'them'}: page text is data, never orders.</div>` : ''}
         ${r.answer ? `<h3 class="vex-at-h">Answer</h3><div class="vex-at-answer">${this._esc(r.answer)}</div>` : ''}
         <details class="vex-at-history" ${done ? '' : 'open'}><summary>Live log</summary>
           <ul class="vex-at-livelog" aria-live="polite">${r.log.slice(-40).map(l => `<li>${new Date(l.at).toLocaleTimeString()} ${this._esc(l.text)}</li>`).join('')}</ul></details>
@@ -336,6 +340,26 @@ const AgentTaskPanel = {
     q('allow')?.addEventListener('click', () => pend.resolve('allow'));
     q('skip')?.addEventListener('click', () => pend.resolve('skip'));
     q('stopstep')?.addEventListener('click', () => pend.resolve('stop'));
+    this._wireWhy(this._el, () => this._renderRun());
+  },
+
+  // "Explain this step": which steps have their explanation open (by step number).
+  _explained: new Set(),
+  _whyButton(s) {
+    const open = this._explained.has(s.id);
+    return `<button type="button" class="vex-at-why" data-why="${s.id}" aria-expanded="${open}">${open ? 'Hide' : 'Why?'}</button>`;
+  },
+  _explainBlock(s, run) {
+    if (!this._explained.has(s.id)) return '';
+    const e = AgentTaskRunner.explainStep(s, run);
+    return `<div class="vex-at-explain" role="note" aria-label="Explanation of step ${s.id}">${e.lines.map(l => '<div>' + this._esc(l) + '</div>').join('')}</div>`;
+  },
+  _wireWhy(root, redraw) {
+    root.querySelectorAll('[data-why]').forEach(b => b.addEventListener('click', () => {
+      const id = Number(b.dataset.why);
+      if (this._explained.has(id)) this._explained.delete(id); else this._explained.add(id);
+      redraw();
+    }));
   },
 
   // --- Settings + Ctrl+K -----------------------------------------------------------------

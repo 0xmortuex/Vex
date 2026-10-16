@@ -45,7 +45,9 @@ function cleanGames(list) {
     if (!g || typeof g !== 'object') throw new Error('Each game needs a name and a program name');
     const exe = normalizeExe(g.exe);
     if (!exe) throw new Error('A game in the list has no program name');
-    out.push({ id: String(g.id || exe), name: String(g.name || exe), exe });
+    // A launcher (Steam, Epic ...) is watched for by name like a game, but is not a game:
+    // it starts only the pre-launch warm-down (js/game-warmdown.js).
+    out.push({ id: String(g.id || exe), name: String(g.name || exe), exe, ...(g.launcher === true ? { launcher: true } : {}) });
   }
   return out;
 }
@@ -62,8 +64,10 @@ function createProcessWatch({ list, onChange, intervalMs = 10000, setTimer = set
   let misses = 0;
   let current = { game: false, app: '', id: '' };
 
+  const idle = (lhit) => (lhit ? { game: false, app: '', id: '', launcher: true, launcherApp: lhit.name } : { game: false, app: '', id: '' });
+
   function publish(next) {
-    const changed = next.game !== current.game || next.id !== current.id;
+    const changed = next.game !== current.game || next.id !== current.id || !!next.launcher !== !!current.launcher || (next.launcherApp || '') !== (current.launcherApp || '');
     current = next;
     if (changed && typeof onChange === 'function') {
       try { onChange({ ...current }); } catch (err) { log('[GameMode] listener failed: ' + err.message); }
@@ -75,9 +79,13 @@ function createProcessWatch({ list, onChange, intervalMs = 10000, setTimer = set
     let names;
     try { names = await list(); }
     catch (err) { log('[GameMode] could not read the running programs: ' + err.message); return current; }   // state unknown: keep what it was
-    const hit = games.find(g => names.has(g.exe));
-    if (hit) { misses = 0; publish({ game: true, app: hit.name, id: hit.id }); }
-    else if (current.game && ++misses >= MISSES_TO_END) { misses = 0; publish({ game: false, app: '', id: '' }); }
+    // A launcher is not a game: a game that is running wins, and a launcher only
+    // says "a launcher is open" next to it. Same list, same poll: no new process reading.
+    const hit = games.find(g => !g.launcher && names.has(g.exe));
+    const lhit = games.find(g => g.launcher && names.has(g.exe));
+    if (hit) { misses = 0; publish({ game: true, app: hit.name, id: hit.id, ...(lhit ? { launcher: true, launcherApp: lhit.name } : {}) }); }
+    else if (current.game) { if (++misses >= MISSES_TO_END) { misses = 0; publish(idle(lhit)); } }
+    else publish(idle(lhit));
     return current;
   }
 
@@ -129,6 +137,7 @@ function createGameModeSession({ os, processes, audiblePids = () => new Set(), o
   let app = '';
   let holds = new Set();
   let timer = null;
+  let warmHolds = new Set();        // pre-launch warm-down: holds only, no priority change
   const lowered = new Map();        // pid → the priority it had before
   let failed = 0;
 
@@ -176,6 +185,7 @@ function createGameModeSession({ os, processes, audiblePids = () => new Set(), o
   function begin({ app: name = '', holds: kinds = [] } = {}) {
     app = String(name || '');
     holds = new Set(kinds);
+    warmHolds = new Set();          // the game is here: the warm-down is over
     if (active) { rescan(); return state(); }
     active = true;
     failed = 0;
@@ -191,6 +201,7 @@ function createGameModeSession({ os, processes, audiblePids = () => new Set(), o
     active = false;
     app = '';
     holds = new Set();
+    warmHolds = new Set();
     for (const [pid, before] of lowered) {
       try { os.setPriority(pid, before); }
       catch (err) { if (!/ESRCH|no such process/i.test(err.message)) log('[GameMode] could not restore process ' + pid + ': ' + err.message); }
@@ -199,9 +210,16 @@ function createGameModeSession({ os, processes, audiblePids = () => new Set(), o
     return { ...state(), wasActive };
   }
 
-  function state() { return { active, app, lowered: lowered.size, failed, holds: [...holds] }; }
+  // A launcher has started and the game has not yet: only the holds apply (extension
+  // update checks wait). Vex's process priority is not touched until a game runs.
+  function warm(on, kinds = []) {
+    warmHolds = on ? new Set(kinds) : new Set();
+    return { warming: warmHolds.size > 0, holds: [...warmHolds] };
+  }
 
-  return { begin, end, rescan, active: () => active, held: (kind) => active && holds.has(kind), state };
+  function state() { return { active, app, lowered: lowered.size, failed, holds: [...holds], ...(warmHolds.size ? { warm: [...warmHolds] } : {}) }; }
+
+  return { begin, end, rescan, warm, active: () => active, held: (kind) => (active && holds.has(kind)) || warmHolds.has(kind), state };
 }
 
 module.exports = { createProcessWatch, createGameModeSession, normalizeExe, parseTasklist, cleanGames, MISSES_TO_END, LOWERED_TYPES };

@@ -43,6 +43,10 @@
 .vex-at-h { margin: 4px 0 0; font-size: 13px; }
 .vex-at-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .vex-at-step { line-height: 1.35; }
+.vex-at-why { font-size: 11px; margin-left: 6px; padding: 1px 8px; background: none; color: var(--text-muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.vex-at-why:hover { color: var(--text); }
+.vex-at-explain { margin: 6px 0 4px; padding: 6px 8px; font-size: 11.5px; color: var(--text-muted); border-left: 2px solid var(--border); }
+.vex-at-explain div { padding: 1px 0; }
 .vex-at-badge {
   display: inline-block; font-size: 10.5px; padding: 1px 6px; border-radius: 999px;
   border: 1px solid var(--border); color: var(--text-muted); vertical-align: 1px;

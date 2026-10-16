@@ -289,7 +289,11 @@ GameMode.initGaming = function () {
 };
 
 // Is Vex holding background AI right now? (read by AIRouter and Scheduler)
-GameMode.holdingAi = function () { return this.gaming && (this.gamingSetting('holdAi') || (typeof CommitGuard !== 'undefined' && CommitGuard.holding())); };
+GameMode.holdingAi = function () {
+  // A launcher is open and Game mode is on (js/game-warmdown.js): background AI waits too.
+  if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active && this.gamingSetting('holdAi')) return true;
+  return this.gaming && (this.gamingSetting('holdAi') || (typeof CommitGuard !== 'undefined' && CommitGuard.holding()));
+};
 
 GameMode.onGameStart = async function (app) {
   if (this.gaming) { this.gamingApp = app || this.gamingApp; return this._gamingReport; }
@@ -378,7 +382,9 @@ GameMode.onGameEnd = function () {
   // Being closed by the OS is worth saying even when Vex slept nothing: the
   // panel was gone and is back, and the reason was the memory, not Vex.
   if (broughtBack.length) done.push('loaded ' + broughtBack.join(' and ') + ' again after Windows closed ' + (broughtBack.length === 1 ? 'it' : 'them') + ' for memory');
-  if (done.length) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. ' + (r.sleptIds && r.sleptIds.length && this.gamingSetting('wakeAfter') ? 'The tabs are waking now; panels come back when you open them.' : 'They come back when you use them.'));
+  // The after-game card (js/game-pitstop.js) says all of this and more, so the toast is not repeated.
+  const cardSaysIt = typeof GamePitstop !== 'undefined' && GamePitstop.takeOver(r);
+  if (done.length && !cardSaysIt) window.showToast?.('While you played' + (r.app ? ' ' + r.app : '') + ', Vex ' + done.join(' and ') + '. ' + (r.sleptIds && r.sleptIds.length && this.gamingSetting('wakeAfter') ? 'The tabs are waking now; panels come back when you open them.' : 'They come back when you use them.'));
   return r;
 };
 

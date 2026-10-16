@@ -128,6 +128,20 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 1: game helpers and the AI gate -----------------------------------------
+    // New: they arrive OFF on a profile that already existed (staged enablement) and are offered. The
+    // pre-game checklist is also off on a new profile until chosen (tiers.standard false).
+    { id: 'game-flush', title: 'Save my work when a game starts', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.flush', 'vex.game.flush.last'],
+      permissions: { reads: ['the open tabs, the note being typed and text in page boxes'], writes: ['an Auto-saved session and the settings still waiting to be written'], sends: [] } },
+    { id: 'game-warmdown', title: 'Warm down when a game launcher opens', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.warmdown', 'vex.game.launchers'],
+      permissions: { reads: ['the names of the launchers on your list'], writes: ['holds background work, and sleeps background tabs when Game mode is on'], sends: [] } },
+    { id: 'game-pitstop', title: 'After-game pit-stop card', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.pitstop', 'vex.game.pitstop.last'], commands: ['gamepitstop:last'],
+      permissions: { reads: ['what Vex held back during the game: notices, jobs, sync, slept tabs'], writes: ['the last card'], sends: [] } },
+    { id: 'game-checklist', title: 'Pre-game checklist', group: 'Game mode', maturity: 'new', storageKeys: ['vex.game.checklist', 'vex.game.checklist.items'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['your checklist, an unsaved note and the running downloads'], writes: ['your checklist'], sends: [] } },
+    { id: 'ai-sensitivity', title: 'Sensitivity gate before cloud AI', group: 'AI', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the text of a request to the cloud AI, before it is sent'], writes: ['a ledger line for each request it holds back or lets through after you said yes'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
