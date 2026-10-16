@@ -506,6 +506,8 @@ const WebviewManager = {
       }
       // Focus-mode site blocker bounces distracting hosts back.
       if (typeof FocusMode !== 'undefined' && FocusMode.guard(webview, url)) return;
+      // "What for?" before a site the person listed (js/intent-gate.js): soft, never blocks.
+      if (typeof IntentGate !== 'undefined') { try { IntentGate.onNavigate(webview, url, tab); } catch (err) { window.VexProblems?.note('Intent gate', 'Could not check the page', err); } }
       // NEVER let a blank navigation erase the tab's real URL. Tab hibernation,
       // a renderer crash, or the OS suspending/killing the page on sleep can
       // navigate a webview to about:blank — if that overwrote tab.url there'd be

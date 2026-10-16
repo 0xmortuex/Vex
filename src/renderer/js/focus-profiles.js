@@ -149,6 +149,14 @@ const FocusProfiles = {
     return want;
   },
 
+  // A game that Game Control Center reported (js/gcc-bridge.js) and the process
+  // watcher did not: the rules see it like any other game.
+  setExternalGame(on, app) {
+    this._game = !!on;
+    this._app = on ? String(app || '') : '';
+    return this.evaluate();
+  },
+
   _wire() {
     if (this._wired) return;
     this._wired = true;

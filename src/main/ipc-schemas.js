@@ -85,6 +85,16 @@ define('game:state', []);
 define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
 define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
 define('gamemode:state', []);
+// Game Control Center's one file (gccbridge:read takes nothing: main reads a fixed path), the
+// second-screen window (http/https pages only, re-checked in main) and the PiP memory (T2-068,
+// T2-049, T2-059).
+define('gccbridge:read secondscreen:close secondscreen:state', []);
+define('secondscreen:open', [shape({
+  pages: value => Array.isArray(value) && value.length >= 1 && value.length <= 12 && value.every(shape({ title: optional(string(200)), url: string(2048) })),
+  index: optional(value => Number.isInteger(value) && value >= 0 && value < 12),
+  zoom: optional(value => typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 3),
+})]);
+define('pip:memory', [shape({ context: optional(string(80)), hideOverGame: optional(boolean) })]);
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). Sizes are bounded here and again where used.
 const journalTs = value => Number.isSafeInteger(value) && value >= 0 && value <= 8.64e15;

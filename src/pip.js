@@ -2,6 +2,7 @@ const { BrowserWindow, screen, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
+const pipMemory = require('./main/pip-memory');
 
 let pipWindow = null;
 // User's pin preference, persisted. Kept out of the window so a re-open
@@ -33,6 +34,14 @@ function writeState(state) {
 
 const DEFAULT_BOUNDS = { width: 480, height: 300 };
 
+// T2-059: which game the player's position is remembered for, and whether it
+// hides while a fullscreen game is up. Set by the window (secondary state, in
+// memory only); both default to the old behaviour.
+let pipContext = '';
+let hideOverGame = false;
+let gameFullscreen = false;
+let hiddenForGame = false;
+
 // A position saved on a monitor that is no longer attached would put the
 // window off-screen — i.e. an always-on-top window you can neither see nor
 // close. Only restore bounds that still land on a connected display.
@@ -59,15 +68,44 @@ function applyOnTop() {
 
 function persist() {
   if (!pipWindow || pipWindow.isDestroyed()) return;
-  const state = { alwaysOnTop };
+  const before = readState();
+  let state = { alwaysOnTop };
+  if (before.byContext) state.byContext = before.byContext;
   try {
-    if (!pipWindow.isMinimized() && !pipWindow.isMaximized() && !pipWindow.isFullScreen()) {
+    if (!pipWindow.isMinimized() && !pipWindow.isMaximized() && !pipWindow.isFullScreen() && !hiddenForGame) {
       state.bounds = pipWindow.getBounds();
+      state = pipMemory.remember(state, pipContext, state.bounds);
     } else {
-      state.bounds = readState().bounds;
+      state.bounds = before.bounds;
     }
   } catch { /* ignore */ }
   writeState(state);
+}
+
+// Hide the window while a fullscreen game is up (when asked to), show it again
+// where it was afterwards. showInactive: it must not take the game's focus.
+function applyGameHide() {
+  if (!pipWindow || pipWindow.isDestroyed()) { hiddenForGame = false; return; }
+  const hide = pipMemory.shouldHide({ hideOverGame, gameFullscreen });
+  if (hide && !hiddenForGame) {
+    persist();
+    hiddenForGame = true;
+    pipWindow.hide();
+  } else if (!hide && hiddenForGame) {
+    hiddenForGame = false;
+    pipWindow.showInactive();
+  }
+}
+
+// The window sets these (pip:memory) and the game watcher reports fullscreen.
+function setPipMemory({ context, hideOverGame: hide }) {
+  pipContext = pipMemory.contextKey(context);
+  hideOverGame = hide === true;
+  applyGameHide();
+}
+function setPipGameFullscreen(on) {
+  gameFullscreen = on === true;
+  applyGameHide();
 }
 
 // ses: the session of the tab the video comes from. The pop-out loaded the
@@ -83,14 +121,16 @@ function createPipWindow(url, ses) {
   }
   if (pipWindow && !pipWindow.isDestroyed()) {
     pipWindow.loadURL(url);
+    hiddenForGame = false;
     pipWindow.show();
     pipWindow.focus();
+    applyGameHide();
     return pipWindow;
   }
 
   const saved = readState();
   if (typeof saved.alwaysOnTop === 'boolean') alwaysOnTop = saved.alwaysOnTop;
-  const bounds = usableBounds(saved.bounds);
+  const bounds = pipMemory.boundsFor(saved, pipContext, usableBounds);
 
   pipWindow = new BrowserWindow({
     width: bounds ? bounds.width : DEFAULT_BOUNDS.width,
@@ -124,6 +164,8 @@ function createPipWindow(url, ses) {
   pipWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   applyOnTop();
+  hiddenForGame = false;
+  applyGameHide();
   // applyOnTop() above runs before the page exists, so its pin-state message is
   // dropped; re-send once the preload is listening or a restored 'unpinned'
   // preference would still show a pinned button.
@@ -172,7 +214,7 @@ function createPipWindow(url, ses) {
     clearTimeout(saveTimer);
     saveTimer = null;
     // One closed to make a pop-out in another session leaves the new one be.
-    if (pipWindow === made) pipWindow = null;
+    if (pipWindow === made) { pipWindow = null; hiddenForGame = false; }
     const reason = closeReason;
     const at = closePosition;
     closeReason = 'closed';
@@ -253,4 +295,4 @@ function isPipContents(contents) {
   return !!(pipWindow && !pipWindow.isDestroyed() && contents && contents === pipWindow.webContents);
 }
 
-module.exports = { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents };
+module.exports = { setPipMemory, setPipGameFullscreen, createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents };

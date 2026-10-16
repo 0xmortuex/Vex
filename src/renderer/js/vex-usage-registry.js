@@ -195,6 +195,15 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexSecondScreen: () => (typeof VexSecondScreen !== 'undefined' ? VexSecondScreen : null),
+      GameScenes: () => (typeof GameScenes !== 'undefined' ? GameScenes : null),
+      VexGccBridge: () => (typeof VexGccBridge !== 'undefined' ? VexGccBridge : null),
+      GameLoadouts: () => (typeof GameLoadouts !== 'undefined' ? GameLoadouts : null),
+      IntentGate: () => (typeof IntentGate !== 'undefined' ? IntentGate : null),
+      BreakPrompts: () => (typeof BreakPrompts !== 'undefined' ? BreakPrompts : null),
+      OrdersHub: () => (typeof OrdersHub !== 'undefined' ? OrdersHub : null),
+      ExamCalendar: () => (typeof ExamCalendar !== 'undefined' ? ExamCalendar : null),
+      ReceiptLocker: () => (typeof ReceiptLocker !== 'undefined' ? ReceiptLocker : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +249,16 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Wave 2: games and daily life (each module keeps its own on/off flag)
+      ['second-screen', A.api(G.VexSecondScreen, 'enabled', 'setEnabled')],
+      ['game-scenes', A.api(G.GameScenes, 'enabled', 'setEnabled')],
+      ['gcc-bridge', A.api(G.VexGccBridge, 'enabled', 'setEnabled')],
+      ['game-loadouts', A.api(G.GameLoadouts, 'enabled', 'setEnabled')],
+      ['intent-gate', A.api(G.IntentGate, 'enabled', 'setEnabled')],
+      ['break-prompts', A.api(G.BreakPrompts, 'enabled', 'setEnabled')],
+      ['orders-hub', A.api(G.OrdersHub, 'enabled', 'setEnabled')],
+      ['exam-calendar', A.api(G.ExamCalendar, 'enabled', 'setEnabled')],
+      ['receipt-locker', A.api(G.ReceiptLocker, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
