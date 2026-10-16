@@ -10,7 +10,7 @@ const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
 
 const MODULES = [
-  'vex-usage.js', 'vex-settings-groups.js', 'vex-minimal-mode.js',
+  'vex-usage.js', 'feature-registry.js', 'feature-manifests.js', 'vex-settings-groups.js', 'vex-minimal-mode.js',
   'brief-actions.js', 'delights.js', 'resume-workday.js', 'citation-tracker.js', 'knowledge.js',
   'link-triage.js', 'listen-reader.js', 'one-box.js', 'workspace-metrics.js', 'vex-expression.js',
   'vex-fortune.js', 'fun/fun-core.js', 'vex-fun.js', 'living-core.js',
@@ -54,7 +54,8 @@ describe('feature registry', () => {
     const before = Object.fromEntries(VexUsage.features().map(f => [f.id, f.isEnabled()]));
     const r = await VexMinimalMode.enter();
     expect(r.failed).toEqual([]);
-    for (const f of VexUsage.features()) expect(f.isEnabled(), 'off ' + f.id).toBe(false);
+    // The manifests keep the app's own housekeeping on in Minimal Vex (tiers.minimal).
+    for (const f of VexUsage.features()) expect(f.isEnabled(), 'off ' + f.id).toBe(VexRegistry.tierDefault(f.id, 'minimal'));
     await VexMinimalMode.leave();
     await tick();
     const after = Object.fromEntries(VexUsage.features().map(f => [f.id, f.isEnabled()]));

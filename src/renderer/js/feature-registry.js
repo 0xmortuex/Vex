@@ -1,0 +1,278 @@
+// === One manifest per feature ================================================
+//
+// Settings, Discover, Ctrl+K, the cost meter, the kill switch, the diagnostics
+// and the "what does this feature touch" summary all used to find out what a
+// feature IS by reading different places: the VexUsage registration (how to
+// switch it), the catalogue (what it is for), the module itself (its storage
+// keys, jobs and commands). This file is the one description they read.
+//
+//   VexRegistry.define({
+//     id: 'tab-cleanup',            // the same id the feature registers with VexUsage
+//     title: 'Evening tab cleanup', group: 'Tab cleanup',   // as VexUsage.register
+//     maturity: 'stable',           // 'new' | 'beta' | 'stable'  (see stage())
+//     storageKeys: ['vex.tabCleanup.mode', ...],  // localStorage keys this feature OWNS: one owner per key
+//     usesKeys: ['vex.notes'],      // keys it reads/writes but another feature owns
+//     settingsKeys: [...], events: [...], jobs: ['Tab cleanup'], commands: ['tab-cleanup'], panels: [...],
+//     permissions: { reads: [...], writes: [...], sends: [...] },   // plain words; shown to the person
+//     budget: { jobMsPerMin: 150, fetchesPerHour: 60, gameFetches: 0, domNodes: 1500, storageKB: 512 },
+//     tiers: { minimal: false, standard: true },   // the default in each tier
+//     killSwitch: 'usage',          // 'usage' = VexUsage's disable()/enable(); 'none' = cannot be switched
+//   });
+//
+// The switch itself (isEnabled/disable/enable) stays where it is: VexUsage keeps
+// the runtime, this keeps the description. A feature registered with VexUsage
+// that has no manifest is a test failure (tests/renderer/featureRegistry.test.js),
+// and so is a vex.* storage key that nobody owns or two features both own.
+const VexRegistry = {
+  MATURITY: ['new', 'beta', 'stable'],
+  TIERS: ['minimal', 'standard'],
+  KINDS: ['storage', 'settings', 'events', 'jobs', 'commands', 'panels'],
+  STATE_KEY: 'vex.registry',
+  // What a feature may cost unless its manifest says otherwise. gameFetches 0:
+  // no background request while a game has the screen.
+  DEFAULT_BUDGET: { jobMsPerMin: 150, fetchesPerHour: 60, gameFetches: 0, domNodes: 1500, storageKB: 512 },
+
+  _m: new Map(),
+  _owner: new Map(),     // storage key (or 'prefix.') -> feature id
+  _jobOwner: new Map(),
+  _cmdOwner: new Map(),
+  _state: null,
+
+  // ---- defining ------------------------------------------------------------
+  define(spec) {
+    if (!spec || typeof spec !== 'object') throw new Error('A feature manifest has to be an object');
+    const id = String(spec.id || '').trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(id)) throw new Error('A feature id is 1-64 letters, digits, . _ : or -');
+    if (this._m.has(id)) throw new Error('Feature "' + id + '" already has a manifest');
+    const maturity = spec.maturity == null ? 'stable' : spec.maturity;
+    if (!this.MATURITY.includes(maturity)) throw new Error('Feature "' + id + '": maturity is new, beta or stable, not ' + maturity);
+    const killSwitch = spec.killSwitch == null ? 'usage' : spec.killSwitch;
+    if (killSwitch !== 'usage' && killSwitch !== 'none') throw new Error('Feature "' + id + '": killSwitch is usage or none');
+    const list = (name) => {
+      const v = spec[name] == null ? [] : spec[name];
+      if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !x)) throw new Error('Feature "' + id + '": ' + name + ' has to be a list of non-empty strings');
+      return v.slice();
+    };
+    const storageKeys = list('storageKeys');
+    for (const k of storageKeys) if (!/^vex\.[A-Za-z0-9_.:-]+$/.test(k)) throw new Error('Feature "' + id + '": "' + k + '" is not a vex.* storage key');
+    const usesKeys = list('usesKeys');
+    for (const k of usesKeys) if (!/^vex\.[A-Za-z0-9_.:-]+$/.test(k)) throw new Error('Feature "' + id + '": "' + k + '" is not a vex.* storage key');
+    const perm = spec.permissions == null ? {} : spec.permissions;
+    if (typeof perm !== 'object' || Array.isArray(perm)) throw new Error('Feature "' + id + '": permissions has to be { reads, writes, sends }');
+    const permissions = {};
+    for (const p of ['reads', 'writes', 'sends']) {
+      const v = perm[p] == null ? [] : perm[p];
+      if (!Array.isArray(v) || v.some(x => typeof x !== 'string' || !x)) throw new Error('Feature "' + id + '": permissions.' + p + ' has to be a list of strings');
+      permissions[p] = v.slice();
+    }
+    const budget = { ...this.DEFAULT_BUDGET };
+    for (const [k, v] of Object.entries(spec.budget || {})) {
+      if (!(k in this.DEFAULT_BUDGET)) throw new Error('Feature "' + id + '": unknown budget item ' + k);
+      if (!(typeof v === 'number' && v >= 0 && Number.isFinite(v))) throw new Error('Feature "' + id + '": budget ' + k + ' has to be a number of zero or more');
+      budget[k] = v;
+    }
+    const tiers = { minimal: false, standard: true, ...(spec.tiers || {}) };
+    for (const t of Object.keys(tiers)) if (!this.TIERS.includes(t) || typeof tiers[t] !== 'boolean') throw new Error('Feature "' + id + '": tiers are minimal and standard, each true or false');
+    const m = Object.freeze({
+      id,
+      title: String(spec.title || id),
+      group: spec.group ? String(spec.group) : '',
+      maturity, killSwitch,
+      storageKeys, usesKeys,
+      settingsKeys: list('settingsKeys'), events: list('events'), jobs: list('jobs'), commands: list('commands'), panels: list('panels'),
+      permissions: Object.freeze(permissions), budget: Object.freeze(budget), tiers: Object.freeze(tiers),
+      catalog: spec.catalog ? String(spec.catalog) : '',     // the id in VexFeatures (feature-catalog.js), when different
+    });
+    // All claims are checked before any is recorded: a refused manifest leaves no half of itself behind.
+    for (const k of storageKeys) {
+      const other = this._ownerOf(k);
+      if (other) throw new Error('Storage key "' + k + '" is claimed by "' + other + '" and by "' + id + '": one owner per key');
+    }
+    for (const j of m.jobs) if (this._jobOwner.has(j)) throw new Error('Job "' + j + '" belongs to "' + this._jobOwner.get(j) + '" and to "' + id + '"');
+    for (const c of m.commands) if (this._cmdOwner.has(c)) throw new Error('Command "' + c + '" belongs to "' + this._cmdOwner.get(c) + '" and to "' + id + '"');
+    this._m.set(id, m);
+    for (const k of storageKeys) this._owner.set(k, id);
+    for (const j of m.jobs) this._jobOwner.set(j, id);
+    for (const c of m.commands) this._cmdOwner.set(c, id);
+    return m;
+  },
+
+  defineAll(list) { return list.map(spec => this.define(spec)); },
+
+  // ---- reading --------------------------------------------------------------
+  get(id) { return this._m.get(id) || null; },
+  has(id) { return this._m.has(id); },
+  all() { return Array.from(this._m.values()); },
+  ids() { return Array.from(this._m.keys()); },
+
+  // Who owns this storage key: the exact key, else the prefix claim ("vex.x." owns "vex.x.anything").
+  _ownerOf(key) {
+    if (this._owner.has(key)) return this._owner.get(key);
+    for (const [claim, id] of this._owner) {
+      if (claim.endsWith('.') && key.startsWith(claim)) return id;
+      if (key.endsWith('.') && claim.startsWith(key)) return id;
+    }
+    return '';
+  },
+  ownerOfKey(key) { return this._ownerOf(String(key)) || null; },
+  claimedKeys() { return Array.from(this._owner.keys()).sort(); },
+  forJob(name) { return this._jobOwner.get(name) || null; },
+  forCommand(cmdId) { return this._cmdOwner.get(cmdId) || null; },
+
+  // What each tier turns on by default.
+  tierDefault(id, tier) {
+    const m = this._need(id);
+    if (!this.TIERS.includes(tier)) throw new Error('Unknown tier: ' + tier);
+    return m.tiers[tier];
+  },
+  budget(id) { return this._need(id).budget; },
+  _need(id) {
+    const m = this._m.get(id);
+    if (!m) throw new Error('No manifest for feature: ' + id);
+    return m;
+  },
+
+  // "New" / "Beta" beside a feature's name; nothing for a stable one.
+  maturityLabel(id) {
+    const m = this._need(id);
+    return m.maturity === 'stable' ? '' : (m.maturity === 'new' ? 'New' : 'Beta');
+  },
+  // Beta and new features are not carried to other devices until they are stable.
+  syncEligible(id) { return this._need(id).maturity === 'stable'; },
+
+  // One sentence per kind of access, for the permission sheet (feature-details.js).
+  permissionLines(id) {
+    const p = this._need(id).permissions;
+    const out = [];
+    if (p.reads.length) out.push('Reads: ' + p.reads.join(', '));
+    if (p.writes.length) out.push('Writes: ' + p.writes.join(', '));
+    out.push(p.sends.length ? 'Sends off this computer: ' + p.sends.join(', ') : 'Sends nothing off this computer');
+    return out;
+  },
+
+  // ---- the runtime side (joined with VexUsage and VexBreaker) -----------------
+  _usage() { return typeof VexUsage !== 'undefined' ? VexUsage : null; },
+  _breaker() { return typeof VexBreaker !== 'undefined' ? VexBreaker : null; },
+
+  // The switch-off that Ctrl+K "Stop doing this", the breaker and the
+  // diagnostics all go through, so there is one way a feature is turned off.
+  async switchOff(id) {
+    const m = this._need(id);
+    if (m.killSwitch === 'none') throw new Error('"' + m.title + '" cannot be switched off');
+    const u = this._usage();
+    if (!u || !u.get(id)) throw new Error('"' + m.title + '" is not running in this build, so there is nothing to switch off');
+    await u.disable(id);
+  },
+  async switchOn(id) {
+    const m = this._need(id);
+    if (m.killSwitch === 'none') throw new Error('"' + m.title + '" has no switch');
+    const u = this._usage();
+    if (!u || !u.get(id)) throw new Error('"' + m.title + '" is not running in this build');
+    await u.enable(id);
+  },
+
+  // Everything the diagnostics bundle and the problem report want to know about
+  // each feature, as plain data.
+  diagnostics() {
+    const u = this._usage();
+    const b = this._breaker();
+    return this.all().map(m => {
+      const live = u ? u.get(m.id) : null;
+      let on = null;
+      if (live) { try { on = u.isEnabled(m.id); } catch (err) { on = null; console.error('[Registry] could not read the switch of "' + m.id + '":', err.message); } }
+      return {
+        id: m.id, title: m.title, maturity: m.maturity, running: !!live, on,
+        tripped: b ? b.isTripped(m.id) : false,
+        keys: m.storageKeys.length, jobs: m.jobs.length, commands: m.commands.length,
+      };
+    });
+  },
+
+  // ---- maturity and staged enablement (T0-029) ---------------------------------
+  // A feature whose manifest says 'new' or 'beta' arrives OFF on a profile that
+  // already existed, and the person is offered it ("try it") instead of finding
+  // it on. A brand-new profile keeps the feature's own default. Decided once per
+  // feature: the record (vex.registry) remembers it, so a feature the person
+  // later switches on is never switched off again.
+  _load() {
+    if (this._state) return this._state;
+    let raw = null;
+    try { raw = localStorage.getItem(this.STATE_KEY); }
+    catch (err) { console.error('[Registry] the staging record could not be read:', err.message); }
+    let st = null;
+    if (raw) { try { st = JSON.parse(raw); } catch (err) { console.error('[Registry] the staging record is not readable and is started again:', err.message); } }
+    const ok = st && typeof st === 'object' && !Array.isArray(st) && st.v === 1;
+    this._state = { v: 1, staged: ok && st.staged && typeof st.staged === 'object' ? st.staged : {}, offered: ok && st.offered && typeof st.offered === 'object' ? st.offered : {} };
+    return this._state;
+  },
+  _save() {
+    try { localStorage.setItem(this.STATE_KEY, JSON.stringify(this._state)); }
+    catch (err) { console.error('[Registry] the staging record could not be saved:', err.message); }
+  },
+
+  // Returns the ids switched off for this profile this time. `existing` says
+  // whether the profile pre-dates the feature (default: VexUsage has kept its
+  // record for more than a minute).
+  async stage({ existing, now = Date.now() } = {}) {
+    const u = this._usage();
+    const st = this._load();
+    let isExisting = existing;
+    if (isExisting == null) {
+      if (!u) throw new Error('Staged enablement needs the usage record');
+      isExisting = now - u.report().since > 60 * 1000;
+    }
+    const heldOff = [];
+    for (const m of this.all()) {
+      if (m.maturity === 'stable' || st.staged[m.id]) continue;
+      const live = u ? u.get(m.id) : null;
+      st.staged[m.id] = { at: now, off: false };
+      if (isExisting && live && m.killSwitch === 'usage' && u.isEnabled(m.id)) {
+        await u.disable(m.id);
+        st.staged[m.id].off = true;
+        heldOff.push(m.id);
+      }
+    }
+    this._save();
+    return heldOff;
+  },
+
+  // Staged-off features not yet offered ("try it"): to whatever subscribed with
+  // onOffer() (the attention inbox), otherwise one gated toast.
+  pendingOffers() {
+    const st = this._load();
+    return Object.keys(st.staged).filter(id => st.staged[id].off && !st.offered[id] && this._m.has(id));
+  },
+  _offerSinks: [],
+  onOffer(fn) {
+    if (typeof fn !== 'function') throw new Error('onOffer needs a function');
+    this._offerSinks.push(fn);
+  },
+  offerTry(ids = this.pendingOffers()) {
+    const st = this._load();
+    let n = 0;
+    for (const id of ids) {
+      const m = this._m.get(id);
+      if (!m || st.offered[id]) continue;
+      const text = (m.maturity === 'new' ? 'New in Vex: ' : 'Beta: ') + m.title + '. It is off until you try it.';
+      const turnOn = () => this.switchOn(id).then(() => { st.offered[id] = Date.now(); this._save(); }).catch(err => { console.error('[Registry] could not turn on "' + id + '":', err); window.showToast?.('Could not turn on ' + m.title + ': ' + err.message, 'error'); });
+      if (this._offerSinks.length) {
+        // The attention inbox (when there is one) subscribes with onOffer() and shows it its own way.
+        for (const sink of this._offerSinks.slice()) sink({ id, title: m.title, text, turnOn });
+      } else {
+        if (typeof VexAttention !== 'undefined' && !VexAttention.gate('try-feature', id)) continue;   // not now; offered next start
+        if (typeof window === 'undefined' || typeof window.showToast !== 'function') continue;
+        window.showToast(text, 'info', 12000, { action: { label: 'Try it', run: turnOn } });
+      }
+      st.offered[id] = Date.now();
+      n++;
+    }
+    this._save();
+    return n;
+  },
+
+  // For tests.
+  _reset() { this._offerSinks.length = 0; this._m.clear(); this._owner.clear(); this._jobOwner.clear(); this._cmdOwner.clear(); this._state = null; },
+};
+
+if (typeof window !== 'undefined') window.VexRegistry = VexRegistry;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexRegistry };

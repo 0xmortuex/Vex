@@ -37,6 +37,9 @@ const VexMinimalMode = {
 
   // What a feature is doing right now, as best Vex can tell.
   _was(feature) { return VexUsage._isOn(feature); },
+  // A feature whose manifest says it stays on in the minimal tier (js/feature-registry.js,
+  // tiers.minimal) is left alone: it is not hidden, not switched off, not in the note.
+  _keepsInMinimal(feature) { return typeof VexRegistry !== 'undefined' && VexRegistry.has(feature.id) && VexRegistry.tierDefault(feature.id, 'minimal') === true; },
 
   _hiddenIds(state) { return Object.keys(state.prior); },
   _refreshHidden(state) { VexUsage.setForcedHidden(state.on ? this._hiddenIds(state) : []); },
@@ -52,6 +55,7 @@ const VexMinimalMode = {
       const off = [];
       const failed = [];
       for (const f of VexUsage.features()) {
+        if (this._keepsInMinimal(f)) continue;
         const was = this._was(f);
         next.prior[f.id] = was;
         if (!was) continue;
@@ -101,6 +105,7 @@ const VexMinimalMode = {
 
   // A feature that registers after the switch was thrown.
   _onRegister(feature) {
+    if (this._keepsInMinimal(feature)) return;
     let state;
     try { state = this._read(); }
     catch (err) { console.error('[Minimal] could not read the note for a late feature:', err.message); return; }

@@ -125,8 +125,52 @@ const VexUsageRegistry = {
     };
   },
 
+  // A checkbox in the page that the app itself listens to: set through the box, so its own
+  // change handler does the work and the box never disagrees with the setting.
+  domToggle(elementId) {
+    return () => {
+      const el = typeof document !== 'undefined' ? document.getElementById(elementId) : null;
+      if (!el || el.type !== 'checkbox') return null;
+      return { on: () => !!el.checked, set: (v) => { el.checked = !!v; el.dispatchEvent(new Event('change', { bubbles: true })); } };
+    };
+  },
+  // A JSON true/false preference that the module reads every time it acts; the Settings
+  // box for it (if there is one) is updated to match.
+  jsonFlag(key, def, elementId) {
+    return () => ({
+      on: () => { const raw = localStorage.getItem(key); return raw === null ? !!def : JSON.parse(raw) !== false; },
+      set: (v) => {
+        localStorage.setItem(key, JSON.stringify(!!v));
+        const el = elementId && typeof document !== 'undefined' ? document.getElementById(elementId) : null;
+        if (el && el.type === 'checkbox') el.checked = !!v;
+      },
+    });
+  },
+  // Light and dark by itself (js/theme-auto.js): off remembers the mode it had.
+  themeAuto() {
+    return (id) => {
+      const G = typeof ThemeAuto !== 'undefined' ? ThemeAuto : null;
+      if (!G || typeof G.isOn !== 'function' || typeof G.set !== 'function') return null;
+      const k = this.PRIOR_PREFIX + id;
+      return {
+        on: () => G.isOn(),
+        set: (v) => {
+          if (!v) {
+            const cur = G.state().mode;
+            if (cur !== 'off') localStorage.setItem(k, cur);
+            G.set({ mode: 'off' });
+          } else {
+            const prior = localStorage.getItem(k);
+            G.set({ mode: prior && prior !== 'off' ? prior : 'system' });
+            localStorage.removeItem(k);
+          }
+        },
+      };
+    };
+  },
+
   // ---- the table ----------------------------------------------------------------
-  // [id, title, Settings heading it starts with (or ''), adapter]
+  // [id, adapter]. The title and the Settings heading come from the feature's manifest (js/feature-manifests.js).
   table() {
     const A = this;
     const G = {
@@ -148,58 +192,63 @@ const VexUsageRegistry = {
     };
     return [
       // Brief actions group (js/brief-actions.js)
-      ['brief-mail-triage', 'Mail triage in the brief', 'Brief actions', A.briefAction('mail')],
-      ['brief-github-desk', 'GitHub desk', 'Brief actions', A.briefAction('github')],
-      ['brief-snooze', 'Snooze anything', 'Brief actions', A.briefAction('snooze')],
-      ['brief-finder', 'Find a lost page', 'Brief actions', A.briefAction('finder')],
-      ['brief-interests', 'Learn my interests', 'Brief actions', A.briefAction('interests')],
-      ['brief-day-layout', 'Order the brief by time of day', 'Brief actions', A.briefAction('dayLayout')],
-      ['brief-next-action', 'Suggest what I usually do next', 'Brief actions', A.briefAction('nextAction')],
+      ['brief-mail-triage', A.briefAction('mail')],
+      ['brief-github-desk', A.briefAction('github')],
+      ['brief-snooze', A.briefAction('snooze')],
+      ['brief-finder', A.briefAction('finder')],
+      ['brief-interests', A.briefAction('interests')],
+      ['brief-day-layout', A.briefAction('dayLayout')],
+      ['brief-next-action', A.briefAction('nextAction')],
       // Little surprises (js/delights.js)
-      ['delight-rabbit-hole', 'Take me somewhere interesting', 'Little surprises', A.delight('rabbit')],
-      ['delight-time-capsule', 'Time capsules', 'Little surprises', A.delight('capsule')],
-      ['delight-on-this-day', 'On this day', 'Little surprises', A.delight('onThisDay')],
-      ['delight-old-bookmark', 'A forgotten bookmark', 'Little surprises', A.delight('oldBookmark')],
-      ['delight-mood-themes', 'Mood themes', 'Little surprises', A.delight('mood')],
-      ['delight-widgets', 'Start page widgets', 'Little surprises', A.delight('widgets')],
+      ['delight-rabbit-hole', A.delight('rabbit')],
+      ['delight-time-capsule', A.delight('capsule')],
+      ['delight-on-this-day', A.delight('onThisDay')],
+      ['delight-old-bookmark', A.delight('oldBookmark')],
+      ['delight-mood-themes', A.delight('mood')],
+      ['delight-widgets', A.delight('widgets')],
       // Workflow (js/resume-workday.js hub)
-      ['workflow-ask-tabs', 'Ask across my tabs', 'Workflow', A.workflow('askTabs', false)],
-      ['workflow-focus-auto', 'Switch focus profiles by itself', 'Workflow', A.workflow('focusAuto', false)],
-      ['workflow-release-radar', 'Release radar', 'Workflow', A.workflow('releaseRadar', true)],
-      ['workflow-weekly-note', 'Weekly note', 'Workflow', A.workflow('weeklyNote', true)],
-      ['workflow-resume-workday', 'Resume my workday', 'Workflow', A.workflow('workday', true)],
+      ['workflow-ask-tabs', A.workflow('askTabs', false)],
+      ['workflow-focus-auto', A.workflow('focusAuto', false)],
+      ['workflow-release-radar', A.workflow('releaseRadar', true)],
+      ['workflow-weekly-note', A.workflow('weeklyNote', true)],
+      ['workflow-resume-workday', A.workflow('workday', true)],
       // enabled()/setEnabled() modules
-      ['citations', 'Citations in Notes', 'Citations in Notes', A.api(G.CitationTracker, 'enabled', 'setEnabled')],
-      ['knowledge-base', 'Knowledge base', 'Knowledge', A.api(G.KnowledgeAsk, 'enabled', 'setEnabled')],
-      ['link-triage', 'Link triage', 'Link triage', A.api(G.LinkTriage, 'enabled', 'setEnabled')],
-      ['listen-reader', 'Listen to articles', 'Listen to articles', A.api(G.ListenReader, 'enabled', 'setEnabled')],
-      ['one-box', 'One box', 'One box', A.api(G.VexOneBox, 'enabled', 'setEnabled')],
-      ['workspace-metrics', 'Workspace metrics', 'Workspace metrics', A.api(G.WorkspaceMetrics, 'enabled', 'setEnabled')],
-      ['fortune', 'Fortune', 'Fun and expression', A.api(G.VexFortune, 'isEnabled', 'setEnabled')],
+      ['citations', A.api(G.CitationTracker, 'enabled', 'setEnabled')],
+      ['knowledge-base', A.api(G.KnowledgeAsk, 'enabled', 'setEnabled')],
+      ['link-triage', A.api(G.LinkTriage, 'enabled', 'setEnabled')],
+      ['listen-reader', A.api(G.ListenReader, 'enabled', 'setEnabled')],
+      ['one-box', A.api(G.VexOneBox, 'enabled', 'setEnabled')],
+      ['workspace-metrics', A.api(G.WorkspaceMetrics, 'enabled', 'setEnabled')],
+      ['fortune', A.api(G.VexFortune, 'isEnabled', 'setEnabled')],
       // Page actions: turning them back on asks its own confirmation again.
-      ['page-actions', 'Page actions', 'Page actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
+      ['page-actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
-      ['fun-pet', 'Vex Pet', 'Play: fun and progress', A.progress('pet')],
-      ['fun-discovery', 'Discovery log', 'Play: fun and progress', A.progress('discovery')],
-      ['fun-levels', 'Browser levels', 'Play: fun and progress', A.progress('levels')],
-      ['fun-challenge', 'Daily challenge', 'Play: fun and progress', A.progress('challenge')],
-      ['play-games', 'Offline mini games', 'Play', A.play('games')],
-      ['play-tetris', 'Tab Tetris', 'Play', A.play('tetris')],
-      ['play-word', 'Daily word', 'Play', A.play('word')],
-      ['play-sounds', 'Sounds', 'Play', A.play('sounds')],
+      ['fun-pet', A.progress('pet')],
+      ['fun-discovery', A.progress('discovery')],
+      ['fun-levels', A.progress('levels')],
+      ['fun-challenge', A.progress('challenge')],
+      ['play-games', A.play('games')],
+      ['play-tetris', A.play('tetris')],
+      ['play-word', A.play('word')],
+      ['play-sounds', A.play('sounds')],
       // Living (js/living-core.js)
-      ['living-tab-personality', 'Tab personality', 'Living', A.living('tabPersonality')],
-      ['living-tab-glow', 'Tab daily glow', 'Living', A.living('tabDailyGlow')],
-      ['living-weather', 'Weather layer', 'Living', A.living('weatherLayer')],
-      ['living-stickers', 'Stickers', 'Living', A.living('stickers')],
+      ['living-tab-personality', A.living('tabPersonality')],
+      ['living-tab-glow', A.living('tabDailyGlow')],
+      ['living-weather', A.living('weatherLayer')],
+      ['living-stickers', A.living('stickers')],
       // Preference objects and modes
-      ['distraction-budget', 'Distraction budget', 'Distraction budget', A.stateFlag(G.DistractionBudget)],
-      ['smart-bookmarks', 'Smart bookmarks', 'Smart bookmarks', A.patched(G.SmartBookmarks, 'prefs', 'setPrefs')],
-      ['search-again', 'Search again', 'Search again', A.patched(G.VexSearchAgain, 'prefs', 'savePrefs')],
-      ['command-aliases', 'Command aliases', 'Command aliases', A.patched(G.VexAliases, 'prefs', 'savePrefs')],
-      ['meeting-prep', 'Meeting prep', 'Meeting prep', A.mode(G.MeetingPrep, 'mode', 'setMode', 'off', 'ask')],
-      ['routine-detect', 'Routine detection', 'Routine', A.mode(G.RoutineDetect, 'mode', 'setMode', 'off', 'on')],
-      ['tab-cleanup', 'Evening tab cleanup', 'Tab cleanup', A.mode(G.TabCleanup, 'mode', 'setMode', 'off', 'ask')],
+      ['distraction-budget', A.stateFlag(G.DistractionBudget)],
+      ['smart-bookmarks', A.patched(G.SmartBookmarks, 'prefs', 'setPrefs')],
+      ['search-again', A.patched(G.VexSearchAgain, 'prefs', 'savePrefs')],
+      ['command-aliases', A.patched(G.VexAliases, 'prefs', 'savePrefs')],
+      ['meeting-prep', A.mode(G.MeetingPrep, 'mode', 'setMode', 'off', 'ask')],
+      ['routine-detect', A.mode(G.RoutineDetect, 'mode', 'setMode', 'off', 'on')],
+      ['tab-cleanup', A.mode(G.TabCleanup, 'mode', 'setMode', 'off', 'ask')],
+      // What Vex does on its own to tabs and the theme (listed in "Why did that happen?"). Their
+      // manifests keep them on in Minimal Vex: it is the app's own housekeeping, not an extra.
+      ['tab-auto-sleep', A.domToggle('setting-autosleep')],
+      ['tab-auto-group', A.jsonFlag('vex.autoAddToGroups', true, 'setting-auto-add-to-groups')],
+      ['theme-auto', A.themeAuto()],
     ];
   },
 
@@ -208,12 +257,16 @@ const VexUsageRegistry = {
     const usage = U || (typeof VexUsage !== 'undefined' ? VexUsage : null);
     if (!usage || typeof usage.register !== 'function') throw new Error('The usage record is not loaded');
     const done = [];
-    for (const [id, title, group, make] of this.table()) {
+    const manifests = typeof VexRegistry !== 'undefined' ? VexRegistry : null;
+    if (!manifests) throw new Error('The feature manifests are not loaded (js/feature-registry.js)');
+    for (const [id, make] of this.table()) {
+      const manifest = manifests.get(id);
+      if (!manifest) throw new Error('Feature "' + id + '" has no manifest in js/feature-manifests.js');
       let h;
       try { h = make.call(this, id); } catch (err) { console.error('[UsageRegistry] "' + id + '" could not be set up:', err); continue; }
       if (!h) continue;
       usage.register({
-        id, title, group,
+        id, title: manifest.title, group: manifest.group,
         isEnabled: () => !!h.on(),
         disable: () => { h.set(false); },
         enable: () => { h.set(true); },
