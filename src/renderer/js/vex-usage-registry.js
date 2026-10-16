@@ -232,6 +232,15 @@ const VexUsageRegistry = {
       VexStripActions: () => (typeof VexStripActions !== 'undefined' ? VexStripActions : null),
       NightCoach: () => (typeof NightCoach !== 'undefined' ? NightCoach : null),
       AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
+      VexStudyGlossary: () => (typeof VexStudyGlossary !== 'undefined' ? VexStudyGlossary : null),
+      VexStudyLedger: () => (typeof VexStudyLedger !== 'undefined' ? VexStudyLedger : null),
+      VexCheatSheet: () => (typeof VexCheatSheet !== 'undefined' ? VexCheatSheet : null),
+      VexDraftCheck: () => (typeof VexDraftCheck !== 'undefined' ? VexDraftCheck : null),
+      VexSyllabusCheck: () => (typeof VexSyllabusCheck !== 'undefined' ? VexSyllabusCheck : null),
+      VexSourceBadge: () => (typeof VexSourceBadge !== 'undefined' ? VexSourceBadge : null),
+      VexMunToolkit: () => (typeof VexMunToolkit !== 'undefined' ? VexMunToolkit : null),
+      VexSpeechTimer: () => (typeof VexSpeechTimer !== 'undefined' ? VexSpeechTimer : null),
+      VexTurkishHelpers: () => (typeof VexTurkishHelpers !== 'undefined' ? VexTurkishHelpers : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -321,6 +330,16 @@ const VexUsageRegistry = {
       ['strip-actions', A.api(G.VexStripActions, 'enabled', 'setEnabled')],
       ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
       ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
+      // Study helpers (Wave 3, js/study-extras.js)
+      ['study-glossary', A.api(G.VexStudyGlossary, 'enabled', 'setEnabled')],
+      ['study-ledger', A.api(G.VexStudyLedger, 'enabled', 'setEnabled')],
+      ['cheat-sheet', A.api(G.VexCheatSheet, 'enabled', 'setEnabled')],
+      ['draft-check', A.api(G.VexDraftCheck, 'enabled', 'setEnabled')],
+      ['syllabus-check', A.api(G.VexSyllabusCheck, 'enabled', 'setEnabled')],
+      ['source-badge', A.api(G.VexSourceBadge, 'enabled', 'setEnabled')],
+      ['mun-toolkit', A.api(G.VexMunToolkit, 'enabled', 'setEnabled')],
+      ['speech-timer', A.api(G.VexSpeechTimer, 'enabled', 'setEnabled')],
+      ['turkish-helpers', A.api(G.VexTurkishHelpers, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

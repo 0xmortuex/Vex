@@ -313,6 +313,8 @@ const WebviewManager = {
         if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
         // Re-apply persistent highlights for this page
         if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
+        // Glossary hover cards for terms you confirmed (js/study-glossary.js).
+        if (typeof VexStudyGlossary !== 'undefined' && t && t.url) VexStudyGlossary.applyTo(webview, t.url);
         // Discord as a tab in the Vex theme (js/discord-theme.js).
         if (window.DiscordTheme && t && t.partition === 'persist:discord') DiscordTheme.onPageReady(webview);
       } catch {}
@@ -1658,6 +1660,8 @@ const WebviewManager = {
     ];
     // GitHub page helpers and the repo group (js/dev-helpers.js): only on a github.com page.
     if (isTab && typeof VexDevHelpers !== 'undefined') pageItems.push(...VexDevHelpers.pageItems(webview));
+    // Find terms on this page, Source check (js/study-extras.js).
+    if (isTab && typeof VexStudyExtras !== 'undefined') pageItems.push(...VexStudyExtras.pageItems(webview));
     const siteItems = [
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -1818,6 +1822,8 @@ const WebviewManager = {
       });
       // Decode, translate a command, make a GitHub issue from the selected words (js/dev-helpers.js).
       if (typeof VexDevHelpers !== 'undefined') textItems.push(...VexDevHelpers.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
+      // Add to glossary, TDK'de ara, put Turkish letters back (js/study-extras.js).
+      if (typeof VexStudyExtras !== 'undefined') textItems.push(...VexStudyExtras.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
     }
     groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));
 
