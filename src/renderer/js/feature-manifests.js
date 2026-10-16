@@ -232,6 +232,24 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Wave 3: tab comforts (all new: off on a profile that already existed, offered to try) ----
+    { id: 'scroll-memory', title: 'Scroll position across restart and reopen', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.scrollMemory'], jobs: ['Scroll memory'],
+      permissions: { reads: ['where the tab in front is scrolled to, and the first words at the top of its view'], writes: ['that position, kept with the tab in your saved session'], sends: [] } },
+    { id: 'essentials', title: 'Essential tabs in every workspace', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.essentials'], commands: ['essentials'],
+      permissions: { reads: ['your open tabs'], writes: ['which tabs are essential, kept with the tab in your saved session; pins them'], sends: [] } },
+    { id: 'spell-lang', title: 'English and Turkish spelling', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.spellLang', 'vex.spellLang.menu'],
+      permissions: { reads: ['the word you right-click'], writes: ['the language choice; words you add to the dictionary'], sends: ['Chromium fetches a spelling dictionary from Google the first time Turkish is switched on'] } },
+    { id: 'autoscroll', title: 'Middle-click autoscroll', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.autoscroll'],
+      permissions: { reads: ['nothing from the page: only the middle mouse button'], writes: ['its own switch'], sends: [] } },
+    { id: 'pinned-home', title: 'Pinned tab home page', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.pinnedHome', 'vex.pinnedHome.links'], commands: ['pinned-home-back'],
+      permissions: { reads: ['the address of your pinned tabs'], writes: ['the home address, kept with the pinned tab in your saved session'], sends: [] } },
+    { id: 'load-failure', title: 'Page that did not load', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.loadFailure'],
+      permissions: { reads: ['the address that failed, and whether you kept a copy'], writes: ['its own switch'], sends: ['Nothing by itself: the Wayback Machine and http:// buttons act only when you press them'] } },
+    { id: 'paste-plain', title: 'Paste as plain text', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.pastePlain'], commands: ['paste-plain'],
+      permissions: { reads: ['nothing: the page pastes the clipboard itself'], writes: ['its own switch'], sends: [] } },
+    { id: 'tab-text-find', title: 'Find text in all tabs', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.tabTextFind'], commands: ['tab-text-find'],
+      permissions: { reads: ['the text of your open and sleeping web tabs, not private or Tor ones'], writes: ['nothing: the text stays in memory'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

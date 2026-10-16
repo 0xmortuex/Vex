@@ -336,6 +336,8 @@ const TabManager = {
         scrollPosition: t.scrollPosition || null,
         keepAwakeUntil: t.keepAwakeUntil || 0,
         note: t.note || '',
+        essential: t.essential === true,
+        homeUrl: typeof t.homeUrl === 'string' && t.homeUrl ? t.homeUrl : null,
         muted: !!t.muted,
         // Keeps the Memory panel's "(was 219 MB)" across the restart; a
         // malformed saved figure is dropped rather than shown.
@@ -363,6 +365,10 @@ const TabManager = {
       keepAwakeUntil: t.keepAwakeUntil || 0,
       note: t.note || '',
       muted: !!t.muted,
+      // Where the page was scrolled to, put back when it first loads (js/scroll-memory.js).
+      scrollPosition: t.scrollPosition || null,
+      essential: t.essential === true,
+      homeUrl: typeof t.homeUrl === 'string' && t.homeUrl ? t.homeUrl : null,
       history: window.VexTabPolicy?.savedHistory(t) || null,
       _lazy: true
     };
@@ -389,6 +395,8 @@ const TabManager = {
       loading: true,
       pinned: !!opts?.pinned,
       scrollPosition: opts?.scrollPosition || null,
+      essential: opts?.essential === true,
+      homeUrl: typeof opts?.homeUrl === 'string' && opts.homeUrl ? opts.homeUrl : null,
       keepAwakeUntil: opts?.keepAwakeUntil || 0,
       note: opts?.note || '',
       // A reopened tab stays muted (found 2026-10-10: the mute was lost).
@@ -1899,6 +1907,9 @@ const TabManager = {
       // strip never got .pinned, so "Pin Tab" looked like it did nothing until
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
+      // A pinned tab's home page, and tabs kept in every workspace (js/pinned-home.js, js/essentials.js).
+      ...(typeof VexPinnedHome !== 'undefined' ? VexPinnedHome.menuItems(tab) : []),
+      ...(typeof VexEssentials !== 'undefined' ? VexEssentials.menuItems(tab) : []),
       ...(webPage && typeof Bookmarks !== 'undefined'
         ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
         : []),
@@ -3382,6 +3393,8 @@ const TabManager = {
     // drawn twice — once as a pinned chip and once inside its stack.
     if (tab.stackId) this.removeTabFromStack(id);
     tab.pinned = true;
+    // The address it is pinned on is its home (js/pinned-home.js).
+    if (typeof VexPinnedHome !== 'undefined') VexPinnedHome.onPin(tab);
     this.rebuildAllTabs();
     this.persistTabs();
   },
@@ -3390,6 +3403,7 @@ const TabManager = {
     const tab = this.tabs.find(t => t.id === id);
     if (!tab) return;
     tab.pinned = false;
+    if (typeof VexPinnedHome !== 'undefined') VexPinnedHome.onUnpin(tab);
     this.rebuildAllTabs();
     this.persistTabs();
   },

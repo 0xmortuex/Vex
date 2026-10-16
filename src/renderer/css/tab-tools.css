@@ -97,3 +97,37 @@
 .ad-form { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .ad-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-muted); }
 .ad-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--text-muted); }
+
+/* === Tab comforts (Wave 3) ===================================================
+ * A pinned tab's "Back to ..." button and the page that did not load. Both sit
+ * inside #webviews-container (position: relative), over the page.
+ */
+.vph-pill {
+  position: absolute; left: 12px; bottom: 12px; z-index: 5;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px 5px 9px; font: inherit; font-size: 12px;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px;
+  box-shadow: 0 6px 18px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+  cursor: pointer;
+}
+.vph-pill:hover, .vph-pill:focus-visible { background: var(--vex-hover-fill); }
+
+.vlf {
+  position: absolute; inset: 0; z-index: 6;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: var(--bg); color: var(--text); overflow: auto;
+}
+.vlf-card { width: 520px; max-width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.vlf-title { margin: 0; font-size: 20px; font-weight: 600; }
+.vlf-what { margin: 0; font-size: 14px; }
+.vlf-tip { margin: 0; font-size: 13px; color: var(--text-muted); }
+.vlf-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.vlf-btn {
+  padding: 7px 14px; font: inherit; font-size: 13px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+}
+.vlf-btn:hover, .vlf-btn:focus-visible { background: var(--vex-hover-fill); }
+.vlf-primary { color: var(--on-primary, #fff); background: var(--primary); border-color: var(--primary); }
+.vlf-primary:hover, .vlf-primary:focus-visible { background: var(--primary); filter: brightness(1.1); }
+.vlf-url { margin: 6px 0 0; font-size: 11px; color: var(--text-muted); word-break: break-all; }

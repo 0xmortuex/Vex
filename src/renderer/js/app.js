@@ -1324,6 +1324,13 @@ function vexOwnTextFocused(doc) {
   if (typeof VexTabToolsSettings !== 'undefined') VexTabToolsSettings.init();
   if (typeof NightCoach !== 'undefined') bootStep('night-coach', () => NightCoach.init());
   if (typeof AnnounceDesk !== 'undefined') bootStep('announce-desk', () => AnnounceDesk.init());
+  // Tab comforts (js/scroll-memory.js, autoscroll.js, pinned-home.js, load-failure.js, spell-lang.js): each starts on its own.
+  if (typeof VexScrollMemory !== 'undefined') bootStep('scroll-memory', () => VexScrollMemory.init());
+  if (typeof VexAutoscroll !== 'undefined') bootStep('autoscroll', () => VexAutoscroll.init());
+  if (typeof VexPinnedHome !== 'undefined') bootStep('pinned-home', () => VexPinnedHome.init());
+  if (typeof VexLoadFailure !== 'undefined') bootStep('load-failure', () => VexLoadFailure.init());
+  if (typeof VexSpellLang !== 'undefined') bootStep('spell-lang', () => VexSpellLang.init());
+  if (typeof VexTabComfortsSettings !== 'undefined') VexTabComfortsSettings.init();
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a

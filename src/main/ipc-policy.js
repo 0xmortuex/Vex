@@ -7,7 +7,7 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   // frame's own address; a refused tab is simply given none.
   'userscripts:page', 'userscripts:gm']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list',
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
   'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate',
@@ -26,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:)/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|spellcheck:set-languages|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:)/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -47,6 +47,8 @@ const UI_ONLY_CHANNELS = new Set([
   'attention:state', 'attention:denied', 'attention:clear-denied',
   // Ctrl+Tab by recency (main/mru-keys.js) and the Back/Forward menu's list of a tab's pages.
   'tabs:mru-keys', 'tabs:nav-list',
+  // Which languages the spell checker uses (main.js, js/spell-lang.js).
+  'spellcheck:set-languages', 'spellcheck:state',
   'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'screen-share:preflight', 'signout:why', 'commit:state',
   'companion:start', 'companion:publish', 'companion:status', 'companion:stop',

@@ -854,4 +854,8 @@ contextBridge.exposeInMainWorld('vexSpellcheck', {
   // when getWebContentsId() returned -1 on a freshly-attached guest.
   replaceMisspelling: (webContentsId, suggestion, fallbackUrl) =>
     ipcRenderer.invoke('spellcheck:replace-misspelling', webContentsId, suggestion, fallbackUrl),
+  // Which languages the spell checker uses, and "Add to dictionary" (js/spell-lang.js).
+  setLanguages: (choice) => ipcRenderer.invoke('spellcheck:set-languages', choice),
+  state: () => ipcRenderer.invoke('spellcheck:state'),
+  addWord: (webContentsId, word) => ipcRenderer.invoke('spellcheck:add-word', webContentsId, word),
 });

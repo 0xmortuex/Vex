@@ -103,7 +103,10 @@ const ShortcutsRegistry = (() => {
     // Windows and can never be taken from it.
     'last-tab':       { default: 'Alt+Q',         label: 'Back to the last tab you used', category: 'Tabs' },
     // Ctrl+Shift+A (Chrome's key for it) is the AI panel here; Ctrl+Alt+Z was free.
-    'tab-search':     { default: 'Ctrl+Alt+Z',   label: 'Search open tabs',           category: 'Tabs',       cmd: 'tab-search' }
+    'tab-search':     { default: 'Ctrl+Alt+Z',   label: 'Search open tabs',           category: 'Tabs',       cmd: 'tab-search' },
+    // Wave 3 tab comforts. Ctrl+Alt+E and Ctrl+Alt+F were free.
+    'essentials':     { default: 'Ctrl+Alt+E',   label: 'Essential tabs (kept in every workspace)', category: 'Tabs', cmd: 'essentials' },
+    'tab-text-find':  { default: 'Ctrl+Alt+F',   label: 'Find text in all tabs',      category: 'Tabs',       cmd: 'tab-text-find' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.

@@ -92,6 +92,8 @@ function vexPipFrame(mode, token, override) {
       playing: !best.paused && !best.ended,
       disabled: !!best.disablePictureInPicture,
       enabled: !!document.pictureInPictureEnabled,
+      // Protected (DRM) video: floating it by itself is left to a press of the button (floatTab).
+      drm: !!best.mediaKeys,
       media: /^https?:/i.test(src) ? {
         src, currentTime: Number.isFinite(best.currentTime) ? best.currentTime : 0, paused: !!best.paused, muted: !!best.muted,
         poster: /^https?:/i.test(best.poster || '') ? best.poster : '', width: best.videoWidth || 0, height: best.videoHeight || 0,
@@ -108,6 +110,10 @@ const PiPManager = {
   // puts the video back in the page.
   _autoTabs: new Set(),
   _lastActive: null,
+  // Is a game (full screen, or one you listed) in front? From main's game:state (main/game-watch.js,
+  // main/game-mode.js). null = main has not answered yet, which counts as yes: an always-on-top window
+  // must never land on a game by mistake. false when there is no game watcher to ask (a plain window).
+  _game: false,
   // { tabId, wasMuted } while a pop-out is up, else null.
   _source: null,
   _onMessage: null,
@@ -172,6 +178,16 @@ const PiPManager = {
       document.addEventListener('media-paused', this._onMedia, true);
     }
 
+    // A floating window is always on top, so none is made by itself while a game has the screen.
+    if (!this._gameWired && window.vex && typeof window.vex.onGameState === 'function') {
+      this._gameWired = true;
+      this._game = null;
+      window.vex.onGameState((s) => { this._game = !!(s && s.game); });
+      if (typeof window.vex.gameState === 'function') {
+        Promise.resolve(window.vex.gameState()).then((s) => { this._game = !!(s && s.game); })
+          .catch(err => { if (typeof VexProblems !== 'undefined') VexProblems.note('Picture-in-Picture', 'Could not ask whether a game is running, so no video floats by itself', err); });
+      }
+    }
     // Float a playing video when you switch away from its tab (off unless
     // turned on in Settings), and put it back when you return.
     if (!this._onTabs) {
@@ -665,6 +681,8 @@ const PiPManager = {
     const best = scan.map(f => f.best).filter(Boolean).sort((a, b) => b.score - a.score)[0];
     if (!best) { say('There is no video on this page'); return 'none'; }
     if (o.auto && !best.playing) return 'none';
+    // A protected stream floated on its own has gone wrong on some players (a black pop-out); only a press does it.
+    if (o.auto === 'enter' && best.drm) return 'none';
     let override = false;
     if (best.disabled) {
       if (!o.interactive) return 'disabled';
@@ -714,6 +732,7 @@ const PiPManager = {
       if (back) this.floatTab(back, { auto: 'exit' }).catch(err => console.warn('[PiP] could not bring the video back:', err && err.message));
     }
     if (!this.autoEnabled()) return;
+    if (this._game !== false) return;      // a game is in front, or main has not said yet: nothing floats over it
     const left = views.get(prev);
     if (!left || !TabManager.tabs.some(t => t.id === prev)) return;
     this.floatTab(left, { auto: 'enter' }).then((r) => {
