@@ -541,6 +541,8 @@ const Knowledge = {
           answerBox.appendChild(Object.assign(document.createElement('div'), { className: 'vexsr-mode', textContent: VexAnswerCitations.summaryLine(r.claims) }));
         } else answerBox.textContent = r.answer;
         say([r.model ? 'Answered by ' + r.model + ' on this PC.' : 'Answered on this PC.'].concat(r.notes).join(' '));
+        // Check the sources for conflicts, read the answer aloud (js/library-links.js).
+        if (typeof VexLibraryLinks !== 'undefined') VexLibraryLinks.decorateAnswer(answerBox, r, { question: q, say });
         list.textContent = '';
         list.appendChild(el('div', 'vexsr-sub', 'Sources'));
         for (const s of r.sources) {
@@ -683,6 +685,8 @@ const Knowledge = {
       } catch (err) { say(err.message, true); }
     });
     row.append(text, open, rel, out);
+    // Backlinks and "Your copy" (js/library-links.js).
+    if (typeof VexLibraryLinks !== 'undefined') VexLibraryLinks.decorateRow(row, h, { say });
     return row;
   },
 

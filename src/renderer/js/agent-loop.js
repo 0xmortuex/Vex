@@ -1283,6 +1283,16 @@ const AgentLoop = {
       el.innerHTML = '<div class="agent-card"><div class="agent-plan-heading">Approve this plan? The agent then carries it out on its own, and still asks before anything risky.</div>'
         + this._planHtml(steps.length ? steps : ['(the agent gave no steps)'], thought)
         + '<div class="agent-btns"><button class="agent-approve">Approve plan</button><button class="agent-deny">Deny</button></div></div>';
+      // How long the plan will take (js/agent-pins.js); only said for the local model, whose speed was measured.
+      if (typeof VexAgentPins !== 'undefined' && VexAgentPins.enabled() && steps.length) {
+        const st = typeof AIRouter !== 'undefined' && AIRouter.getOllamaStatus ? AIRouter.getOllamaStatus() : {};
+        if (st.forceCloud !== true) {
+          const line = document.createElement('div');
+          line.className = 'agent-thought';
+          line.textContent = VexAgentPins.estimate(steps.length, { backend: 'local' }).text;
+          el.querySelector('.agent-btns').before(line);
+        }
+      }
       container.appendChild(el);
       container.scrollTop = container.scrollHeight;
       const settle = this._settleCard(el, resolve);

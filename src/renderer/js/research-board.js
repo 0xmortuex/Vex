@@ -167,10 +167,12 @@ const ResearchBoard = {
           <strong style="flex:1;font-size:13.5px;color:var(--text);min-width:120px">Research board</strong>
           <button type="button" data-add style="${btn}">${ico('plus')}Add selection</button>
           <button type="button" data-pull style="${btn}" title="Take the text selected in every open tab">${ico('copy')}From every tab</button>
+          ${typeof VexLibraryLinks !== 'undefined' && VexLibraryLinks.enabled() ? `<button type="button" data-related style="${btn}" title="What you kept that relates to these quotes">${ico('link')}Related from my library</button>` : ''}
           <button type="button" data-export style="${btn}">${ico('note')}Export to notes</button>
           <button type="button" data-clear style="${btn}">${ico('trash')}Clear</button>
         </div>
         <div data-list style="overflow-y:auto;padding:8px 10px;flex:1"></div>
+        <div data-related-box hidden style="overflow-y:auto;max-height:30vh;padding:8px 14px;border-top:1px solid var(--border)"></div>
       </div>`;
     const listEl = overlay.querySelector('[data-list]');
     const draw = () => {
@@ -217,6 +219,15 @@ const ResearchBoard = {
         window.showToast?.(r.tabsWithSelection ? r.added + ' added from ' + r.tabsWithSelection + ' tab' + (r.tabsWithSelection === 1 ? '' : 's') : 'No tab has text selected');
         draw();
       } catch (err) { fail(err); }
+    });
+    overlay.querySelector('[data-related]')?.addEventListener('click', async () => {
+      const box = overlay.querySelector('[data-related-box]');
+      try {
+        if (!this.items.length) throw new Error('Add a quote to the board first');
+        box.hidden = false;
+        box.textContent = 'Looking through what you kept...';
+        await VexLibraryLinks.renderRelated(box, VexLibraryLinks.boardPage(this.items));
+      } catch (err) { box.hidden = true; fail(err); }
     });
     overlay.querySelector('[data-export]').addEventListener('click', async () => {
       try {
