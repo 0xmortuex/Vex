@@ -71,6 +71,7 @@ describe('the handlers', () => {
       userDataPath: dir, mainWindowOf: () => win,
       makeRecord: async (s) => ({ kdf: 'scrypt', hash: s.length }),
       dropLockRecord: async () => { calls.push('drop:' + fs.existsSync(path.join(dir, 'vault.dat'))); },
+      clearSessions: async () => { calls.push('signout:' + fs.existsSync(path.join(dir, 'vault.dat'))); return []; },
       ...extra,
     });
     const main = { sender: win.webContents, senderFrame: win.webContents.mainFrame };
@@ -108,14 +109,53 @@ describe('the handlers', () => {
       expect(r.ok).toBe(true);
       expect(r.removed).toContain('Saved passwords');
       // The secret file was already gone when the lock record was dropped.
-      expect(calls).toEqual(['drop:false', 'relaunch', 'exit']);
+      expect(calls).toEqual(['signout:false', 'drop:false', 'relaunch', 'exit']);
+      expect(r.signedOut).toBe(true);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
   it('reset: if the lock record cannot be dropped, Vex is not restarted and the error is raised', async () => {
     const { handlers, calls, dir, main } = setup({ dropLockRecord: async () => { throw new Error('prefs locked'); } });
     try {
       await expect(handlers.get('applock:reset')(main, ss.CONFIRM_PHRASE)).rejects.toThrow(/prefs locked/);
+      expect(calls).toEqual(['signout:false']);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+describe('reset also signs the person out of every site', () => {
+  it('refuses to register without a way to clear the sessions', () => {
+    const dir = profile({});
+    try {
+      expect(() => ss.registerAppLock({ ipcMain: { handle() {} }, app: {}, userDataPath: dir, mainWindowOf: () => null, makeRecord: async () => ({}), dropLockRecord: async () => {} })).toThrow(/clearSessions is required/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('a wrong phrase clears no session', async () => {
+    const { handlers, calls, dir, main } = setup();
+    try {
+      await expect(handlers.get('applock:reset')(main, 'nope')).rejects.toThrow(/exactly/);
       expect(calls).toEqual([]);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
+  it('a session that cannot be cleared is raised and logged, and the lock is kept and Vex not restarted', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { handlers, calls, dir, main } = setup({ clearSessions: async () => ['disk busy'] });
+    try {
+      await expect(handlers.get('applock:reset')(main, ss.CONFIRM_PHRASE)).rejects.toThrow(/could not be signed out \(disk busy\)/);
+      expect(calls).toEqual([]);
+      expect(err).toHaveBeenCalledWith(expect.stringContaining('could not clear a session'), 'disk busy');
+    } finally { err.mockRestore(); fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('main.js clears every session the way browsing:clear-data does, and collects failures', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
+    const block = src.slice(src.indexOf("registerAppLock({"), src.indexOf("dropLockRecord: async"));
+    expect(block).toMatch(/clearSessions: async \(\) =>/);
+    expect(block).toMatch(/new Set\(\[session\.defaultSession, \.\.\.secureSessions\.sessions\]\)/);
+    expect(block).toMatch(/await ses\.clearStorageData\(\); await ses\.clearCache\(\)/);
+    expect(block).toMatch(/failures\.push/);
+    expect(block).not.toMatch(/dataStore|preferences\.clear|remove\('history'\)/);
+  });
+  it('the Settings text says it signs you out of every site', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/secure-lock.js'), 'utf8');
+    expect(src.match(/sign you out of every site|signs you out of every site/g).length).toBeGreaterThanOrEqual(3);
+  });
+});
 });

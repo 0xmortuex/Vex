@@ -7444,6 +7444,16 @@ require('./main/secure-stores').registerAppLock({
   ipcMain, app, userDataPath,
   mainWindowOf: () => mainWindow,
   makeRecord: require('./main/lock-pin').makeScryptRecord,
+  // Same approach as browsing:clear-data (cookies, localStorage, IndexedDB, cache of
+  // every session: tabs, containers, panels), but a failure is collected, not thrown midway.
+  clearSessions: async () => {
+    const failures = [];
+    for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) {
+      try { await ses.clearStorageData(); await ses.clearCache(); }
+      catch (err) { failures.push(err && err.message ? err.message : String(err)); }
+    }
+    return failures;
+  },
   // The recovery path (applock:reset): the secure files are already gone when this runs.
   dropLockRecord: async () => {
     await preferences.delete('vex.lockPin');

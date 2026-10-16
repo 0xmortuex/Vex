@@ -99,8 +99,9 @@ function wipe({ userDataPath, confirm, fsMod = fs }) {
 // Policy lives in ipc-policy.js: Vex's own window only, closed in private windows.
 //   applock:make-record  a scrypt record for a new PIN or passphrase (main-window only)
 //   applock:stores       the report above plus what is not encrypted
-//   applock:reset        wipe, drop the lock record, restart (the explicit recovery path)
-function registerAppLock({ ipcMain, app, userDataPath, mainWindowOf, makeRecord, dropLockRecord, relaunch = true }) {
+//   applock:reset        wipe, sign out of every site, drop the lock record, restart (the explicit recovery path)
+function registerAppLock({ ipcMain, app, userDataPath, mainWindowOf, makeRecord, dropLockRecord, clearSessions, relaunch = true }) {
+  if (typeof clearSessions !== 'function') throw new Error('registerAppLock: clearSessions is required (the reset signs the person out of every site)');
   const fromMain = (e) => {
     const w = mainWindowOf();
     if (!w || w.isDestroyed() || e.sender !== w.webContents || e.senderFrame !== w.webContents.mainFrame) throw new Error('Only the main Vex window does this');
@@ -110,11 +111,21 @@ function registerAppLock({ ipcMain, app, userDataPath, mainWindowOf, makeRecord,
   ipcMain.handle('applock:reset', async (e, confirm) => {
     fromMain(e);
     const receipt = wipe({ userDataPath, confirm });
+    // Owner decision: the reset also signs the person out. Otherwise anyone at
+    // the lock screen could use it to get in with every logged-in site intact.
+    // clearSessions returns the failures (one text each); any failure stops the
+    // reset before the lock is dropped, so a half-cleared profile never opens.
+    // Retrying is safe: wipe() skips files that are already gone.
+    const failures = await clearSessions();
+    if (failures.length) {
+      for (const f of failures) console.error('[secure-stores] reset could not clear a session:', f);
+      throw new Error('Secure data was erased, but ' + failures.length + ' browsing session(s) could not be signed out (' + failures.join('; ') + '). The lock was kept; try the reset again.');
+    }
     // Only after the secrets are gone does the lock go: the other order would
     // leave a profile that is open with its secrets still in it.
     await dropLockRecord();
     if (relaunch) { app.relaunch(); app.exit(0); }
-    return { ok: true, ...receipt };
+    return { ok: true, ...receipt, signedOut: true };
   });
 }
 
