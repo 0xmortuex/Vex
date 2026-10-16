@@ -37,6 +37,7 @@ describe('drawing the Ctrl+K results', () => {
     const rows = CommandBar.commands.filter(c => typeof c.action === 'function');
     CommandBar.results = rows;
     CommandBar.renderResults();
+    CommandBar._ensureDrawn(rows.length - 1);   // the rows past the first screenful are drawn right after
     const shown = [...document.querySelectorAll('#command-results .command-result')]
       .map(el => (el.querySelector('.command-result-shortcut') || {}).textContent || '');
     const asked = rows.map(c => c.shortcut || '');
