@@ -22,7 +22,9 @@
 // `profile` (src/main/profiles.js) is set for every profile but the default:
 // a toast's buttons start Vex through the vex:// protocol with no profile of
 // their own, so the URL carries it, and the launch picks that profile.
-function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000, profile = null }) {
+// quiet(): true while a full-screen game has the screen (T1-038). A toast then makes no
+// sound; it is still shown (Windows holds it in Action Center) and a reminder is never dropped.
+function createNotifier({ Notification, nativeImage, iconPath, onClick, log, showTimeoutMs = 5000, profile = null, quiet = null }) {
   if (!Notification) throw new Error('createNotifier needs Electron\'s Notification class');
   const note = typeof log === 'function' ? log : () => {};
 
@@ -47,7 +49,8 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // even after the toast has sat in Action Center for an hour.
   const xmlEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const inProfile = profile && /^p-[a-z0-9]{8}$/.test(String(profile)) ? '?profile=' + profile : '';
-  function toastXml({ title, body, tag, iconPath: img, kind }) {
+  function toastXml({ title, body, tag, iconPath: img, kind, silent = false }) {
+    const mute = silent ? '\n  <audio silent="true"/>' : '';
     const image = img ? `<image placement="appLogoOverride" src="${xmlEsc(img)}"/>` : '';
     // A news toast (js/ai-news.js) is not an alarm: no reminder scenario, which
     // would keep it on screen until dismissed, and no Snooze. Its buttons are
@@ -58,7 +61,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   <actions>
     <action content="Open" activationType="protocol" arguments="vex://news-open/${xmlEsc(tag)}${inProfile}"/>
     <action content="Mute this source" activationType="protocol" arguments="vex://news-mute/${xmlEsc(tag)}${inProfile}"/>
-  </actions>
+  </actions>${mute}
 </toast>`;
     }
     return `<toast scenario="reminder" activationType="protocol" launch="vex://open/${xmlEsc(tag)}${inProfile}">
@@ -66,7 +69,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   <actions>
     <action content="Snooze 9 min" activationType="protocol" arguments="vex://snooze/${xmlEsc(tag)}${inProfile}"/>
     <action content="Open" activationType="protocol" arguments="vex://open/${xmlEsc(tag)}${inProfile}"/>
-  </actions>
+  </actions>${mute}
 </toast>`;
   }
 
@@ -75,7 +78,8 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
   // both are failures the caller must be able to report.
   // onClick, where given, is this toast's own click (an extension's
   // chrome.notifications.onClicked) in place of the one for every toast.
-  function show({ title, body, silent = false, tag, actions = false, kind, onClick: ownClick } = {}) {
+  function show({ title, body, silent: wantSilent = false, tag, actions = false, kind, onClick: ownClick } = {}) {
+    const silent = !!wantSilent || (typeof quiet === 'function' && !!quiet());
     const heading = String(title || '').trim();
     if (!heading) return Promise.reject(new Error('A notification needs a title'));
     if (!isSupported()) return Promise.reject(new Error('This system does not support desktop notifications'));
@@ -95,7 +99,7 @@ function createNotifier({ Notification, nativeImage, iconPath, onClick, log, sho
         // Buttons need the raw toast XML, which replaces everything above on
         // Windows; the tag is what the buttons carry back.
         if (actions && tag && process.platform === 'win32' && /^[A-Za-z0-9_-]{1,64}$/.test(String(tag))) {
-          opts.toastXml = toastXml({ title: heading, body: String(body || ''), tag, iconPath, kind });
+          opts.toastXml = toastXml({ title: heading, body: String(body || ''), tag, iconPath, kind, silent });
         }
         n = new Notification(opts);
       } catch (err) {
