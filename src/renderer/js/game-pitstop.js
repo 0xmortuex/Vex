@@ -241,6 +241,11 @@ const GamePitstop = {
       o.type = 'button';
       o.addEventListener('click', () => { this.hide(); AttentionInbox.open(); });
     }
+    if (typeof GameHolds !== 'undefined') {
+      const all = add(btns, 'button', null, 'See everything held');
+      all.type = 'button';
+      all.addEventListener('click', () => { this.hide(); GameHolds.open().catch(err => window.showToast?.(err.message, 'error')); });
+    }
     const done = add(btns, 'button', asleep ? null : 'gp-primary', 'Done');
     done.type = 'button';
     done.addEventListener('click', () => this.hide());

@@ -135,7 +135,7 @@ const PageWatch = {
   // the page can be found again; `render` reads the page as a hidden tab would
   // (for pages built by JavaScript); `wake` asks for Vex to be opened for the
   // check; `summarize` asks the local model for a sentence.
-  add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user', raw = false }) {
+  add({ url, title, selector, anchor = '', kind = 'text', pattern = '', every = 15 * 60000, direction = 'any', target = null, byUser = false, partition = null, render = false, wake = false, summarize = null, source = 'user', raw = false, alertLow = false }) {
     const s = this.settings();
     const refused = this.refusalFor({ url, partition });
     if (refused) throw new Error(refused);
@@ -161,6 +161,8 @@ const PageWatch = {
       target: target == null ? null : Number(target),
       every: ms,
       raw: !!raw, render: !!render, wake: !!wake, summarize: summarize == null ? null : !!summarize,
+      // A wishlist price: told only when it is lower than every price seen since the watch began.
+      ...(alertLow === true && kind === 'number' ? { alertLow: true } : {}),
       source: String(source || 'user').slice(0, 40),
       paused: false,
       addedAt: Date.now(), lastCheckedAt: 0, lastValue: null, lastChangedAt: 0, failures: 0,
@@ -264,6 +266,7 @@ const PageWatch = {
   },
   describeRule(r) {
     if (r.kind === 'text') return 'tells you when the page changes';
+    if (r.alertLow) return 'tells you when its price is the lowest it has been since you started watching';
     if (r.direction === 'below') return 'tells you when its number goes below ' + r.target;
     if (r.direction === 'above') return 'tells you when its number goes above ' + r.target;
     return 'tells you when its number goes ' + (r.direction === 'down' ? 'down' : 'up');
@@ -297,6 +300,7 @@ const PageWatch = {
     if (watch.kind !== 'number' && watch.kind !== 'regex') return;
     const v = typeof value === 'number' ? value : this.firstNumber(value);
     if (v == null) return;
+    if (watch.kind === 'number' && (!Number.isFinite(watch.low) || v < watch.low)) watch.low = v;
     const s = Array.isArray(watch.samples) ? watch.samples : (watch.samples = []);
     const last = s[s.length - 1];
     if (last && last.v === v && now - last.at < this.SAMPLE_GAP_MS) return;
@@ -323,6 +327,11 @@ const PageWatch = {
       const a = Number(before), b = Number(value);
       if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return { changed: false, from: a, to: b, why: 'no change' };
       const dir = b > a ? 'up' : 'down';
+      if (watch.alertLow === true) {
+        const low = Number.isFinite(watch.low) ? watch.low : a;
+        if (!(b < low)) return { changed: false, from: a, to: b, why: 'not a new low (the lowest seen is ' + low + ')' };
+        return { changed: true, from: a, to: b, why: `is ${b}, the lowest since you started watching (it was ${low})` };
+      }
       if (watch.direction === 'up' && dir !== 'up') return { changed: false, from: a, to: b, why: 'went down' };
       if (watch.direction === 'down' && dir !== 'down') return { changed: false, from: a, to: b, why: 'went up' };
       if (watch.direction === 'below') {

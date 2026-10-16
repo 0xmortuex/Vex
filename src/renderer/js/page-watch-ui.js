@@ -195,6 +195,10 @@ const PageWatchUI = {
       q('#pw-every').value = String(6 * 3600000);
       q('#pw-ai').checked = false;
       q('#pw-add-title').textContent = preset === 'price' ? 'Track this price' : 'Track this item’s stock';
+    } else if (preset && typeof PageWatchTemplates !== 'undefined' && PageWatchTemplates.has(preset)) {
+      // Seats, fares, a wishlist price, a sale date (js/page-watch-templates.js): the same dialog, filled in.
+      form.dataset.template = preset;
+      PageWatchTemplates.fill(preset, { form, q });
     }
     sync();
 
@@ -235,7 +239,11 @@ const PageWatchUI = {
 
   // The dialog's fields → what PageWatch.add takes. Throws, in words, for a
   // combination that cannot work.
-  readForm(form, { url, title, partition, picked }) {
+  readForm(form, ctx) {
+    const spec = this._readForm(form, ctx);
+    return form.dataset.template && typeof PageWatchTemplates !== 'undefined' ? PageWatchTemplates.finish(form.dataset.template, spec) : spec;
+  },
+  _readForm(form, { url, title, partition, picked }) {
     const val = (s) => form.querySelector(s);
     const where = val('input[name="pw-where"]:checked').value;
     const what = val('input[name="pw-what"]:checked').value;

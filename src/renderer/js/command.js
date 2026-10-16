@@ -100,6 +100,7 @@ const CommandBar = {
       if (!items.length) { window.showToast?.('Nothing to tidy'); return; }
       window.TabCleanup.showCard(items);
     } },
+    { id: 'archive-tab-close', label: 'Archive This Tab and Close It', hint: 'Save a copy in the Library archive instead of just closing; Undo brings it back', icon: 'archive', action: () => { if (!window.TabCleanup) return; try { window.TabCleanup.archiveActive(); } catch (err) { window.showToast?.(err.message, 'error'); } } },
     { id: 'meeting-prep', label: 'Prepare for My Next Meeting', hint: 'Its linked documents and your last notes for it', icon: 'calendar', action: async () => {
       if (!window.MeetingPrep) return;
       const prep = await window.MeetingPrep.snapshot();
