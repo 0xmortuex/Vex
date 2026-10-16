@@ -5,6 +5,40 @@
 (function () {
   if (!window.vex || typeof window.vex.onScreenPickerOpen !== 'function') return;
 
+  // A refused share says why, with the one fix when there is one (main/share-preflight.js).
+  // The fix is a suggestion the person presses; nothing is changed for them.
+  function fixAction(reason) {
+    const fix = reason && reason.fix;
+    if (!fix) return null;
+    if (fix.id === 'allow-screen-share' && reason.pageId) {
+      return { label: fix.label, title: 'Remember that this site may ask to share your screen', run: () => {
+        window.vex.permissionsSetForPage(reason.pageId, 'display-capture', 'allow')
+          .then(() => window.showToast?.('Screen sharing allowed here. Start the share again.'))
+          .catch((err) => window.showToast?.('Could not change the permission: ' + ((err && err.message) || err), 'error'));
+      } };
+    }
+    if (fix.id === 'open-site-settings' && typeof SitePanel !== 'undefined') return { label: fix.label, title: fix.label, run: () => SitePanel.open() };
+    return null;
+  }
+  function showRefusal(reason) {
+    const action = fixAction(reason);
+    window.showToast?.(reason.message, 'error', 10000, action ? { action } : undefined);
+    window.VexProblems?.note('Screen share', 'The share was refused (' + reason.code + ')', reason.message);
+  }
+  if (typeof window.vex.onScreenShareRefused === 'function') window.vex.onScreenShareRefused(showRefusal);
+
+  // Ctrl+K > Check screen sharing: the checks for the open tab, in words.
+  window.VexScreenShare = {
+    async check(tabWebContentsId) {
+      const r = await window.vex.screenSharePreflight(tabWebContentsId);
+      const lines = r.checks.map((c) => (c.ok ? 'OK  ' : 'NO  ') + c.detail);
+      const recent = (r.recent || []).slice(0, 5).map((e) => '- ' + e.message);
+      const body = lines.join('\n') + (recent.length ? '\n\nRefused earlier this session:\n' + recent.join('\n') : '');
+      await window.vexAlert({ title: r.ok ? 'Screen sharing should work here' : 'Screen sharing would be refused', message: body });
+      return r;
+    },
+  };
+
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   function injectStyles() {
@@ -98,7 +132,7 @@
       try { sent = window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); }
       catch (err) { sent = Promise.reject(err); }
       Promise.resolve(sent)
-        .then((r) => { if (sourceId && r && r.ok === false) { window.showToast?.(r.error || 'The share could not start — try again', 'error'); VexProblems?.note('Screen share', 'The share was refused', r.error); } })
+        .then((r) => { if (sourceId && r && r.ok === false) { if (r.reason) showRefusal({ code: r.reason, message: r.error, fix: r.fix, pageId: r.pageId }); else { window.showToast?.(r.error || 'The share could not start — try again', 'error'); VexProblems?.note('Screen share', 'The share was refused', r.error); } } })
         .catch((err) => { window.showToast?.('The share could not start: ' + ((err && err.message) || ''), 'error'); VexProblems?.note('Screen share', 'The share could not start', err); });
       ov.remove();
     };

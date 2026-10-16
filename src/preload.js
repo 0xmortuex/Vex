@@ -304,6 +304,9 @@ contextBridge.exposeInMainWorld('vex', {
   onDiscordBypassProgress: (cb) => subscribe('discord:bypass-progress', cb),
   // Screen-share source picker (Discord Go Live / Share Screen).
   onScreenPickerOpen: (cb) => subscribe('screen-picker:open', cb),
+  // Why a share would be (or was) refused: the checks for one tab, and the reasons of this session.
+  screenSharePreflight: (wcId) => ipcRenderer.invoke('screen-share:preflight', wcId),
+  onScreenShareRefused: (cb) => subscribe('screen-picker:refused', cb),
   chooseScreenSource: (id, sourceId, opts) => ipcRenderer.invoke('screen-picker:choose', Object.assign({ id, sourceId }, opts || {})),
   // Roblox panel block-bypass (shares Discord's ByeDPI).
   setRobloxBypass: (on) => ipcRenderer.invoke('roblox:set-bypass', on),

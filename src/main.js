@@ -894,20 +894,44 @@ function _sameRequester(frame, askedUrl) {
     return new URL(frame.url).origin === new URL(askedUrl).origin;
   } catch { return false; }
 }
+// Every refusal below is recorded with its reason (main/share-preflight.js) and
+// said to the Vex window that owns the request, so the person sees WHY, with the
+// one fix, instead of a share that silently does nothing (T0-014: nine refusals
+// in one day, none explained).
+const _sharePreflight = require('./main/share-preflight');
+const _shareLog = _sharePreflight.createShareLog();
+function _shareRefused(hostWindowOwner, contents, code, ctx) {
+  let host = '';
+  try { host = new URL(contents && !contents.isDestroyed() ? contents.getURL() : '').hostname; } catch { /* no address to name */ }
+  const entry = _shareLog.record(code, { host, ...ctx });
+  console.log(`[ScreenShare] refused (${code}) for ${host || 'unknown page'}`);
+  try {
+    const win = hostWindowOwner && hostWindowOwner.win;
+    if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, pageId: contents && !contents.isDestroyed() ? contents.id : null });
+  } catch (err) { console.error('[ScreenShare] could not tell the window why the share was refused:', err.message); }
+  return entry;
+}
 function wireDisplayMediaOnSession(ses) {
   if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
   ses.__vexDisplayWired = true;
   ses.setDisplayMediaRequestHandler((request, callback) => {
     const requestingContents = request.frame && webContents.fromFrame(request.frame);
     const requestingHost = secureSessions.owner(requestingContents);
-    if (!requestingHost) { callback(); return; }
+    if (!requestingHost) {
+      // No window to tell: the reason goes to the log (Ctrl+K > Check screen sharing).
+      _shareLog.record(request.frame ? 'not-in-a-tab' : 'no-frame', {});
+      callback(); return;
+    }
     const requestingFrame = request.frame, requestingUrl = requestingFrame.url;
     const { desktopCapturer } = require('electron');
     desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: true })
       .then((sources) => {
-        if (!sources || !sources.length) return callback();
+        if (!sources || !sources.length) { _shareRefused(requestingHost, requestingContents, 'no-sources'); return callback(); }
         const id = 'scr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        if (requestingContents.isDestroyed() || !_sameRequester(requestingFrame, requestingUrl)) return callback();
+        if (requestingContents.isDestroyed() || !_sameRequester(requestingFrame, requestingUrl)) {
+          _shareRefused(requestingHost, requestingContents, _sharePreflight.requesterChange(requestingFrame, requestingUrl), { nowHost: _sharePreflight.hostOf(requestingFrame) });
+          return callback();
+        }
         // The picker UI lives in the Vex window that owns this request. When the
         // request comes from a DIFFERENT window - a Discord pop-out, which floats
         // always-on-top by default - the picker opens behind it, so "Share Your
@@ -940,10 +964,11 @@ function wireDisplayMediaOnSession(ses) {
           if (!_pendingScreenPicks.has(id)) return;
           _pendingScreenPicks.delete(id);
           try { restoreRequester?.(); } catch {}
+          _shareRefused(requestingHost, requestingContents, 'pick-timeout');
           try { callback(); } catch {}
         }, 90000);
       })
-      .catch(() => { try { callback(); } catch {} });
+      .catch((err) => { _shareRefused(requestingHost, requestingContents, 'capturer-error', { error: err && err.message }); try { callback(); } catch {} });
   });
 }
 // The last screen-share quality choice, read ONCE by the guest's getDisplayMedia
@@ -955,14 +980,15 @@ function wireDisplayMediaOnSession(ses) {
 const _shareQuality = new Map();
 ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height, fps, cursor } = {}) => {
   const p = _pendingScreenPicks.get(id);
-  if (!p) return { ok: false, error: 'That share request has expired — start the share again' };
-  if (p.host !== secureSessions.owner(_e.sender)) return { ok: false, error: 'Request belongs to another window' };
+  const refuse = (code, pageContents, ctx) => { const e = _shareLog.record(code, { host: _sharePreflight.hostOf(p && p.frame), ...ctx }); return { ok: false, error: e.message, reason: e.code, fix: e.fix, pageId: pageContents }; };
+  if (!p) return refuse('request-expired', null);
+  if (p.host !== secureSessions.owner(_e.sender)) return refuse('other-window', null);
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
-  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch {} return { ok: false, error: 'Requesting page changed' }; }
+  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch {} return refuse(_sharePreflight.requesterChange(p.frame, p.url), p.pageId, { nowHost: _sharePreflight.hostOf(p.frame) }); }
   if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
-  if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: false, error: 'That screen or window is no longer there — try again' }; }
+  if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return refuse('source-gone', p.pageId); }
   // The answer must match what the page ASKED for. Discord always asks for
   // audio, and a pick without it is refused outright — "AbortError: Invalid
   // capture constraints" — so with "Share audio" unticked (a choice Vex
@@ -972,7 +998,7 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   // stream (dropAudio). Measured on discord.com in the panel, both ways.
   _shareQuality.set(p.pageId, { width: width || 0, height: height || 0, fps: fps || 0, cursor: cursor || '', dropAudio: p.audioRequested && audio === false, at: Date.now() });
   try { p.callback(p.audioRequested ? { video: src, audio: 'loopback' } : { video: src }); }
-  catch (err) { _shareQuality.delete(p.pageId); return { ok: false, error: 'The share could not start: ' + err.message }; }
+  catch (err) { _shareQuality.delete(p.pageId); return refuse('start-failed', p.pageId, { error: err.message }); }
   return { ok: true };
 });
 ipcMain.handle('screen-share:get-quality', (event) => {
@@ -980,6 +1006,29 @@ ipcMain.handle('screen-share:get-quality', (event) => {
   _shareQuality.delete(event.sender.id);
   if (!q || Date.now() - q.at > 30000) return null;
   return { width: q.width, height: q.height, fps: q.fps, cursor: q.cursor, dropAudio: !!q.dropAudio };
+});
+// Ctrl+K > "Check screen sharing": the known causes of a refused share for one
+// tab, checked now without opening any picker, plus the last refusals of this
+// session (host and reason only). Reads state; changes nothing.
+ipcMain.handle('screen-share:preflight', async (event, wcId) => {
+  const contents = Number.isInteger(wcId) ? webContents.fromId(wcId) : null;
+  if (!contents || contents.isDestroyed()) throw new Error('That tab is not open any more');
+  if (secureSessions.owner(contents) !== secureSessions.owner(event.sender)) throw new Error('That tab belongs to another window');
+  let origin = '';
+  try { origin = new URL(contents.getURL()).origin; } catch { /* about:blank and the like: preflight reports it as not secure */ }
+  let sourcesCount = null, capturerError = '';
+  try {
+    const found = await require('electron').desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } });
+    sourcesCount = found.length;
+  } catch (err) { capturerError = String((err && err.message) || err); }
+  const result = _sharePreflight.preflight({
+    url: contents.getURL(),
+    saved: origin ? savedDecision(decisionsFor(contents), origin, ['display-capture'], sessionDecisionsFor(contents)) : null,
+    paranoid: !!origin && _webSafety.isParanoid(origin),
+    tor: !!(contents.session && contents.session.__vexTor),
+    sourcesCount, capturerError,
+  });
+  return { ...result, pageId: contents.id, recent: _shareLog.list().slice(0, 10), counts: _shareLog.counts() };
 });
 // === QR code for the current page (qrcode npm package, rendered in main) ===
 ipcMain.handle('qr:make', async (_e, text) => {
