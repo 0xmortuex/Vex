@@ -555,7 +555,10 @@ define('privacy:report-clean', [value => Array.isArray(value) && value.length >=
 define('tabsnap:save', [shape({
   entries: value => Array.isArray(value) && value.length <= 60 && value.every(object),
   keepUrls: value => Array.isArray(value) && value.length <= 200 && value.every(string(2048)),
+  closedUrls: optional(value => Array.isArray(value) && value.length <= 50 && value.every(string(2048))),
+  dropUrls: optional(value => Array.isArray(value) && value.length <= 50 && value.every(string(2048))),
 })]);
+define('tabsnap:drop', [string(2048)]);
 define('quiet:set', [object]);
 function validate(channel, args) {
   if (channel.startsWith('@ghostery/')) return; // Vendor-owned API; the outer policy still bounds JSON and verifies its sender.

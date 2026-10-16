@@ -75,6 +75,7 @@ function registerProtect({
   ipcMain.handle('tabsnap:save', (_e, payload) => { guard(); return snapshots.save(payload); });
   ipcMain.handle('tabsnap:load', () => { guard(); return snapshots.load(); });
   ipcMain.handle('tabsnap:clear', () => snapshots.clear());
+  ipcMain.handle('tabsnap:drop', (_e, url) => { guard(); return snapshots.drop(url); });
 
   // --- Quiet hours -----------------------------------------------------------
   const realShow = notifier.show.bind(notifier);

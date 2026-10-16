@@ -47,6 +47,22 @@ function webmailUrl(account, messageId) {
   return null;
 }
 
+// The https address in a List-Unsubscribe header (RFC 2369: "<mailto:..>, <https://..>"), or ''.
+// The mailto form is deliberately ignored: Vex never sends mail. The headers come from a
+// read-only fetch, are bounded, and only an https address with no credentials is kept.
+function unsubscribeUrl(headers) {
+  if (!headers) return '';
+  const text = Buffer.isBuffer(headers) ? headers.toString('utf8', 0, 4096) : String(headers).slice(0, 4096);
+  const m = /^list-unsubscribe:\s*([\s\S]*?)(?:\r?\n(?![ \t])|(?![\s\S]))/im.exec(text);
+  if (!m) return '';
+  for (const part of m[1].split(/>\s*,?\s*</)) {
+    const u = part.replace(/[\r\n\t ]+/g, '').replace(/^<|>$/g, '');
+    if (!/^https:\/\//i.test(u) || u.length > 2000) continue;
+    try { const p = new URL(u); if (!p.username && !p.password) return p.toString(); } catch { /* vex-allow-empty-catch: a malformed address in a header is skipped */ }
+  }
+  return '';
+}
+
 // proxy: the proxy mail must use (socks5://… or http://…), or null to connect
 // directly; it throws when mail must wait (all of Vex through a Tor that is
 // not up yet). A local bridge on this computer is never proxied.
@@ -174,10 +190,10 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId, proxy = a
           if (page.length) range = { set: page[0] + ':' + page[page.length - 1], uid: true };
         }
         if (range) {
-          for await (const m of client.fetch(range.set, { uid: true, envelope: true, flags: true, size: true }, { uid: range.uid })) {
+          for await (const m of client.fetch(range.set, { uid: true, envelope: true, flags: true, size: true, headers: ['list-unsubscribe'] }, { uid: range.uid })) {
             const e = m.envelope || {};
             const f = (e.from && e.from[0]) || {};
-            messages.push({ uid: m.uid, subject: e.subject || '', from: { name: f.name || '', address: f.address || '' }, date: e.date ? new Date(e.date).getTime() : null, seen: m.flags ? m.flags.has('\\Seen') : false, flagged: m.flags ? m.flags.has('\\Flagged') : false, size: m.size || 0, messageId: e.messageId || '' });
+            messages.push({ uid: m.uid, subject: e.subject || '', from: { name: f.name || '', address: f.address || '' }, date: e.date ? new Date(e.date).getTime() : null, seen: m.flags ? m.flags.has('\\Seen') : false, flagged: m.flags ? m.flags.has('\\Flagged') : false, size: m.size || 0, messageId: e.messageId || '', unsubscribe: unsubscribeUrl(m.headers) });
           }
         }
         messages.sort((a, b) => (b.date || 0) - (a.date || 0) || b.uid - a.uid);
@@ -214,4 +230,4 @@ function createMail({ ImapFlow, simpleParser, secrets, file, randomId, proxy = a
   };
 }
 
-module.exports = { createMail, providerFor, webmailUrl, PROVIDERS, UNSUPPORTED, MAX_MESSAGE_BYTES };
+module.exports = { createMail, providerFor, unsubscribeUrl, webmailUrl, PROVIDERS, UNSUPPORTED, MAX_MESSAGE_BYTES };

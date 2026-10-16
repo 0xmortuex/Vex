@@ -109,6 +109,22 @@
     { id: 'theme-auto', title: 'Light and dark by itself', tiers: { minimal: true, standard: true }, storageKeys: ['vex.themeAuto'], jobs: ['Light and dark'],
       permissions: { reads: ['the clock, Windows light/dark mode, a saved location'], writes: ['the current theme'], sends: [] } },
 
+    // ---- Wave 2: capture tools --------------------------------------------------------
+    { id: 'text-snippets', title: 'Text snippets', group: 'Text snippets', maturity: 'new', storageKeys: ['vex.snippets', 'vex.snippets.prefs'],
+      permissions: { reads: ['the text box you press Tab or Space in, never a password, card or payment field'], writes: ['your snippet list and the sites it is off on'], sends: [] } },
+    { id: 'table-extract', title: 'Copy tables and lists', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.tableExtract.enabled'], commands: ['table-extract'],
+      permissions: { reads: ['the table or list you click on a page'], writes: ['the clipboard or a note, when you ask'], sends: [] } },
+    { id: 'video-tools', title: 'Video transcript, chapters and loop', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.videoTools.enabled'], commands: ['video-tools'],
+      permissions: { reads: ['the captions, chapters and position of the video on the page'], writes: ['a note, when you ask'], sends: [] } },
+    { id: 'newsletter-lane', title: 'Newsletter lane', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.newsletters', 'vex.newsletters.prefs'], jobs: ['Newsletter lane'], commands: ['newsletter-lane'],
+      permissions: { reads: ['the senders and subjects of your newest mail, read-only, while the lane is open or weekly if you chose it'], writes: ['which senders you marked, Read Later and a digest note'], sends: [] } },
+    { id: 'resurface', title: 'Bring back old highlights and notes', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.resurface', 'vex.resurface.prefs'], usesKeys: ['vex.annotations', 'vex.notes'], jobs: ['Resurface highlights'], commands: ['resurface'],
+      permissions: { reads: ['your highlights and notes'], writes: ['which ones it already brought back'], sends: [] } },
+    { id: 'form-rescue', title: 'Unfinished forms', group: 'Unfinished forms', maturity: 'new', storageKeys: ['vex.formRescue.enabled', 'vex.formRescue.nudged'], commands: ['form-rescue'],
+      permissions: { reads: ['text typed in plain boxes of a page you closed (never password, card or one-time-code fields)'], writes: ['that text, encrypted, for 7 days'], sends: [] } },
+    { id: 'redact-tool', title: 'Redact pictures', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.redact.enabled'], jobs: [],
+      permissions: { reads: ['the screenshot or picture you open, read by on-device OCR'], writes: ['a redacted copy without metadata, when you save it'], sends: [] } },
+
     // ---- Wave 0: safety, attention and release features ---------------------------
     // All default ON in this build, so they are stable (a "new" feature would be staged OFF
     // on an existing profile). Minimal Vex switches each of them off and puts it back.

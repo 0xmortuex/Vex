@@ -78,6 +78,8 @@ const TabSnapshots = {
   _restore: null,       // entries from the last run still waiting for their page
   _formsKept: null,     // what main said on the last save
   _busy: false,
+  _open: new Map(),         // tab id -> { url, n (text boxes with text), title } as of the last round
+  _pendingClosed: new Set(),   // addresses of tabs closed with text in them, not yet told to main
 
   _get(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v === null ? d : v; } catch { return d; } },
   _set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (err) { console.warn('[TabSnapshots] could not save', k, err.message); } },
@@ -116,6 +118,18 @@ const TabSnapshots = {
       this._restore = [];
       console.error('[TabSnapshots] could not read the saved snapshots:', this._msg(err));
     }
+  },
+
+  // A tab was closed (vex:tab-closed). If its last sample had typed text in it, say so now and
+  // let the next round keep that text as a rescue entry (js/form-rescue.js shows them).
+  noteClosed(tabId) {
+    const info = this._open.get(tabId);
+    this._open.delete(tabId);
+    if (!info || !info.n || !window.FormRescue || !window.FormRescue.enabled() || !this.isOn()) return null;
+    this._pendingClosed.add(info.url);
+    window.FormRescue.told(info);
+    setTimeout(() => { this.tick().catch(err => console.error('[TabSnapshots] round after close failed:', this._msg(err))); }, 100);
+    return info;
   },
 
   async _applyPending() {
@@ -159,15 +173,27 @@ const TabSnapshots = {
           // Sent even when empty: a form that was sent or cleared must replace
           // its old snapshot, not leave it to be restored after a crash.
           if (cap) {
-            entries.push({ url: k, scroll: cap.scroll, fields: cap.fields }); keepUrls.delete(k);
+            entries.push({ url: k, scroll: cap.scroll, fields: cap.fields, title: String(tab.title || '').slice(0, 200) }); keepUrls.delete(k);
+            this._open.set(tab.id, { url: k, n: cap.fields.length, title: String(tab.title || '') });
             // Kept in memory too: a page killed under us is reloaded where it was
             // (js/webview.js, render-process-gone). Only for tabs this sampler may read.
             if (cap.scroll) tab._lastScroll = { x: cap.scroll.x, y: cap.scroll.y, url: k };
           }
         } catch (err) { console.warn('[TabSnapshots] skipped a page:', this._msg(err)); }
       }
-      const r = await window.vex.tabSnapshots.save({ entries, keepUrls: [...keepUrls].slice(0, 200) });
+      // Tabs that are gone since the last round (also one closed while the page was still being sampled).
+      const live = new Set((typeof TabManager !== 'undefined' ? TabManager.tabs || [] : []).map(t => t && t.id));
+      const closed = new Set(this._pendingClosed);
+      for (const [id, info] of [...this._open]) {
+        if (live.has(id)) continue;
+        this._open.delete(id);
+        if (info.n && window.FormRescue && window.FormRescue.enabled()) closed.add(info.url);
+      }
+      for (const u of closed) { if (keepUrls.has(u) || entries.some(e => e.url === u)) closed.delete(u); }
+      const r = await window.vex.tabSnapshots.save({ entries, keepUrls: [...keepUrls].slice(0, 200), closedUrls: [...closed].slice(0, 50) });
+      for (const u of this._pendingClosed) this._pendingClosed.delete(u);
       this._formsKept = r.formsKept;
+      if (closed.size && window.FormRescue) window.FormRescue.changed();
       return r;
     } catch (err) {
       console.error('[TabSnapshots] could not save:', this._msg(err));
