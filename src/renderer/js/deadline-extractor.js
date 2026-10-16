@@ -123,15 +123,15 @@ const VexDeadlines = {
   },
 
   // Turkish deadlines ("son tarih 15 Kasım", "en geç cuma", "teslim: yarın"), read with the Turkish
-  // day parser of js/vex-tr.js (hand-written, so no wrong guess about 'a kadı'). Only a trigger word
+  // day parser of js/vex-tr.js. Only a trigger word
   // followed by a day counts; a date that is not real is no finding, like 31 Feb in English.
   _turkish(sentence, now) {
     if (typeof VexTr === 'undefined') return null;
-    const folded = VexTr.fold(sentence).replace(/s+/g, ' ');
-    const m = /(?:son tarih(?:i)?|son gun(?:u)?|son basvuru(?: tarihi)?|en gec|teslim(?: tarihi)?)[:s-]*(?:(?:tarihi|gunu)s+)?(.+)$/.exec(folded);
+    const folded = VexTr.fold(sentence).replace(/\s+/g, ' ');
+    const m = /\b(?:son tarih(?:i)?|son gun(?:u)?|son basvuru(?: tarihi)?|en gec|teslim(?: tarihi)?)\b[:\s-]*(?:(?:tarihi|gunu)\s+)?(.+)$/.exec(folded);
     if (!m) return null;
     let day;
-    try { day = VexTr.parseDay(m[1], now); }
+    try { day = VexTr.parseDay(m[1].replace(/\s*[.!?,;:]+(?=\s|$)/g, ' ').trim(), now); }
     catch (err) { if (/is not a real date/.test(err.message)) return null; throw err; }
     if (!day) return null;
     return { dueAt: this._at(day.date, this.DUE_HOUR), phrase: m[0].trim() };
