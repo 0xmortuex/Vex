@@ -133,6 +133,10 @@ describe('adding a service', () => {
     ['uv run with nothing to run', 'uv-run', { args: [] }, /what to run/],
     ['more than six words', 'uv-run', { args: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }, /At most 6/],
     ['a program name as a template', 'cmd', { script: 'dev' }, /not one of the commands/],
+    ['uv run launching cmd', 'uv-run', { args: ['cmd', '/c', 'calc'] }, /not allowed/],
+    ['uv run with a first word that is not a Python tool', 'uv-run', { args: ['cmd'] }, /first word must be one of/],
+    ['uv run with a path as the tool', 'uv-run', { args: ['C:/Windows/System32/calc.exe'] }, /not allowed/],
+    ['uv run with a backslash path', 'uv-run', { args: ['pytest', '..\\x'] }, /not allowed/],
   ])('refuses %s', async (_label, template, params, message) => {
     const { svc, calls } = make();
     await svc.arm(true);
@@ -318,6 +322,16 @@ describe('the fixed set', () => {
   it('shows a command the way it will run', () => {
     expect(displayCommand('python', ['manage.py', 'runserver', '8000'])).toBe('python manage.py runserver 8000');
     expect(displayCommand('node', ['my app.js'])).toBe('node "my app.js"');
+  });
+
+  it('uv run takes a Python tool and plain words', async () => {
+    const { svc } = make();
+    await svc.arm(true);
+    const g = await svc.pickFolder();
+    for (const args of [['pytest'], ['ruff', 'check', '--fix'], ['python', '-m=http.server']]) {
+      await expect(svc.add({ name: 'U' + args[0], token: g.token, template: 'uv-run', params: { args } })).resolves.toBeTruthy();
+      await svc.pickFolder().then(n => { g.token = n.token; });
+    }
   });
 
   it('has no template that takes a program or a free command line', () => {
