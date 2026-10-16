@@ -26,9 +26,15 @@ describe('main checks the PIN the window stored', () => {
 
   it('refuses no PIN at all (VexLock.unlock() from the console) and anything not a PIN', async () => {
     const gate = createLockGate({ readRecord: () => { throw new Error('must not be read'); } });
-    for (const pin of [undefined, null, '', 'abcd', '123', '1'.repeat(13), 4821]) {
+    for (const pin of [undefined, null, '', '123', 'x'.repeat(129), 4821]) {
       expect((await gate.tryUnlock(pin)).ok).toBe(false);
     }
+  });
+
+  it('a PIN record (PBKDF2) still takes only 4 to 12 digits', async () => {
+    const rec = await windowRecord('4821');
+    const gate = createLockGate({ readRecord: () => rec });
+    for (const pin of ['abcd', '1'.repeat(13), '4821 ']) expect(await gate.tryUnlock(pin)).toEqual({ ok: false, error: 'Wrong PIN' });
   });
 
   it('five wrong in a row: thirty seconds before main checks again, even the right PIN', async () => {

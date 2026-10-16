@@ -427,6 +427,12 @@ const WebviewManager = {
         if (typeof PanelCapture !== 'undefined') PanelCapture.fromTab(webview, e.args && e.args[0]);
         return;
       }
+      // A page wrote the clipboard with no click or key (preload-webview.js, the
+      // paste-and-run tripwire). A no-op unless the person switched the tripwire on.
+      if (e.channel === 'vex-clipboard-tripwire') {
+        if (typeof VexClipboardTripwire !== 'undefined') VexClipboardTripwire.fromTab(webview, e.args && e.args[0]);
+        return;
+      }
       // Microphone / camera in use (preload-webview.js getUserMedia wrapper).
       if (e.channel === 'vex-media-capture') {
         const d = (e.args && e.args[0]) || {};

@@ -43,6 +43,20 @@ function createSecretClipboard({ clipboard, schedule = setTimeout, cancel = clea
     return { ok: true, seconds: wait };
   }
 
+  // Paste-and-run tripwire (T3-121): empty the clipboard only if it
+  // still holds exactly `text`, which a page put there. Something the person copied
+  // since is never touched. -> true when it was cleared.
+  function clearIf(text) {
+    const want = String(text == null ? '' : text);
+    if (!want) throw new Error('There is nothing to compare the clipboard with');
+    let now;
+    try { now = clipboard.readText(); }
+    catch (err) { throw new Error('Could not read the clipboard: ' + err.message); }
+    if (now !== want) return false;
+    clipboard.clear();
+    return true;
+  }
+
   // Vex is quitting: a secret still waiting is cleared now, not left behind.
   function flush() {
     let cleared = 0;
@@ -50,13 +64,15 @@ function createSecretClipboard({ clipboard, schedule = setTimeout, cancel = clea
     return cleared;
   }
 
-  return { write, flush, pendingCount: () => pending.size };
+  return { write, flush, clearIf, pendingCount: () => pending.size };
 }
 
 function registerSecretClipboard({ ipcMain, clipboard, app }) {
   const service = createSecretClipboard({ clipboard });
   // Policy: Vex's own windows only (ipc-policy.js, UI_ONLY_CHANNELS).
   ipcMain.handle('clipboard:write-secret', (_e, text, seconds) => service.write(text, seconds));
+  // The clipboard tripwire's "clear it" button (js/clipboard-tripwire.js).
+  ipcMain.handle('clipboard:clear-if', (_e, text) => ({ ok: true, cleared: service.clearIf(text) }));
   if (app && typeof app.on === 'function') app.on('will-quit', () => { service.flush(); });
   return service;
 }

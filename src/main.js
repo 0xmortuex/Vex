@@ -6990,6 +6990,34 @@ ipcMain.handle('persist-apply', async (_e, entries) => {
 });
 ipcMain.handle('get-user-data-path', () => userDataPath);
 
+// === Tier 3 security helpers (T3-122 startup check, T3-123 app lock, T3-105 photo preparer) ===
+// Each is small and read-mostly; their limits are written in docs/security-tier3-threat-notes.md.
+require('./main/startup-check').registerStartupCheck({ ipcMain });
+require('./main/photo-prep').registerPhotoPrep({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender) });
+// Lock when the main window is minimized (T3-123, opt-in: js/secure-lock.js tells main whether to).
+let _lockOnMinimize = false;
+ipcMain.on('applock:lock-on-minimize', (e, on) => {
+  if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+  _lockOnMinimize = on === true;
+});
+app.on('browser-window-created', (_e, w) => {
+  w.on('minimize', () => {
+    if (_lockOnMinimize && w === mainWindow && !_vexLocked && !w.isDestroyed()) w.webContents.send('lock-vex');
+  });
+});
+require('./main/secure-stores').registerAppLock({
+  ipcMain, app, userDataPath,
+  mainWindowOf: () => mainWindow,
+  makeRecord: require('./main/lock-pin').makeScryptRecord,
+  // The recovery path (applock:reset): the secure files are already gone when this runs.
+  dropLockRecord: async () => {
+    await preferences.delete('vex.lockPin');
+    await preferences.delete('vex.locked');
+    await preferences.flush();
+    fs.rmSync(path.join(userDataPath, 'lock-tries.json'), { force: true });
+  },
+});
+
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
 // doesn't sit around after the feature was pulled. Safe to remove this block
@@ -9207,7 +9235,7 @@ async function _refuseBeforeAgreement() {
 }
 // clean: the window for sharing a screen — private, and showing only `url`
 // (the renderer hides the bookmarks bar and sidebar and turns streamer mode on).
-async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '' } = {}) {
+async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = '', guest = false } = {}) {
   await _refuseBeforeAgreement();
   if (_vexLocked) throw new Error('Vex is locked — unlock it first');
   const privatePartition = secureSessions.newPrivatePartition();
@@ -9224,7 +9252,7 @@ async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = 
     }
   });
   secureSessions.registerHost(privWin, privatePartition);
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : {}) } });
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : {}), ...(guest ? { guest: 'true' } : {}) } });
   return true;
 }
 // `look` is the opener's GUI style: a private window keeps its own storage,
@@ -9248,6 +9276,9 @@ ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed())
 // `uiMode` likewise carries the opener's Simple/Full mode (js/simple-mode.js).
 ipcMain.handle('open-private-window', (_e, look, uiMode) => openPrivateWindow({ look: look || '', uiMode: uiMode || '' }));
 ipcMain.handle('open-clean-window', (_e, url, look, uiMode) => openPrivateWindow({ clean: true, url, look: look || '', uiMode: uiMode || '' }));
+// Guest session (T3-116, js/guest-session.js): the same private window, marked so the window shows
+// its Guest banner and the wipe receipt. It is not a new kind of storage: nothing is kept, as before.
+ipcMain.handle('open-guest-window', (_e, look, uiMode) => openPrivateWindow({ look: look || '', uiMode: uiMode || '', guest: true }));
 
 // === Updates (src/main/updates.js; the cover is js/update-notifier.js) ======
 // The check is a plain HTTPS GET of latest.yml and a version compare. We

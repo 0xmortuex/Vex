@@ -232,6 +232,33 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Wave 3 security helpers: every one opt-in (off in every tier), maturity new -------------------
+    // Their limits, and what was NOT built, are in docs/security-tier3-threat-notes.md.
+    { id: 'guest-session', title: 'Guest session', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.guest.enabled'],
+      commands: ['guest:open', 'guest:forget'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['whether this window is a guest window; the number of tabs and sites in it'], writes: ['its own switch'], sends: [] } },
+    { id: 'extension-diff', title: 'Extension changes and pause', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.extDiff.enabled', 'vex.extDiff.snapshots', 'vex.extSitePause'],
+      commands: ['extdiff:changes', 'extdiff:pause'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['what each extension declares it can read and do; the address of the tab in front'], writes: ['the picture of each extension at your last review; which extensions you paused, and switches them off and on when you ask'], sends: [] } },
+    { id: 'clipboard-tripwire', title: 'Paste-and-run tripwire', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.clipTripwire.enabled', 'vex.clipTripwire.log'],
+      tiers: { minimal: false, standard: false },
+      permissions: { reads: ['clipboard writes a page makes with no click or key press'], writes: ['a short log of site, time, kind and your choice (never the command); empties the clipboard only when you press Clear'], sends: [] } },
+    { id: 'startup-check', title: 'Startup check', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.startupCheck.enabled', 'vex.startupCheck.last'],
+      commands: ['startup:check'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the Windows Run keys, the Startup folders and the names of scheduled tasks'], writes: ['the list you last reviewed'], sends: [] } },
+    { id: 'secure-lock', title: 'Secure lock options', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.secureLock.enabled', 'vex.secureLock.minimize'], usesKeys: ['vex.lockPin'],
+      tiers: { minimal: false, standard: false },
+      permissions: { reads: ['whether a lock exists; which secret files exist and whether they look encrypted'], writes: ['the lock record when you set a passphrase; erases the secret files only after you type the confirmation'], sends: [] } },
+    { id: 'slot-watcher', title: 'Appointment slot watcher', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.slotWatcher'], usesKeys: ['vex.pageWatches', 'vex.pageWatchSnaps'],
+      commands: ['slotwatch:open'], budget: { fetchesPerHour: 12 }, tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the public booking pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, no more often than every 15 minutes'] } },
+    { id: 'photo-prep', title: 'Photo preparer', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.photoPrep.enabled'],
+      commands: ['photoprep:open'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the one picture you choose'], writes: ['a new picture file where you choose to save it'], sends: [] } },
+    { id: 'form-assist', title: 'Form assistant', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.formAssist.enabled'], usesKeys: ['vex.fillProfile'],
+      commands: ['formassist:open'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the kind of each box on the form in front of you (never what is typed in it); your Form Fill profile'], writes: ['one box at a time, when you press Fill on it'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

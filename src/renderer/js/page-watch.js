@@ -635,6 +635,12 @@ const PageWatch = {
       document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
       return;
     }
+    // A page on the appointment slot watcher (js/slot-watcher.js) is told only when an open-slot word shows up.
+    if (watch.source === 'slot-watcher' && typeof VexSlotWatcher !== 'undefined') {
+      VexSlotWatcher.announce(watch, verdict);
+      document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
+      return;
+    }
     let what;
     if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
     else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');
