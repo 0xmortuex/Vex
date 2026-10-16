@@ -6804,6 +6804,9 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+// Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
+const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
+ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

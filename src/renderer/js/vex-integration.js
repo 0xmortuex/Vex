@@ -19,6 +19,31 @@ const VexNewTab = {
   MAX_JSON: 16 * 1024,      // the whole value, serialised
   MAX_WIDGETS: 8,
   MAX_SVG: 6000,
+  MAX_TEXT_WIDGETS: 4,
+  _textWidgets: new Map(),
+
+  // A feature adds a few plain words to the New Tab shelf (a reset countdown, an
+  // incident, a drop ending): fn() -> an array of lines, or []. Bounded here:
+  // MAX_TEXT_WIDGETS lines in all, 200 characters each, text only. The page is
+  // a separate document and is never given anything else from the feature.
+  addTextWidget(id, fn) {
+    if (!/^[a-z][a-z0-9-]{1,48}$/.test(String(id || ''))) throw new Error('A New Tab text line needs an id of lowercase letters, digits and dashes');
+    if (typeof fn !== 'function') throw new Error('A New Tab text line needs a function');
+    this._textWidgets.set(id, fn);
+  },
+  _text() {
+    const out = [];
+    for (const [id, fn] of this._textWidgets) {
+      let lines;
+      try { lines = fn(); } catch (err) { console.error('[NewTab] text line "' + id + '" could not be read:', err); continue; }
+      for (const l of (Array.isArray(lines) ? lines : [])) {
+        const text = String(l == null ? '' : l).replace(/\s+/g, ' ').trim().slice(0, 200);
+        if (text) out.push({ type: id, text });
+        if (out.length >= this.MAX_TEXT_WIDGETS) return out;
+      }
+    }
+    return out;
+  },
 
   // What the time-of-day profile says, as an ordering hint only.
   _profile() {
@@ -78,9 +103,17 @@ const VexNewTab = {
     };
   },
 
+  // The shelf plus the text lines features added, together at most MAX_WIDGETS + MAX_TEXT_WIDGETS.
+  _allWidgets() {
+    const shelf = this._widgets() || [];
+    const extra = this._text();
+    const all = extra.concat(shelf);   // the start page shows the first 8, so what a feature says comes first
+    return all.length ? all : null;
+  },
+
   snapshot() {
     const out = { v: 1, quiet: this._quiet() };
-    const parts = { profile: () => this._profile(), pet: () => this._pet(), widgets: () => this._widgets(), living: () => this._living() };
+    const parts = { profile: () => this._profile(), pet: () => this._pet(), widgets: () => this._allWidgets(), living: () => this._living() };
     for (const [k, fn] of Object.entries(parts)) {
       let v = null;
       try { v = fn(); } catch (err) { console.error('[NewTab] "' + k + '" could not be read:', err); }

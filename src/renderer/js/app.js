@@ -1324,6 +1324,17 @@ function vexOwnTextFocused(doc) {
   if (typeof VexTabToolsSettings !== 'undefined') VexTabToolsSettings.init();
   if (typeof NightCoach !== 'undefined') bootStep('night-coach', () => NightCoach.init());
   if (typeof AnnounceDesk !== 'undefined') bootStep('announce-desk', () => AnnounceDesk.init());
+  // Wave 3, games and media (js/media-kit.js is their shared helper): each starts on its own.
+  if (typeof VexPatchDigest !== 'undefined') bootStep('patch-digest', () => VexPatchDigest.init());
+  if (typeof VexServiceCheck !== 'undefined') bootStep('service-check', () => VexServiceCheck.init());
+  if (typeof VexPanelGuard !== 'undefined') bootStep('panel-guard', () => VexPanelGuard.init());
+  if (typeof VexNetCourtesy !== 'undefined') bootStep('net-courtesy', () => VexNetCourtesy.init());
+  if (typeof VideoLater !== 'undefined') bootStep('video-later', () => VideoLater.init());
+  if (typeof VexGameTimers !== 'undefined') bootStep('game-timers', () => VexGameTimers.init());
+  if (typeof VexContentBoard !== 'undefined') bootStep('content-board', () => VexContentBoard.init());
+  if (typeof VexDropsDesk !== 'undefined') bootStep('drops-desk', () => VexDropsDesk.init());
+  if (typeof VexWritingDesk !== 'undefined') bootStep('writing-desk', () => VexWritingDesk.init());
+  if (typeof VexPushBundle !== 'undefined') bootStep('push-bundle', () => VexPushBundle.init());
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a

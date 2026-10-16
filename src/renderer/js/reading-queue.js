@@ -194,7 +194,7 @@ const ReadingQueue = {
           head.innerHTML = `<span style="flex:1">${r.picks.length} link${r.picks.length === 1 ? '' : 's'} · ${esc(this.fmt(r.total))}${r.left > 0 ? ' · ' + esc(this.fmt(r.left)) + ' to spare' : ''}</span>`;
           head.appendChild(small('Open them all', () => {
             if (typeof ReadLater === 'undefined') return;
-            r.picks.forEach((it) => { it.read = true; TabManager.createTab(it.url, it === r.picks[0]); });
+            r.picks.forEach((it) => { if (!it.video) it.read = true; TabManager.createTab(it.video && typeof VideoLater !== 'undefined' ? VideoLater.resumeUrl(it) : it.url, it === r.picks[0]); });
             ReadLater.save();
             close();
           }, 'Each opens in its own tab'));
@@ -236,7 +236,7 @@ const ReadingQueue = {
     let host = it.url; try { host = new URL(it.url).hostname.replace(/^www\./, ''); } catch { /* keep the address */ }
     row.innerHTML = `<div style="flex:1;min-width:0">
       <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title || it.url)}</div>
-      <div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · ${esc(this.fmt(it.minutes))}</div></div>`;
+      <div style="font-size:10.5px;color:var(--text-muted)">${esc(host)} · ${esc(this.fmt(it.minutes))}${it.video && typeof VideoLater !== 'undefined' ? ' · ' + esc(VideoLater.label(it)) : ''}</div></div>`;
     row.appendChild(small('Open', () => { close(); ReadLater.open(it); }));
     row.appendChild(small('Finished', () => {
       try { this.finish(it.id); } catch (err) { window.showToast?.(err.message, 'error'); }

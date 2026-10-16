@@ -69,6 +69,23 @@ const Calendar = {
     return out;
   },
 
+  // Other features add events of their own (reset timers, content due dates, drops):
+  // fn(from, to) -> [{ start, end, summary, allDay, location, calendar }], times in ms.
+  _providers: new Map(),
+  addProvider(id, fn) {
+    if (!/^[a-z][a-z0-9-]{1,48}$/.test(String(id || ''))) throw new Error('A calendar source needs an id of lowercase letters, digits and dashes');
+    if (typeof fn !== 'function') throw new Error('A calendar source needs a function');
+    this._providers.set(id, fn);
+  },
+  extraEvents(from, to) {
+    const out = [];
+    for (const [id, fn] of this._providers) {
+      try { for (const e of fn(from, to) || []) if (e && Number.isFinite(e.start) && Number.isFinite(e.end) && typeof e.summary === 'string') out.push(e); }
+      catch (err) { console.error('[Calendar] source "' + id + '" could not be read:', err); }
+    }
+    return out;
+  },
+
   // day key → [{ type, ... }] for the month on screen.
   collect({ reminders = [], tasks = [], events = [], from, to }) {
     const byDay = new Map();
@@ -110,7 +127,7 @@ const Calendar = {
       const reminders = await window.vex.reminders.list();
       if (!overlay.isConnected) return;
       const tasks = window.OpenTasks.collect(window.OpenTasks._notes(), { includeDone: true });
-      const byDay = this.collect({ reminders, tasks, events: IcsCalendar.between(from, to), from, to });
+      const byDay = this.collect({ reminders, tasks, events: IcsCalendar.between(from, to).concat(this.extraEvents(from, to)), from, to });
       const today = this.dayKey(new Date());
       const title = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
       const names = days.slice(0, 7).map(d => d.toLocaleDateString(undefined, { weekday: 'short' }));

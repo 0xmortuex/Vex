@@ -292,6 +292,11 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      // Site notifications held for the hourly bundle (js/push-bundle.js): tell this page which
+      // hosts are listed. A page that is not listed, a private tab and a private window get nothing.
+      if (typeof VexPushBundle !== 'undefined') {
+        try { VexPushBundle.pushRules(webview); } catch (err) { window.VexProblems?.note('Notifications', 'Could not tell the page about the notification bundle', err); }
+      }
       // Per-site Boosts (zapped elements / custom CSS / custom JS)
       try {
         const t = TabManager.tabs.find(x => x.id === tab.id);
@@ -425,6 +430,11 @@ const WebviewManager = {
       // of Notifications from panels (js/panel-capture.js; a no-op unless opted in).
       if (e.channel === 'vex-notification-seen') {
         if (typeof PanelCapture !== 'undefined') PanelCapture.fromTab(webview, e.args && e.args[0]);
+        return;
+      }
+      // A notification the page raised that Vex held for the hourly bundle (preload-webview.js).
+      if (e.channel === 'vex-push-held') {
+        if (typeof VexPushBundle !== 'undefined') VexPushBundle.fromTab(webview, e.args && e.args[0]);
         return;
       }
       // Microphone / camera in use (preload-webview.js getUserMedia wrapper).

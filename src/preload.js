@@ -377,6 +377,8 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  // The services' own public status pages, for the ones the person listed (main/status-check.js).
+  statusCheck: (list) => ipcRenderer.invoke('status:check', list),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

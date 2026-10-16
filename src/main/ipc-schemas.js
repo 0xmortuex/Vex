@@ -481,6 +481,8 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// The status pages to read (main/status-check.js): up to 12 addresses, each judged there.
+define('status:check', [value => Array.isArray(value) && value.length >= 1 && value.length <= 12 && value.every(v => typeof v === 'string' && v.length <= 300)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):
