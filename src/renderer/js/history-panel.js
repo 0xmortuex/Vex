@@ -594,6 +594,8 @@ const HistoryPanel = {
 
       this.lastAISearch = { parsed, entries: scoped };
       this._renderAIResults(parsed, scoped);
+      // What made these matches (js/provenance-chip.js): a model's guess, not a fact.
+      VexProvenance.attach(list, VexProvenance.fromResult(aiResult, { read: 'your history titles and summaries' }));
     } catch (err) {
       list.innerHTML = `
         <div class="ai-search-error">

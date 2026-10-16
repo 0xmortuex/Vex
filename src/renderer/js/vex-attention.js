@@ -236,6 +236,7 @@ const VexAttention = {
 
   // ---- what was refused ---------------------------------------------------------
   _deny(entry) {
+    if (typeof VexUsageCounters !== 'undefined') VexUsageCounters.note(entry.feature, 'suppressed');   // js/usage-counters.js: local counts
     const list = this._list(this.KEYS.denied);
     const top = list[0];
     if (top && top.feature === entry.feature && top.reason === entry.reason && top.id === entry.id) {

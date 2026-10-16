@@ -161,9 +161,21 @@ const TabCleanup = {
     const onKey = (e) => { if (e.key === 'Escape' && card.isConnected && !document.querySelector('.vex-dialog-overlay')) close(); };
     card.querySelector('[data-dismiss]').addEventListener('click', close);
     card.querySelector('[data-later]').addEventListener('click', close);
-    card.querySelector('[data-accept]').addEventListener('click', () => {
-      try { this.acceptWithUndo(items); close(); }
-      catch (err) { window.showToast?.(err.message, 'error'); }
+    // The shared dry-run list (js/plan-preview.js): every tab with a tick, nothing archived until the button.
+    card.querySelector('[data-accept]').addEventListener('click', async () => {
+      try {
+        const r = await VexPlan.confirm({
+          title: 'Archive ' + items.length + ' tab' + (items.length === 1 ? '' : 's') + '?',
+          intro: 'They go to the Library archive, and Undo brings them back. Take the tick off any you want to keep open.',
+          items: items.map(i => ({ id: i.id, label: i.title || i.url || 'Untitled', detail: i.why === 'idle' ? 'not used for days' : 'second copy' })),
+          okLabel: 'Archive them', noun: 'tab',
+          snapshot: (chosen) => VexPlan.snapshotTabs(TabManager.tabs.filter(t => chosen.includes(t.id))),
+        });
+        if (!r.ok) return;
+        const wanted = new Set(r.chosen);
+        this.acceptWithUndo(items.filter(i => wanted.has(i.id)));
+        close();
+      } catch (err) { window.showToast?.(err.message, 'error'); }
     });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(card);

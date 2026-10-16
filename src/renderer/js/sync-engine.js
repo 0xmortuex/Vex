@@ -442,7 +442,10 @@ const SyncEngine = (() => {
   // (ownsSource), never applied. Nor are 'tabs', 'groups' and 'stacks' any
   // more (TABS_SOURCE): an older desktop's shared tab list is carried the same way.
   const STORE_KEYS = ['settings', 'shortcuts', 'theme'];
-  const preferenceKeys = () => SYNC_KEYS.filter(key => !STORE_KEYS.some(store => key === 'vex.' + store));
+  // A feature whose data the person set to "never sync" in Settings > Storage (js/storage-ledger.js)
+  // is dropped here: the choice can only hold a key back, it never adds one.
+  const preferenceKeys = () => SYNC_KEYS.filter(key => !STORE_KEYS.some(store => key === 'vex.' + store)
+    && (typeof VexStorageLedger === 'undefined' || VexStorageLedger.syncAllowed(key)));
 
   // ===== AUTH =====
 

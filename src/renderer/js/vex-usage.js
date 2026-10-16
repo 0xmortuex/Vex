@@ -157,6 +157,8 @@ const VexUsage = {
     rec.last = t;
     rec.n += 1;
     this._saveSoon();
+    if (typeof VexUsageCounters !== 'undefined') VexUsageCounters.note(id, 'opened');   // js/usage-counters.js: local counts
+    if (rec.n === 1 && typeof VexFeatureSheet !== 'undefined') VexFeatureSheet.firstUse(id);   // js/feature-sheet.js: what a new feature touches
     return true;
   },
 

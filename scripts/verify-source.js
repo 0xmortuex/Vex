@@ -70,6 +70,10 @@ for (const problem of windowBundle.problems) failures.push('window-bundle: ' + p
 const ratchets = require('./ratchets.js').check(root);
 for (const e of ratchets.errors) failures.push('ratchet: ' + e);
 for (const n of ratchets.notes) console.log('ratchet note: ' + n);
+// The start-up budget (scripts/startup-budget.js): blocking scripts may not grow past 15 percent of the budget.
+const startupBudget = require('./startup-budget.js').check(root);
+for (const e of startupBudget.errors) failures.push(e);
+for (const n of startupBudget.notes) console.log('note: ' + n);
 const bundledScripts =windowBundle.chunks.reduce((n, c) => n + c.files.length, 0);
 console.log(JSON.stringify({ files, lines, jsCount, inlineCount, refCount, docsChecked, windowBundle: `${windowBundle.chunks.length} chunks, ${bundledScripts} scripts`, failures }, null, 2));
 process.exitCode = failures.length ? 1 : 0;

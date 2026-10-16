@@ -152,7 +152,7 @@ const BriefSections = {
           items.push({ text: d.label + ' — ' + B.plural(d.unseen, 'unread message') , sub: d.senders.length ? 'From ' + d.senders.join(', ') : (d.bulk ? 'Only bulk mail' : ''), badge: d.needs ? d.needs + ' to answer' : '' });
           for (const s of d.subjects) items.push({ text: s.text, sub: s.sub });
         }
-        let summary = '';
+        let summary = '', aiNote = '';
         // The model summary is the one place mail text could travel, so it is
         // asked only when the person allowed it and the feature resolves to a
         // model on this PC (Ollama or on-device).
@@ -162,6 +162,7 @@ const BriefSections = {
             if (backend === 'local' || backend === 'ondevice') {
               const res = await AIRouter.callAI('digest', { message: B.mailPrompt(digests) });
               summary = B.plainReply(res && (res.result || res.text || res.message));
+              if (summary) aiNote = 'Summary written by ' + VexProvenance.label(VexProvenance.fromResult(res, { read: 'your mail subjects and senders' })) + '.';
             }
           } catch (err) { failed.push('summary: ' + ((err && err.message) || 'unavailable')); }
         }
@@ -170,7 +171,7 @@ const BriefSections = {
           summary = B.plural(total, 'unread message') + ' across ' + B.plural(digests.length, 'account');
         }
         if (failed.length && !digests.length) throw new Error(failed.join('; '));
-        return { summary, items, note: failed.length ? 'Could not read: ' + failed.join('; ') : '' };
+        return { summary, items, note: failed.length ? 'Could not read: ' + failed.join('; ') : aiNote };
       },
     });
 

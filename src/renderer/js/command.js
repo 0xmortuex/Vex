@@ -228,7 +228,19 @@ const CommandBar = {
     { id: 'autorefresh', label: 'Auto-refresh This Tab', hint: 'Reload this tab on an interval — dashboards, live scores, build logs', icon: 'refresh', action: () => { try { if (window.AutoReload) AutoReload.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'openasapp', label: 'Open as App', hint: 'Open this site in its own clean, chromeless window — like a desktop app', icon: 'window', action: () => { try { const t = TabManager.getActiveTab(); if (t && /^https?:/i.test(t.url || '')) window.vex.openAsApp(t.url, t.title, t.partition).then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open it as an app', 'error'); }, _commandFailed); else window.showToast?.('Open a web page first'); } catch (err) { _commandFailed(err); } } },
     { id: 'copymarkdown', label: 'Copy Page as Markdown', hint: 'Copy this page as a Markdown link [Title](url)', icon: 'note', action: async () => { try { const t = TabManager.getActiveTab(); if (!t || !/^https?:/i.test(t.url || '')) { window.showToast?.('Open a web page first'); return; } const md = `[${(t.title || t.url).replace(/[\[\]]/g, '')}](${t.url})`; await navigator.clipboard.writeText(md); window.showToast?.('Copied as Markdown'); } catch (err) { window.showToast?.('Could not copy: ' + ((err && err.message) || err), 'error'); } } },
-    { id: 'closeduplicates', label: 'Close Duplicate Tabs', hint: 'Close tabs pointing to the same page, keeping one of each', icon: 'broom', action: () => { try { TabManager.closeDuplicateTabs(); } catch (err) { _commandFailed(err); } } },
+    { id: 'closeduplicates', label: 'Close Duplicate Tabs', hint: 'Close tabs pointing to the same page, keeping one of each', icon: 'broom', action: async () => {
+      try {
+        // Three or more at once: the shared dry-run list first, so none closes unseen (js/plan-preview.js).
+        const ids = TabManager.duplicateTabIds();
+        if (ids.length < 3) { TabManager.closeDuplicateTabs(); return; }
+        const r = await VexPlan.confirm({
+          title: 'Close ' + ids.length + ' duplicate tabs?', intro: 'One copy of each page stays open. Undo brings them back.', okLabel: 'Close them', noun: 'tab',
+          items: ids.map(id => { const t = TabManager.tabs.find(x => x.id === id); return { id, label: (t && (t.title || t.url)) || 'Untitled', detail: 'second copy' }; }),
+          snapshot: (chosen) => VexPlan.snapshotTabs(TabManager.tabs.filter(t => chosen.includes(t.id))),
+        });
+        if (r.ok) TabManager.closeTabsWithUndo(r.chosen, 'Closed ' + r.chosen.length + ' duplicate tab' + (r.chosen.length === 1 ? '' : 's'));
+      } catch (err) { _commandFailed(err); }
+    } },
     { id: 'toolbox', label: 'Toolbox', hint: 'Your built-in tools — regex, JSON, hashes, color, word count, and more', icon: 'toolbox', action: () => { try { if (window.Toolbox) Toolbox.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'jobsetup', label: 'Personalize for Your Job', hint: 'Pick your profession — Vex applies a fitting theme + the tools you use daily', icon: 'briefcase', action: () => { try { if (window.JobSetup) JobSetup.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'personaswitch', label: 'Switch AI Persona (this tab)', hint: 'Pick which AI persona this tab uses — each tab can differ', icon: 'mask', action: () => { if (typeof PersonaSwitch !== 'undefined') PersonaSwitch.open(); } },
@@ -721,6 +733,9 @@ const CommandBar = {
         quickAfter = quick.filter(r => QUICK_BELOW_COMMANDS.includes(r.id));
         this.results.push(...quick.filter(r => !quickAfter.includes(r)));
       }
+      // "make text bigger", "stop notifications": the settings section, feature or command that fits
+      // the words (js/intent-search.js). Below the commands that match by name.
+      if (typeof VexIntent !== 'undefined') quickAfter.push(...this._guard('intent-search', () => VexIntent.results(query), []));
 
       // Inline calculator / converter — "12*7", "20cm to in", "10 usd to eur".
       const calc = (typeof VexCalc !== 'undefined') ? this._guard('calculator', () => VexCalc.evaluate(q), null) : null;
@@ -1214,11 +1229,14 @@ const CommandBar = {
   // Empty-query view: most recently used commands first, defaults fill the rest.
   _defaultResults() {
     const usage = this._usage();
-    const recent = Object.entries(usage)
+    // Commands the person accepted to pin (js/usage-counters.js) come first, then the recent ones.
+    const pinned = (typeof VexUsageCounters !== 'undefined' ? VexUsageCounters.pinnedCommands() : [])
+      .map(id => this.commands.find(c => c.id === id)).filter(c => c && this._shown(c));
+    const recent = [...pinned, ...Object.entries(usage)
       .sort((a, b) => (b[1].at || 0) - (a[1].at || 0))
       .slice(0, 5)
       .map(([id]) => this.commands.find(c => c.id === id))
-      .filter(c => c && this._shown(c));
+      .filter(c => c && this._shown(c) && !pinned.includes(c))];
     const rest = this.commands.filter(c => !recent.includes(c) && this._shown(c));
     return [...recent, ...rest].slice(0, 8);
   },

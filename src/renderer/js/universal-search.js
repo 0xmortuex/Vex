@@ -208,6 +208,65 @@ const UniversalSearch = {
     ];
   },
 
+  // --- the shared index (js/search-index.js, T3-108) -----------------------------
+  // Each source is rebuilt into the index only when its stored text changed; a search
+  // then scores just the candidates the index names. The results are the same as
+  // search(gather()): the index only narrows what is scored. A source the index
+  // dropped for size is read and scanned as before.
+  _indexSources() {
+    const raw = (key) => { try { return localStorage.getItem(key) || ''; } catch (err) { throw new Error('Could not read ' + key + ': ' + err.message); } };
+    const parse = (key, text) => {
+      if (!text) return [];
+      try { return JSON.parse(text); } catch (err) { throw new Error(key + ' is not valid JSON: ' + err.message); }
+    };
+    const stored = (name, key, from) => ({ name, text: raw(key), build: (text) => from.call(this, parse(key, text)) });
+    return [
+      stored('history', 'vex.history', this.fromHistory),
+      stored('notes', 'vex.notes', this.fromNotes),
+      stored('readlater', 'vex.readLater', this.fromReadLater),
+      stored('bookmarks', 'vex.bookmarks', this.fromBookmarks),
+      stored('mail', this.MAIL_KEY, this.fromMail),
+      { name: 'clips', text: JSON.stringify(this._clips.map(c => [c.id, c.at, String(c.text).length])), build: () => this.fromClips(this._clips) },
+    ];
+  },
+
+  // -> { counts by type, results } for a query, through the shared index.
+  searchIndexed(query, { types = null, limit = this.DEFAULT_LIMIT } = {}) {
+    if (typeof VexSearchIndex === 'undefined') throw new Error('The search index is not loaded (js/search-index.js)');
+    const idx = VexSearchIndex.shared();
+    const counts = {};
+    for (const t of Object.keys(this.TYPES)) counts[t] = 0;
+    const perSource = [];
+    for (const s of this._indexSources()) {
+      const sig = idx.signature(s.text);
+      let items = null;
+      if (!idx.isCurrent('universal:' + s.name, sig)) {
+        items = s.build(s.text);
+        idx.replace('universal:' + s.name, items, sig);
+      }
+      perSource.push({ s, items });
+    }
+    const q = typeof query === 'string' ? this.parseQuery(query) : query;
+    const want = new Set([...(q.types || []), ...(types || [])]);
+    const terms = this._terms(q.text);
+    const phrase = terms.join(' ');
+    const out = [];
+    for (const { s, items } of perSource) {
+      const name = 'universal:' + s.name;
+      let pool = idx.isIndexed(name) ? idx.all(name) : (items || s.build(s.text));
+      for (const it of pool) counts[it.type]++;
+      if (!terms.length) continue;
+      let cand = idx.isIndexed(name) ? idx.candidates(name, terms) : pool;
+      for (const item of cand) {
+        if (want.size && !want.has(item.type)) continue;
+        const sc = this.score(item, terms, phrase);
+        if (sc > 0) out.push({ ...item, score: sc });
+      }
+    }
+    out.sort((a, b) => b.score - a.score || (b.at || 0) - (a.at || 0));
+    return { counts, results: out.slice(0, limit) };
+  },
+
   // Data hook: how many things each type holds, for a surface that wants to
   // say "searching 4,812 items" without owning any of this.
   snapshot() {
@@ -311,17 +370,15 @@ const UniversalSearch = {
       catch (err) { window.showToast?.(err.message, 'error'); }
     };
     const run = () => {
-      let items;
-      try { items = this.gather(); }
+      let found;
+      try { found = this.searchIndexed(input.value, { types: [...active] }); }
       catch (err) { list.textContent = err.message; return; }
-      const counts = {};
-      for (const t of Object.keys(this.TYPES)) counts[t] = 0;
-      for (const it of items) counts[it.type]++;
+      const counts = found.counts;
       drawChips(counts);
-      results = this.search(input.value, items, { types: [...active] });
+      results = found.results;
       selected = 0;
       draw();
-      foot.textContent = items.length + ' items searched on this PC' + (this.mailEnabled() ? '' : ' · mail subjects are off');
+      foot.textContent = Object.values(counts).reduce((a, b) => a + b, 0) + ' items searched on this PC' + (this.mailEnabled() ? '' : ' · mail subjects are off');
     };
 
     input.addEventListener('input', run);
