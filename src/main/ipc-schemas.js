@@ -481,6 +481,16 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// Local-service launcher (main/local-services.js) and webhook inspector (main/webhook-inspector.js).
+// No channel takes a program name or a path: the folder comes from the dialog main shows, and the
+// command from the fixed templates; main checks every word again.
+define('localsvc:status localsvc:pick-folder webhook:stop webhook:status webhook:clear', []);
+define('localsvc:arm', [boolean]);
+define('localsvc:add', [shape({ name: string(60), token: string(64), template: string(40), params: optional(object), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
+define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)]);
+define('webhook:start', [shape({ port: integer, minutes: integer })]);
+define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);
+define('webhook:get', [integer]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

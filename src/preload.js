@@ -377,6 +377,21 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  // Local-service launcher and webhook inspector (main/local-services.js, main/webhook-inspector.js).
+  localsvcStatus: () => ipcRenderer.invoke('localsvc:status'),
+  localsvcArm: (on) => ipcRenderer.invoke('localsvc:arm', on),
+  localsvcPickFolder: () => ipcRenderer.invoke('localsvc:pick-folder'),
+  localsvcAdd: (req) => ipcRenderer.invoke('localsvc:add', req),
+  localsvcRemove: (id) => ipcRenderer.invoke('localsvc:remove', id),
+  localsvcStart: (id) => ipcRenderer.invoke('localsvc:start', id),
+  localsvcStop: (id) => ipcRenderer.invoke('localsvc:stop', id),
+  localsvcLogs: (id) => ipcRenderer.invoke('localsvc:logs', id),
+  webhookStart: (req) => ipcRenderer.invoke('webhook:start', req),
+  webhookStop: () => ipcRenderer.invoke('webhook:stop'),
+  webhookStatus: () => ipcRenderer.invoke('webhook:status'),
+  webhookList: (since) => ipcRenderer.invoke('webhook:list', since),
+  webhookGet: (id) => ipcRenderer.invoke('webhook:get', id),
+  webhookClear: () => ipcRenderer.invoke('webhook:clear'),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

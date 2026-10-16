@@ -6804,6 +6804,76 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+
+// Local-service launcher (main/local-services.js, T3-033; docs/local-services-threat-model.md) and
+// the webhook inspector (main/webhook-inspector.js, T3-058). Both are off until the owner arms or
+// starts them. The folder and the confirm boxes are shown HERE, by main, so a script in a window
+// cannot answer them. A program is started with spawn(file, argv[], { shell: false }) only, and
+// stopped only after its live ExecutablePath / CommandLine / start time match what Vex started.
+const _winSystem32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+const _localServices = require('./main/local-services').createLocalServices({
+  fs, path, platform: process.platform, env: process.env,
+  spawn: require('child_process').spawn,
+  inspect: (pid) => new Promise((resolve, reject) => {
+    if (!Number.isInteger(pid) || pid <= 0) { reject(new Error('Not a process number')); return; }
+    const script = '$p = Get-CimInstance Win32_Process -Filter "ProcessId=' + pid + '"; if ($p) { [pscustomobject]@{ ExecutablePath = $p.ExecutablePath; CommandLine = $p.CommandLine; CreatedMs = ([DateTimeOffset]$p.CreationDate).ToUnixTimeMilliseconds() } | ConvertTo-Json -Compress }';
+    require('child_process').execFile(path.join(_winSystem32, 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script],
+      { windowsHide: true, timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout) => {
+        if (err) { reject(new Error('Could not look at process ' + pid + ': ' + err.message)); return; }
+        const text = String(stdout || '').trim();
+        if (!text) { resolve(null); return; }
+        try { const o = JSON.parse(text); resolve({ executablePath: o.ExecutablePath || '', commandLine: o.CommandLine || '', createdMs: Number(o.CreatedMs) }); }
+        catch (e) { reject(new Error('Could not read the process details: ' + e.message)); }
+      });
+  }),
+  killTree: (pid) => new Promise((resolve, reject) => {
+    if (!Number.isInteger(pid) || pid <= 0) { reject(new Error('Not a process number')); return; }
+    require('child_process').execFile(path.join(_winSystem32, 'taskkill.exe'), ['/PID', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15000 }, (err) => (err ? reject(new Error('taskkill: ' + err.message)) : resolve()));
+  }),
+  knock: (port) => _devPorts.knock(port),
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+  pickFolderDialog: async () => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { title: 'Folder the service runs in', buttonLabel: 'Use this folder', properties: ['openDirectory'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return { canceled: r.canceled, path: r.filePaths && r.filePaths[0] };
+  },
+  load: async () => {
+    try { return JSON.parse(await fs.promises.readFile(path.join(userDataPath, 'local-services.json'), 'utf8')); }
+    catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The local services list could not be read: ' + err.message); }
+  },
+  save: (cfg) => require('./main/file-store').atomicWrite(path.join(userDataPath, 'local-services.json'), JSON.stringify(cfg)),
+  log: (m) => console.log(m),
+});
+const _localSvcReply = async (fn) => { try { return { ok: true, ...(await fn()) }; } catch (err) { return { ok: false, error: (err && err.message) || String(err) }; } };
+ipcMain.handle('localsvc:status', () => _localSvcReply(() => _localServices.status()));
+ipcMain.handle('localsvc:arm', (_e, on) => _localSvcReply(() => _localServices.arm(on === true)));
+ipcMain.handle('localsvc:pick-folder', () => _localSvcReply(() => _localServices.pickFolder()));
+ipcMain.handle('localsvc:add', (_e, req) => _localSvcReply(() => _localServices.add(req)));
+ipcMain.handle('localsvc:remove', (_e, id) => _localSvcReply(() => _localServices.remove(id)));
+ipcMain.handle('localsvc:start', (_e, id) => _localSvcReply(() => _localServices.start(id)));
+ipcMain.handle('localsvc:stop', (_e, id) => _localSvcReply(() => _localServices.stop(id)));
+ipcMain.handle('localsvc:logs', (_e, id) => _localSvcReply(async () => _localServices.logs(id)));
+let _localSvcQuitDone = false;
+app.on('will-quit', (event) => {
+  if (_localSvcQuitDone || !_localServices.hasRunning()) return;
+  _localSvcQuitDone = true;
+  event.preventDefault();
+  _localServices.stopAll().catch(err => console.error('[LocalServices] could not stop them on quit:', err && err.message)).finally(() => app.quit());
+});
+const _webhookInspector = require('./main/webhook-inspector').createWebhookInspector({ http: require('http'), log: (m) => console.log(m) });
+ipcMain.handle('webhook:start', (_e, req) => _localSvcReply(() => _webhookInspector.start(req)));
+ipcMain.handle('webhook:stop', () => _localSvcReply(() => _webhookInspector.stop()));
+ipcMain.handle('webhook:status', () => _localSvcReply(async () => _webhookInspector.status()));
+ipcMain.handle('webhook:list', (_e, since) => _localSvcReply(async () => ({ requests: _webhookInspector.list(since || 0), status: _webhookInspector.status() })));
+ipcMain.handle('webhook:get', (_e, id) => _localSvcReply(async () => ({ request: _webhookInspector.get(id) })));
+ipcMain.handle('webhook:clear', () => _localSvcReply(async () => _webhookInspector.clear()));
+app.on('will-quit', () => { _webhookInspector.stop().catch(err => console.error('[Webhook] could not stop on quit:', err && err.message)); });
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');
