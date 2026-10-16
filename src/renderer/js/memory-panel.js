@@ -583,6 +583,34 @@ const MemoryPanel = {
       }
       host.appendChild(fold);
     }
+    // The same log grouped by message: one row per kind of problem with its
+    // count and first/last version, and a button that copies a repro stub.
+    if ((problems || olderN) && typeof VexProblems.groups === 'function') {
+      const groups = VexProblems.groups();
+      const fold = document.createElement('details');
+      fold.className = 'memory-health-older memory-health-groups';
+      fold.id = 'memory-health-groups';
+      const head = document.createElement('summary');
+      head.textContent = `Grouped by message (${groups.length})`;
+      fold.appendChild(head);
+      for (const g of groups.slice(0, 20)) {
+        const row = document.createElement('div');
+        row.className = 'memory-health-line sub';
+        const text = document.createElement('span');
+        text.textContent = VexProblems.groupLine(g) + ' ';
+        const copy = document.createElement('button');
+        copy.className = 'memory-copy-repro';
+        copy.textContent = 'Copy repro';
+        copy.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(VexProblems.reproStub(g)); window.showToast?.('Repro copied'); }
+          catch (err) { window.showToast?.('Could not copy: ' + (err && err.message), 'error'); }
+        });
+        row.appendChild(text);
+        row.appendChild(copy);
+        fold.appendChild(row);
+      }
+      host.appendChild(fold);
+    }
     if (problems || olderN) {
       const clear = document.createElement('button');
       clear.className = 'memory-clear-problems';

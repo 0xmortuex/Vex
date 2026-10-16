@@ -146,4 +146,13 @@
   color: var(--vex-text-secondary); cursor: pointer;
   font-family: 'Outfit', sans-serif; font-size: 12px; transition: all 0.15s ease;
 }
+.memory-copy-repro {
+  margin-left: 6px; padding: 2px 8px;
+  background: var(--vex-glass-input);
+  border: 1px solid var(--vex-border-subtle);
+  border-radius: var(--vex-radius-sm);
+  color: var(--vex-text-secondary); cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 11px;
+}
+.memory-copy-repro:hover { background: var(--vex-accent-dim); color: var(--vex-accent); border-color: var(--vex-border-accent); }
 .memory-clear-problems:hover { background: var(--vex-accent-dim); color: var(--vex-accent); border-color: var(--vex-border-accent); }
