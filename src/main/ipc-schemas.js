@@ -481,6 +481,11 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// Community and chat tools (main/comms-tools.js). The webhook address goes in once and never comes back;
+// a post is one text of at most 2000 characters. The bridge channels take no arguments: main reads one fixed file.
+define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
+define('comms:webhook-set', [string(300)]);
+define('comms:webhook-send', [shape({ content: string(2000), allowEveryone: optional(boolean) })]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

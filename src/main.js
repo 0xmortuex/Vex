@@ -6804,6 +6804,25 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+// Community and chat tools (main/comms-tools.js): the owner's own announcement webhook, sealed by the OS
+// in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
+const _commsTools = require('./main/comms-tools').createCommsTools({
+  secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), fetch: boundedNetFetch,
+  pickFolder: async () => {
+    const win = BrowserWindow.getFocusedWindow();
+    const opts = { title: 'Folder where your Vencord plugin writes vex-bridge.json', buttonLabel: 'Use this folder', properties: ['openDirectory'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    return r.canceled || !r.filePaths || !r.filePaths[0] ? null : r.filePaths[0];
+  },
+});
+ipcMain.handle('comms:webhook-status', () => _commsTools.webhookStatus());
+ipcMain.handle('comms:webhook-set', (_event, url) => _commsTools.webhookSet(url));
+ipcMain.handle('comms:webhook-clear', () => _commsTools.webhookClear());
+ipcMain.handle('comms:webhook-send', (_event, req) => _commsTools.webhookSend(req));
+ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
+ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
+ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
+ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

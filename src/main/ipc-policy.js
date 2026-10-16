@@ -26,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:)/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:|github:|devfeeds:|repos:|comms:)/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -56,6 +56,8 @@ const UI_ONLY_CHANNELS = new Set([
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
   'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping',
+  // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
+  'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).
   'health:scan', 'health:fix', 'health:undo',
