@@ -137,7 +137,26 @@ const VexDueness = {
         items.push({ id: 'schedule:' + s.id, kind: 'schedule', text: String(s.name || ''), at: s.at, hasTime: true });
       }
     });
+    // Features that have dates of their own (deadlines, follow-ups, holidays) add a source with addSource().
+    for (const [name, def] of this._extra) {
+      await guard(name, async () => {
+        for (const it of (await def.read(now)) || []) {
+          if (!it || !Number.isFinite(it.at)) continue;
+          items.push({ ...it, kind: def.kind });
+        }
+      });
+    }
     return { items, errors };
+  },
+
+  // A source beyond the four stores: addSource('deadlines', { kind: 'deadline', label: 'Deadline' }, (now) => [item]).
+  // `kind` is the chip word's key; the items have the shape described at the top of this file.
+  _extra: new Map(),
+  addSource(name, { kind, label } = {}, read) {
+    if (!name || !kind || typeof read !== 'function') throw new Error('A due-ness source needs a name, a kind and a reader');
+    if (!(kind in this.KIND_LABEL)) { this.KIND_LABEL[kind] = String(label || kind); this.KIND_RANK[kind] = 5 + Object.keys(this.KIND_RANK).length; }
+    this._extra.set(name, { kind, read });
+    return true;
   },
 
   async top(limit = 5, now = Date.now(), src) {

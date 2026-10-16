@@ -44,6 +44,9 @@ const QuickCapture = {
       return 'Asked Vex — the answer is in the panel';
     }
 
+    // "call the bank #2min" is a chore for the two-minute drawer (js/quick-tasks.js), not a note.
+    if (typeof VexTwoMinute !== 'undefined' && VexTwoMinute.enabled() && VexTwoMinute.isTagged(text)) return VexTwoMinute.addFromCapture(text);
+
     if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
     // A captured line is a thought, not a document: the first few words are the
     // title and the whole line is the body, so nothing is lost either way.

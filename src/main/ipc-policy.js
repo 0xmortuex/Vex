@@ -55,7 +55,7 @@ const UI_ONLY_CHANNELS = new Set([
   'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
-  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping',
+  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'fx:tcmb',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).
   'health:scan', 'health:fix', 'health:undo',

@@ -263,6 +263,19 @@ const VexDeadlines = {
     const no = VexSettingsGroups.button('Skip', () => row.remove(), { label: 'Skip: ' + f.phrase });
     if (existing.includes(this._message(f))) { add.disabled = true; add.textContent = 'Already set'; }
     row.append(text, when, add, no);
+    // Confirmed into the ledgers (js/follow-ups.js, js/deadline-ledger.js), one press each, only when those exist and are on.
+    const ledgerBtn = (label, ready, run) => {
+      if (!ready) return;
+      row.appendChild(VexSettingsGroups.button(label, () => {
+        try { run(); window.showToast?.('Added', 'success'); }
+        catch (err) { window.showToast?.(err.message, 'error'); }
+      }, { label: label + ': ' + f.phrase }));
+    };
+    if (f.kind === 'commitment') {
+      ledgerBtn('I owe this', typeof VexFollowUps !== 'undefined' && VexFollowUps.enabled(), () => VexFollowUps.add({ dir: 'owe', who: '', what: f.sentence.slice(0, 160), channel: 'other', due: f.dueAt || 0, url: /^https?:/i.test(src.url || '') ? src.url : '' }));
+    } else {
+      ledgerBtn('Add to deadlines', typeof VexDeadlineLedger !== 'undefined' && VexDeadlineLedger.enabled(), () => VexDeadlineLedger.addFromFound(f, { url: /^https?:/i.test(src.url || '') ? src.url : '' }));
+    }
     return row;
   },
 

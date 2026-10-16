@@ -7,7 +7,7 @@
 //
 //   AttentionState.get() -> {
 //     quiet: boolean,
-//     reason: 'game' | 'meeting' | 'focus' | 'away' | 'quiet-hours' | 'wind-down' | 'quiet-switch' | '',
+//     reason: 'game' | 'meeting' | 'focus' | 'away' | 'quiet-hours' | 'wind-down' | 'travel' | 'quiet-switch' | '',
 //     until: number | 0,            // ms epoch when the reason ends, 0 when unknown
 //     sources: [{ id, until }],     // every reason that applies, strongest first
 //   }
@@ -25,7 +25,7 @@
 // hidden.
 const AttentionState = {
   // Strongest first: the first one that applies is the `reason`.
-  ORDER: ['game', 'meeting', 'focus', 'away', 'quiet-hours', 'wind-down', 'quiet-switch'],
+  ORDER: ['game', 'meeting', 'focus', 'away', 'quiet-hours', 'wind-down', 'travel', 'quiet-switch'],
   QUIET_HOURS_TTL_MS: 30 * 1000,
 
   _qh: null,           // { at, inWindow, until } from the main process
@@ -75,6 +75,11 @@ const AttentionState = {
     } catch (err) { this._fail('wind-down end', err); }
     return { until };
   },
+  // Travel mode (js/travel-mode.js): notices that are not urgent wait while it is on.
+  _travel() {
+    if (typeof VexTravel !== 'undefined' && VexTravel && typeof VexTravel.quiet === 'function' && VexTravel.quiet()) return { until: 0 };
+    return null;
+  },
   _switch() {
     if (typeof localStorage === 'undefined') return null;
     return localStorage.getItem('vex.fun.quiet') === '1' ? { until: 0 } : null;
@@ -113,7 +118,7 @@ const AttentionState = {
   get() {
     const readers = {
       game: () => this._game(), meeting: () => this._meeting(), focus: () => this._focus(), away: () => this._away(),
-      'quiet-hours': () => this._quietHours(), 'wind-down': () => this._wind(), 'quiet-switch': () => this._switch(),
+      'quiet-hours': () => this._quietHours(), 'wind-down': () => this._wind(), travel: () => this._travel(), 'quiet-switch': () => this._switch(),
     };
     const sources = [];
     for (const id of this.ORDER) {
