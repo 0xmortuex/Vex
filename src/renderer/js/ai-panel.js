@@ -1521,6 +1521,11 @@ const AIPanel = {
         const memMsg = AIMemory.historyMessage();
         if (memMsg) system.push(memMsg);
       }
+      // A standing instruction for the site in front (js/skills.js, T2-012).
+      if (feature === 'chat' && typeof VexSkills !== 'undefined' && VexSkills.siteInstructionMessage) {
+        const siteMsg = VexSkills.siteInstructionMessage(pageContext && pageContext.url);
+        if (siteMsg) system.push(siteMsg);
+      }
       const turns = this._historyBefore(conv, retry, opts.message).filter(m => m.role !== 'system').slice(-Math.max(1, this.HISTORY_SENT - system.length));
       const conversationHistory = [...system, ...turns];
       // Only chat streams: the other actions render structured output that

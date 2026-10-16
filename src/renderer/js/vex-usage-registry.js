@@ -232,6 +232,12 @@ const VexUsageRegistry = {
       VexStripActions: () => (typeof VexStripActions !== 'undefined' ? VexStripActions : null),
       NightCoach: () => (typeof NightCoach !== 'undefined' ? NightCoach : null),
       AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
+      VexLongDoc: () => (typeof VexLongDoc !== 'undefined' ? VexLongDoc : null),
+      VexThreadDigest: () => (typeof VexThreadDigest !== 'undefined' ? VexThreadDigest : null),
+      VexDraftField: () => (typeof VexDraftField !== 'undefined' ? VexDraftField : null),
+      VexEmbedManager: () => (typeof VexEmbedManager !== 'undefined' ? VexEmbedManager : null),
+      VexAnswerCitations: () => (typeof VexAnswerCitations !== 'undefined' ? VexAnswerCitations : null),
+      VexSkills: () => (typeof VexSkills !== 'undefined' ? VexSkills : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -321,6 +327,13 @@ const VexUsageRegistry = {
       ['strip-actions', A.api(G.VexStripActions, 'enabled', 'setEnabled')],
       ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
       ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
+      // Wave 2 AI features: each has its own on/off key and only works on this PC's local model.
+      ['longdoc-engine', A.api(G.VexLongDoc, 'enabled', 'setEnabled')],
+      ['thread-digest', A.api(G.VexThreadDigest, 'enabled', 'setEnabled')],
+      ['draft-in-field', A.api(G.VexDraftField, 'enabled', 'setEnabled')],
+      ['embedding-manager', A.api(G.VexEmbedManager, 'enabled', 'setEnabled')],
+      ['answer-citations', A.api(G.VexAnswerCitations, 'enabled', 'setEnabled')],
+      ['site-instructions', A.api(G.VexSkills, 'siteEnabled', 'setSiteEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
