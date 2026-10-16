@@ -10,6 +10,24 @@
 // lands a few seconds after you request it. Runs AFTER the authenticator (TOTP)
 // autofill, so app-based 2FA still wins.
 const EmailCodeAutofill = {
+  // Every call into a page goes through here. webview.executeJavaScript has no
+  // timeout of its own: on a guest that is asleep, discarded, crashed or
+  // mid-navigation its promise can stay pending for ever, and a poll that awaits
+  // it never reaches its `finally` - so the mailbox-reading slot it holds is
+  // never given back. Three such polls and every later attempt is turned away as
+  // "busy" until Vex restarts (T0-011; reproduced in tests/renderer/emailCodeStuck.test.js).
+  // A page that does not answer is an error, said as one.
+  EXEC_TIMEOUT_MS: 10000,
+  _exec(wv, js, ms = this.EXEC_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('email-code: the page did not answer within ' + ms + ' ms')), ms);
+      let p;
+      try { p = wv.executeJavaScript(js); } catch (err) { clearTimeout(timer); reject(err); return; }
+      Promise.resolve(p).then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+    });
+  },
+  _isStuck(err) { return !!err && /did not answer within/.test(String(err.message || err)); },
+
   _matchesProvider(provider, value) {
     try {
       const url = new URL(value);
@@ -87,10 +105,50 @@ const EmailCodeAutofill = {
     try { page = this._site(new URL(pageUrl).hostname); } catch { return false; }
     if (!page) return false;
     const list = Array.isArray(from) ? from : (from ? [from] : []);
+    const trusted = this._trustedFor(page);
     return list.some((address) => {
-      const m = /@([a-z0-9.-]+)\s*>?\s*$/i.exec(String(address || '').trim());
-      return !!m && this._sameService(this._site(m[1]), page);
+      const site = this._senderSite(address);
+      return !!site && (this._sameService(site, page) || trusted.includes(site));
     });
+  },
+  // The registrable domain an address was sent from: "x <a@mail.shop.co.uk>" -> shop.co.uk.
+  _senderSite(address) {
+    const m = /@([a-z0-9.-]+)\s*>?\s*$/i.exec(String(address || '').trim());
+    return m ? this._site(m[1]) : '';
+  },
+
+  // Senders the person said, with one click, are this site's own (the code for
+  // example.com arrives from mailer-9x.net). Kept as { "example.com": ["mailer-9x.net"] }
+  // in localStorage 'vex.emailCodeTrust'. A free-mail domain can never be trusted:
+  // anyone can send from it, so trusting it would let any stranger's email fill
+  // a code - the very thing the sender check exists to stop.
+  TRUST_KEY: 'vex.emailCodeTrust',
+  _FREE_MAIL: ['gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'yahoo.com', 'ymail.com', 'icloud.com', 'me.com', 'proton.me', 'protonmail.com', 'aol.com', 'gmx.com', 'mail.com', 'yandex.com', 'zoho.com'],
+  _trustMap() {
+    try {
+      const v = JSON.parse(globalThis.localStorage?.getItem(this.TRUST_KEY) || '{}');
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (err) { console.error('[email-code] the trusted-senders list is damaged and is ignored:', err); return {}; }
+  },
+  _trustedFor(pageSite) {
+    const list = this._trustMap()[pageSite];
+    return Array.isArray(list) ? list.filter(s => typeof s === 'string') : [];
+  },
+  // `senderSite` comes from a mismatch the person was shown. Throws when it cannot be trusted.
+  trustSender(pageUrl, senderSite) {
+    const page = this._site(new URL(pageUrl).hostname);
+    const sender = String(senderSite || '').toLowerCase();
+    if (!page) throw new Error('This page has no site to trust a sender for');
+    if (!sender || sender !== this._site(sender)) throw new Error('That is not a sender domain');
+    if (this._FREE_MAIL.includes(sender)) throw new Error(sender + ' is a free mail service: anyone can send from it, so it cannot be trusted for ' + page);
+    const map = this._trustMap();
+    const list = Array.isArray(map[page]) ? map[page] : [];
+    if (!list.includes(sender)) list.push(sender);
+    map[page] = list.slice(-5);
+    const keys = Object.keys(map);
+    if (keys.length > 50) delete map[keys[0]];
+    localStorage.setItem(this.TRUST_KEY, JSON.stringify(map));
+    return true;
   },
 
   // Supported webmail providers. `host` matches the real mail app URL; `rowSel`
@@ -140,18 +198,27 @@ const EmailCodeAutofill = {
     catch { return null; }
   },
   _findMailWebview() {
-    if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
+    // What this search saw, so a miss can say WHY (a mail tab that is open but
+    // refused by the private/Tor/routed-tab rule is not "no email open").
+    this._mailSeen = { open: 0, blocked: 0, privateWindow: false };
+    if (globalThis.window?.VexTabPolicy?.isPrivateWindow) { this._mailSeen.privateWindow = true; return null; }
     const wvs = Array.from(document.querySelectorAll('webview'));
+    const policyOk = (w) => !globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w);
     for (const p of this._PROVIDERS) {
-      const live = wvs.find(w => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canReadWebview(w)) && this._matchesProvider(p, this._webviewUrl(w)));
+      const there = wvs.filter(w => this._matchesProvider(p, this._webviewUrl(w)));
+      this._mailSeen.open += there.length;
+      const live = there.find(policyOk);
+      this._mailSeen.blocked += there.filter(w => !policyOk(w)).length;
       if (live) { this._keepMailLive(live); return { wv: live, provider: p }; }
     }
     try {
       const T = this._tabs();
       if (T && Array.isArray(T.tabs)) {
         for (const p of this._PROVIDERS) {
-          const tab = T.tabs.find(t => (!globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canShareTab(t)) && this._matchesProvider(p, t.url || t.originalUrl || ''));
-          if (!tab) continue;
+          const mine = T.tabs.filter(t => this._matchesProvider(p, t.url || t.originalUrl || ''));
+          const shareable = (t) => !globalThis.window?.VexTabPolicy || globalThis.window?.VexTabPolicy.canShareTab(t);
+          const tab = mine.find(shareable);
+          if (!tab) { this._mailSeen.open += mine.length; this._mailSeen.blocked += mine.length; continue; }
           // If this tab was asleep/lazy, WE are waking it just to read a code —
           // remember that so we can put it back to sleep afterwards (see
           // _restoreAutoWoken). A sleeping/lazy tab is never user-kept-awake
@@ -269,14 +336,19 @@ const EmailCodeAutofill = {
       return JSON.stringify({loaded: rows.length>0, rows: out});
     }catch(e){return JSON.stringify({loaded:false, rows:[]});}})()`;
     let data;
-    try { data = JSON.parse(await mailWv.executeJavaScript(js)); } catch { return empty; }
+    try { data = JSON.parse(await this._exec(mailWv, js)); }
+    catch (err) {
+      // A mail page that does not answer is reported as stuck, not as an empty inbox.
+      if (this._isStuck(err)) { console.error('[email-code] the mail page is not answering:', err.message); return { ...empty, stuck: true }; }
+      return empty;
+    }
     if (mailWv.getURL?.() !== mailUrl || mailWv._navigationGeneration !== generation) return empty;
-    let code = null, unread = false, strong = false, from = null, foreign = false;
+    let code = null, unread = false, strong = false, from = null, foreign = false, foreignFrom = null;
     for (const r of (data.rows || [])) {
       const c = this._extractCode(r.t);
       if (!c) continue;
       const senders = Array.isArray(r.f) ? r.f : [];
-      if (pageUrl && !this._senderMatches(senders, pageUrl)) { foreign = true; continue; }
+      if (pageUrl && !this._senderMatches(senders, pageUrl)) { foreign = true; foreignFrom = foreignFrom || senders.map(s => this._senderSite(s)).find(Boolean) || null; continue; }
       code = c; unread = !!r.u; strong = this._isStrongCodeRow(r.t); from = senders; break;
     }
     // Body fallback (Gmail hidden reader only): some services put the code only
@@ -289,14 +361,83 @@ const EmailCodeAutofill = {
       this._lastBodyRead = Date.now();
       const body = await this._readNewestUnreadBody(mailWv);
       if (body && body.code) {
-        if (!pageUrl || this._senderMatches(body.from, pageUrl)) return { loaded: true, code: body.code, unread: true, strong: true, from: body.from, foreign };
+        if (!pageUrl || this._senderMatches(body.from, pageUrl)) return { loaded: true, code: body.code, unread: true, strong: true, from: body.from, foreign, foreignFrom };
         foreign = true;
+        foreignFrom = foreignFrom || (body.from || []).map(s => this._senderSite(s)).find(Boolean) || null;
       }
     }
-    return { loaded: !!data.loaded, code, unread, strong, from, foreign };
+    return { loaded: !!data.loaded, code, unread, strong, from, foreign, foreignFrom };
   },
 
   _isHiddenReader(wv) { return !!(wv && wv.id === 'vex-gmail-reader'); },
+
+  // --- The mail accounts set up in Vex's Mail panel (read-only IMAP) -----------
+  // When no webmail tab can be read, the newest messages of an account the person
+  // already added to Mail are the next place to look. main/mail.js opens the
+  // mailbox read-only and never marks anything read, so this adds no way to
+  // change mail. Same result shape as _readInbox, so the poll treats both alike.
+  // Each call opens a connection, so the answer is reused for IMAP_MIN_GAP_MS,
+  // and at most two message bodies are fetched per read.
+  IMAP_MIN_GAP_MS: 8000,
+  IMAP_FRESH_MS: 30 * 60 * 1000,
+  _imapCache: null,
+  async _readImap(pageUrl) {
+    const mail = globalThis.window?.vex?.mail;
+    if (!mail || typeof mail.accounts !== 'function' || typeof mail.inbox !== 'function') return null;
+    if (globalThis.window?.VexTabPolicy?.isPrivateWindow) return null;
+    const now = Date.now();
+    const cache = this._imapCache;
+    if (cache && cache.url === pageUrl && now - cache.at < this.IMAP_MIN_GAP_MS) return cache.result;
+    const limit = (p) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('email-code: the mail account did not answer within 20000 ms')), 20000);
+      Promise.resolve(p).then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+    });
+    let result = null;
+    try {
+      const accounts = (await limit(mail.accounts())) || [];
+      if (accounts.length) {
+        let code = null, unread = false, strong = false, from = null, foreign = false, foreignFrom = null, loaded = false, bodies = 0;
+        for (const acct of accounts.slice(0, 3)) {
+          const box = await limit(mail.inbox(acct.id, 8));
+          loaded = true;
+          for (const m of (box && box.messages) || []) {
+            if (m.date && now - m.date > this.IMAP_FRESH_MS) continue;       // an old code is not this attempt's
+            const sender = m.from && m.from.address ? [m.from.address] : [];
+            const mine = !pageUrl || this._senderMatches(sender, pageUrl);
+            let text = String(m.subject || '');
+            let c = this._extractCode(text);
+            if (!c && mine && pageUrl && bodies < 2) {
+              // Only mail from the page's own sender is opened, two at most.
+              bodies++;
+              const full = await limit(mail.message(acct.id, m.uid));
+              text = text + ' ' + String((full && full.text) || '').slice(0, 600);
+              c = this._extractCode(text);
+            }
+            if (!c) continue;
+            if (!mine) { foreign = true; foreignFrom = foreignFrom || this._senderSite(sender[0]) || null; continue; }
+            code = c; unread = !m.seen; strong = this._isStrongCodeRow(text); from = sender; break;
+          }
+          if (code) break;
+        }
+        result = { loaded, code, unread, strong, from, foreign, foreignFrom };
+      }
+    } catch (err) {
+      console.error('[email-code] could not read the mail account:', err);
+      result = null;
+    }
+    this._imapCache = { url: pageUrl, at: Date.now(), result };
+    return result;
+  },
+
+  // One look at the mail: a webmail tab if one can be read, else a mail account
+  // set up in Vex. `found` is null when there is nothing to read from.
+  async _nextRead(pageUrl) {
+    const found = this._findMailWebview();
+    if (found && found.wv) return { found, read: await this._readInbox(found.wv, found.provider, pageUrl) };
+    const imap = await this._readImap(pageUrl);
+    if (imap) return { found: { wv: null, provider: { id: 'imap' } }, read: imap };
+    return { found: null, read: null };
+  },
 
   // Force the inbox to pull new mail. A hidden/backgrounded Gmail SPA can sit on
   // a stale inbox until refreshed — which is exactly why a code only appeared
@@ -315,7 +456,7 @@ const EmailCodeAutofill = {
         if(b){b.click();return 1;} return 0;
       }catch(e){return 0;}})()`;
       let clicked = 0;
-      try { clicked = await mailWv.executeJavaScript(soft); } catch {}
+      try { clicked = await this._exec(mailWv, soft); } catch {}
       if (!clicked && mailWv.getURL?.() === url && (this._isHiddenReader(mailWv) || this._autoWoken)) {
         try { mailWv.reload(); } catch {}
       }
@@ -346,7 +487,7 @@ const EmailCodeAutofill = {
       return JSON.stringify({text:text, from:from});
     }catch(e){return '';}})()`;
     let read = null;
-    try { read = JSON.parse((await gmailWv.executeJavaScript(js)) || 'null'); } catch { return null; }
+    try { read = JSON.parse((await this._exec(gmailWv, js)) || 'null'); } catch { return null; }
     if (!read || gmailWv._navigationGeneration !== generation || !this._matchesProvider(this._PROVIDERS[0], gmailWv.getURL?.())) return null;
     const code = this._extractCode(read.text);
     return code ? { code, from: read.from ? [String(read.from)] : [] } : null;
@@ -377,7 +518,7 @@ const EmailCodeAutofill = {
       if(boxes.length>=4&&boxes.length<=8&&/verification|one.?time|enter the (code|digits)|we (sent|emailed)/i.test(document.body.innerText||''))return true;
       return false;
     }catch(e){return false;}})()`;
-    try { return await loginWv.executeJavaScript(js); } catch { return false; }
+    try { return await this._exec(loginWv, js); } catch { return false; }
   },
 
   _injectCode(loginWv, code, url = loginWv.getURL?.()) {
@@ -400,7 +541,7 @@ const EmailCodeAutofill = {
       for(var j=0;j<all.length;j++){if(isCode(all[j])&&!all[j].value){fire(all[j],CODE);return true;}}
       return false;
     }catch(e){return false;}})()`;
-    try { return loginWv.executeJavaScript(js); } catch { return Promise.resolve(false); }
+    try { return this._exec(loginWv, js); } catch { return Promise.resolve(false); }
   },
 
   _running: false,
@@ -412,7 +553,7 @@ const EmailCodeAutofill = {
       if(document.querySelector('input[autocomplete="one-time-code"]'))return true;
       return /verification code|enter the (code|digits)|we (sent|emailed)(?: you)? a code|one[-\\s]?time (code|password)|check your email|code we sent|enter (the )?code/i.test(document.body.innerText||document.body.textContent||'');
     }catch(e){return false;}})()`;
-    try { return await loginWv.executeJavaScript(js); } catch { return false; }
+    try { return await this._exec(loginWv, js); } catch { return false; }
   },
 
   // Is this page part of a sign-in that could still reach a code step? The code
@@ -427,7 +568,7 @@ const EmailCodeAutofill = {
       if(/login|sign-?in|signin|auth|verify|challenge|account/i.test(location.pathname))return true;
       return /log in|sign in|continue with|email address|one[-\\s]?time|passwordless/i.test(document.body.innerText||document.body.textContent||'');
     }catch(e){return false;}})()`;
-    try { return await loginWv.executeJavaScript(js); } catch { return false; }
+    try { return await this._exec(loginWv, js); } catch { return false; }
   },
 
   // Entry point: called on load AND on in-page (SPA) navigation. Polls, waiting
@@ -472,6 +613,10 @@ const EmailCodeAutofill = {
     this._active.add(webview); this._running = true; return true;
   },
   _exit(webview) { this._active.delete(webview); this._running = this._active.size > 0; },
+  // The longest one poll may run. Pages are probed every 3 s for up to 60 ticks
+  // (3 min); each probe is bounded by EXEC_TIMEOUT_MS, so without an overall
+  // bound a page that answers slowly could stretch that without limit.
+  WATCH_MAX_MS: 4 * 60 * 1000,
   // manual: the person asked for it (right-click or Ctrl+K), so it runs even
   // with the automatic fill turned off in Settings, and it fills the newest
   // code from this site's own sender at once: no baseline, no 15-30 s grace.
@@ -520,7 +665,10 @@ const EmailCodeAutofill = {
       if (this._watching.has(loginWv)) { if (manual) loginWv._vexEmailCodeFillNow = true; return; }   // one watch per page
       if (manual) loginWv._vexEmailCodeFillNow = true;
       this._watching.add(loginWv);
-      let slot = false, refusedBusy = false;
+      let slot = false, refusedBusy = false, everSlot = false, touchedMail = false, sawStuck = false, foreignFrom = null, blocked = false;
+      // Nothing in this poll may outlive WATCH_MAX_MS, whatever the pages do:
+      // every page call has its own timeout (_exec), this is the overall bound.
+      const deadline = Date.now() + this.WATCH_MAX_MS;
       try {
         let sawField = false, plausible = false;
         let baseline = null, baselineSet = false, baselineUnread = false, baselineStrong = false, unreadStable = 0;
@@ -531,6 +679,7 @@ const EmailCodeAutofill = {
         // typed their address. An ordinary page still leaves after ~15s below.
         for (let i = 0; i < 60; i++) {
           if (!current()) break;
+          if (Date.now() > deadline) { console.error('[email-code] gave up on ' + origin + ': the poll ran past ' + this.WATCH_MAX_MS + ' ms'); break; }
           const hasField = await this._hasEmptyCodeField(loginWv);
           if (hasField) { sawField = true; plausible = true; }
           else if (!plausible) { plausible = await this._looksLikeCodePage(loginWv); }
@@ -545,14 +694,27 @@ const EmailCodeAutofill = {
           // All taken: keep watching and try again next tick.
           if (hasField && !slot) {
             slot = this._enter(loginWv);
-            if (slot) this._lastInboxRefresh = 0;                  // refresh throttle, per attempt
+            if (slot) { everSlot = true; this._lastInboxRefresh = 0; }   // refresh throttle, per attempt
             else refusedBusy = true;
           }
           if (hasField && slot) {
-            const found = this._findMailWebview();
-            if (found && found.wv) {
+            const { found, read: got } = await this._nextRead(url);
+            // A slot is for READING mail. With nothing to read from (no mail open,
+            // or the mail tab is refused by the private/routed-tab rule) the page
+            // used to keep its slot for the rest of the three minutes, so three
+            // such pages made every later attempt "busy" (T0-011): 61 no-mail and
+            // 111 busy in the owner's log are the same fault seen twice. It gives
+            // the slot back and asks again on the next tick.
+            if (!found || !got) {
+              const seen = this._mailSeen || {};
+              if (seen.blocked) blocked = true;
+              this._exit(loginWv); slot = false;
+            } else {
+              touchedMail = true;
               sawMail = true;
-              const read = await this._readInbox(found.wv, found.provider, url);
+              const read = got;
+              if (read.stuck) sawStuck = true;
+              if (read.foreignFrom) foreignFrom = foreignFrom || read.foreignFrom;
               const { loaded, unread, strong } = read;
               // Only a code this site's own email carries is ever filled (or
               // auto-submitted); one from another sender is ignored here too, not
@@ -603,7 +765,7 @@ const EmailCodeAutofill = {
                 // fire-and-forget — the next read a few seconds later sees the
                 // result). This is the core of "keep refreshing until the code
                 // arrives."
-                if (!filled && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
+                if (!filled && found.wv && (Date.now() - (this._lastInboxRefresh || 0) > 9000)) {
                   this._lastInboxRefresh = Date.now();
                   this._refreshInbox(found.wv, found.provider);
                 }
@@ -616,25 +778,24 @@ const EmailCodeAutofill = {
         // and, when there really was an empty code field waiting, nudge the user
         // toward the fix instead of failing silently.
         if (!filled && (sawField || plausible)) {
-          const reason = (refusedBusy && !slot) ? 'busy'
-            : !sawMail ? 'no-mail'
+          const reason = (refusedBusy && !everSlot) ? 'busy'
+            : !sawMail ? (blocked ? 'mail-blocked' : 'no-mail')
+            : (!sawLoaded && sawStuck) ? 'mail-stuck'
             : !sawLoaded ? 'mail-not-loaded'
             : !baselineSet ? 'inbox-empty'
             : sawForeign ? 'sender-mismatch'
             : baseline === null ? 'no-code-arrived'
             : 'no-new-code';
           this._log(url, false, reason);
-          this._maybeMissToast(reason, sawField);
+          this._maybeMissToast(reason, sawField, { loginWv, url, foreignFrom });
         }
       } finally {
         this._watching.delete(loginWv);
         loginWv._vexEmailCodeFillNow = false;
-        if (slot) {
-          this._exit(loginWv);
-          // The mail tab is shared by every reading poll: put it back only when
-          // the last one is done, not under another page that is still reading.
-          if (this._active.size === 0) this._restoreAutoWoken();
-        }
+        if (slot) this._exit(loginWv);
+        // The mail tab is shared by every reading poll: put it back only when
+        // the last one is done, not under another page that is still reading.
+        if ((slot || touchedMail) && this._active.size === 0) this._restoreAutoWoken();
       }
     } catch (e) { console.error('[email-code] autofill poll failed:', e); }
   },
@@ -699,24 +860,61 @@ const EmailCodeAutofill = {
   },
 
   _log(url, ok, reason) { try { window.AutofillLog?.record('emailcode', url, ok, reason); } catch {} },
-  _toast() { try { window.showToast?.('Filled the code from your email'); } catch {} },
+  _toast() { try { globalThis.window?.showToast?.('Filled the code from your email'); } catch {} },
 
   // Turn a silent miss into an actionable hint — only when a real empty code
   // field was on the page, only for the fixable mail-availability reasons, and
   // throttled so it can't nag. Points at the background reader, which removes the
   // need to keep a mail tab open/awake at all.
-  _maybeMissToast(reason, sawField) {
+  //
+  // The toast also carries the way out that does not need the mail at all: "Use
+  // the code on the clipboard" (read only when the person presses it), and, for
+  // a code from a sender that is not the site's own, "Trust <sender> for <site>".
+  _MISS_TOASTS: {
+    'no-mail': "Couldn't read a code — open your email, or turn on background code reading (Ctrl+K → Logins & Codes).",
+    'mail-not-loaded': "Your email is still loading. If codes don't fill, keep it awake or enable background reading (Ctrl+K → Logins & Codes).",
+    'mail-blocked': 'Your email tab is open but Vex does not read private, Tor or routed tabs. Open your email in an ordinary tab, or copy the code.',
+    'mail-stuck': 'Your email tab is not answering (it may be asleep or frozen). Reload it, or copy the code.',
+    'busy': 'Several sign-ins are looking for a code at once. Copy the code from your email to use it here.',
+    'sender-mismatch': 'The code in your email came from another sender than this site, so it was not filled.',
+  },
+  _maybeMissToast(reason, sawField, ctx) {
     try {
       if (!sawField) return;
-      if (reason !== 'no-mail' && reason !== 'mail-not-loaded') return;
+      const msg = this._MISS_TOASTS[reason];
+      if (!msg) return;
       const now = Date.now();
       if (now - (this._lastMissToast || 0) < 120000) return;
       this._lastMissToast = now;
-      const msg = reason === 'no-mail'
-        ? "Couldn't read a code — open your email, or turn on background code reading (Ctrl+K → Logins & Codes)."
-        : "Your email is still loading. If codes don't fill, keep it awake or enable background reading (Ctrl+K → Logins & Codes).";
-      window.showToast?.(msg, 'info', 6500);
-    } catch {}
+      const actions = [];
+      if (ctx && ctx.loginWv && ctx.url) {
+        actions.push({ label: 'Use clipboard code', title: 'Fill the code you copied from your email', run: () => this.fillFromClipboard(ctx.loginWv, ctx.url) });
+        if (reason === 'sender-mismatch' && ctx.foreignFrom && !this._FREE_MAIL.includes(ctx.foreignFrom)) {
+          actions.push({ label: 'Trust ' + ctx.foreignFrom, title: 'Fill codes from ' + ctx.foreignFrom + ' on this site from now on',
+            run: () => { try { this.trustSender(ctx.url, ctx.foreignFrom); globalThis.window?.showToast?.('Codes from ' + ctx.foreignFrom + ' now fill on this site'); } catch (err) { globalThis.window?.showToast?.(err.message, 'error'); } } });
+        }
+      }
+      globalThis.window?.showToast?.(msg, 'info', 9000, actions.length ? { actions } : undefined);
+    } catch (err) { console.error('[email-code] could not show the hint:', err); }
+  },
+
+  // The person copied the code from their email themselves: fill what is on the
+  // clipboard if it is only a 4-8 digit code. The clipboard is read here, when
+  // they ask (a button or "Fill code from clipboard"), never in the background.
+  // Mail is not involved; nothing is submitted, even with auto-submit on.
+  async fillFromClipboard(loginWv, url) {
+    if (!loginWv || !/^https:/i.test(url || '')) return false;
+    if (globalThis.window?.VexTabPolicy && !globalThis.window.VexTabPolicy.canFillWebview(loginWv)) return false;
+    let text = '';
+    try { text = await navigator.clipboard.readText(); }
+    catch (err) { globalThis.window?.showToast?.('Could not read the clipboard: ' + ((err && err.message) || err), 'error'); throw err; }
+    const m = /^\s*(\d{4,8})\s*$/.exec(text || '');
+    if (!m) { globalThis.window?.showToast?.('The clipboard does not hold a code (only the digits, 4 to 8 of them)'); return false; }
+    const ok = await this._injectCode(loginWv, m[1], url);
+    this._log(url, ok, 'clipboard');
+    if (ok) this._toast();
+    else globalThis.window?.showToast?.('No empty code field on this page to fill');
+    return ok;
   },
 
   // Optional: after filling, submit the form so the user doesn't have to click.

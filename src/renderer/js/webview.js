@@ -1702,6 +1702,9 @@ const WebviewManager = {
       items.push({
         label: 'Fill code from email',
         action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }
+      }, {
+        label: 'Fill code from clipboard',
+        action: () => { EmailCodeAutofill.fillFromClipboard(webview, webview.getURL()).catch(err => console.error('[email-code] clipboard fill failed:', err)); }
       });
     }
 

@@ -92,7 +92,7 @@ describe('EmailCodeAutofill._readInbox body fallback', () => {
   it('reads the code from the email BODY when the inbox rows have none (hidden reader)', async () => {
     const A = Object.assign(Object.create(Object.getPrototypeOf(EmailCodeAutofill)), EmailCodeAutofill);
     const r = await A._readInbox(makeWv('vex-gmail-reader'));
-    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true, from: ['no-reply@spotify.com'], foreign: false });
+    expect(r).toEqual({ loaded: true, code: '246810', unread: true, strong: true, from: ['no-reply@spotify.com'], foreign: false, foreignFrom: null });
   });
 
   it('does NOT open message bodies in the user\'s own visible Gmail', async () => {
