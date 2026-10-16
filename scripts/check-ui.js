@@ -56,6 +56,7 @@ const fs = require('fs');
 const net = require('net');
 
 const electronPath = require('electron');
+const harness = require('./lib/probe-harness');
 const REPO = path.resolve(__dirname, '..');
 
 // ---------------------------------------------------------------------------
@@ -1515,14 +1516,18 @@ async function main() {
   // but resolving the binary through require('electron') the way the repo's
   // other Electron harnesses do (no npx resolution step on Windows). `-r` loads
   // the probe into the main process before src/main.js (Electron's own option).
-  const child = spawn(electronPath, [
-    '-r', path.join(__dirname, 'check-ui-probe.js'),
-    '.',
-    '--user-data-dir=' + userDataDir,
-    '--remote-debugging-port=' + port,
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-  ], {
+  // The harness (scripts/lib/probe-harness.js) forces VEX_NO_OS_SCHEDULE=1,
+  // refuses a profile outside the temp folder and stops only this PID's tree.
+  const probe = harness.launch({
+    exe: electronPath,
+    args: [
+      '-r', path.join(__dirname, 'check-ui-probe.js'),
+      '.',
+      '--user-data-dir=' + userDataDir,
+      '--remote-debugging-port=' + port,
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+    ],
     cwd: REPO,
     // --keep-open is only useful if the app OUTLIVES this script, so there it
     // gets its own process group. It must also be given NO pipes: a detached
@@ -1531,9 +1536,8 @@ async function main() {
     // the app log in that one mode is the right trade for a debugging flag.
     stdio: KEEP_OPEN ? ['ignore', 'ignore', 'ignore'] : ['ignore', 'pipe', 'pipe'],
     detached: KEEP_OPEN,
-    // A throwaway profile must not leave a Windows scheduled task behind.
-    env: { ...process.env, VEX_NO_OS_SCHEDULE: '1' },
   });
+  const child = probe.child;
 
   let appLog = '';
   const capture = (d) => { appLog += d.toString(); };
@@ -1557,13 +1561,10 @@ async function main() {
     // only the top process can strand the rest; they pile up across runs and
     // eventually starve the machine — a dozen strays once made a later run time
     // out waiting for the renderer, which looks exactly like a real failure.
-    try {
-      if (process.platform === 'win32' && child.pid) {
-        spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore', windowsHide: true });
-      } else {
-        child.kill('SIGKILL');
-      }
-    } catch { /* already dead */ }
+    // stopOwned verifies the PID is still the Vex this run started, then
+    // kills it and the processes below it, each by PID.
+    try { harness.stopOwned(probe); }
+    catch (err) { console.warn('check-ui: ' + err.message); }
     // Nothing sweeps Temp on Windows: five quick retries lost to Vex's exiting
     // child processes and the profile stayed for good.
     // rmSync's own retries do not cover EPERM on a file Windows still holds

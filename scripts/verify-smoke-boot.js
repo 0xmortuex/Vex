@@ -10,22 +10,23 @@
 //
 // Run:  node scripts/verify-smoke-boot.js   (or: npm run smoke)
 
-const { spawn } = require('child_process');
 const path = require('path');
-const os = require('os');
 const fs = require('fs');
 
-const electronPath = process.env.VEX_SMOKE_EXECUTABLE || require('electron');
+const harness = require('./lib/probe-harness');
 const projectRoot = path.resolve(__dirname, '..');
-const userDataDir = path.join(os.tmpdir(), 'vex-smoke-' + process.pid + '-' + Date.now());
 
 let settled = false;
-const child = spawn(electronPath, [...(process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.']), `--user-data-dir=${userDataDir}`], {
+// The harness starts only this app, with a temp profile and VEX_NO_OS_SCHEDULE=1,
+// and stops only this PID (and its verified descendants).
+const probe = harness.launch({
+  exe: process.env.VEX_SMOKE_EXECUTABLE || undefined,
+  args: process.env.VEX_SMOKE_EXECUTABLE ? [] : ['.'],
   cwd: projectRoot,
-  // VEX_NO_OS_SCHEDULE: a throwaway profile must not leave a Windows scheduled task behind.
-  env: { ...process.env, VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1', VEX_NO_OS_SCHEDULE: '1' },
-  stdio: ['ignore', 'pipe', 'pipe'],
+  env: { VEX_SMOKE: '1', VEX_SKIP_VMP_VERIFY: '1' },
 });
+const child = probe.child;
+const userDataDir = probe.userDataDir;
 
 let buf = '';
 const onData = (d) => {
@@ -45,7 +46,7 @@ const timer = setTimeout(() => finish(false, 'harness timeout (no SMOKE line in 
 // 85 of them had piled up.
 async function cleanup() {
   const dead = new Promise(r => { if (child.exitCode !== null || child.signalCode) return r(); child.once('exit', r); setTimeout(r, 4000); });
-  try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/F', '/T', '/PID', String(child.pid)], { stdio: 'ignore', windowsHide: true }); else child.kill('SIGKILL'); } catch {}
+  try { harness.stopOwned(probe); } catch (err) { console.warn('smoke: ' + err.message); }
   await dead;
   for (let i = 0; i < 12; i++) {
     try { fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); return; }

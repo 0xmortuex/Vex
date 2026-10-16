@@ -27,7 +27,7 @@
 // DevTools at start (src/main.js, enableDevToolsAtStartup), which inflates
 // every DOM measurement, so they are closed first.
 'use strict';
-const { spawn } = require('child_process');
+const harness = require('./lib/probe-harness');
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
@@ -112,13 +112,11 @@ const DIR = path.join(os.tmpdir(), `vex-perf-baseline-${process.pid}-${Date.now(
 // day to day: it is made once here, and the measured start is the second.
 async function warmUp(electron) {
   const port = await freePort();
-  const child = spawn(electron, ['.', `--user-data-dir=${path.join(DIR, 'profile')}`, `--remote-debugging-port=${port}`], {
-    cwd: ROOT, env: { ...process.env, VEX_NO_OS_SCHEDULE: '1', VEX_SKIP_VMP_VERIFY: '1' }, stdio: 'ignore',
-  });
+  const probe = harness.launch({ exe: electron, args: ['.', `--user-data-dir=${path.join(DIR, 'profile')}`, `--remote-debugging-port=${port}`], cwd: ROOT, env: { VEX_SKIP_VMP_VERIFY: '1' }, stdio: 'ignore' });
   const cache = path.join(DIR, 'profile', 'vex-adblock-engine-full.bin');
   try {
     for (let i = 0; i < 60; i++) { await sleep(1000); if (fs.existsSync(cache) && fs.statSync(cache).size > 0 && i > 8) { await sleep(1500); break; } }
-  } finally { try { child.kill(); } catch { /* gone */ } await sleep(2500); }
+  } finally { harness.stopOwned(probe); await sleep(2500); }
   return fs.existsSync(cache);
 }
 
@@ -137,11 +135,8 @@ async function main() {
   await new Promise(r => site.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${site.address().port}`;
 
-  const child = spawn(electron, ['-r', hookFile, '.', `--user-data-dir=${path.join(dir, 'profile')}`, `--remote-debugging-port=${port}`], {
-    cwd: ROOT,
-    env: { ...process.env, VEX_NO_OS_SCHEDULE: '1', VEX_SKIP_VMP_VERIFY: '1', VEX_PERF_OUT: outFile },
-    stdio: 'ignore',
-  });
+  const probe = harness.launch({ exe: electron, args: ['-r', hookFile, '.', `--user-data-dir=${path.join(dir, 'profile')}`, `--remote-debugging-port=${port}`], cwd: ROOT, env: { VEX_SKIP_VMP_VERIFY: '1', VEX_PERF_OUT: outFile }, stdio: 'ignore' });
+  const child = probe.child;
   let exited = false; child.on('exit', () => { exited = true; });
   const result = {};
   let page = null;
@@ -278,7 +273,7 @@ async function main() {
     result.tabsRequested = TABS;
   } finally {
     try { if (page) page.close(); } catch { /* closing */ }
-    try { child.kill(); } catch { /* already gone */ }
+    harness.stopOwned(probe);
     site.close();
     await sleep(1500);
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* leave it to the temp cleaner */ }

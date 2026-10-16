@@ -49,7 +49,9 @@ const VexProblems = (() => {
       const raw = JSON.parse(rawText || '[]');
       if (!Array.isArray(raw)) return [];
       return raw.filter(p => p && typeof p.message === 'string')
-        .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1, v: typeof p.v === 'string' ? p.v.slice(0, 40) : '' }))
+        .map(p => ({ seq: ++seq, at: Number(p.at) || 0, area: String(p.area || '').slice(0, 40), message: String(p.message).slice(0, 200), detail: String(p.detail || '').slice(0, MAX_DETAIL), n: Number(p.n) || 1, v: typeof p.v === 'string' ? p.v.slice(0, 40) : '',
+          // First seen: carried so a grouped line can say "since Vex X". Older saved entries have none.
+          fv: typeof p.fv === 'string' ? p.fv.slice(0, 40) : (typeof p.v === 'string' ? p.v.slice(0, 40) : ''), fa: Number(p.fa) || Number(p.at) || 0 }))
         .slice(-MAX);
     } catch { return []; }
   }
@@ -79,6 +81,8 @@ const VexProblems = (() => {
       detail: String(detail == null ? '' : (detail.message || detail)).slice(0, MAX_DETAIL),
       n: 1,
       v: version || null,
+      fv: version || null,
+      fa: Date.now(),
     };
     const same = list.find(p => p.area === entry.area && p.message === entry.message && p.detail === entry.detail);
     // Happening again now makes it a problem of this version.
@@ -112,7 +116,10 @@ const VexProblems = (() => {
     // next problem saved over the real one (found 2026-10-09, live).
     if (!loaded) return version;
     let stamped = false;
-    for (const p of list) if (p.v === null) { p.v = version; stamped = true; }
+    for (const p of list) {
+      if (p.v === null) { p.v = version; stamped = true; }
+      if (p.fv === null) { p.fv = version; stamped = true; }
+    }
     if (stamped) save();
     return version;
   }
@@ -176,6 +183,43 @@ const VexProblems = (() => {
   function lines(max) { return current().slice(0, max || 12).map(line); }
   function olderLines(max) { return older().slice(0, max || 12).map(p => line(p) + (p.v ? ` (Vex ${p.v})` : '')); }
 
+  // The log grouped by what went wrong (area + message, whatever the detail):
+  // one row per kind of problem with the total count, the first and last
+  // version and time it happened in, and the distinct details. Newest first.
+  function groups() {
+    const by = new Map();
+    for (const p of all()) {
+      const k = p.area + '\u0000' + p.message;
+      let g = by.get(k);
+      if (!g) { g = { area: p.area, message: p.message, count: 0, firstAt: p.fa || p.at, lastAt: p.at, firstVersion: p.fv || p.v || '', lastVersion: p.v || '', details: [] }; by.set(k, g); }
+      g.count += p.n;
+      const fa = p.fa || p.at;
+      if (fa < g.firstAt) { g.firstAt = fa; g.firstVersion = p.fv || p.v || ''; }
+      if (p.at > g.lastAt) { g.lastAt = p.at; g.lastVersion = p.v || ''; }
+      if (p.detail && !g.details.includes(p.detail)) g.details.push(p.detail);
+    }
+    return [...by.values()].sort((a, b) => b.lastAt - a.lastAt);
+  }
+
+  function groupLine(g) {
+    const span = g.firstVersion && g.lastVersion && g.firstVersion !== g.lastVersion ? `Vex ${g.firstVersion} to ${g.lastVersion}` : (g.lastVersion ? `Vex ${g.lastVersion}` : 'version unknown');
+    return `${g.area}: ${g.message} — ${g.count} time${g.count === 1 ? '' : 's'}, ${span}, last ${ago(g.lastAt)}`;
+  }
+
+  // A text stub to paste into a bug report. No page content, no user data:
+  // only what the log already holds.
+  function reproStub(g) {
+    const out = [
+      `### ${g.area}: ${g.message}`,
+      `- Seen ${g.count} time${g.count === 1 ? '' : 's'}`,
+      `- First: ${g.firstAt ? new Date(g.firstAt).toISOString() : 'unknown'}${g.firstVersion ? ' (Vex ' + g.firstVersion + ')' : ''}`,
+      `- Last: ${g.lastAt ? new Date(g.lastAt).toISOString() : 'unknown'}${g.lastVersion ? ' (Vex ' + g.lastVersion + ')' : ''}`,
+    ];
+    if (g.details.length) { out.push('- Details:'); for (const d of g.details.slice(0, 5)) out.push('  - ' + d); }
+    out.push('- Steps: (what was open and what was clicked just before this)');
+    return out.join('\n');
+  }
+
   // An uncaught error in the interface used to reach the DevTools console and
   // nowhere else, so a feature could be broken for days with no trace.
   function init() {
@@ -199,7 +243,7 @@ const VexProblems = (() => {
     return true;
   }
 
-  return { init, note, guard, all, current, older, since, count, olderCount, clear, restore, restored, lines, olderLines, setVersion, ago, KEY, MAX };
+  return { groups, groupLine, reproStub, init, note, guard, all, current, older, since, count, olderCount, clear, restore, restored, lines, olderLines, setVersion, ago, KEY, MAX };
 })();
 
 // Wired at load, before every other script: an error thrown while Vex is

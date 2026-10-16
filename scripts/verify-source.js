@@ -66,6 +66,10 @@ for (const file of ['src', 'workers', 'scripts', 'build'].flatMap(d => fs.exists
 // bundled (or could not be bundled) fails here, not in the built app.
 const windowBundle = require('./window-bundle.js').plan(root);
 for (const problem of windowBundle.problems) failures.push('window-bundle: ' + problem);
-const bundledScripts = windowBundle.chunks.reduce((n, c) => n + c.files.length, 0);
+// Ratchets (scripts/ratchets.js): no new raw setInterval, no new silent catch.
+const ratchets = require('./ratchets.js').check(root);
+for (const e of ratchets.errors) failures.push('ratchet: ' + e);
+for (const n of ratchets.notes) console.log('ratchet note: ' + n);
+const bundledScripts =windowBundle.chunks.reduce((n, c) => n + c.files.length, 0);
 console.log(JSON.stringify({ files, lines, jsCount, inlineCount, refCount, docsChecked, windowBundle: `${windowBundle.chunks.length} chunks, ${bundledScripts} scripts`, failures }, null, 2));
 process.exitCode = failures.length ? 1 : 0;
