@@ -40,12 +40,28 @@ function siteHost(site) {
   return viaUrl || s.replace(/^www\./, '');
 }
 
+// A kind of file by name: "images", "documents", "archives", "installers", "video", "audio" stand for
+// every extension of that kind (the same kinds, and the same folder names, as Tidy up in
+// download-tidy.js), so one rule is a per-type default folder.
+const TYPE_EXTS = new Map(Object.entries(require('./download-tidy').TYPES).map(([name, list]) => [name.toLowerCase(), list]));
+function expandKinds(tokens) {
+  const out = [];
+  for (const t of tokens) {
+    if (TYPE_EXTS.has(t)) out.push(...TYPE_EXTS.get(t)); else out.push(t);
+  }
+  return out;
+}
+// The default folder per kind of file, as rules to add AFTER the specific ones (the first match wins).
+function typeDefaults() {
+  return [...TYPE_EXTS.keys()].map(k => ({ id: 'dltype-' + k, ext: k, site: '', folder: k.charAt(0).toUpperCase() + k.slice(1), rename: '' }));
+}
+
 function matches(rule, { filename, url }) {
   const ext = path.extname(String(filename || '')).replace(/^\./, '').toLowerCase();
   const host = hostOf(url);
   // ".pdf" and a site typed as an address ("https://github.com/") are read
   // as "pdf" and "github.com"; they used to never match.
-  const wantExt = clean(rule.ext).toLowerCase().split(/[,\s]+/).map(e => e.replace(/^\.+/, '')).filter(Boolean);
+  const wantExt = expandKinds(clean(rule.ext).toLowerCase().split(/[,\s]+/).map(e => e.replace(/^\.+/, '')).filter(Boolean));
   const wantSite = siteHost(rule.site);
   if (wantExt.length && !wantExt.includes(ext)) return false;
   if (wantSite && !(host === wantSite || host.endsWith('.' + wantSite))) return false;
@@ -78,4 +94,4 @@ function place(rules, { filename, url, date }) {
   return { folder: '', filename: clean(filename), rule: null };
 }
 
-module.exports = { place, matches, rename, safeFolder, safeSegment, hostOf };
+module.exports = { place, matches, rename, safeFolder, safeSegment, hostOf, typeDefaults };

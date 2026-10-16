@@ -254,7 +254,7 @@
       permissions: { reads: ['panel unread counts, kept notifications, the Inbox and Autopilot'], writes: ['what you snoozed, dismissed and usually open'], sends: [] } },
     { id: 'panel-state', title: 'Panel state and unread ledger', group: 'Panels and messages', maturity: 'new',
       storageKeys: ['vex.panelState.on', 'vex.panelState.strip', 'vex.panelState.ledger', 'vex.panelState.looked'], commands: ['panel-ledger'],
-      permissions: { reads: ['the unread number in each panel title, and the song and artist a playing panel publishes'], writes: ['numbers and times of unread changes'], sends: [] } },
+      permissions: { reads: ['the unread number in each panel title, and the song and artist a playing panel publishes', 'how many items Autopilot says need you (a count and one title, for the strip)'], writes: ['numbers and times of unread changes'], sends: [] } },
     { id: 'away-mode', title: 'Away mode', group: 'Panels and messages', maturity: 'new',
       storageKeys: ['vex.away.on', 'vex.away.state', 'vex.away.autoLock'], events: ['vex:away-summary'], commands: ['away-toggle'],
       permissions: { reads: ['kept notifications, the unread ledger and the Inbox, to count what happened'], writes: ['when you went away'], sends: [] } },

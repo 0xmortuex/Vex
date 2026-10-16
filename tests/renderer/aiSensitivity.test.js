@@ -247,3 +247,36 @@ describe('migrating a saved routing table', () => {
     expect(AIRouter.migrateHistoryRouting()).toEqual({ changed: false });
   });
 });
+
+describe('a picture in any request', () => {
+  const PNG = 'data:image/png;base64,' + 'A'.repeat(300);
+
+  it('is asked about every time, whatever the feature (an agent screenshot, an image question)', () => {
+    expect(VexSensitivity.decide('agent', { message: 'go on', image: PNG }).verdict).toBe('ask');
+    expect(VexSensitivity.decide('chat', { message: 'what is this?', image: PNG }).classes.map(c => c.id)).toEqual(['image']);
+    expect(VexSensitivity.decide('chat', { message: 'hi', images: [PNG] }).verdict).toBe('ask');
+    expect(VexSensitivity.decide('chat', { messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: PNG } }] }] }).verdict).toBe('ask');
+    expect(VexSensitivity.decide('chat', { note: 'see ' + PNG }).verdict).toBe('ask');          // a data URL inside the text
+  });
+
+  it('a request with no picture is unchanged, and a background feature may not send one', () => {
+    expect(VexSensitivity.decide('chat', { message: 'hi', image: '' }).verdict).toBe('send');
+    expect(VexSensitivity.decide('historyIndex', { image: PNG }).verdict).toBe('refuse');
+  });
+
+  it('the "what would leave" preview shows the picture as a thumbnail', async () => {
+    const confirm = vi.fn(async () => true);
+    globalThis.window = { vexConfirm: confirm };
+    await VexSensitivity.gate('agent', { message: 'next', image: PNG }, { canLocal: false });
+    const html = confirm.mock.calls[0][0].html;
+    expect(html).toContain('<img');
+    expect(html).toContain('src="' + PNG + '"');
+    expect(html).toContain('What would leave');
+  });
+
+  it('a javascript: or markup string never becomes an image source', () => {
+    expect(VexSensitivity.imageSources({ image: 'javascript:alert(1)' })).toEqual(['']);
+    const html = VexSensitivity.previewHtml({ image: '"><script>x</script>' }, { verdict: 'ask' });
+    expect(html).not.toContain('<script>');
+  });
+});

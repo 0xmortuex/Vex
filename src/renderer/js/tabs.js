@@ -3408,8 +3408,10 @@ const TabManager = {
   // + path + query, trailing slash dropped) so "site.com" and "site.com/" dedupe.
   closeDuplicateTabs() {
     const toClose = this.duplicateTabIds();
-    if (toClose.length) this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
-    else window.showToast?.('No duplicate tabs', 'info');
+    if (toClose.length) {
+      this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
+      if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'organize' } }));
+    } else window.showToast?.('No duplicate tabs', 'info');
     return toClose.length;
   },
 

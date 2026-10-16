@@ -36,7 +36,7 @@ const VexSensitivity = {
   // this one call, 'redact' sends only the redacted copy.
   POLICY: { history: 'ask', mail: 'ask', 'bank-health': 'ask', vault: 'refuse', 'private-tab': 'refuse', secrets: 'redact', image: 'ask' },
   LABELS: {
-    image: 'a screenshot of a page',
+    image: 'an image (a screenshot or a picture)',
     history: 'browsing history', mail: 'mail', 'bank-health': 'a bank, payment or health page',
     vault: 'a password manager or vault page', 'private-tab': 'a private window or tab', secrets: 'a secret (card, IBAN, ID number, key or code)',
   },
@@ -72,6 +72,38 @@ const VexSensitivity = {
     };
     walk(request, '', 0);
     return out;
+  },
+
+  // The pictures a request carries, as data URLs (at most 3, for the preview and
+  // the class). The `image` field and `images` list, image blocks inside messages
+  // (type image / image_url), and any data:image URL found in a string anywhere.
+  imageSources(request) {
+    const out = [];
+    const DATA = /^data:image\/[a-z0-9.+-]+;base64,/i;
+    const BARE = /^[A-Za-z0-9+/]{200,}={0,2}$/;
+    const add = (s) => {
+      if (typeof s !== 'string' || !s) return;
+      if (DATA.test(s)) out.push(s);
+      else if (BARE.test(s)) out.push('data:image/jpeg;base64,' + s);
+      else if (out.length < 3) out.push('');           // a picture that cannot be drawn is still a picture
+    };
+    const walk = (v, depth) => {
+      if (depth > 5 || v == null || typeof v !== 'object') return;
+      if (Array.isArray(v)) { v.slice(0, 400).forEach(x => walk(x, depth + 1)); return; }
+      for (const [k, x] of Object.entries(v)) {
+        if (k === 'signal') continue;
+        if (k === 'image' || k === 'images') { (Array.isArray(x) ? x : [x]).forEach(add); continue; }
+        if (k === 'image_url') { add(x && typeof x === 'object' ? x.url : x); continue; }
+        if (typeof x === 'string') {
+          const hit = /data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{20,}/i.exec(x);   // a picture pasted inside text
+          if (hit) out.push(hit[0]);
+          continue;
+        }
+        walk(x, depth + 1);
+      }
+    };
+    walk(request, 0);
+    return out.slice(0, 3);
   },
 
   _hostOf(url) { try { return new URL(String(url)).hostname.toLowerCase(); } catch { return ''; } },
@@ -185,7 +217,9 @@ const VexSensitivity = {
     // A picture can show anything on the page and cannot be scanned or redacted, so a request
     // that exists to send one (screenshot to code) asks every time. The agent's own screenshots
     // inside a run are not this: they ride on an agent request the person already started.
-    if (feature === 'screenshotToCode' || req.dataClass === 'image') add('image', 'an image attached');
+    // Any picture in any request is the same: the text scanner cannot read it, so a request that
+    // carries one (an agent screenshot, an image question, a data URL in the text) asks every time.
+    if (feature === 'screenshotToCode' || req.dataClass === 'image' || this.imageSources(req).length) add('image', 'an image attached');
     if (req.dataClass === 'mail') add('mail', 'mail text');
     if (req.dataClass === 'vault') add('vault', 'vault data');
     if (req.dataClass === 'private') add('private-tab', 'a private tab');
@@ -244,7 +278,10 @@ const VexSensitivity = {
       const after = red && red.rows[i] && red.rows[i].head !== r.head ? '<div style="margin-top:2px"><b>Redacted copy:</b> ' + this._esc(red.rows[i].head) + '</div>' : '';
       return '<li style="margin:6px 0"><code>' + this._esc(r.path) + '</code> (' + r.size + ' characters)<div style="opacity:.85">' + this._esc(r.head) + (r.size > this.MAX_PREVIEW ? '…' : '') + '</div>' + after + '</li>';
     }).join('');
-    return '<div class="vex-sensitivity-preview"><b>What would leave:</b> ' + p.characters + ' characters to your cloud AI Worker.<ul style="margin:6px 0 0 18px;max-height:240px;overflow:auto">' + (rows || '<li>nothing readable</li>') + '</ul></div>';
+    const thumbs = this.imageSources(request).map(src => src
+      ? '<img alt="An image that would be sent" src="' + this._esc(src) + '" style="max-width:160px;max-height:120px;border-radius:6px;margin:6px 6px 0 0;border:1px solid var(--border,#888)">'
+      : '<div style="margin-top:6px">An image that cannot be shown here would be sent.</div>').join('');
+    return '<div class="vex-sensitivity-preview"><b>What would leave:</b> ' + p.characters + ' characters to your cloud AI Worker.' + (thumbs ? '<div>' + thumbs + '</div>' : '') + '<ul style="margin:6px 0 0 18px;max-height:240px;overflow:auto">' + (rows || '<li>nothing readable</li>') + '</ul></div>';
   },
 
   _ledger(what, why) {

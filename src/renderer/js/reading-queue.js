@@ -102,6 +102,7 @@ const ReadingQueue = {
     item.read = true;
     item.finishedAt = now;
     ReadLater.save();
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'reading-finished' } }));
     return item;
   },
 

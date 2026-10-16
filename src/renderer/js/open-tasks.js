@@ -43,16 +43,47 @@ const OpenTasks = {
   },
 
   // "@2026-10-03", "@today", "@tomorrow" → a local date at midnight, or null.
+  // Turkish days too, through VexTr (js/vex-tr.js): "@bugün", "@yarın", "@cuma", "@14.03.2026",
+  // "@14.03". A token VexTr does not read as a whole day (a tag like "@doing") is no date.
   dueOf(text, now = new Date()) {
-    const m = /(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i.exec(String(text || ''));
-    if (!m) return null;
+    const hit = this._dueMatch(text, now);
+    return hit ? hit.date : null;
+  },
+
+  // -> { raw: '@yarın', date } for the first date token of a text, or null.
+  _dueMatch(text, now = new Date()) {
     const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const v = m[1].toLowerCase();
-    if (v === 'today') return day(now);
-    if (v === 'tomorrow') { const t = day(now); t.setDate(t.getDate() + 1); return t; }
-    const [y, mo, d] = v.split('-').map(Number);
-    const date = new Date(y, mo - 1, d);
-    return (date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d) ? date : null;
+    const re = /(?:^|\s)@([^\s@]+)/g;
+    let m;
+    while ((m = re.exec(String(text || ''))) !== null) {
+      const raw = '@' + m[1];
+      const v = m[1].toLowerCase();
+      if (v === 'today') return { raw, date: day(now) };
+      if (v === 'tomorrow') { const t = day(now); t.setDate(t.getDate() + 1); return { raw, date: t }; }
+      const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+      if (iso) {
+        const y = Number(iso[1]), mo = Number(iso[2]), d = Number(iso[3]);
+        const date = new Date(y, mo - 1, d);
+        if (date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d) return { raw, date };
+        continue;
+      }
+      const tr = globalThis.VexTr;
+      if (!tr || typeof tr.parseDay !== 'function') continue;
+      let parsed = null;
+      try { parsed = tr.parseDay(m[1], now); }
+      catch { continue; /* vex-allow-empty-catch: an impossible date such as 31.02 is no date, the same as an impossible ISO date */ }
+      if (parsed && !String(parsed.rest || '').trim()) return { raw, date: parsed.date };
+    }
+    return null;
+  },
+
+  // The text without its date token (for display and for reminders).
+  stripDue(text) {
+    const s = String(text || '');
+    const hit = this._dueMatch(s);
+    if (!hit) return s.trim();
+    const i = s.indexOf(hit.raw);
+    return (s.slice(0, i) + s.slice(i + hit.raw.length)).replace(/\s{2,}/g, ' ').trim();
   },
 
   // Every task in every note: open ones by default.
@@ -94,7 +125,16 @@ const OpenTasks = {
     note.content = after;
     note.updatedAt = new Date().toISOString();
     this._write(notes, noteId);
+    if (this._doneCount(after) > this._doneCount(before)) this._funAction('task-done');
     return note;
+  },
+
+  // How many ticked tasks a text holds: a tick that raises it is a finished task.
+  _doneCount(content) { return (String(content || '').match(/^\s*[-*]\s+\[[xX]\]/gm) || []).length; },
+
+  // Levels (fun/levels.js) count a finished task; the per-day cap lives there.
+  _funAction(kind) {
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind } }));
   },
 
   _toggle(content, index) {
@@ -148,6 +188,7 @@ const OpenTasks = {
     note.content = after;
     note.updatedAt = new Date().toISOString();
     this._write(notes, noteId);
+    if (status === 'done') this._funAction('task-done');
     return note;
   },
 
@@ -167,7 +208,7 @@ const OpenTasks = {
   // tasks have one is remembered, so the bell shows it is set.
   REMIND_KEY: 'vex.todo.reminders',
   REMIND_HOUR: 9,
-  _plain(t) { return t.text.replace(/(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || t.text; },
+  _plain(t) { return this.stripDue(t.text) || t.text; },
   _remindKey(t) { return t.noteId + '|' + this._plain(t); },
   _reminded() {
     try { const o = JSON.parse(localStorage.getItem(this.REMIND_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; }
@@ -280,7 +321,7 @@ const OpenTasks = {
         }
         const row = document.createElement('label');
         row.style.cssText = 'display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer';
-        const shown = t.text.replace(/(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || t.text;
+        const shown = this.stripDue(t.text) || t.text;
         row.innerHTML = `
           <input type="checkbox" style="flex:0 0 auto;width:15px;height:15px;cursor:pointer" aria-label="Done">
           <div style="flex:1;min-width:0">
@@ -353,7 +394,7 @@ const OpenTasks = {
         const list = col.querySelector('[data-cards]');
         if (!cols[id].length) list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:6px">Nothing ${id === 'done' ? 'done yet' : 'here'}.</div>`;
         for (const t of cols[id]) {
-          const shown = t.text.replace(/\s*@doing\b/ig, '').replace(/(?:^|\s)@(\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || t.text;
+          const shown = this.stripDue(t.text.replace(/\s*@doing\b/ig, '')) || t.text;
           const card = document.createElement('div');
           card.draggable = true;
           card.setAttribute('role', 'group');

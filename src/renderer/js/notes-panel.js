@@ -649,6 +649,7 @@ const NotesPanel = {
     if (search) search.value = '';
     if (this.section !== 'notes') { this.section = 'notes'; this._savePrefs(); this._syncSectionTabs(); }
     this.save();
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'note' } }));
     this.selectNote(note.id);
     const ti = this._el('notes-title-input');
     ti?.focus();

@@ -112,6 +112,55 @@ const CommandChains = {
     }
     return { ok: !problems.length, problems };
   },
+  // --- running a chain from the Scheduler (action type "chain") ------------------------------
+  // Same rule as a recorded page script (js/page-recorder.js): steps that only open, time, mute or wait
+  // (the argument steps of js/chain-steps.js) may run with nobody watching; a plain command-bar step
+  // could write anything, so it runs on a schedule only after the person approved the exact list of
+  // steps. The approval is a fingerprint of the steps: editing the chain cancels it.
+  fingerprint(steps) {
+    const s = (Array.isArray(steps) ? steps : []).join('\n');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return 'fp' + h.toString(16).padStart(8, '0') + '-' + s.length;
+  },
+  // The steps that need an approval before they run unattended.
+  writeSteps(chain) {
+    return (chain.steps || []).filter(cid => !(window.VexChainSteps && window.VexChainSteps.split(cid)));
+  },
+  // '' when the chain may run unattended, else why not.
+  unattendedRefusal(chain) {
+    if (!chain || !Array.isArray(chain.steps) || !chain.steps.length) return 'The chain has no steps';
+    if (!this.writeSteps(chain).length) return '';
+    if (chain.scheduleApproval !== this.fingerprint(chain.steps)) return 'It runs command-bar actions, and you have not approved that for unattended runs (or the chain was edited since)';
+    return '';
+  },
+  _label(cid) { const c = (typeof CommandBar !== 'undefined' ? CommandBar.commands : []).find(x => x.id === cid); return c ? (c.label || cid) : cid + ' (no longer exists)'; },
+  async approveUnattended(chainId) {
+    const chain = this.chains.find(c => c.id === chainId);
+    if (!chain) throw new Error('That chain no longer exists');
+    const writes = this.writeSteps(chain);
+    if (!writes.length) return true;
+    const list = writes.slice(0, 10).map(cid => '- ' + this._label(cid)).join('\n') + (writes.length > 10 ? '\n...and ' + (writes.length - 10) + ' more' : '');
+    const ok = await window.vexConfirm({
+      title: 'Let "' + chain.name + '" run without you?',
+      message: 'When it runs on a schedule it will do these, with no one watching:\n' + list + '\n\nIf you edit the chain this approval is cancelled.',
+      okLabel: 'Approve these steps',
+    });
+    if (!ok) return false;
+    chain.scheduleApproval = this.fingerprint(chain.steps);
+    if (!this.save()) throw new Error('The approval could not be saved');
+    return true;
+  },
+  async runScheduled(chainId) {
+    const chain = this.chains.find(c => c.id === chainId);
+    if (!chain) throw new Error('That chain no longer exists');
+    const why = this.unattendedRefusal(chain);
+    if (why) throw new Error('"' + chain.name + '" was not run: ' + why);
+    window.VexLedger?.note({ feature: 'command-chains', what: 'Ran the chain "' + chain.name + '" on a schedule', why: 'You scheduled it' + (this.writeSteps(chain).length ? ' and approved its steps' : '') });
+    const r = await this.run(chain);
+    if (!r.ok) throw new Error('"' + chain.name + '" finished with problems: ' + r.problems.join(', '));
+    return '"' + chain.name + '": ' + chain.steps.length + ' step' + (chain.steps.length === 1 ? '' : 's') + ' done';
+  },
   _register() {
     if (typeof CommandBar === 'undefined' || !Array.isArray(CommandBar.commands)) return;
     CommandBar.commands = CommandBar.commands.filter(c => !String(c.id || '').startsWith('chain:'));

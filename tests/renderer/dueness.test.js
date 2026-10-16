@@ -11,6 +11,7 @@ let D;
 beforeEach(() => {
   localStorage.clear();
   vi.resetModules();
+  fresh(JS + 'open-tasks.js');
   ({ VexDueness: D } = fresh(JS + 'dueness.js'));
 });
 

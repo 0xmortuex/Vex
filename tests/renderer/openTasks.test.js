@@ -63,6 +63,35 @@ describe('reading tasks out of notes', () => {
     expect(OpenTasks.dueOf('email me@today.com', NOW)).toBe(null);   // not a date
     expect(OpenTasks.dueOf('nothing', NOW)).toBe(null);
   });
+
+  it('reads Turkish days through VexTr, and leaves a tag like @doing alone', () => {
+    globalThis.VexTr = require('../../src/renderer/js/vex-tr.js').VexTr;
+    try {
+      const d = OpenTasks.dueOf('kira ode @yarın', NOW);
+      expect([d.getMonth(), d.getDate()]).toEqual([8, 20]);
+      const e = OpenTasks.dueOf('rapor @30.09.2026', NOW);
+      expect([e.getMonth(), e.getDate()]).toEqual([8, 30]);
+      expect(OpenTasks.dueOf('sort it @doing', NOW)).toBe(null);
+      expect(OpenTasks.dueOf('x @31.02.2026', NOW)).toBe(null);              // not a real date
+      expect(OpenTasks.stripDue('kira ode @yarın')).toBe('kira ode');
+      expect(OpenTasks.stripDue('a @doing @2026-10-03 b')).toBe('a @doing b');
+    } finally { delete globalThis.VexTr; }
+  });
+});
+
+describe('fun actions', () => {
+  it('a tick that finishes a task, and a move to Done, are announced for the levels', () => {
+    const seen = [];
+    const on = (e) => seen.push(e.detail.kind);
+    document.addEventListener('vex:fun-action', on);
+    try {
+      notesPanel([note('a', 'Boiler', '- [ ] one\n- [x] two\n- [ ] three')]);
+      OpenTasks.toggle('a', 0);                    // open -> done
+      OpenTasks.toggle('a', 1);                    // done -> open: no points
+      OpenTasks.setStatus('a', 2, 'done');
+      expect(seen).toEqual(['task-done', 'task-done']);
+    } finally { document.removeEventListener('vex:fun-action', on); }
+  });
 });
 
 describe('ticking one', () => {

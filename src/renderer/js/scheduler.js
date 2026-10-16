@@ -708,6 +708,26 @@ const Scheduler = {
       },
     },
 
+    chain: {
+      label: 'Run a command chain',
+      hint: 'Runs a command chain you made (Ctrl+K › Chains). Chains that only open, time, mute or wait run freely; one with command-bar steps needs your approval of those steps first.',
+      validate: a => {
+        if (!String(a.chainId || '').trim()) return ['Pick a chain'];
+        if (typeof CommandChains === 'undefined') return ['Command chains are not available'];
+        const chain = CommandChains.chains.find(c => c.id === a.chainId);
+        if (!chain) return ['That chain no longer exists'];
+        return [];
+      },
+      summary: a => {
+        const chain = typeof CommandChains !== 'undefined' ? CommandChains.chains.find(c => c.id === a.chainId) : null;
+        return 'Run chain: ' + (chain ? chain.name : 'unknown');
+      },
+      async run(task) {
+        if (typeof CommandChains === 'undefined') throw new Error('Command chains are not available');
+        return CommandChains.runScheduled(task.action.chainId);
+      },
+    },
+
     reminder: {
       label: 'Show a reminder',
       hint: 'A notification at the scheduled time. Nothing else happens.',

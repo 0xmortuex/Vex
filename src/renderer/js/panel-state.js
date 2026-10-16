@@ -133,6 +133,34 @@ const PanelState = {
     return true;
   },
 
+  // ---- what Autopilot says needs you ---------------------------------------------------------------
+  // Autopilot's own stream (mail, GitHub, reminders, watched pages) counted for the strip: only
+  // numbers and the top title are kept here, never read out of the mail. Refreshed at most every
+  // AUTOPILOT_MS, and only while the strip is on, so the stream is not built for nothing.
+  AUTOPILOT_MS: 120000,
+  _ap: null,          // { now, today, at, top } of the last read
+  _apBusy: false,
+  async refreshAutopilot(now = this._now()) {
+    const ap = globalThis.VexAutopilot;
+    if (!ap || typeof ap.stream !== 'function') { this._ap = null; return null; }
+    if (this._apBusy || (this._ap && now - this._ap.at < this.AUTOPILOT_MS)) return this._ap;
+    this._apBusy = true;
+    try {
+      const g = await ap.stream({ now });
+      const now_ = (g.now || []).length, today = (g.today || []).length;
+      const first = (g.now || [])[0] || (g.today || [])[0];
+      this._ap = { now: now_, today, at: now, top: first ? String(first.title || '') : '', problems: (g.problems || []).length };
+    } finally { this._apBusy = false; }
+    return this._ap;
+  },
+  autopilotState() { return this._ap && (this._ap.now || this._ap.today) ? this._ap : null; },
+  describeAutopilot(a) {
+    const bits = [];
+    if (a.now) bits.push(a.now + ' need you now');
+    if (a.today) bits.push(a.today + ' today');
+    return bits.join(', ') + (a.top ? ' (' + a.top.slice(0, 60) + ')' : '');
+  },
+
   // ---- one sweep (every PanelBadges sweep, 5 s) ---------------------------------------------------
   async tick(counts, now = this._now()) {
     if (!this.enabled()) return;
@@ -148,6 +176,11 @@ const PanelState = {
     if (mgr && mgr.panelWebviews) {
       for (const p of Object.keys(mgr.panelWebviews)) await this._pollPlaying(p, mgr.panelWebviews[p], now);
       for (const p of Object.keys(this._playing)) if (!mgr.panelWebviews[p]) delete this._playing[p];
+    }
+    // Autopilot's count is refreshed only for the strip, and a failure is said, not swallowed.
+    if (this.stripOn()) {
+      try { await this.refreshAutopilot(now); }
+      catch (err) { window.VexProblems?.note('Panels', 'Could not read what Autopilot says needs you', err); }
     }
     this.render();
   },
@@ -193,11 +226,24 @@ const PanelState = {
   _renderStrip() {
     let strip = document.getElementById('panel-state-strip');
     const items = this.stripOn() ? this.panels() : [];
+    const ap = this.stripOn() ? this.autopilotState() : null;
     const quiet = typeof AttentionState !== 'undefined' && AttentionState.get().sources.some(x => x.id === 'game' || x.id === 'meeting');
-    if (!items.length || quiet) { if (strip) strip.remove(); return; }
+    if ((!items.length && !ap) || quiet) { if (strip) strip.remove(); return; }
     this._style();
     if (!strip) { strip = document.createElement('div'); strip.id = 'panel-state-strip'; strip.setAttribute('role', 'group'); strip.setAttribute('aria-label', 'Panel state'); document.body.appendChild(strip); }
     strip.textContent = '';
+    if (ap) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Autopilot: ' + this.describeAutopilot(ap);
+      b.title = 'Open Autopilot';
+      b.addEventListener('click', () => {
+        const a = globalThis.VexAutopilot;
+        if (!a || typeof a.showPanel !== 'function') { window.VexProblems?.note('Panels', 'Autopilot is not available to open', new Error('VexAutopilot.showPanel is missing')); return; }
+        a.showPanel().catch((err) => window.VexProblems?.note('Panels', 'Could not open Autopilot', err));
+      });
+      strip.appendChild(b);
+    }
     for (const s of items) {
       const b = document.createElement('button');
       b.type = 'button';

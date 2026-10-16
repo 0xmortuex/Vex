@@ -650,7 +650,10 @@ const TabGrouper = (() => {
     _afterGroupChanges();
     if (rememberPatterns) _save('vex.groupPatterns', groupPatterns);
 
-    if (created > 0) showUndoToast(created);
+    if (created > 0) {
+      if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'organize' } }));
+      showUndoToast(created);
+    }
   }
 
   // The shared Undo toast (js/vex-undo.js); Ctrl+K › Undo Last Grouping does

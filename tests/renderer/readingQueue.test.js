@@ -105,3 +105,14 @@ describe('words', () => {
     expect(Q.fmt(95)).toBe('1 h 35 min');
   });
 });
+
+describe('the levels hear of a finished link', () => {
+  it('finishing announces reading-finished once per finish', () => {
+    globalThis.ReadLater = { items: [item('a1', 6)], save: vi.fn() };
+    const seen = [];
+    const on = (e) => seen.push(e.detail.kind);
+    document.addEventListener('vex:fun-action', on);
+    try { Q.finish('a1'); } finally { document.removeEventListener('vex:fun-action', on); }
+    expect(seen).toEqual(['reading-finished']);
+  });
+});
