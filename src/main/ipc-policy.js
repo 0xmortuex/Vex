@@ -61,7 +61,7 @@ const UI_ONLY_CHANNELS = new Set([
   'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   // The GitHub read-only token vault and the developer feeds: Vex's own window only.
   'github:status', 'github:token-set', 'github:token-clear', 'github:token-test', 'github:get',
-  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping',
+  'devfeeds:latest', 'devfeeds:advisories', 'devfeeds:ping', 'fx:tcmb',
   // Developer desk, plugin dev loop and the Electron ticker: Vex's own window only.
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
   'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',

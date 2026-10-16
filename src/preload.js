@@ -423,6 +423,8 @@ contextBridge.exposeInMainWorld('vex', {
   devextStatus: () => ipcRenderer.invoke('devext:status'),
   devextVencord: () => ipcRenderer.invoke('devext:vencord'),
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
+  // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
+  fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

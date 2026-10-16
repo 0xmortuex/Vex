@@ -223,6 +223,13 @@ const FocusOS = {
         out.sources.windDown = true;
       } else out.sources.windDown = false;
     } catch (err) { out.sources.windDown = false; out.warnings.push('Wind-down: ' + ((err && err.message) || 'unavailable')); }
+    // Public holidays and days of your own (js/holidays.js): no block is planned on them.
+    try {
+      if (typeof VexHolidays !== 'undefined' && VexHolidays.enabled() && VexHolidays.skipsFocus()) {
+        out.busy.push(...VexHolidays.busyIntervals(from, to));
+        out.sources.holidays = true;
+      } else out.sources.holidays = false;
+    } catch (err) { out.sources.holidays = false; out.warnings.push('Holidays: ' + ((err && err.message) || 'unavailable')); }
     return out;
   },
 

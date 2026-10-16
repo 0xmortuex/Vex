@@ -7088,6 +7088,9 @@ ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
   try { return { ok: true, record: await _doiResolver.resolve(doi) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// The bank's daily rates for TL equivalent (main/fx-rates.js): one fixed address, only when the person presses Fetch.
+const _fxRates = require('./main/fx-rates').createFxRates({ fetch: boundedNetFetch });
+ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

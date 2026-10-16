@@ -1388,6 +1388,17 @@ function vexOwnTextFocused(doc) {
   if (typeof VexSources !== 'undefined') bootStep('sources', () => VexSources.init());
   if (typeof VexArchiveOnCite !== 'undefined') bootStep('archive-on-cite', () => VexArchiveOnCite.init());
   if (typeof VexPhoneShare !== 'undefined') bootStep('phone-share', () => VexPhoneShare.init());
+  // Wave 3, daily life: each starts through bootStep so a crash in one leaves out that one alone.
+  if (typeof VexHolidays !== 'undefined') bootStep('holiday-planner', () => VexHolidays.init());
+  if (typeof VexRituals !== 'undefined') bootStep('rituals', () => VexRituals.init());
+  if (typeof VexFollowUps !== 'undefined') bootStep('follow-ups', () => VexFollowUps.init());
+  if (typeof VexTwoMinute !== 'undefined') bootStep('two-minute', () => VexTwoMinute.init());
+  if (typeof VexWeekdaySet !== 'undefined') bootStep('weekday-set', () => VexWeekdaySet.init());
+  if (typeof VexDeadlineLedger !== 'undefined') bootStep('deadline-ledger', () => VexDeadlineLedger.init());
+  if (typeof VexTravel !== 'undefined') bootStep('travel-mode', () => VexTravel.init());
+  if (typeof VexContainerMemory !== 'undefined') bootStep('container-memory', () => VexContainerMemory.init());
+  if (typeof VexExpenseCapture !== 'undefined') bootStep('expense-capture', () => VexExpenseCapture.init());
+  if (typeof VexPageReminders !== 'undefined') bootStep('page-reminders', () => VexPageReminders.init());
   // Tab tools (js/tab-mru.js, nav-history-menu.js, strip-actions.js), the night coach and the
   // announcement desk: each starts on its own, so one that fails leaves the others alone.
   if (typeof VexTabMru !== 'undefined') bootStep('tab-mru', () => VexTabMru.init());

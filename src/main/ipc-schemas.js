@@ -571,6 +571,7 @@ define('pdftool:run', [shape({
   mode: optional(oneOf(['each', 'every', 'ranges'])),
   n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
 })]);
+define('fx:tcmb', []);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):
