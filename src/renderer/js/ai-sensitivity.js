@@ -163,9 +163,9 @@ const VexSensitivity = {
       if (typeof v === 'string') return this.redact(v).text;
       if (v == null || typeof v !== 'object' || depth > 6) return v;
       if (Array.isArray(v)) return v.map(x => walk(x, depth + 1));
-      if (typeof AbortSignal !== 'undefined' && v instanceof AbortSignal) return v;
       const out = {};
-      for (const [k, x] of Object.entries(v)) out[k] = typeof x === 'function' ? x : walk(x, depth + 1);
+      // The Stop signal and the callbacks are not text: they are kept as they are.
+      for (const [k, x] of Object.entries(v)) out[k] = (k === 'signal' || typeof x === 'function') ? x : walk(x, depth + 1);
       return out;
     };
     return walk(request, 0);
