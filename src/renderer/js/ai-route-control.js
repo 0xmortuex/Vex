@@ -139,7 +139,8 @@ const AIRouteControl = {
   init() {
     if (this._wired) return false;
     this._wired = true;
-    this.wrap();
+    // The router is loaded before the window finishes starting; a window without it has no AI to route.
+    if (typeof AIRouter !== 'undefined') this.wrap();
     return true;
   },
 };

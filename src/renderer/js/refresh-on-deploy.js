@@ -76,7 +76,11 @@ const RefreshOnDeploy = {
     if (typeof TabManager === 'undefined' || !Array.isArray(TabManager.tabs)) return [];
     const { kept, guessed } = this.hostsFor(owner, repo);
     const all = [...kept, ...guessed];
+    const owner_io = String(owner).toLowerCase() + '.github.io';
+    const pathOf = (u) => { try { return new URL(u).pathname.toLowerCase(); } catch { return ''; } };
     return TabManager.tabs.filter(t => t && !t.sleeping && /^https?:/i.test(t.url || '') && this.matches(this.hostOf(t.url), all))
+      // <owner>.github.io serves every repo of the owner: only the repo's own folder (or a repo named <owner>.github.io) is its site.
+      .filter(t => this.hostOf(t.url) !== owner_io || kept.includes(owner_io) || String(repo).toLowerCase() === owner_io || pathOf(t.url).startsWith('/' + String(repo).toLowerCase()))
       .map(t => ({ id: t.id, title: t.title || t.url, url: t.url }));
   },
 

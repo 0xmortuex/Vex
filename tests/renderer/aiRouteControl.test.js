@@ -99,8 +99,6 @@ describe('which one answered, and why', () => {
   });
   it('passes the answer through unchanged and an error through untouched', async () => {
     AIRouteControl.wrap();
-    router.r.callAI.mockRejectedValueOnce(new Error('boom'));
-    // the wrapper holds the ORIGINAL it saw, so a fresh router is needed to test the error path
     const f = fakeRouter(); f.r.callAI = vi.fn(async () => { throw new Error('boom'); }); globalThis.AIRouter = f.r;
     AIRouteControl.wrap();
     await expect(AIRouter.callAI('chat', {})).rejects.toThrow('boom');
