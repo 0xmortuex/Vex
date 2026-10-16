@@ -32,6 +32,9 @@ const LinkSafety = {
     { host: /^steamcommunity\.com$/i, path: /^\/linkfilter\/?$/, params: ['url'] },
     { host: /^(www\.)?bing\.com$/i, path: /^\/ck\/a$/, params: ['u'] },
     { host: /^(www\.)?linkedin\.com$/i, path: /^\/redir\/redirect$/, params: ['url'] },
+    { host: /^ro\.blox\.com$/i, path: /.*/, params: ['af_web_dp'] },                       // Roblox's share-link wrapper (AppsFlyer OneLink)
+    { host: /^(www\.)?roblox\.com$/i, path: /^\/(new)?login\/?$/i, params: ['returnUrl'] },  // only an absolute address is followed
+    { host: /^(www\.)?(discord|discordapp)\.com$/i, path: /^\/login\/?$/i, params: ['redirect_to'] },
     { host: /^href\.li$/i, path: /.*/, params: [] },            // href.li/?<url>
   ],
 

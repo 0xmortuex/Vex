@@ -71,9 +71,9 @@ describe('downloads panel', () => {
   it('offers pause while running and resume once paused', async () => {
     start();
     const actions = () => [...document.querySelectorAll('.download-item .dl-btn')].map(b => b.dataset.action);
-    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'copy-link', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'pause', 'cancel', 'copy-link', 'explain', 'remove']);
     DownloadsPanel._onProgress({ id: 'd1', receivedBytes: 100, totalBytes: 1000, state: 'progressing', paused: true, canResume: true });
-    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'copy-link', 'remove']);
+    expect(actions()).toEqual(['open-when-done', 'resume', 'cancel', 'copy-link', 'explain', 'remove']);
     expect(document.querySelector('.download-meta').textContent).toContain('paused');
     document.querySelector('[data-action="resume"]').click();
     await Promise.resolve();

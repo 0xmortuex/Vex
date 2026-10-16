@@ -35,7 +35,9 @@ const SUFFIX2 = new Set(['co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk', 'ltd.uk'
   'co.nz', 'org.nz', 'govt.nz', 'co.jp', 'ne.jp', 'or.jp', 'ac.jp', 'co.kr', 'or.kr', 'co.in', 'net.in', 'org.in', 'gov.in', 'ac.in',
   'com.br', 'net.br', 'org.br', 'gov.br', 'com.ar', 'com.mx', 'com.co', 'com.pe', 'com.ve', 'com.cn', 'net.cn', 'org.cn', 'gov.cn',
   'com.hk', 'com.tw', 'com.sg', 'com.my', 'com.ph', 'co.id', 'co.th', 'co.il', 'co.za', 'org.za', 'com.tr', 'com.ua', 'com.pl',
-  'com.sa', 'com.eg', 'com.ng', 'co.ke', 'com.pk', 'com.bd', 'com.vn', 'com.ru']);
+  'com.sa', 'com.eg', 'com.ng', 'co.ke', 'com.pk', 'com.bd', 'com.vn', 'com.ru',
+  // Turkey: the public-body and school suffixes (turkiye.gov.tr, e-okul.meb.gov.tr).
+  'gov.tr', 'edu.tr', 'org.tr', 'net.tr', 'k12.tr', 'bel.tr', 'av.tr', 'gen.tr', 'web.tr', 'tsk.tr', 'pol.tr', 'dr.tr', 'name.tr', 'biz.tr', 'info.tr', 'tv.tr']);
 
 function bareHost(host) {
   return String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
@@ -389,6 +391,34 @@ const RISK_LINE = {
   midi: 'It could talk to music devices plugged into the computer.',
   midiSysex: 'It could send low-level commands to music devices plugged into the computer.',
 };
+// "Why would a site ask?": the ordinary reasons, in plain words, so the
+// question is not just "allow or block" but "does this fit what the site is".
+const WHY_ASK = {
+  camera: 'Sites ask for the camera for video calls, taking a photo or scanning a code.',
+  microphone: 'Sites ask for the microphone for calls, voice messages or dictation.',
+  media: 'Sites ask for the camera and microphone for video calls and recordings.',
+  'display-capture': 'Sites ask to see your screen to share it in a call or record a tutorial.',
+  geolocation: 'Sites ask where you are for maps, nearby shops, delivery and weather.',
+  notifications: 'Sites ask to send notifications to tell you about new messages or news while they are closed. Most sites work fine without them.',
+  'clipboard-read': 'Sites ask to read the clipboard for a paste button. Few need it.',
+  midi: 'Sites ask for music devices to play or record with a keyboard or controller.',
+  midiSysex: 'Sites ask for low-level music-device access to configure a keyboard or controller.',
+};
+// What each kind of site honestly needs. A match says the request fits; no
+// match says nothing (it is not a verdict that the request is out of place).
+const FITS = [
+  { re: /(^|\.)(meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|whereby\.com|webex\.com|skype\.com|discord\.com|facebook\.com|messenger\.com|whatsapp\.com|telegram\.org|jitsi\.org|jit\.si)$/, wants: ['camera', 'microphone', 'media', 'display-capture'], line: 'This is a calling site, so it fits.' },
+  { re: /(^|\.)(maps\.google\.com|google\.com|openstreetmap\.org|waze\.com|yemeksepeti\.com|getir\.com|trendyol\.com|hepsiburada\.com|accuweather\.com|weather\.com|uber\.com)$/, wants: ['geolocation'], line: 'This is a map, delivery or weather kind of site, so it fits.' },
+  { re: /(^|\.)(discord\.com|whatsapp\.com|telegram\.org|messenger\.com|slack\.com|gmail\.com|mail\.google\.com|outlook\.com|twitter\.com|x\.com)$/, wants: ['notifications'], line: 'This is a messaging or mail site, where notifications are usual.' },
+];
+// -> { text, fits } (fits: true when the site is the kind that normally asks)
+function reasonFor(permission, host = '') {
+  const base = WHY_ASK[permission];
+  if (!base) return { text: '', fits: false };
+  const h = bareHost(host);
+  const hit = h ? FITS.find(f => f.wants.includes(permission) && f.re.test(h)) : null;
+  return { text: hit ? `${base} ${hit.line}` : base, fits: !!hit };
+}
 const WINDOW_MS = 10 * 60 * 1000;
 
 // A running memory of what each site asked for, kept only in memory.
@@ -437,8 +467,10 @@ function assessPermission({ permission, origin = '', topOrigin = '', gesture = t
   else if (distinct.size === 2) { weak = true; why.push('It has asked for two different sensitive things in a short time.'); }
   if (gesture === false && ['camera', 'microphone', 'media', 'geolocation', 'clipboard-read'].includes(key)) { weak = true; why.push('It asked on its own, without you clicking anything.'); }
   const flagged = strong || (strict && weak);
+  const reason = reasonFor(key, host);
   return {
     show: true, level: flagged ? (strong ? 'high' : 'caution') : 'normal', riskLine,
+    reason: reason.text, reasonFits: reason.fits,
     summary: flagged ? 'This site asks for more than it should.' : '',
     why: flagged ? why : [],
   };
@@ -531,5 +563,5 @@ function createWebSafety({ read, write, topHosts = () => [] }) {
 module.exports = {
   SENSITIVITIES, analyzeHost, classifyDownload, assessPermission, createWebSafety, createAskLog,
   registrable, bareHost, isIpLiteral, skeleton, fold, editDistance, oneEdit, mixesScripts, unicodeHost, cleanHost, originOf,
-  BRANDS, KIND_BY_EXT, RISK_LINE,
+  BRANDS, KIND_BY_EXT, RISK_LINE, WHY_ASK, reasonFor,
 };

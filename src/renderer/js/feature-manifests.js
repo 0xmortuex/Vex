@@ -258,6 +258,12 @@
     { id: 'announce-desk', title: 'Announcement desk', group: 'Announcement desk', maturity: 'new', storageKeys: ['vex.announceDesk'],
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
+    // ---- Wave 4: safer web fold-ins (js/chat-link-hygiene.js, js/safe-web-extras.js) -----
+    { id: 'chat-link-hygiene', title: 'Chat link hygiene', group: 'Safer web', maturity: 'new', storageKeys: ['vex.safeWeb.linkHygiene'],
+      permissions: { reads: ['the address of a link you right-click or copy, and of the page it is on'], writes: ['nothing but its own switch'], sends: [] } },
+    { id: 'breach-recheck', title: 'Weekly breach re-check', group: 'Safer web', maturity: 'new', storageKeys: ['vex.safeWeb.breachRecheck', 'vex.safeWeb.breachSeen', 'vex.safeWeb.breachLast'],
+      jobs: ['Breach re-check'], commands: ['backup-secrets-check'], budget: { fetchesPerHour: 1 },
+      permissions: { reads: ['your saved passwords, in the main process, to hash them'], writes: ['short tags of which saved logins were already breached, and when it last ran'], sends: ['The first 5 characters of each password’s SHA-1 hash to Have I Been Pwned, once a week, only when you switch this on'] } },
     // ---- Wave 2: AI features (all local-model only; none has a cloud path of its own) -----
     { id: 'longdoc-engine', title: 'Long-document engine', group: 'Long documents', maturity: 'new', storageKeys: ['vex.longdoc.enabled'], jobs: [],
       budget: { jobMsPerMin: 0 }, permissions: { reads: ['text another feature hands it'], writes: ['its own switch'], sends: [] } },

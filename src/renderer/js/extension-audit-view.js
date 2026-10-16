@@ -92,6 +92,7 @@ const ExtensionAuditView = {
           </div>
           <div style="font-size:12.5px;margin-top:4px">${esc(a.reach.says)}</div>
           ${a.powers.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${heavy.length ? esc(heavy.map(p => p.says).join(' · ')) : a.powers.length + ' permission' + (a.powers.length === 1 ? '' : 's') + ', none of them sensitive'}</div>` : ''}
+          ${(a.sessions || []).map(s => `<div class="eaud-session" style="font-size:11.5px;color:var(--danger);margin-top:3px">${esc(s.says)}</div>`).join('')}
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${esc(upd)} · ${esc(this.usedText(e, now))}</div>
         </div>`;
       }).join('');

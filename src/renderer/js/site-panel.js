@@ -619,7 +619,7 @@ const SitePanel = {
     const words = n == null ? 'Counting…' : n.error ? n.error : `${n.count} cookie${n.count === 1 ? '' : 's'} in this tab’s session`;
     return this._section('data', 'Cookies and site data', `
       <div class="sp-row">
-        <span class="sp-row-text"><span class="sp-row-label">${this._esc(words)}</span><span class="sp-row-note">Plus what the site keeps in its own storage.</span></span>
+        <span class="sp-row-text"><span class="sp-row-label">${this._esc(words)}</span><span class="sp-row-note">Plus what the site keeps in its own storage.</span>${typeof SafeWebExtras !== 'undefined' ? `<span class="sp-row-note sp-third">${this._esc(SafeWebExtras.thirdPartyLine(this._third))}</span>` : ''}</span>
         <div class="sp-inline">
           <button type="button" class="sp-btn sp-btn-text" data-act="data-manage">Manage…</button>
           <button type="button" class="sp-btn sp-btn-text sp-danger" data-act="data-clear">Clear…</button>
@@ -628,13 +628,17 @@ const SitePanel = {
   },
 
   // ---- what the panel reads from main ---------------------------------------
-  _cert: null, _decisions: null, _stats: null, _blocking: true, _cookies: null,
+  _cert: null, _decisions: null, _stats: null, _blocking: true, _cookies: null, _third: null,
 
   async _load() {
     const c = this._ctx;
-    this._cert = null; this._decisions = null; this._stats = null; this._blocking = true; this._cookies = null;
+    this._cert = null; this._decisions = null; this._stats = null; this._blocking = true; this._cookies = null; this._third = null;
     if (!c || !c.web) return;
     const jobs = [];
+    // Other sites this page loaded things from, and how many keep cookies here (js/safe-web-extras.js).
+    if (typeof SafeWebExtras !== 'undefined') {
+      jobs.push(SafeWebExtras.thirdPartyFor(c).then(t => { this._third = t; }, err => { this._third = { error: 'Could not count other sites: ' + this._said(err) }; }));
+    }
     if (!c.tor && !c.torRoute) {
       jobs.push((async () => {
         if (c.pageId == null) throw new Error('This page is not loaded yet');

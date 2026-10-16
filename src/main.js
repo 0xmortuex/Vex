@@ -2591,6 +2591,15 @@ ipcMain.handle('websafety:check', (_e, address) => {
   try { host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(address) ? address : 'https://' + address).hostname; } catch { throw new Error('That is not an address'); }
   return { host, ...ws.analyzeHost(host, { sensitivity: _webSafety.sensitivity === 'off' ? 'strict' : _webSafety.sensitivity, topHosts: _webSafetyTopHosts(), allow: _webSafety.snapshot().allow }) };
 });
+// The site panel's "other sites" line: of the sites this page loaded things
+// from (the page lists them), how many keep cookies in this tab's session.
+// Counts and domain names only; a cookie's name and value are never read out.
+ipcMain.handle('websafety:third-party-count', async (e, opts) => {
+  const o = opts || {};
+  const ses = _siteSessionFor(e, o.partition);
+  const cookies = await ses.cookies.get({});
+  return require('./main/safe-web-extras').thirdPartyCounts({ cookies, contacted: o.hosts, site: o.site });
+});
 // WebRTC would otherwise show a site the computer's own network address. A
 // page in paranoid mode gets the strictest policy; one that leaves it gets
 // back what its session had (the same three cases as web-contents-created).

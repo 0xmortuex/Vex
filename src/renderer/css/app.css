@@ -1091,6 +1091,7 @@ body.private-mode #vex-logo::after {
 .perm-risk { margin-top: 8px; padding: 7px 9px; border-radius: var(--vex-radius-sm); border: 1px solid var(--vex-border); font-size: 11.5px; line-height: 1.45; color: var(--vex-text-secondary); }
 .perm-risk-caution, .perm-risk-high { border-color: color-mix(in srgb, var(--vex-danger) 55%, transparent); background: color-mix(in srgb, var(--vex-danger) 8%, transparent); }
 .perm-risk-head { color: var(--vex-danger); font-weight: 600; margin-bottom: 2px; }
+.perm-risk-reason { margin-top: 3px; color: var(--vex-text-muted); }
 .perm-risk-why { margin-top: 4px; }
 .perm-risk-why summary { cursor: pointer; color: var(--vex-text-muted); }
 .perm-risk-why ul { margin: 4px 0 0; padding-left: 18px; }

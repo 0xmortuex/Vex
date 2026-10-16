@@ -190,6 +190,10 @@ function isDownloadedFile(p) {
 // persist:main, the only session a remembered download can have come from.
 const _sources = new Map();   // id -> { session, partition, hostId }
 const SOURCES_MAX = 500;
+// What each download is, for "Explain this download" (safe-web-extras.js): its
+// address, the page it came from, the content type the site declared and,
+// once it is done, where it was saved. Memory only; never the file's contents.
+const _explain = new Map();   // id -> { url, pageUrl, mime, fileName, path, state, receivedBytes, totalBytes, hash }
 // Which window asked for a retry made with no page, so its events go there.
 const _retryHosts = new Map();   // url -> owner
 
@@ -291,6 +295,8 @@ function wireDownloadsOnSession(ses, tag) {
       _liveDownloads.set(info.id, item);
       _sources.set(info.id, { session: ses, partition: partition || '', hostId: owner ? owner.win.webContents.id : null });
       while (_sources.size > SOURCES_MAX) _sources.delete(_sources.keys().next().value);
+      _explain.set(info.id, { url: info.url, pageUrl: contents ? safeCall(contents, 'getURL', '') : '', mime: safeCall(item, 'getMimeType', ''), fileName: info.fileName, path: savePath, state: 'progressing', receivedBytes: 0, totalBytes: info.totalBytes });
+      while (_explain.size > SOURCES_MAX) _explain.delete(_explain.keys().next().value);
       console.log(`[Downloads] (${tag || 'session'}) start:`, info.fileName, info.totalBytes, 'bytes');
       // With "Ask where to save" the panel hears of it once a place is
       // chosen: a Save dialog closed with Cancel used to leave a "cancelled"
@@ -337,6 +343,8 @@ function wireDownloadsOnSession(ses, tag) {
           _removeHeld(heldDir);
         }
         console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
+        const known = _explain.get(info.id);
+        if (known) Object.assign(known, { fileName: info.fileName, path: savePath, state, receivedBytes: safeCall(item, 'getReceivedBytes', 0), totalBytes: safeCall(item, 'getTotalBytes', 0) });
         if (state === 'completed') _noteFile(savePath, ephemeral);
         // Report the real byte counts: a server that sent no Content-Length leaves
         // totalBytes at 0, and the panel used to copy that 0 over the received
@@ -410,6 +418,26 @@ function control(id, action) {
 }
 
 if (ipcMain) {
+  // A download that explains itself: where it came from, what it really is,
+  // what to open it with. The hash is made when asked for, from the finished
+  // file on this computer; nothing is looked up.
+  ipcMain.handle('downloads:explain', async (_e, id, withHash) => {
+    const rec = _explain.get(id);
+    if (!rec) throw new Error('Vex no longer has the details of that download');
+    const extras = require('./safe-web-extras');
+    const out = extras.describeDownload(rec);
+    out.state = rec.state;
+    out.sha256 = null;
+    if (withHash) {
+      if (rec.state !== 'completed') throw new Error('The hash can be made once the download has finished');
+      if (rec.hash) out.sha256 = rec.hash;
+      else {
+        const h = await extras.hashFile(rec.path);
+        if (h.sha256) { rec.hash = h.sha256; out.sha256 = h.sha256; } else out.hashNote = h.skipped;
+      }
+    }
+    return out;
+  });
   ipcMain.handle('downloads:control', (_e, id, action) => {
     try { return control(id, action); }
     catch (err) { return { ok: false, error: err.message }; }

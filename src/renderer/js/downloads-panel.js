@@ -434,6 +434,26 @@ const DownloadsPanel = {
     } else none?.remove();
   },
 
+  // "About": a download that explains itself (main/safe-web-extras.js). Where it
+  // came from, what it really is, what to open it with, and after it finishes
+  // a SHA-256 to compare with the publisher's page. All on this computer.
+  async _explain(id, withHash = false) {
+    try {
+      const x = await window.vex.downloadsExplain(id, withHash);
+      const lines = x.lines.slice();
+      if (x.sha256) lines.push('SHA-256: ' + x.sha256, 'Compare it with the one on the publisher’s own page. If they differ, do not open the file.');
+      else if (x.hashNote) lines.push(x.hashNote);
+      const can = x.state === 'completed' && !x.sha256 && !x.hashNote;
+      await window.vexConfirm({
+        title: 'About this download',
+        message: lines.join('\n\n'),
+        okLabel: x.sha256 ? 'Copy the hash' : 'Got it',
+        cancelLabel: 'Close',
+        extra: can ? { label: 'Make its SHA-256', run: () => this._explain(id, true) } : undefined,
+      }).then((ok) => { if (ok && x.sha256) return navigator.clipboard.writeText(x.sha256).then(() => window.showToast?.('Hash copied')); return null; });
+    } catch (err) { window.showToast?.('Could not explain that download: ' + ((err && err.message) || err).toString().replace(/^Error invoking remote method '[^']*': (Error: )?/, ''), 'error'); }
+  },
+
   async _copyLink(id) {
     const dl = this.downloads.find(d => d.id === id);
     if (!dl || !dl.url) { window.showToast?.('No address saved for that download', 'error'); return; }
@@ -634,6 +654,7 @@ const DownloadsPanel = {
     rowEl.querySelectorAll('[data-action="cancel"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'cancel')));
     rowEl.querySelectorAll('[data-action="retry"]').forEach(b => b.addEventListener('click', () => this._retry(b.dataset.id)));
     rowEl.querySelectorAll('[data-action="copy-link"]').forEach(b => b.addEventListener('click', () => this._copyLink(b.dataset.id)));
+    rowEl.querySelectorAll('[data-action="explain"]').forEach(b => b.addEventListener('click', () => this._explain(b.dataset.id)));
     rowEl.querySelectorAll('[data-action="delete-file"]').forEach(b => b.addEventListener('click', () => this._deleteFile(b.dataset.id)));
     if (rowEl.getAttribute('draggable') === 'true') {
       rowEl.addEventListener('dragstart', (e) => {
@@ -761,7 +782,8 @@ const DownloadsPanel = {
     }
 
     // Every row that has an address can hand it over; Chrome's "Copy link".
-    const copy = dl.url ? `<button class="dl-btn" data-action="copy-link" data-id="${id}" title="Copy download link" aria-label="Copy download link">${this.ICONS.link}</button>` : '';
+    const copy = (dl.url ? `<button class="dl-btn" data-action="copy-link" data-id="${id}" title="Copy download link" aria-label="Copy download link">${this.ICONS.link}</button>` : '')
+      + (dl.url && (isActive || isComplete) ? `<button class="dl-btn" data-action="explain" data-id="${id}" title="Where it came from, what it is, what to open it with" aria-label="About this download">About</button>` : '');
     // A finished file can be dragged out of the panel into a folder, a mail
     // or a chat, as from Explorer (main starts the drag: webContents.startDrag).
     return `

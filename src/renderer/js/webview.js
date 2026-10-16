@@ -1892,6 +1892,13 @@ const WebviewManager = {
           TabManager.createTab(e.params.linkURL, true, (from && from.groupId) || null, { partition: webview.getAttribute?.("partition"), openerTabId: from ? from.id : null });
         }
       });
+      // A link out of Discord or Roblox: what it really is, in one disabled line
+      // (js/chat-link-hygiene.js; off until the person switches it on).
+      if (typeof ChatLinkHygiene !== 'undefined') {
+        let openerUrl = '';
+        try { openerUrl = (webview.getURL && webview.getURL()) || ''; } catch (err) { console.error('[ChatLinkHygiene] could not read the page address:', err); }
+        linkItems.push(...ChatLinkHygiene.menuItems(e.params.linkURL, openerUrl));
+      }
       linkItems.push({
         // Copy where it really GOES, without what identifies you: a wrapped
         // link otherwise copies the wrapper, and almost every site's links
@@ -1900,7 +1907,10 @@ const WebviewManager = {
         action: () => {
           const out = (typeof LinkSafety !== 'undefined') ? LinkSafety.describe(e.params.linkURL) : { clean: e.params.linkURL, wrapped: false, tracked: false };
           navigator.clipboard.writeText(out.clean);
-          if (out.wrapped || out.tracked) {
+          // "Is this safe to send": a lookalike, a shortener, a secret in the address (js/chat-link-hygiene.js).
+          const note = (typeof ChatLinkHygiene !== 'undefined') ? ChatLinkHygiene.copyNote(e.params.linkURL) : null;
+          if (note) window.showToast?.(note.text, note.kind, 7000);
+          else if (out.wrapped || out.tracked) {
             window.showToast?.('Copied' + (out.wrapped ? ' the real address' : '') + (out.wrapped && out.tracked ? ', ' : '') + (out.tracked ? ' without its tracking tags' : ''));
           }
         }
