@@ -481,6 +481,20 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// The sources list (main/doi-resolve.js): the DOI is checked again in main; this only bounds it.
+define('sources:resolve-doi', [string(300)]);
+// The PDF toolkit (main/pdf-toolkit.js). No path ever comes from the window: it names the
+// tokens main handed out from its own file picker, and the operation with its small options.
+const pdfToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
+define('pdftool:pick-files pdftool:forget', []);
+define('pdftool:run', [shape({
+  op: oneOf(['merge', 'extract', 'rotate', 'split']),
+  tokens: value => Array.isArray(value) && value.length >= 1 && value.length <= 20 && value.every(pdfToken),
+  spec: optional(string(200)),
+  degrees: optional(oneOf([90, 180, 270])),
+  mode: optional(oneOf(['each', 'every', 'ranges'])),
+  n: optional(value => Number.isSafeInteger(value) && value >= 1 && value <= 4000),
+})]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

@@ -377,6 +377,12 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  // One Crossref request for a DOI, only when the person asks (main/doi-resolve.js).
+  sourcesResolveDoi: (doi) => ipcRenderer.invoke('sources:resolve-doi', doi),
+  // The built-in PDF toolkit (main/pdf-toolkit.js): pick files, run one operation, forget the picked list.
+  pdftoolPickFiles: () => ipcRenderer.invoke('pdftool:pick-files'),
+  pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
+  pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

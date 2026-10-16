@@ -2283,6 +2283,9 @@ require('./main/secret-clipboard').registerSecretClipboard({ ipcMain, clipboard,
 // passwords from a CSV the person exported themselves (main/browser-import.js).
 require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), addToVault: _vaultAddMissing,
   addAuthenticator: (list) => _totpTransfer.addAccounts(list) });
+// Built-in PDF toolkit: merge, split, extract and rotate pages, all local with pdf-lib (main/pdf-toolkit.js).
+// The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
+require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender) });
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished
@@ -6804,6 +6807,12 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+// DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
+const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
+ipcMain.handle('sources:resolve-doi', async (_event, doi) => {
+  try { return { ok: true, record: await _doiResolver.resolve(doi) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

@@ -232,6 +232,23 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Wave 3: capture and study (new: staged off on a profile that already exists) ----------------
+    { id: 'sources', title: 'Sources and citations', group: 'Sources and citations', maturity: 'new', storageKeys: ['vex.sources', 'vex.sources.prefs'],
+      events: ['vex:source-stamped', 'vex:source-cited'], commands: ['sources-open', 'sources-keep'],
+      permissions: { reads: ['the title, authors, date and DOI a page states about itself, when you ask or copy or highlight from it'], writes: ['one source record per page with the passages you took, on this computer'], sends: ['One DOI to api.crossref.org, only when you press Look up DOI (listed under What left this computer)'] } },
+    { id: 'archive-on-cite', title: 'Archive on cite', group: 'Archive on cite', maturity: 'new', storageKeys: ['vex.archiveOnCite.prefs', 'vex.archiveOnCite.cited'],
+      commands: ['cited-pages'], permissions: { reads: ['the text of a page you cited, to fingerprint it, and again when you open it later'], writes: ['a list of hashes of its longer lines (no text), and a copy in the archive library only when you press Keep a copy'], sends: [] } },
+    { id: 'media-control', title: 'Media control', group: 'Media control', maturity: 'new', storageKeys: ['vex.mediaControl.prefs'],
+      commands: ['media-control', 'media-only-this-tab'], permissions: { reads: ['which tabs and panels are making sound and the title a player publishes, when you open the list'], writes: ['mutes and pauses players when you press the buttons'], sends: [] } },
+    { id: 'phone-share', title: 'Shared from my phone', group: 'Shared from my phone', maturity: 'new', storageKeys: ['vex.phoneShare.prefs'], usesKeys: ['vex.handoffInbox'],
+      commands: ['phone-shares'], permissions: { reads: ['links your phone sent through Vex Sync'], writes: ['a clip in the Clips inbox, when you press Save or turned on filing'], sends: [] } },
+    { id: 'study-notes', title: 'Study notes', group: 'Study notes', maturity: 'new', storageKeys: ['vex.studyNotes.prefs', 'vex.studyQuestions'], usesKeys: ['vex.notes'],
+      commands: ['cornell-note', 'flag-question', 'questions-to-ask'], permissions: { reads: ['the page in front and the text you selected, when you ask'], writes: ['a Cornell note, and your list of flagged questions'], sends: [] } },
+    { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
+      commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
+    { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
+      commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

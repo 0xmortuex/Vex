@@ -219,6 +219,14 @@ const VexUsageRegistry = {
       VexPark: () => (typeof VexPark !== 'undefined' ? VexPark : null),
       VexCopySource: () => (typeof VexCopySource !== 'undefined' ? VexCopySource : null),
       VexDeadlines: () => (typeof VexDeadlines !== 'undefined' ? VexDeadlines : null),
+      // Wave 3, capture and study
+      VexSources: () => (typeof VexSources !== 'undefined' ? VexSources : null),
+      VexArchiveOnCite: () => (typeof VexArchiveOnCite !== 'undefined' ? VexArchiveOnCite : null),
+      VexMediaControl: () => (typeof VexMediaControl !== 'undefined' ? VexMediaControl : null),
+      VexPhoneShare: () => (typeof VexPhoneShare !== 'undefined' ? VexPhoneShare : null),
+      VexStudyNotes: () => (typeof VexStudyNotes !== 'undefined' ? VexStudyNotes : null),
+      VexPdfHighlights: () => (typeof VexPdfHighlights !== 'undefined' ? VexPdfHighlights : null),
+      VexPdfTools: () => (typeof VexPdfTools !== 'undefined' ? VexPdfTools : null),
       PanelCapture: () => (typeof PanelCapture !== 'undefined' ? PanelCapture : null),
       VipRules: () => (typeof VipRules !== 'undefined' ? VipRules : null),
       NeedsMe: () => (typeof NeedsMe !== 'undefined' ? NeedsMe : null),
@@ -305,6 +313,14 @@ const VexUsageRegistry = {
       ['park-resume', A.api(G.VexPark, 'enabled', 'setEnabled')],
       ['copy-source', A.api(G.VexCopySource, 'enabled', 'setEnabled')],
       ['deadline-extractor', A.api(G.VexDeadlines, 'enabled', 'setEnabled')],
+      // Wave 3, capture and study: new features, staged off on a profile that already existed.
+      ['sources', A.api(G.VexSources, 'enabled', 'setEnabled')],
+      ['archive-on-cite', A.api(G.VexArchiveOnCite, 'enabled', 'setEnabled')],
+      ['media-control', A.api(G.VexMediaControl, 'enabled', 'setEnabled')],
+      ['phone-share', A.api(G.VexPhoneShare, 'enabled', 'setEnabled')],
+      ['study-notes', A.api(G.VexStudyNotes, 'enabled', 'setEnabled')],
+      ['pdf-highlights', A.api(G.VexPdfHighlights, 'enabled', 'setEnabled')],
+      ['pdf-tools', A.api(G.VexPdfTools, 'enabled', 'setEnabled')],
       // Panels and messages (js/panels-comms-ui.js draws them). Turning notifications from panels back on
       // needs the consent the person gave, so it never comes back by itself without it.
       ['panel-capture', A.api(G.PanelCapture, 'enabled', 'setEnabled')],

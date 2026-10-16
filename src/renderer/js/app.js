@@ -1316,6 +1316,10 @@ function vexOwnTextFocused(doc) {
   if (typeof VexFirstOpen !== 'undefined') bootStep('first-open', () => VexFirstOpen.init());
   if (typeof VexNextStep !== 'undefined') bootStep('next-step', () => VexNextStep.init());
   if (typeof VexPark !== 'undefined') bootStep('park-resume', () => VexPark.init());
+  // Wave 3, capture and study: the three that listen for events or hold an undo kind start here.
+  if (typeof VexSources !== 'undefined') bootStep('sources', () => VexSources.init());
+  if (typeof VexArchiveOnCite !== 'undefined') bootStep('archive-on-cite', () => VexArchiveOnCite.init());
+  if (typeof VexPhoneShare !== 'undefined') bootStep('phone-share', () => VexPhoneShare.init());
   // Tab tools (js/tab-mru.js, nav-history-menu.js, strip-actions.js), the night coach and the
   // announcement desk: each starts on its own, so one that fails leaves the others alone.
   if (typeof VexTabMru !== 'undefined') bootStep('tab-mru', () => VexTabMru.init());
