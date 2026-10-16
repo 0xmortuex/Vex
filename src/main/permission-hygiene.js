@@ -80,7 +80,7 @@ function createPermissionHygiene({ file = null, now = () => Date.now(), emit = (
   let pins = {};
   if (file) {
     let raw = null;
-    try { raw = fs.readFileSync(file, 'utf8'); } catch (err) { if (err.code !== 'ENOENT') throw new Error('Permission hygiene settings could not be read: ' + err.message); }
+    try { raw = fs.readFileSync(file, 'utf8'); } catch (err) { if (err.code !== 'ENOENT') throw new Error('Permission hygiene settings could not be read: ' + err.message, { cause: err }); }
     if (raw) {
       const saved = JSON.parse(raw);
       config = cleanConfig(saved.config || {});

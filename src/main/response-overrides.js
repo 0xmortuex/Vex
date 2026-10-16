@@ -100,7 +100,7 @@ function createOverrides({ load, save, readFile, pageUrlOf = () => '' }) {
     if (stored && typeof stored === 'object') cfg = normalize(stored, new Set(), new Set((stored.rules || []).map(r => r && r.file).filter(Boolean)));
   } catch (err) {
     // A damaged file is reported, not replaced by an empty list that would later overwrite it.
-    throw new Error('Response overrides: the saved rules could not be read: ' + err.message);
+    throw new Error('Response overrides: the saved rules could not be read: ' + err.message, { cause: err });
   }
 
   function normalize(input, granted, saved) {

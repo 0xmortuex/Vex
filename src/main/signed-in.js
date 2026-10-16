@@ -134,7 +134,7 @@ async function clearEverywhere(sessionsByPartition, domain) {
   const per = [];
   for (const [partition, ses] of Object.entries(sessionsByPartition || {})) {
     const row = { partition, label: containerLabel(partition), cookies: 0, errors: [] };
-    let all = [];
+    let all;
     try { all = await ses.cookies.get({}); }
     catch (err) { row.errors.push('cookies could not be read (' + err.message + ')'); per.push(row); continue; }
     const mine = all.filter(c => baseDomain(c.domain) === d);

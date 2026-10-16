@@ -38,7 +38,7 @@ function createDevExtension({ fs, path, load, unload, watch, absent = [], cautio
     try { stat = fs.statSync(file); } catch { throw new Error('There is no manifest.json in that folder'); }
     if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('manifest.json is not a normal file under 1 MB');
     let m;
-    try { m = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, '')); }
+    try { m = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
     catch (err) { throw new Error('manifest.json is not valid JSON: ' + err.message, { cause: err }); }
     if (!m || typeof m !== 'object' || ![2, 3].includes(m.manifest_version)) throw new Error('manifest.json needs "manifest_version": 2 or 3');
     return m;
@@ -155,8 +155,8 @@ function createDevExtension({ fs, path, load, unload, watch, absent = [], cautio
     catch (err) { throw new Error('The extensions folder could not be read: ' + err.message, { cause: err }); }
     return names.map((name) => {
       const dir = path.join(extensionsDir, name);
-      let manifest = null;
-      try { manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^﻿/, '')); } catch { manifest = null; /* vex-allow-empty-catch: an unreadable manifest is reported as loadable: false */ }
+      let manifest;
+      try { manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { manifest = null; /* vex-allow-empty-catch: an unreadable manifest is reported as loadable: false */ }
       // The biggest top-level script is the bundle; hash it, nothing else.
       let bundle = null;
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
