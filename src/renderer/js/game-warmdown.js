@@ -89,10 +89,14 @@ const GameWarmdown = {
   resetLaunchers() { localStorage.removeItem(this.LAUNCHERS_KEY); if (typeof GameSession !== 'undefined') GameSession.syncWatch(); },
 
   // What goes to main with the game list: launchers, marked, and never one that is
-  // also a game the person listed (a listed game is a game).
+  // also a game the person listed (a listed game is a game). Only for someone whose
+  // Game mode is on AND who has listed a game: that is when the process poll already
+  // runs, so a launcher adds names to a read that happens anyway and starts no poll.
   watchList() {
-    if (!this.enabled()) return [];
-    const games = typeof GameSession !== 'undefined' ? GameSession.games().map(g => g.exe) : [];
+    if (!this.enabled() || typeof GameSession === 'undefined' || GameSession.mode() !== 'on') return [];
+    const listed = GameSession.games();
+    if (!listed.length) return [];
+    const games = listed.map(g => g.exe);
     return this.launchers().filter(l => !games.includes(l.exe)).map(l => ({ id: l.id, name: l.name, exe: l.exe, launcher: true }));
   },
 
