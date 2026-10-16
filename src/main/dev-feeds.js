@@ -47,7 +47,7 @@ function createDevFeeds({ fetch, publicFetch } = {}) {
     const n = String(name == null ? '' : name);
     if (!NAME_RE.test(n)) throw new Error('That is not a package name');
     if (ecosystem === 'npm') {
-      const res = await fetch('https://registry.npmjs.org/' + n.replace('/', '%2F') + '/latest', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 512 * 1024, egress: egress('Dependency radar') });
+      const res = await fetch('https://registry.npmjs.org/' + n.replace('/', '%2F') + '/latest', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 512 * 1024, egress: egress('Dependency radar'), polite: { background: true, ttlMs: 300000 } });
       if (res.status === 404) throw new Error(n + ' is not on npm');
       if (!res.ok) throw new Error('npm answered ' + res.status);
       const j = await res.json();
@@ -55,7 +55,7 @@ function createDevFeeds({ fetch, publicFetch } = {}) {
       return { name: n, version: j.version };
     }
     if (ecosystem === 'pypi') {
-      const res = await fetch('https://pypi.org/pypi/' + encodeURIComponent(n) + '/json', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 4 * 1024 * 1024, egress: egress('Dependency radar') });
+      const res = await fetch('https://pypi.org/pypi/' + encodeURIComponent(n) + '/json', { headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 4 * 1024 * 1024, egress: egress('Dependency radar'), polite: { background: true, ttlMs: 300000 } });
       if (res.status === 404) throw new Error(n + ' is not on PyPI');
       if (!res.ok) throw new Error('PyPI answered ' + res.status);
       const j = await res.json();
@@ -72,7 +72,7 @@ function createDevFeeds({ fetch, publicFetch } = {}) {
     if (!/^[0-9A-Za-z.+_-]{1,60}$/.test(v)) throw new Error('That is not a version');
     const eco = ecosystem === 'npm' ? 'npm' : ecosystem === 'pypi' ? 'PyPI' : '';
     if (!eco) throw new Error('Unknown ecosystem: ' + ecosystem);
-    const res = await fetch('https://api.osv.dev/v1/query', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ version: v, package: { name: n, ecosystem: eco } }), redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 2 * 1024 * 1024, egress: egress('Dependency radar') });
+    const res = await fetch('https://api.osv.dev/v1/query', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ version: v, package: { name: n, ecosystem: eco } }), redirect: 'error', credentials: 'omit', timeoutMs: 15000, maxBytes: 2 * 1024 * 1024, egress: egress('Dependency radar'), polite: { background: true } });
     if (!res.ok) throw new Error('The advisory database answered ' + res.status);
     const j = await res.json();
     const vulns = Array.isArray(j && j.vulns) ? j.vulns : [];

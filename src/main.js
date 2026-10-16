@@ -6800,7 +6800,15 @@ ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
 ipcMain.handle('github:token-clear', () => _githubVault.clear());
 ipcMain.handle('github:token-test', () => _githubVault.test());
 ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
-const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNetFetch, publicFetch: boundedPublicFetch });
+// The shared polite client (main/polite-fetch.js): per-host rate limit, Retry-After backoff, an ETag cache and
+// "metered connection" awareness for the watchers' background requests. The package feeds use it; others can.
+const _politeNetFetch = require('./main/polite-fetch').createPoliteFetch({
+  fetch: boundedNetFetch,
+  userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)',
+  metered: () => _extUpdates.isMeteredWindows(),
+  log: (line) => console.warn(line),
+});
+const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch });
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
