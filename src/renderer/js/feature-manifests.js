@@ -680,6 +680,36 @@
     { id: 'why-did-that', title: 'Why did that happen? (the ledger)', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.ledger'], commands: ['why-did-that'],
       permissions: { reads: ['the things Vex did by itself'], writes: ['the last 200, with how to undo each'], sends: [] } },
+
+    // ---- Wave 3: study helpers (js/study-extras.js and the nine tools it lists) --------------
+    // All local. New: staged OFF on an existing profile. None sends anything by itself.
+    { id: 'study-glossary', title: 'Glossary and hover cards', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.studyGlossary', 'vex.studyGlossary.enabled', 'vex.studyGlossary.cards'], usesKeys: ['vex.translateGlossary'], commands: ['study-glossary', 'study-glossary-harvest'],
+      permissions: { reads: ['the text of a page or your selection, when you ask for terms; the words of a page, to show a card'], writes: ['the terms you confirmed; a dotted underline and a card on a page that contains one'], sends: [] } },
+    { id: 'study-ledger', title: 'Study time by subject', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.studyLedger', 'vex.studyLedger.enabled'], commands: ['study-ledger'],
+      permissions: quiet({ reads: ['the log of your strict study blocks'], writes: ['sessions you timed or wrote, the minutes you planned, one line a week; a section of the weekly review'] }) },
+    { id: 'cheat-sheet', title: 'Cheat sheet from highlights', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.cheatSheet.enabled'], usesKeys: ['vex.annotations', 'vex.notes'], commands: ['cheat-sheet'],
+      permissions: quiet({ reads: ['your highlights and their notes'], writes: ['a note or a printable page, only when you ask'] }) },
+    { id: 'draft-check', title: 'Draft and evidence check', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.draftCheck.enabled'], usesKeys: ['vex.annotations', 'vex.notes', 'vex.readLater'], commands: ['draft-check'],
+      permissions: { reads: ['a note you choose, and your other notes, highlights and read-later pages'], writes: ['nothing: it never changes your text'], sends: ['The claim and one passage to your local model (Ollama) only, only when you press the local-model button'] } },
+    { id: 'syllabus-check', title: 'Syllabus coverage check', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.syllabi', 'vex.syllabusCheck.enabled'], usesKeys: ['vex.annotations', 'vex.notes'], commands: ['syllabus-check'],
+      permissions: quiet({ reads: ['your notes and highlights'], writes: ['the syllabi you pasted (20 at most); a note of gaps, only when you ask'] }) },
+    { id: 'source-badge', title: 'Source quality flags', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.sourceBadge.enabled'], commands: ['source-badge'],
+      permissions: quiet({ reads: ['the page you ask about: its address, date, byline and links'], writes: ['nothing is stored'] }) },
+    { id: 'mun-toolkit', title: 'MUN toolkit', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.munToolkit', 'vex.munToolkit.enabled'], usesKeys: ['vex.snippets', 'vex.notes'], commands: ['mun-toolkit', 'mun-motion'],
+      permissions: quiet({ reads: ['your snippets, to avoid a duplicate'], writes: ['the conference date, ticks, stats and stance notes; snippets and notes only after you confirm'] }) },
+    { id: 'speech-timer', title: 'Speech timer and speakers list', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.speechTimer', 'vex.speechTimer.enabled'], commands: ['speech-timer'],
+      permissions: quiet({ reads: ['the speakers list'], writes: ['the speakers list, the preset and where you put the timer'] }) },
+    { id: 'turkish-helpers', title: 'Turkish dictionary and typing helpers', group: 'Study helpers', maturity: 'new',
+      storageKeys: ['vex.turkishHelpers', 'vex.turkishHelpers.enabled'], commands: ['turkish-helpers'],
+      permissions: { reads: ['text you selected or pasted'], writes: ['your own dictionary; a selection in a text box only after you confirm the diff'], sends: ['The one word you click "TDK\'de ara" on, to sozluk.gov.tr in a new tab'] } },
   ];
 
   if (typeof VexRegistry === 'undefined') throw new Error('feature-manifests.js needs feature-registry.js loaded first');

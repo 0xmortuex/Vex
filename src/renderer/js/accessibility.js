@@ -5,7 +5,7 @@
 
 const AccessibilityPack = {
   KEY: 'vex.a11y',
-  cfg: { font: 'off', cvd: 'off', ruler: false },
+  cfg: { font: 'off', cvd: 'off', ruler: false, lineSpacing: 'off', letterSpacing: 'off', focusLine: false },
 
   init() {
     try { const c = JSON.parse(localStorage.getItem(this.KEY) || 'null'); if (c) this.cfg = { ...this.cfg, ...c }; } catch {}
@@ -26,6 +26,30 @@ const AccessibilityPack = {
     lexend: `@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;600&display=swap');*{font-family:'Lexend',sans-serif!important}`,
     atkinson: `@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');*{font-family:'Atkinson Hyperlegible',sans-serif!important}`,
     opendyslexic: `@import url('https://fonts.cdnfonts.com/css/opendyslexic');*{font-family:'OpenDyslexic',sans-serif!important}`,
+    // T3-034: wide, open letter shapes that ship with Windows. Nothing is downloaded, and no font
+    // is bundled, so there is no font licence to carry.
+    system: `*{font-family:Verdana,Tahoma,'Trebuchet MS',Arial,sans-serif!important}`,
+  },
+  // T3-034: spacing aids, as page CSS. Only values from these lists are ever written, so a damaged
+  // preference cannot put anything else into a page's style sheet.
+  LINE_SPACING: { off: '', '1.5': '1.5', '1.8': '1.8', '2': '2' },
+  LETTER_SPACING: { off: '', small: 'letter-spacing:.04em!important;word-spacing:.12em!important', wide: 'letter-spacing:.1em!important;word-spacing:.25em!important' },
+  aidsCss(cfg) {
+    const c = cfg || this.cfg;
+    const TEXT = 'p,li,dd,dt,blockquote,td,th,figcaption,label,h1,h2,h3,h4,h5,h6';
+    let css = '';
+    const lh = this.LINE_SPACING[c.lineSpacing];
+    if (lh) css += TEXT + '{line-height:' + lh + '!important}';
+    const ls = this.LETTER_SPACING[c.letterSpacing];
+    if (ls) css += TEXT + '{' + ls + '}';
+    return css;
+  },
+  // The focus line dims the page above and below a band that follows the pointer. Like the ruler
+  // it parks its teardown on a window property, so turning it off removes the listener too.
+  focusLineJs(on) {
+    return on
+      ? `if(!window.__vexFocusOff){var ft=document.createElement('div'),fb=document.createElement('div');var fs='position:fixed;left:0;right:0;background:rgba(0,0,0,0.55);pointer-events:none;z-index:2147483599;';ft.id='vex-focus-top';fb.id='vex-focus-bottom';ft.style.cssText=fs+'top:0;height:0';fb.style.cssText=fs+'bottom:0;top:100%';document.documentElement.appendChild(ft);document.documentElement.appendChild(fb);var fm=function(e){ft.style.height=Math.max(0,e.clientY-30)+'px';fb.style.top=(e.clientY+30)+'px'};document.addEventListener('mousemove',fm);window.__vexFocusOff=function(){document.removeEventListener('mousemove',fm);ft.remove();fb.remove();window.__vexFocusOff=null;};}`
+      : `if(window.__vexFocusOff){window.__vexFocusOff();}`;
   },
   // feColorMatrix daltonization matrices for color-vision simulation.
   CVD: {
@@ -37,7 +61,7 @@ const AccessibilityPack = {
   },
 
   applyTo(webview) {
-    const fontCss = this.FONTS[this.cfg.font] || '';
+    const fontCss = (this.FONTS[this.cfg.font] || '') + this.aidsCss();
     const matrix = this.CVD[this.cfg.cvd];
     const cvdSvg = matrix
       ? `var s=document.getElementById('vex-cvd-svg')||document.createElementNS('http://www.w3.org/2000/svg','svg');s.id='vex-cvd-svg';s.setAttribute('style','position:fixed;width:0;height:0');s.innerHTML='<filter id="vex-cvd"><feColorMatrix type="matrix" values="${matrix}"/></filter>';document.body&&document.body.appendChild(s);document.documentElement.style.filter='url(#vex-cvd)';`
@@ -56,6 +80,7 @@ const AccessibilityPack = {
       el.textContent=${JSON.stringify(fontCss)};
       ${cvdSvg}
       ${rulerJs}
+      ${this.focusLineJs(!!this.cfg.focusLine)}
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
   },
@@ -166,9 +191,12 @@ const AccessibilityPack = {
     const sel = (id, label, opts, cur) => `<div class="setting-row-label" style="margin-top:10px">${label}</div><select id="${id}" aria-label="${label}">${opts.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
     container.innerHTML = `
       <p class="setting-info muted" style="margin-bottom:6px">Applied to every page you open.</p>
-      ${sel('a11y-font', 'Reading font', [['off', 'Default'], ['lexend', 'Lexend'], ['atkinson', 'Atkinson Hyperlegible'], ['opendyslexic', 'OpenDyslexic']], this.cfg.font)}
+      ${sel('a11y-font', 'Reading font', [['off', 'Default'], ['lexend', 'Lexend'], ['atkinson', 'Atkinson Hyperlegible'], ['opendyslexic', 'OpenDyslexic'], ['system', 'Easy-to-read system fonts (Verdana, Tahoma)']], this.cfg.font)}
+      ${sel('a11y-linespacing', 'Line spacing', [['off', 'Default'], ['1.5', 'Roomy (1.5)'], ['1.8', 'Roomier (1.8)'], ['2', 'Double (2)']], this.cfg.lineSpacing)}
+      ${sel('a11y-letterspacing', 'Letter and word spacing', [['off', 'Default'], ['small', 'A little more'], ['wide', 'Wide']], this.cfg.letterSpacing)}
       ${sel('a11y-cvd', 'Color-vision filter', [['off', 'Off'], ['protanopia', 'Protanopia (red-blind)'], ['deuteranopia', 'Deuteranopia (green-blind)'], ['tritanopia', 'Tritanopia (blue-blind)'], ['grayscale', 'Grayscale']], this.cfg.cvd)}
       <div class="setting-toggle-row" style="margin-top:10px"><span>Reading ruler (bar follows cursor)</span><label class="toggle"><input type="checkbox" id="a11y-ruler" aria-label="Reading ruler" ${this.cfg.ruler ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
+      <div class="setting-toggle-row" style="margin-top:10px"><span>Focus line (dims the page except a band at the cursor)</span><label class="toggle"><input type="checkbox" id="a11y-focusline" aria-label="Focus line" ${this.cfg.focusLine ? 'checked' : ''}><span class="toggle-slider"></span></label></div>
       <p class="setting-info muted" style="margin-top:10px">On demand from the command bar: <strong>Bionic Reading</strong>, <strong>Speed Read</strong>, <strong>Translate Selection</strong>.</p>`;
     // A change that could not be written to disk must say so — it is applied to
     // the open pages now, but it will not survive a restart.
@@ -178,6 +206,9 @@ const AccessibilityPack = {
     container.querySelector('#a11y-font').addEventListener('change', (e) => { this.cfg.font = e.target.value; apply(); });
     container.querySelector('#a11y-cvd').addEventListener('change', (e) => { this.cfg.cvd = e.target.value; apply(); });
     container.querySelector('#a11y-ruler').addEventListener('change', (e) => { this.cfg.ruler = e.target.checked; apply(); });
+    container.querySelector('#a11y-focusline').addEventListener('change', (e) => { this.cfg.focusLine = e.target.checked; apply(); });
+    container.querySelector('#a11y-linespacing').addEventListener('change', (e) => { this.cfg.lineSpacing = e.target.value; apply(); });
+    container.querySelector('#a11y-letterspacing').addEventListener('change', (e) => { this.cfg.letterSpacing = e.target.value; apply(); });
   },
 };
 

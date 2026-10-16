@@ -89,7 +89,7 @@ const SettingsUI = {
     { name: 'Passkeys',        icon: 'key',      color: '#2dd4bf', match: ['passkey'] },
     { name: 'Focus OS',        icon: 'target',   color: '#f43f5e', match: ['focus os'] },
     { name: 'Focus',           icon: 'target',   color: '#fb7185', match: ['focus', 'distraction budget', 'night usage coach', 'breaks', 'study block', 'ask before distracting'] },
-    { name: 'Knowledge',       icon: 'book',     color: '#60a5fa', match: ['knowledge', 'citations', 'research board', 'sources into a document', 'translation glossary', 'explain this page', 'flashmind', 'meeting copilot', 'subscriptions and renewals', 'listen to articles', 'courses', 'exam', 'model un', 'paper brief', 'past papers', 'turkish and english'] },
+    { name: 'Knowledge',       icon: 'book',     color: '#60a5fa', match: ['knowledge', 'citations', 'research board', 'sources into a document', 'translation glossary', 'explain this page', 'flashmind', 'meeting copilot', 'subscriptions and renewals', 'listen to articles', 'courses', 'exam', 'model un', 'paper brief', 'past papers', 'turkish and english', 'study helpers'] },
     { name: 'Library',         icon: 'book',     color: '#38bdf8', match: ['library', 'memory tools'] },
     { name: 'Reading',         icon: 'bookOpen', color: '#818cf8', match: ['reading', 'accessibility'] },
     { name: 'Recall',          icon: 'clock',    color: '#2dd4bf', match: ['recall'] },

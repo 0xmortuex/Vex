@@ -329,6 +329,8 @@ const WebviewManager = {
         if (typeof AccessibilityPack !== 'undefined') AccessibilityPack.applyTo(webview);
         // Re-apply persistent highlights for this page
         if (typeof Annotations !== 'undefined' && t && t.url) Annotations.applyTo(webview, t.url);
+        // Glossary hover cards for terms you confirmed (js/study-glossary.js).
+        if (typeof VexStudyGlossary !== 'undefined' && t && t.url) VexStudyGlossary.applyTo(webview, t.url);
         // Discord as a tab in the Vex theme (js/discord-theme.js).
         if (window.DiscordTheme && t && t.partition === 'persist:discord') DiscordTheme.onPageReady(webview);
       } catch {}
@@ -1731,6 +1733,8 @@ const WebviewManager = {
     if (isTab && typeof VexDevHelpers !== 'undefined') pageItems.push(...VexDevHelpers.pageItems(webview));
     // Developer bench tools (js/dev-bench.js): Copy bug report, Save code blocks...
     if (isTab && typeof VexBench !== 'undefined') pageItems.push(...VexBench.pageItems(webview));
+    // Find terms on this page, Source check (js/study-extras.js).
+    if (isTab && typeof VexStudyExtras !== 'undefined') pageItems.push(...VexStudyExtras.pageItems(webview));
     const siteItems = [
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -1909,6 +1913,8 @@ const WebviewManager = {
       if (typeof VexDevHelpers !== 'undefined') textItems.push(...VexDevHelpers.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
       // A task from the selection, collect its links, convert a time (js/comms-tools-ui.js).
       if (typeof window.CommsTools !== 'undefined') textItems.push(...window.CommsTools.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
+      // Add to glossary, TDK'de ara, put Turkish letters back (js/study-extras.js).
+      if (typeof VexStudyExtras !== 'undefined') textItems.push(...VexStudyExtras.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
     }
     // Developer bench: send to my MCP tool, Solved, Save as code block (js/dev-bench.js).
     if (typeof VexBench !== 'undefined' && e.params.selectionText && !e.params.isEditable) textItems.push(...VexBench.textItems(e.params.selectionText, webview, {}));
