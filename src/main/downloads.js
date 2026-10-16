@@ -10,7 +10,9 @@ const path = require('path');
 // judgeDownload / askRiskyDownload (web-safety.js classifyDownload,
 // permissions.js askRiskyDownload): a program or script from a site with no
 // standing waits in the holding folder for a confirm; without them none is.
-function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null }) {
+// releases: the record of GitHub release assets that were downloaded (download-desk.js
+// createReleaseDesk), so the window can offer the hash and a VirusTotal link for one.
+function createDownloadService({ app, secureSessions, broadcast, ipcMain, rules = () => [], knownBefore = () => [], webContents = null, prefs = () => ({ folder: null, ask: false }), lastGestureAt = () => undefined, askAutoDownloads = null, dialog = null, judgeDownload = null, askRiskyDownload = null, releases = null }) {
 const { hasRecentGesture } = require('../main-helpers');
 const _broadcastDownloadEvent = broadcast;
 // Live DownloadItems, keyed by the id the renderer knows them by, so the panel
@@ -257,7 +259,14 @@ function wireDownloadsOnSession(ses, tag) {
     }
     const askImage = _takeAsk(chain);
     const ask = askImage || where.ask || folderGone;
-    let savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
+    // An image or video with a counter for a name gets the site, the page title and the date
+    // instead (download-desk.js mediaName), when that is switched on and no rule named it.
+    let chosenName = placed.filename || item.getFilename();
+    if (!placed.rule && where.mediaNames === true && contents) {
+      const nice = require('./download-desk').mediaName({ filename: item.getFilename(), url: item.getURL(), pageUrl: safeCall(contents, 'getURL', ''), pageTitle: safeCall(contents, 'getTitle', '') });
+      if (nice) chosenName = nice;
+    }
+    let savePath = _uniqueDownloadPath(dir, chosenName);
     // A download being asked about is saved into Vex's own holding folder,
     // paused: a small file finishes even while paused (measured), so it must
     // not be written where the user's files are until the site is allowed.
@@ -338,6 +347,15 @@ function wireDownloadsOnSession(ses, tag) {
         }
         console.log(`[Downloads] (${tag || 'session'}) done:`, info.fileName, state);
         if (state === 'completed') _noteFile(savePath, ephemeral);
+        // A GitHub release asset: remembered (a private or Tor tab's never is), and the window told.
+        let release = null;
+        if (state === 'completed' && !ephemeral && releases) {
+          release = require('./download-desk').releaseOf(chain);
+          if (release) {
+            Promise.resolve(releases.note(savePath, release))
+              .catch(err => console.error('[Downloads] could not remember the release download ' + info.fileName + ':', err.message));
+          }
+        }
         // Report the real byte counts: a server that sent no Content-Length leaves
         // totalBytes at 0, and the panel used to copy that 0 over the received
         // count and then render a completed download as "0 B".
@@ -348,6 +366,7 @@ function wireDownloadsOnSession(ses, tag) {
           path: savePath,
           url: info.url,
           ephemeral,
+          release,
           receivedBytes: safeCall(item, 'getReceivedBytes', 0),
           totalBytes: safeCall(item, 'getTotalBytes', 0)
         });

@@ -310,7 +310,7 @@ const AIRouter = (() => {
       if (request && request.signal && request.signal.aborted) throw err;
       // The sensitivity gate said no (or the person did): that is an answer,
       // not a failure, and no other backend is tried behind it.
-      if (err && err.code === 'vex-sensitive') throw err;
+      if (err && (err.code === 'vex-sensitive' || err.code === 'vex-spend-cap')) throw err;
       console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
       if (typeof VexProblems !== 'undefined') VexProblems.note('AI', `${primary} failed for "${feature}"`, err.message);
 
@@ -333,13 +333,42 @@ const AIRouter = (() => {
       if (fallback === 'cloud' && !isOnline()) throw err;
       if (feature === 'agent' && fallback === 'local') throw err;
 
+      // One retry on the other backend (T3-004), and only when that backend would be allowed to see
+      // this very request. Nothing sensitive is sent to the cloud as a side effect of a failure: the
+      // sensitivity gate is asked here WITHOUT showing a question, because the person never chose
+      // this send, and the spend cap (T3-093) is respected too.
+      if (fallback === 'cloud') {
+        const verdict = sensitivityGate().decide(feature, request).verdict;
+        if (verdict !== 'send') {
+          throw new Error(`${err.message} (Not retried on the cloud: this request holds something that is only sent to the cloud when you say so.)`);
+        }
+        if (typeof VexAISpend !== 'undefined' && VexAISpend.reached()) {
+          throw new Error(`${err.message} (Not retried on the cloud: today's cloud limit of ${VexAISpend.cap()} calls is used up.)`);
+        }
+      }
       console.warn(`[AIRouter] falling back to ${fallback} for ${feature}`);
+      let out;
       try {
-        return await callBackend(fallback, feature, request);
+        out = await callBackend(fallback, feature, request);
       } catch (err2) {
         throw new Error(`Both ${primary} (${err.message}) and ${fallback} (${err2.message}) AI failed`);
       }
+      // Said, never silent: the answer carries where it fell back from, and a notice is raised.
+      if (out && typeof out === 'object') out = { ...out, fellBackFrom: primary, fallbackReason: String(err.message || '') };
+      _noteFallback(feature, primary, fallback, err);
+      return out;
     }
+  }
+
+  // "Retried on the other backend" as an event and a notice (js/ai-spend-cap.js owns the line that
+  // says which one answered). A refused notice goes to the Attention Inbox, not to the floor.
+  function _noteFallback(feature, from, to, err) {
+    if (typeof document === 'undefined') return;
+    const label = (b) => (b === 'cloud' ? 'the cloud AI' : b === 'local' ? 'your local model' : 'on-device AI');
+    const text = `${label(from)} failed (${String((err && err.message) || err).slice(0, 120)}), so ${label(to)} answered "${feature}" instead.`;
+    document.dispatchEvent(new CustomEvent('vex:ai-fallback', { detail: { feature, from, to, reason: String((err && err.message) || err) } }));
+    if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: 'ai-fallback', urgency: 'asked', id: feature }, () => { if (typeof window.showToast === 'function') window.showToast(text, 'info', 7000); });
+    else if (typeof window !== 'undefined' && typeof window.showToast === 'function') window.showToast(text, 'info', 7000);
   }
 
   // The gate (js/ai-sensitivity.js). Not loaded means nothing goes to the cloud.
@@ -359,6 +388,17 @@ const AIRouter = (() => {
     const gated = await sensitivityGate().gate(feature, request, { canLocal: isOllamaAvailable() });
     if (gated.action === 'local') return await callLocal(feature, request);
     request = gated.request;
+    // The daily cap on cloud calls (T3-093, js/ai-spend-cap.js): reached means local only, said
+    // plainly. With no local model running it is an error that says so, never a silent send.
+    if (typeof VexAISpend !== 'undefined' && VexAISpend.reached()) {
+      if (isOllamaAvailable() && !(request && request.signal && request.signal.aborted)) {
+        VexAISpend.noteDowngrade(feature);
+        return await callLocal(feature, request);
+      }
+      const capErr = new Error(`Today's limit of ${VexAISpend.cap()} cloud AI calls is used up, and no local model is running. Start Ollama, or raise the limit in Settings › AI spend cap.`);
+      capErr.code = 'vex-spend-cap';
+      throw capErr;
+    }
     // The user's AI memory goes to the cloud only when they ticked "include
     // memory" for it (js/ai-memory.js). This is the one place every cloud
     // request passes through, fallbacks included.
@@ -366,7 +406,9 @@ const AIRouter = (() => {
         && !(typeof AIMemory !== 'undefined' && AIMemory.allowsBackend('cloud'))) {
       request = { ...request, conversationHistory: request.conversationHistory.filter(m => !(m && m.vexMemory)) };
     }
-    return await callCloud(feature, request);
+    const answer = await callCloud(feature, request);
+    if (typeof VexAISpend !== 'undefined') VexAISpend.count(feature);
+    return answer;
   }
 
   // ---------- ON-DEVICE (WebLLM / WebGPU) ----------

@@ -79,6 +79,12 @@ define('downloads:delete-file downloads:start-drag', [string(4096)]);
 define('downloads:tidy-plan', [value => Number.isSafeInteger(value) && value >= 0 && value <= 3650]);
 define('downloads:tidy-apply', [string(64)]);
 define('downloads:tidy-undo downloads:tidy-history', []);
+// Real names for saved media (download-desk.js), the release-download assistant (one file path, checked in main
+// against the files Vex downloaded) and the mod desk (like the tidy-up: no path ever comes from here).
+define('downloads:set-media-names', [boolean]);
+define('downloads:release-assist', [string(1024)]);
+define('downloads:mods-plan downloads:mods-undo downloads:mods-history', []);
+define('downloads:mods-apply', [string(64)]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

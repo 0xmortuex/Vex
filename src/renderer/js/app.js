@@ -1316,6 +1316,11 @@ function vexOwnTextFocused(doc) {
   if (typeof VexFirstOpen !== 'undefined') bootStep('first-open', () => VexFirstOpen.init());
   if (typeof VexNextStep !== 'undefined') bootStep('next-step', () => VexNextStep.init());
   if (typeof VexPark !== 'undefined') bootStep('park-resume', () => VexPark.init());
+  // Wave 3, trust and housekeeping: each starts on its own, so one that fails leaves the others alone.
+  if (typeof VexSummaryCache !== 'undefined') bootStep('summary-cache', () => VexSummaryCache.init());
+  if (typeof VexRevisit !== 'undefined') bootStep('revisit-watch', () => VexRevisit.init());
+  if (typeof VexWorkspaceArchive !== 'undefined') bootStep('workspace-archive', () => VexWorkspaceArchive.init());
+  if (typeof VexDownloadDesk !== 'undefined') bootStep('download-desk', () => VexDownloadDesk.init());
   // Tab tools (js/tab-mru.js, nav-history-menu.js, strip-actions.js), the night coach and the
   // announcement desk: each starts on its own, so one that fails leaves the others alone.
   if (typeof VexTabMru !== 'undefined') bootStep('tab-mru', () => VexTabMru.init());

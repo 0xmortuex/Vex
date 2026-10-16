@@ -3122,6 +3122,11 @@ ipcMain.handle('downloads:set-ask', (_e, on) => {
   try { return { ok: true, ..._downloadPrefs.setAsk(on) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+// Real names for images and videos saved from a site (src/main/download-desk.js mediaName). Off until chosen.
+ipcMain.handle('downloads:set-media-names', (_e, on) => {
+  try { return { ok: true, ..._downloadPrefs.setMediaNames(on) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:reset-prefs', () => {
   try { return { ok: true, ..._downloadPrefs.reset() }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -3343,7 +3348,13 @@ function _adBlockedPage(id, url) {
   _showVexPage(contents, require('./main/ad-verdict').blockedPageHtml(url), url, 'ad-blocked page');
 }
 
+// GitHub release assets that were downloaded (src/main/download-desk.js): which repository, so the
+// window can offer the hash and a VirusTotal link (hash only, nothing is uploaded).
+const _releaseDesk = require('./main/download-desk').createReleaseDesk({
+  fs, file: path.join(userDataPath, 'release-downloads.json'), write: (f, bytes) => require('./main/file-store').atomicWrite(f, bytes, { backup: false }),
+});
 const _downloadService = require('./main/downloads').createDownloadService({ app, secureSessions, broadcast: _broadcastDownloadEvent, ipcMain, rules: () => _downloadRules, webContents,
+  releases: _releaseDesk,
   prefs: () => _downloadPrefs.current(),
   // A page's second download with no click asks first (Chrome's automatic
   // downloads); a click or key press is read from _watchGestures.
@@ -8513,6 +8524,25 @@ ipcMain.handle('downloads:tidy-plan', (_e, minAgeDays) => _tidyCall(() => _downl
 ipcMain.handle('downloads:tidy-apply', (_e, planId) => _tidyCall(() => _downloadTidy.apply(planId)));
 ipcMain.handle('downloads:tidy-undo', () => _tidyCall(() => _downloadTidy.undo()));
 ipcMain.handle('downloads:tidy-history', () => _tidyCall(() => ({ batches: _downloadTidy.history() })));
+// The release-download assistant (src/main/download-desk.js): for a file Vex saved from a GitHub release,
+// its repository, size, SHA-256, a hash-only VirusTotal link and the older installers of the same repository.
+// A path only counts if Vex downloaded it and remembers it as a release asset.
+ipcMain.handle('downloads:release-assist', async (_e, filePath) => {
+  try {
+    if (!_downloadService.isDownloadedFile(filePath)) return { ok: false, error: 'Vex looks only at files it downloaded itself' };
+    return { ok: true, ...(await _releaseDesk.assist(filePath)) };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+// The mod desk: Minecraft .jar files in the downloads folder, filed by loader and game version. The
+// folder is always the one Vex saves downloads to; nothing is run, only the zip's small info files are read.
+const _modDesk = require('./main/download-desk').createModDesk({
+  fs, logFile: path.join(userDataPath, 'mod-desk-log.json'),
+  openZip: (file) => new (require('adm-zip'))(file), validateZip: (zip) => require('./main/archive-security').validateZip(zip),
+});
+ipcMain.handle('downloads:mods-plan', (_e) => _tidyCall(() => _modDesk.plan(_downloadPrefs.get().folder)));
+ipcMain.handle('downloads:mods-apply', (_e, planId) => _tidyCall(() => _modDesk.apply(planId)));
+ipcMain.handle('downloads:mods-undo', () => _tidyCall(() => _modDesk.undo()));
+ipcMain.handle('downloads:mods-history', () => _tidyCall(() => ({ batches: _modDesk.history() })));
 ipcMain.handle('downloads:open-folder', async () => {
   try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }
