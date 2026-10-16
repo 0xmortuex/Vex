@@ -12,7 +12,9 @@
 //   VexAISpend.cap() / setCap(n)        the limit; 0 means none
 //   VexAISpend.used()                   cloud calls so far today
 //   VexAISpend.reached()                true when a cap is set and used() has reached it
-//   VexAISpend.count(feature)           one cloud call was made (the router calls this)
+//   VexAISpend.reserve(feature)         take a slot BEFORE a cloud call: a token, or null when the cap is reached
+//   VexAISpend.release(token)           give the slot back when that call failed
+//   VexAISpend.count(feature)           one cloud call was made
 //   VexAISpend.noteDowngrade(feature)   a request was kept off the cloud (the router calls this)
 //   VexAISpend.byFeature()              today's calls per feature, for the Settings line
 //
@@ -56,6 +58,29 @@ const VexAISpend = {
     this._write(s);
     this._emit();
     return v;
+  },
+
+  // The router takes a slot before it calls the cloud, so requests running at the same time cannot all
+  // pass the check and overshoot the cap. A failed call gives its slot back (release).
+  reserve(feature) {
+    const s = this._read();
+    if (s.cap > 0 && s.used >= s.cap) return null;
+    const f = String(feature || 'unknown').slice(0, 40);
+    s.used++;
+    s.features[f] = (s.features[f] || 0) + 1;
+    this._write(s);
+    this._emit();
+    return { day: s.day, feature: f };
+  },
+  release(token) {
+    if (!token || typeof token !== 'object') throw new Error('release needs the token reserve() returned');
+    const s = this._read();
+    if (s.day !== token.day) return; // a new day began: yesterday's slot is not today's
+    if (s.used > 0) s.used--;
+    if (s.features[token.feature] > 1) s.features[token.feature]--;
+    else delete s.features[token.feature];
+    this._write(s);
+    this._emit();
   },
 
   count(feature) {

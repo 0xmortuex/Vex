@@ -392,7 +392,9 @@ const AIRouter = (() => {
     request = gated.request;
     // The daily cap on cloud calls (T3-093, js/ai-spend-cap.js): reached means local only, said
     // plainly. With no local model running it is an error that says so, never a silent send.
-    if (typeof VexAISpend !== 'undefined' && VexAISpend.reached()) {
+    // The slot is taken now and given back if the call fails, so parallel requests cannot overshoot the cap.
+    const spendSlot = typeof VexAISpend !== 'undefined' ? VexAISpend.reserve(feature) : null;
+    if (typeof VexAISpend !== 'undefined' && !spendSlot) {
       if (isOllamaAvailable() && !(request && request.signal && request.signal.aborted)) {
         VexAISpend.noteDowngrade(feature);
         return await callLocal(feature, request);
@@ -404,12 +406,15 @@ const AIRouter = (() => {
     // The user's AI memory goes to the cloud only when they ticked "include
     // memory" for it (js/ai-memory.js). This is the one place every cloud
     // request passes through, fallbacks included.
-    if (request && Array.isArray(request.conversationHistory) && request.conversationHistory.some(m => m && m.vexMemory)
-        && !(typeof AIMemory !== 'undefined' && AIMemory.allowsBackend('cloud'))) {
-      request = { ...request, conversationHistory: request.conversationHistory.filter(m => !(m && m.vexMemory)) };
+    let answer;
+    try {
+      if (request && Array.isArray(request.conversationHistory) && request.conversationHistory.some(m => m && m.vexMemory)
+          && !(typeof AIMemory !== 'undefined' && AIMemory.allowsBackend('cloud'))) {
+        request = { ...request, conversationHistory: request.conversationHistory.filter(m => !(m && m.vexMemory)) };
+      }
+      answer = await callCloud(feature, request);
     }
-    const answer = await callCloud(feature, request);
-    if (typeof VexAISpend !== 'undefined') VexAISpend.count(feature);
+    catch (err) { if (spendSlot) VexAISpend.release(spendSlot); throw err; }
     return answer;
   }
 
