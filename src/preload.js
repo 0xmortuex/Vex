@@ -366,6 +366,17 @@ contextBridge.exposeInMainWorld('vex', {
   playgroundSend: (req) => ipcRenderer.invoke('playground:send', req),
   // An MCP server's token, kept encrypted in main; '' removes it.
   mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
+  // GitHub read-only token vault (main/github-vault.js): the token goes in once
+  // and never comes back; every call answers data and numbers only.
+  githubStatus: () => ipcRenderer.invoke('github:status'),
+  githubTokenSet: (token) => ipcRenderer.invoke('github:token-set', token),
+  githubTokenClear: () => ipcRenderer.invoke('github:token-clear'),
+  githubTokenTest: () => ipcRenderer.invoke('github:token-test'),
+  githubGet: (path, opts) => ipcRenderer.invoke('github:get', path, opts),
+  // Package versions, advisories and one endpoint ping (main/dev-feeds.js).
+  devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
+  devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
+  devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

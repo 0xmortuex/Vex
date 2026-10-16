@@ -466,6 +466,15 @@ define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','P
 define('playground:send', [shape({ url: web, method: oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']), headers: optional(object), body: optional(string(1024 * 1024)), allowLocal: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);
+// The GitHub read-only token vault (main/github-vault.js) and the developer
+// feeds (main/dev-feeds.js). The token goes in once and never comes back out;
+// the path is checked against a list of read endpoints in main.
+define('github:status github:token-clear github:token-test', []);
+define('github:token-set', [string(400)]);
+define('github:get', [string(400), optional(shape({ authed: optional(boolean) }))]);
+define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
+define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
+define('devfeeds:ping', [string(300)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

@@ -6742,6 +6742,20 @@ ipcMain.handle('mcp:auth-set', (_event, id, token) => {
   _mcpAuthQueue = operation;
   return operation;
 });
+// GitHub read-only token vault (main/github-vault.js): a fine-grained token,
+// sealed by the OS in github-token.enc, sent only to api.github.com and never
+// handed back to a window. The developer feeds (main/dev-feeds.js) are the
+// public package, advisory and endpoint checks the developer features use.
+const _githubVault = require('./main/github-vault').createGithubVault({ secretStore, file: path.join(userDataPath, 'github-token.enc'), fetch: boundedNetFetch });
+ipcMain.handle('github:status', () => _githubVault.status());
+ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
+ipcMain.handle('github:token-clear', () => _githubVault.clear());
+ipcMain.handle('github:token-test', () => _githubVault.test());
+ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
+const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNetFetch, publicFetch: boundedPublicFetch });
+ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
+ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
+ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');
