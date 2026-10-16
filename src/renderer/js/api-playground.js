@@ -19,6 +19,14 @@
 //   - History keeps the method, the address without its query string, the
 //     status and the time: never a header or a body.
 //   - Not available in a private window.
+//   - Collections (T3-031): saved requests can be grouped into named
+//     collections (a collection named owner/repo is a repo's), and a
+//     collection can be filled from a service's /openapi.json (Import
+//     OpenAPI). An imported path parameter such as /users/{id} becomes the
+//     variable {{id}}, and the server address becomes {{baseUrl}} in a new
+//     environment, so nothing is sent until you choose the environment and fill
+//     in what is missing (an undefined variable is an error, never a guess).
+//     Collections hold names only: tokens stay in the secret store above.
 
 const ApiPlayground = {
   KEY: 'vex.playground',
@@ -26,6 +34,8 @@ const ApiPlayground = {
   MAX_REQUESTS: 100,
   MAX_ENVS: 20,
   MAX_HISTORY: 50,
+  MAX_COLLECTIONS: 30,
+  MAX_OPENAPI_BYTES: 2 * 1024 * 1024,
   METHODS: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
   SENSITIVE_HEADER: /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token)$|token|secret|password|passwd|session|signature|credential|(^|-)key$/i,
 
@@ -67,7 +77,7 @@ const ApiPlayground = {
   _id(prefix) { return prefix + '_' + Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(2, 6); },
 
   // --- storage ------------------------------------------------------------
-  _blank() { return { requests: [], envs: [], activeEnv: '', history: [] }; },
+  _blank() { return { requests: [], envs: [], activeEnv: '', history: [], collections: [] }; },
 
   load() {
     let raw;
@@ -75,9 +85,13 @@ const ApiPlayground = {
     const out = this._blank();
     if (!raw || typeof raw !== 'object') return out;
     const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+    if (Array.isArray(raw.collections)) {
+      out.collections = raw.collections.filter(c => c && typeof c.id === 'string' && /^cl_[\w]{4,24}$/.test(c.id)).slice(0, this.MAX_COLLECTIONS)
+        .map(c => ({ id: c.id, name: str(c.name, 60) || 'Collection' }));
+    }
     if (Array.isArray(raw.requests)) {
       out.requests = raw.requests.filter(r => r && typeof r.id === 'string' && /^rq_[\w]{4,24}$/.test(r.id)).slice(0, this.MAX_REQUESTS).map(r => ({
-        id: r.id, name: str(r.name, 80) || 'Untitled',
+        id: r.id, name: str(r.name, 80) || 'Untitled', collection: out.collections.some(c => c.id === r.collection) ? r.collection : '',
         method: this.METHODS.includes(r.method) ? r.method : 'GET', url: str(r.url, 4096), body: str(r.body, 200000),
         headers: (Array.isArray(r.headers) ? r.headers : []).filter(h => h && typeof h.name === 'string').slice(0, 50).map(h => ({
           name: str(h.name, 100), value: h.sensitive ? '' : str(h.value, 8192), sensitive: !!h.sensitive, enabled: h.enabled !== false,
@@ -140,7 +154,8 @@ const ApiPlayground = {
       if (sensitive && h.value) secrets['req:' + id + ':' + name] = String(h.value);
       return { name, value: sensitive ? '' : String(h.value || '').slice(0, 8192), sensitive, enabled: h.enabled !== false };
     });
-    const rec = { id, name: String(form.name || '').trim().slice(0, 80) || 'Untitled', method: form.method, url: String(form.url || '').slice(0, 4096), body: String(form.body || '').slice(0, 200000), headers };
+    const collection = state.collections.some(c => c.id === form.collection) ? form.collection : '';
+    const rec = { id, name: String(form.name || '').trim().slice(0, 80) || 'Untitled', collection, method: form.method, url: String(form.url || '').slice(0, 4096), body: String(form.body || '').slice(0, 200000), headers };
     const at = state.requests.findIndex(r => r.id === id);
     if (at >= 0) state.requests[at] = rec; else state.requests.push(rec);
     // Secrets first: a failure here must not leave a request that points at nothing.
@@ -189,6 +204,110 @@ const ApiPlayground = {
     this.save(state);
   },
   setActiveEnv(id) { const s = this.load(); s.activeEnv = s.envs.some(e => e.id === id) ? id : ''; this.save(s); },
+
+  // --- collections (T3-031) --------------------------------------------------
+  saveCollection({ id, name }) {
+    const label = String(name == null ? '' : name).trim().slice(0, 60);
+    if (!label) throw new Error('Give the collection a name');
+    const state = this.load();
+    if (state.collections.some(c => c.id !== id && c.name.toLowerCase() === label.toLowerCase())) throw new Error('There is already a collection called ' + label);
+    const at = state.collections.findIndex(c => c.id === id);
+    if (at >= 0) { state.collections[at].name = label; this.save(state); return id; }
+    if (state.collections.length >= this.MAX_COLLECTIONS) throw new Error('That is the most collections Vex keeps (' + this.MAX_COLLECTIONS + ')');
+    const fresh = this._id('cl');
+    state.collections.push({ id: fresh, name: label });
+    this.save(state);
+    return fresh;
+  },
+  // The requests in it are kept, without a collection.
+  deleteCollection(id) {
+    const state = this.load();
+    if (!state.collections.some(c => c.id === id)) throw new Error('That collection is gone');
+    state.collections = state.collections.filter(c => c.id !== id);
+    for (const r of state.requests) if (r.collection === id) r.collection = '';
+    this.save(state);
+  },
+
+  // An OpenAPI 3 or Swagger 2 document (already parsed) -> { title, baseUrl, requests }.
+  // A path parameter /users/{id} becomes the variable {{id}}. A body is filled only
+  // from an example the document itself gives; nothing is invented.
+  fromOpenApi(doc, { sourceUrl = '' } = {}) {
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc) || !(doc.openapi || doc.swagger)) throw new Error('That is not an OpenAPI or Swagger document');
+    if (!doc.paths || typeof doc.paths !== 'object') throw new Error('The document lists no paths');
+    const title = String(doc.info && doc.info.title || '').trim().slice(0, 50) || 'Imported API';
+    let base = '';
+    if (doc.openapi) {
+      const first = Array.isArray(doc.servers) ? doc.servers[0] : null;
+      base = first && typeof first.url === 'string' ? first.url : '';
+    } else if (typeof doc.host === 'string') {
+      const schemes = Array.isArray(doc.schemes) ? doc.schemes : [];
+      base = (schemes.includes('https') || !schemes.length ? 'https' : String(schemes[0])) + '://' + doc.host + String(doc.basePath || '');
+    }
+    if (base && !/^https?:\/\//i.test(base)) {
+      if (!sourceUrl) throw new Error('The document gives a relative server address and no address to resolve it against');
+      base = new URL(base, sourceUrl).href;
+    }
+    base = base.replace(/\/+$/, '');
+    const requests = [];
+    for (const [p, item] of Object.entries(doc.paths)) {
+      if (!item || typeof item !== 'object' || !p.startsWith('/')) continue;
+      for (const m of ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']) {
+        const op = item[m];
+        if (!op || typeof op !== 'object') continue;
+        let body = '';
+        const json = op.requestBody && op.requestBody.content && op.requestBody.content['application/json'];
+        if (json && json.example !== undefined) body = JSON.stringify(json.example, null, 2).slice(0, 20000);
+        requests.push({
+          name: String(op.summary || op.operationId || (m.toUpperCase() + ' ' + p)).slice(0, 80),
+          method: m.toUpperCase(),
+          url: '{{baseUrl}}' + p.replace(/\{([A-Za-z_][\w.-]{0,60})\}/g, '{{$1}}').slice(0, 2000),
+          body,
+        });
+      }
+    }
+    if (!requests.length) throw new Error('The document has no operations to import');
+    return { title, baseUrl: base, requests };
+  },
+
+  // Saves what fromOpenApi gave as a new collection and a new environment holding {{baseUrl}}.
+  importCollection(spec) {
+    const state = this.load();
+    const room = this.MAX_REQUESTS - state.requests.length;
+    if (room < 1) throw new Error('No room: Vex keeps at most ' + this.MAX_REQUESTS + ' saved requests. Delete some first.');
+    if (state.collections.length >= this.MAX_COLLECTIONS) throw new Error('That is the most collections Vex keeps (' + this.MAX_COLLECTIONS + ')');
+    if (spec.baseUrl && state.envs.length >= this.MAX_ENVS) throw new Error('That is the most environments Vex keeps (' + this.MAX_ENVS + ')');
+    const take = spec.requests.slice(0, room);
+    let name = spec.title;
+    for (let n = 2; state.collections.some(c => c.name.toLowerCase() === name.toLowerCase()); n++) name = (spec.title + ' ' + n).slice(0, 60);
+    const collection = this._id('cl');
+    state.collections.push({ id: collection, name });
+    const used = new Set(state.requests.map(r => r.id));
+    for (const r of take) {
+      let id;
+      do { id = this._id('rq'); } while (used.has(id));
+      used.add(id);
+      state.requests.push({ id, name: r.name, collection, method: r.method, url: r.url, body: r.body || '', headers: [] });
+    }
+    let env = '';
+    if (spec.baseUrl) {
+      env = this._id('ev');
+      state.envs.push({ id: env, name: (spec.title + ' (imported)').slice(0, 60), vars: [{ name: 'baseUrl', value: spec.baseUrl.slice(0, 4096), secret: false }] });
+    }
+    this.save(state);
+    return { collection, env, added: take.length, skipped: spec.requests.length - take.length };
+  },
+
+  async importOpenApi(url, { allowLocal = false } = {}) {
+    if (this._privateWindow()) throw new Error('The API playground is not available in a private window');
+    if (!window.vex || typeof window.vex.playgroundSend !== 'function') throw new Error('This window cannot send requests');
+    const res = await window.vex.playgroundSend({ url: String(url).trim(), method: 'GET', headers: { Accept: 'application/json' }, ...(allowLocal ? { allowLocal: true } : {}) });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'The request failed');
+    if (res.status >= 400) throw new Error('The server answered ' + res.status);
+    if (res.binary || res.size > this.MAX_OPENAPI_BYTES) throw new Error('That document is too large to import (' + Math.round(this.MAX_OPENAPI_BYTES / 1024 / 1024) + ' MB at most)');
+    let doc;
+    try { doc = JSON.parse(res.body); } catch (err) { throw new Error('Only a JSON document can be imported (for example /openapi.json)', { cause: err }); }
+    return this.importCollection(this.fromOpenApi(doc, { sourceUrl: String(url).trim() }));
+  },
   addHistory(entry) {
     const s = this.load();
     s.history.unshift({ ts: Date.now(), method: entry.method, url: this.historyUrl(entry.url), status: entry.status || 0, ms: entry.ms || 0, error: String(entry.error || '').slice(0, 120) });
@@ -248,7 +367,7 @@ const ApiPlayground = {
       </div>
       <div style="display:flex;flex:1;min-height:0">
         <div style="width:240px;border-right:1px solid var(--border);overflow:auto;padding:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600;color:var(--text)">Saved</span><button id="pg-new" type="button" class="btn-secondary-sm">New</button></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600;color:var(--text)">Saved</span><span><button id="pg-import" type="button" class="btn-secondary-sm" title="Fill a collection from a service's /openapi.json">Import</button> <button id="pg-new" type="button" class="btn-secondary-sm">New</button></span></div>
           <div id="pg-saved"></div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px"><span style="font-size:12px;font-weight:600;color:var(--text)">History</span><button id="pg-clear-history" type="button" class="btn-secondary-sm">Clear</button></div>
           <div id="pg-history"></div>
@@ -261,6 +380,8 @@ const ApiPlayground = {
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <input id="pg-name" type="text" maxlength="80" placeholder="Name to save this request" class="set-input" style="flex:1">
+            <select id="pg-collection" class="set-input" aria-label="Collection of this request"></select>
+            <button id="pg-coll-edit" type="button" class="btn-secondary-sm">Collections</button>
             <button id="pg-save" type="button" class="btn-secondary-sm">Save request</button>
           </div>
           <div>
@@ -281,7 +402,7 @@ const ApiPlayground = {
     const q = (s) => m.querySelector(s);
 
     const readForm = () => ({
-      id: ui.current.id, name: q('#pg-name').value, method: q('#pg-method').value, url: q('#pg-url').value, body: q('#pg-body').value,
+      id: ui.current.id, collection: q('#pg-collection').value, name: q('#pg-name').value, method: q('#pg-method').value, url: q('#pg-url').value, body: q('#pg-body').value,
       allowLocal: q('#pg-local').checked,
       headers: [...m.querySelectorAll('#pg-headers [data-row]')].map(r => ({
         name: r.querySelector('[data-h-name]').value, value: r.querySelector('[data-h-value]').value,
@@ -306,6 +427,7 @@ const ApiPlayground = {
     const fillForm = (f) => {
       ui.current = { ...f };
       q('#pg-name').value = f.name || '';
+      q('#pg-collection').value = f.collection || '';
       q('#pg-method').value = f.method || 'GET';
       q('#pg-url').value = f.url || '';
       q('#pg-body').value = f.body || '';
@@ -317,7 +439,17 @@ const ApiPlayground = {
       const st = this.load();
       const saved = q('#pg-saved');
       saved.innerHTML = st.requests.length ? '' : '<div class="muted" style="font-size:11.5px">Nothing saved yet.</div>';
-      for (const r of st.requests) {
+      const collName = (id) => (st.collections.find(c => c.id === id) || { name: 'No collection' }).name;
+      const collRank = (r) => { const i = st.collections.findIndex(c => c.id === r.collection); return i < 0 ? 9999 : i; };
+      let lastGroup = null;
+      for (const r of [...st.requests].sort((a, b) => collRank(a) - collRank(b))) {
+        if (st.collections.length && r.collection !== lastGroup) {
+          lastGroup = r.collection;
+          const gh = document.createElement('div');
+          gh.style.cssText = 'font-size:11px;font-weight:600;color:var(--text-muted);margin:8px 0 3px';
+          gh.textContent = collName(r.collection);
+          saved.appendChild(gh);
+        }
         const b = document.createElement('div');
         b.style.cssText = 'display:flex;gap:4px;align-items:center;margin-bottom:3px';
         b.innerHTML = `<button type="button" data-open style="flex:1;text-align:left;padding:5px 7px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b style="font-family:'JetBrains Mono',monospace;font-size:10.5px">${esc(r.method)}</b> ${esc(r.name)}</button>
@@ -340,6 +472,9 @@ const ApiPlayground = {
         b.addEventListener('click', () => { q('#pg-method').value = h.method; q('#pg-url').value = h.url.replace(/\?…$/, ''); });
         hist.appendChild(b);
       }
+      const csel = q('#pg-collection');
+      csel.innerHTML = '<option value="">No collection</option>' + st.collections.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+      csel.value = ui.current.collection || '';
       const sel = q('#pg-env');
       sel.innerHTML = '<option value="">No environment</option>' + st.envs.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('');
       sel.value = st.activeEnv || '';
@@ -382,10 +517,21 @@ const ApiPlayground = {
     q('#pg-clear-history').addEventListener('click', () => { try { this.clearHistory(); drawLists(); } catch (err) { window.showToast?.(err.message, 'error'); } });
     q('#pg-env').addEventListener('change', (e) => { try { this.setActiveEnv(e.target.value); } catch (err) { window.showToast?.(err.message, 'error'); } });
     q('#pg-env-edit').addEventListener('click', () => this.editEnv(q('#pg-env').value, () => drawLists()));
+    q('#pg-collection').addEventListener('change', (e) => { ui.current.collection = e.target.value; });
+    q('#pg-coll-edit').addEventListener('click', () => this.editCollections(() => drawLists()));
+    q('#pg-import').addEventListener('click', async () => {
+      try {
+        const url = await vexPrompt({ title: 'Import from OpenAPI', message: 'The address of the service\'s JSON document, for example https://api.example.com/openapi.json. Vex reads it once and makes a collection and an environment holding {{baseUrl}}. Nothing is sent to the endpoints.', label: 'Address', placeholder: 'https://.../openapi.json', okLabel: 'Import' });
+        if (url == null || !String(url).trim()) return;
+        const r = await this.importOpenApi(url, { allowLocal: q('#pg-local').checked });
+        window.showToast?.('Imported ' + r.added + ' request' + (r.added === 1 ? '' : 's') + (r.skipped ? ' (' + r.skipped + ' did not fit)' : '') + '. Choose the environment to fill in {{baseUrl}}.');
+        drawLists();
+      } catch (err) { window.showToast?.(err.message, 'error'); }
+    });
 
     const onKey = (e) => {
       if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
-      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay') && !document.getElementById('vex-playground-env')) { e.preventDefault(); e.stopPropagation(); close(); }
+      if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay') && !document.getElementById('vex-playground-env') && !document.getElementById('vex-playground-colls')) { e.preventDefault(); e.stopPropagation(); close(); }
     };
     const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
     document.addEventListener('keydown', onKey, true);
@@ -394,6 +540,64 @@ const ApiPlayground = {
     fillForm(ui.current);
     drawLists();
     setTimeout(() => q('#pg-url').focus(), 30);
+    return m;
+  },
+
+  // Collections: add, rename, delete. Deleting keeps the requests (they go to "No collection").
+  editCollections(done) {
+    const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
+    document.getElementById('vex-playground-colls')?.remove();
+    const m = document.createElement('div');
+    m.id = 'vex-playground-colls';
+    m.style.cssText = 'position:fixed;inset:0;z-index:100053;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center';
+    m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Collections" style="width:460px;max-width:94vw;max-height:80vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">Collections</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Group saved requests, for example one collection per repository (name it owner/repo). Deleting a collection keeps its requests.</div>
+      <div id="co-list"></div>
+      <div style="display:flex;gap:8px;justify-content:space-between;margin-top:10px"><button id="co-new" type="button" class="btn-secondary-sm">New collection</button><button id="co-close" type="button" class="btn-secondary-sm">Done</button></div>
+    </div>`;
+    document.body.appendChild(m);
+    const q = (s) => m.querySelector(s);
+    const fail = (err) => { console.error('[ApiPlayground]', err); window.showToast?.(err.message, 'error'); };
+    const draw = () => {
+      const list = q('#co-list');
+      list.textContent = '';
+      const st = this.load();
+      if (!st.collections.length) { list.innerHTML = '<div class="muted" style="font-size:12px">No collections yet.</div>'; return; }
+      for (const c of st.collections) {
+        const n = st.requests.filter(r => r.collection === c.id).length;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px';
+        row.innerHTML = `<span style="flex:1;font-size:12.5px;color:var(--text)">${esc(c.name)} <span style="color:var(--text-muted)">(${n})</span></span>
+          <button type="button" data-ren class="btn-secondary-sm">Rename</button><button type="button" data-del class="btn-secondary-sm" aria-label="Delete ${esc(c.name)}">Delete</button>`;
+        row.querySelector('[data-ren]').addEventListener('click', async () => {
+          try {
+            const name = await vexPrompt({ title: 'Rename collection', label: 'Name', value: c.name, okLabel: 'Rename' });
+            if (name == null) return;
+            this.saveCollection({ id: c.id, name }); draw(); if (typeof done === 'function') done();
+          } catch (err) { fail(err); }
+        });
+        row.querySelector('[data-del]').addEventListener('click', async () => {
+          try {
+            if (!(await vexConfirm({ title: 'Delete collection?', message: 'Delete "' + c.name + '"? Its ' + n + ' request' + (n === 1 ? '' : 's') + ' stay in the list without a collection.', okLabel: 'Delete', danger: true }))) return;
+            this.deleteCollection(c.id); draw(); if (typeof done === 'function') done();
+          } catch (err) { fail(err); }
+        });
+        list.appendChild(row);
+      }
+    };
+    q('#co-new').addEventListener('click', async () => {
+      try {
+        const name = await vexPrompt({ title: 'New collection', label: 'Name (a repository can be owner/repo)', okLabel: 'Create' });
+        if (name == null) return;
+        this.saveCollection({ id: '', name }); draw(); if (typeof done === 'function') done();
+      } catch (err) { fail(err); }
+    });
+    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) { e.preventDefault(); e.stopPropagation(); close(); } };
+    const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
+    document.addEventListener('keydown', onKey, true);
+    q('#co-close').addEventListener('click', close);
+    draw();
     return m;
   },
 
