@@ -92,8 +92,12 @@ describe('the pick main hands to Chromium', () => {
 
   it('a pick main refuses is said out loud, not thrown away', () => {
     expect(picker).not.toContain("try { window.vex.chooseScreenSource(payload.id, sourceId, sourceId ? readOpts() : null); } catch {}");
-    expect(picker).toMatch(/r\.ok === false\) \{ window\.showToast\?\.\(r\.error/);
+    // A refusal with a reason goes through showRefusal (a named cause and a fix); one without still shows main's own words.
+    expect(picker).toMatch(/r\.ok === false\) \{ if \(r\.reason\) showRefusal\(/);
+    expect(picker).toMatch(/else \{ window\.showToast\?\.\(r\.error/);
     expect(picker).toMatch(/VexProblems\?\.note\('Screen share'/);      // and it reaches the quiet-problems log
-    expect(main).toContain("error: 'That share request has expired — start the share again'");
+    // An expired request is refused with its reason (main/share-preflight.js says it in words, with a retry fix).
+    expect(main).toContain("refuse('request-expired'");
+    expect(fs.readFileSync(path.join(__dirname, '../../src/main/share-preflight.js'), 'utf8')).toContain("'request-expired': () => ({ message: 'That share request had already expired.'");
   });
 });

@@ -97,7 +97,7 @@ const SettingsUI = {
     { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping'] },
     { name: 'History',         icon: 'clock',    color: '#7dd3fc', match: ['history', 'time travel'] },
     { name: 'Play',            icon: 'puzzle',   color: '#f472b6', match: ['play: ', 'playfulness', 'fun and', 'living vex', 'profile and medals', 'little surprises', 'weekly page, offline'] },
-    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage'] },
+    { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'release check'] },
     { name: 'Extras',          icon: 'cursor',   color: '#60a5fa', match: ['browsing extras', 'gesture', 'page watcher', 'ai news', 'quiet hours', 'attention', 'why a tab is open', 'repeated searches', 'shopping comparison'] },
     { name: 'Extensions',      icon: 'puzzle',   color: '#10b981', match: ['extension'] },
     { name: 'Permissions',     icon: 'lock',     color: '#eab308', match: ['permission', 'site settings'] },

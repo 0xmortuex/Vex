@@ -896,16 +896,6 @@ const { setPageDecision, resetPageDecisions, restorePageDecisions, pendingPermis
 // picker in the renderer, and hand the chosen source back (with system-audio
 // loopback so "share sound" works). ===
 const _pendingScreenPicks = new Map();
-// Is the frame still the page that asked? A single-page app (Discord) rewrites its address while a
-// share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
-// with 'Requesting page changed'. What matters is whether it is the same site: an address on another
-// origin, or a detached frame, is a different page.
-function _sameRequester(frame, askedUrl) {
-  try {
-    if (!frame || frame.detached) return false;
-    return new URL(frame.url).origin === new URL(askedUrl).origin;
-  } catch { return false; }
-}
 // Every refusal below is recorded with its reason (main/share-preflight.js) and
 // said to the Vex window that owns the request, so the person sees WHY, with the
 // one fix, instead of a share that silently does nothing (T0-014: nine refusals
@@ -922,6 +912,16 @@ function _shareRefused(hostWindowOwner, contents, code, ctx) {
     if (win && !win.isDestroyed()) win.webContents.send('screen-picker:refused', { code: entry.code, message: entry.message, fix: entry.fix, pageId: contents && !contents.isDestroyed() ? contents.id : null });
   } catch (err) { console.error('[ScreenShare] could not tell the window why the share was refused:', err.message); }
   return entry;
+}
+// Is the frame still the page that asked? A single-page app (Discord) rewrites its address while a
+// share is started, with no navigation at all (pushState), so comparing whole URLs refused the pick
+// with 'Requesting page changed'. What matters is whether it is the same site: an address on another
+// origin, or a detached frame, is a different page.
+function _sameRequester(frame, askedUrl) {
+  try {
+    if (!frame || frame.detached) return false;
+    return new URL(frame.url).origin === new URL(askedUrl).origin;
+  } catch { return false; }
 }
 function wireDisplayMediaOnSession(ses) {
   if (!ses || ses.__vexDisplayWired || typeof ses.setDisplayMediaRequestHandler !== 'function') return;
