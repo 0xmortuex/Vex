@@ -150,7 +150,9 @@ const VexFeatureSheet = {
     document.querySelector('.vex-firstuse')?.remove();
     const card = document.createElement('div');
     card.className = 'vex-firstuse';
-    card.setAttribute('role', 'dialog');
+    // A corner card that never takes focus or traps Tab is not a modal dialog, so it must not claim
+    // role="dialog" (the UI check requires aria-modal on those, which would hide the page behind it).
+    card.setAttribute('role', 'region');
     card.setAttribute('aria-label', 'About ' + m.title);
     card.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9000;width:min(380px,92vw);background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px var(--vex-shadow-color,rgba(0,0,0,.35));padding:12px 14px';
     const head = document.createElement('div');
