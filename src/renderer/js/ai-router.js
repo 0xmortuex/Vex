@@ -24,7 +24,11 @@ const AIRouter = (() => {
     translate: 'cloud',
     explain: 'auto',
     historyIndex: 'local',
-    historySearch: 'cloud',
+    // Browsing history is the most personal text Vex holds. It used to be
+    // routed to the cloud by default (found 2026-10-16, T1-042); it is local
+    // now, and even a saved 'cloud' still passes the sensitivity gate, which
+    // asks before any history entry leaves (js/ai-sensitivity.js).
+    historySearch: 'local',
     agent: 'cloud',
     multiTab: 'cloud',
     groupTabs: 'auto',
@@ -66,7 +70,32 @@ const AIRouter = (() => {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
   }
 
+  // The routing table as saved before 2026-10-16. The Settings grid saves EVERY
+  // row whenever one changes, so a saved 'cloud' for history search is either a
+  // choice or just the old default written back, and the profile cannot say
+  // which. One case is certain: a table that is exactly the old defaults, row
+  // for row, is the old defaults. That one moves history search to local. Any
+  // other saved table is left as it is (it may be a choice); the sensitivity
+  // gate still asks before history leaves, whatever the table says.
+  const OLD_DEFAULT_ROUTING = { chat: 'auto', summarize: 'auto', translate: 'cloud', explain: 'auto', historyIndex: 'local', historySearch: 'cloud', agent: 'cloud', multiTab: 'cloud', groupTabs: 'auto', digest: 'local' };
+  function migrateHistoryRouting() {
+    const saved = _load('vex.aiRouting', null);
+    if (!saved || typeof saved !== 'object' || saved.historySearch !== 'cloud') return { changed: false };
+    const keys = Object.keys(OLD_DEFAULT_ROUTING);
+    const isOldDefault = keys.every(k => saved[k] === OLD_DEFAULT_ROUTING[k]) && Object.keys(saved).every(k => k in OLD_DEFAULT_ROUTING);
+    if (!isOldDefault) return { changed: false, kept: true };
+    _save('vex.aiRouting', { ...saved, historySearch: 'local' });
+    return { changed: true };
+  }
+
   async function init() {
+    // One time, before the table is read.
+    const ran = (typeof VexMigrations !== 'undefined')
+      ? VexMigrations.migrateOnce('ai.history-search-local', migrateHistoryRouting)
+      : { ran: true, result: migrateHistoryRouting() };
+    if (ran.ran && ran.result && ran.result.changed && typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'ai-sensitivity', what: 'History search now uses the local model', why: 'It was still on the old default that sent history to the cloud; a choice you made yourself is never changed' });
+    }
     routingPrefs = { ...DEFAULT_ROUTING, ..._load('vex.aiRouting', {}) };
     preferLocal = _load('vex.preferLocalAI', false) === true;
     forceCloud = _load('vex.forceCloudAI', false) === true;
@@ -279,6 +308,9 @@ const AIRouter = (() => {
     } catch (err) {
       // Stopped by the user: that is not a failure to fall back from.
       if (request && request.signal && request.signal.aborted) throw err;
+      // The sensitivity gate said no (or the person did): that is an answer,
+      // not a failure, and no other backend is tried behind it.
+      if (err && err.code === 'vex-sensitive') throw err;
       console.warn(`[AIRouter] ${primary} failed for ${feature}:`, err.message);
       if (typeof VexProblems !== 'undefined') VexProblems.note('AI', `${primary} failed for "${feature}"`, err.message);
 
@@ -310,9 +342,23 @@ const AIRouter = (() => {
     }
   }
 
+  // The gate (js/ai-sensitivity.js). Not loaded means nothing goes to the cloud.
+  function sensitivityGate() {
+    if (typeof VexSensitivity !== 'undefined') return VexSensitivity;
+    if (typeof require === 'function') return require('./ai-sensitivity.js').VexSensitivity;
+    throw new Error('The sensitivity gate is not loaded (js/ai-sensitivity.js), so nothing is sent to the cloud');
+  }
+
   async function callBackend(backend, feature, request) {
     if (backend === 'ondevice') return await callOnDevice(feature, request);
     if (backend === 'local') return await callLocal(feature, request);
+    // Nothing reaches the cloud without passing the sensitivity gate (T1-042):
+    // history, mail, bank and health pages, vault pages and private tabs, and
+    // any secret in the text. This is the one place every cloud request passes
+    // through, fallbacks and the two-model comparison included.
+    const gated = await sensitivityGate().gate(feature, request, { canLocal: isOllamaAvailable() });
+    if (gated.action === 'local') return await callLocal(feature, request);
+    request = gated.request;
     // The user's AI memory goes to the cloud only when they ticked "include
     // memory" for it (js/ai-memory.js). This is the one place every cloud
     // request passes through, fallbacks included.
@@ -771,6 +817,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     // (js/two-models.js). Everything else should use callAI.
     callOn: (backend, feature, request) => callBackend(backend, feature, request),
     cloudWorkerUrl,
+    migrateHistoryRouting,
     _cleanIpcError
   };
 })();

@@ -128,6 +128,12 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 1: game helpers and the AI gate -----------------------------------------
+    // New: they arrive OFF on a profile that already existed (staged enablement) and are offered. The
+    // pre-game checklist is also off on a new profile until chosen (tiers.standard false).
+    { id: 'ai-sensitivity', title: 'Sensitivity gate before cloud AI', group: 'AI', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the text of a request to the cloud AI, before it is sent'], writes: ['a ledger line for each request it holds back or lets through after you said yes'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
