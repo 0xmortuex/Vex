@@ -184,7 +184,7 @@ const VexBoosts = {
   // close that block or start another rule. The picker only writes plain selectors; this also covers a
   // rule that was edited into storage.
   safeSelector(sel) {
-    return typeof sel === 'string' && sel.length > 0 && sel.length <= 600 && !/[{};<>@]|\/\*|\*\//.test(sel);
+    return typeof sel === 'string' && sel.length > 0 && sel.length <= 600 && !/[{};<@]|\/\*|\*\//.test(sel);
   },
 
   // One hidden element back. Used by the Undo on a zap and by the list of hidden elements.

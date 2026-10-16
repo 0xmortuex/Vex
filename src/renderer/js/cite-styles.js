@@ -69,7 +69,7 @@ const VexCiteStyles = {
     const shown = list.length > 10 ? list.slice(0, 7) : list;
     const out = [this._fullFirst(shown[0]), ...shown.slice(1).map(a => this._fullLast(a))];
     if (list.length > 10) return out.join(', ') + ', et al';
-    return out.slice(0, -1).join(', ') + (out.length > 2 ? ',' : '') + ' and ' + out[out.length - 1];
+    return out.slice(0, -1).join(', ') + ',' + ' and ' + out[out.length - 1];
   },
   _trNames(list) {
     const n = list.map(a => (a.given ? a.family + ', ' + this._initials(a.given) : a.family));

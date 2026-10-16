@@ -73,7 +73,7 @@ describe('Kaynakca (Turkish)', () => {
 describe('BibTeX', () => {
   it('writes an @article with escaped special characters, a key and a page range with --', () => {
     const out = C.format('bibtex', { ...article, title: 'R&D at 100% & more' });
-    expect(out.startsWith('@article{Vaswani2017Attention,')).toBe(true);
+    expect(out.startsWith('@article{Vaswani2017More,')).toBe(true);
     expect(out).toContain('author = {Vaswani, Ashish and Shazeer, Noam}');
     expect(out).toContain('title = {{R\\&D at 100\\% \\& more}}');
     expect(out).toContain('pages = {5998--6008}');
