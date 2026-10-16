@@ -25,6 +25,19 @@ const QuickCapture = {
     if (!text) throw new Error('There is nothing to save');
     const kind = String((job && job.kind) || 'note');
 
+    // "yarın akşam 8'de annemi ara hatırlat": a Turkish reminder. The parsed result is shown and
+    // must be confirmed before anything is saved (js/tr-parse.js).
+    if (kind !== 'ask' && typeof VexTrParse !== 'undefined' && VexTrParse.enabled()) {
+      const tr = VexTrParse.reminderFromSentence(text);
+      if (tr) {
+        window.vex.focusWindow?.();
+        if (!(await VexTrParse.confirmReminder(tr))) return 'Kaydedilmedi / Not saved';
+        if (typeof VexQuickReminder === 'undefined') throw new Error('Reminders are not available');
+        await VexQuickReminder.create(tr.message, new Date(tr.at));
+        return 'Hatırlatıcı kaydedildi / Reminder saved: ' + VexTrParse.describe(tr.at, tr.hasTime);
+      }
+    }
+
     if (kind === 'command') {
       // "remind me…", "timer 20 min", "alarm 7am" and every Ctrl+K command
       // already work — this is the same path, from outside the window.

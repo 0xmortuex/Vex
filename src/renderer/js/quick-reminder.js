@@ -79,6 +79,8 @@ const VexQuickReminder = {
   // `now` is injectable so the tests are not a coin flip on what time it is.
   parseWhen(text, now) {
     const at = now instanceof Date ? now : new Date();
+    // Turkish phrases ("yarın akşam 8'de", "haftaya Salı") go to the shared Turkish parser (js/tr-parse.js).
+    if (typeof VexTrParse !== 'undefined' && VexTrParse.enabled() && VexTrParse.isTurkish(text)) return this._checkFuture(VexTrParse.parseWhen(text, at), at);
     const s = String(text || '').trim().toLowerCase()
       .replace(/\s+/g, ' ')
       .replace(/^(remind me|remind|me)\s+/g, '')
