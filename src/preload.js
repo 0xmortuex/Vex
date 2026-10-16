@@ -452,6 +452,8 @@ contextBridge.exposeInMainWorld('vex', {
   webhookList: (since) => ipcRenderer.invoke('webhook:list', since),
   webhookGet: (id) => ipcRenderer.invoke('webhook:get', id),
   webhookClear: () => ipcRenderer.invoke('webhook:clear'),
+  // One version review to the relay the person set (main/feedback-relay.js).
+  feedbackSend: (url, payload) => ipcRenderer.invoke('feedback:send', url, payload),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

@@ -674,6 +674,7 @@ const VexUsageRegistry = {
       ['mun-toolkit', A.api(G.VexMunToolkit, 'enabled', 'setEnabled')],
       ['speech-timer', A.api(G.VexSpeechTimer, 'enabled', 'setEnabled')],
       ['turkish-helpers', A.api(G.VexTurkishHelpers, 'enabled', 'setEnabled')],
+      ['version-review', A.api(G.VersionReview, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

@@ -1,0 +1,28 @@
+# Vex version-review relay. NOT deployed by Vex: the owner deploys it.
+# Replace every placeholder before `wrangler deploy`.
+name = "your-vex-feedback-name"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Origins a browser page may call this relay from, comma separated.
+# Vex's window is a local file page, which sends the origin "null" (the review
+# itself is sent from Vex's main process, which sends no Origin at all).
+ALLOWED_ORIGINS = "null"
+# "true": GET /v1/summary is readable by anyone (averages and counts, never comments).
+# Anything else: it needs the admin token too.
+PUBLIC_SUMMARY = "false"
+
+# Create the namespace with:  wrangler kv namespace create REVIEWS
+# and paste the id it prints here.
+[[kv_namespaces]]
+binding = "REVIEWS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# Secrets (never put these in this file):
+#   wrangler secret put ADMIN_TOKEN   # long random text; GET /v1/reviews needs "Authorization: Bearer <it>"
+#   wrangler secret put IP_SALT       # optional random text mixed into the rate-limit hash
+
+# No request logs and no traces.
+[observability]
+enabled = false

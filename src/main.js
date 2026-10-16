@@ -7183,6 +7183,8 @@ ipcMain.handle('webhook:list', (_e, since) => _localSvcReply(async () => ({ requ
 ipcMain.handle('webhook:get', (_e, id) => _localSvcReply(async () => ({ request: _webhookInspector.get(id) })));
 ipcMain.handle('webhook:clear', () => _localSvcReply(async () => _webhookInspector.clear()));
 app.on('will-quit', () => { _webhookInspector.stop().catch(err => console.error('[Webhook] could not stop on quit:', err && err.message)); });
+const _feedbackRelay = require('./main/feedback-relay').createFeedbackRelay({ fetch: boundedNetFetch });
+ipcMain.handle('feedback:send', (_event, url, payload) => _feedbackRelay.send(url, payload));
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

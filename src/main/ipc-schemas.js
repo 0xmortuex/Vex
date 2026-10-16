@@ -589,6 +589,8 @@ define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)
 define('webhook:start', [shape({ port: integer, minutes: integer })]);
 define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);
 define('webhook:get', [integer]);
+// The optional version-review relay (main/feedback-relay.js): the relay address and the review; main validates both again.
+define('feedback:send', [string(300), object]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

@@ -1446,6 +1446,7 @@ function vexOwnTextFocused(doc) {
   if (typeof VexDropsDesk !== 'undefined') bootStep('drops-desk', () => VexDropsDesk.init());
   if (typeof VexWritingDesk !== 'undefined') bootStep('writing-desk', () => VexWritingDesk.init());
   if (typeof VexPushBundle !== 'undefined') bootStep('push-bundle', () => VexPushBundle.init());
+  if (typeof VersionReview !== 'undefined') bootStep('version-review', () => VersionReview.init());
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a
