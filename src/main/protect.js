@@ -17,7 +17,7 @@ const path = require('path');
 
 function registerProtect({
   ipcMain, getSession, notifier, jsonStore, secretStore, secretsDir, encryptionAvailable,
-  trackerHosts = () => [], extensionEntries = () => [], extensionUpdates = () => ({}), statMtime = () => null,
+  watchedSessions = () => ({}), trackerHosts = () => [], extensionEntries = () => [], extensionUpdates = () => ({}), statMtime = () => null,
   isLocked = () => false, now = () => Date.now(), log,
 }) {
   const note = typeof log === 'function' ? log : () => {};
@@ -33,7 +33,32 @@ function registerProtect({
     });
   } catch (err) { note('[PrivacyReport] cookie changes are not being counted: ' + err.message); }
   ipcMain.handle('privacy:report', () => { guard(); return report.report(); });
-  ipcMain.handle('privacy:report-clean', (_e, domains) => { guard(); return report.clean(domains); });
+  ipcMain.handle('privacy:report-clean', (_e, domains) => { guard(); signout.noteAction('privacy-cleanup', domains); return report.clean(domains); });
+
+  // --- "Why was I signed out?" (signout-why.js) -----------------------------
+  // Read-only over the cookie jar's metadata (names, session flag, expiry; no
+  // values). watchedSessions() -> { 'persist:main': () => session, ... }.
+  const signout = require('./signout-why').createSignoutWhy({ store: jsonStore, now, log });
+  for (const [name, getWatched] of Object.entries(watchedSessions())) {
+    try {
+      const ses = getWatched();
+      ses.cookies.on('changed', (_e, cookie, cause, removed) => {
+        signout.onCookieChanged(name, cookie, cause, removed).catch(err => note('[SignoutWhy] ' + err.message));
+      });
+      const look = async (first) => {
+        const cookies = await ses.cookies.get({});
+        if (first) await signout.compareAtStart(name, cookies);
+        await signout.snapshot(name, cookies);
+      };
+      // After the jar has had time to load; then every ten minutes, so a close
+      // loses at most ten minutes of what is known.
+      const kick = setTimeout(() => look(true).catch(err => note('[SignoutWhy] could not read ' + name + ': ' + err.message)), 15000);
+      const every = setInterval(() => look(false).catch(err => note('[SignoutWhy] could not read ' + name + ': ' + err.message)), 10 * 60 * 1000);
+      if (typeof kick.unref === 'function') kick.unref();
+      if (typeof every.unref === 'function') every.unref();
+    } catch (err) { note('[SignoutWhy] ' + name + ' is not being watched: ' + err.message); }
+  }
+  ipcMain.handle('signout:why', (_e, host) => { guard(); return signout.explain(host || null); });
 
   // --- Extension usage -------------------------------------------------------
   const usage = require('./extension-usage').createExtensionUsage({ store: jsonStore, now, log });
@@ -64,7 +89,7 @@ function registerProtect({
   ipcMain.handle('quiet:release', () => { guard(); return quiet.release(); });
   ipcMain.handle('quiet:drop', () => { guard(); return quiet.dropHeld(); });
 
-  return { report, usage, snapshots, quiet, tally };
+  return { report, usage, snapshots, quiet, tally, signout };
 }
 
 module.exports = { registerProtect };

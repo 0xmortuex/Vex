@@ -305,6 +305,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Screen-share source picker (Discord Go Live / Share Screen).
   onScreenPickerOpen: (cb) => subscribe('screen-picker:open', cb),
   // Why a share would be (or was) refused: the checks for one tab, and the reasons of this session.
+  // Why was a site's sign-in lost? A site (host) or nothing for the latest of all: lines with the rule that ended it.
+  signoutWhy: (host) => ipcRenderer.invoke('signout:why', host),
   screenSharePreflight: (wcId) => ipcRenderer.invoke('screen-share:preflight', wcId),
   onScreenShareRefused: (cb) => subscribe('screen-picker:refused', cb),
   chooseScreenSource: (id, sourceId, opts) => ipcRenderer.invoke('screen-picker:choose', Object.assign({ id, sourceId }, opts || {})),

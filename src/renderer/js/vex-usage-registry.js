@@ -141,6 +141,7 @@ const VexUsageRegistry = {
       DistractionBudget: () => (typeof DistractionBudget !== 'undefined' ? DistractionBudget : null),
       SmartBookmarks: () => (typeof SmartBookmarks !== 'undefined' ? SmartBookmarks : null),
       VexSearchAgain: () => (typeof VexSearchAgain !== 'undefined' ? VexSearchAgain : null),
+      VexSignoutWhy: () => (typeof VexSignoutWhy !== 'undefined' ? VexSignoutWhy : null),
       VexAliases: () => (typeof VexAliases !== 'undefined' ? VexAliases : null),
       MeetingPrep: () => (typeof MeetingPrep !== 'undefined' ? MeetingPrep : null),
       RoutineDetect: () => (typeof RoutineDetect !== 'undefined' ? RoutineDetect : null),
@@ -178,6 +179,8 @@ const VexUsageRegistry = {
       ['fortune', 'Fortune', 'Fun and expression', A.api(G.VexFortune, 'isEnabled', 'setEnabled')],
       // Page actions: turning them back on asks its own confirmation again.
       ['page-actions', 'Page actions', 'Page actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
+      // Says why a sign-in was lost after the next sign-in (js/signout-why-ui.js); the record itself stays.
+      ['signout-why', 'Say why a sign-in was lost', '', A.api(G.VexSignoutWhy, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', 'Vex Pet', 'Play: fun and progress', A.progress('pet')],
       ['fun-discovery', 'Discovery log', 'Play: fun and progress', A.progress('discovery')],

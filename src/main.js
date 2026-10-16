@@ -1659,6 +1659,7 @@ ipcMain.handle('site:clear-data', async (_e, opts) => {
   try {
     const ses = _siteSessionFor(_e, partition);
     // Any part that fails is in the answer (src/main/site-data.js).
+    try { _protect.signout.noteAction('clear-site', [new URL(url).hostname]); } catch { /* an address that cannot be read clears nothing */ }
     const r = await require('./main/site-data').clearSiteData(ses, url);
     if (!r.ok) console.error('[SiteData] clearing failed:', r.error);
     return r;
@@ -1704,6 +1705,7 @@ ipcMain.handle('cookies:list', async (_e, opts) => {
 ipcMain.handle('cookies:remove', async (_e, opts) => {
   const o = opts || {};
   try {
+    try { _protect.signout.noteAction('cookie-tool', [new URL(_cookieUrl(o) || o.url).hostname]); } catch { /* the removal below reports a bad address */ }
     await _cookieSession(_e, o.partition).cookies.remove(_cookieUrl(o) || o.url, o.name);
     return { ok: true };
   } catch (err) {
@@ -8054,6 +8056,7 @@ ipcMain.handle('storage-load', (_event, key) => dataStore.read(key));
 ipcMain.handle('storage:flush', async () => { await _userscripts.flush(); await dataStore.flush(); await preferences.flush(); await secretStore.flush(); await totpWrites; await recallFlush(); await privacyWrites; await routingPending; await routingStore?.flush(); await flushVault(); await flushPermissions(); return true; });
 ipcMain.handle('browsing:clear-data', async () => {
   await dataStore.flush(); await preferences.flush();
+  _protect.signout.noteAction('clear-all');
   for (const ses of new Set([session.defaultSession, ...secureSessions.sessions])) { await ses.clearStorageData(); await ses.clearCache(); }
   await dataStore.remove('history');
   await dataStore.clear('sync-records', null);
@@ -9699,6 +9702,7 @@ const _protect = require('./main/protect').registerProtect({
   ipcMain,
   notifier,
   getSession: () => secureSessions.fromPartition('persist:main'),
+  watchedSessions: () => ({ 'persist:main': () => secureSessions.fromPartition('persist:main'), 'persist:discord': () => secureSessions.fromPartition('persist:discord') }),
   jsonStore: new (require('./main/file-store').JsonStore)(userDataPath),
   secretStore,
   secretsDir: userDataPath,
