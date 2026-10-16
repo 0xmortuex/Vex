@@ -402,6 +402,8 @@ const TabManager = {
       // A site rule can move an ordinary tab into a routed session of its own
       // (js/site-routes.js) — never a container tab, which was a choice.
       partition: (typeof SiteRoutes !== 'undefined' ? SiteRoutes.reroute(resolvedUrl, window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null) : null)
+        // A paired dev port with "keep each dev server's cookies apart" on (js/dev-ports-pair.js).
+        || (typeof DevPortsPair !== 'undefined' ? DevPortsPair.reroute(resolvedUrl, window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null) : null)
         || window.VexTabPolicy?.partitionFor(opts?.partition) || (opts && opts.partition) || null
     };
     // Screened once its session is known: a routed tab never wears a web address.
@@ -1600,6 +1602,8 @@ const TabManager = {
     // stacks \u2014 Section 7 risk register). Disabled, not hidden, so the user
     // sees the option exists and learns why it's unavailable.
     const canStack = count >= 2;
+    // A repository's group with a granted folder: open a terminal there (js/dev-desk.js).
+    const devRow = (typeof DevDesk !== 'undefined' ? DevDesk.groupRow(group.name) : null);
     menu.innerHTML = `
       <div class="tab-context-item" data-action="rename">${MENU_ICONS.rename}Rename group</div>
       <div class="tab-context-item" data-action="change-color">${MENU_ICONS.color}Change color</div>
@@ -1609,6 +1613,7 @@ const TabManager = {
       <div class="tab-context-item" data-action="reload-tabs">${MENU_ICONS.reload}Reload them</div>
       <div class="tab-context-item" data-action="mute-tabs">${MENU_ICONS.mute}Mute or unmute them</div>
       <div class="tab-context-item" data-action="save-session">${MENU_ICONS.save}Save as a session</div>
+      ${devRow ? `<div class="tab-context-item" data-action="dev-terminal">${MENU_ICONS.reload}${escapeHtml(devRow.label)}</div>` : ''}
       <div class="tab-context-sep"></div>
       <div class="tab-context-item" data-action="close-tabs">${MENU_ICONS.close}Close ${count} tab${count === 1 ? '' : 's'}</div>
       <div class="tab-context-item" data-action="ungroup">${MENU_ICONS.ungroup}Ungroup (keep tabs)</div>
@@ -1676,6 +1681,12 @@ const TabManager = {
         this.persistTabs();
         window.showToast?.((changed ? (want ? 'Muted ' : 'Unmuted ') + changed + ' tab' + (changed === 1 ? '' : 's') : 'Nothing to mute')
           + (asleep ? ' — ' + asleep + ' sleeping tab' + (asleep === 1 ? '' : 's') + ' will be silent anyway' : ''));
+        return;
+      }
+      case 'dev-terminal': {
+        if (typeof DevDesk === 'undefined') return;
+        try { await DevDesk.openTerminalFor(group.name); }
+        catch (err) { window.showToast?.((err && err.message) || 'Could not open the terminal', 'error'); }
         return;
       }
       case 'save-session': {

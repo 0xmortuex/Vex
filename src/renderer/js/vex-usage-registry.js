@@ -195,6 +195,13 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      DevDesk: () => (typeof DevDesk !== 'undefined' ? DevDesk : null),
+      DevPortsPair: () => (typeof DevPortsPair !== 'undefined' ? DevPortsPair : null),
+      ActionsBoard: () => (typeof ActionsBoard !== 'undefined' ? ActionsBoard : null),
+      LogReader: () => (typeof LogReader !== 'undefined' ? LogReader : null),
+      PluginDev: () => (typeof PluginDev !== 'undefined' ? PluginDev : null),
+      ElectronTicker: () => (typeof ElectronTicker !== 'undefined' ? ElectronTicker : null),
+      SecretGuard: () => (typeof SecretGuard !== 'undefined' ? SecretGuard : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +247,14 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // The developer desk (js/dev-desk.js and friends): each off until switched on; off keeps the lists.
+      ['dev-desk', A.api(G.DevDesk, 'enabled', 'setEnabled')],
+      ['dev-ports-pair', A.api(G.DevPortsPair, 'enabled', 'setEnabled')],
+      ['actions-board', A.api(G.ActionsBoard, 'enabled', 'setEnabled')],
+      ['log-reader', A.api(G.LogReader, 'enabled', 'setEnabled')],
+      ['plugin-dev', A.api(G.PluginDev, 'enabled', 'setEnabled')],
+      ['electron-ticker', A.api(G.ElectronTicker, 'enabled', 'setEnabled')],
+      ['secret-guard', A.api(G.SecretGuard, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

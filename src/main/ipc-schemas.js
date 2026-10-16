@@ -466,6 +466,15 @@ define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','P
 define('playground:send', [shape({ url: web, method: oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']), headers: optional(object), body: optional(string(1024 * 1024)), allowLocal: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);
+// Developer desk (main/dev-desk.js), plugin dev loop (main/dev-extension.js) and the Electron
+// ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
+// is checked against the granted folders in main.
+define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status devext:vencord', []);
+define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: optional(string(20)), terminal: optional(string(20)) })]);
+define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
+define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
+define('castlabs:behind', [optional(boolean)]);
+define('devdesk:ports', [value => Array.isArray(value) && value.length <= 12 && value.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

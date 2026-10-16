@@ -128,6 +128,26 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 2: the developer desk (js/dev-desk.js and the files it draws Settings for) -----------
+    // All 'new': off for an existing profile until tried. The editor/terminal switch itself lives in the main process.
+    { id: 'dev-desk', title: 'Open in editor and terminal', group: 'Developer desk', maturity: 'new', storageKeys: [],
+      permissions: { reads: ['the folders you granted (only .git/HEAD of a repository, for its branch name)'], writes: ['nothing'], sends: ['Starts your chosen editor or Windows Terminal with a fixed argument list, never through a shell, only inside folders you granted'] } },
+    { id: 'dev-ports-pair', title: 'Dev ports', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.devPorts', 'vex.devPorts.enabled'],
+      jobs: ['Dev ports'], budget: { jobMsPerMin: 60, fetchesPerHour: 0 },
+      permissions: { reads: ['whether the localhost ports you paired answer (a local connect only)'], writes: ['your pairs; reloads a tab when its port comes back'], sends: [] } },
+    { id: 'actions-board', title: 'Actions board', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.actionsBoard', 'vex.actionsBoard.enabled'],
+      jobs: ['Actions board'], commands: ['actionsboard:open'], budget: { fetchesPerHour: 40 },
+      permissions: { reads: ['the newest GitHub Actions run of each listed repository'], writes: ['the board and which failures you saw'], sends: ['Read requests to api.github.com through the GitHub vault'] } },
+    { id: 'log-reader', title: 'Log reader', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.logReader.enabled'],
+      commands: ['logreader:tab', 'logreader:file'], permissions: { reads: ['a log file you pick, or the page in front (never a private or routed tab)'], writes: ['nothing'], sends: [] } },
+    { id: 'plugin-dev', title: 'Plugin dev loop', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.pluginDev.enabled'],
+      commands: ['plugindev:open'], permissions: { reads: ['the source of the extension folder you picked; the installed Vencord builds (read-only)'], writes: ['loads that extension into the profile until you stop it'], sends: [] } },
+    { id: 'electron-ticker', title: 'Electron ticker', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.electronTicker', 'vex.electronTicker.enabled'],
+      jobs: ['Electron ticker'], commands: ['electronticker:check'], budget: { fetchesPerHour: 2 },
+      permissions: { reads: ['the public castLabs release list'], writes: ['which behind-number it already told you'], sends: ['One GET to api.github.com (no account, no data from you)'] } },
+    { id: 'secret-guard', title: 'Secret paste guard', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.secretGuard', 'vex.secretGuard.enabled'],
+      commands: ['secretguard:clipboard'], permissions: { reads: ['text you paste into a web box or a Vex AI prompt (kept in memory, never stored or logged)'], writes: ['your allowed-sites list'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

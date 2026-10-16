@@ -6713,6 +6713,60 @@ const storagePath = path.join(userDataPath, 'vex-storage');
 const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath);
 const secretStore = new SecretStore(safeStorage);
+// Developer desk (main/dev-desk.js): open the file a stack trace points to, open a
+// terminal and read a branch, only inside folders picked in the folder dialog, only
+// when switched on, only the allowlisted editor/terminal, never through a shell.
+const _devDesk = require('./main/dev-desk').createDevDesk({
+  store: dataStore, fs, path, env: process.env,
+  launch: (exe, args) => new Promise((resolve, reject) => {
+    const child = require('child_process').execFile(exe, args, { windowsHide: false, shell: false });
+    child.once('error', reject);
+    child.once('spawn', () => resolve());
+  }),
+});
+async function _pickDevFolder(event, title) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const opts = { title, buttonLabel: 'Grant this folder', properties: ['openDirectory'] };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  return r.canceled || !r.filePaths || !r.filePaths[0] ? null : r.filePaths[0];
+}
+ipcMain.handle('devdesk:ports', (_event, ports) => _devPorts.check(ports));
+ipcMain.handle('devdesk:config', () => _devDesk.config());
+ipcMain.handle('devdesk:set-config', (_event, patch) => _devDesk.setConfig(patch));
+ipcMain.handle('devdesk:grant-root', async (event) => {
+  const dir = await _pickDevFolder(event, 'Folder of a repository you want Vex to open files and terminals in');
+  if (!dir) return { canceled: true };
+  return { canceled: false, path: fs.realpathSync(dir), config: await _devDesk.grantRoot(dir) };
+});
+ipcMain.handle('devdesk:revoke-root', (_event, dir) => _devDesk.revokeRoot(dir));
+ipcMain.handle('devdesk:open-file', (_event, req) => _devDesk.openFile(req));
+ipcMain.handle('devdesk:open-terminal', (_event, dir) => _devDesk.openTerminal(dir));
+ipcMain.handle('devdesk:branch', (_event, dir) => _devDesk.branch(dir));
+// Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list.
+const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: boundedNetFetch });
+ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
+// Plugin dev loop (main/dev-extension.js): an unpacked extension folder picked in the
+// folder dialog is loaded from where it is and reloaded when a file in it changes.
+const _devExt = require('./main/dev-extension').createDevExtension({
+  fs, path,
+  load: (folder, manifest) => {
+    if (_boot.safeMode) throw new Error('Vex started in safe mode, which loads no extensions');
+    return _loadExtensionEverywhere(folder, manifest);
+  },
+  unload: (folder) => _unloadFromAllSessions(folder),
+  watch: (dir, opts, cb) => fs.watch(dir, opts, cb),
+  absent: require('./main/webstore').ABSENT,
+  cautions: (manifest) => require('./main/webstore').cautions(manifest),
+});
+ipcMain.handle('devext:pick', async (event) => {
+  const dir = await _pickDevFolder(event, 'Folder of the unpacked extension you are developing (must contain manifest.json)');
+  return dir ? _devExt.start(dir) : { canceled: true };
+});
+ipcMain.handle('devext:reload', async () => { await _devExt.reload(); return _devExt.status(); });
+ipcMain.handle('devext:stop', () => _devExt.stop());
+ipcMain.handle('devext:status', () => _devExt.status());
+ipcMain.handle('devext:vencord', () => _devExt.vencordStatus(extensionsDir));
+app.on('before-quit', () => { _devExt.stop().catch((err) => console.error('[DevExtension] could not unload on quit:', err.message)); });
 ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');
   return secretStore.write(path.join(userDataPath, 'ai-token.enc'), token);

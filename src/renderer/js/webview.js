@@ -292,6 +292,7 @@ const WebviewManager = {
     });
 
     onWebview('dom-ready', () => {
+      if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.push(webview);
       // Per-site Boosts (zapped elements / custom CSS / custom JS)
       try {
         const t = TabManager.tabs.find(x => x.id === tab.id);
@@ -381,6 +382,11 @@ const WebviewManager = {
     // like TikTok's HEVC freeze) and a page can't spam it.
     onWebview('ipc-message', (e) => {
       if (e.channel === 'vex-ctx-image') { this.noteContextImage(webview, e.args && e.args[0]); return; }
+      // A paste holding a secret, held back by the page-side hook (js/secret-guard.js).
+      if (e.channel === 'vex-secret-paste') {
+        if (typeof SecretGuard !== 'undefined' && SecretGuard.enabled()) SecretGuard.onPaste(webview, e.args && e.args[0]).catch(err => window.VexProblems?.note('Secret guard', 'A held paste could not be handled', err));
+        return;
+      }
       // The userscripts started on this page (userscripts-preload.js).
       if (e.channel === 'vex-userscripts') {
         if (typeof VexUserscripts !== 'undefined') VexUserscripts.noteActive(tab.id, (e.args && e.args[0]) || null);
@@ -1061,6 +1067,18 @@ const WebviewManager = {
         }
       } catch (err) { console.warn('[Vex] site rule skipped:', err.message); }
     }
+    // A paired dev port keeps its cookies in its own jar (js/dev-ports-pair.js): same idea, a tab beside this one.
+    if (typeof DevPortsPair !== 'undefined' && DevPortsPair.isolating()) {
+      try {
+        const tab = TabManager.getActiveTab();
+        const routed = DevPortsPair.reroute(url, tab && tab.partition);
+        if (routed && routed !== (tab && tab.partition || 'persist:main')) {
+          TabManager.createTab(url, true, tab && tab.groupId, { partition: routed });
+          window.showToast?.('Opened in its own cookie jar (dev port ' + DevPortsPair.portOf(url) + ')');
+          return;
+        }
+      } catch (err) { console.warn('[Vex] dev port isolation skipped:', err.message); }
+    }
     const wv = this.getActiveWebview();
     if (wv) {
       // Electron webview DOM element uses .src or .loadURL()
@@ -1735,6 +1753,8 @@ const WebviewManager = {
           TabManager.createTab(VexTypedAddress.searchUrl(e.params.selectionText), true, null, { partition: webview.getAttribute?.('partition') });
         }
       });
+      // A file and line in a stack trace: open it in the editor (js/dev-desk.js; off by default).
+      if (typeof DevDesk !== 'undefined') textItems.push(...DevDesk.selectionItems(e.params.selectionText));
       // Editable contexts already got a Copy row in editItems above.
       if (!e.params.isEditable) {
         textItems.push({

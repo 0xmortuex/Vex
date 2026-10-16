@@ -367,6 +367,22 @@ contextBridge.exposeInMainWorld('vex', {
   // An MCP server's token, kept encrypted in main; '' removes it.
   mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
 
+  // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
+  devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),
+  devdeskConfig: () => ipcRenderer.invoke('devdesk:config'),
+  devdeskSetConfig: (patch) => ipcRenderer.invoke('devdesk:set-config', patch),
+  devdeskGrantRoot: () => ipcRenderer.invoke('devdesk:grant-root'),
+  devdeskRevokeRoot: (dir) => ipcRenderer.invoke('devdesk:revoke-root', dir),
+  devdeskOpenFile: (req) => ipcRenderer.invoke('devdesk:open-file', req),
+  devdeskOpenTerminal: (dir) => ipcRenderer.invoke('devdesk:open-terminal', dir),
+  devdeskBranch: (dir) => ipcRenderer.invoke('devdesk:branch', dir),
+  devextPick: () => ipcRenderer.invoke('devext:pick'),
+  devextReload: () => ipcRenderer.invoke('devext:reload'),
+  devextStop: () => ipcRenderer.invoke('devext:stop'),
+  devextStatus: () => ipcRenderer.invoke('devext:status'),
+  devextVencord: () => ipcRenderer.invoke('devext:vencord'),
+  castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
+
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
   vaultGet: (host) => ipcRenderer.invoke('vault:get', host),

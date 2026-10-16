@@ -1436,6 +1436,12 @@ const AIPanel = {
   // Resolves to true when the answer (or a rendered error) reached the panel,
   // false when the request never ran — the caller then restores the draft.
   async sendMessage(action, opts = {}) {
+    // A key or token in what you are about to send: offer a redacted copy first (js/secret-guard.js).
+    if (action === 'chat' && typeof opts.message === 'string' && typeof SecretGuard !== 'undefined') {
+      const checked = await SecretGuard.guardPrompt(opts.message);
+      if (checked === null) return false;
+      if (checked !== opts.message) opts = { ...opts, message: checked };
+    }
     if (this._sending) {
       window.showToast?.('Vex is still answering — one moment', 'info');
       return false;

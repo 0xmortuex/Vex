@@ -59,7 +59,16 @@ function createPortScanner({ net, timeoutMs = 250, ports = COMMON }) {
     }));
   }
 
-  return { scan, knock, ports: [...COMMON], KNOWN };
+  // Which of the ports you NAMED answer (the paired ports of the Developer desk, which may be
+  // outside the usual list). At most 12, user ports only, localhost only. -> [port, ...] open ones.
+  async function check(list) {
+    if (!Array.isArray(list) || list.length > 12 || !list.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)) throw new Error('Ask about at most 12 ports between 1024 and 65535');
+    const unique = [...new Set(list)];
+    const open = await Promise.all(unique.map(async (port) => ((await knock(port)) ? port : null)));
+    return open.filter(p => p != null);
+  }
+
+  return { scan, knock, check, ports: [...COMMON], KNOWN };
 }
 
 module.exports = { createPortScanner, COMMON, KNOWN };
