@@ -128,6 +128,27 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 1: the developer loop (js/github-vault.js, js/dev-loop.js, js/dev-loop-ui.js) -------
+    // All read-only. 'new': off for an existing profile until it is tried.
+    { id: 'github-vault', title: 'GitHub access', group: 'GitHub access', maturity: 'new', storageKeys: ['vex.githubVault.enabled'], settingsKeys: [],
+      permissions: { reads: ['GitHub data through a read-only token kept sealed in the main process'], writes: ['nothing on GitHub; its own switch'], sends: ['The token to api.github.com only, with read requests (never stored in the window, in backups or in sync)'] } },
+    { id: 'ci-fix-loop', title: 'CI failure loop', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.ciLoop'], usesKeys: ['vex.devLoop.repos'],
+      jobs: ['CI failure check'], commands: ['ci-failures'], budget: { fetchesPerHour: 80 },
+      permissions: { reads: ['failed GitHub Actions runs and job logs of your listed repositories'], writes: ['the cards of failed runs'], sends: ['Read requests to api.github.com; a log excerpt only to your local model, only when you ask'] } },
+    { id: 'devlog-drafter', title: 'Devlog drafter', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.devlog'], usesKeys: ['vex.devLoop.repos', 'vex.githubUsername', 'vex.notes'],
+      commands: ['devlog-draft'],
+      permissions: { reads: ['today\'s commits of your listed repositories'], writes: ['a note, when you save one'], sends: ['Read requests to api.github.com; the commit list only to your local model, only when you ask'] } },
+    { id: 'endpoint-board', title: 'Endpoint health board', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.endpoints'],
+      jobs: ['Endpoint health'], commands: ['endpoint-board'], budget: { fetchesPerHour: 240 },
+      permissions: { reads: ['the answer of each endpoint you listed'], writes: ['the board and its latencies'], sends: ['One GET (no credentials) to each https endpoint you listed'] } },
+    { id: 'dependency-radar', title: 'Dependency radar', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.depRadar'], usesKeys: ['vex.devLoop.repos'],
+      jobs: ['Dependency radar'], commands: ['dependency-radar'], budget: { fetchesPerHour: 120 },
+      permissions: { reads: ['package.json or pyproject.toml of your listed repositories'], writes: ['the radar results'], sends: ['Read requests to api.github.com, registry.npmjs.org, pypi.org and api.osv.dev (package names and versions only)'] } },
+    { id: 'deploy-desk', title: 'Deploy desk', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.deployDesk'], usesKeys: ['vex.history'],
+      commands: ['deploy-desk'], permissions: { reads: ['how often your history visited the deploy hosts'], writes: ['the pages you pinned'], sends: [] } },
+    { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
+      permissions: { reads: ['the list of repositories you gave'], writes: ['the list of repositories you gave'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

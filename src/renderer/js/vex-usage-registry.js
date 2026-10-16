@@ -195,6 +195,12 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      GitHubVault: () => (typeof GitHubVault !== 'undefined' ? GitHubVault : null),
+      CiFixLoop: () => (typeof CiFixLoop !== 'undefined' ? CiFixLoop : null),
+      DevlogDrafter: () => (typeof DevlogDrafter !== 'undefined' ? DevlogDrafter : null),
+      EndpointBoard: () => (typeof EndpointBoard !== 'undefined' ? EndpointBoard : null),
+      DependencyRadar: () => (typeof DependencyRadar !== 'undefined' ? DependencyRadar : null),
+      DeployDesk: () => (typeof DeployDesk !== 'undefined' ? DeployDesk : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +246,13 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // The developer loop (js/github-vault.js, js/dev-loop.js): read-only; off keeps the sealed token and the lists.
+      ['github-vault', A.api(G.GitHubVault, 'enabled', 'setEnabled')],
+      ['ci-fix-loop', A.api(G.CiFixLoop, 'enabled', 'setEnabled')],
+      ['devlog-drafter', A.api(G.DevlogDrafter, 'enabled', 'setEnabled')],
+      ['endpoint-board', A.api(G.EndpointBoard, 'enabled', 'setEnabled')],
+      ['dependency-radar', A.api(G.DependencyRadar, 'enabled', 'setEnabled')],
+      ['deploy-desk', A.api(G.DeployDesk, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
