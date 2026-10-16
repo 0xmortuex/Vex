@@ -63,6 +63,7 @@
   <link rel="stylesheet" href="css/peek.css">
   <link rel="stylesheet" href="css/extras.css">
   <link rel="stylesheet" href="css/read-aloud.css">
+  <link rel="stylesheet" href="css/tabs-nav.css">
   <!-- After every feature sheet so the browser looks win; a11y.css stays last. -->
   <link rel="stylesheet" href="css/gui-browser.css">
   <link rel="stylesheet" href="css/discover.css">
@@ -1475,6 +1476,7 @@
       <div id="find-bar" style="display: none;">
         <input type="text" id="find-input" placeholder="Find in page..." aria-label="Find in page">
         <span id="find-count" role="status" aria-live="polite" aria-atomic="true"></span>
+        <button id="find-case" class="find-btn find-case" type="button" aria-pressed="false" title="Match case" aria-label="Match case" hidden>Aa</button>
         <button id="find-prev" class="find-btn" title="Previous match (Shift+Enter)" aria-label="Previous match">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M9 8L6 5L3 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
@@ -1954,6 +1956,9 @@
   <!-- Playfulness master level, Settings > Attention, the New Tab slot grid. -->
   <script src="js/vex-playfulness.js"></script>
   <script src="js/attention-settings.js"></script>
+  <!-- Find options, clean link copy, typed-count completion, Keep on top, activity dots (js/tabs-nav.js). -->
+  <script src="js/tabs-nav.js"></script>
+  <script src="js/tabs-nav-settings.js"></script>
   <script src="js/newtab-slots.js"></script>
   <script src="js/update-safety-net.js"></script>
   <script src="js/post-update-selftest.js"></script>

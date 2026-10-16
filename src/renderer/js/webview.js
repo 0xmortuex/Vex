@@ -238,6 +238,11 @@ const WebviewManager = {
           const host = new URL(url).hostname;
           const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
           if (zooms[host]) { webview.setZoomFactor(zooms[host]); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); }
+          else {
+            // No zoom of its own: the default one (Settings › Tabs and navigation).
+            const dflt = typeof VexTabsNav !== 'undefined' ? VexTabsNav.defaultZoomFactor() : 1;
+            if (dflt !== 1) { webview.setZoomFactor(dflt); document.dispatchEvent(new CustomEvent('vex:zoom-changed')); }
+          }
         }
       } catch {}
 
@@ -1241,8 +1246,10 @@ const WebviewManager = {
   zoomReset() {
     const wv = this.getActiveWebview();
     if (wv && wv._attached) {
-      wv.setZoomFactor(1);
-      this._saveZoom(wv, 1);
+      // Ctrl+0 goes back to the default zoom (100% unless one is chosen in Settings).
+      const dflt = typeof VexTabsNav !== 'undefined' ? VexTabsNav.defaultZoomFactor() : 1;
+      wv.setZoomFactor(dflt);
+      this._saveZoom(wv, dflt);
     }
   },
 
@@ -1257,7 +1264,8 @@ const WebviewManager = {
       if (!url || url.startsWith('about:') || url.startsWith('file:')) return;
       const host = new URL(url).hostname;
       const zooms = JSON.parse(localStorage.getItem('vex.zooms') || '{}');
-      if (zoom === 1) { delete zooms[host]; } else { zooms[host] = zoom; }
+      const dflt = typeof VexTabsNav !== 'undefined' ? VexTabsNav.defaultZoomFactor() : 1;
+      if (Math.abs(zoom - dflt) < 0.001) { delete zooms[host]; } else { zooms[host] = zoom; }
       localStorage.setItem('vex.zooms', JSON.stringify(zooms));
     } catch {}
   },
@@ -1751,6 +1759,18 @@ const WebviewManager = {
           label: 'Copy',
           action: () => webview.copy()
         });
+      }
+      // A link that opens the page with these words highlighted (#:~:text=), js/tabs-nav.js.
+      if (!e.params.isEditable && isTab && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('textFragment')) {
+        const pageUrl = (() => { try { return webview.getURL(); } catch { return ''; } })();
+        const fragment = VexTabsNav.textFragmentUrl(pageUrl, e.params.selectionText);
+        if (fragment) {
+          textItems.push({
+            label: 'Copy link to selected text',
+            action: () => navigator.clipboard.writeText(fragment).then(() => window.showToast?.('Copied a link to the selected text'))
+              .catch(err => window.showToast?.('Could not copy the link: ' + ((err && err.message) || err), 'error')),
+          });
+        }
       }
       if (typeof Annotations !== 'undefined') {
         textItems.push({

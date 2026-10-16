@@ -33,6 +33,8 @@ define('pcbb:link-set', [boolean]);
 define('pcbb:link-state', []);
 define('pcbb:tabcost', [object]);
 define('legal:gate', [boolean]);
+// Keep Vex's own window on top (src/main/keep-on-top.js).
+define('window:keep-on-top', [boolean]);
 // A Chrome Web Store link or a 32-letter extension id; main finds the id in it
 // and refuses anything else (src/main/webstore.js).
 define('extensions:webstore-preview extensions:install-webstore', [string(2048)]);

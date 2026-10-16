@@ -132,6 +132,8 @@ const DownloadsPanel = {
     if (!dl) return;
     dl.receivedBytes = data.receivedBytes || 0;
     if (data.totalBytes) dl.totalBytes = data.totalBytes;
+    // Speed and time left (js/tabs-nav.js).
+    if (typeof VexTabsNav !== 'undefined') dl._rate = data.paused ? { at: Date.now(), received: dl.receivedBytes, bps: 0 } : VexTabsNav.rateStep(dl._rate, dl.receivedBytes, Date.now());
     const wasPaused = dl.paused;
     dl.paused = !!data.paused;
     dl.canResume = !!data.canResume;
@@ -712,7 +714,10 @@ const DownloadsPanel = {
       const progress = dl.totalBytes > 0
         ? `${this.formatBytes(dl.totalBytes)} &middot; ${this._percent(dl)}% (${this.formatBytes(dl.receivedBytes)})`
         : `${this.formatBytes(dl.receivedBytes)} downloaded`;
-      return `${progress} &middot; ${date}${dl.paused ? ' &middot; paused' : ''}`;
+      const bps = dl._rate && !dl.paused ? dl._rate.bps : 0;
+      const speed = typeof VexTabsNav !== 'undefined' && bps > 0
+        ? ' &middot; ' + [VexTabsNav.formatRate(bps), VexTabsNav.etaText(bps, dl.receivedBytes, dl.totalBytes)].filter(Boolean).join(' &middot; ') : '';
+      return `${progress}${speed} &middot; ${date}${dl.paused ? ' &middot; paused' : ''}`;
     }
     const size = this.formatBytes(dl.totalBytes || dl.receivedBytes);
     const label = dl.state === 'completed' ? (dl.missing ? ' &middot; deleted' : ' &middot; completed')

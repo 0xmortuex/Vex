@@ -135,12 +135,17 @@ function rankSuggestions(query, items, cap = 8, now = Date.now()) {
 // with one, to the whole address. Returns { text, url } — `text` is what the
 // box shows (typed text kept as typed), `url` where Enter goes — or null.
 // Never completes words with a space (a search) or anything not http(s).
-function _inlineCompletion(typed, ranked) {
+//
+// opts (js/tabs-nav.js), both optional: { typedCount(host) -> number, skip(host) -> boolean }.
+// With them the candidate you TYPE most often wins over the first ranked one (ties keep the
+// ranked order), and a host skip() refuses (a lookalike of a well-known site) is never offered.
+function _inlineCompletion(typed, ranked, opts) {
   const raw = typed == null ? '' : String(typed);
   if (!raw || /\s/.test(raw) || !Array.isArray(ranked)) return null;
   const prefix = raw.toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '');
   if (!prefix) return null;
   const wantPath = prefix.includes('/');
+  let best = null, bestCount = -1;
   for (const it of ranked) {
     if (!it || it.kind === 'web' || typeof it.url !== 'string') continue;
     let u;
@@ -156,9 +161,12 @@ function _inlineCompletion(typed, ranked) {
       url = u.origin + '/';
     }
     if (full.length <= prefix.length || full.toLowerCase().slice(0, prefix.length) !== prefix) continue;
-    return { text: raw + full.slice(prefix.length), url };
+    if (!opts) return { text: raw + full.slice(prefix.length), url };
+    if (opts.skip && opts.skip(host)) continue;
+    const n = opts.typedCount ? opts.typedCount(host) : 0;
+    if (n > bestCount) { bestCount = n; best = { text: raw + full.slice(prefix.length), url }; }
   }
-  return null;
+  return best;
 }
 
 const SmartSearchbar = (() => {
@@ -274,7 +282,8 @@ const SmartSearchbar = (() => {
   }
 
   function _kindLabel(kind) {
-    return kind === 'tab' ? 'Switch to tab'
+    return kind === 'calc' ? 'Copy answer'
+      : kind === 'tab' ? 'Switch to tab'
       : kind === 'bookmark' ? 'Bookmark'
       : kind === 'web' ? 'Search'
       : 'History';
@@ -282,7 +291,9 @@ const SmartSearchbar = (() => {
 
   // Build the combined keyboard/render list: locals first, then web below.
   function _composeResults() {
-    _results = [..._localResults, ..._webResults];
+    // A typed sum or conversion gets its answer as the first row (js/tabs-nav.js).
+    const calc = typeof VexTabsNav !== 'undefined' ? VexTabsNav.calcFor(_typed()) : null;
+    _results = [...(calc ? [{ kind: 'calc', title: '= ' + calc.text, url: 'Press Enter to copy the answer', answer: calc.text }] : []), ..._localResults, ..._webResults];
   }
 
   function _render() {
@@ -290,10 +301,10 @@ const SmartSearchbar = (() => {
     if (!_results.length) { _close(); return; }
     const box = _ensureBox();
     box.innerHTML = '';
-    const firstWebIdx = _localResults.length;
+    const firstWebIdx = _results.length - _webResults.length;
     _results.forEach((r, i) => {
       // Visual divider/label before the first web row (only if locals exist).
-      if (i === firstWebIdx && _localResults.length && _webResults.length) {
+      if (i === firstWebIdx && i > 0 && _webResults.length) {
         const label = document.createElement('div');
         label.className = 'sb-section-label';
         label.textContent = 'Web search';
@@ -305,7 +316,7 @@ const SmartSearchbar = (() => {
       const row = document.createElement('div');
       row.className = 'sb-suggestion' + (i === _selectedIndex ? ' selected' : '');
       row.dataset.index = String(i);
-      const letter = isWeb ? '\u2315' : ((text || '?').trim().charAt(0) || '?').toUpperCase();
+      const letter = isWeb ? '\u2315' : r.kind === 'calc' ? '=' : ((text || '?').trim().charAt(0) || '?').toUpperCase();
       row.innerHTML =
         `<div class="sb-chip">${_esc(letter)}</div>` +
         `<div class="sb-text">` +
@@ -348,6 +359,12 @@ const SmartSearchbar = (() => {
     const r = _results[i];
     if (!r) return;
     _close();
+    if (r.kind === 'calc') {
+      navigator.clipboard.writeText(r.answer)
+        .then(() => window.showToast?.('Copied ' + r.answer))
+        .catch(err => window.showToast?.('Could not copy the answer: ' + ((err && err.message) || err), 'error'));
+      return;
+    }
     if (r.kind === 'web') {
       // A web suggestion is a QUERY, not a URL. Route through the existing
       // submit path so the user's configured search engine resolves it.
@@ -397,7 +414,7 @@ const SmartSearchbar = (() => {
     if (_lastInputType && _lastInputType !== 'insertText') return;
     const end = value.length;
     if (_input.selectionStart !== end || _input.selectionEnd !== end) return;
-    const c = _inlineCompletion(value, _localResults);
+    const c = _inlineCompletion(value, _localResults, typeof VexTabsNav !== 'undefined' ? VexTabsNav.completionOptions() : null);
     if (!c) return;
     _input.value = c.text;
     _input.setSelectionRange(end, c.text.length);

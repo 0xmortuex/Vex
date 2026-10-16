@@ -26,6 +26,12 @@ const UrlBarMenu = {
     items.push({ label: 'Paste', action: async () => replace((await read()).replace(/\s*\n\s*/g, ' ')) });
     items.push({ label: 'Paste and go', action: async () => onPasteAndGo((await read()).trim()) });
     items.push({ label: 'Select all', action: () => { input.focus(); input.select(); } });
+    // The page's address without what identifies you, or as a Markdown link (js/tabs-nav.js).
+    const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
+    if (tab && /^https?:\/\//i.test(tab.url || '') && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('cleanCopy')) {
+      items.push({ label: 'Copy clean link', action: () => VexTabsNav.copyLink(tab, 'clean') });
+      items.push({ label: 'Copy as Markdown link', action: () => VexTabsNav.copyLink(tab, 'markdown') });
+    }
     return items;
   },
 

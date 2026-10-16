@@ -885,11 +885,27 @@ registerSidebarConfigIpc(ipcMain, userDataPath);
 // and toasted in an open private window too; audit RD11, 2026-10-10).
 function _broadcastDownloadEvent(channel, data, { skipPrivate = false } = {}) {
   _extDownloadEvent(channel, data);
+  // The taskbar button fills while files download and flashes when the last one
+  // is done (src/main/taskbar-progress.js, T2-083).
+  if (channel === 'download-progress') _taskbarProgress().progress(data);
+  else if (channel === 'download-complete') _taskbarProgress().complete(data);
   BrowserWindow.getAllWindows().forEach(w => {
     if (w.isDestroyed()) return;
     if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;
     try { w.webContents.send(channel, data); } catch {}
   });
+}
+// Taskbar progress and flash for downloads (src/main/taskbar-progress.js). The flash is
+// not made while a full-screen game, or Vex itself in full screen, has the screen.
+let _taskbarProgressInst = null;
+function _taskbarProgress() {
+  if (_taskbarProgressInst) return _taskbarProgressInst;
+  _taskbarProgressInst = require('./main/taskbar-progress').createTaskbarProgress({
+    getWindow: () => mainWindow,
+    canFlash: () => !_gameWatch.state().game && !(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()),
+    log: (m) => console.error(m),
+  });
+  return _taskbarProgressInst;
 }
 // Lookalike addresses, risky downloads and over-asking pages (src/main/web-safety.js):
 // the person's choices live in web-safety.json; the sites they use most come from
@@ -1412,7 +1428,20 @@ function _mergedGameState() {
   const launcher = !!listed.launcher && !fs_.game && !listed.game;
   return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '', ...(launcher ? { launcher: true, launcherApp: listed.launcherApp || '' } : {}) };
 }
+// Keep Vex's window on top (src/main/keep-on-top.js, T2-053): let go while a full-screen game has the screen.
+let _keepOnTopInst = null;
+function _keepOnTop() {
+  if (_keepOnTopInst) return _keepOnTopInst;
+  _keepOnTopInst = require('./main/keep-on-top').createKeepOnTop({
+    getWindow: () => mainWindow,
+    fullscreenGame: () => !!_gameWatch.state().game,
+    log: (m) => console.log(m),
+  });
+  return _keepOnTopInst;
+}
+ipcMain.handle('window:keep-on-top', (_e, on) => _keepOnTop().set(on));
 function _sendGameState() {
+  if (_keepOnTopInst) { try { _keepOnTopInst.recheck(); } catch (err) { console.error('[KeepOnTop] ' + err.message); } }
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
 }
 // While Game mode is on for a game: Vex's page processes run below normal
@@ -7091,10 +7120,24 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'vex', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ]);
 
+// Where the window was last time, put on a screen that exists now (src/main/window-placement.js, T2-082).
+const _windowPlacementFile = path.join(userDataPath, 'window-bounds.json');
+function _screenWorkAreas() { return require('electron').screen.getAllDisplays().map(d => d.workArea); }
+function _savedWindowPlace() {
+  const wp = require('./main/window-placement');
+  let saved;
+  try { saved = wp.createPlacementStore({ fs, file: _windowPlacementFile }).load(); }
+  catch (err) { console.error('[Window] the saved window place cannot be used, starting at the default place:', err.message); return null; }
+  if (!saved) return null;
+  return wp.clamp(saved, _screenWorkAreas()).bounds;
+}
+
 function createWindow() {
+  const _place = _savedWindowPlace();
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: _place ? _place.width : 1400,
+    height: _place ? _place.height : 900,
+    ...(_place ? { x: _place.x, y: _place.y } : {}),
     minWidth: 800,
     minHeight: 600,
     frame: false,
@@ -7148,6 +7191,23 @@ function createWindow() {
   // Looking at Vex takes the dot off its taskbar button (src/main/raise-guard.js).
   mainWindow.on('focus', () => { if (_raiseGuardInst) _raiseGuardInst.release(); });
   mainWindow.once('ready-to-show', _showMainWindow);
+  {
+    // Remember the window's place and keep it on a screen that exists (T2-082); stop the
+    // download flash once Vex is looked at (T2-083).
+    const wp = require('./main/window-placement');
+    const placement = wp.createWindowPlacement({
+      win: mainWindow, getWorkAreas: _screenWorkAreas,
+      store: wp.createPlacementStore({ fs, file: _windowPlacementFile }), log: (m) => console.error(m),
+    });
+    const guarded = (fn) => () => { try { fn(); } catch (err) { console.error('[Window] ' + err.message); } };
+    const scr = require('electron').screen;
+    mainWindow.on('move', guarded(placement.saveSoon));
+    mainWindow.on('resize', guarded(placement.saveSoon));
+    mainWindow.on('close', guarded(placement.flush));
+    for (const ev of ['display-removed', 'display-metrics-changed', 'display-added']) scr.on(ev, guarded(placement.settle));
+    mainWindow.on('focus', () => _taskbarProgress().seen());
+    for (const ev of ['enter-full-screen', 'leave-full-screen']) mainWindow.on(ev, guarded(() => { if (_keepOnTopInst) _keepOnTopInst.recheck(); }));
+  }
   mainWindow.once('ready-to-show', () => { _vexStartupMs = Math.round(process.uptime() * 1000); });
   setTimeout(_showMainWindow, 4000);
 

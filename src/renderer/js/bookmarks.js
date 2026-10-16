@@ -146,6 +146,25 @@ const Bookmarks = {
         head.style.cssText = 'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;padding:12px 8px 4px;display:flex;align-items:center;gap:6px';
         head.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="flex:none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
         head.appendChild(document.createTextNode(f));
+        // Open every bookmark of the folder, each in its own tab; the first comes to the front.
+        if (folders[f].length > 1) {
+          const all = document.createElement('button');
+          all.type = 'button';
+          all.textContent = 'Open all';
+          all.title = 'Open all ' + folders[f].length + ' bookmarks in ' + f;
+          all.setAttribute('aria-label', 'Open all ' + folders[f].length + ' bookmarks in ' + f);
+          all.style.cssText = 'margin-left:auto;font-size:11px;text-transform:none;letter-spacing:0;font-weight:600;padding:2px 8px;border:1px solid var(--vex-border-subtle, var(--border));border-radius:6px;background:none;color:var(--text-muted);cursor:pointer';
+          all.addEventListener('click', async () => {
+            const urls = folders[f].map(x => x.url);
+            if (urls.length > 8) {
+              const ok = await window.vexConfirm({ title: 'Open ' + urls.length + ' tabs?', message: 'Every bookmark in "' + f + '" opens in its own tab.', okLabel: 'Open all' });
+              if (!ok) return;
+            }
+            SidebarManager.hideActivePanel?.();
+            urls.forEach((u, i) => TabManager.createTab(u, i === 0));
+          });
+          head.appendChild(all);
+        }
         list.appendChild(head);
         folders[f].forEach(b => {
           const row = document.createElement('div');

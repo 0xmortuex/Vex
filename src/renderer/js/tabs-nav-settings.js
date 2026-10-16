@@ -1,0 +1,90 @@
+// === Settings › Tabs and navigation ============================================
+//
+// The switches of js/tabs-nav.js, one line each, and the two things it remembers
+// (the words searched with the find bar, how often each site was typed) with a
+// button to forget each. Also the Ctrl+K command that turns "Keep Vex on top" on or off.
+const TabsNavSettings = {
+  ID: 'tabs-nav',
+
+  ROWS: [
+    ['findOptions', 'Find bar: match case, start from the selection, Up and Down for earlier searches'],
+    ['cleanCopy', 'Copy clean link and Copy as Markdown link (address bar and tab menu)'],
+    ['textFragment', 'Copy link to selected text (right-click a selection)'],
+    ['typedRanking', 'Finish addresses with the sites you type most, never a lookalike'],
+    ['switchToTab', 'Enter on an address that is already open goes to that tab'],
+    ['addressExtras', 'Address bar extras: Alt+Up one level, drag the padlock as a link, answers to sums'],
+    ['activityDot', 'A dot on a background tab whose title count goes up, like (3) Inbox'],
+  ],
+
+  render(body) {
+    body.textContent = '';
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    const redraw = () => this.render(body);
+    const fail = (err) => window.showToast?.((err && err.message) || String(err), 'error');
+    const N = VexTabsNav;
+
+    const toggle = (label, isOn, apply, disabled) => {
+      const row = el('div', 'setting-toggle-row');
+      const lab = el('label', 'toggle');
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.checked = isOn; input.disabled = !!disabled; input.setAttribute('aria-label', label);
+      input.addEventListener('change', () => {
+        Promise.resolve().then(() => apply(input.checked)).then(redraw).catch((err) => { input.checked = !input.checked; fail(err); });
+      });
+      lab.append(input, el('span', 'toggle-slider'));
+      row.append(el('span', 'setting-label-text', label), lab);
+      body.appendChild(row);
+    };
+
+    body.appendChild(el('p', 'setting-info', 'Small helpers for the address bar, the find bar, the tab strip and the window. Nothing here sends anything anywhere.'));
+    toggle('Tabs and navigation extras', N.enabled(), (v) => N.setEnabled(v));
+    for (const [key, label] of this.ROWS) toggle(label, N.prefs()[key], (v) => N.setPref(key, v), !N.enabled());
+
+    const priv = typeof VexTabPolicy !== 'undefined' && VexTabPolicy.isPrivateWindow;
+    toggle('Keep Vex on top of other windows', N.prefs().keepOnTop, (v) => N.setKeepOnTop(v), !N.enabled() || priv);
+    body.appendChild(el('p', 'setting-info', priv
+      ? 'Change this in a normal window.'
+      : 'Only Vex\'s own window. It lets go while a full-screen game has the screen and comes back when the game is over.'));
+
+    // The zoom of a page that has none of its own.
+    const zoomRow = el('div', 'setting-row');
+    const zoomSel = document.createElement('select');
+    zoomSel.setAttribute('aria-label', 'Default page zoom');
+    zoomSel.disabled = !N.enabled();
+    for (const pct of [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300]) {
+      const o = document.createElement('option'); o.value = String(pct); o.textContent = pct + '%'; zoomSel.appendChild(o);
+    }
+    zoomSel.value = String(N.defaultZoomPercent());
+    if (zoomSel.value !== String(N.defaultZoomPercent())) { const o = document.createElement('option'); o.value = String(N.defaultZoomPercent()); o.textContent = N.defaultZoomPercent() + '%'; zoomSel.appendChild(o); zoomSel.value = o.value; }
+    zoomSel.addEventListener('change', () => { try { N.setDefaultZoomPercent(Number(zoomSel.value)); } catch (err) { fail(err); } });
+    zoomRow.append(el('span', 'setting-label-text', 'Default page zoom (a page you zoomed yourself keeps its own)'), zoomSel);
+    body.appendChild(zoomRow);
+
+    const forget = (label, run) => {
+      const b = el('button', 'btn-secondary', label); b.type = 'button';
+      b.addEventListener('click', () => { try { run(); window.showToast?.('Forgotten'); } catch (err) { fail(err); } });
+      const r = el('div', 'setting-row'); r.appendChild(b); body.appendChild(r);
+    };
+    forget('Forget earlier find-bar searches', () => N.findHistory.clear());
+    forget('Forget which sites I type most', () => N.typed.clear());
+  },
+};
+
+if (typeof window !== 'undefined') {
+  window.TabsNavSettings = TabsNavSettings;
+  if (typeof VexSettingsGroups !== 'undefined') {
+    VexSettingsGroups.register({ id: TabsNavSettings.ID, title: 'Tabs and navigation', keywords: 'find match case clean link markdown text fragment autocomplete switch to tab alt up keep on top always on top activity dot', render: (body) => TabsNavSettings.render(body) });
+  }
+  if (typeof VexModuleCommands !== 'undefined') {
+    VexModuleCommands.set('tabsnav:', [{
+      id: 'tabsnav:keep-on-top',
+      label: 'Keep Vex on top (toggle)',
+      hint: 'Vex\'s own window stays above other windows; it lets go for a full-screen game',
+      icon: 'pin',
+      action: () => {
+        const on = !VexTabsNav.prefs().keepOnTop;
+        VexTabsNav.setKeepOnTop(on).catch((err) => window.showToast?.((err && err.message) || String(err), 'error'));
+      },
+    }]);
+  }
+}

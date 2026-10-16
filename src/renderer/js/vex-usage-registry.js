@@ -244,6 +244,7 @@ const VexUsageRegistry = {
       RefreshOnDeploy: () => (typeof RefreshOnDeploy !== 'undefined' ? RefreshOnDeploy : null),
       BypassDoctor: () => (typeof BypassDoctor !== 'undefined' ? BypassDoctor : null),
       WatchAlerts: () => (typeof WatchAlerts !== 'undefined' ? WatchAlerts : null),
+      VexTabsNav: () => (typeof VexTabsNav !== 'undefined' ? VexTabsNav : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -347,6 +348,8 @@ const VexUsageRegistry = {
       ['refresh-on-deploy', A.api(G.RefreshOnDeploy, 'enabled', 'setEnabled')],
       ['bypass-doctor', A.api(G.BypassDoctor, 'enabled', 'setEnabled')],
       ['watch-alerts', A.api(G.WatchAlerts, 'enabled', 'setEnabled')],
+      // Tabs and navigation extras (js/tabs-nav.js): find options, clean copy, typed-count completion, Keep on top, activity dots.
+      ['tabs-nav', A.api(G.VexTabsNav, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

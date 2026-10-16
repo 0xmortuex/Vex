@@ -259,6 +259,12 @@
       permissions: { reads: ['whether a site answers directly and through the bypass you already run'], writes: ['nothing: it never starts, stops or changes a bypass'], sends: ['One request to the address you ask about, and one to discord.com shortly after start'] } },
     { id: 'watch-alerts', title: 'One alert per change, digest first', group: 'Watcher alerts', maturity: 'new', storageKeys: ['vex.watchAlerts.enabled', 'vex.watchAlerts.instant'],
       permissions: { reads: ['alerts from the page watch, patch radar and GitHub watch'], writes: ['one line in the Attention Inbox per change'], sends: [] } },
+    // ---- Wave 2: tabs and navigation (js/tabs-nav.js) ------------------------------------
+    // Stable: passive ergonomics that never speak up on their own, on for everyone (Settings › Tabs and
+    // navigation has a switch for each). Minimal Vex switches the whole module off and puts it back.
+    { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation',
+      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom'], commands: ['tabsnav:keep-on-top'],
+      permissions: { reads: ['the selected words on the page, the address of your tabs, the titles of background tabs'], writes: ['your switches, the last 20 find-bar searches, how often you typed each site; keeps the Vex window on top when you ask'], sends: [] } },
 
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
