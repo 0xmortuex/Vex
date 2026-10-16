@@ -202,7 +202,7 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nod
     const { file } = target();
     let st;
     try { st = fs.lstatSync(file); }
-    catch (err) { if (err && err.code === 'ENOENT') throw new Error('The folder has no ' + BRIDGE_FILE + ' yet. Your Vencord plugin writes it; see docs/vencord-bridge.md.'); throw err; }
+    catch (err) { if (err && err.code === 'ENOENT') throw new Error('The folder has no ' + BRIDGE_FILE + ' yet. Your Vencord plugin writes it; see docs/vencord-bridge.md.', { cause: err }); throw err; }
     if (!st.isFile()) throw new Error(BRIDGE_FILE + ' is a link or a folder, and is not read');
     if (st.size > MAX_BRIDGE_BYTES) throw new Error(BRIDGE_FILE + ' is larger than ' + (MAX_BRIDGE_BYTES / 1024) + ' KB, so it is not read');
     let raw;

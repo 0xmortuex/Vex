@@ -291,12 +291,14 @@ describe('IPC policy and smaller items', () => {
     expect(cmd).toMatch(/window\.vex\.overlayOpen\(t\.url, o, t\.partition\)/);
     expect(cmd).toMatch(/window\.vex\.openAsApp\(t\.url, t\.title, t\.partition\)/);
     expect(wv).toMatch(/window\.vex\.openAsApp\(webview\.getURL\(\), [^\n]*webview\.getAttribute\?\.\('partition'\)/);
-    expect(main).toMatch(/'app:open-as-app', \(_e, url, title, partition\) => \{[\s\S]{0,200}_refuseMainProfileCopy\(partition\)/);
+    // Open as App is made by _openAppWindow (the window set restores it too); the refusal is its first line.
+    expect(main).toMatch(/function _openAppWindow\(url, title, partition, bounds\) \{\s*_refuseMainProfileCopy\(partition\)/);
+    expect(main).toMatch(/'app:open-as-app', \(_e, url, title, partition\) => \{[\s\S]{0,200}_openAppWindow\(url, title, partition, null\)/);
     expect(main).toMatch(/'overlay:open', \(_e, url, opacity, partition\) => \{[\s\S]{0,200}_refuseMainProfileCopy\(partition\)/);
   });
   // Audit TA5 (2026-10-10): from a container tab it opened in persist:main.
   it('Open as App opens in the tab\'s own session', () => {
-    const fn = main.slice(main.indexOf("ipcMain.handle('app:open-as-app'"), main.indexOf("ipcMain.handle('app:open-as-app'") + 1200);
+    const fn = main.slice(main.indexOf('function _openAppWindow('), main.indexOf('function _openAppWindow(') + 1600);
     expect(fn).toContain("const appPartition = partition || 'persist:main';");
     expect(fn).toContain('secureSessions.fromPartition(appPartition);');
     expect(fn).toContain('webPreferences: { partition: appPartition,');

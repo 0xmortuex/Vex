@@ -14,10 +14,10 @@ describe('mediaName', () => {
   const date = new Date(2026, 9, 16);
   it('names a counter-like image after the site, the page title and the date', () => {
     expect(D.mediaName({ filename: '358216048_1234567890123456_n.jpg', url: 'https://scontent.cdninstagram.com/v/x', pageUrl: 'https://www.instagram.com/p/abc/', pageTitle: 'Sam on Instagram: "Sunset"', date }))
-      .toBe('instagram - Sam on Instagram "Sunset" - 2026-10-16.jpg');
+      .toBe('instagram - Sam on Instagram Sunset - 2026-10-16.jpg');
   });
   it('uses the end of the old name when the page has no title', () => {
-    expect(D.mediaName({ filename: '9f86d081884c7d659a2feaa0c55ad015.mp4', url: 'https://video.example.org/a', pageUrl: 'https://example.org/v', pageTitle: '', date })).toBe('example - 2026-10-16 - ad015.mp4');
+    expect(D.mediaName({ filename: '9f86d081884c7d659a2feaa0c55ad015.mp4', url: 'https://video.example.org/a', pageUrl: 'https://example.org/v', pageTitle: '', date })).toBe('example - 2026-10-16 - 5ad015.mp4');
   });
   it('leaves a name that already says something, a non-media file and a generic word handled', () => {
     expect(D.mediaName({ filename: 'holiday-beach.jpg', url: 'https://a.test/x', pageUrl: 'https://a.test', pageTitle: 'T', date })).toBeNull();

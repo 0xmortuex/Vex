@@ -43,7 +43,7 @@ const VexQrVerdict = {
   // webCheck: the web-safety layer's answer for the host ({ flagged, line, reasons }) or null.
   // visits: how many history entries the site has, or null when that is not known.
   verdict(url, { webCheck = null, visits = null } = {}) {
-    const info = typeof LinkSafety !== 'undefined' ? LinkSafety.describe(url) : { url, real: url, clean: url, wrapped: false, tracked: false, host: '', insecure: /^http:/i.test(url), lookalike: null };
+    const info = typeof LinkSafety !== 'undefined' ? LinkSafety.describe(url) : { url, real: url, clean: url, wrapped: false, tracked: false, host: (() => { try { return new URL(url).hostname; } catch { return ''; } })(), insecure: /^http:/i.test(url), lookalike: null };
     const host = String(info.host || '').toLowerCase().replace(/^www\./, '');
     const signs = [];
     if (webCheck && webCheck.flagged) signs.push({ level: 'high', text: webCheck.line, more: webCheck.reasons || [] });

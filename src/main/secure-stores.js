@@ -67,7 +67,7 @@ function describe({ userDataPath, fsMod = fs }) {
       const n = fsMod.readSync(fd, head, 0, 8, 0);
       return { id: s.id, label: s.label, exists: true, state: headerKind(head.subarray(0, n)), bytes: size };
     } catch (err) {
-      throw new Error('Could not read ' + s.file + ': ' + err.message);
+      throw new Error('Could not read ' + s.file + ': ' + err.message, { cause: err });
     } finally {
       if (fd !== null) { try { fsMod.closeSync(fd); } catch (e) { console.error('[secure-stores] could not close', s.file, e.message); } }
     }
@@ -88,7 +88,7 @@ function wipe({ userDataPath, confirm, fsMod = fs }) {
       try { fsMod.unlinkSync(f); had = true; }
       catch (e) {
         if (e && e.code === 'ENOENT') continue;
-        throw new Error('Could not erase ' + s.label + ' (' + e.message + '). Already erased: ' + (removed.join(', ') || 'nothing'));
+        throw new Error('Could not erase ' + s.label + ' (' + e.message + '). Already erased: ' + (removed.join(', ') || 'nothing'), { cause: e });
       }
     }
     (had ? removed : absent).push(s.label);
@@ -106,7 +106,7 @@ function registerAppLock({ ipcMain, app, userDataPath, mainWindowOf, makeRecord,
     if (!w || w.isDestroyed() || e.sender !== w.webContents || e.senderFrame !== w.webContents.mainFrame) throw new Error('Only the main Vex window does this');
   };
   ipcMain.handle('applock:make-record', async (e, secret) => { fromMain(e); return JSON.stringify(await makeRecord(secret)); });
-  ipcMain.handle('applock:stores', (e) => { fromMain(e); return { stores: describe({ userDataPath }), notEncrypted: NOT_ENCRYPTED.slice(), phrase: CONFIRM_PHRASE }; });
+  ipcMain.handle('applock:stores', async (e) => { fromMain(e); return { stores: describe({ userDataPath }), notEncrypted: NOT_ENCRYPTED.slice(), phrase: CONFIRM_PHRASE }; });
   ipcMain.handle('applock:reset', async (e, confirm) => {
     fromMain(e);
     const receipt = wipe({ userDataPath, confirm });

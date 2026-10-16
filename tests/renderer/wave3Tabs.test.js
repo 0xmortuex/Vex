@@ -221,7 +221,7 @@ describe('split keys', () => {
     SplitScreen.active = true; SplitScreen.panes = ['a', 'b'];
     expect(VexSplitKeys.swap()).toEqual(['b', 'a']);
     expect(SplitScreen.applySplit).toHaveBeenCalled();
-    expect(VexSplitKeys.focusNext(1)).toBe('a');
+    expect(VexSplitKeys.focusNext(1)).toBe('b');   // the panes are now b, a: the next one after the front tab (a) is b
   });
   it('takes only a plain web address from a page that Alt-clicked a link', () => {
     expect(VexSplitKeys.cleanAddress('https://a.com/x')).toBe('https://a.com/x');

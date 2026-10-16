@@ -83,9 +83,9 @@ const VexUsageCounters = {
     const day = rec.days[today] || (rec.days[today] = {});
     const row = day[id] || (day[id] = { opened: 0, suppressed: 0, errored: 0, backedOff: 0 });
     row[kind] += n;
-    // Old days go.
-    const keys = Object.keys(rec.days).sort();
-    while (keys.length > this.KEEP_DAYS) delete rec.days[keys.shift()];
+    // Days older than KEEP_DAYS go (by age, not by how many days have a record: a long break must not keep old counts).
+    const oldest = this._day(this._now() - (this.KEEP_DAYS - 1) * this.DAY_MS);
+    for (const k of Object.keys(rec.days)) if (k < oldest) delete rec.days[k];
     this._saveSoon();
     return true;
   },

@@ -122,7 +122,7 @@ const VexPanelGuard = {
     const text = slept.map(s => s.label + ' (' + s.cpuPct + '%)').join(', ');
     const msg = 'During the game Vex put ' + text + ' to sleep because ' + (slept.length === 1 ? 'it was' : 'they were') + ' using the processor. Open ' + (slept.length === 1 ? 'it' : 'one') + ' to wake it.';
     const show = () => VexMediaKit.toast(msg, 'info', 12000);
-    if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: 'r' + Date.now(), title: msg }, show);
+    if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: vexId('r'), title: msg }, show);
     else show();
     return msg;
   },

@@ -188,12 +188,12 @@ const VersionReview = {
     const next = list.filter(r => r.version !== version);
     if (next.length === list.length) return false;
     this._saveList(next);
-    this._emit('vex:version-review-changed');
+    this._changed();
     return true;
   },
   forgetAll() {
     localStorage.removeItem(this.REVIEWS_KEY);
-    this._emit('vex:version-review-changed');
+    this._changed();
   },
 
   // The anonymous id: random, made here, not derived from anything. Resetting
@@ -214,6 +214,11 @@ const VersionReview = {
     this._saveState(s);
   },
 
+  // The list of reviews changed (a literal name, so the event contract test sees who sends it).
+  _changed(detail) {
+    try { document.dispatchEvent(new CustomEvent('vex:version-review-changed', { detail })); }
+    catch (err) { VexProblems?.note('Version review', 'Could not announce a change', err); }
+  },
   _emit(name, detail) {
     try { document.dispatchEvent(new CustomEvent(name, { detail })); }
     catch (err) { VexProblems?.note('Version review', 'Could not announce ' + name, err); }
@@ -236,7 +241,7 @@ const VersionReview = {
       try { await this.send(review); sent = { state: 'sent' }; }
       catch (err) { sent = { state: 'failed', error: err.message }; }
     }
-    this._emit('vex:version-review-changed', { version });
+    this._changed({ version });
     return { review, xp, sent };
   },
 
@@ -283,6 +288,8 @@ const VersionReview = {
     const p = this.prefs();
     if (!p.relayUrl) throw new Error('Set the relay address first');
     if (typeof VexConsent === 'undefined') throw new Error('Consents are not available');
+    // Turning sending on is a fresh choice: an earlier "Keep them here" must not lock the switch.
+    if (VexConsent.status(this.CONSENT_ID) === 'declined') VexConsent.revoke(this.CONSENT_ID);
     const ok = await VexConsent.ask(this.CONSENT_ID, { title: 'Send your reviews?', message: this.consentText(p.relayUrl), yes: 'Send my reviews', no: 'Keep them here' });
     if (!ok) return false;
     this.savePrefs({ send: true });

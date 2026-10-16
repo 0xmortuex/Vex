@@ -115,7 +115,7 @@ function createFeedbackRelay({ fetch } = {}) {
     } catch (err) {
       throw new Error('Could not reach the relay: ' + (err && err.message ? err.message : String(err)), { cause: err });
     }
-    let data = null;
+    let data;
     try { data = await res.json(); } catch { data = null; }
     if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || ('The relay answered ' + res.status));
     return { ok: true };

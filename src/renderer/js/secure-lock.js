@@ -51,7 +51,7 @@ const VexSecureLock = {
   secretProblem(secret) {
     const s = String(secret == null ? '' : secret);
     if (/^\d{4,12}$/.test(s)) return '';
-    if (/^\d+$/.test(s)) return 'A PIN is 4 to 12 digits. For longer, use a passphrase with letters.';
+    if (/^\d+$/.test(s)) return 'A PIN is 4 to 12 digits. For anything else use a passphrase of at least 8 characters, with letters.';
     if (s.length < 8) return 'A passphrase is at least 8 characters';
     if (s.length > 128) return 'A passphrase is at most 128 characters';
     return '';

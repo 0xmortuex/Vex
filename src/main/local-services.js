@@ -178,12 +178,12 @@ function createLocalServices({
     if (ext === '.exe' || ext === '.com') return { file: found, argv };
     if (ext === '.cmd') {
       // The npm-style shim names the node script it runs; Vex runs that script with node.exe itself.
-      let text = '';
-      try { text = fs.readFileSync(found, 'utf8').slice(0, 20000); } catch (err) { throw new Error(exeName + ' could not be read: ' + err.message); }
+      let text;
+      try { text = fs.readFileSync(found, 'utf8').slice(0, 20000); } catch (err) { throw new Error(exeName + ' could not be read: ' + err.message, { cause: err }); }
       const m = /"%(?:~dp0|dp0)%?\\([^"%\r\n]+\.(?:c|m)?js)"/i.exec(text);
       if (m) {
         const script = path.resolve(path.dirname(found), m[1]);
-        let ok = false;
+        let ok;
         try { ok = insideRoot(path.dirname(found), script) && fs.statSync(script).isFile(); } catch { ok = false; }
         if (ok) {
           const near = path.join(path.dirname(found), 'node.exe');
@@ -213,7 +213,7 @@ function createLocalServices({
   const publicOf = async (s) => {
     const r = running.get(s.id);
     const ex = lastExit.get(s.id) || null;
-    let shown = '';
+    let shown;
     try { shown = displayCommand(TEMPLATES[s.template].exe, TEMPLATES[s.template].build(s.params || {}, s.port || 0)); } catch { shown = '(this entry is not valid any more)'; }
     return {
       id: s.id, name: s.name, folder: s.folder, template: s.template, command: shown, port: s.port || 0,

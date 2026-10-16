@@ -18,7 +18,7 @@ describe('scrypt records', () => {
     expect(a.hash).not.toBe(b.hash);
   });
   it('refuses secrets that are neither a PIN nor a passphrase', async () => {
-    for (const s of ['123', '1'.repeat(13), 'short', 'x'.repeat(PASSPHRASE_MAX + 1), '', 4821, null]) {
+    for (const s of ['123', 'abcdefg', 'short', 'x'.repeat(PASSPHRASE_MAX + 1), '', 4821, null]) {
       await expect(makeScryptRecord(s), String(s)).rejects.toThrow();
     }
     expect(PASSPHRASE_MIN).toBe(8);

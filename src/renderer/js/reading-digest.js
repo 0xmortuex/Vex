@@ -330,7 +330,7 @@ const ReadingDigest = {
 
     let html = `<div class="rd-head">
         <button class="btn-primary rd-build" id="rd-build" ${building ? 'disabled' : ''}>${VexIcons.svg(building ? 'refresh' : 'sparkles', { size: 13 })}<span>${building ? 'Making the digest…' : (d ? 'Make it again' : 'Make my digest')}</span></button>
-        <div class="rd-meta">${d ? 'Made ' + esc(this._when(d.at)) + (d.backend ? ' ' + VexProvenance.html(VexProvenance.fromResult({ backend: d.backend, model: d.model }, { read: 'your saved articles' })) : (d.model ? ' · ' + esc(d.model) : '')) : 'Each saved article in two or three sentences, made ' + where + '.'}</div>
+        <div class="rd-meta">${d ? 'Made ' + esc(this._when(d.at)) + (d.backend && typeof VexProvenance !== 'undefined' ? ' ' + VexProvenance.html(VexProvenance.fromResult({ backend: d.backend, model: d.model }, { read: 'your saved articles' })) : (d.model ? ' · ' + esc(d.model) : '')) : 'Each saved article in two or three sentences, made ' + where + '.'}</div>
       </div>`;
     if (building) html += `<div class="rd-progress" id="rd-progress" role="status">${this._progress ? 'Reading ' + (this._progress.done + 1) + ' of ' + this._progress.total + ': ' + esc(this._progress.title) : 'Checking which AI can make it…'}</div>`;
     if (this._lastError && !building) {

@@ -16,7 +16,7 @@
 // keeps every plain key and every Ctrl key it has. Once the labels are up the typed
 // letters are taken from the page on purpose, and only while they are up.
 const VexLinkHints = {
-  KEY: 'vex.linkHints',
+  KEY: 'vex.keyboardHints',   // not vex.linkHints: that older key holds the string 'off' for the press-f hints in the page (webview.js)
   DEFAULTS: { on: true },
   ALPHA: 'sadfjklewcmpgh',
   _tab: null,   // { layer, items, typed, off }

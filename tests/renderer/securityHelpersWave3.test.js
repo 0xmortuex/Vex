@@ -98,7 +98,7 @@ describe('paste-and-run tripwire classifier', () => {
     expect(CT.fromTab(wv, { text: 'mshta https://e.x/a.hta', host: 'site.example' })).toBe(true);
     expect(CT.fromTab(wv, { text: 'mshta https://e.x/a.hta', host: 'site.example' })).toBe(false);
     CT._record({ host: 'h', kind: 'mshta', did: 'kept' });
-    expect(localStorage.getItem(CT.LOG_KEY)).not.toMatch(/hta/);
+    expect(localStorage.getItem(CT.LOG_KEY)).not.toMatch(/a\.hta|e\.x/);   // the kind 'mshta' is kept, the command and its address are not
   });
 });
 
@@ -178,7 +178,7 @@ describe('slot watcher judgement', () => {
 
 describe('photo preparer plan', () => {
   it('cover crops evenly to the requested ratio', () => {
-    expect(PP.plan(4000, 3000, { width: 413, height: 531, fit: 'cover' })).toEqual({ sx: 1100, sy: 0, sw: 2332, sh: 3000, dw: 413, dh: 531 });
+    expect(PP.plan(4000, 3000, { width: 413, height: 531, fit: 'cover' })).toEqual({ sx: 834, sy: 0, sw: 2333, sh: 3000, dw: 413, dh: 531 });   // 3000 * 413/531 = 2333.2; (4000 - 2333) / 2 = 833.5 rounds to 834
   });
   it('contain never enlarges and keeps the ratio', () => {
     expect(PP.plan(4000, 3000, { maxSide: 1600, fit: 'contain' })).toMatchObject({ dw: 1600, dh: 1200, sx: 0 });

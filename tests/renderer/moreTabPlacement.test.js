@@ -118,7 +118,9 @@ describe('Duplicate', () => {
     expect(read('renderer/js/tabs.js')).toMatch(/label: 'Duplicate', action: \(\) => this\.duplicateTab\(tab\)/);
     expect(read('renderer/js/command.js')).toMatch(/id: 'duplicatetab'[^\n]*TabManager\.duplicateTab\(t\)/);
     expect(read('renderer/js/webview.js')).toMatch(/label: 'Duplicate Tab'[^\n]*TabManager\.duplicateTab\(t\)/);
-    expect(read('renderer/js/gestures.js')).toMatch(/'UL': [^\n]*TabManager\.duplicateTab\(t\)/);
+    // The gesture editor (T3-068) made the strokes a table: UL is bound to the 'duplicate-tab' action, which calls it.
+    expect(read('renderer/js/gestures.js')).toMatch(/UL: 'duplicate-tab'/);
+    expect(read('renderer/js/gestures.js')).toMatch(/'duplicate-tab': [^\n]*TabManager\.duplicateTab\(t\)/);
     for (const f of ['renderer/js/tabs.js', 'renderer/js/command.js', 'renderer/js/webview.js', 'renderer/js/gestures.js']) {
       expect(read(f)).not.toMatch(/serialize\((t|tab)\) \|\| (t|tab)\), allowDuplicate: true/);
     }

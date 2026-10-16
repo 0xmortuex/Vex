@@ -85,7 +85,7 @@ describe('the hooks', () => {
     expect(read('src', 'preload.js')).toContain("ipcRenderer.invoke('status:check'");
     const policy = read('src', 'main', 'ipc-policy.js');
     expect(policy).toContain("'status:check'");
-    expect(policy).toMatch(/devfeeds:\|repos:\|status:\)/);
+    expect(policy).toMatch(/\|devfeeds:\|repos:[^/]*\|status:[|)]/);
     expect(read('src', 'main.js').match(/ipcMain\.handle\('status:check'/g)).toHaveLength(1);
   });
   it('the notification preload block only acts on a page the window listed, and reads no page content', () => {

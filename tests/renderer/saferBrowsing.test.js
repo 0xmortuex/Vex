@@ -122,7 +122,7 @@ describe('QR verdict (T3-101)', () => {
     expect(flagged.headline).toMatch(/Do not open/);
     expect(Q.verdict('https://example.org/', { visits: 4 }).level).toBe('none');
   });
-  it('never opens by itself', () => {
+  it('never opens by itself', async () => {
     globalThis.TabManager = { createTab: vi.fn() };
     const out = document.createElement('div');
     window.VexSettingsGroups = fresh(JS + 'vex-settings-groups.js').VexSettingsGroups;
@@ -130,6 +130,7 @@ describe('QR verdict (T3-101)', () => {
     expect(TabManager.createTab).not.toHaveBeenCalled();
     const open = [...out.querySelectorAll('button')].find(b => b.textContent === 'Open it');
     open.click();
+    await Promise.resolve(); await Promise.resolve();   // the button runs its action on a microtask
     expect(TabManager.createTab).toHaveBeenCalledTimes(1);
   });
 });

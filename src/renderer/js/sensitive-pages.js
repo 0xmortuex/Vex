@@ -38,7 +38,7 @@ const VexSensitive = {
     if (!host) return '';
     const labels = host.split('.');
     if (this.ACCOUNT.some(d => this._under(host, d))) return 'account';
-    if (this.MONEY.some(w => labels.some(l => l === w || l.startsWith(w + '-') || l.endsWith('-' + w) || l.startsWith(w) && w.length >= 5))) return 'money';
+    if (this.MONEY.some(w => labels.some(l => l === w || l.startsWith(w + '-') || l.endsWith('-' + w) || l.startsWith(w) && w.length >= 5 || l.endsWith(w) && w.length >= 4))) return 'money';   // mybank counts; banked does not
     if (this.CHAT.some(d => this._under(host, d))) return 'chat';
     if (labels.length > 2 && this.HOST_LABEL.test(labels[0])) return 'signin';
     let path = '';

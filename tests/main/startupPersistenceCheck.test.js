@@ -102,7 +102,8 @@ describe('scan', () => {
   it('only reads: no key other than Run/RunOnce, nothing but query, and the module has no write calls', () => {
     for (const k of sc.RUN_KEYS) expect(k.key).toMatch(/\\CurrentVersion\\Run(Once)?$/);
     const src = require('fs').readFileSync(path.resolve(__dirname, '../../src/main/startup-check.js'), 'utf8');
-    for (const bad of ['writeFile', 'unlink', 'rmSync', 'rename', 'spawn(', 'exec(', 'execSync', 'shell: true', '/delete', ' add ']) expect(src.includes(bad), bad).toBe(false);
+    for (const bad of ['writeFile', 'unlink', 'rmSync', 'rename', 'spawn(', 'execSync', 'shell: true', '/delete', ' add ']) expect(src.includes(bad), bad).toBe(false);
+    expect(/(^|[^.\w])exec\(/.test(src), 'a bare exec( call (RegExp.exec is fine)').toBe(false);
   });
   it('reports a failing program as an error, not as an empty list', async () => {
     const exec = (file, args, opts, cb) => { cb(new Error('boom'), '', 'Access is denied'); };

@@ -3,6 +3,7 @@
 // js/pinned-home.js (T3-048): a pinned tab's home page, the way back, and links that
 // leave the site opening in a new tab.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { recordWindowListeners } from '../helpers/trustedEvents.js';
 
 require('../../src/renderer/js/vex-icons.js');
 globalThis.VexIcons = window.VexIcons;
@@ -121,7 +122,9 @@ describe('the way back', () => {
 
 describe('the page side', () => {
   const open = vi.fn();
+  let rec;
   beforeEach(() => {
+    rec = recordWindowListeners();
     delete window.__vexPinHomeOn;
     window.open = open;
     open.mockClear();
@@ -129,13 +132,9 @@ describe('the page side', () => {
       + '<a id="blank" target="_blank" href="https://other.example/">blank</a><a id="mail" href="mailto:a@b.c">mail</a><a id="dl" download href="https://other.example/f.zip">dl</a>';
     // jsdom's page is http://localhost:3000, so localhost is the home site here.
   });
-  afterEach(() => { delete window.__vexPinHomeOn; });
-  const click = (id, init = {}) => {
-    const e = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init });
-    Object.defineProperty(e, 'isTrusted', { value: true });
-    document.getElementById(id).dispatchEvent(e);
-    return e;
-  };
+  afterEach(() => { delete window.__vexPinHomeOn; rec.restore(); });
+  // jsdom marks every dispatched event untrusted; the page script's own listener is called directly (tests/helpers/trustedEvents.js).
+  const click = (id, init = {}) => rec.fire('click', document.getElementById(id), { button: 0, ...init });
 
   it('opens a link that leaves the site in a new tab and keeps the pin where it is', () => {
     vexPinnedHomeGuest({ host: 'localhost' });

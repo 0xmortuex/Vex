@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const flush = () => new Promise(r => setTimeout(r, 0));
-let quiet, requests, suggested, signals, awards, sends;
+let quiet, requests, suggested, signals, awards, sends, onSignal;
 
 beforeEach(() => {
   localStorage.clear();
@@ -31,12 +31,13 @@ beforeEach(() => {
   VexConsent.register(VR.CONSENT_ID, { version: 1, label: 'x' });
   window.vexConfirm = vi.fn(async () => true);
   window.showToast = vi.fn();
-  document.addEventListener('vex:medal-signal', (e) => signals.push(e.detail));
+  onSignal = (e) => signals.push(e.detail);
+  document.addEventListener('vex:medal-signal', onSignal);
   window.vex = { getAppVersion: vi.fn(async () => '2.40.0'), feedbackSend: vi.fn(async (u, p) => { sends.push([u, p]); return { ok: true }; }) };
   delete window.VexTabPolicy;
   UpdateNotifier.close();
 });
-afterEach(() => { document.getElementById('vr-overlay')?.remove(); });
+afterEach(() => { document.getElementById('vr-overlay')?.remove(); document.removeEventListener('vex:medal-signal', onSignal); });
 
 const good = { ratings: { speed: 4 }, chips: ['loved'], comment: '' };
 

@@ -88,7 +88,7 @@ describe('an Open as App window and the IPC policy', () => {
 describe('where the window is made', () => {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   it('Open as App and the overlay register their window and tell the preload', () => {
-    const app = main.slice(main.indexOf("ipcMain.handle('app:open-as-app'"));
+    const app = main.slice(main.indexOf('function _openAppWindow('));
     expect(app.slice(0, 900)).toMatch(/additionalArguments: \['--vex-web-window'\]/);
     expect(app.slice(0, 900)).toMatch(/secureSessions\.registerWebWindow\(win\.webContents\)/);
     const overlay = main.slice(main.indexOf("ipcMain.handle('overlay:open'"));

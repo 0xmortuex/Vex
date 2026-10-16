@@ -965,7 +965,7 @@ const Scheduler = {
       run.status = 'success';
       run.noop = ctx.noop === true;
       if (quiet && !run.noop) window.showToast?.('Scheduled: ' + task.name + ' — ' + run.summary);
-      if (task.notifyOnComplete && task.action.type !== 'reminder') this._notify('Task complete: ' + task.name, run.summary);
+      if (task.notifyOnComplete && task.action.type !== 'reminder' && !(quiet && run.noop)) this._notify('Task complete: ' + task.name, run.summary);
     } catch (err) {
       run.status = 'failed';
       run.error = err?.message || String(err);

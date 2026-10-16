@@ -28,8 +28,8 @@ describe('Ctrl+K key hints', () => {
   it('a key moved in the editor is the key shown', () => {
     ShortcutsRegistry.register('group-tabs', () => {});
     expect(cmd('group-tabs').shortcut).toBe('Ctrl+Shift+G');
-    expect(ShortcutsRegistry.setShortcut('group-tabs', 'Ctrl+Alt+O')).toBe(true);
-    expect(cmd('group-tabs').shortcut).toBe('Ctrl+Alt+O');
+    expect(ShortcutsRegistry.setShortcut('group-tabs', 'Ctrl+Alt+F9')).toBe(true);
+    expect(cmd('group-tabs').shortcut).toBe('Ctrl+Alt+F9');
   });
 
   it('a command whose key is a registry entry of its own (Library) shows it', () => {
@@ -53,7 +53,7 @@ describe('the Shortcuts & Gestures guide reads the registry', () => {
   it('lists a moved key under its new combination, and the keys that live outside the registry', () => {
     const rows = window.ShortcutsGuide.keys();
     const find = (label) => rows.find(r => r[0] === label);
-    expect(find('Organize Tabs with AI')[1]).toBe('Ctrl+Alt+O');
+    expect(find('Organize Tabs with AI')[1]).toBe('Ctrl+Alt+F9');
     expect(find('Private Window')[1]).toBe('Ctrl+Alt+N');
     const keys = rows.map(r => r[1]);
     expect(keys).toContain('Ctrl+Shift+N');          // Notes, fixed

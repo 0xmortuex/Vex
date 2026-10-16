@@ -102,7 +102,7 @@ describe('mark of the web (T3-111)', () => {
     expect(createMarkOfTheWeb({ fs, platform: 'linux' }).check(['x']).supported).toBe(false);
   });
   it('the downloads tidy-up goes through it and reports a lost mark', () => {
-    const files = new Map([['C:\dl\a.exe', { stream: MARK }]]);
+    const files = new Map([['C:\\dl\\a.exe', { stream: MARK }]]);
     const base = fakeFs(files);
     let log = '[]';
     const fs = {
@@ -110,14 +110,15 @@ describe('mark of the web (T3-111)', () => {
       statSync: () => ({ isDirectory: () => true, mtimeMs: 0, size: 1 }),
       lstatSync: () => ({ isFile: () => true }),
       mkdirSync() {},
+      renameSync: (a, b) => { if (!a.endsWith('.tmp')) base.renameSync(a, b); },   // the log is written beside and renamed over; it is not one of the downloaded files
       readdirSync: () => [{ name: 'a.exe', isFile: () => true }],
       existsSync: (p) => files.has(p) || p.endsWith('log.json'),
       readFileSync: (p) => (p.endsWith(':Zone.Identifier') ? base.readFileSync(p) : log),
       writeFileSync: (p, t) => { if (p.endsWith(':Zone.Identifier')) base.writeFileSync(p, t); else log = t; },
     };
     const motw = createMarkOfTheWeb({ fs, platform: 'win32' });
-    const tidy = createDownloadTidy({ fs, logFile: 'C:\dl\log.json', motw, now: () => 10 * 86400000 });
-    const plan = tidy.plan('C:\dl', { minAgeDays: 1 });
+    const tidy = createDownloadTidy({ fs, logFile: 'C:\\dl\\log.json', motw, now: () => 10 * 86400000 });
+    const plan = tidy.plan('C:\\dl', { minAgeDays: 1 });
     const r = tidy.apply(plan.id);
     expect(r.moved).toBe(1);
     expect(r.markLost).toEqual([]);
@@ -143,7 +144,8 @@ describe('Windows Security shortcut (T3-110)', () => {
   });
   it('starts no process', () => {
     const src = require('fs').readFileSync(require.resolve('../../src/main/defender-shortcut.js'), 'utf8');
-    expect(src).not.toMatch(/child_process|execFile|spawn\(|MpCmdRun/);
+    const code = src.split(/\r?\n/).filter(l => !/^\s*\/\//.test(l)).join('\n');   // the header comment names MpCmdRun to say it is not used
+    expect(code).not.toMatch(/child_process|execFile|spawn\(|MpCmdRun/);
   });
 });
 

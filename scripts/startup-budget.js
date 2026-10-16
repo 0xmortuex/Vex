@@ -81,6 +81,7 @@ function tighten(root = ROOT) {
   const now = measure(root);
   const old = fs.existsSync(BUDGET_FILE) ? JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8')) : null;
   const next = { scripts: old ? Math.min(old.scripts, now.scripts) : now.scripts, bytes: old ? Math.min(old.bytes, now.bytes) : now.bytes };
+  if (old && old.note) next.note = old.note;
   fs.writeFileSync(BUDGET_FILE, JSON.stringify(next, null, 2) + '\n');
   return next;
 }

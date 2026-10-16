@@ -2,11 +2,13 @@
 //
 // js/autoscroll.js (T3-042): middle-click autoscroll, in the page. Never on a link.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { recordWindowListeners } from '../helpers/trustedEvents.js';
 
 const { VexAutoscroll, vexAutoscrollInstall } = require('../../src/renderer/js/autoscroll.js');
 
-let frames;
+let frames, rec;
 beforeEach(() => {
+  rec = recordWindowListeners();
   document.body.innerHTML = '';
   document.documentElement.style.cursor = '';
   delete window.__vexAutoscroll;
@@ -15,18 +17,18 @@ beforeEach(() => {
   window.cancelAnimationFrame = vi.fn();
   window.scrollBy = vi.fn();
   // jsdom has no layout: the page is made scrollable by saying so.
-  Object.defineProperty(document.documentElement, 'scrollHeight', { value: 5000, configurable: true });
-  Object.defineProperty(document.documentElement, 'clientHeight', { value: 800, configurable: true });
+  // (jsdom has no doctype, so the page is in quirks mode and document.scrollingElement is the body: both get a size.)
+  for (const el of [document.documentElement, document.body]) {
+    Object.defineProperty(el, 'scrollHeight', { value: 5000, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 800, configurable: true });
+  }
   localStorage.clear();
 });
-afterEach(() => { if (window.__vexAutoscroll) window.__vexAutoscroll.off(); });
+afterEach(() => { if (window.__vexAutoscroll) window.__vexAutoscroll.off(); rec.restore(); });
 
-// jsdom builds untrusted events; the handler wants real ones. isTrusted is a getter on the event.
+// jsdom marks every dispatched event untrusted and the handler wants real ones, so the page script's own listeners are called directly (tests/helpers/trustedEvents.js).
 function mouse(type, init = {}, target = document.body) {
-  const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 200, clientY: 300, ...init });
-  Object.defineProperty(e, 'isTrusted', { value: true });
-  target.dispatchEvent(e);
-  return e;
+  return rec.fire(type, target, { clientX: 200, clientY: 300, ...init });
 }
 const tick = () => { const f = frames.shift(); if (f) f(); };
 

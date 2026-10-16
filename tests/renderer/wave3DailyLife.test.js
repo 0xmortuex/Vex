@@ -154,7 +154,7 @@ describe('deadline ledger', () => {
   it('sums the share per unit and feeds due-ness rows', () => {
     L.add({ title: 'A', due: '2026-10-18', unit: 'cards', total: 40, now });
     L.add({ title: 'B', due: '2026-10-17', unit: 'cards', total: 10, now });
-    expect(L.dailyShare(now)).toEqual({ cards: 25 });
+    expect(L.dailyShare(now)).toEqual({ cards: 30 });   // A: 40 over 2 days = 20; B: 10 over 1 day = 10 (the same days-left rule as share())
     expect(L._dueRows(now).map(r => r.kind)).toEqual(['deadline', 'deadline']);
   });
   it('adds a found deadline and moves progress', () => {

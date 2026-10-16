@@ -29,13 +29,13 @@ describe('preconnect policy', () => {
   });
   it('limits repeats and calls the session once', () => {
     const preconnect = vi.fn();
-    let t = 0;
+    let t = 100000;   // not 0: a last time of 0 is what "never done" reads as
     const guest = { isDestroyed: () => false, getType: () => 'webview', getURL: () => 'https://a.com/', session: { preconnect } };
     const p = createPreconnect({ webContents: { fromId: () => guest }, getPrefs: () => on, isPrivate: () => false, now: () => t });
     expect(p.preconnect(1, 'https://a.com/x').ok).toBe(true);
     expect(p.preconnect(1, 'https://a.com/y').reason).toBe('just done');
     expect(preconnect).toHaveBeenCalledWith({ url: 'https://a.com', numSockets: 1 });
-    t = 31000;
+    t = 131000;
     expect(p.preconnect(1, 'https://a.com/z').ok).toBe(true);
   });
   it('refuses a private page', () => {

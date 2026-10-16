@@ -7154,7 +7154,7 @@ const _localServices = require('./main/local-services').createLocalServices({
   },
   load: async () => {
     try { return JSON.parse(await fs.promises.readFile(path.join(userDataPath, 'local-services.json'), 'utf8')); }
-    catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The local services list could not be read: ' + err.message); }
+    catch (err) { if (err && err.code === 'ENOENT') return null; throw new Error('The local services list could not be read: ' + err.message, { cause: err }); }
   },
   save: (cfg) => require('./main/file-store').atomicWrite(path.join(userDataPath, 'local-services.json'), JSON.stringify(cfg)),
   log: (m) => console.log(m),

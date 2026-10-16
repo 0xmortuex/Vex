@@ -13,16 +13,19 @@ const main = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
 describe('the safe-mode taskbar entry', () => {
   // The block as it stands in main.js, run against a stand-in app.
   const start = main.indexOf("  if (process.platform === 'win32' && app.isPackaged) {\n    app.once('browser-window-created'".replace(/\n/g, main.includes('\r\n') ? '\r\n' : '\n'));
-  const block = main.slice(start, main.indexOf('\n});', start));
+  const block = main.slice(start, main.indexOf('  // Started by a taskbar action', start));
   const run = () => {
     const app = Object.assign(new EventEmitter(), { isPackaged: true, setUserTasks: vi.fn(() => true) });
-    new Function('app', 'process', 'console', block)(app, { platform: 'win32', execPath: 'C:\\Vex\\Vex.exe' }, console);
+    // The jump list (taskbar actions and the safe-mode entry, src/main/jump-list.js) is written by _applyJumpList; here a
+    // stand-in writes the safe-mode entry, so what is checked is WHEN it is written.
+    const applyJumpList = () => app.setUserTasks([{ program: 'C:\\Vex\\Vex.exe', arguments: '--safe-mode', title: 'Start in safe mode' }]);
+    new Function('app', 'process', 'console', '_applyJumpList', block)(app, { platform: 'win32', execPath: 'C:\\Vex\\Vex.exe' }, console, applyJumpList);
     return app;
   };
 
   it('is found in main.js', () => {
     expect(start).toBeGreaterThan(-1);
-    expect(block).toContain('setUserTasks');
+    expect(block).toContain('_applyJumpList()');
   });
 
   it('waits for the first window to be shown, then a moment more', () => {

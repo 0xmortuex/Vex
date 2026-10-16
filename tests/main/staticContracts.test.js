@@ -75,7 +75,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:level-up', 'state-changed notification, no consumer yet'],
   ['vex:levels-changed', 'state-changed notification, no consumer yet'],
   ['vex:offline-pages-changed', 'state-changed notification, no consumer yet'],
-  ['vex:patch-radar', 'state-changed notification, no consumer yet'],
   ['vex:routine-suggested', 'state-changed notification, no consumer yet'],
   ['vex:panel-keepawake', 'state-changed notification, no consumer yet'],
   ['vex:skin-changed', 'state-changed notification, no consumer yet'],
@@ -93,6 +92,12 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   // Wave 0 state-changed notifications: published so a later feature can follow them without an import.
   ['vex:newtab-layout', 'NewTabSlots.setLayout(): the New Tab layout changed; the page re-reads it on open, no in-window consumer yet'],
   ['vex:consent', 'VexDefaults consent given or withdrawn; no in-window consumer yet'],
+  // Wave 3: announced for later consumers; none listens yet.
+  ['vex:ai-fallback', 'AIRouter retried on the other backend (the notice is raised from the same place); no in-window consumer yet'],
+  ['vex:feature-reset', 'the feature sheet reset a feature\'s data; no in-window consumer yet'],
+  ['vex:storage-scope-changed', 'the storage ledger scope of a feature changed; no in-window consumer yet'],
+  ['vex:study-glossary', 'the study glossary changed; no in-window consumer yet'],
+  ['vex:study-ledger', 'the study ledger changed; no in-window consumer yet'],
   ['vex:playfulness-changed', 'VexPlayfulness.setLevel(); the Play flags already tell their followers through vex:play-changed'],
 ]);
 // Used but never dispatched under that literal name.

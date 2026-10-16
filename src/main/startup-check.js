@@ -103,7 +103,7 @@ function listStartupFolder(dir, fsMod = fs) {
   const entries = [];
   for (const d of names) {
     if (!d.isFile() || /^desktop\.ini$/i.test(d.name)) continue;
-    let size = 0, mtime = 0;
+    let size, mtime;
     try { const st = fsMod.statSync(path.join(dir, d.name)); size = st.size; mtime = st.mtimeMs; }
     catch (err) { return { entries, error: 'Could not read ' + path.join(dir, d.name) + ': ' + err.message }; }
     entries.push({ name: d.name, size, mtime });

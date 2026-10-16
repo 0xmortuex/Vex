@@ -164,12 +164,12 @@ const VexSplitKeys = {
   init() {
     if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
       const run = (fn) => () => { try { fn(); } catch (err) { window.showToast?.(err.message, 'error'); } };
-      const cmd = (id, label, hint, fn) => VexExtras.registerCommand({ id, label, hint, icon: 'split', action: run(fn) });
-      cmd('split-focus-next', 'Split view: next pane', 'Move to the next pane of the split (Ctrl+Alt+O)', () => this.focusNext(1));
-      cmd('split-swap-panes', 'Split view: swap panes', 'The pane in front changes places with the next one (Ctrl+Alt+Y)', () => this.swap());
-      cmd('split-snap-25', 'Split view: 25 / 75', 'Divider a quarter of the way across', () => this.setRatio(0.25));
-      cmd('split-snap-50', 'Split view: 50 / 50', 'Divider in the middle', () => this.setRatio(0.5));
-      cmd('split-snap-75', 'Split view: 75 / 25', 'Divider three quarters of the way across', () => this.setRatio(0.75));
+      // Written out, so the command-grammar test (which reads registerCommand({ id, label }) from the source) sees every one.
+      VexExtras.registerCommand({ id: 'split-focus-next', label: 'Split view: next pane', hint: 'Move to the next pane of the split (Ctrl+Alt+O)', icon: 'split', action: run(() => this.focusNext(1)) });
+      VexExtras.registerCommand({ id: 'split-swap-panes', label: 'Split view: swap panes', hint: 'The pane in front changes places with the next one (Ctrl+Alt+Y)', icon: 'split', action: run(() => this.swap()) });
+      VexExtras.registerCommand({ id: 'split-snap-25', label: 'Split view: 25 / 75', hint: 'Divider a quarter of the way across', icon: 'split', action: run(() => this.setRatio(0.25)) });
+      VexExtras.registerCommand({ id: 'split-snap-50', label: 'Split view: 50 / 50', hint: 'Divider in the middle', icon: 'split', action: run(() => this.setRatio(0.5)) });
+      VexExtras.registerCommand({ id: 'split-snap-75', label: 'Split view: 75 / 25', hint: 'Divider three quarters of the way across', icon: 'split', action: run(() => this.setRatio(0.75)) });
     }
     const divider = document.getElementById('split-divider');
     if (divider) divider.addEventListener('dblclick', () => {

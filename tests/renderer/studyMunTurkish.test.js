@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 const JS = '../../src/renderer/js/';
+globalThis.vexId = (prefix = '') => prefix + Math.random().toString(36).slice(2, 10);   // vex-utils.js is a page global
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
 
 beforeEach(() => {

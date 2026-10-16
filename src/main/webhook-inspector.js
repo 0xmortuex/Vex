@@ -118,7 +118,7 @@ function createWebhookInspector({ http, now = () => Date.now(), setTimeout: setT
       s.listen(wanted, '127.0.0.1', () => {
         server = s; port = wanted; startedAt = now(); stopsAt = startedAt + minutes * 60000;
         requests = []; total = 0; nextId = 1;
-        timer = setT(() => { stop().then(() => log('[Webhook] stopped by its timer')); }, minutes * 60000);
+        timer = setT(() => { stop().then(() => log('[Webhook] stopped by its timer')).catch((err) => log('[Webhook] could not stop on its timer: ' + err.message)); }, minutes * 60000);
         if (timer && typeof timer.unref === 'function') timer.unref();
         s.on('error', (err) => log('[Webhook] server error: ' + err.message));
         resolve(status());

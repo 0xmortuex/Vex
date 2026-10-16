@@ -549,7 +549,7 @@
       permissions: { reads: ["the address of a page you rename"], writes: ["the name you give it, by address without query (never for private or Tor tabs)"], sends: [] } },
     { id: 'tab-thumbs', title: 'Picture while a sleeping tab wakes', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.tabThumbs'],
       permissions: { reads: ["a picture of the page of a tab you leave"], writes: ["pictures in memory only, never on disk"], sends: [] } },
-    { id: 'link-hints', title: 'Keyboard hints', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.linkHints'], commands: ['link-hints', 'tab-hints'],
+    { id: 'link-hints', title: 'Keyboard hints', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.keyboardHints'], usesKeys: ['vex.linkHints'], commands: ['link-hints', 'tab-hints'],
       permissions: { reads: ["the links and buttons in view, and your tabs, when you ask for hints"], writes: ["clicks or focuses what you pick; opens a link in a background tab with Shift"], sends: [] } },
     { id: 'split-keys', title: 'Split view keys', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.splitKeys'], commands: ['split-focus-next', 'split-swap-panes', 'split-snap-25', 'split-snap-50', 'split-snap-75'],
       permissions: { reads: ["the split panes; a link you Alt+click"], writes: ["moves the divider or the panes; opens an Alt+clicked link in the other pane"], sends: [] } },

@@ -212,7 +212,7 @@ const VexMunToolkit = {
     if (s.length < 4) throw new Error('A statistic needs its source (a name or an address)');
     if (!Number.isInteger(y) || y < 1950 || y > new Date().getFullYear() + 1) throw new Error('A statistic needs the year it is from (four digits)');
     const d = this._read();
-    const st = { id: 'st' + Date.now().toString(36), text: t.slice(0, 300), source: s.slice(0, 300), year: y };
+    const st = { id: vexId('st'), text: t.slice(0, 300), source: s.slice(0, 300), year: y };
     d.stats.push(st);
     if (d.stats.length > 200) d.stats.shift();
     this._st().set(d);

@@ -130,6 +130,17 @@ const VexTurkishHelpers = {
     }
     return out;
   },
+  // Do all the vowels of the word belong to one family: a, ı, o, u (back) or e, i, ö, ü (front)?
+  _harmonic(word) {
+    let family = '';
+    for (const ch of String(word)) {
+      const f = 'aıou'.includes(ch) ? 'b' : 'eiöü'.includes(ch) ? 'f' : '';
+      if (!f) continue;
+      if (family && family !== f) return false;
+      family = f;
+    }
+    return true;
+  },
   deasciify(text, opts) {
     const extra = opts && opts.extra ? new Set([].concat(opts.extra).map(x => this.lower(x))) : null;
     const changed = [], ambiguous = [];
@@ -143,7 +154,13 @@ const VexTurkishHelpers = {
       // A word that is on the list as it stands beats one that is only a stem plus an ending
       // ("öğrenci" over "öğrençi" = öğren + çi).
       const whole = hits.filter(v => this._words().has(v) || this._dictSet().has(v) || (extra && extra.has(v)));
-      const pick = whole.length === 1 ? whole : hits;
+      let pick = whole.length === 1 ? whole : hits;
+      // "çalışıyorum" and "çalışiyorum" both split into a stem and an ending that are on the list; only the first
+      // keeps its vowels in one family (back or front), which is how Turkish endings follow their stem.
+      if (pick.length > 1) {
+        const harmonic = pick.filter(v => this._harmonic(v));
+        if (harmonic.length >= 1 && harmonic.length < pick.length) pick = harmonic;
+      }
       if (pick.length === 1) {
         const fixed = this._withCase(tok, pick[0]);
         changed.push({ from: tok, to: fixed });

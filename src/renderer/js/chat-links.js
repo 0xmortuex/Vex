@@ -157,7 +157,7 @@ const VexChatLinks = {
       #chat-link-strip .cl-text { flex: 1 1 260px; min-width: 0; }
       #chat-link-strip .cl-why { flex: 1 1 100%; margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--text-muted); }
       #chat-link-strip button { font-size: 12px; color: var(--text); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
-      #chat-link-strip button.cl-primary { background: var(--primary, #4f8cff); color: #fff; border-color: transparent; }`;
+      #chat-link-strip button.cl-primary { background: var(--primary, #4f8cff); color: var(--on-primary, #fff); border-color: transparent; }`;
     document.head.appendChild(st);
   },
 

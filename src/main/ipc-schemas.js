@@ -202,8 +202,8 @@ define('extensions:set-command-key', [shape({ folder: string(160), command: stri
 // The interface's answer to an extension's tabs.create: the tab it made.
 define('tab:created-for-extension', [shape({ id: string(40), ok: boolean, tabId: optional(integer), url: optional(string(8192)), active: optional(boolean), error: optional(string(4000)) })]);
 define('vex-lock:state', [boolean]);
-define('vex-lock:unlock', [string(12)]);
-define('vex-lock:verify', [string(12)]);
+define('vex-lock:unlock', [string(128)]);   // a PIN is 4-12 digits, a passphrase up to 128 characters; main/lock-pin.js checks the shape
+define('vex-lock:verify', [string(128)]);
 define('tor:cancel', []);
 define('tor:status tor:stop', []);
 define('guest:page-shortcut', [shape({ key: string(1), shift: boolean })]);

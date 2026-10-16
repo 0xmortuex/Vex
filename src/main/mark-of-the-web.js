@@ -52,7 +52,7 @@ function createMarkOfTheWeb({ fs, platform = process.platform, log = () => {} })
     const before = read(from);
     doMove();
     if (before === null || !hasMark(before)) return { carried: false };
-    let after = null;
+    let after;
     try { after = read(to); }
     catch (err) { after = null; log('[MarkOfTheWeb] ' + err.message); }
     if (after !== null && hasMark(after)) return { carried: true, kept: true };

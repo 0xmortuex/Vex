@@ -51,7 +51,7 @@ function createSecretClipboard({ clipboard, schedule = setTimeout, cancel = clea
     if (!want) throw new Error('There is nothing to compare the clipboard with');
     let now;
     try { now = clipboard.readText(); }
-    catch (err) { throw new Error('Could not read the clipboard: ' + err.message); }
+    catch (err) { throw new Error('Could not read the clipboard: ' + err.message, { cause: err }); }
     if (now !== want) return false;
     clipboard.clear();
     return true;

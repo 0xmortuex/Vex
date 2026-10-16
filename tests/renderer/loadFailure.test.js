@@ -122,6 +122,7 @@ describe('what it says and offers', () => {
     await vi.advanceTimersByTimeAsync(300);
     expect(buttons()).toContain('Open your saved copy');
     document.querySelectorAll('.vlf-btn').forEach(b => { if (b.textContent === 'Open your saved copy') b.click(); });
+    await vi.advanceTimersByTimeAsync(0);   // the button runs its action on a microtask
     expect(ArchiveLibrary.openCopy).toHaveBeenCalledWith('e1');
     window.VexTabPolicy = { isPrivateWindow: true };
     const find = vi.fn();

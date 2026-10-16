@@ -262,7 +262,8 @@ function createModDesk({ fs, logFile, openZip, validateZip, motw, now = () => Da
         meta = readModMeta(zip, ent.name);
       } catch (err) { skipped.push({ name: ent.name, why: 'could not be read: ' + err.message }); continue; }
       if (!meta || !meta.loader) { skipped.push({ name: ent.name, why: 'no Minecraft mod information inside' }); continue; }
-      found.push({ name: ent.name, from: full, size: st.size, modified: st.mtimeMs, ...meta });
+      // The metadata's own `from` is the file inside the jar it was read from; the file's path must win.
+      found.push({ ...meta, name: ent.name, from: full, size: st.size, modified: st.mtimeMs });
     }
     // The same mod (id + loader + game version) more than once: the highest version stays, the rest are older.
     const groups = new Map();

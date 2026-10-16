@@ -137,6 +137,8 @@ describe('reading mode', () => {
 // ---------------------------------------------------------------------------
 describe('consent block and copy unlock can be switched back off', () => {
   const { ConsentBlock, CopyUnlock } = require('../../src/renderer/js/page-extras.js');
+  // Cookie banners are left alone when the list of banking and sign-in pages is missing (T3-077): load the real list.
+  globalThis.VexSensitive = require('../../src/renderer/js/sensitive-pages.js').VexSensitive;
 
   function twoGuests() {
     const a = fakeWebview(), b = fakeWebview();

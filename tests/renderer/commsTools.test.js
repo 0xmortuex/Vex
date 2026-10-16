@@ -34,7 +34,12 @@ function load() {
   globalThis.VencordBridge = VB = fresh('vencord-bridge.js').VencordBridge;
 }
 
+// Several modules wire themselves to the document when they load; a fresh copy per test would leave every earlier copy listening.
+let docListeners = [];
+const realAdd = document.addEventListener.bind(document);
+
 beforeEach(() => {
+  document.addEventListener = (type, fn, opts) => { docListeners.push([type, fn, opts]); realAdd(type, fn, opts); };
   localStorage.clear();
   document.body.innerHTML = '';
   delete window.vex; delete window.VexTabPolicy;
@@ -42,7 +47,11 @@ beforeEach(() => {
   window.showToast = (m, kind) => { toasts.push({ m, kind }); return null; };
   load();
 });
-afterEach(() => { vi.restoreAllMocks(); delete window.showToast; delete window.vexConfirm; });
+afterEach(() => {
+  vi.restoreAllMocks(); delete window.showToast; delete window.vexConfirm;
+  for (const [type, fn, opts] of docListeners) document.removeEventListener(type, fn, opts);
+  docListeners = []; document.addEventListener = realAdd;
+});
 
 const NOW = Date.UTC(2026, 9, 16, 12, 0, 0);   // Fri 16 Oct 2026, 12:00 UTC (15:00 in Istanbul)
 
@@ -210,6 +219,11 @@ function withCapture() {
   globalThis.VexLedger = fresh('vex-ledger.js').VexLedger;
   globalThis.VipRules = fresh('vip-rules.js').VipRules;
   globalThis.PanelCapture = fresh('panel-capture.js').PanelCapture;
+  // The noise tools are loaded again so they register their undo with THIS ledger, and the copy load() made stops
+  // listening (two copies would judge every notification twice).
+  for (let i = docListeners.length - 1; i >= 0; i--) {
+    if (docListeners[i][0] === 'vex:panel-notification') { document.removeEventListener(...docListeners[i]); docListeners.splice(i, 1); }
+  }
   globalThis.DiscordNoise = DN = fresh('discord-noise.js').DiscordNoise;
   window.VexTabPolicy = { isPrivateWindow: false, canReadWebview: () => true };
   PanelCapture.grant(); PanelCapture.setSite('discord', true);
@@ -499,7 +513,7 @@ describe('T3-060 chat link harvester', () => {
     LH._now = () => NOW;
     const t = Math.floor(NOW / 1000) + 3 * 3600;
     LH.collect(cdn(t), { source: 'Discord', channel: 'c' });
-    LH.collect(cdn(Math.floor(NOW / 1000) - 5), { source: 'Discord', channel: 'c2' });
+    LH.collect(cdn(Math.floor(NOW / 1000) - 5).replace('file.zip', 'old.zip'), { source: 'Discord', channel: 'c2' });   // another attachment: the same path with a later expiry would only refresh the first
     const [soon, dead] = [LH.links().find(l => l.expiresAt > NOW), LH.links().find(l => l.expiresAt < NOW)];
     const tabs = [], later = [], reminders = [];
     globalThis.TabManager = { createTab: (...a) => tabs.push(a) };

@@ -289,8 +289,8 @@ describe('Vex\'s own interface never uses the native boxes', () => {
         if (/(?<![\w.$'"`|>-])(window\.)?(alert|confirm|prompt)\((?!\?)/.test(line) && !/\b(vexConfirm|vexPrompt|vexAlert)\b/.test(line)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
       });
     }
-    // chat-file.js has a method named prompt(doc) and break-prompts.js one named prompt(kind): their own, not the window's.
-    expect(hits.filter(h => !/(?:chat-file\.js:\d+: prompt\(doc\)|break-prompts\.js:\d+: prompt\(kind\)) \{/.test(h)), hits.join('\n')).toEqual([]);
+    // chat-file.js has a method named prompt(doc) and break-prompts.js one named prompt(kind), plan-preview.js one named confirm(opts): their own, not the window's.
+    expect(hits.filter(h => !/(?:chat-file\.js:\d+: prompt\(doc\)|break-prompts\.js:\d+: prompt\(kind\)|plan-preview\.js:\d+: confirm\(opts\)) \{/.test(h)), hits.join('\n')).toEqual([]);
   });
 });
 
