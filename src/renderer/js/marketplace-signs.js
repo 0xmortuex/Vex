@@ -77,7 +77,7 @@ const VexMarketplaceSigns = {
   },
   prices(text) {
     const out = [];
-    const re = /(?:(?:₺|TL|TRY|\$|€|£|USD|EUR)\s*(\d[\d.,]*)|(\d[\d.,]*)\s*(?:₺|TL\b|TRY\b|\$|€|£|USD\b|EUR\b))/g;
+    const re = /(?:(?:₺|TL|TRY|\$|€|£|USD|EUR)\s*(\d[\d.,]*)|(\d[\d.,]{0,15})\s*(?:₺|TL\b|TRY\b|\$|€|£|USD\b|EUR\b))/g;
     let m;
     while ((m = re.exec(text)) && out.length < 400) {
       const n = this.parseNumber(m[1] || m[2]);
