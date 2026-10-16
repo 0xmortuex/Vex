@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { dedupeVencordFolders } = require('../../src/main/vencord-folders.js');
+const { dedupeVencordFolders, MARKER } = require('../../src/main/vencord-folders.js');
 
 // Build a folder tree: { 'vencord-1': { manifest: true, mtime: 1000 }, ... }
 function makeDir(spec) {
@@ -23,14 +23,16 @@ function makeDir(spec) {
     const p = path.join(dir, name);
     fs.mkdirSync(p, { recursive: true });
     if (opts.manifest !== false) fs.writeFileSync(path.join(p, 'manifest.json'), '{"name":"' + name + '"}');
+    // Folders Vex installed carry its marker; { marked: false } is a custom or older-Vex folder.
+    if (opts.marked !== false) fs.writeFileSync(path.join(p, MARKER), '1');
     if (opts.mtime) fs.utimesSync(p, new Date(opts.mtime), new Date(opts.mtime));
   }
   return dir;
 }
 
-const run = (dir) => {
+const run = (dir, protect) => {
   const log = [];
-  const result = dedupeVencordFolders({ fs, path, dir, log: (m) => log.push(m) });
+  const result = dedupeVencordFolders({ fs, path, dir, log: (m) => log.push(m), protect });
   return { ...result, log, left: fs.readdirSync(dir).sort() };
 };
 
@@ -66,6 +68,55 @@ describe('choosing which build survives', () => {
     const r = run(dir);
     expect(r.left).toEqual(['vencord-c']);
     expect(r.removed.sort()).toEqual(['vencord-a', 'vencord-b']);
+  });
+});
+
+describe('only what Vex installed is deleted', () => {
+  it('a custom (unmarked) folder survives whether it is newer or older', () => {
+    for (const [customMtime, staleVexLeft] of [['2026-01-01T00:00:00Z', 0], ['2024-01-01T00:00:00Z', 1]]) {
+      const dir = makeDir({
+        'vencord-custom': { marked: false, mtime: customMtime },
+        'vencord-vex-a': { mtime: '2025-01-01T00:00:00Z' },
+        'vencord-vex-b': { mtime: '2025-06-01T00:00:00Z' },
+      });
+      const r = run(dir);
+      expect(r.left, customMtime).toContain('vencord-custom');
+      expect(r.left.filter(n => n.startsWith('vencord-vex'))).toHaveLength(staleVexLeft);
+    }
+  });
+
+  it('a marked stale copy is removed', () => {
+    const dir = makeDir({ 'vencord-old': { mtime: '2025-01-01T00:00:00Z' }, 'vencord-new': { mtime: '2025-06-01T00:00:00Z' } });
+    expect(run(dir).left).toEqual(['vencord-new']);
+  });
+
+  it('an unmarked folder survives, with or without a manifest, and is logged once', () => {
+    const dir = makeDir({ 'vencord-hand': { marked: false }, 'vencord-hand-broken': { marked: false, manifest: false } });
+    const r = run(dir);
+    expect(r.left).toEqual(['vencord-hand', 'vencord-hand-broken']);
+    expect(r.removed).toEqual([]);
+    expect(r.log.join(' ')).toMatch(/leaving vencord-hand-broken alone/);
+    expect(run(dir).log.join(' ')).not.toMatch(/leaving vencord-hand-broken alone/);
+  });
+
+  it('the loaded copy survives even when marked and older', () => {
+    const dir = makeDir({ 'vencord-loaded': { mtime: '2025-01-01T00:00:00Z' }, 'vencord-newer': { mtime: '2025-06-01T00:00:00Z' } });
+    const r = run(dir, [path.join(dir, 'vencord-loaded')]);
+    expect(r.left).toEqual(['vencord-loaded', 'vencord-newer']);
+  });
+
+  it('a folder the local-build path points into survives', () => {
+    const dir = makeDir({ 'vencord-local': { mtime: '2025-01-01T00:00:00Z' }, 'vencord-newer': { mtime: '2025-06-01T00:00:00Z' } });
+    const r = run(dir, [path.join(dir, 'vencord-local', 'dist', 'extension-chrome.zip')]);
+    expect(r.left).toEqual(['vencord-local', 'vencord-newer']);
+  });
+
+  it('main.js marks what it installs and passes the loaded and local-build paths', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../src/main.js'), 'utf8');
+    expect(src).toMatch(/slug === 'vencord'[\s\S]{0,200}vencord-folders'\)\.MARKER/);
+    expect(src).toMatch(/dedupeVencordFolders\(\{\s*fs, path, dir: extensionsDir, log: _vlog, protect/);
+    expect(src).toMatch(/getAllExtensions\(\)\) protect\.push/);
+    expect(src).toMatch(/vencord-local\.json'\), 'utf8'\)\); if \(cfg && cfg\.path\) protect\.push/);
   });
 });
 

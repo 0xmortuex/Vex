@@ -10,7 +10,8 @@
 //     your profile are NOT encrypted at all;
 //   * the way out when you forget it: a button on the lock screen that, after you type
 //     ERASE SECURE DATA, erases the secret files (passwords, authenticator accounts,
-//     passkeys, tokens, sync key) and removes the lock, then restarts Vex.
+//     passkeys, tokens, sync key), signs you out of every site (cookies and logins)
+//     and removes the lock, then restarts Vex.
 //
 // What the lock is and is not: a privacy screen that main enforces, not encryption of your
 // profile. Your notes, history, bookmarks and the pages' own logins are readable by anyone with
@@ -71,7 +72,7 @@ const VexSecureLock = {
     if (typeof VexLock === 'undefined') throw new Error('The lock is not loaded');
     // Changing the way in needs the way in: the current PIN or passphrase, when there is one.
     if (VexLock.hasPin() && !(await VexLock.recheck({ title: 'Change the lock', message: 'You are about to replace the lock.', okLabel: 'Continue' }))) return false;
-    const a = await window.vexPrompt({ title: 'New PIN or passphrase', message: 'A PIN is 4 to 12 digits. A passphrase is 8 to 128 characters. If you forget it, the only way back in is the erase-and-reset on the lock screen, which erases your saved passwords and authenticator accounts.', label: 'PIN or passphrase', password: true, okLabel: 'Next' });
+    const a = await window.vexPrompt({ title: 'New PIN or passphrase', message: 'A PIN is 4 to 12 digits. A passphrase is 8 to 128 characters. If you forget it, the only way back in is the erase-and-reset on the lock screen, which erases your saved passwords and authenticator accounts and signs you out of every site.', label: 'PIN or passphrase', password: true, okLabel: 'Next' });
     if (a === null) return false;
     const bad = this.secretProblem(a);
     if (bad) throw new Error(bad);
@@ -111,7 +112,7 @@ const VexSecureLock = {
     det.style.cssText = 'pointer-events:auto;max-width:420px;padding:8px 12px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:12px';
     const sum = this._el('summary', '', 'Forgot it?');
     sum.style.cursor = 'pointer';
-    const info = this._el('p', '', 'There is no way to recover it. You can erase your saved passwords, authenticator accounts, passkeys, tokens and sync key, and remove the lock. Your browsing data stays. Type ' + this.PHRASE + ' to do it.');
+    const info = this._el('p', '', 'There is no way to recover it. You can erase your saved passwords, authenticator accounts, passkeys, tokens and sync key, sign you out of every site (all cookies and logins) and remove the lock. Your notes, bookmarks and history stay. Type ' + this.PHRASE + ' to do it.');
     info.style.margin = '8px 0';
     const input = document.createElement('input');
     input.type = 'text'; input.autocomplete = 'off'; input.spellcheck = false;
@@ -149,7 +150,7 @@ const VexSecureLock = {
     body.appendChild(S.button(typeof VexLock !== 'undefined' && VexLock.isScryptRecord() ? 'Change the PIN or passphrase...' : 'Use a passphrase or a scrypt PIN...', () => { this.setSecret().then(() => window.VexSettingsGroups?.inject()).catch((e) => this._fail(e)); }));
     body.appendChild(S.toggle('Lock when Vex is minimized', this.minimizeLock(), (on) => { this.setMinimizeLock(on); }, typeof VexLock !== 'undefined' && VexLock.hasPin() ? '' : 'needs a PIN first'));
     body.appendChild(S.button('What is encrypted...', () => { this.showStores().catch((e) => this._fail(e)); }));
-    body.appendChild(S.note('If you forget the PIN or passphrase, the lock screen shows "Forgot it?". It erases your saved passwords, authenticator accounts, passkeys, tokens and sync key after you type ' + this.PHRASE + ', removes the lock and restarts Vex. Someone sitting at your computer could use it to get past the lock screen to your browsing data (not to your passwords): the lock does not protect against someone who can use your Windows account.'));
+    body.appendChild(S.note('If you forget the PIN or passphrase, the lock screen shows "Forgot it?". It erases your saved passwords, authenticator accounts, passkeys, tokens and sync key and signs you out of every site after you type ' + this.PHRASE + ', removes the lock and restarts Vex. Someone sitting at your computer could use it to get past the lock screen to your notes, bookmarks and history (not to your passwords or logged-in sites): the lock does not protect against someone who can use your Windows account.'));
   },
 
   init() {
