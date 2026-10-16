@@ -204,6 +204,8 @@
   M('speed-run-first', 'mastery', 'bronze', 'Speed run', 'You finished a speed run.', 'Try a speed run.', 'zap', null, S);
   M('shortcut-trainer', 'mastery', 'silver', 'Shortcut trainer', 'You finished a shortcut drill.', 'Open the shortcut trainer.', 'keyboard', null, S);
   M('roulette-first', 'explore', 'bronze', 'Tab roulette', 'You spun the tab roulette.', 'Spin the tab roulette.', 'shuffle', null, S);
+  M('feedback-first', 'start', 'bronze', 'Your say', 'You reviewed a version of Vex.', 'Review the version you are running.', 'star', null, S);
+  M('feedback-5', 'mastery', 'silver', 'Five versions in', 'You reviewed five versions of Vex.', 'Review five versions.', 'check', null, S);
   M('jingle-composed', 'explore', 'silver', 'Jingle', 'You composed a jingle.', 'Compose a jingle.', 'music', null, S);
 
   // Ids that cosmetics, titles and unlocks were written against, mapped to the

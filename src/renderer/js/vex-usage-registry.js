@@ -321,6 +321,7 @@ const VexUsageRegistry = {
       ['strip-actions', A.api(G.VexStripActions, 'enabled', 'setEnabled')],
       ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
       ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
+      ['version-review', A.api(G.VersionReview, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

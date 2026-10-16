@@ -1,0 +1,43 @@
+/* === Version review (js/version-review.js) ===
+   The card is a Vex dialog (vex-dialog.css gives the overlay, the frame and the
+   theme's tokens), so every theme and look styles it like vexConfirm; this file
+   only lays out its inside. Stars are VexIcons outlines, filled by colour. */
+.vex-dialog.vr-card { width: 540px; max-width: 94vw; max-height: 88vh; }
+.vr-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.vr-head-icon { color: var(--primary); flex: none; margin-top: 2px; }
+.vr-heads { min-width: 0; }
+.vr-title { margin: 0 0 4px; }
+.vr-sub { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+.vr-rows { display: grid; gap: 2px; margin-bottom: 10px; }
+.vr-row { display: grid; grid-template-columns: 9.5em 1fr; align-items: center; gap: 8px; padding: 2px 0; }
+.vr-name { font-size: 13px; color: var(--text); }
+.vr-stars { display: flex; gap: 2px; }
+.vr-star { background: none; border: 0; padding: 3px; border-radius: 6px; cursor: pointer; color: var(--text-muted); line-height: 0; }
+.vr-star:hover { background: var(--vex-hover-fill); }
+.vr-star.on { color: var(--primary); }
+.vr-star.on svg path, .vr-star.on svg polygon { fill: currentColor; }
+.vr-label { display: block; font-size: 12.5px; color: var(--text-muted); margin: 10px 0 6px; }
+.vr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vr-chip { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 99px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.vr-chip:hover { background: var(--vex-hover-fill); }
+.vr-chip.on { background: var(--primary); color: var(--primary-contrast, #fff); border-color: var(--primary); }
+.vr-comment { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; background: var(--vex-hover-fill); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+.vr-count { text-align: right; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.vr-error { min-height: 1.2em; margin: 6px 0 0; font-size: 12.5px; color: var(--danger, #e5484d); }
+.vr-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.vr-btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); }
+.vr-btn:hover:not(:disabled) { background: var(--vex-hover-fill); }
+.vr-btn:disabled { opacity: .55; cursor: default; }
+.vr-btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-contrast, #fff); }
+.vr-btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--primary); }
+.vr-btn.quiet { border-color: transparent; color: var(--text-muted); margin-right: auto; }
+.vr-btn-icon { display: inline-flex; line-height: 0; }
+
+/* Settings: your reviews */
+.vr-item { padding: 10px 12px; margin: 6px 0; border: 1px solid var(--border); border-radius: 10px; }
+.vr-item-head { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.vr-item-line { font-size: 12.5px; color: var(--text-muted); margin: 2px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.vr-item-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+@media (max-width: 520px) { .vr-row { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .vr-btn, .vr-chip, .vr-star { transition: none; } }

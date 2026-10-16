@@ -232,6 +232,12 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Version review (js/version-review.js): new; ON for a brand-new profile (the owner asked for it), staged off for existing ones ----
+    { id: 'version-review', title: 'Version review', group: 'Version review', maturity: 'new',
+      storageKeys: ['vex.reviews', 'vex.reviews.prefs', 'vex.reviews.state'], events: ['vex:version-review-changed', 'vex:update-cover'], commands: ['review-version'],
+      permissions: { reads: ['the version you are running'], writes: ['your reviews (50 at most) and which versions it already asked about'],
+        sends: ['Only if you turn sending on, set a relay address and agree: a random anonymous id, the Vex version, your ratings, tags and comment, to that address'] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

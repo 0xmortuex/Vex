@@ -246,6 +246,11 @@ const UpdateNotifier = {
     document.body.classList.add('update-cover-open');
     this._setPhase('choose');
     this._loadNotes(info);
+    // Tells the version review (js/version-review.js) that the cover is up. Fire
+    // and forget: nothing here waits for it or reads an answer, so the update
+    // goes on whether the review card is answered, closed or never shown.
+    try { document.dispatchEvent(new CustomEvent('vex:update-cover', { detail: { current: info.current, latest: info.latest } })); }
+    catch (err) { VexProblems?.note('Updates', 'Could not tell the version review about the update', err); }
     return el;
   },
 

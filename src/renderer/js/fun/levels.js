@@ -21,6 +21,9 @@ const VexLevels = {
     'task-done':        { xp: 5,  cap: 10, label: 'Finished a task' },
     'focus':            { xp: 15, cap: 4,  label: 'Completed a focus session' },
     'challenge':        { xp: 20, cap: 1,  label: 'Did the daily challenge' },
+    // js/version-review.js: one finished review, awarded at most once per Vex version
+    // there, and never for an empty one. The cap here only covers two versions in a day.
+    'feedback':         { xp: 30, cap: 2,  label: 'Reviewed a version of Vex' },
   },
 
   TITLES: ['Newcomer', 'Explorer', 'Tidy', 'Organized', 'Focused', 'Navigator', 'Craftsperson', 'Curator', 'Expert', 'Master'],

@@ -6804,6 +6804,8 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: boundedNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+const _feedbackRelay = require('./main/feedback-relay').createFeedbackRelay({ fetch: boundedNetFetch });
+ipcMain.handle('feedback:send', (_event, url, payload) => _feedbackRelay.send(url, payload));
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');

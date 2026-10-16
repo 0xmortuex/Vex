@@ -481,6 +481,8 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// The optional version-review relay (main/feedback-relay.js): the relay address and the review; main validates both again.
+define('feedback:send', [string(300), object]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

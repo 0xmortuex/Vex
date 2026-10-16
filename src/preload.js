@@ -377,6 +377,8 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  // One version review to the relay the person set (main/feedback-relay.js).
+  feedbackSend: (url, payload) => ipcRenderer.invoke('feedback:send', url, payload),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
