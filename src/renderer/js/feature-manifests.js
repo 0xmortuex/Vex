@@ -232,6 +232,32 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Wave 3: safer browsing (js/security-helpers.js draws the Settings group and the safeweb: commands) ----
+    // The cheat/fake-update guard is part of Web safety (its sensitivity setting is its switch), so it has no VexUsage row.
+    // Cookie-banner rejecting already existed (ConsentBlock, on by default): stable. The rest are 'new': an existing
+    // profile gets them OFF and is offered them. The throwaway session is also off on a new profile until chosen.
+    { id: 'download-guard', title: 'Cheat tools and fake updates', group: 'Web safety', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the name and address of a file being downloaded, never its contents'], writes: ['nothing; the file waits in a holding folder until you decide'], sends: [] } },
+    { id: 'cookie-reject', title: 'Reject cookie banners', group: 'Safer browsing helpers', maturity: 'stable', storageKeys: ['vex.consentBlock.sites', 'vex.consentBlock.count'], usesKeys: ['vex.consentBlock'],
+      commands: ['safeweb:cookies-site'], permissions: { reads: ['the address of the page, and the page\'s cookie banner'], writes: ['presses the site\'s own Reject button; the sites you left alone and a count of banners'], sends: [] } },
+    { id: 'marketplace-signs', title: 'Marketplace red-flag checklist', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.marketSigns', 'vex.marketSigns.hosts'], commands: ['safeweb:marketplace'],
+      permissions: { reads: ['the text of a listing page on a site you listed, on this computer'], writes: ['your list of marketplace sites'], sends: [] } },
+    { id: 'chat-new-domain', title: 'Flag a new site opened from a chat', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.chatFlag', 'vex.chatFlag.quiet'], usesKeys: ['vex.history'],
+      permissions: { reads: ['the address of the chat page a link came from, your history, and whether the new page has a password box (yes or no)'], writes: ['the sites you said not to warn about'], sends: [] } },
+    { id: 'chat-throwaway', title: 'Throwaway session for chat links', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.chatThrowaway', 'vex.chatThrowaway.mode'], usesKeys: ['vex.history'],
+      commands: ['safeweb:move-daily'], tiers: { minimal: false, standard: false },
+      permissions: { reads: ['the address of the chat page a link came from, and your history'], writes: ['opens the link in a session kept only in memory and dropped when the tab closes'], sends: [] } },
+    { id: 'qr-verdict', title: 'QR code checker', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.qrVerdict'], commands: ['safeweb:qr'],
+      permissions: { reads: ['a picture you pick, drop or paste, in memory; your history'], writes: ['nothing is kept'], sends: ['Nothing, unless you press "Follow the short link first": one request for that link from an empty session'] } },
+    { id: 'defender-shortcut', title: 'Scan with Windows Security button', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.defenderShortcut'],
+      permissions: { reads: ['the name of a finished download'], writes: ['opens Windows Security\'s scan page and shows the file in its folder; starts no scan'], sends: [] } },
+    { id: 'motw-check', title: 'Check the mark on downloads', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.motwCheck'], commands: ['safeweb:download-marks'],
+      permissions: { reads: ['whether each file Vex downloaded still carries the "downloaded from the internet" mark'], writes: ['nothing'], sends: [] } },
+    { id: 'screen-share-safe', title: 'Screen-share safe mode', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.shareSafe'], commands: ['safeweb:share-safe-off'], events: ['vex:media-capture'],
+      permissions: { reads: ['whether a tab or panel is sharing the screen, and the address of each tab'], writes: ['holds non-urgent notices and blurs private tab titles while the share lasts'], sends: [] } },
+    { id: 'vault-hygiene', title: 'Vault hygiene', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.vaultHygiene', 'vex.vaultHygiene.week'], commands: ['safeweb:vault-hygiene'],
+      jobs: ['Vault hygiene'], permissions: { reads: ['which logins are reused, weak or old, and your authenticator list; never a password'], writes: ['the week the quiet line was last offered'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

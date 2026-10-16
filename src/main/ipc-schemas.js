@@ -79,6 +79,11 @@ define('downloads:delete-file downloads:start-drag', [string(4096)]);
 define('downloads:tidy-plan', [value => Number.isSafeInteger(value) && value >= 0 && value <= 3650]);
 define('downloads:tidy-apply', [string(64)]);
 define('downloads:tidy-undo downloads:tidy-history', []);
+// Mark-of-the-web check of the files Vex downloaded (src/main/mark-of-the-web.js, T3-111): no input at all; and the
+// "Scan with Windows Security" shortcut (src/main/defender-shortcut.js, T3-110): at most a path, honoured only for a
+// file Vex downloaded itself. Neither builds an address or a command from what is sent.
+define('downloads:motw-check', []);
+define('downloads:open-defender', [optional(string(4096))]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

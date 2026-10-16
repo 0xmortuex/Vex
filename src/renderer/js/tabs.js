@@ -1114,6 +1114,10 @@ const TabManager = {
 
     const tabIcon = el.querySelector('img.tab-favicon');
     if (tabIcon) tabIcon.src = tab.favicon;
+    // A link from a chat to a site that is new to you, or opened in a throwaway session (js/chat-links.js).
+    if (tab.chatLink && typeof VexChatLinks !== 'undefined') VexChatLinks.markTabElement(el, tab);
+    // While the screen is shared, a private tab's title is blurred (js/screen-share-safe.js).
+    if (typeof VexScreenShareSafe !== 'undefined') VexScreenShareSafe.markTabElement(el, tab);
     el.addEventListener('click', (e) => {
       if (e.target.closest('.tab-close')) {
         this.requestClose(tab.id);

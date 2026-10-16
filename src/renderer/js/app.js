@@ -1451,13 +1451,21 @@ function vexOwnTextFocused(doc) {
     // joined whatever group the tab in front was in (found 2026-10-10).
     const linked = Number.isSafeInteger(data.opener) ? TabManager.openerForPage(data.opener) : null;
     const inheritGroup = (linked && linked.groupId) || null;
+    // A link clicked inside a chat (main names the chat from the opener's address): flagged when it goes to
+    // a site you have never visited, and opened in a throwaway session when that is switched on (js/chat-links.js).
+    let chat = null;
+    if (typeof VexChatLinks !== 'undefined') {
+      try { chat = VexChatLinks.plan(data); }
+      catch (err) { window.VexProblems?.note('Chat links', 'Could not judge a link that came from a chat', err); }
+    }
     let created;
-    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: data.partition, openerTabId: linked ? linked.id : null }); }
+    try { created = TabManager.createTab(data.url, !data.background, inheritGroup, { partition: chat && chat.partition ? chat.partition : data.partition, openerTabId: linked ? linked.id : null }); }
     catch (err) {
       console.error('[Tabs] createTab failed:', err.message);
       if (data.requestId) window.vex.tabCreatedForExtension({ id: data.requestId, ok: false, error: err.message });
       return;
     }
+    if (chat) VexChatLinks.after(created, chat);
     if (data.requestId) answerExtensionTab(data.requestId, created);
   });
   // An extension's tabs.create waits to hear which tab it got (main.js,

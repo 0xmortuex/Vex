@@ -148,9 +148,16 @@ ipcMain.handle('vault:health', () => {
       if (days !== null && days >= OLD_PASSWORD_DAYS) old.push({ host: e.host, username: e.username, days });
     }
     old.sort((x, y) => y.days - x.days);
-    return { total: arr.length, reused, weak, old };
+    // Age of every saved login (T3-088, the vault hygiene view): host, username and days since
+    // Vex saved or last changed it. Only the date is read; the password never leaves this function.
+    const ages = [];
+    for (const e of arr) {
+      if (!e || !e.password) continue;
+      ages.push({ host: e.host, username: e.username, days: ageDays(e.updatedAt) });
+    }
+    return { total: arr.length, reused, weak, old, ages: ages.slice(0, 2000) };
   } catch (e) {
-    return { total: 0, reused: [], weak: [], old: [], error: e && e.message };
+    return { total: 0, reused: [], weak: [], old: [], ages: [], error: e && e.message };
   }
 });
 ipcMain.handle('vault:save', async (_e, entry) => {

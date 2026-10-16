@@ -128,6 +128,14 @@ const PasswordHealth = {
     }
 
     body.innerHTML = html;
+    // The calmer, ordered view of the same findings: what to rotate this week, reuse blast radius, 2FA map (js/vault-hygiene.js).
+    if (typeof VexVaultHygiene !== 'undefined' && VexVaultHygiene.enabled()) {
+      const hy = document.createElement('button');
+      hy.type = 'button'; hy.className = 'btn-secondary'; hy.textContent = 'Vault hygiene view';
+      hy.style.cssText = 'margin:6px 0 2px';
+      hy.addEventListener('click', () => { m.remove(); VexVaultHygiene.open().catch(err => window.showToast?.(err.message, 'error')); });
+      body.prepend(hy);
+    }
     this._wireBreach(m);
     // A finding is something to act on: open that site to change the password.
     body.querySelectorAll('[data-open-host]').forEach(b => b.addEventListener('click', () => {
