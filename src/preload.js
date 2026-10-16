@@ -732,6 +732,7 @@ contextBridge.exposeInMainWorld('vex', {
     save: (payload) => ipcRenderer.invoke('tabsnap:save', payload),
     load: () => ipcRenderer.invoke('tabsnap:load'),
     clear: () => ipcRenderer.invoke('tabsnap:clear'),
+    drop: (url) => ipcRenderer.invoke('tabsnap:drop', url),
   },
   // Quiet hours (main/quiet-hours.js).
   quiet: {

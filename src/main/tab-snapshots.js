@@ -26,6 +26,9 @@ const MAX_FIELDS = 40;
 const MAX_VALUE = 20000;
 const MAX_URL = 2048;
 const MAX_AGE_MS = 14 * 24 * 3600 * 1000;
+// A tab closed with typed text in it (T2-077): the text is kept this long, and for at most this many pages.
+const RESCUE_AGE_MS = 7 * 24 * 3600 * 1000;
+const MAX_RESCUE = 10;
 
 function cleanUrl(u) {
   if (typeof u !== 'string' || u.length > MAX_URL) return null;
@@ -52,7 +55,10 @@ function cleanEntry(raw, withFields, now) {
     }
   }
   const at = Number.isFinite(raw.at) ? raw.at : now;
-  return { url, scroll, fields, at };
+  const out = { url, scroll, fields, at };
+  if (typeof raw.title === 'string' && raw.title) out.title = raw.title.slice(0, 200);
+  if (raw.closed === true && Number.isFinite(raw.closedAt)) { out.closed = true; out.closedAt = raw.closedAt; }
+  return out;
 }
 
 function createTabSnapshots({ secrets, plain, file, encryptionAvailable, now = () => Date.now(), log }) {
@@ -72,8 +78,8 @@ function createTabSnapshots({ secrets, plain, file, encryptionAvailable, now = (
   // entries: what the interface captured this round. keepUrls: addresses of
   // tabs that are open but were not captured (asleep, still loading, waiting
   // to be restored) — their earlier snapshot stays; every other old one goes.
-  async function save({ entries, keepUrls = [] } = {}) {
-    if (!Array.isArray(entries) || !Array.isArray(keepUrls)) throw new Error('A snapshot needs entries and keepUrls');
+  async function save({ entries, keepUrls = [], closedUrls = [], dropUrls = [] } = {}) {
+    if (!Array.isArray(entries) || !Array.isArray(keepUrls) || !Array.isArray(closedUrls) || !Array.isArray(dropUrls)) throw new Error('A snapshot needs entries and keepUrls');
     const t = now();
     const withFields = canEncrypt();
     const fresh = [];
@@ -88,8 +94,14 @@ function createTabSnapshots({ secrets, plain, file, encryptionAvailable, now = (
       fresh.push({ ...e, at: t });
     }
     const keep = new Set(keepUrls.slice(0, 200).map(cleanUrl).filter(Boolean));
-    const old = (await readAll()).filter(e => e && keep.has(e.url) && !seen.has(e.url) && t - e.at < MAX_AGE_MS);
-    const all = fresh.concat(old).slice(0, MAX_ENTRIES);
+    // Tabs closed since the last round: what they had typed is kept as a rescue entry.
+    const closed = new Set(closedUrls.slice(0, 50).map(cleanUrl).filter(Boolean));
+    const drop = new Set(dropUrls.slice(0, 50).map(cleanUrl).filter(Boolean));
+    const previous = (await readAll()).map(e => (e && withFields && closed.has(e.url) && !keep.has(e.url) && Array.isArray(e.fields) && e.fields.length && !e.closed ? { ...e, closed: true, closedAt: t } : e));
+    const old = previous.filter(e => e && !seen.has(e.url) && !drop.has(e.url) && (
+      (keep.has(e.url) && t - e.at < MAX_AGE_MS) || (e.closed === true && t - (e.closedAt || e.at) < RESCUE_AGE_MS && Array.isArray(e.fields) && e.fields.length)));
+    const rescue = old.filter(e => e.closed).sort((a, b) => (b.closedAt || 0) - (a.closedAt || 0)).slice(0, MAX_RESCUE);
+    const all = fresh.concat(old.filter(e => !e.closed), rescue).slice(0, MAX_ENTRIES);
     if (withFields) {
       await secrets.write(file, { v: 1, entries: all });
       // A plain copy from an earlier no-encryption run must not linger.
@@ -102,7 +114,7 @@ function createTabSnapshots({ secrets, plain, file, encryptionAvailable, now = (
 
   async function load() {
     const t = now();
-    const list = (await readAll()).filter(e => e && typeof e.url === 'string' && t - (e.at || 0) < MAX_AGE_MS);
+    const list = (await readAll()).filter(e => e && typeof e.url === 'string' && (e.closed ? t - (e.closedAt || e.at || 0) < RESCUE_AGE_MS : t - (e.at || 0) < MAX_AGE_MS));
     return { entries: list, formsKept: canEncrypt() };
   }
 
@@ -113,7 +125,17 @@ function createTabSnapshots({ secrets, plain, file, encryptionAvailable, now = (
     return { ok: true };
   }
 
-  return { save, load, clear, cleanUrl };
+  // Forget one rescued page (the person dismissed it, or restored it).
+  async function drop(url) {
+    const u = cleanUrl(url);
+    if (!u) throw new Error('Not a web address');
+    const list = (await readAll()).filter(e => e && e.url !== u);
+    if (canEncrypt()) await secrets.write(file, { v: 1, entries: list });
+    else await plain.write(PLAIN_KEY, { v: 1, entries: list.map(e => ({ ...e, fields: [] })) });
+    return { ok: true, count: list.length };
+  }
+
+  return { save, load, clear, drop, cleanUrl };
 }
 
 module.exports = { createTabSnapshots, cleanUrl, cleanEntry, ENC_FILE, PLAIN_KEY };

@@ -41,7 +41,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Cookie report and cleanup, extension usage, crash-proof tab snapshots
   // (they hold typed text) and quiet hours (main/protect.js): never a page's
   // or an extension's call.
-  'privacy:report', 'privacy:report-clean', 'extensions:usage-audit', 'tabsnap:save', 'tabsnap:load', 'tabsnap:clear',
+  'privacy:report', 'privacy:report-clean', 'extensions:usage-audit', 'tabsnap:save', 'tabsnap:load', 'tabsnap:clear', 'tabsnap:drop',
   'quiet:get', 'quiet:set', 'quiet:held', 'quiet:release', 'quiet:drop',
   // The Attention Budget (main/notify.js): the window's quiet state, and the toasts it held back.
   'attention:state', 'attention:denied', 'attention:clear-denied',
