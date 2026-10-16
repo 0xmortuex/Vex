@@ -63,6 +63,7 @@ const FocusMode = {
     this.minutes = minutes;
     this.until = Date.now() + minutes * 60 * 1000;
     document.body.classList.add('focus-mode');
+    if (typeof AttentionState !== 'undefined') AttentionState.changed();
     // Don't promise blocking we are not doing — an emptied blocklist blocks nothing.
     const blocked = this.blocklist().length;
     window.showToast?.(blocked
@@ -87,6 +88,7 @@ const FocusMode = {
   stop() {
     this.active = false;
     document.body.classList.remove('focus-mode');
+    if (typeof AttentionState !== 'undefined') AttentionState.changed();
     clearInterval(this._timer);
     this._timer = null;
     this._holdReminders(0);

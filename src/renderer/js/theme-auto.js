@@ -634,6 +634,7 @@ Object.assign(ThemeAuto, {
     // Ticks are TICK_MS apart: a fade as long keeps a long ramp smooth.
     veil.style.transition = instant ? 'none' : `background ${Math.round(this.TICK_MS / 1000)}s linear, opacity 1s linear`;
     veil.dataset.level = String(+level.toFixed(3));
+    if (typeof AttentionState !== 'undefined') AttentionState.changed();
     this._windTheme(st, level);
     this.renderWind();
     return level;

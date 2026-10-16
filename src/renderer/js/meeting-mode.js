@@ -140,6 +140,7 @@ const MeetingMode = {
     this._save({ noteId: note.id, startedAt: at, muted });
     this._holdReminders(at + this.HOLD_MS);
     document.body.classList.add('meeting-mode');
+    if (typeof AttentionState !== 'undefined') AttentionState.changed();
     // The toast says the note is open; nothing opened it (found 2026-09-29).
     this.showNote();
     window.showToast?.('Meeting mode on — reminders held, other tabs muted, note open');
@@ -159,6 +160,7 @@ const MeetingMode = {
     this._holdReminders(0);
     this._save(null);
     document.body.classList.remove('meeting-mode');
+    if (typeof AttentionState !== 'undefined') AttentionState.changed();
     window.showToast?.(items
       ? 'Meeting over — ' + items + ' action item' + (items === 1 ? '' : 's') + ' waiting in your tasks'
       : 'Meeting over — reminders are back on');

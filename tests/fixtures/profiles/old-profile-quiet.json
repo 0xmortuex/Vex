@@ -1,0 +1,6 @@
+{
+  "_comment": "A profile that used the old quiet switch and nothing else playful.",
+  "vex.uiMode": "full",
+  "vex.onboarding.done": "1",
+  "vex.fun.quiet": "1"
+}

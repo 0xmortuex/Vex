@@ -32,6 +32,10 @@ function vexOwnTextFocused(doc) {
   // Simple mode is for new profiles: one that existed before it stays Full
   // (js/simple-mode.js). Before the sidebar reads the mode.
   VexSimpleMode.migrate();
+  // Run-once changes to what is already saved (js/vex-defaults.js): a new default
+  // never overrides a choice, a removal reaches saved profiles. After the line above,
+  // which marks an existing profile as one that was in use.
+  try { VexMigrations.runAll(); } catch (err) { console.error('[Settings]', err); window.VexProblems?.note('Settings', 'A settings migration failed', err); }
 
   const passkeyHosts = document.getElementById('setting-passkey-hosts');
   if (passkeyHosts) {

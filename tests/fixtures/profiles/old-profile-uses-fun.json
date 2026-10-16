@@ -1,0 +1,10 @@
+{
+  "_comment": "A profile saved before the attention work: Full UI, sounds and the pet switched on, sleep set to auto (agreed to before consents were versioned), no playfulness level, no New Tab layout.",
+  "vex.uiMode": "full",
+  "vex.onboarding.done": "1",
+  "vex.fun": "{\"pet\":true}",
+  "vex.fun.sounds": "1",
+  "vex.sleepConsent": "auto",
+  "vex.sleepConsentReset": "1",
+  "vex.sleepModelOne": "1"
+}
