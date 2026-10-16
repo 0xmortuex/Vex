@@ -3068,6 +3068,18 @@ ipcMain.handle('downloads:choose-folder', async (event) => {
     return { ok: true, ..._downloadPrefs.setFolder(r.filePaths[0]) };
   } catch (err) { return { ok: false, error: err.message }; }
 });
+// Developer helpers > repositories: a folder dialog that hands back the ONE path chosen. Nothing in
+// the folder is read or listed; the path is only checked to be an existing directory.
+ipcMain.handle('repos:pick-folder', async (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const opts = { title: 'Folder of your clone', buttonLabel: 'Choose folder', properties: ['openDirectory'] };
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
+    if (!fs.statSync(r.filePaths[0]).isDirectory()) return { ok: false, error: 'That is not a folder' };
+    return { ok: true, path: r.filePaths[0] };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:set-ask', (_e, on) => {
   try { return { ok: true, ..._downloadPrefs.setAsk(on) }; }
   catch (err) { return { ok: false, error: err.message }; }

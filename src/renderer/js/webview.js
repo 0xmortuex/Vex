@@ -1650,6 +1650,8 @@ const WebviewManager = {
       { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
     ];
+    // GitHub page helpers and the repo group (js/dev-helpers.js): only on a github.com page.
+    if (isTab && typeof VexDevHelpers !== 'undefined') pageItems.push(...VexDevHelpers.pageItems(webview));
     const siteItems = [
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -1808,6 +1810,8 @@ const WebviewManager = {
         // a stop; a bare utterance had none of them.
         action: () => { if (typeof ReadAloud !== 'undefined') ReadAloud.start({ wv: webview, selection: true }); }
       });
+      // Decode, translate a command, make a GitHub issue from the selected words (js/dev-helpers.js).
+      if (typeof VexDevHelpers !== 'undefined') textItems.push(...VexDevHelpers.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
     }
     groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));
 
@@ -1858,6 +1862,7 @@ const WebviewManager = {
         label: 'Copy Link as Markdown',
         action: () => { try { const txt = (e.params.linkText || e.params.selectionText || e.params.linkURL || '').replace(/[\[\]]/g, '').trim() || e.params.linkURL; navigator.clipboard.writeText(`[${txt}](${e.params.linkURL})`); window.showToast?.('Copied as Markdown'); } catch {} }
       });
+      if (typeof VexDevHelpers !== 'undefined') linkItems.push(...VexDevHelpers.linkItems(e.params.linkURL));
       if (typeof ReadLater !== 'undefined' && /^https?:/i.test(e.params.linkURL)) {
         linkItems.push({
           label: 'Read Later',

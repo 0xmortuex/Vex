@@ -86,6 +86,10 @@ function resolveKeywordSearch(raw) {
   // DDG bang anywhere in the query (leading or trailing) → let DuckDuckGo
   // resolve it. Matches "!w …", "… !yt", "!gh".
   if (/(^|\s)![a-z0-9+._-]+/i.test(val)) {
+    // A bang in the table on this computer (js/search-bangs.js) goes straight to its site;
+    // any other still goes through DuckDuckGo.
+    const local = typeof window !== 'undefined' && window.VexBangs ? window.VexBangs.resolve(val) : null;
+    if (local) return { url: local.url, name: local.name, query: local.query };
     return { url: 'https://duckduckgo.com/?q=' + encodeURIComponent(val), name: 'DuckDuckGo', query: val };
   }
 

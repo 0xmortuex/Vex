@@ -195,6 +195,13 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexRepos: () => (typeof VexRepos !== 'undefined' ? VexRepos : null),
+      VexBangs: () => (typeof VexBangs !== 'undefined' ? VexBangs : null),
+      VexCopyAs: () => (typeof VexCopyAs !== 'undefined' ? VexCopyAs : null),
+      VexGithubHelpers: () => (typeof VexGithubHelpers !== 'undefined' ? VexGithubHelpers : null),
+      VexShellTranslate: () => (typeof VexShellTranslate !== 'undefined' ? VexShellTranslate : null),
+      VexDecode: () => (typeof VexDecode !== 'undefined' ? VexDecode : null),
+      VexReferenceSets: () => (typeof VexReferenceSets !== 'undefined' ? VexReferenceSets : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +247,14 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Developer helpers (js/dev-helpers.js and the seven files it gathers)
+      ['repo-registry', A.api(G.VexRepos, 'enabled', 'setEnabled')],
+      ['search-bangs', A.api(G.VexBangs, 'enabled', 'setEnabled')],
+      ['copy-as-request', A.api(G.VexCopyAs, 'enabled', 'setEnabled')],
+      ['github-helpers', A.api(G.VexGithubHelpers, 'enabled', 'setEnabled')],
+      ['snippet-translator', A.api(G.VexShellTranslate, 'enabled', 'setEnabled')],
+      ['selection-decoder', A.api(G.VexDecode, 'enabled', 'setEnabled')],
+      ['reference-sets', A.api(G.VexReferenceSets, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
