@@ -902,7 +902,10 @@ function _taskbarProgress() {
   if (_taskbarProgressInst) return _taskbarProgressInst;
   _taskbarProgressInst = require('./main/taskbar-progress').createTaskbarProgress({
     getWindow: () => mainWindow,
-    canFlash: () => !_gameWatch.state().game && !(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()),
+    // A full-screen game in front is the raise guard's call (it badges the button instead of flashing);
+    // Vex in full screen itself never flashes.
+    canFlash: () => !(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()),
+    flash: (w, why) => _raiseGuard().flash(w, why),
     log: (m) => console.error(m),
   });
   return _taskbarProgressInst;

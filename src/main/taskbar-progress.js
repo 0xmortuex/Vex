@@ -12,7 +12,10 @@
 // getWindow()   -> the main BrowserWindow or null
 // canFlash()    -> boolean (false while a game owns the screen)
 // ownedBy(id)   -> optional: false for a download that must not show here
-function createTaskbarProgress({ getWindow, canFlash, log = () => {} }) {
+// flash(w, why) -> optional: how the button is flashed. Main passes the raise guard's flash, which puts
+//                 a dot on the button instead while a full-screen game is in front; without it the
+//                 window is flashed directly (only when canFlash() allows it).
+function createTaskbarProgress({ getWindow, canFlash, flash = null, log = () => {} }) {
   if (typeof getWindow !== 'function') throw new TypeError('createTaskbarProgress: getWindow is required');
   if (typeof canFlash !== 'function') throw new TypeError('createTaskbarProgress: canFlash is required');
   const live = new Map();     // id -> { received, total, paused }
@@ -68,7 +71,7 @@ function createTaskbarProgress({ getWindow, canFlash, log = () => {} }) {
     if (!w) return;
     if (typeof w.isFocused === 'function' && w.isFocused()) return;
     if (!canFlash()) { log('[TaskbarProgress] not flashing: a full-screen window has the screen'); return; }
-    try { w.flashFrame(true); } catch (err) { log('[TaskbarProgress] could not flash the taskbar button: ' + err.message); }
+    try { if (flash) flash(w, 'downloads finished'); else w.flashFrame(true); } catch (err) { log('[TaskbarProgress] could not flash the taskbar button: ' + err.message); }
   }
 
   // The window was looked at: stop a flash that is still going.

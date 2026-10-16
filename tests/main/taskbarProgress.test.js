@@ -49,3 +49,21 @@ describe('taskbar progress', () => {
     expect(calls.at(-1)).toEqual(['flash', true]);
   });
 });
+
+describe('the flash goes through the raise guard when main passes it', () => {
+  it('asks the injected flash (so a game in front gets the dot) instead of flashing the window', () => {
+    const { createRaiseGuard } = require('../../src/main/raise-guard.js');
+    const out = [];
+    const win = { isDestroyed: () => false, isFocused: () => false, setProgressBar() {}, flashFrame: (v) => out.push(['direct', v]), show() {}, showInactive() {}, focus() {}, setOverlayIcon: (...a) => out.push(['badge', a.length]) };
+    let game = true;
+    const guard = createRaiseGuard({ fullscreenGame: () => game, makeBadge: () => ({}), log: () => {} });
+    const t = createTaskbarProgress({ getWindow: () => win, canFlash: () => true, flash: (w, why) => guard.flash(w, why) });
+    t.progress({ id: 'a', receivedBytes: 1, totalBytes: 2 });
+    t.complete({ id: 'a', state: 'completed' });
+    expect(out.some(c => c[0] === 'direct')).toBe(false);
+    game = false;
+    t.progress({ id: 'b', receivedBytes: 1, totalBytes: 2 });
+    t.complete({ id: 'b', state: 'completed' });
+    expect(out.at(-1)).toEqual(['direct', true]);
+  });
+});
