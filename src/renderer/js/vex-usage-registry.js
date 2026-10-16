@@ -603,6 +603,17 @@ const VexUsageRegistry = {
       ['slot-watcher', A.api(G.VexSlotWatcher, 'enabled', 'setEnabled')],
       ['photo-prep', A.api(G.VexPhotoPrep, 'enabled', 'setEnabled')],
       ['form-assist', A.api(G.VexFormAssist, 'enabled', 'setEnabled')],
+      // Community and chat tools (Wave 3). Off, each leaves what it kept where it is and does nothing.
+      ['tz-helper', A.api(G.VexTimezone, 'enabled', 'setEnabled')],
+      ['unread-task', A.api(G.UnreadTask, 'enabled', 'setEnabled')],
+      ['meeting-links', A.api(G.MeetingLinks, 'enabled', 'setEnabled')],
+      ['discord-noise', A.api(G.DiscordNoise, 'enabled', 'setEnabled')],
+      ['announce-composer', A.api(G.AnnounceComposer, 'enabled', 'setEnabled')],
+      ['community-metrics', A.api(G.CommunityMetrics, 'enabled', 'setEnabled')],
+      ['link-harvester', A.api(G.LinkHarvester, 'enabled', 'setEnabled')],
+      ['discord-status', A.api(G.DiscordStatus, 'enabled', 'setEnabled')],
+      ['mod-kit', A.api(G.ModKit, 'enabled', 'setEnabled')],
+      ['vencord-bridge', A.api(G.VencordBridge, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

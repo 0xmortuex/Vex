@@ -425,6 +425,16 @@ contextBridge.exposeInMainWorld('vex', {
   castlabsBehind: (force) => ipcRenderer.invoke('castlabs:behind', force),
   // Today's TCMB rates, fetched only when asked (main/fx-rates.js).
   fxTcmb: () => ipcRenderer.invoke('fx:tcmb'),
+  // Community and chat tools (main/comms-tools.js): the owner's own announcement webhook (the address goes in once and
+  // never comes back) and the Vencord bridge file (a folder the owner picked, read-only).
+  commsWebhookStatus: () => ipcRenderer.invoke('comms:webhook-status'),
+  commsWebhookSet: (url) => ipcRenderer.invoke('comms:webhook-set', url),
+  commsWebhookClear: () => ipcRenderer.invoke('comms:webhook-clear'),
+  commsWebhookSend: (req) => ipcRenderer.invoke('comms:webhook-send', req),
+  commsBridgeStatus: () => ipcRenderer.invoke('comms:bridge-status'),
+  commsBridgePick: () => ipcRenderer.invoke('comms:bridge-pick'),
+  commsBridgeRead: () => ipcRenderer.invoke('comms:bridge-read'),
+  commsBridgeForget: () => ipcRenderer.invoke('comms:bridge-forget'),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),
