@@ -3460,3 +3460,78 @@ function vexPageDialogs(ask) {
 // Pop-ups are judged in main from the input the page really got
 // (src/main/popup-blocker.js); the page's own word (navigator.userActivation,
 // which it can redefine) is no longer asked.
+
+// === Secret paste guard (js/secret-guard.js) ===
+// A paste that holds a token, key or @everyone into a text box is held back when the host
+// has switched the guard on and this site is not on its allowed list. The text stays HERE;
+// the host is told only the kinds and counts, asks, and answers with an id and "redact" or
+// "cancel". Nothing is logged.
+(function () {
+  "use strict";
+  let ipcRenderer = null;
+  try { ipcRenderer = require("electron").ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !ipcRenderer.sendToHost) return;
+// BEGIN vex-secret-patterns
+const VEX_SECRET_PATTERNS = [
+  ['GitHub token', /\b(?:gh[pousr]_[A-Za-z0-9]{30,255}|github_pat_[A-Za-z0-9_]{20,255})\b/g],
+  ['OpenAI or Anthropic key', /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,200}\b/g],
+  ['AWS access key', /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g],
+  ['Discord token', /\b[MN][A-Za-z0-9_-]{23,27}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,40}\b/g],
+  ['Slack token', /\bxox[abprs]-[A-Za-z0-9-]{10,100}\b/g],
+  ['Stripe key', /\b[sr]k_live_[A-Za-z0-9]{16,100}\b/g],
+  ['Google API key', /\bAIza[0-9A-Za-z_-]{35}\b/g],
+  ['Private key', /-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----[\s\S]{0,6000}?(?:-----END [A-Z ]{0,20}PRIVATE KEY-----|$)/g],
+  ['Bearer token', /\bBearer\s+[A-Za-z0-9._~+/=-]{20,500}/g],
+  ['Mass mention', /@(?:everyone|here)\b/g],
+];
+// END vex-secret-patterns
+  let cfg = { on: false, allow: [] };
+  let pending = null;
+  let seq = 0;
+  ipcRenderer.on("vex-secret-guard-config", (_e, c) => {
+    if (!c || typeof c !== "object") return;
+    cfg = { on: c.on === true, allow: Array.isArray(c.allow) ? c.allow.filter((x) => typeof x === "string").slice(0, 200) : [] };
+  });
+  const detect = (text) => {
+    const out = [];
+    for (const [kind, re] of VEX_SECRET_PATTERNS) {
+      re.lastIndex = 0;
+      const n = (text.match(re) || []).length;
+      if (n) out.push({ kind, count: n });
+    }
+    return out;
+  };
+  const redact = (text) => {
+    let s = text;
+    for (const [kind, re] of VEX_SECRET_PATTERNS) {
+      re.lastIndex = 0;
+      s = s.replace(re, () => (kind === "Mass mention" ? "(everyone)" : "<redacted: " + kind + ">"));
+    }
+    return s.replace(/[A-Za-z]:\\Users\\[^\\\s"'<>|]+/g, "~");
+  };
+  const allowedHere = () => {
+    const h = location.hostname.replace(/^www\./, "").toLowerCase();
+    return cfg.allow.some((a) => h === a || h.endsWith("." + a));
+  };
+  const editable = (t) => !!t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !/^(?:password|checkbox|radio|button|submit|file|range|color)$/i.test(t.type || "text")) || t.isContentEditable === true);
+  document.addEventListener("paste", (e) => {
+    if (!cfg.on || allowedHere()) return;
+    const target = e.target;
+    if (!editable(target)) return;
+    const text = e.clipboardData ? e.clipboardData.getData("text/plain") : "";
+    if (!text || text.length > 200000) return;
+    const kinds = detect(text);
+    if (!kinds.length) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    pending = { id: ++seq, text, target };
+    try { ipcRenderer.sendToHost("vex-secret-paste", { id: pending.id, kinds, host: location.hostname }); } catch { pending = null; }
+  }, true);
+  ipcRenderer.on("vex-secret-paste-decision", (_e, d) => {
+    if (!pending || !d || d.id !== pending.id) return;
+    const p = pending;
+    pending = null;
+    if (d.action !== "redact") return;
+    try { p.target.focus(); document.execCommand("insertText", false, redact(p.text)); } catch { /* vex-allow-empty-catch: the box the paste was meant for went away */ }
+  });
+})();

@@ -252,6 +252,13 @@ const VexUsageRegistry = {
       BypassDoctor: () => (typeof BypassDoctor !== 'undefined' ? BypassDoctor : null),
       WatchAlerts: () => (typeof WatchAlerts !== 'undefined' ? WatchAlerts : null),
       VexTabsNav: () => (typeof VexTabsNav !== 'undefined' ? VexTabsNav : null),
+      DevDesk: () => (typeof DevDesk !== 'undefined' ? DevDesk : null),
+      DevPortsPair: () => (typeof DevPortsPair !== 'undefined' ? DevPortsPair : null),
+      ActionsBoard: () => (typeof ActionsBoard !== 'undefined' ? ActionsBoard : null),
+      LogReader: () => (typeof LogReader !== 'undefined' ? LogReader : null),
+      PluginDev: () => (typeof PluginDev !== 'undefined' ? PluginDev : null),
+      ElectronTicker: () => (typeof ElectronTicker !== 'undefined' ? ElectronTicker : null),
+      SecretGuard: () => (typeof SecretGuard !== 'undefined' ? SecretGuard : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -365,6 +372,14 @@ const VexUsageRegistry = {
       ['watch-alerts', A.api(G.WatchAlerts, 'enabled', 'setEnabled')],
       // Tabs and navigation extras (js/tabs-nav.js): find options, clean copy, typed-count completion, Keep on top, activity dots.
       ['tabs-nav', A.api(G.VexTabsNav, 'enabled', 'setEnabled')],
+      // The developer desk (js/dev-desk.js and friends): each off until switched on; off keeps the lists.
+      ['dev-desk', A.api(G.DevDesk, 'enabled', 'setEnabled')],
+      ['dev-ports-pair', A.api(G.DevPortsPair, 'enabled', 'setEnabled')],
+      ['actions-board', A.api(G.ActionsBoard, 'enabled', 'setEnabled')],
+      ['log-reader', A.api(G.LogReader, 'enabled', 'setEnabled')],
+      ['plugin-dev', A.api(G.PluginDev, 'enabled', 'setEnabled')],
+      ['electron-ticker', A.api(G.ElectronTicker, 'enabled', 'setEnabled')],
+      ['secret-guard', A.api(G.SecretGuard, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

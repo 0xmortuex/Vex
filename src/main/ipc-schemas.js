@@ -486,6 +486,15 @@ define('github:get', [string(400), optional(shape({ authed: optional(boolean) })
 define('devfeeds:latest', [oneOf(['npm', 'pypi']), string(120)]);
 define('devfeeds:advisories', [oneOf(['npm', 'pypi']), string(120), string(60)]);
 define('devfeeds:ping', [string(300)]);
+// Developer desk (main/dev-desk.js), plugin dev loop (main/dev-extension.js) and the Electron
+// ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
+// is checked against the granted folders in main.
+define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status devext:vencord', []);
+define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: optional(string(20)), terminal: optional(string(20)) })]);
+define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
+define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
+define('castlabs:behind', [optional(boolean)]);
+define('devdesk:ports', [value => Array.isArray(value) && value.length <= 12 && value.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

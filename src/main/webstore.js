@@ -418,5 +418,5 @@ module.exports = {
   WEBSTORE_PUBLISHER_KEY_SHA256, MAX_CRX_BYTES, PREVIEW_TTL_MS, WebStoreError,
   extensionIdFrom, updateUrl, idFromPublicKey, parseCrx3, verifyCrx3, signedMessage,
   verifyLocalCrx, claimsWebStore, inspectLocalCrx,
-  downloadCrx, readPackage, cautions, refusal, describe, createWebStoreInstaller,
+  downloadCrx, readPackage, cautions, ABSENT, refusal, describe, createWebStoreInstaller,
 };
