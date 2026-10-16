@@ -400,15 +400,24 @@ const VexClock = {
   cities() { try { const a = JSON.parse(localStorage.getItem(this.KEY_CITIES) || 'null'); if (Array.isArray(a)) return a; } catch { /* default */ } return [{ name: 'London', zone: 'Europe/London' }, { name: 'New York', zone: 'America/New_York' }, { name: 'Tokyo', zone: 'Asia/Tokyo' }]; },
   saveCities(list) { try { localStorage.setItem(this.KEY_CITIES, JSON.stringify(list)); return true; } catch { return false; } },
 
+  // Timer and Stopwatch stay out of sight on a new profile (js/quiet-defaults.js) until they are
+  // asked for. Opening one on purpose (the timer pill, Ctrl+K "Stopwatch") is asking.
+  QUIET_TAB: { timers: 'clock-timer', stopwatch: 'clock-stopwatch' },
+  _tabHidden(id) {
+    const q = this.QUIET_TAB[id];
+    return !!q && typeof VexQuietDefaults !== 'undefined' && VexQuietDefaults.hidden(q);
+  },
+
   renderPanel(container) {
     if (!container) return;
     this._container = container;
     this._loadSw();
+    if (this._tabHidden(this._tab)) VexQuietDefaults.reveal(this.QUIET_TAB[this._tab], { by: 'you opened it' });
     const icon = (n, sz) => (window.VexIcons && VexIcons.has(n)) ? VexIcons.svg(n, { size: sz || 14 }) : '';
     container.innerHTML = `
       <div class="panel-header"><h2>Clock and schedules</h2></div>
       <div class="ck-tabs" role="tablist" aria-label="Clock and schedules">
-        ${this.TABS.map(([id, label, ic]) =>
+        ${this.TABS.filter(([id]) => !this._tabHidden(id)).map(([id, label, ic]) =>
           `<button class="ck-tab${this._tab === id ? ' on' : ''}" id="ck-tab-${id}" data-tab="${id}" role="tab" aria-selected="${this._tab === id}" aria-controls="clock-body">${icon(ic, 13)}<span>${label}</span></button>`).join('')}
       </div>
       <div class="ck-body" id="clock-body" role="tabpanel" aria-labelledby="ck-tab-${this._tab}"></div>`;

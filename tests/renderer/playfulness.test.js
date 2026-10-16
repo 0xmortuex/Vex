@@ -38,8 +38,8 @@ describe('the level', () => {
   it('says which kinds each level allows', () => {
     const table = (level) => { P.setLevel(level); return Object.keys(P.NEEDS).filter(k => P.allowed(k)).sort(); };
     expect(table('off')).toEqual([]);
-    expect(table('calm')).toEqual(['delight', 'living', 'medal', 'pet', 'streak', 'tabgame']);
-    expect(table('full')).toEqual(['celebrate', 'delight', 'living', 'medal', 'medal-toast', 'pet', 'sound', 'streak', 'tabgame']);
+    expect(table('calm')).toEqual(['delight', 'jingle', 'living', 'medal', 'pet', 'streak', 'tabgame']);
+    expect(table('full')).toEqual(['celebrate', 'delight', 'jingle', 'living', 'medal', 'medal-toast', 'pet', 'sound', 'streak', 'tabgame']);
     expect(() => P.allowed('nonsense')).toThrow();
   });
 

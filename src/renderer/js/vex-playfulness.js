@@ -34,7 +34,52 @@ const VexPlayfulness = {
   QUIET_KEY: 'vex.fun.quiet',
 
   // The level each kind needs at least.
-  NEEDS: { medal: 'calm', pet: 'calm', streak: 'calm', tabgame: 'calm', living: 'calm', delight: 'calm', 'medal-toast': 'full', sound: 'full', celebrate: 'full' },
+  // 'jingle' is the one sound that needs only Calm: a tune the person composed and switched on
+  // for a slot (startup, focus finish), at most a few notes, off until they do. It still goes
+  // quiet in Game mode, Focus, a meeting, Simple mode, Minimal Vex, battery saver and reduced motion.
+  NEEDS: { medal: 'calm', pet: 'calm', streak: 'calm', tabgame: 'calm', living: 'calm', delight: 'calm', jingle: 'calm', 'medal-toast': 'full', sound: 'full', celebrate: 'full' },
+
+  // ---- the playfulness quarantine (Wave 4, section 11) ------------------------------------------
+  // EVERY fun or ambient module, and how each one asks the question above. tests/renderer/
+  // playfulQuarantine.test.js reads this list, opens each file and fails when the gate is not
+  // there, and fails when a file that makes a sound, signals a medal or registers a living-layer
+  // switch is not on the list. A new fun module is added HERE, in the same change.
+  //   file     the module (under js/)
+  //   kind     the VexPlayfulness kind it needs (NEEDS above)
+  //   gate     text that must appear in `gateFile` (default: file): the call that asks
+  //   uses     text that must appear in `file` when the gate lives in another file
+  //   explicit true: it has no ambient surface (it only runs after the person opens it); `why` says so
+  // Off in Simple mode and Minimal Vex: automatic, because those two lower the level to Off (autoOffReason).
+  // Sound: none is on by default (every sound switch below is off until chosen; the test reads them).
+  MODULES: [
+    { id: 'medals', file: 'vex-medals.js', kind: 'medal-toast', gate: "allowed('medal-toast')" },
+    { id: 'levels', file: 'fun/levels.js', kind: 'celebrate', gate: "VexProgress.allows('celebrate')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
+    { id: 'vex-pet', file: 'fun/vex-pet.js', kind: 'pet', gate: "VexProgress.allows('pet')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
+    { id: 'discovery-log', file: 'fun/discovery-log.js', kind: 'delight', gate: "VexProgress.allows('delight')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
+    { id: 'daily-challenge', file: 'fun/daily-challenge.js', kind: 'delight', gate: "VexProgress.allows('delight')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
+    { id: 'streaks', file: 'brief-extras/streaks.js', kind: 'streak', gate: "allowed('streak')" },
+    { id: 'sound-packs', file: 'vex-sounds.js', kind: 'sound', gate: "allowed('sound')" },
+    { id: 'jingle', file: 'vex-jingle.js', kind: 'jingle', gate: "allowed('jingle')" },
+    { id: 'mood-themes', file: 'mood-themes.js', kind: 'delight', gate: "allowed('delight')" },
+    { id: 'seasonal-worlds', file: 'seasonal-worlds.js', kind: 'living', gate: "allowed('living')", gateFile: 'living-core.js', uses: 'createLayer' },
+    { id: 'weather-layer', file: 'weather-layer.js', kind: 'living', gate: "allowed('living')", gateFile: 'living-core.js', uses: 'createLayer' },
+    { id: 'tab-personality', file: 'tab-personality.js', kind: 'living', gate: "allowed('living')", gateFile: 'living-core.js', uses: 'quietReason' },
+    { id: 'sticker-sheet', file: 'sticker-sheet.js', kind: 'living', gate: "allowed('living')" },
+    { id: 'mini-games', file: 'vex-mini-games.js', kind: 'tabgame', gate: "VexFun.may('games')", gateFile: 'vex-fun.js', gateRoot: 'VexPlayfulness.why(this.KIND[name])' },
+    { id: 'tab-tetris', file: 'vex-tab-tetris.js', kind: 'tabgame', gate: "VexFun.may('tetris')", gateFile: 'vex-fun.js', gateRoot: 'VexPlayfulness.why(this.KIND[name])' },
+    { id: 'daily-word', file: 'vex-daily-word.js', kind: 'tabgame', gate: "VexFun.may('word')", gateFile: 'vex-fun.js', gateRoot: 'VexPlayfulness.why(this.KIND[name])' },
+    { id: 'fortune', file: 'vex-fortune.js', kind: 'delight', gate: "allowed('delight')" },
+    { id: 'widgets', file: 'vex-integration.js', kind: 'delight', gate: "allowed('delight')" },
+    { id: 'year-in-vex', file: 'year-in-vex.js', kind: 'delight', gate: "allowed('delight')" },
+    { id: 'badges', file: 'achievement-badges.js', kind: 'medal-toast', gate: "allowed('medal-toast')" },
+    { id: 'coop-timer', file: 'coop-timer.js', explicit: true, why: 'runs only after the person creates or joins a room; no sound, no Brief or New Tab card' },
+    { id: 'friend-card', file: 'friend-card.js', explicit: true, why: 'builds a picture only when asked; no sound, no Brief or New Tab card' },
+    { id: 'rabbit-hole', file: 'rabbit-hole.js', explicit: true, why: 'opens a page only when the person runs the command; its small bar is the answer to that command' },
+    { id: 'time-capsule', file: 'time-capsule.js', explicit: true, why: 'a reminder the person set for a date they chose; it is a tool, not decoration' },
+    { id: 'focus-scenes', file: 'focus-scenes.js', explicit: true, why: 'the soundscape starts only when the person presses play (or opted in to start with a focus session) and never in Game mode' },
+  ],
+  // Audio that is NOT playful: it does a job the person asked for. Listed so the test can tell it from a new toy.
+  FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js'],
 
   _rank(level) { return this.LEVELS.indexOf(level); },
   _quietSwitch() { try { return localStorage.getItem(this.QUIET_KEY) === '1'; } catch { return false; } },

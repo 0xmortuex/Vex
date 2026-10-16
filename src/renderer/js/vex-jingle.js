@@ -198,6 +198,8 @@ const VexJingle = {
     const s = this.get();
     if (!s[slot].on) return false;
     if (VexExpression.gaming()) return false;
+    // The master level (js/vex-playfulness.js): no tune in Simple mode, Focus, a meeting, on battery saver or with reduced motion.
+    if (typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('jingle')) return false;
     if (s.volume === 0) return false;
     this._play(s[slot], s.volume);
     return true;

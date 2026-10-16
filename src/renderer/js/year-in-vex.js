@@ -30,6 +30,8 @@ const VexYearInVex = {
 
   isEnabled(now = new Date()) {
     if (typeof VexExtras !== 'undefined' && VexExtras.get(this.SETTING, true) === false) return false;
+    // The master level (js/vex-playfulness.js): a year-end page is a treat, not a duty, so it stays out of Simple mode, Focus and Game mode.
+    if (typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('delight')) return false;
     return now.getMonth() === 11 || (now.getMonth() === 0 && now.getDate() <= 15);
   },
 

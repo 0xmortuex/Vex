@@ -91,8 +91,11 @@ const VexProgress = {
   // May this kind of playful thing appear now? (kinds: VexPlayfulness.NEEDS)
   allows(kind) { return !this.silenced() && (typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed(kind)); },
 
+  // The playful kind each switch is (js/vex-playfulness.js NEEDS).
+  KIND: { pet: 'pet', discovery: 'delight', levels: 'delight', challenge: 'delight' },
+
   // Whether a module should be doing anything visible right now.
-  live(flag) { return this.enabled(flag) && !this.silenced(); },
+  live(flag) { return this.enabled(flag) && this.allows(this.KIND[flag]); },
 
   reducedMotion() {
     try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }

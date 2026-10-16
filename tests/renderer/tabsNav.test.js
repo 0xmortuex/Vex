@@ -86,6 +86,7 @@ describe('text fragment', () => {
 });
 
 describe('typed counts and inline completion', () => {
+  beforeEach(() => N.setPref('typedRanking', true));    // off by default since Wave 4: it changes what Enter picks
   const ranked = [
     { url: 'https://github.com/', kind: 'history' },
     { url: 'https://gitlab.com/', kind: 'history' },
@@ -191,5 +192,13 @@ describe('default zoom and downloads', () => {
     expect(N.formatRate(r.bps)).toBe('1.0 MB/s');
     expect(N.etaText(r.bps, 1024 * 1024, 11 * 1024 * 1024)).toBe('10 s left');
     expect(N.etaText(0, 1, 10)).toBe('');
+  });
+});
+
+describe('what is on for a new profile (Wave 4)', () => {
+  it('only the passive extras: the ones that change Enter or the address bar are a choice', () => {
+    const p = N.prefs();
+    expect([p.findOptions, p.cleanCopy, p.textFragment, p.activityDot]).toEqual([true, true, true, true]);
+    expect([p.typedRanking, p.switchToTab, p.addressExtras, p.keepOnTop]).toEqual([false, false, false, false]);
   });
 });

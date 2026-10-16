@@ -21,16 +21,18 @@
   const TYPED_KEY = 'vex.tabsNav.typed';
   const ZOOM_KEY = 'vex.tabsNav.defaultZoom';
 
-  // One switch per extra. Everything defaults on except the window-level one,
-  // which is a choice (Keep on top) and arrives off.
+  // One switch per extra. Only the PASSIVE ones are on for a new profile (they add a menu entry, a find-bar
+  // option or a dot and change nothing you type). The ones that change what Enter or the address bar does,
+  // and the window-level one, are a choice and arrive off. A profile that existed before this release gets
+  // the whole module off (maturity 'new': js/feature-registry.js staged enablement).
   const DEFAULTS = Object.freeze({
     enabled: true,
     findOptions: true,      // match case, seed from the selection, Up/Down history
     cleanCopy: true,        // Copy clean link / Copy as Markdown (address bar, tab menu)
     textFragment: true,     // Copy link to selected text
-    typedRanking: true,     // inline completion prefers the sites you type most
-    switchToTab: true,      // Enter on an address that is already open goes to that tab
-    addressExtras: true,    // Alt+Up one level, drag the padlock as a link, calculator row
+    typedRanking: false,    // inline completion prefers the sites you type most (changes what Enter picks)
+    switchToTab: false,     // Enter on an address that is already open goes to that tab (changes Enter)
+    addressExtras: false,   // Alt+Up one level, drag the padlock as a link, calculator row
     activityDot: true,      // a count in a background tab's title marks a dot
     findMatchCase: false,   // the Aa toggle in the find bar (a remembered choice)
     keepOnTop: false,       // Vex's own window above others (never over a full-screen game)

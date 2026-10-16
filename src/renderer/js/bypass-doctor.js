@@ -13,7 +13,7 @@
 //      refused while a game is running (Vex does not start or stop a bypass, and
 //      never winws, during a game).
 const BypassDoctor = {
-  KEYS: { on: 'vex.bypassDoctor.enabled', last: 'vex.bypassDoctor.lastPreflight' },
+  KEYS: { on: 'vex.bypassDoctor.enabled', last: 'vex.bypassDoctor.lastPreflight', startup: 'vex.bypassDoctor.startupProbe' },
   PREFLIGHT_EVERY_MS: 12 * 3600 * 1000,
   START_DELAY_MS: 25 * 1000,
 
@@ -22,6 +22,11 @@ const BypassDoctor = {
 
   enabled() { return localStorage.getItem(this.KEYS.on) !== 'off'; },
   setEnabled(on) { localStorage.setItem(this.KEYS.on, on ? 'on' : 'off'); },
+  // The request to discord.com after every start is OFF until the person turns it on, on every profile
+  // (a third-party request nobody asked for). The check they run by hand, and the offer after a page
+  // that would not load, do not need it.
+  startupProbe() { return localStorage.getItem(this.KEYS.startup) === 'on'; },
+  setStartupProbe(on) { localStorage.setItem(this.KEYS.startup, on ? 'on' : 'off'); },
 
   _busy() {
     return (typeof GameMode !== 'undefined' && !!GameMode.gaming) || (typeof GameSession !== 'undefined' && !!GameSession.active);
@@ -54,7 +59,7 @@ const BypassDoctor = {
 
   // ---- the look at Discord after start ------------------------------------------------------
   async preflight(now = this._now()) {
-    if (!this.enabled() || this._busy()) return null;
+    if (!this.enabled() || !this.startupProbe() || this._busy()) return null;
     if (typeof DiscordBypass === 'undefined') return null;
     if (DiscordBypass.choice().mode !== 'off') return null;
     const last = Number(localStorage.getItem(this.KEYS.last)) || 0;
@@ -111,6 +116,28 @@ const BypassDoctor = {
 
 if (typeof window !== 'undefined') {
   window.BypassDoctor = BypassDoctor;
+  if (typeof VexSettingsGroups !== 'undefined') {
+    VexSettingsGroups.register({ id: 'bypass-check', title: 'Bypass check', keywords: 'discord bypass probe start-up zapret byedpi site down', render: (body) => {
+      body.textContent = '';
+      body.appendChild(VexSettingsGroups.note('Ctrl+K "Site down or my bypass?" checks a page straight and through your bypass. The look at discord.com after Vex starts sends one request to Discord each time, so it is off until you turn it on here.'));
+      const row = document.createElement('div');
+      row.className = 'setting-toggle-row';
+      const text = document.createElement('span');
+      text.textContent = 'Look at discord.com after Vex starts';
+      const sw = document.createElement('label');
+      sw.className = 'toggle';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = BypassDoctor.startupProbe();
+      input.setAttribute('aria-label', 'Look at discord.com after Vex starts');
+      input.addEventListener('change', () => { try { BypassDoctor.setStartupProbe(input.checked); } catch (err) { input.checked = !input.checked; window.showToast?.(err.message, 'error'); } });
+      const slider = document.createElement('span');
+      slider.className = 'toggle-slider';
+      sw.append(input, slider);
+      row.append(text, sw);
+      body.appendChild(row);
+    } });
+  }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
     VexExtras.registerCommand({ id: 'site-or-bypass', label: 'Site down or my bypass?', hint: 'Try this page straight and through your bypass, and say which side is broken (changes nothing)', icon: 'activity', action: () => BypassDoctor.run().catch((err) => { BypassDoctor._note('The check failed', err); window.showToast?.(err.message, 'error'); }) });
   }

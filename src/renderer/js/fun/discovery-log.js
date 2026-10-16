@@ -91,7 +91,7 @@ const VexDiscovery = {
     // tabs is plenty, and it never runs over a game.
     document.addEventListener('vex:tab-activated', () => {
       const t = VexProgress.now();
-      if (t - last < 60000 || VexProgress.silenced()) return;
+      if (t - last < 60000 || !VexProgress.allows('delight')) return;
       last = t;
       try { this.scan(); } catch (err) { VexProgress.report('The discovery log could not update', err); }
     });

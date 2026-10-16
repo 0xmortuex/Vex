@@ -98,3 +98,37 @@ describe('the brief section', () => {
     expect(I.enabled()).toBe(true);
   });
 });
+
+describe('the Notes-based capture features land in the inbox, each under its own filter (Wave 4)', () => {
+  const at = new Date(NOW - 3600000).toISOString();
+  it('tells a clipped line, a highlights note, a screenshot note and the weekly note apart', async () => {
+    const notes = [
+      { id: 'a', title: 'clip', content: 'x', tags: ['agent'], createdAt: at },
+      { id: 'b', title: 'Highlights', content: 'y', tags: [], createdAt: at },
+      { id: 'c', title: 'Screenshot: page', content: 'z', tags: ['screenshot'], createdAt: at },
+      { id: 'd', title: 'Week 42', content: 'w', tags: ['weekly'], createdAt: at },
+      { id: 'e', title: 'Plain', content: 'p', createdAt: at },
+    ];
+    const { items } = await I.collect(NOW, sources({ notes: () => notes }));
+    const by = (id) => items.find(i => i.id === 'note:' + id).source;
+    expect([by('a'), by('b'), by('c'), by('d'), by('e')]).toEqual(['clip-note', 'highlight-note', 'screenshot-note', 'weekly-note', 'note']);
+    for (const s of ['clip-note', 'highlight-note', 'screenshot-note', 'weekly-note']) expect(I.SOURCES[s]).toBeTruthy();
+  });
+
+  it('reads the daily journal, one row per day', async () => {
+    const journal = () => ({ '2026-10-13': { text: '# Journal\n\nRead three pages', at: NOW - 3600000, edited: false }, '2026-08-01': { text: 'old', at: NOW - 90 * DAY } });
+    const { items, errors } = await I.collect(NOW, sources({ journal }));
+    expect(errors).toEqual([]);
+    const j = items.filter(i => i.source === 'journal');
+    expect(j).toHaveLength(1);
+    expect(j[0].sub).toBe('Read three pages');
+  });
+
+  it('opens a journal row in the journal and a weekly note in Notes', () => {
+    globalThis.VexMemoryTools = { openJournal: vi.fn() };
+    expect(I.openItem({ source: 'journal' })).toBe('journal');
+    globalThis.SidebarManager = { openPanel: vi.fn() };
+    expect(I.openItem({ source: 'weekly-note', noteId: 'd' })).toBe('notes');
+    delete globalThis.VexMemoryTools; delete globalThis.SidebarManager;
+  });
+});

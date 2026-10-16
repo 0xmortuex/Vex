@@ -11,6 +11,7 @@ let suggest;
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('vex.bypassDoctor.startupProbe', 'on');     // the start-up look is opt-in
   suggest = vi.fn();
   globalThis.VexAttention = { suggest };
   globalThis.DiscordBypass = { choice: () => ({ mode: 'off' }), save: vi.fn(), apply: vi.fn(async () => ({ ok: true })), looksBlocked: (c) => c === -101 };
@@ -76,5 +77,17 @@ describe('check and describe', () => {
     const t = BypassDoctor.describe({ ...RESULT(true), bypassed: { ok: false, ms: 6000, error: 'no answer' }, bypassLabel: 'ByeDPI (strong)' });
     expect(t).toContain('Straight from this computer: answers (30 ms)');
     expect(t).toContain('Through ByeDPI (strong): no answer (no answer)');
+  });
+});
+
+describe('the start-up look is opt-in for everyone', () => {
+  it('sends nothing to discord.com unless the person turned it on', async () => {
+    localStorage.removeItem('vex.bypassDoctor.startupProbe');
+    expect(BypassDoctor.startupProbe()).toBe(false);
+    expect(await BypassDoctor.preflight(1e12)).toBe(null);
+    expect(window.vex.probeBypass).not.toHaveBeenCalled();
+    BypassDoctor.setStartupProbe(true);
+    await BypassDoctor.preflight(1e12);
+    expect(window.vex.probeBypass).toHaveBeenCalledTimes(1);
   });
 });

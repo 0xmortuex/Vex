@@ -87,7 +87,7 @@ const VexDailyChallenge = {
   },
 
   _onTabClosed() {
-    if (!VexProgress.enabled('challenge') || VexProgress.silenced()) return;
+    if (!VexProgress.enabled('challenge') || !VexProgress.allows('delight')) return;
     const s = this._today();
     if (s.status !== 'open' || this._def(s.id).auto !== 'tabs') return;
     s.progress += 1;
@@ -158,7 +158,7 @@ const VexDailyChallenge = {
     let last = 0;
     document.addEventListener('vex:tab-activated', () => {
       const t = VexProgress.now();
-      if (t - last < 60000 || VexProgress.silenced()) return;
+      if (t - last < 60000 || !VexProgress.allows('delight')) return;
       last = t;
       try { this.refresh(); } catch (err) { VexProgress.report('The daily challenge could not update', err); }
     });

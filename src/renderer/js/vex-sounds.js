@@ -108,7 +108,7 @@ const VexSounds = {
 
   // ---- playing -------------------------------------------------------------
   why(name, opts = {}) {
-    return this.decide({
+    const reason = this.decide({
       name,
       enabled: VexFun.flag('sounds'),
       quiet: VexFun.quiet(),
@@ -118,6 +118,11 @@ const VexSounds = {
       now: new Date(),
       preview: !!opts.preview,
     });
+    if (reason) return reason;
+    // The master level (js/vex-playfulness.js): a sound needs Full, and never plays in Simple mode, Focus, a meeting or Game mode.
+    // A preview is the person pressing "Play a sample" and is let through; it is not an ambient sound.
+    if (!opts.preview && typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('sound')) return VexPlayfulness.why('sound');
+    return '';
   },
 
   _ctx: null,

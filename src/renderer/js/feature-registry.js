@@ -71,13 +71,17 @@ const VexRegistry = {
       if (!(typeof v === 'number' && v >= 0 && Number.isFinite(v))) throw new Error('Feature "' + id + '": budget ' + k + ' has to be a number of zero or more');
       budget[k] = v;
     }
+    // What a profile that already existed gets for a new or beta feature: 'off' (held back, then offered) unless
+    // the manifest says 'on' (a passive feature, named on purpose; there are none by default).
+    const existingProfileDefault = spec.existingProfileDefault == null ? 'off' : spec.existingProfileDefault;
+    if (existingProfileDefault !== 'off' && existingProfileDefault !== 'on') throw new Error('Feature "' + id + '": existingProfileDefault is off or on');
     const tiers = { minimal: false, standard: true, ...(spec.tiers || {}) };
     for (const t of Object.keys(tiers)) if (!this.TIERS.includes(t) || typeof tiers[t] !== 'boolean') throw new Error('Feature "' + id + '": tiers are minimal and standard, each true or false');
     const m = Object.freeze({
       id,
       title: String(spec.title || id),
       group: spec.group ? String(spec.group) : '',
-      maturity, killSwitch,
+      maturity, killSwitch, existingProfileDefault,
       storageKeys, usesKeys,
       settingsKeys: list('settingsKeys'), events: list('events'), jobs: list('jobs'), commands: list('commands'), panels: list('panels'),
       permissions: Object.freeze(permissions), budget: Object.freeze(budget), tiers: Object.freeze(tiers),
@@ -202,7 +206,15 @@ const VexRegistry = {
     let st = null;
     if (raw) { try { st = JSON.parse(raw); } catch (err) { console.error('[Registry] the staging record is not readable and is started again:', err.message); } }
     const ok = st && typeof st === 'object' && !Array.isArray(st) && st.v === 1;
-    this._state = { v: 1, staged: ok && st.staged && typeof st.staged === 'object' ? st.staged : {}, offered: ok && st.offered && typeof st.offered === 'object' ? st.offered : {} };
+    this._state = {
+      v: 1,
+      staged: ok && st.staged && typeof st.staged === 'object' ? st.staged : {},
+      offered: ok && st.offered && typeof st.offered === 'object' ? st.offered : {},
+      // Decided ONCE, by the first stage() this profile ever runs: { at, kind: 'new' | 'existing' }.
+      profile: ok && st.profile && typeof st.profile === 'object' && (st.profile.kind === 'new' || st.profile.kind === 'existing') ? st.profile : null,
+      // When "try it" offers were made (the last week only), for the weekly limit.
+      offerLog: ok && Array.isArray(st.offerLog) ? st.offerLog.filter(Number.isFinite) : [],
+    };
     return this._state;
   },
   _save() {
@@ -210,23 +222,37 @@ const VexRegistry = {
     catch (err) { console.error('[Registry] the staging record could not be saved:', err.message); }
   },
 
-  // Returns the ids switched off for this profile this time. `existing` says
-  // whether the profile pre-dates the feature (default: VexUsage has kept its
-  // record for more than a minute).
+  // Data a profile has before the usage record could possibly say so. The usage record (js/vex-usage.js)
+  // did not exist in older releases, so on an upgrade its "since" is today and says nothing about the
+  // profile's age: evidence comes from what the person has saved. Any one of these is enough. A storage
+  // that cannot be read is an error, not "a new profile".
+  PROFILE_EVIDENCE: ['vex.hasRunBefore', 'vex.onboardingDone', 'vex.legalAcceptedVersion', 'vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.history', 'vex.notes', 'vex.theme', 'vex.userName', 'vex.aiWorkerUrl', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'],
+  hasProfileEvidence() {
+    if (typeof localStorage === 'undefined') throw new Error('Saved settings are not available, so a new profile cannot be told from an old one');
+    return this.PROFILE_EVIDENCE.some(k => localStorage.getItem(k) != null);
+  },
+
+  // Returns the ids switched off for this profile this time.
+  // Who is "existing" (decided once and kept in vex.registry):
+  //   - the FIRST stage() a profile runs: it is existing when it already holds saved data (hasProfileEvidence);
+  //     `existing` may be passed to force it (tests);
+  //   - every later stage(): a feature not seen before arrived after the profile did, so the profile
+  //     is existing for it.
+  // A new or beta feature is switched off on an existing profile unless its manifest says
+  // existingProfileDefault: 'on'. A brand-new profile keeps each module's own default.
   async stage({ existing, now = Date.now() } = {}) {
     const u = this._usage();
     const st = this._load();
+    const first = !st.profile;
     let isExisting = existing;
-    if (isExisting == null) {
-      if (!u) throw new Error('Staged enablement needs the usage record');
-      isExisting = now - u.report().since > 60 * 1000;
-    }
+    if (isExisting == null) isExisting = first ? this.hasProfileEvidence() : true;
+    if (first) st.profile = { at: now, kind: isExisting ? 'existing' : 'new' };
     const heldOff = [];
     for (const m of this.all()) {
       if (m.maturity === 'stable' || st.staged[m.id]) continue;
       const live = u ? u.get(m.id) : null;
       st.staged[m.id] = { at: now, off: false };
-      if (isExisting && live && m.killSwitch === 'usage' && u.isEnabled(m.id)) {
+      if (isExisting && m.existingProfileDefault !== 'on' && live && m.killSwitch === 'usage' && u.isEnabled(m.id)) {
         await u.disable(m.id);
         st.staged[m.id].off = true;
         heldOff.push(m.id);
@@ -247,12 +273,16 @@ const VexRegistry = {
     if (typeof fn !== 'function') throw new Error('onOffer needs a function');
     this._offerSinks.push(fn);
   },
-  offerTry(ids = this.pendingOffers()) {
+  // At most OFFERS_PER_WEEK offers in any seven days: the rest stay pending and are offered on a later start.
+  OFFERS_PER_WEEK: 3,
+  offerTry(ids = this.pendingOffers(), now = Date.now()) {
     const st = this._load();
+    st.offerLog = st.offerLog.filter(t => now - t < 7 * 24 * 3600 * 1000);
     let n = 0;
     for (const id of ids) {
       const m = this._m.get(id);
       if (!m || st.offered[id]) continue;
+      if (st.offerLog.length >= this.OFFERS_PER_WEEK) break;
       const text = (m.maturity === 'new' ? 'New in Vex: ' : 'Beta: ') + m.title + '. It is off until you try it.';
       const turnOn = () => this.switchOn(id).then(() => { st.offered[id] = Date.now(); this._save(); }).catch(err => { console.error('[Registry] could not turn on "' + id + '":', err); window.showToast?.('Could not turn on ' + m.title + ': ' + err.message, 'error'); });
       if (this._offerSinks.length) {
@@ -263,7 +293,8 @@ const VexRegistry = {
         if (typeof window === 'undefined' || typeof window.showToast !== 'function') continue;
         window.showToast(text, 'info', 12000, { action: { label: 'Try it', run: turnOn } });
       }
-      st.offered[id] = Date.now();
+      st.offered[id] = now;
+      st.offerLog.push(now);
       n++;
     }
     this._save();

@@ -26,6 +26,21 @@ const VexInbox = {
   LIMIT: 200,
   SOURCES: {
     note: 'Note', 'read-later': 'Read later', highlight: 'Highlight', sticky: 'Sticky note', capture: 'Quick capture',
+    // The Notes-based capture features all write into the Notes list; the inbox tells them apart by what they leave
+    // on the note, so a clipped line, a highlight note, a screenshot note and the weekly note each have their own filter.
+    'clip-note': 'Clip or capture note', 'highlight-note': 'Highlights note', 'screenshot-note': 'Screenshot note', 'weekly-note': 'Weekly note',
+    journal: 'Journal',
+  },
+
+  // Where a note came from. Tags are what those features already set: the weekly note ('weekly'), screenshot to note
+  // ('screenshot'), clip-to-note and quick capture (AgentTools.saveNote: 'agent'); the Highlights note is found by its title.
+  noteSource(n) {
+    const tags = Array.isArray(n && n.tags) ? n.tags : [];
+    if (tags.includes('weekly')) return 'weekly-note';
+    if (tags.includes('screenshot')) return 'screenshot-note';
+    if (n && n.title === 'Highlights') return 'highlight-note';
+    if (tags.includes('agent')) return 'clip-note';
+    return 'note';
   },
 
   enabled() { try { return localStorage.getItem(this.PREF) !== 'off'; } catch { return true; } },
@@ -49,6 +64,7 @@ const VexInbox = {
       readLater: () => this._json('vex.readLater', []),
       highlights: () => this._json('vex.annotations', {}),
       sticky: () => this._json('vex.stickyNotes', {}),
+      journal: () => this._json('vex.journal', {}),
       captures: async () => {
         if (!window.vex || typeof window.vex.clipsInboxList !== 'function') return [];
         const r = await window.vex.clipsInboxList();
@@ -69,9 +85,19 @@ const VexInbox = {
         if (!n || !n.id) continue;
         const at = Date.parse(n.updatedAt || n.createdAt || '') || 0;
         if (at < since) continue;
-        items.push({ id: 'note:' + n.id, source: 'note', text: this._line(n.title || n.content || 'Untitled note'), sub: this._line(n.content, 90), at, noteId: n.id });
+        items.push({ id: 'note:' + n.id, source: this.noteSource(n), text: this._line(n.title || n.content || 'Untitled note'), sub: this._line(n.content, 90), at, noteId: n.id });
       }
     });
+    // The daily journal (js/memory-tools.js) keeps one entry per day, not a list of notes.
+    if (typeof src.journal === 'function') {
+      await guard('journal', async () => {
+        const j = await src.journal();
+        for (const [day, e] of Object.entries(j && typeof j === 'object' && !Array.isArray(j) ? j : {})) {
+          if (!e || !e.text || !(e.at >= since)) continue;
+          items.push({ id: 'jr:' + day, source: 'journal', text: this._line('Journal ' + day), sub: this._line(String(e.text).replace(/^#.*\n+/, ''), 90), at: e.at, day });
+        }
+      });
+    }
     await guard('read later', async () => {
       for (const i of await src.readLater()) {
         if (!i || !i.url || i.read || !(i.at >= since)) continue;
@@ -129,7 +155,12 @@ const VexInbox = {
       TabManager.createTab(item.url, true);
       return 'tab';
     }
-    if (item.source === 'note' || item.source === 'sticky') {
+    if (item.source === 'journal') {
+      if (typeof VexMemoryTools === 'undefined') throw new Error('The journal is not loaded');
+      VexMemoryTools.openJournal();
+      return 'journal';
+    }
+    if (item.source === 'note' || item.source === 'sticky' || /-note$/.test(item.source)) {
       if (typeof SidebarManager === 'undefined') throw new Error('Panels are not loaded');
       SidebarManager.openPanel('notes');
       if (item.noteId && typeof NotesPanel !== 'undefined' && NotesPanel.selectNote) NotesPanel.selectNote(item.noteId);
