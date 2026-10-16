@@ -116,7 +116,9 @@ const PermissionPrompts = (() => {
       // A cheat tool or fake update (src/main/download-guard.js) is held without an "always allow";
       // "do not warn me about this site" is its way out, in web-safety's own allow list.
       const quiet = (why.length && !riskyFile) || (riskyFile && risk.quarantine) ? `<button type="button" class="perm-risk-quiet" data-quiet>Don't warn me about this site</button>` : '';
-      return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reasons}${quiet}</div>`;
+      // Why a site would ask at all, in plain words (web-safety.js reasonFor).
+      const reason = !riskyFile && risk.reason ? `<div class="perm-risk-reason">${_esc(risk.reason)}</div>` : '';
+      return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reason}${reasons}${quiet}</div>`;
     })();
     const messageHtml = riskyFile
       ? `is sending <strong>${_esc(entry.data.fileName || 'a file')}</strong>${info.note ? ` <span class="perm-note">${_esc(info.note)}</span>` : ''}`

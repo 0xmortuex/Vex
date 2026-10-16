@@ -569,6 +569,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
+  // What a download is, from where, and what to open it with; withHash adds its SHA-256 once finished.
+  downloadsExplain:      (id, withHash) => ipcRenderer.invoke('downloads:explain', id, !!withHash),
   downloadsRetry:        (url, id) => ipcRenderer.invoke('downloads:retry', url, id),
   downloadsAskWhere:     (url) => ipcRenderer.invoke('downloads:ask-where', url),
   downloadsMine:         (url) => ipcRenderer.invoke('downloads:mine', url),
@@ -719,6 +721,8 @@ contextBridge.exposeInMainWorld('vex', {
     forgetHost: (host) => ipcRenderer.invoke('websafety:forget-host', host),
     setParanoid: (origin, on) => ipcRenderer.invoke('websafety:set-paranoid', origin, !!on),
     check: (address) => ipcRenderer.invoke('websafety:check', address),
+    // Of the sites a page loaded things from, how many keep cookies here (counts only).
+    thirdPartyCount: (opts) => ipcRenderer.invoke('websafety:third-party-count', opts),
   },
   // Reminders live in the main process so they survive a reload and, on
   // Windows, a closed Vex (Task Scheduler wakes it). `at` is epoch ms.

@@ -648,6 +648,8 @@ define('websafety:set-sensitivity', [oneOf(['off', 'standard', 'strict'])]);
 define('websafety:allow-host websafety:forget-host', [string(253)]);
 define('websafety:set-paranoid', [string(2048), boolean]);
 define('websafety:check', [string(2048)]);
+define('websafety:third-party-count', [shape({ site: string(253), partition: optional(string(160)), hosts: value => Array.isArray(value) && value.length <= 500 && value.every(string(253)) })]);
+define('downloads:explain', [string(64), optional(boolean)]);
 define('profiles:list', []);
 define('profiles:create', [profileLook]);
 define('profiles:update', [profileId, profileLook]);

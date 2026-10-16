@@ -177,6 +177,8 @@ const VexUsageRegistry = {
       CitationTracker: () => (typeof CitationTracker !== 'undefined' ? CitationTracker : null),
       KnowledgeAsk: () => (typeof KnowledgeAsk !== 'undefined' ? KnowledgeAsk : null),
       LinkTriage: () => (typeof LinkTriage !== 'undefined' ? LinkTriage : null),
+      ChatLinkHygiene: () => (typeof ChatLinkHygiene !== 'undefined' ? ChatLinkHygiene : null),
+      SafeWebExtras: () => (typeof SafeWebExtras !== 'undefined' ? SafeWebExtras : null),
       VexSnippets: () => (typeof VexSnippets !== 'undefined' ? VexSnippets : null),
       TableExtract: () => (typeof TableExtract !== 'undefined' ? TableExtract : null),
       VideoTools: () => (typeof VideoTools !== 'undefined' ? VideoTools : null),
@@ -561,6 +563,9 @@ const VexUsageRegistry = {
       ['jump-list', A.api(G.VexJumpActions, 'enabled', 'setEnabled')],
       ['window-set', A.api(G.VexWindowSet, 'enabled', 'setEnabled')],
       ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
+      // Wave 4: safer web fold-ins (both are off until switched on).
+      ['chat-link-hygiene', A.api(G.ChatLinkHygiene, 'enabled', 'setEnabled')],
+      ['breach-recheck', A.api(G.SafeWebExtras, 'enabled', 'setEnabled')],
       // Wave 2 AI features: each has its own on/off key and only works on this PC's local model.
       ['longdoc-engine', A.api(G.VexLongDoc, 'enabled', 'setEnabled')],
       ['thread-digest', A.api(G.VexThreadDigest, 'enabled', 'setEnabled')],

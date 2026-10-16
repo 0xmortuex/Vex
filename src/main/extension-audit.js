@@ -81,6 +81,39 @@ function reach(manifest) {
   return { level: 'none', hosts, says: 'Cannot read the pages you open' };
 }
 
+// Sites whose sign-in lives in the page's own session, so an extension that can
+// read them could read (or reuse) that session: the chat and game accounts that
+// are the usual target of a stolen-session scam.
+const SESSION_SITES = [
+  { name: 'Discord', domains: ['discord.com', 'discordapp.com', 'discord.gg'] },
+  { name: 'Roblox', domains: ['roblox.com'] },
+];
+const underDomain = (host, domain) => host === domain || host.endsWith('.' + domain);
+
+// Which of those sites this extension can read, and how.
+//   named  the manifest lists the site (or one of its pages) by name
+//   all    it reads every page AND can read cookies, which include the sign-in
+// An extension that reads every page but cannot touch cookies is not listed:
+// the audit already says "every page", and a row on every ad blocker is noise.
+// -> [{ site, how: 'named'|'all', cookies: boolean, says }]
+function sessionSites(manifest) {
+  const { all, hosts } = hostsOf(manifest);
+  const perms = strings((manifest || {}).permissions).concat(strings((manifest || {}).optional_permissions));
+  const cookies = perms.includes('cookies');
+  const out = [];
+  for (const s of SESSION_SITES) {
+    const named = hosts.some(h => s.domains.some(d => underDomain(h, d)));
+    if (!named && !(all && cookies)) continue;
+    out.push({
+      site: s.name, how: named ? 'named' : 'all', cookies,
+      says: named
+        ? `Can read ${s.name} pages${cookies ? ' and cookies, which include the sign-in that proves it is you' : ''}. An extension that can read a ${s.name} page can read what you type and see there.`
+        : `Reads every page and your cookies, so it can read the ${s.name} sign-in too.`,
+    });
+  }
+  return out;
+}
+
 function powers(manifest) {
   const asked = [...strings((manifest || {}).permissions), ...strings((manifest || {}).optional_permissions)];
   const seen = new Set();
@@ -99,13 +132,13 @@ function powers(manifest) {
 // and they are the manifest's own.
 function weight(audit) {
   const level = { all: 100, some: 40, click: 10, none: 0 }[audit.reach.level] || 0;
-  return level + audit.powers.filter(p => p.heavy).length * 12;
+  return level + audit.powers.filter(p => p.heavy).length * 12 + (audit.sessions || []).length * 25;
 }
 
 function auditOne(entry) {
   const manifest = (entry && entry.manifest) || {};
-  const out = { reach: reach(manifest), powers: powers(manifest) };
+  const out = { reach: reach(manifest), powers: powers(manifest), sessions: sessionSites(manifest) };
   return { ...out, weight: weight(out) };
 }
 
-module.exports = { auditOne, reach, powers, hostsOf, patterns, weight, POWERS };
+module.exports = { auditOne, reach, powers, hostsOf, patterns, weight, sessionSites, POWERS };
