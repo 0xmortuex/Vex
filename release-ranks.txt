@@ -106,3 +106,5 @@ e379f007 none                       # scan fixes for modules of this batch
 f8849cf9 none                       # boot crash made by the knowledge base wiring, fixed in the same batch
 e2baf4ff none                       # pet drawing namespace: a bug of this unreleased batch, fixed in it
 b12855af none                       # Settings group beside the content: a bug of this unreleased batch, fixed in it
+b8afd1c1 none                       # merge commit (the work is ranked on its own commits)
+5ed28eaf none                       # merge commit (the work is ranked on its own commits)
