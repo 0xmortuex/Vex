@@ -154,7 +154,7 @@ describe('wiring', () => {
       expect(main).toContain("ipcMain.handle('" + c + "'");
       expect(policy).toContain("'" + c + "'");
     }
-    expect(policy).toMatch(/journal:\|tuning:\)\/;/);
+    expect(policy).toMatch(/journal:\|tuning:(?:\|[a-z-]+:)*\)\/;/);
   });
 
   it('schemas reject oversized or malformed payloads', () => {

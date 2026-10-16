@@ -108,7 +108,11 @@ describe('the preference file', () => {
     await store.delete('vex.never');
     expect(await fs.readFile(file, 'utf8')).toBe(marked);
     await store.set('vex.a', 'two');
-    expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual({ 'vex.a': 'two', __vexPreferenceStore: 1 });
+    // A real write carries the integrity checksum (T0-012); it is not part of the stored values.
+    const written = JSON.parse(await fs.readFile(file, 'utf8'));
+    expect(written.__vexChecksum).toMatch(/^[0-9a-f]{64}$/);
+    delete written.__vexChecksum;
+    expect(written).toEqual({ 'vex.a': 'two', __vexPreferenceStore: 1 });
   });
 
   it('compares with a write still waiting ahead of it, not the file', async () => {
