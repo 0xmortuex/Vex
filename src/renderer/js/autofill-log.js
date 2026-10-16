@@ -17,7 +17,7 @@ const AutofillLog = {
       const a = this._load();
       a.push({ t: Date.now(), kind, host: this._host(urlOrHost), ok: !!ok, detail: detail ? String(detail).slice(0, 60) : undefined });
       this._save(a);
-      window.dispatchEvent(new CustomEvent('vex:autofill-logged'));
+      window.dispatchEvent(new CustomEvent('vex:autofill-logged', { detail: { kind, host: this._host(urlOrHost), ok: !!ok } }));
     } catch {}
   },
 

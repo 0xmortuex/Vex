@@ -690,7 +690,7 @@ function vexOwnTextFocused(doc) {
     'vex.panelOverrides', 'vex.sidebarOrder', 'vex.userShortcuts', 'vex.layout',
     // Written by Settings controls but missing from this list until v2.36.5.
     'vex.searchSuggest', 'vex.sponsorSkip', 'vex.streamerMode',
-    'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex',
+    'vex.game.freeGpu', 'vex.game.sleepTabs', 'vex.game.wakeAfter', 'vex.game.holdAi', 'vex.game.stillVex', 'vex.game.commitGuard',
     'vex.lockIdleMin', 'vex.clipboardHistory', 'vex.autoPip', 'vex.pipButton', 'vex.pipButtonOff', 'vex.agentShowCursor',
     'vex.ollamaAutoStart', 'vex.agentNumCtx', 'vex.updateChannel', 'vex.updateCheckOnStart', 'vex.whatsNewCard',
     'vex.skinStrength', 'vex.skinShape', 'vex.skinPattern', 'vex.skinGlow',

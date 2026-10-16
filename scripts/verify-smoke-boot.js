@@ -38,7 +38,9 @@ const onData = (d) => {
 child.stdout.on('data', onData);
 child.stderr.on('data', onData);
 
-const timer = setTimeout(() => finish(false, 'harness timeout (no SMOKE line in 60s)'), 60000);
+// The DRM check waits for the Widevine component to download on a fresh profile.
+const harnessMs = process.env.VEX_DRM_SMOKE === '1' ? 240000 : 60000;
+const timer = setTimeout(() => finish(false, `harness timeout (no SMOKE line in ${harnessMs / 1000}s)`), harnessMs);
 
 // Kill the app, wait for it to really be gone, then drop its profile.
 // Removing it the instant after the kill lost the race with Vex's exiting

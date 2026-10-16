@@ -517,7 +517,23 @@ const MemoryPanel = {
     return out;
   },
 
-  healthLines(d, startup = (typeof window !== 'undefined' ? window.VexStartup : null)) {
+  // Crashes per version (main/crash-log.js trend): what each release crashed
+  // with, what is NEW in this one, and pages killed together (not their bugs).
+  crashTrendLines(t) {
+    if (!t || !Array.isArray(t.versions) || !t.versions.length) return [];
+    const lines = [`Crashes by version (${t.total} kept):`];
+    for (const g of t.versions.slice(0, 5)) {
+      const fam = Object.entries(g.families).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ${n}×`).join(', ');
+      lines.push(`  v${g.version}${g.version === t.current ? ' (this one)' : ''} — ${g.total}: ${fam}`);
+    }
+    if (t.newKinds && t.newKinds.length) lines.push(`  New in v${t.current}, not seen in earlier versions: ${t.newKinds.join(', ')}`);
+    if (t.rising && t.rising.length) lines.push(`  More often in v${t.current} than in the version before: ${t.rising.join(', ')}`);
+    const b = (t.bursts || []).slice(0, 3);
+    for (const x of b) lines.push(`  ${new Date(x.at).toLocaleString()} — ${x.count} pages killed within seconds (v${x.version}): something ended them together, such as Windows running short of memory`);
+    return lines;
+  },
+
+  healthLines(d, startup =(typeof window !== 'undefined' ? window.VexStartup : null)) {
     const lines = [];
     const up = Math.round((d.uptimeMs || 0) / 60000);
     lines.push(`Vex ${d.version || '?'} · Electron ${d.electron || '?'} · Chromium ${d.chrome || '?'} · up ${up < 60 ? up + ' min' : (up / 60).toFixed(1) + ' h'}`);
@@ -534,8 +550,12 @@ const MemoryPanel = {
       lines.push(`${before.length} crash${before.length === 1 ? '' : 'es'} or hang${before.length === 1 ? '' : 's'} in earlier launches this week:`);
       for (const e of before.slice(-8)) lines.push(`  ${new Date(e.at).toLocaleString()} — ${e.kind}: ${e.detail}${e.version ? ' (v' + e.version + ')' : ''}`);
     }
+    for (const l of this.crashTrendLines(d.crashTrend)) lines.push(l);
     const ex = Array.isArray(d.extensionErrors) ? d.extensionErrors : [];
     for (const x of ex) lines.push(`  extension failed to load — ${x.folder}: ${x.error}`);
+    // Protected video (Spotify, Netflix, Disney+): "DRM failed" is an invalid castLabs
+    // signature or a Widevine component that never installed (scripts/verify-drm.js).
+    if (d.widevine) lines.push(`DRM (Widevine): ${d.widevine}`);
     if (d.update && d.update.result) lines.push(`Updater: ${d.update.result}${d.update.version ? ' ' + d.update.version : ''}${d.update.error ? ' — ' + d.update.error : ''} (${this._fmtAgo(Date.now() - d.update.lastCheckAt)})`);
     else lines.push('Updater: no check yet this session');
     if (d.remindersScheduled != null) lines.push(`Reminders scheduled in Windows: ${d.remindersScheduled}`);

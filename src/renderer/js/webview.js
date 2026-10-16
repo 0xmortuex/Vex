@@ -593,10 +593,23 @@ const WebviewManager = {
         if (crashCount === 1) window.showToast?.('This tab stopped working — Vex is reloading it', 'warn');
         const t = TabManager.tabs.find(t => t.id === tab.id);
         const real = webview.dataset.hibernatedUrl || (t && t.url);
+        // Where the person was on the page that was killed: the last sample of
+        // crash-proof tabs (js/tab-snapshots.js), else where a sleep left it.
+        // Put back once, only on the same address and only if the reloaded page
+        // is still at the top, so nothing the person already did is undone.
+        const was = (t && t._lastScroll && t._lastScroll.y > 0 ? t._lastScroll : null) || (t && t.scrollPosition && t.scrollPosition.y > 0 ? { x: t.scrollPosition.x, y: t.scrollPosition.y, url: null } : null);
         if (real && !/^about:blank\b/i.test(real)) {
           const recover = () => {
             if (this.webviews.get(tab.id) !== webview || !webview.isConnected) return;
             delete webview.dataset.hibernated;
+            if (was && (!was.url || (typeof TabSnapshots !== 'undefined' && TabSnapshots.key(real) === was.url))) {
+              webview.addEventListener('did-finish-load', () => {
+                try {
+                  webview.executeJavaScript(`(function(){ if ((window.scrollY||0) < 20) { window.scrollTo(${Number(was.x) || 0}, ${Number(was.y) || 0}); return true; } return false; })()`)
+                    .catch(err => window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err));
+                } catch (err) { window.VexProblems?.note('Tabs', 'Could not put a reloaded tab back where it was', err); }
+              }, { once: true });
+            }
             try { Promise.resolve(webview.loadURL(real)).catch(() => {}); } catch { webview.src = real; }
           };
           if (lifecycle) cancelRecovery = lifecycle.timeout(recover, 400 * 2 ** (crashCount - 1));
@@ -1702,6 +1715,9 @@ const WebviewManager = {
       items.push({
         label: 'Fill code from email',
         action: () => { try { EmailCodeAutofill.tryFill(webview, webview.getURL(), { manual: true }); window.showToast?.('Looking for your code…'); } catch {} }
+      }, {
+        label: 'Fill code from clipboard',
+        action: () => { EmailCodeAutofill.fillFromClipboard(webview, webview.getURL()).catch(err => console.error('[email-code] clipboard fill failed:', err)); }
       });
     }
 

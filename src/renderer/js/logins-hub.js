@@ -177,6 +177,9 @@ const LoginsHub = {
         'no-new-code': 'no new code',
         'sender-mismatch': 'code was from another site',
         'busy': 'too many sign-ins at once',
+        'mail-blocked': 'email tab is private, Tor or routed',
+        'mail-stuck': 'email tab is not answering',
+        'clipboard': 'no code field for the clipboard code',
       };
       html += `<div style="margin:8px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px">${VexIcons.svg('chart-bar', { size: 14 })}Recent autofill activity</div>` +
         recent.map(e => `<div style="display:flex;gap:8px;padding:4px 2px;font-size:12px">
