@@ -1599,13 +1599,13 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   // this site into "Notifications from panels" (js/panel-capture.js).
   const seen = (title, body) => {
     try { ipcRenderer.sendToHost('vex-notification-seen', { title: String(title).slice(0, 200), body: String(body).slice(0, 300) }); }
-    catch { /* host gone */ }
+    catch { /* vex-allow-empty-catch: host gone */ }
   };
   function wrapNotification(clicked, seen) {
     const N = window.Notification;
     if (typeof N !== 'function' || N.__vexWrapped) return;
     const Wrapped = function Notification(title, options) {
-      try { seen(title == null ? '' : title, options && options.body != null ? options.body : ''); } catch (e) { /* a notification that cannot be reported still shows */ }
+      try { seen(title == null ? '' : title, options && options.body != null ? options.body : ''); } catch (e) { /* vex-allow-empty-catch: a notification that cannot be reported still shows */ }
       const n = new N(title, options);
       try { n.addEventListener('click', () => clicked()); } catch (e) { /* a notification that cannot be listened to still shows */ }
       return n;
