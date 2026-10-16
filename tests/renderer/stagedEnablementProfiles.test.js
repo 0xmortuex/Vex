@@ -134,3 +134,52 @@ describe('the manifest field', () => {
     expect(() => R.define({ id: 'bad', existingProfileDefault: 'maybe' })).toThrow(/existingProfileDefault/);
   });
 });
+
+// The shipped manifests, Waves 0 to 4 together: on a profile an older release left behind, every new or
+// beta feature that has a switch ends OFF, and nothing is lost on a brand-new profile. The module code is
+// not loaded here, so a stand-in switch is made for each feature the real usage table can switch.
+describe('the shipped manifests on an old-release profile', () => {
+  let RR, ids, manifests, sw;
+  beforeEach(() => {
+    localStorage.clear();
+    RR = fresh('feature-registry.js').VexRegistry;
+    RR._reset();
+    globalThis.VexRegistry = RR;
+    fresh('feature-manifests.js');
+    manifests = RR.all();
+    globalThis.VexUsage = { report: () => ({ since: Date.now() }) };
+    ids = new Set(fresh('vex-usage-registry.js').VexUsageRegistry.table().map(r => r[0]));
+    sw = {};
+    for (const id of ids) sw[id] = true;
+    globalThis.VexUsage = {
+      report: () => ({ since: Date.now() }),
+      get: (id) => (id in sw ? { id } : null),
+      isEnabled: (id) => sw[id],
+      disable: async (id) => { sw[id] = false; },
+      enable: async (id) => { sw[id] = true; },
+    };
+  });
+
+  it('every new or beta feature with a kill switch has a usage row, so it can be held off', () => {
+    const noRow = manifests.filter(m => m.maturity !== 'stable' && m.killSwitch === 'usage' && !ids.has(m.id)).map(m => m.id);
+    expect(noRow).toEqual([]);
+  });
+
+  it('ends with every new or beta feature OFF, except the ones that name existingProfileDefault on', async () => {
+    localStorage.setItem('vex.tabs', '[]');
+    await RR.stage();
+    const shouldBeOff = manifests.filter(m => m.maturity !== 'stable' && m.killSwitch === 'usage' && m.existingProfileDefault !== 'on' && ids.has(m.id));
+    expect(shouldBeOff.length).toBeGreaterThan(100);
+    expect(shouldBeOff.filter(m => sw[m.id]).map(m => m.id)).toEqual([]);
+    // Wave 3 and Wave 4 features in particular.
+    for (const id of ['tab-mru', 'study-entry', 'library-links', 'agent-pins', 'chat-link-hygiene', 'breach-recheck', 'pack-content', 'page-watch-templates', 'game-holds', 'brief-cards']) {
+      if (ids.has(id)) expect(sw[id], id).toBe(false);
+    }
+    for (const m of manifests.filter(m => m.maturity === 'stable' && ids.has(m.id))) expect(sw[m.id], m.id).toBe(true);
+  });
+
+  it('a brand-new profile keeps every module default', async () => {
+    expect(await RR.stage()).toEqual([]);
+    expect(Object.values(sw).every(Boolean)).toBe(true);
+  });
+});
