@@ -5,10 +5,9 @@
 // a few sine/triangle notes made with WebAudio when it is asked for, so there
 // is nothing to download and nothing to license.
 //
-// Other features need not import anything. Either call
+// Other features call
 //     VexSounds.play('tabClose')
-// or dispatch
-//     document.dispatchEvent(new CustomEvent('vex:sound', { detail: { name: 'timerDone' } }))
+// or fire the event they already fire (vex:medal-earned, vex:timer-done, vex:inbox-zero, vex:tab-closed).
 //
 // A sound is made only when VexSounds.decide() says so: the packs are switched
 // on, the quiet switch is off, Game mode is off, it is not within quiet hours,
@@ -174,11 +173,8 @@ const VexSounds = {
   init() {
     if (this._wired || typeof document === 'undefined') return;
     this._wired = true;
-    // The event other features use, with no import.
-    document.addEventListener('vex:sound', (e) => {
-      const name = e && e.detail && e.detail.name;
-      if (this.RECIPES[name]) this.play(name);
-    });
+    // (There was a generic 'vex:sound' listener here that nothing ever dispatched; dropped. A
+    // module that wants a sound calls VexSounds.play(name), or fires one of the events below.)
     // Things that already announce themselves.
     document.addEventListener('vex:medal-earned', () => this.play('medal'));
     document.addEventListener('vex:timer-done', () => this.play('timerDone'));

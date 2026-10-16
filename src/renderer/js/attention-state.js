@@ -38,7 +38,7 @@ const AttentionState = {
     if (this._reported.has(id)) return;
     this._reported.add(id);
     console.error('[AttentionState] could not read "' + id + '":', err);
-    try { if (typeof VexProblems !== 'undefined') VexProblems.note('Attention', 'Could not read the ' + id + ' state', err); } catch { /* problems layer missing */ }
+    try { if (typeof VexProblems !== 'undefined') VexProblems.note('Attention', 'Could not read the ' + id + ' state', err); } catch { /* vex-allow-empty-catch: problems layer missing */ }
   },
 
   _read(id, fn) {
@@ -128,7 +128,7 @@ const AttentionState = {
     const sig = s.sources.map(x => x.id).join(',');
     if (sig === this._last) return s;
     this._last = sig;
-    try { document.dispatchEvent(new CustomEvent('vex:attention-state', { detail: s })); } catch { /* no document: a test */ }
+    try { document.dispatchEvent(new CustomEvent('vex:attention-state', { detail: s })); } catch { /* vex-allow-empty-catch: no document: a test */ }
     this._push(s);
     return s;
   },
@@ -141,7 +141,7 @@ const AttentionState = {
     if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) return;
     Promise.resolve(b.state({ quiet: s.quiet, reason: s.reason, until: s.until })).catch((err) => {
       console.error('[AttentionState] the main process was not told:', err);
-      try { if (typeof VexProblems !== 'undefined') VexProblems.note('Attention', 'The main process was not told the attention state', err); } catch { /* problems layer missing */ }
+      try { if (typeof VexProblems !== 'undefined') VexProblems.note('Attention', 'The main process was not told the attention state', err); } catch { /* vex-allow-empty-catch: problems layer missing */ }
     });
   },
 
@@ -149,7 +149,10 @@ const AttentionState = {
   init() {
     if (this._wired || typeof document === 'undefined') return false;
     this._wired = true;
-    for (const ev of ['vex:game-mode', 'vex:play-changed', 'vex:focus-changed', 'vex:meeting-changed', 'vex:quiet-changed']) {
+    // Focus mode, Focus flows, Meeting mode and the theme's wind-down call changed() themselves, and the
+    // quiet switch is a Play flag (vex:play-changed). Listeners for 'vex:focus-changed',
+    // 'vex:meeting-changed' and 'vex:quiet-changed' were dropped: nothing ever fired them.
+    for (const ev of ['vex:game-mode', 'vex:play-changed']) {
       document.addEventListener(ev, () => this.changed());
     }
     this.changed();

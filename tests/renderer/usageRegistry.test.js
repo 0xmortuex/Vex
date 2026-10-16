@@ -18,6 +18,8 @@ const MODULES = [
   'meeting-prep.js', 'routine-detect.js', 'tab-cleanup.js',
   // The attention work: the master level, the inbox and the New Tab grid are features too.
   'vex-defaults.js', 'attention-state.js', 'attention-inbox.js', 'vex-playfulness.js', 'newtab-slots.js',
+  // The safety and release features of Wave 0.
+  'post-update-selftest.js', 'signout-why-ui.js', 'commit-guard.js', 'release-checklist.js',
   'vex-usage-registry.js',
 ];
 
@@ -45,9 +47,21 @@ describe('feature registry', () => {
     ids = VexUsageRegistry.register();
     expect(ids.length).toBeGreaterThan(20);
     for (const f of VexUsage.features()) expect(typeof f.isEnabled, f.id).toBe('function');
-    for (const must of ['brief-mail-triage', 'delight-mood-themes', 'workflow-ask-tabs', 'citations', 'listen-reader', 'play-tetris', 'distraction-budget', 'playfulness', 'attention-inbox', 'newtab-slots']) {
+    for (const must of ['brief-mail-triage', 'delight-mood-themes', 'workflow-ask-tabs', 'citations', 'listen-reader', 'play-tetris', 'distraction-budget', 'playfulness', 'attention-inbox', 'update-self-test', 'signout-why', 'commit-guard', 'release-check']) {
       expect(ids, must).toContain(must);
     }
+  });
+
+  it('does not register the New Tab layout: Minimal Vex is the calm layout and must never switch it to Everything', async () => {
+    ids = VexUsageRegistry.register();
+    expect(ids).not.toContain('newtab-slots');
+    expect(VexRegistry.get('newtab-slots').killSwitch).toBe('none');
+    expect(NewTabSlots.enabled()).toBe(true);
+    await VexMinimalMode.enter();
+    expect(NewTabSlots.layout()).toBe('calm');
+    await VexMinimalMode.leave();
+    await tick();
+    expect(NewTabSlots.layout()).toBe('calm');
   });
 
   it('Minimal Vex switches every registered feature off and back exactly', async () => {

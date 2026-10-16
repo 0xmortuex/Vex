@@ -24,6 +24,7 @@ const CommitGuard = {
   _report: null,                 // what this stretch of pressure shed
   _last: null,                   // the newest { availMB, limitMB, usedMB }
   _timer: null,
+  _armed: false,
   _wired: false,
 
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
@@ -89,14 +90,21 @@ const CommitGuard = {
     return r;
   },
 
+  // A chain of timeouts, not VexJobs.every(): VexJobs holds every job while a game is running or memory is
+  // short, which is exactly when this one must run (it sleeps the tabs that woke up again).
   _armRepeat() {
-    if (this._timer) return;
-    this._timer = setInterval(() => {
-      if (this.level === 'ok' || !this._gaming()) { this._stopRepeat(); return; }
-      this.shed(this._last).catch(err => this._note('Could not shed load', err));
-    }, this.REPEAT_MS);
+    if (this._armed) return;
+    const step = () => {
+      this._timer = null;
+      if (this.level === 'ok' || !this._gaming()) return;
+      this.shed(this._last)
+        .catch(err => this._note('Could not shed load', err))
+        .finally(() => { if (this.level !== 'ok' && this._gaming() && this._armed) this._timer = setTimeout(step, this.REPEAT_MS); });
+    };
+    this._armed = true;
+    this._timer = setTimeout(step, this.REPEAT_MS);
   },
-  _stopRepeat() { if (this._timer) clearInterval(this._timer); this._timer = null; },
+  _stopRepeat() { this._armed = false; if (this._timer) clearTimeout(this._timer); this._timer = null; },
 
   // The game ended: say what happened, once, now that someone is looking.
   onGameEnded() {
@@ -119,6 +127,11 @@ const CommitGuard = {
   async read() { return window.vex.commitState(); },
 
   init() {
+    // VexJobs.heavy() (indexing, OCR, local AI, summaries) asks this before it starts anything: while
+    // Windows is short of memory during Game mode, heavy work waits. Set whether or not main reports.
+    if (typeof VexJobs !== 'undefined' && typeof VexJobs.setMemoryPressure === 'function') {
+      VexJobs.setMemoryPressure(() => (this.holding() ? 'Windows is short of memory' : ''));
+    }
     if (this._wired || !window.vex || typeof window.vex.onCommitPressure !== 'function') return false;
     this._wired = true;
     window.vex.onCommitPressure((p) => { this.onPressure(p).catch(err => this._note('Could not react to low memory', err)); });

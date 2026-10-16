@@ -37,7 +37,23 @@ function teardown() {
 
 describe('CommitGuard', () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => { vi.useRealTimers(); teardown(); });
+  afterEach(() => { vi.useRealTimers(); teardown(); delete globalThis.VexJobs; });
+
+  it('is the memory pressure source of VexJobs.heavy: heavy work waits only while it is holding', async () => {
+    setup();
+    let fn = null;
+    globalThis.VexJobs = { setMemoryPressure: vi.fn((f) => { fn = f; }) };
+    CommitGuard.init();
+    expect(VexJobs.setMemoryPressure).toHaveBeenCalledTimes(1);
+    expect(fn()).toBe('');                                   // no pressure yet
+    await CommitGuard.onPressure(P('high', 6000));
+    expect(fn()).toMatch(/short of memory/);                 // short during Game mode: heavy work waits
+    CommitGuard.setEnabled(false);
+    expect(fn()).toBe('');                                   // switched off: never holds
+    CommitGuard.setEnabled(true);
+    GameMode.gaming = false; GameSession.active = false;
+    expect(fn()).toBe('');                                   // not gaming: never holds
+  });
 
   it('sleeps only ordinary background tabs, unloads the model and the panels, and holds background work', async () => {
     const { tabs } = setup();

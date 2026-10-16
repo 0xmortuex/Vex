@@ -173,7 +173,7 @@ const VexConsent = {
     const all = this._all();
     all[id] = { version, state, at: Date.now() };
     _vxStore().setItem(this.KEY, JSON.stringify(all));
-    try { document.dispatchEvent(new CustomEvent('vex:consent', { detail: { id, state, version } })); } catch { /* no document: a test */ }
+    try { document.dispatchEvent(new CustomEvent('vex:consent', { detail: { id, state, version } })); } catch { /* vex-allow-empty-catch: no document: a test */ }
     return state;
   },
   revoke(id) {

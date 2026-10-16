@@ -189,6 +189,12 @@ const VexUsageRegistry = {
       MeetingPrep: () => (typeof MeetingPrep !== 'undefined' ? MeetingPrep : null),
       RoutineDetect: () => (typeof RoutineDetect !== 'undefined' ? RoutineDetect : null),
       TabCleanup: () => (typeof TabCleanup !== 'undefined' ? TabCleanup : null),
+      VexSelfTest: () => (typeof VexSelfTest !== 'undefined' ? VexSelfTest : null),
+      VexSignoutWhy: () => (typeof VexSignoutWhy !== 'undefined' ? VexSignoutWhy : null),
+      CommitGuard: () => (typeof CommitGuard !== 'undefined' ? CommitGuard : null),
+      VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
+      VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
+      AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -222,6 +228,18 @@ const VexUsageRegistry = {
       ['fortune', A.api(G.VexFortune, 'isEnabled', 'setEnabled')],
       // Page actions: turning them back on asks its own confirmation again.
       ['page-actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
+      // The check after an update (js/post-update-selftest.js)
+      ['update-self-test', A.api(G.VexSelfTest, 'enabled', 'setEnabled')],
+      // Says why a sign-in was lost after the next sign-in (js/signout-why-ui.js); the record itself stays.
+      ['signout-why', A.api(G.VexSignoutWhy, 'enabled', 'setEnabled')],
+      // Sheds Vex's own load when Windows is short of memory during Game mode (js/commit-guard.js).
+      ['commit-guard', A.api(G.CommitGuard, 'enabled', 'setEnabled')],
+      // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
+      ['release-check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
+      // Attention (js/vex-playfulness.js, js/attention-inbox.js). The New Tab layout (js/newtab-slots.js)
+      // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
+      ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
+      ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

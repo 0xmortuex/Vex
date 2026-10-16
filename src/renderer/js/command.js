@@ -1054,7 +1054,7 @@ const CommandBar = {
         else if (title.includes(q)) score = 75;
         else if (url.includes(q)) score = 65;
         if (!score) continue;
-        let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+        let host = ''; try { host = new URL(t.url).hostname.replace(/^www./, ''); } catch { /* vex-allow-empty-catch: a tab with no readable address has no host to show */ }
         const icon = t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : this._icon('tabs');
         scored.push({ score, r: {
           id: 'tab:' + t.id,
@@ -1086,7 +1086,7 @@ const CommandBar = {
       if (already.has(id)) continue;
       const t = (TabManager.tabs || []).find(x => x.id === hit.tabId);
       if (!t || t.id === TabManager.activeTabId) continue;
-      let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+      let host = ''; try { host = new URL(t.url).hostname.replace(/^www./, ''); } catch { /* vex-allow-empty-catch: a tab with no readable address has no host to show */ }
       out.push({ score: 40 + Math.min(hit.score, 9), r: {
         id,
         icon: t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : this._icon('tabs'),

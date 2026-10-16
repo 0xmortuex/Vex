@@ -125,7 +125,7 @@ const VexTimeOfDay = {
     const sig = s.enabled ? s.profile : 'off';
     if (!force && sig === this._last) return null;
     this._last = sig;
-    window.dispatchEvent(new CustomEvent(this.EVENT, { detail: s }));
+    window.dispatchEvent(new CustomEvent('vex:newtab-profile', { detail: s }));   // literal, so the static contract test sees the sender (EVENT is the same name)
     return s;
   },
   start() {

@@ -137,6 +137,10 @@ const VexBriefStreaks = {
     const today = days[this.dayKey(now)] || {};
     const row = (goal, label, progress) => {
       const n = this.streak(days, goal, goals, now);
+      // Tells js/achievement-badges.js, which counts no streaks of its own.
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent('vex:streak-updated', { detail: { goal, streak: n, met: this.met(today, goal, goals), day: this.dayKey(now) } }));
+      }
       return {
         text: label,
         detail: progress + (this.met(today, goal, goals) ? ' - done today' : '') + '. ' + (n === 0 ? 'No streak yet' : n === 1 ? '1 day in a row' : n + ' days in a row'),

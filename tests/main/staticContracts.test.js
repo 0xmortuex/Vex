@@ -52,7 +52,6 @@ function stripLineComments(src) {
 // a listener today. Remove an entry when it gets one.
 const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:agent-kill', 'agent run cancelled: dispatched for extension points'],
-  ['vex:autofill-logged', 'telemetry hook'],
   ['vex:autopilot-done', 'telemetry hook'],
   ['vex:brief-changed', 'state-changed notification, no consumer yet'],
   ['vex:ui-scale-changed', 'state-changed notification, no consumer yet'],
@@ -80,13 +79,16 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:medal-display', 'part of the VexMedals event API (vex-medals.js header), no consumer yet'],
   ['vex:medal-progress', 'part of the VexMedals event API (vex-medals.js header), no consumer yet'],
   ['vex:medal-profile', 'part of the VexMedals event API (vex-medals.js header), no consumer yet'],
+  // Wave 0 state-changed notifications: published so a later feature can follow them without an import.
+  ['vex:attention-state', 'AttentionState.changed(): the quiet state changed; main is told through the attention bridge, no in-window consumer yet'],
+  ['vex:newtab-layout', 'NewTabSlots.setLayout(): the New Tab layout changed; the page re-reads it on open, no in-window consumer yet'],
+  ['vex:consent', 'VexDefaults consent given or withdrawn; no in-window consumer yet'],
+  ['vex:playfulness-changed', 'VexPlayfulness.setLevel(); the Play flags already tell their followers through vex:play-changed'],
 ]);
 // Used but never dispatched under that literal name.
-const EVENTS_USED_NEVER_DISPATCHED = new Map([
-  ['vex:streak-updated', 'achievement-badges.js listens; the dispatcher is only documented (for a streak module to add)'],
-  ['vex:newtab-profile', 'time-of-day.js documents it as fired by the New Tab page; nothing in src dispatches it'],
-  ['vex:sound', 'vex-sounds.js: an input API, any module may dispatch it; none does yet'],
-]);
+// (Empty since Wave 0 integration: vex:streak-updated is now dispatched by brief-extras/streaks.js, vex:newtab-profile by
+// time-of-day.js with a literal name, and the never-fired vex:sound listener was dropped.)
+const EVENTS_USED_NEVER_DISPATCHED = new Map([]);
 
 function scanEvents() {
   const files = walk('src', /\.(?:js|html)$/);

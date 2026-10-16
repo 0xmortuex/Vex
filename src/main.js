@@ -914,7 +914,7 @@ const _sharePreflight = require('./main/share-preflight');
 const _shareLog = _sharePreflight.createShareLog();
 function _shareRefused(hostWindowOwner, contents, code, ctx) {
   let host = '';
-  try { host = new URL(contents && !contents.isDestroyed() ? contents.getURL() : '').hostname; } catch { /* no address to name */ }
+  try { host = new URL(contents && !contents.isDestroyed() ? contents.getURL() : '').hostname; } catch { /* vex-allow-empty-catch: no address to name */ }
   const entry = _shareLog.record(code, { host, ...ctx });
   console.log(`[ScreenShare] refused (${code}) for ${host || 'unknown page'}`);
   try {
@@ -977,10 +977,10 @@ function wireDisplayMediaOnSession(ses) {
           _pendingScreenPicks.delete(id);
           try { restoreRequester?.(); } catch {}
           _shareRefused(requestingHost, requestingContents, 'pick-timeout');
-          try { callback(); } catch {}
+          try { callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ }
         }, 90000);
       })
-      .catch((err) => { _shareRefused(requestingHost, requestingContents, 'capturer-error', { error: err && err.message }); try { callback(); } catch {} });
+      .catch((err) => { _shareRefused(requestingHost, requestingContents, 'capturer-error', { error: err && err.message }); try { callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } });
   });
 }
 // The last screen-share quality choice, read ONCE by the guest's getDisplayMedia
@@ -997,10 +997,10 @@ ipcMain.handle('screen-picker:choose', (_e, { id, sourceId, audio, width, height
   if (p.host !== secureSessions.owner(_e.sender)) return refuse('other-window', null);
   _pendingScreenPicks.delete(id);
   try { p.restoreRequester?.(); } catch {}
-  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch {} return refuse(_sharePreflight.requesterChange(p.frame, p.url), p.pageId, { nowHost: _sharePreflight.hostOf(p.frame) }); }
-  if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return { ok: true, cancelled: true }; }
+  if (!_sameRequester(p.frame, p.url)) { try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return refuse(_sharePreflight.requesterChange(p.frame, p.url), p.pageId, { nowHost: _sharePreflight.hostOf(p.frame) }); }
+  if (!sourceId) { _shareQuality.delete(p.pageId); try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return { ok: true, cancelled: true }; }
   const src = p.sources.find((s) => s.id === sourceId);
-  if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch {} return refuse('source-gone', p.pageId); }
+  if (!src) { _shareQuality.delete(p.pageId); try { p.callback(); } catch { /* vex-allow-empty-catch: the permission request may already be answered */ } return refuse('source-gone', p.pageId); }
   // The answer must match what the page ASKED for. Discord always asks for
   // audio, and a pick without it is refused outright — "AbortError: Invalid
   // capture constraints" — so with "Share audio" unticked (a choice Vex
@@ -1027,7 +1027,7 @@ ipcMain.handle('screen-share:preflight', async (event, wcId) => {
   if (!contents || contents.isDestroyed()) throw new Error('That tab is not open any more');
   if (secureSessions.owner(contents) !== secureSessions.owner(event.sender)) throw new Error('That tab belongs to another window');
   let origin = '';
-  try { origin = new URL(contents.getURL()).origin; } catch { /* about:blank and the like: preflight reports it as not secure */ }
+  try { origin = new URL(contents.getURL()).origin; } catch { /* vex-allow-empty-catch: about:blank and the like: preflight reports it as not secure */ }
   let sourcesCount = null, capturerError = '';
   try {
     const found = await require('electron').desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 0, height: 0 } });
@@ -1418,7 +1418,7 @@ const _commitGuard = require('./main/commit-guard').createCommitGuard({
 });
 app.whenReady().then(() => _commitGuard.start());
 ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message, { cause: err }); } return _commitGuard.state(); });
-app.on('will-quit', () => { try { _commitGuard.stop(); } catch {} });
+app.on('will-quit', () => { try { _commitGuard.stop(); } catch { /* vex-allow-empty-catch: already stopped at quit */ } });
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
 // Time travel and the tuning advisor (src/main/state-journal.js,
@@ -1718,7 +1718,7 @@ ipcMain.handle('site:clear-data', async (_e, opts) => {
   try {
     const ses = _siteSessionFor(_e, partition);
     // Any part that fails is in the answer (src/main/site-data.js).
-    try { _protect.signout.noteAction('clear-site', [new URL(url).hostname]); } catch { /* an address that cannot be read clears nothing */ }
+    try { _protect.signout.noteAction('clear-site', [new URL(url).hostname]); } catch { /* vex-allow-empty-catch: an address that cannot be read clears nothing */ }
     const r = await require('./main/site-data').clearSiteData(ses, url);
     if (!r.ok) console.error('[SiteData] clearing failed:', r.error);
     return r;
@@ -1764,7 +1764,7 @@ ipcMain.handle('cookies:list', async (_e, opts) => {
 ipcMain.handle('cookies:remove', async (_e, opts) => {
   const o = opts || {};
   try {
-    try { _protect.signout.noteAction('cookie-tool', [new URL(_cookieUrl(o) || o.url).hostname]); } catch { /* the removal below reports a bad address */ }
+    try { _protect.signout.noteAction('cookie-tool', [new URL(_cookieUrl(o) || o.url).hostname]); } catch { /* vex-allow-empty-catch: the removal below reports a bad address */ }
     await _cookieSession(_e, o.partition).cookies.remove(_cookieUrl(o) || o.url, o.name);
     return { ok: true };
   } catch (err) {

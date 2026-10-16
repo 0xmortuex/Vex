@@ -109,7 +109,38 @@
     { id: 'theme-auto', title: 'Light and dark by itself', tiers: { minimal: true, standard: true }, storageKeys: ['vex.themeAuto'], jobs: ['Light and dark'],
       permissions: { reads: ['the clock, Windows light/dark mode, a saved location'], writes: ['the current theme'], sends: [] } },
 
+    // ---- Wave 0: safety, attention and release features ---------------------------
+    // All default ON in this build, so they are stable (a "new" feature would be staged OFF
+    // on an existing profile). Minimal Vex switches each of them off and puts it back.
+    { id: 'update-self-test', title: 'Check after an update', group: 'Update self-test', storageKeys: ['vex.selfTest.enabled', 'vex.selfTest.last', 'vex.selfTest.version'],
+      permissions: { reads: ['the problems and the crash log of this version'], writes: ['the result of the last check'], sends: [] } },
+    { id: 'signout-why', title: 'Say why a sign-in was lost', group: 'Sign-in', storageKeys: ['vex.signoutWhy', 'vex.signoutWhy.said'], commands: ['whysignedout'],
+      permissions: { reads: ['which sites you were signed in to'], writes: ['what it already told you'], sends: [] } },
+    { id: 'commit-guard', title: 'Protect Windows from running out of memory', group: 'Game mode', storageKeys: ['vex.game.commitGuard'],
+      permissions: { reads: ['the memory Windows has left'], writes: ['puts Vex background work on hold while you play'], sends: [] } },
+    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled'], commands: ['release-check'],
+      permissions: { reads: ['the change list of this version'], writes: ['which items you ticked'], sends: [] } },
+    { id: 'playfulness', title: 'Playfulness', group: 'Playfulness', storageKeys: ['vex.playfulness.prior'], usesKeys: ['vex.fun.quiet'],
+      permissions: { reads: ['your Playfulness level, Game mode and the quiet switch'], writes: ['the level you chose'], sends: [] } },
+    { id: 'attention-inbox', title: 'Attention Inbox', group: 'Attention', storageKeys: ['vex.attention.inbox', 'vex.attention.inboxOn'],
+      permissions: { reads: ['the notices that did not fit the cap'], writes: ['the notices that did not fit the cap'], sends: [] } },
+    // The calm New Tab layout is a layout choice, not an extra: Minimal Vex keeps it (killSwitch 'none', not in the usage table).
+    { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
+      permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
+    { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
+      storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
+      permissions: { reads: ['a sign-in code in your mail, when you ask or allow it'], writes: ['the sites you trusted to receive a code'], sends: [] } },
+    { id: 'attention-budget', title: 'Attention Budget', killSwitch: 'none', maturity: 'stable',
+      storageKeys: ['vex.attention.log', 'vex.attention.denied', 'vex.attention.muted', 'vex.attention.less'],
+      permissions: { reads: ['which feature wants to speak'], writes: ['what was shown, held back or muted'], sends: [] } },
+    { id: 'defaults-consents', title: 'Defaults, consents and one-time migrations', killSwitch: 'none', maturity: 'stable',
+      storageKeys: ['vex.defaults', 'vex.consents', 'vex.migrations.ran'],
+      permissions: { reads: ['which choices you made yourself'], writes: ['versioned defaults and the consents you gave'], sends: [] } },
+    { id: 'preference-store', title: 'Preference store', killSwitch: 'none', maturity: 'stable',
+      storageKeys: ['vex.volatileSplit'],
+      permissions: { reads: ['the preference file and its checksum'], writes: ['the preference file and its checksum'], sends: [] } },
     { id: 'library-data', title: 'Notes, bookmarks and read later', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.notes', 'vex.bookmarks', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'],
       permissions: { reads: ['what you saved'], writes: ['what you saved'], sends: [] } },

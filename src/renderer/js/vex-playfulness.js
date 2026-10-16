@@ -60,8 +60,8 @@ const VexPlayfulness = {
       if (src.includes('focus')) return 'Focus is on';
     }
     try { if (typeof BatteryMode !== 'undefined' && BatteryMode && typeof BatteryMode.isLean === 'function' && BatteryMode.isLean()) return 'the PC is saving battery'; } catch (err) { console.error('[Playfulness] battery state unreadable:', err); }
-    try { if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'reduced motion is on'; } catch { /* no media queries here */ }
-    try { if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-reduce-motion')) return 'reduced motion is on'; } catch { /* no document */ }
+    try { if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no media queries here */ }
+    try { if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-reduce-motion')) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no document */ }
     try { if (typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple()) return 'Simple mode is on'; } catch (err) { console.error('[Playfulness] Simple mode unreadable:', err); }
     try { if (typeof VexMinimalMode !== 'undefined' && VexMinimalMode.isOn()) return 'Minimal Vex is on'; } catch (err) { console.error('[Playfulness] Minimal mode unreadable:', err); }
     return '';
@@ -118,7 +118,7 @@ const VexPlayfulness = {
     try {
       document.dispatchEvent(new CustomEvent('vex:playfulness-changed', { detail: { level } }));
       document.dispatchEvent(new CustomEvent('vex:play-changed', { detail: { name: 'quiet', on: level === 'off' } }));
-    } catch { /* no document: a test */ }
+    } catch { /* vex-allow-empty-catch: no document: a test */ }
   },
 
   // Once per profile: someone who already uses the playful extras keeps them.

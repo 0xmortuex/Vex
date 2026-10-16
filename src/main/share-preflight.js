@@ -50,7 +50,7 @@ function explain(code, ctx) {
 function requesterChange(frame, askedUrl) {
   if (!frame) return 'no-frame';
   try { if (frame.detached) return 'frame-detached'; } catch { return 'frame-detached'; }
-  try { if (new URL(frame.url).origin !== new URL(askedUrl).origin) return 'origin-changed'; } catch { /* unreadable address: treated as gone */ }
+  try { if (new URL(frame.url).origin !== new URL(askedUrl).origin) return 'origin-changed'; } catch { /* vex-allow-empty-catch: unreadable address: treated as gone */ }
   return 'frame-detached';
 }
 function hostOf(frame) {
@@ -68,7 +68,7 @@ function hostOf(frame) {
 function preflight(facts) {
   const f = facts || {};
   let host = '', secure = false;
-  try { const u = new URL(f.url); host = u.hostname; secure = u.protocol === 'https:'; } catch { /* no usable address */ }
+  try { const u = new URL(f.url); host = u.hostname; secure = u.protocol === 'https:'; } catch { /* vex-allow-empty-catch: no usable address */ }
   const checks = [];
   let refusal = null;
   const step = (id, ok, okText, code, ctx) => {

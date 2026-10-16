@@ -82,8 +82,8 @@ function createCommitGuard({ info, onLevel, intervalMs = 15000, setTimer = setIn
     poll,
     start() {
       if (timer) return;
-      try { poll(); } catch { /* reported by poll(); the timer keeps trying */ }
-      timer = setTimer(() => { try { poll(); } catch { /* reported by poll() */ } }, intervalMs);
+      try { poll(); } catch { /* vex-allow-empty-catch: reported by poll(); the timer keeps trying */ }
+      timer = setTimer(() => { try { poll(); } catch { /* vex-allow-empty-catch: reported by poll() */ } }, intervalMs);
       if (timer && typeof timer.unref === 'function') timer.unref();
     },
     stop() { if (timer) clearTimer(timer); timer = null; },

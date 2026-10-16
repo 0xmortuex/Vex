@@ -68,7 +68,7 @@ const NewTabSlots = {
   setLayout(layout) {
     if (!this.LAYOUTS.includes(layout)) throw new Error('The New Tab layout is calm or all');
     VexDefaults.set(this.LAYOUT_KEY, layout);
-    try { document.dispatchEvent(new CustomEvent('vex:newtab-layout', { detail: { layout } })); } catch { /* no document: a test */ }
+    try { document.dispatchEvent(new CustomEvent('vex:newtab-layout', { detail: { layout } })); } catch { /* vex-allow-empty-catch: no document: a test */ }
     if (typeof VexToday !== 'undefined' && typeof VexToday.refresh === 'function') VexToday.refresh().catch(err => console.error('[NewTab] could not refresh:', err));
     return layout;
   },
