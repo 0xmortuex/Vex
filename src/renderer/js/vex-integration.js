@@ -71,6 +71,7 @@ const VexNewTab = {
   // habit tap stays a browser-side thing. A photo carries too much to hand over.
   _widgets() {
     if (typeof VexDelights === 'undefined' || !VexDelights.isOn('widgets')) return null;
+    if (typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('delight')) return null;
     if (typeof VexWidgets === 'undefined') return null;
     let list;
     try { list = VexWidgets.list(); } catch (err) { console.error('[NewTab] the widget shelf could not be read:', err); return null; }

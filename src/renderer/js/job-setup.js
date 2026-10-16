@@ -62,7 +62,13 @@ const JobSetup = {
     if (!job) return this._renderPick(m);
     // Initialize the working tool set once per selected job; keep it across the
     // re-renders that toggling triggers.
-    if (!this._tools || this._toolsForJob !== job.id) { this._tools = new Set(job.tools); this._toolsForJob = job.id; }
+    // Start from the tools used on this PC when enough of them have been (JobProfiles.suggestTools), else from the role.
+    if (!this._tools || this._toolsForJob !== job.id) {
+      let pick = null;
+      try { pick = JobProfiles.suggestTools(job.id, { knownIds: window.Toolbox ? Toolbox.all().map(t => t.id) : undefined }); }
+      catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Toolbox', 'Your most used tools could not be read, so the job preset is shown', err); else console.error(err); }
+      this._tools = new Set(pick ? pick.tools : job.tools); this._toolsForJob = job.id; this._toolsFrom = pick ? pick.source : 'role';
+    }
     const allTools = window.Toolbox ? Toolbox.all() : [];
     const themeMeta = (typeof ThemeManager !== 'undefined' && ThemeManager.getThemeMeta) ? ThemeManager.getThemeMeta(job.theme) : { label: job.theme, accent: '#6366f1' };
     body.innerHTML = `
@@ -72,7 +78,7 @@ const JobSetup = {
         <span style="width:16px;height:16px;border-radius:5px;background:${this._esc(themeMeta.accent || '#6366f1')};display:inline-block;border:1px solid var(--border)"></span>
         Theme: <b>${this._esc(themeMeta.label || job.theme)}</b>
       </div>
-      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">Tools — recommended for ${this._esc(job.name)} are on. Click one to turn it off, or search below to add more:</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 6px">Tools — ${this._toolsFrom === 'usage' ? 'the ones you use most are on' : 'recommended for ' + this._esc(job.name) + ' are on'}. Click one to turn it off, or search below to add more:</div>
       <div id="jsx-tools" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
       <input id="jsx-tool-search" placeholder="Add tools — search ${allTools.length} tools…" value="${this._esc(this._toolQuery || '')}" style="width:100%;box-sizing:border-box;margin-top:10px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:12.5px;font-family:'Outfit',sans-serif">
       <div id="jsx-tool-results" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"></div>

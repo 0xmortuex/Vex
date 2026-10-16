@@ -184,7 +184,7 @@ const NewTabSlots = {
       { id: 'today', label: 'Today', slot: 'card', priority: 80, cost: 8, bytes: 3000, element: 'today-section' },
       { id: 'news-actions', label: 'News you can act on', slot: 'card', priority: 60, cost: 6, bytes: 1200, briefSection: 'news-actions', available: briefHas('news-actions') },
       { id: 'weather', label: 'Weather', slot: 'card', priority: 55, cost: 6, element: 'weather-section' },
-      { id: 'widgets', label: 'Widget shelf', slot: 'card', priority: 50, cost: 10, bytes: 2500, part: 'widgets', available: () => typeof VexDelights !== 'undefined' && VexDelights.isOn('widgets') },
+      { id: 'widgets', label: 'Widget shelf', slot: 'card', priority: 50, cost: 10, bytes: 2500, part: 'widgets', available: both(() => typeof VexDelights !== 'undefined' && VexDelights.isOn('widgets'), play('delight')) },
       { id: 'one-new-thing', label: 'One new thing', slot: 'card', priority: 40, cost: 5, bytes: 600, briefSection: 'one-new-thing', available: briefHas('one-new-thing') },
       { id: 'tools', label: 'Tools', slot: 'card', priority: 30, cost: 4, element: 'tools-section' },
       { id: 'streaks', label: 'Streaks', slot: 'card', priority: 25, cost: 4, bytes: 500, briefSection: 'streaks-goals', available: both(briefHas('streaks-goals'), play('streak')) },

@@ -2533,10 +2533,12 @@ const TabManager = {
     // The last picture of the page stands in until it has loaded (js/tab-thumbs.js).
     if (wv && typeof VexTabThumbs !== 'undefined') VexTabThumbs.showWhileWaking(tab, wv);
     if (wv && tab.scrollPosition) {
-      const pos = tab.scrollPosition;
+      // The saved (or synced) position becomes code: only finite numbers go into it, never the saved text itself.
+      const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.max(-1e7, Math.min(1e7, Math.round(n))) : 0; };
+      const sx = num(tab.scrollPosition.x), sy = num(tab.scrollPosition.y);
       const restoreScroll = () => {
         try {
-          wv.executeJavaScript(`window.scrollTo(${pos.x}, ${pos.y})`).catch(() => {});
+          wv.executeJavaScript(`window.scrollTo(${sx}, ${sy})`).catch(() => {});
         } catch { /* ignore */ }
       };
       wv.addEventListener('did-finish-load', restoreScroll, { once: true });

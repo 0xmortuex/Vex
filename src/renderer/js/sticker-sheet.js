@@ -190,6 +190,8 @@ const StickerSheet = (() => {
   function mount(el, opts) {
     const o = opts || {};
     if (!el) throw new Error('StickerSheet.mount needs an element');
+    // The master Playfulness level (js/vex-playfulness.js): Off, Game mode, Focus, Simple mode and Minimal Vex draw no board.
+    if (typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('living')) return false;
     if (typeof VexLiving !== 'undefined') VexLiving.ensureStyles();
     if (_mounted) unmount();
     let model = load(o.storage);

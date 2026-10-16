@@ -457,6 +457,124 @@ const JobProfiles = {
 
   list() { return this.JOBS; },
   get(id) { return this.JOBS.find(j => j.id === id) || null; },
+
+  // ---- tools from what is used, not from a role label (Wave 4, section 11) ------------------------
+  // The preset above is a guess from a job title. On the measured profile it picked regex, json and base64
+  // for a person whose tools are a savings goal, a profit margin and a random number. These count what
+  // the Toolbox already records on this PC (the last ten results of each tool, the last eight tools opened,
+  // the starred tools) and rank by that. Nothing new is counted, nothing is sent, and a saved list is never
+  // rewritten without being asked (offerRepick: an Attention Inbox suggestion with an Undo).
+  USAGE_MIN_TOOLS: 3,         // fewer used tools than this and the role preset is the better guess
+  USAGE_MAX_TOOLS: 12,
+  USAGE_WINDOW_DAYS: 60,      // results older than this no longer count
+  OFFER_KEY: 'vex.jobToolsOffer',
+  OFFER_EVERY_MS: 30 * 24 * 3600 * 1000,
+  OFFER_MIN_NEW: 3,           // at least this many used tools must be missing from the saved list
+
+  // Pure. history: { toolId: [{ at }] }, recent: [ids newest first], favourites: [ids], now: ms.
+  // -> [{ id, score }] best first; a tool that was never used is not in it.
+  rankTools({ history = {}, recent = [], favourites = [], now = Date.now() } = {}) {
+    const cutoff = now - this.USAGE_WINDOW_DAYS * 86400000;
+    const score = new Map();
+    const add = (id, n) => { if (typeof id === 'string' && id) score.set(id, (score.get(id) || 0) + n); };
+    for (const [id, list] of Object.entries(history)) {
+      const n = (Array.isArray(list) ? list : []).filter(h => h && Number(h.at) >= cutoff).length;
+      if (n) add(id, Math.min(n, 10));
+    }
+    (Array.isArray(recent) ? recent : []).slice(0, 8).forEach((id, i) => add(id, 8 - i));
+    for (const id of (Array.isArray(favourites) ? favourites : [])) add(id, 6);
+    return [...score].filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([id, s]) => ({ id, score: s }));
+  },
+
+  // What the Toolbox recorded, read from storage. A record that cannot be read is an error, not "no usage".
+  readUsage(storage = localStorage) {
+    const json = (key) => {
+      const raw = storage.getItem(key);
+      if (raw === null) return null;
+      try { return JSON.parse(raw); } catch (err) { throw new Error('"' + key + '" is not readable', { cause: err }); }
+    };
+    const history = {};
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (!k || !k.startsWith('vex.tool.history.')) continue;
+      const v = json(k);
+      if (Array.isArray(v)) history[k.slice('vex.tool.history.'.length)] = v;
+    }
+    const recent = json('vex.tool.recent');
+    const favourites = json('vex.toolFavourites');
+    return { history, recent: Array.isArray(recent) ? recent.filter(x => typeof x === 'string') : [], favourites: Array.isArray(favourites) ? favourites.filter(x => typeof x === 'string') : [] };
+  },
+
+  // The tools to start a job's list from. knownIds (optional) drops ids the Toolbox no longer has.
+  // -> { source: 'usage' | 'role', tools: [ids], used: [ids ranked] }
+  suggestTools(jobId, { usage, knownIds, now } = {}) {
+    const job = this.get(jobId);
+    if (!job) throw new Error('No job profile "' + jobId + '"');
+    const known = knownIds ? new Set(knownIds) : null;
+    const ranked = this.rankTools({ ...(usage || this.readUsage()), now }).map(r => r.id).filter(id => !known || known.has(id));
+    if (ranked.length < this.USAGE_MIN_TOOLS) return { source: 'role', tools: job.tools.slice(), used: ranked };
+    return { source: 'usage', tools: ranked.slice(0, this.USAGE_MAX_TOOLS), used: ranked };
+  },
+
+  // The tool list on its own: no theme change, unlike apply().
+  setTools(tools) {
+    if (!Array.isArray(tools) || tools.some(t => typeof t !== 'string')) throw new Error('A tool list is a list of tool ids');
+    localStorage.setItem('vex.jobTools', JSON.stringify(tools));
+    this.renderButtons();
+    try { if (window.WorkPanel) WorkPanel.refresh(); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Toolbox', 'The work panel did not refresh', err); }
+  },
+
+  // Offer, never apply: at most one suggestion a month, only when at least OFFER_MIN_NEW used tools are
+  // missing from the saved list. Accepting changes the list only (Undo in the ledger).
+  offerRepick(now = Date.now()) {
+    if (!this.current()) return null;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); } catch (err) { throw new Error('The saved tool list is not readable', { cause: err }); }
+    if (!Array.isArray(saved)) return null;
+    let rec = { last: 0 };
+    const rawRec = localStorage.getItem(this.OFFER_KEY);
+    if (rawRec !== null) { try { rec = JSON.parse(rawRec) || rec; } catch (err) { throw new Error('The tool offer record is not readable', { cause: err }); } }
+    if (now - (Number(rec.last) || 0) < this.OFFER_EVERY_MS) return null;
+    const known = typeof Toolbox !== 'undefined' && Toolbox.all ? Toolbox.all().map(t => t.id) : null;
+    const pick = this.suggestTools(this.current(), { knownIds: known, now });
+    if (pick.source !== 'usage') return null;
+    const missing = pick.tools.filter(id => !saved.includes(id));
+    if (missing.length < this.OFFER_MIN_NEW) return null;
+    if (typeof VexAttention === 'undefined') throw new Error('The attention budget is not loaded (js/vex-attention.js)');
+    const name = (id) => { const t = typeof Toolbox !== 'undefined' && Toolbox.get ? Toolbox.get(id) : null; return t ? t.name : id; };
+    const added = VexAttention.suggest({
+      feature: 'job-tools-offer', label: 'Toolbox tools', id: 'repick',
+      title: 'Your Toolbox list could follow what you use',
+      body: 'You use ' + missing.slice(0, 3).map(name).join(', ') + (missing.length > 3 ? ' and ' + (missing.length - 3) + ' more' : '') + ' but they are not in your list. Switch the list to your most used tools?',
+      action: { label: 'Use my most used', key: 'repick' },
+    });
+    if (!added) return null;
+    localStorage.setItem(this.OFFER_KEY, JSON.stringify({ last: now }));
+    return { tools: pick.tools, missing };
+  },
+  acceptRepick(now = Date.now()) {
+    const job = this.current();
+    if (!job) throw new Error('There is no job profile to update');
+    const known = typeof Toolbox !== 'undefined' && Toolbox.all ? Toolbox.all().map(t => t.id) : null;
+    const pick = this.suggestTools(job, { knownIds: known, now });
+    if (pick.source !== 'usage') throw new Error('Not enough tools used yet to pick from');
+    let before = [];
+    try { const a = JSON.parse(localStorage.getItem('vex.jobTools') || 'null'); if (Array.isArray(a)) before = a; } catch (err) { throw new Error('The saved tool list is not readable', { cause: err }); }
+    this.setTools(pick.tools);
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'job-tools-offer', what: 'Switched your Toolbox list to the ' + pick.tools.length + ' tools you use most', why: 'You accepted the offer; the list had ' + before.length + ' tools picked from a job title',
+        undo: { kind: 'job-tools-restore', tools: before.slice(0, 120) } });
+    }
+    return pick.tools;
+  },
+  startOffers() {
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('job-tools-offer', (key) => { if (key !== 'repick') throw new Error('Unknown Toolbox offer action ' + key); return this.acceptRepick(); });
+    }
+    if (typeof VexLedger !== 'undefined') VexLedger.registerUndo('job-tools-restore', (token) => { this.setTools(token.tools); return 'Put your earlier tool list back'; });
+    if (typeof VexJobs === 'undefined') throw new Error('Toolbox offers need VexJobs');
+    return VexJobs.every('Toolbox tools offer', 24 * 3600 * 1000, () => this.offerRepick(), { when: 'ui', deferOnBattery: true, feature: 'job-tools-offer' });
+  },
   current() { try { return localStorage.getItem('vex.job') || null; } catch { return null; } },
 
   // Apply a job: persist it + the chosen tools, switch theme, redraw buttons.
@@ -548,6 +666,7 @@ const JobProfiles = {
   boot() {
     try { this.restorePrunedTools(); } catch {}
     try { if (this.current()) this.renderButtons(); } catch {}
+    try { this.startOffers(); } catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Toolbox', 'The monthly tool offer could not start', err); else console.error(err); }
   },
 };
 

@@ -303,14 +303,15 @@
       permissions: { reads: ['the address of a link that would open as a new tab'], writes: ['loads that link in the panel for the site; your rules'], sends: [] } },
     { id: 'refresh-on-deploy', title: 'Refresh after a successful build', group: 'Refresh after a build', maturity: 'new', storageKeys: ['vex.refreshOnDeploy.enabled', 'vex.refreshOnDeploy.sites'],
       permissions: { reads: ['which GitHub run succeeded and which tabs are open'], writes: ['reloads a tab, only when you press Refresh'], sends: [] } },
-    { id: 'bypass-doctor', title: 'Site down or my bypass?', group: 'Bypass check', maturity: 'new', storageKeys: ['vex.bypassDoctor.enabled', 'vex.bypassDoctor.lastPreflight'], commands: ['site-or-bypass'],
-      permissions: { reads: ['whether a site answers directly and through the bypass you already run'], writes: ['nothing: it never starts, stops or changes a bypass'], sends: ['One request to the address you ask about, and one to discord.com shortly after start'] } },
+    { id: 'bypass-doctor', title: 'Site down or my bypass?', group: 'Bypass check', maturity: 'new', storageKeys: ['vex.bypassDoctor.enabled', 'vex.bypassDoctor.lastPreflight', 'vex.bypassDoctor.startupProbe'], commands: ['site-or-bypass'],
+      permissions: { reads: ['whether a site answers directly and through the bypass you already run'], writes: ['nothing: it never starts, stops or changes a bypass'], sends: ['One request to the address you ask about, and, only if you turn on the start-up look in Settings (off by default), one to discord.com shortly after start'] } },
     { id: 'watch-alerts', title: 'One alert per change, digest first', group: 'Watcher alerts', maturity: 'new', storageKeys: ['vex.watchAlerts.enabled', 'vex.watchAlerts.instant'],
       permissions: { reads: ['alerts from the page watch, patch radar and GitHub watch'], writes: ['one line in the Attention Inbox per change'], sends: [] } },
     // ---- Wave 2: tabs and navigation (js/tabs-nav.js) ------------------------------------
-    // Stable: passive ergonomics that never speak up on their own, on for everyone (Settings › Tabs and
-    // navigation has a switch for each). Minimal Vex switches the whole module off and puts it back.
-    { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation',
+    // New: only the passive extras are on for a new profile (Settings › Tabs and navigation has a switch for each);
+    // the ones that change Enter or the address bar are off until chosen, and a profile that existed before this
+    // release has the module held off and offered. Minimal Vex switches the whole module off and puts it back.
+    { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation', maturity: 'new',
       storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom'], commands: ['tabsnav:keep-on-top'],
       permissions: { reads: ['the selected words on the page, the address of your tabs, the titles of background tabs'], writes: ['your switches, the last 20 find-bar searches, how often you typed each site; keeps the Vex window on top when you ask'], sends: [] } },
     // ---- Wave 2: the developer desk (js/dev-desk.js and the files it draws Settings for) -----------
@@ -683,6 +684,13 @@
     { id: 'feature-registry', title: 'Feature records', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.featureUsage', 'vex.usage.prior.', 'vex.minimalMode', 'vex.registry'],
       permissions: { reads: ['which features exist'], writes: ['which features you use, and which are staged'], sends: [] } },
+    // ---- Wave 4: simplify (section 11 of the master list) ---------------------------------
+    // A layout choice like the calm New Tab: Minimal Vex keeps it (killSwitch 'none', no usage row), because
+    // switching it "off" would mean showing everything.
+    { id: 'quiet-defaults', title: 'Hidden until needed', group: 'Hidden until needed', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.quietDefaults.state'], usesKeys: ['vex.defaults', 'vex.panelOverrides'], jobs: ['Hidden until needed'],
+      permissions: { reads: ['which rarely used parts are out of sight'], writes: ['when one was last offered; shows a part when you ask or accept an offer, with an Undo in the ledger'], sends: [] } },
+    { id: 'job-tools-offer', title: 'Toolbox tools from what you use', group: 'Toolbox', killSwitch: 'none', maturity: 'new', storageKeys: ['vex.jobToolsOffer'], usesKeys: ['vex.jobTools', 'vex.tool.', 'vex.toolFavourites'],
+      permissions: { reads: ['which Toolbox tools you opened and saved results for, on this PC'], writes: ['when it last offered; your tool list only when you accept, with an Undo in the ledger'], sends: [] } },
     { id: 'why-did-that', title: 'Why did that happen? (the ledger)', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.ledger'], commands: ['why-did-that'],
       permissions: { reads: ['the things Vex did by itself'], writes: ['the last 200, with how to undo each'], sends: [] } },

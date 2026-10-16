@@ -319,7 +319,7 @@ const VexFortune = {
     title: 'Fortune of the day',
     icon: 'sparkles',
     isEnabled() {
-      try { return VexFortune.isEnabled() && !VexExpression.gaming(); }
+      try { return VexFortune.isEnabled() && !VexExpression.gaming() && (typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed('delight')); }
       catch { return false; }
     },
     build(now) {

@@ -470,6 +470,8 @@ const SitePanel = {
     const darkGlobal = (() => { try { return localStorage.getItem('vex.forceDarkSites') === 'true'; } catch { return false; } })();
     const dark = typeof WebviewManager !== 'undefined' && WebviewManager._shouldForceDark && WebviewManager._shouldForceDark(c.url);
     const boost = typeof VexBoosts !== 'undefined' && VexBoosts.boosts && Object.hasOwn(VexBoosts.boosts, c.host);
+    // Rows a new profile keeps out of sight until asked for (js/quiet-defaults.js). One that is in use here always shows.
+    const quiet = (id, inUse) => !inUse && typeof VexQuietDefaults !== 'undefined' && VexQuietDefaults.hidden(id);
     return this._section('behaviour', 'This site', `
       ${this._switch('never-sleep', 'Never let this site sleep', {
         checked: never || !!(route && route.awake), disabled: off || !!(route && route.awake),
@@ -477,11 +479,11 @@ const SitePanel = {
       ${this._switch('translate', 'Always translate this site', {
         checked: translate, disabled: off,
         note: 'Into ' + langName + ', side by side with the original, every time a page of it loads.' + (c.proxyRoute || c.torRoute ? ' Not on its own while it goes through a route.' : '') })}
-      ${this._switch('dark', 'Force dark mode', { checked: !!dark, disabled: off || darkGlobal, note: darkGlobal ? 'On for every site (older setting).' : '' })}
-      <div class="sp-row">
+      ${quiet('site-dark', dark || darkGlobal) ? '' : this._switch('dark', 'Force dark mode', { checked: !!dark, disabled: off || darkGlobal, note: darkGlobal ? 'On for every site (older setting).' : '' })}
+      ${quiet('site-boosts', boost) ? '' : `<div class="sp-row">
         <span class="sp-row-text"><span class="sp-row-label">Custom CSS and JavaScript</span><span class="sp-row-note">${boost ? (VexBoosts.boosts[c.host].paused ? 'Paused by “This site is broken”.' : 'Active on this site.') : 'None yet.'}</span></span>
         <button type="button" class="sp-btn sp-btn-text" data-act="boost" ${off ? 'disabled' : ''}>Edit…</button>
-      </div>`);
+      </div>`}`);
   },
 
   _blockedHere(c) {

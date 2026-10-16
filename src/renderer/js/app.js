@@ -1399,6 +1399,8 @@ function vexOwnTextFocused(doc) {
   if (typeof VexContainerMemory !== 'undefined') bootStep('container-memory', () => VexContainerMemory.init());
   if (typeof VexExpenseCapture !== 'undefined') bootStep('expense-capture', () => VexExpenseCapture.init());
   if (typeof VexPageReminders !== 'undefined') bootStep('page-reminders', () => VexPageReminders.init());
+  // Wave 4: the rarely used parts a new profile keeps out of sight, and the weekly "try it" offer.
+  if (typeof VexQuietDefaults !== 'undefined') bootStep('quiet-defaults', () => VexQuietDefaults.start());
   // Tab tools (js/tab-mru.js, nav-history-menu.js, strip-actions.js), the night coach and the
   // announcement desk: each starts on its own, so one that fails leaves the others alone.
   if (typeof VexTabMru !== 'undefined') bootStep('tab-mru', () => VexTabMru.init());
@@ -1450,8 +1452,10 @@ function vexOwnTextFocused(doc) {
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a
-  // "try it" offer (js/feature-registry.js). Every manifest shipped so far is
-  // stable, so today this changes nothing; it is what keeps the next one dark.
+  // "try it" offer, at most three a week (js/feature-registry.js). A profile counts as existing when
+  // it already holds saved data (VexRegistry.hasProfileEvidence), not when the usage record is old:
+  // that record is new, so on an upgrade it says nothing about the profile. Most manifests are
+  // 'new', so this is what keeps them dark on a profile that predates them.
   if (typeof VexRegistry !== 'undefined') {
     VexRegistry.stage().then(() => VexRegistry.offerTry()).catch(err => {
       console.error('[Registry] staged enablement failed:', err);

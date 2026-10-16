@@ -98,7 +98,11 @@ const VexMoodTheme = {
   _tm() { return typeof ThemeManager !== 'undefined' ? ThemeManager : null; },
   _valid(id) { const tm = this._tm(); return !!tm && Array.isArray(tm.availableThemes) && tm.availableThemes.includes(id); },
   _blockedByLightDark() { const a = this._auto(); return !!a && typeof a.isOn === 'function' && a.isOn(); },
-  _quiet() { return typeof GameSession !== 'undefined' && !!GameSession.active; },
+  _quiet() {
+    if (typeof GameSession !== 'undefined' && !!GameSession.active) return true;
+    // The master level (js/vex-playfulness.js): no automatic theme change in Simple mode, Focus, a meeting or while Playfulness is Off.
+    return typeof VexPlayfulness !== 'undefined' && !VexPlayfulness.allowed('delight');
+  },
   _southern() { const a = this._auto(); const c = a && typeof a.coords === 'function' ? a.coords() : null; return !!c && c.lat < 0; },
 
   // The band right now, honouring "follow the sun" when a location exists.
