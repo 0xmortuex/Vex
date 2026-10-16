@@ -1312,6 +1312,10 @@ function vexOwnTextFocused(doc) {
   if (typeof VexPacks !== 'undefined') VexPacks.init();
   // Installed packs reach the features that read them (aliases, presets, quotes...).
   if (typeof VexPackConsumers !== 'undefined') VexPackConsumers.init();
+  // Wave 1, the daily flow: each one starts through bootStep so a crash in one leaves out that one alone.
+  if (typeof VexFirstOpen !== 'undefined') bootStep('first-open', () => VexFirstOpen.init());
+  if (typeof VexNextStep !== 'undefined') bootStep('next-step', () => VexNextStep.init());
+  if (typeof VexPark !== 'undefined') bootStep('park-resume', () => VexPark.init());
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a

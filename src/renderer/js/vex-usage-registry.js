@@ -212,6 +212,13 @@ const VexUsageRegistry = {
       VexShellTranslate: () => (typeof VexShellTranslate !== 'undefined' ? VexShellTranslate : null),
       VexDecode: () => (typeof VexDecode !== 'undefined' ? VexDecode : null),
       VexReferenceSets: () => (typeof VexReferenceSets !== 'undefined' ? VexReferenceSets : null),
+      VexDueness: () => (typeof VexDueness !== 'undefined' ? VexDueness : null),
+      VexFirstOpen: () => (typeof VexFirstOpen !== 'undefined' ? VexFirstOpen : null),
+      VexInbox: () => (typeof VexInbox !== 'undefined' ? VexInbox : null),
+      VexNextStep: () => (typeof VexNextStep !== 'undefined' ? VexNextStep : null),
+      VexPark: () => (typeof VexPark !== 'undefined' ? VexPark : null),
+      VexCopySource: () => (typeof VexCopySource !== 'undefined' ? VexCopySource : null),
+      VexDeadlines: () => (typeof VexDeadlines !== 'undefined' ? VexDeadlines : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -277,6 +284,14 @@ const VexUsageRegistry = {
       ['snippet-translator', A.api(G.VexShellTranslate, 'enabled', 'setEnabled')],
       ['selection-decoder', A.api(G.VexDecode, 'enabled', 'setEnabled')],
       ['reference-sets', A.api(G.VexReferenceSets, 'enabled', 'setEnabled')],
+      // Wave 1, the daily flow: new features, staged off on a profile that already existed.
+      ['dueness', A.api(G.VexDueness, 'enabled', 'setEnabled')],
+      ['first-open', A.api(G.VexFirstOpen, 'enabled', 'setEnabled')],
+      ['inbox-unified', A.api(G.VexInbox, 'enabled', 'setEnabled')],
+      ['next-step', A.api(G.VexNextStep, 'enabled', 'setEnabled')],
+      ['park-resume', A.api(G.VexPark, 'enabled', 'setEnabled')],
+      ['copy-source', A.api(G.VexCopySource, 'enabled', 'setEnabled')],
+      ['deadline-extractor', A.api(G.VexDeadlines, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

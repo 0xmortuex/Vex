@@ -177,6 +177,21 @@
       permissions: { reads: ['the text you select'], writes: ['the clipboard, when you press Copy'], sends: [] } },
     { id: 'reference-sets', title: 'Reference sets', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.referenceSets', 'vex.referenceSets.enabled'], commands: ['refsets:manage', 'refsets:add', 'refsets:open'],
       permissions: { reads: ['the page in front, when you pin it'], writes: ['your sets of pages and snippets; tabs and a group when you open one'], sends: [] } },
+    // ---- Wave 1: the daily flow (new: staged off on a profile that already exists) ----------
+    { id: 'dueness', title: 'What is due', group: 'What is due', maturity: 'new', storageKeys: ['vex.dueness.enabled'], commands: ['due-now'],
+      permissions: quiet({ reads: ['your reminders, @dated tasks in notes, calendar events and scheduled tasks'], writes: ['its own switch'] }) },
+    { id: 'first-open', title: 'First open of the day', group: 'First open of the day', maturity: 'new', storageKeys: ['vex.firstOpen', 'vex.firstOpen.prefs'],
+      permissions: quiet({ reads: ['when this window was last in front'], writes: ['when you were last here and which hours you come back at (24 counts)', 'opens a New Tab, when you chose that, with an Undo in the ledger'] }) },
+    { id: 'inbox-unified', title: 'One inbox', group: 'Inbox', maturity: 'new', storageKeys: ['vex.inbox.enabled', 'vex.inbox.seen'], usesKeys: ['vex.notes', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'], commands: ['inbox-open'],
+      permissions: quiet({ reads: ['your notes, saved pages, highlights, sticky notes and quick captures'], writes: ['when you last opened the inbox'] }) },
+    { id: 'next-step', title: 'Next step per workspace', group: 'Next step', maturity: 'new', storageKeys: ['vex.nextStep', 'vex.nextStep.enabled'], commands: ['next-step-set', 'next-step-clear'],
+      permissions: quiet({ reads: ['what is due and any running focus block'], writes: ['one line per workspace'] }) },
+    { id: 'park-resume', title: 'Park and resume', group: 'Park and resume', maturity: 'new', storageKeys: ['vex.park', 'vex.park.enabled'], commands: ['park-here', 'park-list'],
+      permissions: quiet({ reads: ['your open tabs and the scroll position of the front one'], writes: ['parked cards', 'reopens the tabs of a card when you press Resume, with an Undo in the ledger'] }) },
+    { id: 'copy-source', title: 'Copy with source', group: 'Copy with source', maturity: 'new', storageKeys: ['vex.copySource.prefs'], commands: ['copy-selection-as'],
+      permissions: quiet({ reads: ['the text you selected on the page in front, when you ask'], writes: ['the clipboard, when you pick a format'] }) },
+    { id: 'deadline-extractor', title: 'Find deadlines', group: 'Find deadlines', maturity: 'new', storageKeys: ['vex.deadlines.enabled'], commands: ['find-deadlines'],
+      permissions: quiet({ reads: ['the page in front, your recent notes or your mail subjects, when you ask'], writes: ['a reminder, only after you press Add on it'] }) },
 
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
