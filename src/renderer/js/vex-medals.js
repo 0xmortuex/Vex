@@ -129,6 +129,8 @@
     if (!queue.length || gaming()) return;
     const items = queue.splice(0, queue.length);
     // A medal toast is a nicety: it goes through the shared rate gate.
+    // Calm (the default level) earns medals without a pop-up; Full shows it (js/vex-playfulness.js).
+    if (typeof root.VexPlayfulness !== 'undefined' && !root.VexPlayfulness.allowed('medal-toast')) return;
     if (typeof root.VexAttention === 'undefined' || root.VexAttention.gate('medal', items.map(m => m.id).join(','))) toast(summaryText(items));
   }
   function notify(def) {

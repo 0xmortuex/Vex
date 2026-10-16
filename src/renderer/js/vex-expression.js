@@ -28,7 +28,7 @@ const VexExpression = {
     try { if (typeof GameMode !== 'undefined' && GameMode && GameMode.gaming) return true; } catch { /* not loaded */ }
     // The ONE global quiet switch (Settings > Play) silences these too.
     try { if (localStorage.getItem('vex.fun.quiet') === '1') return true; } catch { /* storage blocked */ }
-    return false;
+    return typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff();
   },
 
   reducedMotion() {

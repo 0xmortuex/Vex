@@ -83,7 +83,13 @@ const VexProgress = {
   quiet() { try { return localStorage.getItem('vex.fun.quiet') === '1'; } catch { return false; } },
 
   // Game mode or the quiet switch: nothing visible, nothing audible.
-  silenced() { return this.gameActive() || this.quiet(); },
+  silenced() { return this.gameActive() || this.quiet() || this.playfulOff(); },
+
+  // The master level (js/vex-playfulness.js): Off, or lowered to Off by Focus, a
+  // meeting, battery saver, reduced motion or Simple mode.
+  playfulOff() { return typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff(); },
+  // May this kind of playful thing appear now? (kinds: VexPlayfulness.NEEDS)
+  allows(kind) { return !this.silenced() && (typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed(kind)); },
 
   // Whether a module should be doing anything visible right now.
   live(flag) { return this.enabled(flag) && !this.silenced(); },

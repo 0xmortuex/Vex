@@ -122,7 +122,7 @@ const VexPet = {
     const update = () => {
       const s = this.snapshot();
       // Off, or a game is running: draw nothing at all.
-      if (!s.enabled || VexProgress.silenced()) { box.innerHTML = ''; box.hidden = true; box.removeAttribute('aria-label'); return; }
+      if (!s.enabled || !VexProgress.allows('pet')) { box.innerHTML = ''; box.hidden = true; box.removeAttribute('aria-label'); return; }
       box.hidden = false;
       box.setAttribute('aria-label', s.label);
       box.innerHTML = s.svg;

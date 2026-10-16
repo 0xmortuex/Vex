@@ -117,6 +117,8 @@ const VexLiving = (() => {
     const env = { settings: o.settings || read(o.storage), gameActive: _gameFlag, hidden: false, reducedMotion: false, stillWhileGaming: false, custom: false, quietSwitch: false };
     // The ONE quiet switch (Settings > Play, js/vex-fun.js): vex.fun.quiet === '1'.
     try { const st = _store(o.storage); env.quietSwitch = !!st && st.getItem('vex.fun.quiet') === '1'; } catch { env.quietSwitch = false; }
+    // The master level (js/vex-playfulness.js), which Focus, meetings, battery saver and Simple mode also lower to Off.
+    if (!env.quietSwitch && typeof VexPlayfulness !== 'undefined') env.quietSwitch = VexPlayfulness.isOff();
     try {
       if (typeof GameSession !== 'undefined' && GameSession && GameSession.active) env.gameActive = true;
       if (typeof GameMode !== 'undefined' && GameMode && GameMode.gaming) env.gameActive = true;

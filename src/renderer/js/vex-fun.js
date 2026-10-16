@@ -56,21 +56,34 @@ const VexFun = {
   setFlag(name, on) {
     if (!this.KEYS[name]) throw new Error('Unknown Play switch ' + name);
     this._write(this.KEYS[name], on ? '1' : '0');
+    // The quiet switch is an alias of the master level (js/vex-playfulness.js).
+    if (name === 'quiet' && typeof VexPlayfulness !== 'undefined') VexPlayfulness.quietAlias(!!on);
+    // Switching a playful extra on under a level that does not allow it: say so, do not stay silent.
+    if (on && this.KIND[name] && typeof VexPlayfulness !== 'undefined' && VexPlayfulness.chosen() !== 'off' && VexPlayfulness._rank(VexPlayfulness.chosen()) < VexPlayfulness._rank(VexPlayfulness.NEEDS[this.KIND[name]])) {
+      window.showToast?.('This needs Playfulness set to ' + VexPlayfulness.NEEDS[this.KIND[name]] + ' (Settings › Playfulness).', 'info', 6000);
+    }
     document.dispatchEvent(new CustomEvent('vex:play-changed', { detail: { name, on: !!on } }));
   },
 
-  quiet() { return this.flag('quiet'); },
+  // The quiet switch, or the master level being Off (Focus, a meeting, battery
+  // saver, reduced motion and Simple mode lower it to Off).
+  quiet() { return this.flag('quiet') || (typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff()); },
 
   // Game mode: a game is running (GameMode.gaming) or a game session is open
   // (GameSession.active). Both are lexical globals, so bare identifiers.
   gaming() {
+    if (typeof AttentionState !== 'undefined') return AttentionState.has('game');
     return (typeof GameMode !== 'undefined' && !!GameMode.gaming)
       || (typeof GameSession !== 'undefined' && !!GameSession.active);
   },
 
   // May this feature run right now? Returns '' or the reason.
+  // Which playful kind each Play switch is (js/vex-playfulness.js).
+  KIND: { games: 'tabgame', tetris: 'tabgame', word: 'tabgame', sounds: 'sound' },
   why(name) {
-    return this.gate({ enabled: this.flag(name), quiet: this.quiet(), gaming: this.gaming() });
+    const why = this.gate({ enabled: this.flag(name), quiet: this.quiet(), gaming: this.gaming() });
+    if (why || typeof VexPlayfulness === 'undefined' || !this.KIND[name]) return why;
+    return VexPlayfulness.why(this.KIND[name]);
   },
   may(name) { return this.why(name) === ''; },
 

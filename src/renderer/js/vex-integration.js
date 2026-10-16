@@ -29,12 +29,13 @@ const VexNewTab = {
   },
 
   _quiet() {
-    try { return localStorage.getItem('vex.fun.quiet') === '1'; } catch { return false; }
+    try { if (localStorage.getItem('vex.fun.quiet') === '1') return true; } catch { return false; }
+    return typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff();
   },
 
   _pet() {
     if (typeof VexPet === 'undefined' || typeof VexProgress === 'undefined') return null;
-    if (!VexProgress.enabled('pet') || VexProgress.silenced()) return null;
+    if (!VexProgress.enabled('pet') || !VexProgress.allows('pet')) return null;
     const s = VexPet.snapshot();
     if (!s || !s.enabled || typeof s.svg !== 'string' || !s.svg || s.svg.length > this.MAX_SVG) return null;
     return { label: String(s.label), svg: s.svg };
