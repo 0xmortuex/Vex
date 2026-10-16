@@ -152,6 +152,8 @@ const TabPreview = {
     // it is shown as "New Tab" (walkthrough L2, 2026-10-07).
     const startPage = /^vex:\/\/start\b/i.test(tab.url || '') || /^file:\/\/.*\/renderer\/start\.html(?:[?#]|$)/i.test(tab.url || '');
     preview.querySelector('.preview-url').textContent = startPage ? 'New Tab' : (tab.url || '');
+    // Which page opened it, what was searched, a reason you wrote, when you last had it (js/tab-intent.js).
+    if (typeof VexTabIntent !== 'undefined') VexTabIntent.decorate(preview, tab);
 
     // Position next to the tab. Vertical layout: pin to the right edge of
     // the tabs sidebar so the preview doesn't overlap the tab strip.
