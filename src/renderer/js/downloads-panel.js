@@ -276,6 +276,8 @@ const DownloadsPanel = {
     const ask = document.getElementById('setting-download-ask');
     if (label) { label.textContent = p.folder; label.title = p.folder; }
     if (ask) ask.checked = !!p.ask;
+    const resume = document.getElementById('setting-download-resume');
+    if (resume) resume.checked = !!p.resume;
   },
   async bindSettings() {
     const change = document.getElementById('setting-download-folder-change');
@@ -292,6 +294,14 @@ const DownloadsPanel = {
       if (r && r.ok) this.showPrefs(r);
       else { ask.checked = !ask.checked; fail('Could not change it', r); }
     });
+    const resume = document.getElementById('setting-download-resume');
+    if (resume) {
+      resume.addEventListener('change', async () => {
+        const r = await window.vex.downloadsSetResume(resume.checked);
+        if (r && r.ok) this.showPrefs(r);
+        else { resume.checked = !resume.checked; fail('Could not change it', r); }
+      });
+    }
     this._bindTidy(fail);
     const r = await window.vex.downloadsPrefs();
     if (r && r.ok) this.showPrefs(r); else fail('Could not read where downloads go', r);
@@ -357,10 +367,21 @@ const DownloadsPanel = {
       : 'No rules yet — everything lands in your Downloads folder.';
     const answer = await vexPrompt({
       title: 'Where downloads land',
-      message: shown + '\n\nType a number to remove that rule, or "add" for a new one.',
+      message: shown + '\n\nType a number to remove that rule, "add" for a new one, or "types" for a default folder per kind of file (Images, Documents, Archives, Installers, Video, Audio). In a rule, a kind can be written by name: "images", "documents", ...',
       value: 'add', okLabel: 'Go',
     });
     if (answer == null) return null;
+    if (/^types$/i.test(String(answer).trim())) {
+      // After the specific rules: the first rule that matches wins.
+      const have = new Set(list.map(r => r.id));
+      const kinds = ['images', 'documents', 'archives', 'installers', 'video', 'audio'];
+      const added = kinds.filter(k => !have.has('dltype-' + k));
+      if (!added.length) { window.showToast?.('The default folders per kind of file are already there'); return list; }
+      for (const k of added) list.push({ id: 'dltype-' + k, ext: k, site: '', folder: k.charAt(0).toUpperCase() + k.slice(1), rename: '' });
+      await this.saveRules(list);
+      window.showToast?.('Downloads now go to a folder per kind of file, unless a rule above says otherwise');
+      return list;
+    }
     const n = parseInt(answer, 10);
     if (Number.isFinite(n) && list[n - 1]) {
       const gone = list.splice(n - 1, 1)[0];

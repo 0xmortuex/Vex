@@ -70,7 +70,7 @@ define('downloads:exist', [value => Array.isArray(value) && value.length <= 1000
 // Settings > Downloads (src/main/download-prefs.js): the folder comes only
 // from main's own folder dialog, so choosing it takes no argument.
 define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);
-define('downloads:set-ask', [boolean]);
+define('downloads:set-ask downloads:set-resume', [boolean]);
 // Developer helpers > repositories (js/repo-registry.js): the folder comes only from main's own
 // folder dialog, so choosing it takes no argument.
 define('repos:pick-folder', []);

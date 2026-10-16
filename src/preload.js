@@ -695,6 +695,7 @@ contextBridge.exposeInMainWorld('vex', {
   devbenchLogList: () => ipcRenderer.invoke('devbench:log-list'),
   devbenchPkg: (eco, name) => ipcRenderer.invoke('devbench:pkg', eco, name),
   downloadsSetAsk: (on) => ipcRenderer.invoke('downloads:set-ask', on),
+  downloadsSetResume: (on) => ipcRenderer.invoke('downloads:set-resume', on),
   downloadsResetPrefs: () => ipcRenderer.invoke('downloads:reset-prefs'),
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),

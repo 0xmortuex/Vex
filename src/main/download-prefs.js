@@ -8,7 +8,7 @@
 const path = require('path');
 
 function createDownloadPrefs({ fs, file, defaultFolder }) {
-  let prefs = { folder: null, ask: false };
+  let prefs = { folder: null, ask: false, resume: false };
   // A file that cannot be read is said in the log and leaves the defaults:
   // Vex must still start, and downloads still land somewhere you know.
   try {
@@ -17,6 +17,7 @@ function createDownloadPrefs({ fs, file, defaultFolder }) {
       prefs = {
         folder: typeof saved.folder === 'string' && path.isAbsolute(saved.folder) ? saved.folder : null,
         ask: saved.ask === true,
+        resume: saved.resume === true,
       };
     }
   } catch (err) { console.error('[Downloads] could not read where downloads go, using the Downloads folder:', err.message); }
@@ -25,7 +26,7 @@ function createDownloadPrefs({ fs, file, defaultFolder }) {
   // What Settings shows: the folder in use, whether it is one the user chose,
   // and whether each file is asked about.
   function get() {
-    return { folder: prefs.folder || defaultFolder(), custom: !!prefs.folder, ask: prefs.ask, defaultFolder: defaultFolder() };
+    return { folder: prefs.folder || defaultFolder(), custom: !!prefs.folder, ask: prefs.ask, resume: prefs.resume, defaultFolder: defaultFolder() };
   }
   function setFolder(dir) {
     if (typeof dir !== 'string' || !path.isAbsolute(dir)) throw new Error('Choose a folder on this computer');
@@ -41,15 +42,22 @@ function createDownloadPrefs({ fs, file, defaultFolder }) {
     write();
     return get();
   }
+  // "Pick up unfinished downloads after a restart": off until the person turns it on.
+  function setResume(on) {
+    if (typeof on !== 'boolean') throw new Error('Resume is on or off');
+    prefs.resume = on;
+    write();
+    return get();
+  }
   // Settings > Reset to Defaults.
   function reset() {
-    prefs = { folder: null, ask: false };
+    prefs = { folder: null, ask: false, resume: false };
     write();
     return get();
   }
   // What a download uses: the folder (null = the Downloads folder) and ask.
-  const current = () => ({ folder: prefs.folder, ask: prefs.ask });
-  return { get, setFolder, setAsk, reset, current };
+  const current = () => ({ folder: prefs.folder, ask: prefs.ask, resume: prefs.resume });
+  return { get, setFolder, setAsk, setResume, reset, current };
 }
 
 module.exports = { createDownloadPrefs };

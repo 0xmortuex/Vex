@@ -3295,6 +3295,10 @@ ipcMain.handle('downloads:set-ask', (_e, on) => {
   try { return { ok: true, ..._downloadPrefs.setAsk(on) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
+ipcMain.handle('downloads:set-resume', (_e, on) => {
+  try { return { ok: true, ..._downloadPrefs.setResume(on) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:reset-prefs', () => {
   try { return { ok: true, ..._downloadPrefs.reset() }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -8091,6 +8095,13 @@ app.whenReady().then(async () => {
   secureSessions.onSessionCreated(_coverWithAllRoute);
   await applyStoredRoutings();
   createWindow();
+  // Downloads Vex was closed in the middle of carry on, if the person turned that on
+  // (main/download-resume.js). After the window had time to load, so the Downloads panel
+  // hears of them.
+  setTimeout(() => {
+    try { _downloadService.resumePending(); }
+    catch (err) { console.error('[Downloads] could not carry on the unfinished downloads:', err); }
+  }, 8000);
   // Installers left in userData/updates by the last update (or a download cut
   // short). Late, so the installer that just started this version has exited.
   setTimeout(() => {

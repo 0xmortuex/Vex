@@ -183,6 +183,54 @@ function isDownloadedFile(p) {
   const key = _fileKey(p);
   return _knownEphemeral.has(key) || _loadKnown().includes(key);
 }
+// Carrying on after a restart (download-resume.js), only when the person turned it on in Settings.
+// _resuming: the address of a download handed back to Chromium at startup -> its record, so the
+// will-download that follows is recognised. _userCancelled: ids the person cancelled, whose partial
+// file is not kept; a download cancelled because Vex quit is.
+let _resumeStore = null;
+const _resumeStoreOf = () => _resumeStore || (_resumeStore = require('./download-resume').createResumeStore({ fs: require('fs'), file: path.join(app.getPath('userData'), 'resumable-downloads.json') }));
+const _resuming = new Map();
+const _userCancelled = new Set();
+// Where a picked-up download is saved: its own name if free, else the same name made unique.
+function _resumeTarget(rec) {
+  const fs = require('fs');
+  fs.mkdirSync(path.dirname(rec.savePath), { recursive: true });
+  if (!fs.existsSync(rec.savePath)) return rec.savePath;
+  // A leftover half-written copy of this very file (the same bytes under the other name) is replaced.
+  const a = fs.statSync(rec.savePath, { bigint: true }), b = fs.statSync(rec.partPath, { bigint: true });
+  if (a.ino === b.ino && a.dev === b.dev && a.ino !== 0n) { fs.unlinkSync(rec.savePath); return rec.savePath; }
+  return _uniqueDownloadPath(path.dirname(rec.savePath), path.basename(rec.savePath));
+}
+// At startup: hand every kept partial download back to Chromium, which asks the server for the rest.
+// With the setting off the kept files are removed instead.
+function resumePending() {
+  const store = _resumeStoreOf();
+  const out = { resumed: 0, dropped: 0, problems: [] };
+  if (!prefs().resume) {
+    for (const r of store.all()) { store.forget(r.id); out.dropped++; }
+    return out;
+  }
+  for (const g of store.sweep()) { out.dropped++; console.log('[Downloads] dropped a download to carry on: ' + g.why); }
+  for (const rec of store.all()) {
+    const key = rec.urlChain[rec.urlChain.length - 1];
+    try {
+      if (rec.partition && !String(rec.partition).startsWith('persist:')) throw new Error('only a normal profile\'s downloads are carried on');
+      const ses = rec.partition ? secureSessions.fromPartition(rec.partition) : require('electron').session.defaultSession;
+      const plan = store.plan(rec);
+      _resuming.set(key, rec);
+      ses.createInterruptedDownload(plan);
+      out.resumed++;
+      console.log('[Downloads] carrying on ' + rec.fileName + ' from ' + plan.offset + ' bytes');
+    } catch (err) {
+      _resuming.delete(key);
+      out.problems.push(rec.fileName + ': ' + err.message);
+      console.error('[Downloads] could not carry on ' + rec.fileName + ':', err.message);
+      store.forget(rec.id);
+    }
+  }
+  return out;
+}
+
 // Each download's session, by the id the panel knows it by, so Retry fetches
 // it again through the same one: it went through the Vex window's own session,
 // direct and in the default profile, for a Tor or private download too
@@ -212,6 +260,9 @@ function wireDownloadsOnSession(ses, tag) {
       else _broadcastDownloadEvent(channel, data, { skipPrivate: true });
     };
     const chain = [item.getURL(), ...safeCall(item, 'getURLChain', [])];
+    // One handed back at startup (resumePending): no page, no questions, its own place.
+    const resumed = _resuming.get(item.getURL()) || null;
+    if (resumed) _resuming.delete(item.getURL());
     // A page's second download with no click: allowed, blocked, or asked
     // (a Promise) — see autoDownloadCheck. Blocked never reaches the panel.
     const auto = autoDownloadCheck(contents, chain, partition);
@@ -256,8 +307,8 @@ function wireDownloadsOnSession(ses, tag) {
       catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using ' + dir + ':', err.message); }
     }
     const askImage = _takeAsk(chain);
-    const ask = askImage || where.ask || folderGone;
-    let savePath = _uniqueDownloadPath(dir, placed.filename || item.getFilename());
+    const ask = !resumed && (askImage || where.ask || folderGone);
+    let savePath = resumed ? _resumeTarget(resumed) : _uniqueDownloadPath(dir, placed.filename || item.getFilename());
     // A download being asked about is saved into Vex's own holding folder,
     // paused: a small file finishes even while paused (measured), so it must
     // not be written where the user's files are until the site is allowed.
@@ -299,6 +350,25 @@ function wireDownloadsOnSession(ses, tag) {
       let announced = false;
       const announce = () => { if (!announced) { announced = true; emit('download-started', info); } };
       if (!readChosen) announce();
+      // Kept across a restart only when asked for (download-resume.js): a second name for the partial file.
+      let tracked = null;
+      let trackGaveUp = !where.resume || held;
+      const keepForRestart = () => {
+        const eTag = safeCall(item, 'getETag', ''), lastModified = safeCall(item, 'getLastModifiedTime', '');
+        const why = _resumeStoreOf().eligible({ url: item.getURL(), totalBytes: item.getTotalBytes(), eTag, lastModified, ephemeral });
+        if (why) { trackGaveUp = true; console.log(`[Downloads] (${tag || 'session'}) ${info.fileName} will not be carried on after a restart: ${why}`); return; }
+        try {
+          tracked = _resumeStoreOf().track({
+            id: info.id, savePath, fileName: info.fileName, partition: partition || '', urlChain: safeCall(item, 'getURLChain', [item.getURL()]),
+            mimeType: safeCall(item, 'getMimeType', ''), totalBytes: item.getTotalBytes(), eTag, lastModified, startTime: safeCall(item, 'getStartTime', 0),
+          }, resumed ? resumed.partPath : savePath, resumed ? (resumed.gen || 1) + 1 : 1);
+        } catch (err) {
+          // The file may not exist yet: try again on the next update. Anything else is said once.
+          if (err.code === 'ENOENT') return;
+          trackGaveUp = true;
+          console.error(`[Downloads] (${tag || 'session'}) ${info.fileName} cannot be carried on after a restart:`, err.message);
+        }
+      };
       item.on('updated', (_e, state) => {
         if (readChosen) {
           const chosen = safeCall(item, 'getSavePath', '');
@@ -306,6 +376,7 @@ function wireDownloadsOnSession(ses, tag) {
           savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen);
           announce();
         }
+        if (!tracked && !trackGaveUp && state === 'progressing' && item.getReceivedBytes() > 0) keepForRestart();
         emit('download-progress', {
           id: info.id,
           receivedBytes: item.getReceivedBytes(),
@@ -319,6 +390,13 @@ function wireDownloadsOnSession(ses, tag) {
       });
       const finish = (state) => {
         _liveDownloads.delete(info.id);
+        // The second name for the partial file goes, unless Vex itself was closed in the middle (the
+        // download is then cancelled, not by the person) and it is not a retry that already failed.
+        const byPerson = _userCancelled.delete(info.id);
+        if (tracked && (state === 'completed' || state === 'interrupted' || byPerson)) {
+          try { _resumeStoreOf().forget(info.id); }
+          catch (err) { console.error('[Downloads] could not clear the kept partial file of ' + info.fileName + ':', err.message); }
+        }
         if (readChosen) { const chosen = safeCall(item, 'getSavePath', ''); if (chosen) { savePath = chosen; info.path = chosen; info.fileName = path.basename(chosen); } }
         if (!announced) {
           if (state === 'cancelled') {
@@ -355,7 +433,12 @@ function wireDownloadsOnSession(ses, tag) {
       if (heldDone) finish(heldDone);
       else item.once('done', (_e, state) => finish(state));
     };
-    if (!held) { begin(); return; }
+    if (!held) {
+      if (resumed) item.setSavePath(savePath);
+      begin();
+      if (resumed) item.resume();
+      return;
+    }
     // Blocked, or the Save dialog cancelled: never in the panel, nothing kept.
     const drop = (why) => {
       console.log(`[Downloads] (${tag || 'session'}) not downloading ${what}: ${why}`);
@@ -405,7 +488,7 @@ function control(id, action) {
     item.resume();
     return { ok: true, paused: false };
   }
-  if (action === 'cancel') { item.cancel(); return { ok: true }; }
+  if (action === 'cancel') { _userCancelled.add(id); item.cancel(); return { ok: true }; }
   throw new Error('Unknown download action: ' + action);
 }
 
@@ -461,6 +544,6 @@ function retry(sender, url, id) {
   return { ok: true };
 }
 
-return { wireDownloadsOnSession, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites };
+return { wireDownloadsOnSession, resumePending, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites };
 }
 module.exports = { createDownloadService };
