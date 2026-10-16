@@ -154,7 +154,7 @@ const AttentionInbox = {
       #attention-inbox-pop .ai-body { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
       #attention-inbox-pop .ai-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
       #attention-inbox-pop button { font-size:11.5px; color:var(--text); background:none; border:1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
-      #attention-inbox-pop button.ai-primary { background: var(--primary, #4f8cff); color:#fff; border-color: transparent; }
+      #attention-inbox-pop button.ai-primary { background: var(--primary, #4f8cff); color:var(--on-primary, #fff); border-color: transparent; }
       #attention-inbox-pop .ai-foot { font-size:11px; color:var(--text-muted); margin-top:6px; }
     `;
     document.head.appendChild(st);
