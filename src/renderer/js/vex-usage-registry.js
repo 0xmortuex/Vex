@@ -145,6 +145,7 @@ const VexUsageRegistry = {
       MeetingPrep: () => (typeof MeetingPrep !== 'undefined' ? MeetingPrep : null),
       RoutineDetect: () => (typeof RoutineDetect !== 'undefined' ? RoutineDetect : null),
       TabCleanup: () => (typeof TabCleanup !== 'undefined' ? TabCleanup : null),
+      VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -200,6 +201,8 @@ const VexUsageRegistry = {
       ['meeting-prep', 'Meeting prep', 'Meeting prep', A.mode(G.MeetingPrep, 'mode', 'setMode', 'off', 'ask')],
       ['routine-detect', 'Routine detection', 'Routine', A.mode(G.RoutineDetect, 'mode', 'setMode', 'off', 'on')],
       ['tab-cleanup', 'Evening tab cleanup', 'Tab cleanup', A.mode(G.TabCleanup, 'mode', 'setMode', 'off', 'ask')],
+      // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
+      ['release-check', 'Release check', 'Release check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
     ];
   },
 
