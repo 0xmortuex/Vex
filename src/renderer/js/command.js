@@ -673,14 +673,20 @@ const CommandBar = {
   },
 
   search(query) {
+    const t0 = this._now();
     const q = query.trim().toLowerCase();
     const resultsEl = document.getElementById('command-results');
     resultsEl.innerHTML = '';
+    // A new query: what the last one was still waiting for is dropped.
+    const searchId = ++this._searchId;
+    this._pending.clear();
+    this._renderStatus();
+    const late = [];   // providers that answer after the first paint: [id, label, fn]
 
     // Handle > commands
     if (q.startsWith('>')) {
       const cmd = q.slice(1).trim();
-      this.results = cmd ? this._rankCommands(cmd) : this.commands.filter(c => this._shown(c));
+      this.results = this._guard('commands', () => (cmd ? this._rankCommands(cmd) : this.commands.filter(c => this._shown(c))), []);
     } else if (q === '') {
       // Recently used commands first, then the defaults.
       this.results = this._defaultResults();
@@ -695,16 +701,13 @@ const CommandBar = {
       // that" row and "Read Later" ran the Library guide (found 2026-09-29).
       let quickAfter = [];
       if (typeof VexQuickCommands !== 'undefined') {
-        try {
-          const quick = VexQuickCommands.results(query);
-          quickAfter = quick.filter(r => QUICK_BELOW_COMMANDS.includes(r.id));
-          this.results.push(...quick.filter(r => !quickAfter.includes(r)));
-        }
-        catch (err) { console.error('[Command] quick commands failed:', err); }
+        const quick = this._guard('quick-commands', () => VexQuickCommands.results(query), []);
+        quickAfter = quick.filter(r => QUICK_BELOW_COMMANDS.includes(r.id));
+        this.results.push(...quick.filter(r => !quickAfter.includes(r)));
       }
 
       // Inline calculator / converter — "12*7", "20cm to in", "10 usd to eur".
-      const calc = (typeof VexCalc !== 'undefined') ? VexCalc.evaluate(q) : null;
+      const calc = (typeof VexCalc !== 'undefined') ? this._guard('calculator', () => VexCalc.evaluate(q), null) : null;
       if (calc) {
         this.results.push({
           id: 'calc', isPrimary: !calc.unavailable, icon: 'calculator',
@@ -718,7 +721,7 @@ const CommandBar = {
       // used for matching: "…watch?v=dQw4w9WgXcQ" opened "…v=dqw4w9wgxcq".
       // The address bar's answer (js/typed-address.js resolve), so keywords
       // and the engine are the same here (found 2026-10-10).
-      const where = _typedAddress().resolve(query);
+      const where = this._guard('address', () => _typedAddress().resolve(query), null);
       const url = where && where.kind === 'address' ? where.url : null;
       if (url) {
         // As text: renderResults sets labels with textContent, so escaping
@@ -742,8 +745,12 @@ const CommandBar = {
       }
 
       // Jump to an already-open tab whose title/URL matches.
-      this.results.push(...this._tabResults(q));
-      this.results.push(...this._clipResults(q));
+      // What is inside the open pages is the slowest part of the tab search:
+      // while it has been slow it answers after the first paint.
+      const contentLate = this._isSlow('tab-content');
+      this.results.push(...this._guard('tabs', () => this._tabResults(q, contentLate), []));
+      if (contentLate) late.push(['tab-content', 'Tab contents', () => this._tabContentLate(q)]);
+      this.results.push(...this._guard('clipboard', () => this._clipResults(q), []));
 
       // Vex's commands and the toolbox's tools in ONE list, best match first
       // (a command wins a tie). The tools used to come first whatever their
@@ -754,9 +761,9 @@ const CommandBar = {
       // "open"/"show"/"go to" (js/quick-commands.js withoutOpener), which
       // put Search first (found 2026-09-29).
       const rq = typeof VexQuickCommands !== 'undefined' && VexQuickCommands.withoutOpener ? VexQuickCommands.withoutOpener(q) : q;
-      const ranked = this._rankCommands(rq, true);
+      const ranked = this._guard('commands', () => this._rankCommands(rq, true), []);
       const both = ranked.map(e => ({ item: e.c, score: e.score + 0.5 }))
-        .concat(this._toolResults(rq, true).map(e => ({ item: e.r, score: e.score })))
+        .concat(this._guard('tools', () => this._toolResults(rq, true), []).map(e => ({ item: e.r, score: e.score })))
         .sort((a, b) => b.score - a.score);
       this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
       this.results.push(...quickAfter);
@@ -784,7 +791,15 @@ const CommandBar = {
       // named after itself; the feature catalogue carries the words people
       // actually type. "make text bigger" and "hide my ip for one site" both
       // exist and neither matched a command name, so Ctrl+K said nothing.
-      this.results.push(...this._featureResults(q, ranked.map(e => e.c)));
+      const found = ranked.map(e => e.c);
+      if (this._isSlow('features')) late.push(['features', 'Library', () => this._featureResults(q, found)]);
+      else this.results.push(...this._guard('features', () => this._featureResults(q, found), []));
+      // Providers added with registerProvider(): they answer after the first
+      // paint unless they say slow: false.
+      for (const p of this._providers) {
+        if (p.slow === false) this.results.push(...this._guard(p.id, () => p.search(q), []));
+        else late.push([p.id, p.label || p.id, () => p.search(q)]);
+      }
     }
 
     // A command named exactly what was typed is the one meant.
@@ -798,7 +813,147 @@ const CommandBar = {
       catch (err) { console.error('[Command] shortcut words failed:', err); }
     }
     this.selectedIndex = 0;
+    this._searchResults = this.results;
     this.renderResults();
+    this._lastSearchMs = this._now() - t0;
+    for (const [id, label, fn] of late) this._launch(searchId, id, label, fn);
+  },
+
+  // ---- Provider isolation, timing and late answers -------------------------
+  //
+  // Every source of results runs inside _guard: one that throws is logged and
+  // counted, and the palette shows the rest. The slow ones (tab contents, the
+  // Library, anything added with registerProvider) answer after the first
+  // paint: after STILL_MS the bar says it is still searching, and the answer
+  // is added when it comes (or dropped after GIVE_UP_MS, or when you typed
+  // something else). A built-in provider is moved to this path while its last
+  // run took longer than SLOW_MS, and comes back when it is fast again.
+  FIRST_ROWS: 60,
+  _rendered: 0,
+  _restTimer: null,
+  SLOW_MS: 25,
+  STILL_MS: 80,
+  GIVE_UP_MS: 5000,
+  _searchId: 0,
+  _pending: new Map(),
+  _providers: [],
+  _providerStats: {},
+  _searchResults: null,
+  _lastSearchMs: 0,
+
+  _now() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); },
+
+  _stat(id) {
+    return this._providerStats[id] || (this._providerStats[id] = { calls: 0, ms: 0, max: 0, total: 0, failures: 0, lastError: '', late: 0, timedOut: 0 });
+  },
+
+  // What each provider took: { id: { calls, ms (last), max, total, failures, lastError, late, timedOut } }.
+  providerTimings() { return JSON.parse(JSON.stringify(this._providerStats)); },
+
+  _isSlow(id) {
+    const s = this._providerStats[id];
+    return !!s && s.ms > this.SLOW_MS;
+  },
+
+  _guard(id, fn, fallback) {
+    const s = this._stat(id);
+    const t0 = this._now();
+    try { return fn(); }
+    catch (err) {
+      s.failures++;
+      s.lastError = (err && err.message) || String(err);
+      console.error('[Command] ' + id + ' failed:', err);
+      return fallback;
+    } finally {
+      s.ms = this._now() - t0; s.calls++; s.total += s.ms;
+      if (s.ms > s.max) s.max = s.ms;
+    }
+  },
+
+  // Another source of results. search(q) returns a list of results, or a
+  // promise of one; a throw or a rejection costs the palette only that source.
+  registerProvider(provider) {
+    if (!provider || typeof provider.id !== 'string' || !provider.id || typeof provider.search !== 'function') throw new Error('A command provider needs an id and a search function');
+    if (this._providers.some(p => p.id === provider.id)) throw new Error('A command provider named ' + provider.id + ' exists already');
+    this._providers.push(provider);
+    return () => { this._providers = this._providers.filter(p => p !== provider); };
+  },
+
+  // Run a slow provider after the first paint and add what it finds.
+  _launch(searchId, id, label, fn) {
+    if (searchId !== this._searchId) return;
+    const s = this._stat(id);
+    const entry = { label, shown: false };
+    this._pending.set(id, entry);
+    let giveUp = null;
+    const still = setTimeout(() => {
+      if (searchId !== this._searchId || this._pending.get(id) !== entry) return;
+      entry.shown = true;
+      this._renderStatus();
+    }, this.STILL_MS);
+    const settle = () => { clearTimeout(still); clearTimeout(giveUp); if (this._pending.get(id) === entry) this._pending.delete(id); };
+    giveUp = setTimeout(() => {
+      if (this._pending.get(id) !== entry) return;
+      s.timedOut++;
+      console.warn('[Command] ' + id + ' did not answer in ' + this.GIVE_UP_MS + ' ms; skipped');
+      settle();
+      if (searchId === this._searchId) {
+        this._pending.set(id + ':gone', { label: label + ' (did not answer)', shown: true });
+        this._renderStatus();
+      }
+    }, this.GIVE_UP_MS);
+    const fail = (err) => {
+      s.failures++; s.lastError = (err && err.message) || String(err);
+      console.error('[Command] ' + id + ' failed:', err);
+      settle();
+      if (searchId === this._searchId) this._renderStatus();
+    };
+    const run = () => {
+      if (searchId !== this._searchId || this._pending.get(id) !== entry) return;
+      const t0 = this._now();
+      let out;
+      try { out = fn(); } catch (err) { s.calls++; s.ms = this._now() - t0; fail(err); return; }
+      Promise.resolve(out).then((list) => {
+        s.calls++; s.late++; s.ms = this._now() - t0; s.total += s.ms;
+        if (s.ms > s.max) s.max = s.ms;
+        const live = searchId === this._searchId && this._pending.get(id) === entry && this.results === this._searchResults;
+        settle();
+        if (!live) return;
+        if (Array.isArray(list) && list.length) {
+          const box = document.getElementById('command-results');
+          const scroll = box ? box.scrollTop : 0;
+          this.results.push(...list);
+          this.renderResults();
+          if (box) box.scrollTop = scroll;
+        }
+        this._renderStatus();
+      }, (err) => { s.ms = this._now() - t0; fail(err); });
+    };
+    // After the paint of the first results, not before it.
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(run, 0));
+    else setTimeout(run, 0);
+  },
+
+  _statusText() {
+    const waiting = [...this._pending.values()].filter(p => p.shown).map(p => p.label);
+    return waiting.length ? 'Still searching: ' + waiting.join(', ') + '…' : '';
+  },
+
+  _renderStatus() {
+    const list = document.getElementById('command-results');
+    if (!list || !list.parentNode) return;
+    let el = document.getElementById('command-status');
+    const text = this._statusText();
+    if (!el) {
+      if (!text) return;
+      el = document.createElement('div');
+      el.id = 'command-status';
+      el.className = 'command-empty';
+      el.setAttribute('role', 'status');
+      list.insertAdjacentElement('afterend', el);
+    }
+    el.textContent = text;
+    el.style.display = text ? '' : 'none';
   },
 
   // ---- Fuzzy matching + usage-based ranking -------------------------------
@@ -806,19 +961,36 @@ const CommandBar = {
   // Score how well command `c` matches query `q` (both lowercase).
   // Tiers: label prefix > word prefix > id prefix > token match (any order) >
   // substring > hint substring > in-order subsequence ("svs" → "Save Session").
+  // The lower-cased label, id and words of a command, kept while its label
+  // and id stay as they are: 2000 commands were lower-cased and split on every
+  // keystroke.
+  _lowered(c) {
+    let e = this._loweredCache.get(c);
+    if (!e || e.label !== c.label || e.id !== c.id) {
+      const l = c.label.toLowerCase();
+      e = { label: c.label, id: c.id, l, i: c.id.toLowerCase(), words: l.split(/\s+/) };
+      this._loweredCache.set(c, e);
+    }
+    return e;
+  },
+  _loweredCache: new WeakMap(),
+
   _scoreCommand(q, c) {
     if (!q) return 0;
-    const label = c.label.toLowerCase();
-    const id = c.id.toLowerCase();
-    const hint = (c.hint || '').toLowerCase();
+    const low = this._lowered(c);
+    const label = low.l;
+    const id = low.i;
+    // The hint can be computed (Do That Again): read when a tier needs it.
+    let hintText = null;
+    const hint = () => hintText === null ? (hintText = (c.hint || '').toLowerCase()) : hintText;
 
     let score = 0;
     if (label.startsWith(q)) score = 100;
-    else if (label.split(/\s+/).some(w => w.startsWith(q))) score = 85;
+    else if (low.words.some(w => w.startsWith(q))) score = 85;
     else if (id.startsWith(q)) score = 80;
-    else if (q.includes(' ') && q.split(/\s+/).filter(Boolean).every(t => label.includes(t) || hint.includes(t))) score = 70;
+    else if (q.includes(' ') && q.split(/\s+/).filter(Boolean).every(t => label.includes(t) || hint().includes(t))) score = 70;
     else if (label.includes(q) || id.includes(q)) score = 60;
-    else if (hint.includes(q)) score = 45;
+    else if (hint().includes(q)) score = 45;
     else if (q.length >= 2) {
       let from = 0, ok = true;
       for (const ch of q) {
@@ -863,7 +1035,7 @@ const CommandBar = {
   // Open tabs matching the query, as "switch to tab" results. Titles/URLs are
   // user content so they're escaped (renderResults uses innerHTML). Skips the
   // active tab and start pages.
-  _tabResults(q) {
+  _tabResults(q, skipContent) {
     if (!q || typeof TabManager === 'undefined') return [];
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     try {
@@ -891,25 +1063,41 @@ const CommandBar = {
       // Tabs whose PAGE contains the words, for the one called "Order
       // confirmation" when what you remember is "refund". Ranked below a title
       // match, and never listed twice.
-      if (typeof TabContentIndex !== 'undefined') {
+      if (!skipContent) {
         const already = new Set(scored.map(e => e.r.id));
-        for (const hit of TabContentIndex.search(q)) {
-          const id = 'tab:' + hit.tabId;
-          if (already.has(id)) continue;
-          const t = (TabManager.tabs || []).find(x => x.id === hit.tabId);
-          if (!t || t.id === TabManager.activeTabId) continue;
-          let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
-          scored.push({ score: 40 + Math.min(hit.score, 9), r: {
-            id,
-            icon: t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : this._icon('tabs'),
-            label: t.title || host || t.url || 'Tab',
-            hint: 'On this page · ' + (host || t.url || ''),
-            action: () => { try { TabManager.switchTab(t.id); } catch (err) { _commandFailed(err); } },
-          } });
-        }
+        // Its own provider: if it throws the title matches above still show.
+        scored.push(...this._guard('tab-content', () => this._tabContentHits(q, already), []));
       }
       return scored.sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
-    } catch { return []; }
+    } catch (err) { console.error('[Command] open tabs failed:', err); throw err; }
+  },
+
+  // Open tabs whose page contains the words: [{ score, r }].
+  _tabContentHits(q, already) {
+    if (typeof TabContentIndex === 'undefined' || typeof TabManager === 'undefined') return [];
+    const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+    const out = [];
+    for (const hit of TabContentIndex.search(q)) {
+      const id = 'tab:' + hit.tabId;
+      if (already.has(id)) continue;
+      const t = (TabManager.tabs || []).find(x => x.id === hit.tabId);
+      if (!t || t.id === TabManager.activeTabId) continue;
+      let host = ''; try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch {}
+      out.push({ score: 40 + Math.min(hit.score, 9), r: {
+        id,
+        icon: t.favicon ? `<img src="${esc(t.favicon)}" style="width:16px;height:16px;border-radius:3px" alt="">` : this._icon('tabs'),
+        label: t.title || host || t.url || 'Tab',
+        hint: 'On this page · ' + (host || t.url || ''),
+        action: () => { try { TabManager.switchTab(t.id); } catch (err) { _commandFailed(err); } },
+      } });
+    }
+    return out;
+  },
+
+  // The same, as the late answer: what is not on the screen already, best first.
+  _tabContentLate(q) {
+    const already = new Set(this.results.map(r => r && r.id));
+    return this._tabContentHits(q, already).sort((a, b) => b.score - a.score).slice(0, 6).map(e => e.r);
   },
 
   // Things you copied off a page, searchable by what is in them. The point of
@@ -933,7 +1121,7 @@ const CommandBar = {
         } });
       }
       return out.sort((a, b) => b.score - a.score).slice(0, 5).map(e => e.r);
-    } catch { return []; }
+    } catch (err) { console.error('[Command] clipboard history failed:', err); throw err; }
   },
 
   // Features whose own words match, that the command search did not already
@@ -1102,6 +1290,11 @@ const CommandBar = {
     const resultsEl = document.getElementById('command-results');
     resultsEl.innerHTML = '';
 
+    // A new draw: a rest of the last list still waiting to be drawn is dropped.
+    clearTimeout(this._restTimer);
+    this._restTimer = null;
+    this._rendered = 0;
+
     if (this.results.length === 0) {
       // Not a listbox with nothing in it: a line that is read out.
       resultsEl.removeAttribute('role');
@@ -1111,9 +1304,33 @@ const CommandBar = {
     }
     resultsEl.setAttribute('role', 'listbox');
 
+    // The first rows now, the rest right after: a query that matches
+    // thousands of commands drew them all (500 ms for "a" at 3000 commands)
+    // before the first one showed. Arrowing past the drawn rows draws the rest.
+    this._drawRows(resultsEl, Math.max(this.FIRST_ROWS, this.selectedIndex + 1));
+    if (this._rendered < this.results.length) this._scheduleRest();
+    this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
+  },
+
+  _scheduleRest() {
+    const list = this.results;
+    this._restTimer = setTimeout(() => {
+      this._restTimer = null;
+      if (list !== this.results) return;
+      const resultsEl = document.getElementById('command-results');
+      if (!resultsEl) return;
+      this._drawRows(resultsEl, this._rendered + 150);
+      if (this._rendered < this.results.length) this._scheduleRest();
+    }, 0);
+  },
+
+  // Rows up to index `upTo` (exclusive) that are not drawn yet.
+  _drawRows(resultsEl, upTo) {
+    const end = Math.min(upTo, this.results.length);
     this._keyIndex = false;   // a draw is on; the table is read when a row first needs it
     try {
-    this.results.forEach((item, i) => {
+    for (let i = this._rendered; i < end; i++) {
+      const item = this.results[i];
       const el = document.createElement('div');
       el.className = `command-result${i === this.selectedIndex ? ' selected' : ''}`;
       // The title names the option; the hint and the key describe it.
@@ -1148,9 +1365,16 @@ const CommandBar = {
       });
 
       resultsEl.appendChild(el);
-    });
+    }
     } finally { this._keyIndex = null; }
-    this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
+    this._rendered = end;
+  },
+
+  // The rows up to `index` are on the screen (selection moves with the arrows).
+  _ensureDrawn(index) {
+    if (index < this._rendered) return;
+    const resultsEl = document.getElementById('command-results');
+    if (resultsEl) this._drawRows(resultsEl, index + 1);
   },
 
   // The box says whether its list is showing and which result is highlighted.
@@ -1165,12 +1389,14 @@ const CommandBar = {
   selectNext() {
     if (this.results.length === 0) return;
     this.selectedIndex = (this.selectedIndex + 1) % this.results.length;
+    this._ensureDrawn(this.selectedIndex);
     this.updateSelection();
   },
 
   selectPrev() {
     if (this.results.length === 0) return;
     this.selectedIndex = (this.selectedIndex - 1 + this.results.length) % this.results.length;
+    this._ensureDrawn(this.selectedIndex);
     this.updateSelection();
   },
 

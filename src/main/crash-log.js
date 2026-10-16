@@ -37,4 +37,17 @@ function createCrashLog({ dir, fs, version = '', now = () => Date.now(), log }) 
   return { add, recent, all, file };
 }
 
-module.exports = { createCrashLog, FILE, KEEP, WEEK_MS };
+// The kinds of crash recorded under `version` that no other version has
+// recorded: [{ kind, n }]. A version with no earlier record has every kind new.
+function newKinds(entries, version) {
+  const earlier = new Set();
+  const now = new Map();
+  for (const e of Array.isArray(entries) ? entries : []) {
+    if (!e || typeof e.kind !== 'string') continue;
+    if (e.version === version) now.set(e.kind, (now.get(e.kind) || 0) + 1);
+    else earlier.add(e.kind);
+  }
+  return [...now].filter(([kind]) => !earlier.has(kind)).map(([kind, n]) => ({ kind, n }));
+}
+
+module.exports = { createCrashLog, newKinds, FILE, KEEP, WEEK_MS };
