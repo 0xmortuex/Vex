@@ -1959,7 +1959,6 @@
   <script src="js/attention-settings.js"></script>
   <!-- Find options, clean link copy, typed-count completion, Keep on top, activity dots (js/tabs-nav.js). -->
   <script src="js/tabs-nav.js"></script>
-  <script src="js/tabs-nav-settings.js"></script>
   <script src="js/newtab-slots.js"></script>
   <script src="js/update-safety-net.js"></script>
   <script src="js/post-update-selftest.js"></script>
@@ -2116,6 +2115,8 @@
   <!-- Power tools: each owns its Settings group and Ctrl+K entries through
        settings-groups.js, so this file needs only the script tags. -->
   <script src="js/settings-groups.js"></script>
+  <!-- Needs VexModuleCommands from settings-groups.js, so it comes after it. -->
+  <script src="js/tabs-nav-settings.js"></script>
   <script src="js/site-readability.js"></script>
   <script src="js/page-actions.js"></script>
   <script src="js/agent-safety.js"></script>

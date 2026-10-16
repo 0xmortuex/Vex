@@ -133,8 +133,22 @@ const VexDeadlines = {
     let day;
     try { day = VexTr.parseDay(m[1].replace(/\s*[.!?,;:]+(?=\s|$)/g, ' ').trim(), now); }
     catch (err) { if (/is not a real date/.test(err.message)) return null; throw err; }
-    if (!day) return null;
+    if (!day) return this._turkishPhrase(sentence, m, now);
+    // A clock after the day ("yarın akşam 8'de") is the due moment itself; VexTr.parseDay stops at the day.
+    if (day.rest) { const timed = this._turkishPhrase(sentence, m, now, true); if (timed) return timed; }
     return { dueAt: this._at(day.date, this.DUE_HOUR), phrase: m[0].trim() };
+  },
+
+  // What VexTr.parseDay does not read, after a Turkish trigger word: "haftaya Salı", "yarın akşam
+  // 8'de", "15.11.2026 saat 17:00", "2 gün içinde". These are the phrases of VexTrParse (js/tr-parse.js),
+  // which asks VexTr for the plain days and clocks, so both parsers give one answer where they overlap.
+  // A date with no clock means the due hour of an English deadline (17:00).
+  _turkishPhrase(sentence, m, now, timedOnly = false) {
+    if (typeof VexTrParse === 'undefined' || !VexTrParse.enabled()) return null;
+    const found = VexTrParse.extractDates(sentence, now)[0];
+    if (!found || (timedOnly && !found.hasTime)) return null;
+    const dueAt = found.hasTime ? found.at : this._at(new Date(found.at), this.DUE_HOUR);
+    return { dueAt, phrase: m[0].trim() };
   },
 
   extract(text, now = Date.now()) {

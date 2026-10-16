@@ -193,7 +193,9 @@ const VexTr = {
       const want = this._WEEKDAYS[m[1]];
       let add = (want - today.getDay() + 7) % 7;
       if (add === 0) add = 7;           // "cuma" said on a Friday: the next one
-      if (/^haftaya /.test(s)) add += 7;
+      // "haftaya salı" is the Tuesday of next week (Mon-Sun), the same reading as VexTrParse: said
+      // on a Friday it is 4 days away, not 11.
+      if (/^haftaya /.test(s)) add = 7 - ((today.getDay() + 6) % 7) + ((want + 6) % 7);
       const d = new Date(today); d.setDate(d.getDate() + add);
       return { date: d, rest: m[2] || '' };
     }

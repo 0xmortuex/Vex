@@ -38,12 +38,28 @@ const VexTrParse = {
     return out;
   },
 
+  // ---- one Turkish reading of days, clocks and amounts ---------------------------
+  // js/vex-tr.js (VexTr) is the strict parser of the daily-flow code (deadlines, snooze, quick
+  // reminder). Where the two agree by construction this file asks VexTr, so there is one definition:
+  //   - an amount of the plain shapes (1.250,50  1250,5  12.5  1250)  -> VexTr.parseAmount
+  //   - a clock hour next to a part of the day ("akşam 8")            -> VexTr.parseClock
+  //   - bugün / yarın / öbür gün / ertesi gün and a bare weekday      -> VexTr.parseDay
+  // What only this parser reads (a phrase inside a sentence, "haftaya Salı", "2 saat sonra",
+  // ikindi, "1,250,000", a sign) stays here, and a test keeps the two in step where they overlap.
+  _tr() {
+    const t = globalThis.VexTr || (typeof require === 'function' ? require('./vex-tr.js').VexTr : null);
+    if (!t) throw new Error('VexTr (js/vex-tr.js) must load before js/tr-parse.js');
+    return t;
+  },
+  _PLAIN_AMOUNT: /^(?:\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?|\d+\.\d{1,2})$/,
+
   // ---- numbers and amounts ------------------------------------------------------
   // Turkish writes 1.250,50: the dot groups thousands, the comma is the decimal point.
   // "1250.5" and "1,250.50" (the English way) are read too when the shape is unambiguous.
   parseNumber(raw) {
     const s = String(raw == null ? '' : raw).trim().replace(/\s+/g, '');
     if (!/^[+-]?\d[\d.,]*$/.test(s)) return null;
+    if (this._PLAIN_AMOUNT.test(s)) return this._tr().parseAmount(s).value;
     const lastDot = s.lastIndexOf('.'), lastComma = s.lastIndexOf(',');
     let norm;
     if (lastDot >= 0 && lastComma >= 0) {
@@ -102,6 +118,11 @@ const VexTrParse = {
   // An hour from the number and the part of the day it was said with.
   _hour(h, part) {
     if (h > 24 || h < 0) return null;
+    // 1-12 beside sabah / öğle / akşam / öğleden sonra / gece, and 1-23 alone: VexTr's clock.
+    const word = { sabah: 'sabah', ogle: 'ogle', aksam: 'aksam', ogleden_sonra: 'ogleden sonra', gece: 'gece' }[part];
+    if (Number.isInteger(h) && ((word && h >= 1 && h <= 12) || (!part && h >= 1 && h <= 23))) {
+      return this._tr().parseClock((word ? word + ' ' : '') + h).hour;
+    }
     if (part === 'sabah') return h === 12 ? 12 : h;
     if (part === 'ogle') return h < 6 ? h + 12 : h;
     if (part === 'aksam' || part === 'ogleden_sonra' || part === 'ikindi') return h < 12 ? h + 12 : h;
@@ -152,8 +173,10 @@ const VexTrParse = {
     if (!hasDay) {
       m = /\b(bugun|yarin|obur\s*gun|yarindan\s*sonra|ertesi\s*gun)\b/.exec(f);
       if (m) {
-        const k = m[1];
-        dayDate = this._day(base, k === 'bugun' ? 0 : (k === 'yarin' ? 1 : 2));
+        const k = m[1].replace(/\s+/g, ' ');
+        // bugün / yarın / öbür gün / ertesi gün are VexTr's words (ertesi gün is the next day, 1);
+        // "yarından sonra" is only read here.
+        dayDate = k === 'yarindan sonra' ? this._day(base, 2) : this._tr().parseDay(k, base).date;
         hasDay = true; mark(m);
       } else if ((m = /\bbu\s+(aksam|gece|sabah)\b/.exec(f))) {
         dayDate = this._day(base, 0); hasDay = true; part = m[1]; mark(m);
@@ -171,9 +194,8 @@ const VexTrParse = {
         } else if (mod === 'bu hafta') {
           dayDate = this._day(monday, (wd + 6) % 7);
         } else {
-          let days = (wd - base.getDay() + 7) % 7;
-          if (days === 0) days = 7;       // "Cuma" on a Friday means the next one; today is "bugun"
-          dayDate = this._day(base, days);
+          // A bare weekday ("Cuma", "bu Cuma"): the next one, VexTr's reading (a Friday's "Cuma" is next week's).
+          dayDate = this._tr().parseDay(m[2], base).date;
         }
         hasDay = true; mark(m, m[0].length);
       } else if ((m = /\b(haftaya|gelecek\s+hafta)\b/.exec(f))) {
