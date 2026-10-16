@@ -90,6 +90,7 @@ const PanelsCommsUI = {
         const row = this._el('div', 'setting-row');
         if (!n.read) row.append(this._btn('Mark read', () => { PanelCapture.markRead(n.id); draw(); }));
         row.append(muted ? this._btn('Unmute', () => { PanelCapture.unmute(n.source, n.title); draw(); }) : this._btn('Mute 1 hour', () => { PanelCapture.mute(n.source, n.title, 3600000); draw(); }));
+        if (typeof UnreadTask !== 'undefined' && UnreadTask.enabled()) row.append(this._btn('Make a task', () => { UnreadTask.fromNotification(n.id); window.showToast?.('Task added'); }));
         row.append(this._btn('Remove', () => { PanelCapture.remove(n.id); draw(); }));
         box.appendChild(row);
         body.appendChild(box);

@@ -1818,6 +1818,8 @@ const WebviewManager = {
       });
       // Decode, translate a command, make a GitHub issue from the selected words (js/dev-helpers.js).
       if (typeof VexDevHelpers !== 'undefined') textItems.push(...VexDevHelpers.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
+      // A task from the selection, collect its links, convert a time (js/comms-tools-ui.js).
+      if (typeof window.CommsTools !== 'undefined') textItems.push(...window.CommsTools.textItems(e.params.selectionText, webview, { editable: !!e.params.isEditable }));
     }
     groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));
 
