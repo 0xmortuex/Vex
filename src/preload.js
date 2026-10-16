@@ -635,6 +635,7 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsSetRules: (rules) => ipcRenderer.invoke('downloads:set-rules', rules),
   downloadsPrefs: () => ipcRenderer.invoke('downloads:prefs'),
   downloadsChooseFolder: () => ipcRenderer.invoke('downloads:choose-folder'),
+  reposPickFolder: () => ipcRenderer.invoke('repos:pick-folder'),
   downloadsSetAsk: (on) => ipcRenderer.invoke('downloads:set-ask', on),
   downloadsResetPrefs: () => ipcRenderer.invoke('downloads:reset-prefs'),
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),

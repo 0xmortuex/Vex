@@ -205,6 +205,13 @@ const VexUsageRegistry = {
       EndpointBoard: () => (typeof EndpointBoard !== 'undefined' ? EndpointBoard : null),
       DependencyRadar: () => (typeof DependencyRadar !== 'undefined' ? DependencyRadar : null),
       DeployDesk: () => (typeof DeployDesk !== 'undefined' ? DeployDesk : null),
+      VexRepos: () => (typeof VexRepos !== 'undefined' ? VexRepos : null),
+      VexBangs: () => (typeof VexBangs !== 'undefined' ? VexBangs : null),
+      VexCopyAs: () => (typeof VexCopyAs !== 'undefined' ? VexCopyAs : null),
+      VexGithubHelpers: () => (typeof VexGithubHelpers !== 'undefined' ? VexGithubHelpers : null),
+      VexShellTranslate: () => (typeof VexShellTranslate !== 'undefined' ? VexShellTranslate : null),
+      VexDecode: () => (typeof VexDecode !== 'undefined' ? VexDecode : null),
+      VexReferenceSets: () => (typeof VexReferenceSets !== 'undefined' ? VexReferenceSets : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -262,6 +269,14 @@ const VexUsageRegistry = {
       ['endpoint-board', A.api(G.EndpointBoard, 'enabled', 'setEnabled')],
       ['dependency-radar', A.api(G.DependencyRadar, 'enabled', 'setEnabled')],
       ['deploy-desk', A.api(G.DeployDesk, 'enabled', 'setEnabled')],
+      // Developer helpers (js/dev-helpers.js and the seven files it gathers)
+      ['repo-registry', A.api(G.VexRepos, 'enabled', 'setEnabled')],
+      ['search-bangs', A.api(G.VexBangs, 'enabled', 'setEnabled')],
+      ['copy-as-request', A.api(G.VexCopyAs, 'enabled', 'setEnabled')],
+      ['github-helpers', A.api(G.VexGithubHelpers, 'enabled', 'setEnabled')],
+      ['snippet-translator', A.api(G.VexShellTranslate, 'enabled', 'setEnabled')],
+      ['selection-decoder', A.api(G.VexDecode, 'enabled', 'setEnabled')],
+      ['reference-sets', A.api(G.VexReferenceSets, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

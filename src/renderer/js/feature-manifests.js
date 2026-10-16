@@ -161,6 +161,22 @@
       commands: ['deploy-desk'], permissions: { reads: ['how often your history visited the deploy hosts'], writes: ['the pages you pinned'], sends: [] } },
     { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
       permissions: { reads: ['the list of repositories you gave'], writes: ['the list of repositories you gave'], sends: [] } },
+    // ---- Developer helpers (js/dev-helpers.js, Settings > Developer helpers) -------------------
+    // New: each arrives OFF on a profile that already existed and is offered ("try it").
+    { id: 'repo-registry', title: 'Repository registry and groups', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.repos', 'vex.repos.enabled'], commands: ['repos:manage'],
+      permissions: { reads: ['the address of the tab in front'], writes: ['your repository list and the folder paths you chose; a tab group you accept'], sends: [] } },
+    { id: 'search-bangs', title: 'Search bangs for docs, packages and games', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.searchBangs', 'vex.searchBangs.enabled'],
+      permissions: { reads: ['what you type in the address bar'], writes: ['your bang table'], sends: ['The words you type, to the site whose bang you used'] } },
+    { id: 'copy-as-request', title: 'Copy as cURL, fetch or PowerShell', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.copyAs.enabled'], commands: ['copy-as-request'],
+      permissions: { reads: ['a link you right-click'], writes: ['the clipboard, when you press Copy'], sends: [] } },
+    { id: 'github-helpers', title: 'GitHub page helpers', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.githubHelpers.enabled'],
+      permissions: { reads: ['the commit SHA and line range on a github.com page you right-click'], writes: ['the clipboard, when you choose a row'], sends: [] } },
+    { id: 'snippet-translator', title: 'Translate install and shell commands', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.snippetTranslator.enabled'],
+      permissions: { reads: ['the text you select'], writes: ['the clipboard, when you press Copy'], sends: [] } },
+    { id: 'selection-decoder', title: 'Decode selection', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.selectionDecoder.enabled'],
+      permissions: { reads: ['the text you select'], writes: ['the clipboard, when you press Copy'], sends: [] } },
+    { id: 'reference-sets', title: 'Reference sets', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.referenceSets', 'vex.referenceSets.enabled'], commands: ['refsets:manage', 'refsets:add', 'refsets:open'],
+      permissions: { reads: ['the page in front, when you pin it'], writes: ['your sets of pages and snippets; tabs and a group when you open one'], sends: [] } },
 
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',

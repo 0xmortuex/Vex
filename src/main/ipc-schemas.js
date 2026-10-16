@@ -69,6 +69,9 @@ define('downloads:exist', [value => Array.isArray(value) && value.length <= 1000
 // from main's own folder dialog, so choosing it takes no argument.
 define('downloads:prefs downloads:choose-folder downloads:reset-prefs', []);
 define('downloads:set-ask', [boolean]);
+// Developer helpers > repositories (js/repo-registry.js): the folder comes only from main's own
+// folder dialog, so choosing it takes no argument.
+define('repos:pick-folder', []);
 // Delete or drag out a finished download (src/main/download-files.js).
 define('downloads:delete-file downloads:start-drag', [string(4096)]);
 // Tidy the downloads folder (src/main/download-tidy.js): preview, apply a

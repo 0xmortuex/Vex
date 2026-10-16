@@ -214,13 +214,23 @@ const ApiPlayground = {
   _privateWindow() { return !!(window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow); },
 
   // --- the panel ------------------------------------------------------------
-  open(prefillUrl) {
+  // prefill: an address, or { url, method, body, headers:[{name,value}] } (js/copy-as-request.js
+  // sends a request here). A sensitive header comes in marked sensitive.
+  open(prefill) {
+    const prefillUrl = prefill && typeof prefill === 'object' ? prefill.url : prefill;
     if (this._privateWindow()) { window.showToast?.('The API playground is not available in a private window', 'error'); return null; }
     const esc = (s) => window.escapeHtml(String(s == null ? '' : s));
     document.getElementById('vex-playground')?.remove();
     const tab = typeof TabManager !== 'undefined' && TabManager.getActiveTab ? TabManager.getActiveTab() : null;
     const startUrl = prefillUrl || (tab && /^https?:/i.test(tab.url || '') ? tab.url : '');
     const ui = { current: { id: '', name: '', method: 'GET', url: startUrl, body: '', headers: [], allowLocal: false } };
+    if (prefill && typeof prefill === 'object') {
+      const method = String(prefill.method || 'GET').toUpperCase();
+      if (!this.METHODS.includes(method)) throw new Error('Method not allowed: ' + method);
+      ui.current.method = method;
+      ui.current.body = String(prefill.body == null ? '' : prefill.body);
+      ui.current.headers = (prefill.headers || []).map(h => ({ name: String(h.name), value: String(h.value), sensitive: this.isSensitiveHeader(h.name), enabled: true }));
+    }
     const m = document.createElement('div');
     m.id = 'vex-playground';
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center';
