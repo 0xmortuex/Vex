@@ -154,6 +154,13 @@ function vexOwnTextFocused(doc) {
     const where = VexTypedAddress.resolve(val);
     const url = where.url;
 
+    // An address already open in another tab: go there instead of opening it a
+    // second time, and count the site as one you type (js/tabs-nav.js).
+    if (typeof VexTabsNav !== 'undefined' && where.kind === 'address') {
+      if (VexTabsNav.on('typedRanking')) VexTabsNav.typed.record(url);
+      if (!newTab && VexTabsNav.switchToOpen(url)) { urlInput.blur(); return; }
+    }
+
     // If sidebar panel is open, close it first
     SidebarManager.hideActivePanel();
 
@@ -203,6 +210,12 @@ function vexOwnTextFocused(doc) {
 
     if (e.key === 'Enter') {
       submitUrlBar(completeWithCtrlEnter(urlInput.value, e), e.altKey);
+    } else if (e.key === 'ArrowUp' && e.altKey && !e.ctrlKey && !e.shiftKey && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('addressExtras')) {
+      // Alt+Up: one level up the address (/a/b/c to /a/b), as in Firefox's "Up".
+      const tab = TabManager.getActiveTab();
+      const up = tab ? VexTabsNav.parentUrl(tab.url) : null;
+      e.preventDefault();
+      if (up) submitUrlBar(up, false); else window.showToast?.('This is already the top of the site');
     } else if (e.key === 'Escape') {
       // As in Chrome: the first Esc undoes what you typed and keeps the bar;
       // with nothing to undo it stops a page still loading; after that it
@@ -362,7 +375,9 @@ function vexOwnTextFocused(doc) {
       });
       wv._findBound = true;
     }
-    wv.findInPage(text, options);
+    // Match case is the find bar's Aa toggle (js/tabs-nav.js).
+    const matchCase = typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions') && VexTabsNav.prefs().findMatchCase;
+    wv.findInPage(text, matchCase ? { ...(options || {}), matchCase: true } : options);
   }
 
   // Each tab has its own find bar, as in Chrome and Firefox: switching tabs
@@ -379,10 +394,24 @@ function vexOwnTextFocused(doc) {
     findInput.select();
     if (wasOpen) return;
     findCount.textContent = '';
+    // The page's selected words start the search, as in Chrome and Firefox
+    // (js/tabs-nav.js). Nothing selected keeps what the bar held.
+    if (typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions')) {
+      const wv = WebviewManager.getActiveWebview();
+      VexTabsNav.seedFromSelection(wv).then((seed) => {
+        if (seed && findBar.style.display !== 'none') { findInput.value = seed; findInput.select(); }
+        if (findInput.value) findOnActive(findInput.value);
+      }).catch((err) => {
+        VexProblems?.note('Find bar', 'Could not read the selection to start the search', (err && err.message) || String(err));
+        if (findInput.value) findOnActive(findInput.value);
+      });
+      return;
+    }
     if (findInput.value) findOnActive(findInput.value);
   }
 
   function hideFindBar() {
+    if (typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions')) VexTabsNav.findHistory.add(findInput.value);
     findBar.style.display = 'none';
     findCount.textContent = '';
     WebviewManager.stopFindInPage();
@@ -423,14 +452,46 @@ function vexOwnTextFocused(doc) {
     }
   });
 
+  // Up and Down walk the words searched before, newest first (js/tabs-nav.js).
+  // -1 is "what is being typed", which Down comes back to.
+  let findHistIndex = -1, findHistDraft = '';
+  findInput.addEventListener('input', () => { findHistIndex = -1; });
   findInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       hideFindBar();
     } else if (e.key === 'Enter') {
+      if (typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions')) VexTabsNav.findHistory.add(findInput.value);
       // Shift+Enter goes back, as in every browser; it went forward.
       findOnActive(findInput.value, { forward: !e.shiftKey });
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey && !e.ctrlKey && !e.shiftKey &&
+               typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions')) {
+      const list = VexTabsNav.findHistory.list();
+      if (!list.length) return;
+      e.preventDefault();
+      if (findHistIndex === -1) findHistDraft = findInput.value;
+      findHistIndex = VexTabsNav.findHistory.step(findHistIndex, e.key === 'ArrowUp' ? 1 : -1, list);
+      findInput.value = findHistIndex === -1 ? findHistDraft : list[findHistIndex];
+      findInput.select();
+      if (findInput.value) findOnActive(findInput.value); else { WebviewManager.stopFindInPage(); findCount.textContent = ''; }
     }
   });
+
+  // Aa: match case. A remembered choice; the search is redone with it.
+  const findCaseBtn = document.getElementById('find-case');
+  if (findCaseBtn) {
+    const paintCase = () => {
+      const available = typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions');
+      findCaseBtn.hidden = !available;
+      findCaseBtn.setAttribute('aria-pressed', String(available && VexTabsNav.prefs().findMatchCase));
+    };
+    paintCase();
+    document.addEventListener('vex:tabs-nav-changed', paintCase);
+    findCaseBtn.addEventListener('click', () => {
+      VexTabsNav.setPref('findMatchCase', !VexTabsNav.prefs().findMatchCase);
+      if (findInput.value) findOnActive(findInput.value);
+      findInput.focus();
+    });
+  }
 
   document.getElementById('find-prev').addEventListener('click', () => findOnActive(findInput.value, { forward: false }));
   document.getElementById('find-next').addEventListener('click', () => findOnActive(findInput.value, { forward: true }));

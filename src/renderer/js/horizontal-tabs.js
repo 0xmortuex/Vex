@@ -129,6 +129,8 @@ const HorizontalTabs = (() => {
     container.querySelectorAll('.top-tab').forEach((el, i) => {
       el.setAttribute('data-tab-index', String(i + 1).padStart(2, '0'));
     });
+    // The dot for activity on a background tab (js/tabs-nav.js).
+    if (typeof VexTabsNav !== 'undefined') VexTabsNav.decorateStrip(container);
   }
 
   function _renderTab(tab, activeId) {

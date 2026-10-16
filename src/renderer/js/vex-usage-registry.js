@@ -195,6 +195,7 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexTabsNav: () => (typeof VexTabsNav !== 'undefined' ? VexTabsNav : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +241,8 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Tabs and navigation extras (js/tabs-nav.js): find options, clean copy, typed-count completion, Keep on top, activity dots.
+      ['tabs-nav', A.api(G.VexTabsNav, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

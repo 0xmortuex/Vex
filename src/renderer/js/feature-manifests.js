@@ -128,6 +128,13 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 2: tabs and navigation (js/tabs-nav.js) ------------------------------------
+    // Stable: passive ergonomics that never speak up on their own, on for everyone (Settings › Tabs and
+    // navigation has a switch for each). Minimal Vex switches the whole module off and puts it back.
+    { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation',
+      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom'], commands: ['tabsnav:keep-on-top'],
+      permissions: { reads: ['the selected words on the page, the address of your tabs, the titles of background tabs'], writes: ['your switches, the last 20 find-bar searches, how often you typed each site; keeps the Vex window on top when you ask'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

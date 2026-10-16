@@ -184,6 +184,7 @@ contextBridge.exposeInMainWorld('vex', {
   gameState: () => ipcRenderer.invoke('game:state'),
   onGameState: (cb) => subscribe('game:state', cb),
   // Game mode (src/main/game-mode.js).
+  keepWindowOnTop: (on) => ipcRenderer.invoke('window:keep-on-top', on === true),
   gameModeGames: (games, watch) => ipcRenderer.invoke('gamemode:games', games, !!watch),
   gameModeSession: (s) => ipcRenderer.invoke('gamemode:session', s),
   gameModeState: () => ipcRenderer.invoke('gamemode:state'),

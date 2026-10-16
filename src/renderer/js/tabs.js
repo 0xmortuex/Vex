@@ -935,6 +935,8 @@ const TabManager = {
     if (id !== this.activeTabId && data.title) {
       tab.unread = true;
     }
+    // A count in a background tab's title ("(3) Inbox") marks a dot on the strip (js/tabs-nav.js).
+    if (data.title !== undefined && typeof VexTabsNav !== 'undefined') VexTabsNav.noteTitle(tab, id === this.activeTabId);
 
     this.renderTabUpdate(tab);
 
@@ -1878,6 +1880,13 @@ const TabManager = {
       // which made this menu 620px tall (walkthrough L10, 2026-10-07).
       { label: 'Reload', action: () => this._reloadTabFromMenu(tab) },
       { label: 'Duplicate', action: () => this.duplicateTab(tab) },
+      // The address without what identifies you, or as a Markdown link (js/tabs-nav.js).
+      ...(webPage && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('cleanCopy')
+        ? [
+          { label: 'Copy clean link', action: () => VexTabsNav.copyLink(tab, 'clean').catch(err => window.showToast?.('Could not copy the link: ' + ((err && err.message) || err), 'error')) },
+          { label: 'Copy as Markdown link', action: () => VexTabsNav.copyLink(tab, 'markdown').catch(err => window.showToast?.('Could not copy the link: ' + ((err && err.message) || err), 'error')) },
+        ]
+        : []),
       // Route through togglePinTab, which rebuilds the strip. Flipping
       // tab.pinned inline (the old code) persisted the new state but left the
       // UI untouched: the pinned-tabs row was never built and the horizontal
