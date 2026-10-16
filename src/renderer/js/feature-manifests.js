@@ -128,6 +128,21 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 2: AI features (all local-model only; none has a cloud path of its own) -----
+    { id: 'longdoc-engine', title: 'Long-document engine', group: 'Long documents', maturity: 'new', storageKeys: ['vex.longdoc.enabled'], jobs: [],
+      budget: { jobMsPerMin: 0 }, permissions: { reads: ['text another feature hands it'], writes: ['its own switch'], sends: [] } },
+    { id: 'thread-digest', title: 'Thread digest', group: 'Thread digest', maturity: 'new', storageKeys: ['vex.threadDigest', 'vex.threadDigest.enabled'], commands: ['thread-digest'],
+      permissions: { reads: ['text you select, or the page in front after you say yes'], writes: ['short fingerprints of what you have read, per address'], sends: [] } },
+    { id: 'draft-in-field', title: 'Draft into the field', group: 'Draft into the field', maturity: 'new', storageKeys: ['vex.draftField.enabled'], commands: ['draft-in-field'],
+      permissions: { reads: ['the text of the box you are typing in, when you run the command'], writes: ['the box, only when you press the button'], sends: [] } },
+    { id: 'embedding-manager', title: 'Embedding model manager', group: 'Search by meaning (embedding model)', maturity: 'new', storageKeys: ['vex.embedManager.enabled'], usesKeys: ['vex.recall.meaningModel'],
+      permissions: { reads: ['which models your Ollama has'], writes: ['the embedding model Recall uses'], sends: ['A download request to your own Ollama, after you confirm'] } },
+    { id: 'answer-citations', title: 'Show-me-where citations', group: 'Knowledge', maturity: 'new', storageKeys: ['vex.answerCitations.enabled'],
+      permissions: { reads: ['the answer and the passages it was built from'], writes: ['nothing (the browser find mark clears itself)'], sends: [] } },
+    { id: 'site-instructions', title: 'Site instructions and typed skills', group: 'Site instructions', maturity: 'new', storageKeys: ['vex.siteInstructions', 'vex.siteInstructions.enabled'], usesKeys: ['vex.skills'],
+      commands: ['site-instruction-edit', 'skills-for-site'],
+      permissions: { reads: ['the address of the page in front'], writes: ['your instructions'], sends: ['An instruction goes to your AI backend with each chat on that site; a cloud backend only if AI memory includes the cloud'] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

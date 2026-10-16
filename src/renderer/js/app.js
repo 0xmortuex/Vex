@@ -1286,6 +1286,8 @@ function vexOwnTextFocused(doc) {
 
   // AI Skills (saved prompts) + Boosts (per-site customization)
   if (typeof VexSkills !== 'undefined') VexSkills.init();
+  if (typeof VexThreadDigest !== 'undefined') VexThreadDigest.init();
+  if (typeof VexDraftField !== 'undefined') VexDraftField.init();
   if (typeof VexBoosts !== 'undefined') VexBoosts.init();
   if (typeof VexUserscripts !== 'undefined') VexUserscripts.init();
 
