@@ -45,6 +45,7 @@ const VexJobs = {
   heldBecause(when, job) {
     const gaming = typeof GameMode !== 'undefined' && GameMode.gaming;
     if (gaming) return 'a game is running';
+    if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active) return 'a game launcher is open';
     if (typeof CommitGuard !== 'undefined' && CommitGuard.holding()) return 'Windows is short of memory';
     if (job && job.deferOnBattery && typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs()) return 'saving battery';
     if (when === 'ui' && typeof document !== 'undefined' && document.hidden) return 'Vex is hidden';
@@ -225,6 +226,7 @@ const VexJobs = {
   // Why this item may not run right now ('' = go).
   _heavyBlock(item, now = Date.now()) {
     if (typeof GameMode !== 'undefined' && GameMode.gaming) return 'a game is running';
+    if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active) return 'a game launcher is open';
     const mem = this.memoryLow();
     if (mem) return mem;
     if (item.feature && typeof VexBreaker !== 'undefined' && VexBreaker.isTripped(item.feature)) return 'it was switched off after repeated failures';

@@ -289,7 +289,11 @@ GameMode.initGaming = function () {
 };
 
 // Is Vex holding background AI right now? (read by AIRouter and Scheduler)
-GameMode.holdingAi = function () { return this.gaming && (this.gamingSetting('holdAi') || (typeof CommitGuard !== 'undefined' && CommitGuard.holding())); };
+GameMode.holdingAi = function () {
+  // A launcher is open and Game mode is on (js/game-warmdown.js): background AI waits too.
+  if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active && this.gamingSetting('holdAi')) return true;
+  return this.gaming && (this.gamingSetting('holdAi') || (typeof CommitGuard !== 'undefined' && CommitGuard.holding()));
+};
 
 GameMode.onGameStart = async function (app) {
   if (this.gaming) { this.gamingApp = app || this.gamingApp; return this._gamingReport; }

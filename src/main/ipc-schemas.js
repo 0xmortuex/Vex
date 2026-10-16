@@ -82,8 +82,8 @@ define('game:watch', [boolean]);
 define('game:state', []);
 // Game mode (src/main/game-mode.js): the user's game list, and the session the
 // renderer starts or ends. No path or command can be named through either.
-define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
-define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
+define('gamemode:games', [value => Array.isArray(value) && value.length <= 64 && value.every(shape({ id: string(80), name: string(120), exe: string(260), launcher: optional(boolean) })), boolean]);
+define('gamemode:session', [shape({ on: boolean, warm: optional(boolean), app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
 define('gamemode:state', []);
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). Sizes are bounded here and again where used.

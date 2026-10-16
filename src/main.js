@@ -1367,12 +1367,14 @@ function _runningProgramNames() {
 const _gameProcs = _gameMode.createProcessWatch({
   list: _runningProgramNames,
   log: (m) => console.error(m),
-  onChange: (s) => { console.log('[GameMode] ' + (s.game ? 'listed game running: ' + s.app : 'no listed game')); _sendGameState(); },
+  onChange: (s) => { console.log('[GameMode] ' + (s.game ? 'listed game running: ' + s.app : (s.launcher ? 'launcher open: ' + s.launcherApp : 'no listed game'))); _sendGameState(); },
 });
 function _mergedGameState() {
   const fs_ = _gameWatch.state();
   const listed = _gameProcs.state();
-  return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '' };
+  // launcher: a launcher from the list is open and no game is (js/game-warmdown.js).
+  const launcher = !!listed.launcher && !fs_.game && !listed.game;
+  return { game: !!(fs_.game || listed.game), app: listed.game ? listed.app : fs_.app, fullscreen: !!fs_.game, listed: !!listed.game, id: listed.id || '', ...(launcher ? { launcher: true, launcherApp: listed.launcherApp || '' } : {}) };
 }
 function _sendGameState() {
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
@@ -1393,7 +1395,8 @@ ipcMain.handle('gamemode:games', async (_e, games, watch) => {
   if (watch && games.length) await _gameProcs.start(); else _gameProcs.stop();
   return { watching: !!(watch && games.length), ..._gameProcs.state() };
 });
-ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end()));
+// warm: the pre-launch warm-down (a launcher is open): only the holds, nothing is lowered.
+ipcMain.handle('gamemode:session', (_e, s) => (s.warm ? _gameModeSession.warm(s.on, s.holds) : (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end())));
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
 // Commit-charge guard (src/main/commit-guard.js): Windows' commit headroom, read
 // every 15 s with one system call. A change of level goes to the interface
