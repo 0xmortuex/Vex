@@ -144,14 +144,16 @@ const KnowledgeAsk = {
       const share = Math.max(300, Math.floor(headroom * e.weight / totalWeight));
       const text = this.pickPassages(e.text, q, share);
       const n = i + 1;
-      sources.push({ n, label: e.label, title: e.title, url: e.url, at: e.at || 0 });
+      // passage: the words the model was shown, kept so a quote can be checked against them (js/answer-citations.js).
+      sources.push({ n, label: e.label, title: e.title, url: e.url, at: e.at || 0, passage: text || '' });
       const when = e.at ? ' (' + new Date(e.at).toISOString().slice(0, 10) + ')' : '';
       body += '[' + n + '] ' + e.label + ': ' + e.title + when + (e.url ? ' <' + e.url + '>' : '') + '\n' + (text || '(no text)') + '\n\n';
     });
     const message =
       'Answer the question using ONLY the numbered sources below. After each claim put the number of the source it came from, like [1] or [2][3]. ' +
       'If the sources do not answer it, say so plainly and do not guess. This is a read-only answer: do not give commands to run and do not offer to take any action. ' +
-      'Reply as JSON: {"reply": "your answer"}.\n\n' +
+      'Reply as JSON: {"reply": "your answer", "quotes": [{"n": 1, "quote": "words copied exactly from source [1] that support a claim"}]}. ' +
+      'Give one quote for every source you cite, copied word for word from that source, 12 to 25 words long.\n\n' +
       'Sources:\n' + body + 'Question: ' + q;
     return { message, sources };
   },
@@ -407,7 +409,12 @@ const Knowledge = {
     catch (err) { throw new Error('Your local model could not answer: ' + String((err && err.message) || err).replace(/\.$/, '') + '. Nothing was sent to the cloud.', { cause: err }); }
     const answer = KnowledgeAsk.parseReply(res && res.result);
     if (!answer) throw new Error('The local model returned an empty answer. Try asking again.');
-    return { answer, sources: built.sources, cited: KnowledgeAsk.citedNumbers(answer, built.sources.length), mode, notes, model: res && res.model };
+    // Each statement is checked against the words of the source it names (T2-023, js/answer-citations.js).
+    let claims = null;
+    if (typeof VexAnswerCitations !== 'undefined' && VexAnswerCitations.enabled()) {
+      claims = VexAnswerCitations.verify(answer, VexAnswerCitations.parseQuotes(res && res.result), built.sources);
+    }
+    return { answer, claims, sources: built.sources, cited: KnowledgeAsk.citedNumbers(answer, built.sources.length), mode, notes, model: res && res.model };
   },
 
   // ---- the panel ----------------------------------------------------------
@@ -529,7 +536,10 @@ const Knowledge = {
         const r = await this.ask(q, { scope: scopeSel.value, useLibrary: libChk.checked, screenshot: shotChk.checked && shotLabel.style.display !== 'none' });
         if (!ov.isConnected) return;
         answerBox.hidden = false;
-        answerBox.textContent = r.answer;
+        if (r.claims && r.claims.length) {
+          VexAnswerCitations.render(answerBox, r.claims, r.sources, { onError: (err) => say(err.message, true) });
+          answerBox.appendChild(Object.assign(document.createElement('div'), { className: 'vexsr-mode', textContent: VexAnswerCitations.summaryLine(r.claims) }));
+        } else answerBox.textContent = r.answer;
         say([r.model ? 'Answered by ' + r.model + ' on this PC.' : 'Answered on this PC.'].concat(r.notes).join(' '));
         list.textContent = '';
         list.appendChild(el('div', 'vexsr-sub', 'Sources'));
