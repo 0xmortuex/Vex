@@ -301,6 +301,24 @@
     { id: 'secret-guard', title: 'Secret paste guard', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.secretGuard', 'vex.secretGuard.enabled'],
       commands: ['secretguard:clipboard'], permissions: { reads: ['text you paste into a web box or a Vex AI prompt (kept in memory, never stored or logged)'], writes: ['your allowed-sites list'], sends: [] } },
 
+    // ---- Developer bench (js/dev-bench.js, Settings > Developer bench) ---------------------------
+    // New: each arrives OFF everywhere and is switched on by hand.
+    { id: 'bug-bundle', title: 'Copy bug report', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.bugBundle.enabled'], commands: ['bugbundle:copy'],
+      permissions: { reads: ['console errors of the page in front and the addresses of its failed requests'], writes: ['the clipboard, when you copy'], sends: [] } },
+    { id: 'response-overrides', title: 'Response overrides and header rules', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.overrides.enabled'], jobs: ['Overrides banner'], commands: ['overrides:open', 'overrides:off'],
+      permissions: { reads: ['requests to the origins you listed'], writes: ['your rules, in the profile folder'], sends: [] } },
+    { id: 'selection-tools', title: 'Selection to my own MCP tools', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.selectionTools', 'vex.selectionTools.enabled'],
+      permissions: { reads: ['the text you select'], writes: ['your pinned tools'], sends: ['The selected words, to the MCP server you pinned, after you confirm the exact request'] } },
+    { id: 'log-tailer', title: 'Serial / QEMU log tailer', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.logTailer.enabled'], jobs: ['Log tailer'], commands: ['logtail:file', 'logtail:socket'],
+      permissions: { reads: ['the one file or local websocket you granted'], writes: [], sends: [] } },
+    { id: 'error-memory', title: 'Error-message memory', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.errorMemory', 'vex.errorMemory.enabled'], jobs: ['Error memory'], commands: ['errormem:forget'],
+      permissions: { reads: ['the words of a search that look like an error, and the address of the page you stay on'], writes: ['the error and the page that fixed it, on this computer'], sends: [] } },
+    { id: 'docs-pin', title: 'Docs version pinning and answer age', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.docsPins', 'vex.docsPins.enabled'],
+      permissions: { reads: ['the address of docs pages and the dates on a Stack Overflow question'], writes: ['the versions you pinned'], sends: [] } },
+    { id: 'pkg-card', title: 'Package page intelligence', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.pkgCard.enabled'],
+      permissions: { reads: ['the package name on an npm, PyPI or crates.io page'], writes: [], sends: ['The package name, to that registry\'s public API'] } },
+    { id: 'code-library', title: 'Code-block library', group: 'Developer bench', maturity: 'new', storageKeys: ['vex.codeLibrary', 'vex.codeLibrary.enabled'], commands: ['codelib:open'],
+      permissions: { reads: ['the code you select or choose on a page, with its address and title'], writes: ['your saved code blocks'], sends: [] } },
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },

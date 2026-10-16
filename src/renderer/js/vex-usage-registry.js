@@ -259,6 +259,14 @@ const VexUsageRegistry = {
       PluginDev: () => (typeof PluginDev !== 'undefined' ? PluginDev : null),
       ElectronTicker: () => (typeof ElectronTicker !== 'undefined' ? ElectronTicker : null),
       SecretGuard: () => (typeof SecretGuard !== 'undefined' ? SecretGuard : null),
+      VexBugBundle: () => (typeof VexBugBundle !== 'undefined' ? VexBugBundle : null),
+      VexOverrides: () => (typeof VexOverrides !== 'undefined' ? VexOverrides : null),
+      VexSelectionTools: () => (typeof VexSelectionTools !== 'undefined' ? VexSelectionTools : null),
+      VexLogTailer: () => (typeof VexLogTailer !== 'undefined' ? VexLogTailer : null),
+      VexErrorMemory: () => (typeof VexErrorMemory !== 'undefined' ? VexErrorMemory : null),
+      VexDocsPin: () => (typeof VexDocsPin !== 'undefined' ? VexDocsPin : null),
+      VexPkgCard: () => (typeof VexPkgCard !== 'undefined' ? VexPkgCard : null),
+      VexCodeLibrary: () => (typeof VexCodeLibrary !== 'undefined' ? VexCodeLibrary : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -380,6 +388,15 @@ const VexUsageRegistry = {
       ['plugin-dev', A.api(G.PluginDev, 'enabled', 'setEnabled')],
       ['electron-ticker', A.api(G.ElectronTicker, 'enabled', 'setEnabled')],
       ['secret-guard', A.api(G.SecretGuard, 'enabled', 'setEnabled')],
+      // Developer bench (js/dev-bench.js and the eight tools it gathers)
+      ['bug-bundle', A.api(G.VexBugBundle, 'enabled', 'setEnabled')],
+      ['response-overrides', A.api(G.VexOverrides, 'enabled', 'setEnabled')],
+      ['selection-tools', A.api(G.VexSelectionTools, 'enabled', 'setEnabled')],
+      ['log-tailer', A.api(G.VexLogTailer, 'enabled', 'setEnabled')],
+      ['error-memory', A.api(G.VexErrorMemory, 'enabled', 'setEnabled')],
+      ['docs-pin', A.api(G.VexDocsPin, 'enabled', 'setEnabled')],
+      ['pkg-card', A.api(G.VexPkgCard, 'enabled', 'setEnabled')],
+      ['code-library', A.api(G.VexCodeLibrary, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
