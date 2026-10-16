@@ -121,9 +121,11 @@ const Bookmarks = {
     const list = container.querySelector('#bm-list');
     const paint = (q) => {
       list._virtualDispose?.();
-      q = (q || '').toLowerCase();
+      // Folded, so "istanbul" finds "İstanbul" (js/vex-tr.js).
+      const tr = globalThis.VexTr || require('./vex-tr.js').VexTr;
+      q = tr.fold(q || '');
       list.innerHTML = '';
-      const items = this.items.filter(b => !q || (b.title + ' ' + b.url + ' ' + b.folder).toLowerCase().includes(q));
+      const items = this.items.filter(b => !q || tr.fold(b.title + ' ' + b.url + ' ' + b.folder).includes(q));
       if (items.length > 150 && window.VexVirtualList) {
         window.VexVirtualList.mount(list, items, item => {
           const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px';

@@ -629,6 +629,12 @@ const PageWatch = {
       document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
       return;
     }
+    // A page on the announcement desk is told by the desk (js/announce-desk.js): once, on its result words.
+    if (watch.source === 'announce-desk' && typeof AnnounceDesk !== 'undefined') {
+      AnnounceDesk.announce(watch, verdict);
+      document.dispatchEvent(new CustomEvent('vex:page-watch', { detail: { watch, verdict } }));
+      return;
+    }
     let what;
     if (watch.kind === 'number' || watch.kind === 'regex') what = `${watch.title} ${verdict.why}`;
     else what = `${watch.title} changed` + (verdict.sentence ? ' — ' + verdict.sentence : '');

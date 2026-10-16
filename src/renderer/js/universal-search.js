@@ -58,7 +58,8 @@ const UniversalSearch = {
   },
 
   _terms(text) {
-    return String(text || '').toLowerCase().split(/\s+/).filter(Boolean);
+    // Folded, so "istanbul" finds "İstanbul" (js/vex-tr.js); score() folds the items the same way.
+    return (globalThis.VexTr || require('./vex-tr.js').VexTr).fold(text).split(/\s+/).filter(Boolean);
   },
 
   // Every term must be found somewhere (AND), so adding a word narrows the
@@ -67,9 +68,10 @@ const UniversalSearch = {
   // → 0 when something is missing.
   score(item, terms, phrase) {
     if (!terms.length) return 0;
-    const title = String(item.title || '').toLowerCase();
-    const sub = String(item.subtitle || '').toLowerCase();
-    const body = String(item.body || '').toLowerCase();
+    const tr = globalThis.VexTr || require('./vex-tr.js').VexTr;
+    const title = tr.fold(item.title);
+    const sub = tr.fold(item.subtitle);
+    const body = tr.fold(item.body);
     let total = 0;
     for (const term of terms) {
       let s = 0;

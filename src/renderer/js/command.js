@@ -21,6 +21,12 @@ function _typedAddress() {
   return (typeof window !== 'undefined' && window.VexTypedAddress) || require('./typed-address.js');
 }
 
+// js/vex-tr.js: loaded before this file in Vex; required in tests. Matching
+// folds case and the Turkish I and accents, so "istanbul" finds "İstanbul".
+function _tr() {
+  return globalThis.VexTr || require('./vex-tr.js').VexTr;
+}
+
 const CommandBar = {
   isOpen: false,
   selectedIndex: 0,
@@ -213,6 +219,7 @@ const CommandBar = {
     { id: 'shortcutsguide', label: 'Shortcuts & Gestures', hint: 'Cheat-sheet of every keyboard shortcut, mouse gesture, and right-click action', icon: 'keyboard', action: async () => { try { await VexLazy.ensure('js/shortcuts-guide.js'); ShortcutsGuide.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'whatsnew', label: "What's New", hint: "Reopen this version's release notes", icon: 'gift', action: () => { try { window.VexWhatsNew?.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'sendphone', label: 'Send to Phone', hint: 'Show a QR code of this page to open it on your phone', icon: 'phone', action: () => { try { if (window.SendToPhone) SendToPhone.open(); } catch (err) { _commandFailed(err); } } },
+    { id: 'tab-search', label: 'Search open tabs', hint: 'A list of every open tab, the one you used last first, narrowed as you type (Ctrl+Alt+Z)', icon: 'tabs', action: () => { try { VexTabSearch.open(); } catch (err) { _commandFailed(err); } } },
     { id: 'pasteandgo', label: 'Paste & Go', hint: 'Open the URL (or search) currently on your clipboard in a new tab', icon: 'clipboard', action: async () => { try { const text = ((await navigator.clipboard.readText()) || '').trim(); if (!text) { window.showToast?.('Clipboard is empty'); return; } TabManager.createTab(_typedAddress().addressFor(text) || _typedAddress().searchUrl(text), true); } catch (err) { window.showToast?.('Could not read the clipboard: ' + ((err && err.message) || err), 'error'); } } },
     { id: 'print', label: 'Print…', hint: 'Print this page, or save it as a PDF', shortcut: 'Ctrl+P', icon: 'file', action: () => WebviewManager.printPage() },
     { id: 'viewsource', label: 'View Page Source', hint: 'Show this page’s HTML in a new tab', shortcut: 'Ctrl+U', icon: 'code', action: () => WebviewManager.viewSource() },
@@ -971,22 +978,23 @@ const CommandBar = {
   _lowered(c) {
     let e = this._loweredCache.get(c);
     if (!e || e.label !== c.label || e.id !== c.id) {
-      const l = c.label.toLowerCase();
-      e = { label: c.label, id: c.id, l, i: c.id.toLowerCase(), words: l.split(/\s+/) };
+      const l = _tr().fold(c.label);
+      e = { label: c.label, id: c.id, l, i: _tr().fold(c.id), words: l.split(/\s+/) };
       this._loweredCache.set(c, e);
     }
     return e;
   },
   _loweredCache: new WeakMap(),
 
-  _scoreCommand(q, c) {
-    if (!q) return 0;
+  _scoreCommand(query, c) {
+    if (!query) return 0;
+    const q = _tr().fold(query);
     const low = this._lowered(c);
     const label = low.l;
     const id = low.i;
     // The hint can be computed (Do That Again): read when a tier needs it.
     let hintText = null;
-    const hint = () => hintText === null ? (hintText = (c.hint || '').toLowerCase()) : hintText;
+    const hint = () => hintText === null ? (hintText = _tr().fold(c.hint || '')) : hintText;
 
     let score = 0;
     if (label.startsWith(q)) score = 100;
@@ -1011,12 +1019,13 @@ const CommandBar = {
   // "bmi" or "subnet" here opens the tool itself instead of hunting for it in
   // the Toolbox window.
   // withScores: [{ r, score }] instead of the results alone.
-  _toolResults(q, withScores) {
-    if (!q || typeof Toolbox === 'undefined') return [];
+  _toolResults(query, withScores) {
+    if (!query || typeof Toolbox === 'undefined') return [];
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
+    const q = _tr().fold(query);
     const scored = [];
     for (const t of Toolbox.all()) {
-      const name = t.name.toLowerCase();
+      const name = _tr().fold(t.name);
       let score = 0;
       if (name.startsWith(q)) score = 92;
       else if (name.split(/\s+/).some(w => w.startsWith(q))) score = 80;
@@ -1039,16 +1048,17 @@ const CommandBar = {
   // Open tabs matching the query, as "switch to tab" results. Titles/URLs are
   // user content so they're escaped (renderResults uses innerHTML). Skips the
   // active tab and start pages.
-  _tabResults(q, skipContent) {
-    if (!q || typeof TabManager === 'undefined') return [];
+  _tabResults(query, skipContent) {
+    if (!query || typeof TabManager === 'undefined') return [];
     const esc = (s) => window.escapeHtml ? window.escapeHtml(String(s || '')) : String(s || '');
     try {
+      const q = _tr().fold(query);
       const scored = [];
       for (const t of (TabManager.tabs || [])) {
         if (t.id === TabManager.activeTabId) continue;
         if (typeof isStartPage === 'function' && isStartPage(t.url)) continue;
-        const title = (t.title || '').toLowerCase();
-        const url = (t.url || '').toLowerCase();
+        const title = _tr().fold(t.title || '');
+        const url = _tr().fold(t.url || '');
         let score = 0;
         if (title.startsWith(q)) score = 95;
         else if (title.includes(q)) score = 75;
@@ -1110,11 +1120,11 @@ const CommandBar = {
   _clipResults(q) {
     if (!q || !window.ClipboardHistory || !window.ClipboardHistory.enabled()) return [];
     try {
-      const needle = q.toLowerCase();
+      const needle = _tr().fold(q);
       const out = [];
       for (const item of window.ClipboardHistory.list()) {
         const text = String(item.text || '');
-        const at = text.toLowerCase().indexOf(needle);
+        const at = _tr().fold(text).indexOf(needle);
         if (at < 0) continue;
         out.push({ score: (at === 0 ? 60 : 45) + (item.pinned ? 5 : 0), r: {
           id: 'clip:' + item.id,

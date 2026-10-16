@@ -226,6 +226,12 @@ const VexUsageRegistry = {
       AwayMode: () => (typeof AwayMode !== 'undefined' ? AwayMode : null),
       AttentionDigest: () => (typeof AttentionDigest !== 'undefined' ? AttentionDigest : null),
       CloseProtect: () => (typeof CloseProtect !== 'undefined' ? CloseProtect : null),
+      VexTabMru: () => (typeof VexTabMru !== 'undefined' ? VexTabMru : null),
+      VexTabSearch: () => (typeof VexTabSearch !== 'undefined' ? VexTabSearch : null),
+      VexNavHistoryMenu: () => (typeof VexNavHistoryMenu !== 'undefined' ? VexNavHistoryMenu : null),
+      VexStripActions: () => (typeof VexStripActions !== 'undefined' ? VexStripActions : null),
+      NightCoach: () => (typeof NightCoach !== 'undefined' ? NightCoach : null),
+      AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -308,6 +314,13 @@ const VexUsageRegistry = {
       ['away-mode', A.api(G.AwayMode, 'enabled', 'setEnabled')],
       ['attention-digest', A.api(G.AttentionDigest, 'enabled', 'setEnabled')],
       ['close-protect', A.api(G.CloseProtect, 'enabled', 'setEnabled')],
+      // Tab tools, the night coach and the announcement desk (Wave 1). Off, each leaves what it kept where it is.
+      ['tab-mru', A.api(G.VexTabMru, 'enabled', 'setEnabled')],
+      ['tab-search', A.api(G.VexTabSearch, 'enabled', 'setEnabled')],
+      ['nav-history-menu', A.api(G.VexNavHistoryMenu, 'enabled', 'setEnabled')],
+      ['strip-actions', A.api(G.VexStripActions, 'enabled', 'setEnabled')],
+      ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
+      ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

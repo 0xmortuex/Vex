@@ -6,6 +6,13 @@
 //
 // Usage:
 //   node scripts/release.js <version> "<title>" [--no-publish] [--dry-run] [--any-version] [--ignore-ci]
+//   node scripts/release.js --prepare ["<title>"] [--write]
+//
+// --prepare is the bookkeeping, worked out and shown (scripts/release-prepare.js):
+// the points, the release-ranks lines for commits that are plainly bookkeeping,
+// the version, the package.json lines and a DRAFT CHANGELOG entry. It prints what
+// it would change and writes nothing; with --write it writes only CHANGELOG.md and
+// release-ranks.txt, uncommitted. It never commits, tags, pushes or publishes.
 //
 // It refuses (exit 1, no file changed) when v<version> is already a GitHub
 // release, when the CHANGELOG heading of a published release was changed, or
@@ -50,6 +57,13 @@ const flags = new Set(args.filter(a => a.startsWith('--')));
 const [version, title] = args.filter(a => !a.startsWith('--'));
 const dry = flags.has('--dry-run');
 
+// --prepare: show the bookkeeping and stop. Before anything below can change a file or reach the network.
+if (flags.has('--prepare')) {
+  let code;
+  try { code = require('./release-prepare.js').main(args); } catch (e) { console.error('release --prepare: ' + e.message); code = 1; }
+  process.exit(code);
+}
+
 function fail(msg) { console.error('release: ' + msg); process.exit(1); }
 function run(cmd, opts) {
   console.log((dry ? '[dry-run] ' : '$ ') + cmd);
@@ -75,6 +89,12 @@ if (!flags.has('--any-version')) {
 //    2.36.1 from matching "## v2.36.10" (same check as write-release-notes.js).
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
 if (!changelog.includes(`## v${version} `)) fail(`CHANGELOG.md has no "## v${version} " entry — write the release notes first`);
+// A draft from --prepare still carries its marker comments: reword them away first.
+{
+  const start = changelog.indexOf(`## v${version} `);
+  const next = changelog.indexOf('\n## v', start + 1);
+  if (changelog.slice(start, next < 0 ? undefined : next).includes('<!-- DRAFT')) fail(`the CHANGELOG entry for v${version} is still a draft (it has "<!-- DRAFT" lines from --prepare): reword each line and delete the comment`);
+}
 
 // 1a. DRM gate, first half: can this machine sign and verify the castLabs VMP
 //     signature at all? Checked before any file changes, so a release that

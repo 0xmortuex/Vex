@@ -322,8 +322,10 @@ const Toolbox = {
   // family.
   _matches(t, q) {
     if (!q) return true;
-    const hay = [t.name, t.desc, t.family, this._familyLabel(t.family), ...(t.keywords || [])].join(' ').toLowerCase();
-    return q.toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w));
+    // Folded, so "istanbul" finds "İstanbul" (js/vex-tr.js).
+    const tr = globalThis.VexTr || require('./vex-tr.js').VexTr;
+    const hay = tr.fold([t.name, t.desc, t.family, this._familyLabel(t.family), ...(t.keywords || [])].join(' '));
+    return tr.fold(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w));
   },
 
   // Launcher: search, family filter, your job's tools first, your links, then

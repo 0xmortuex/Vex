@@ -1316,6 +1316,14 @@ function vexOwnTextFocused(doc) {
   if (typeof VexFirstOpen !== 'undefined') bootStep('first-open', () => VexFirstOpen.init());
   if (typeof VexNextStep !== 'undefined') bootStep('next-step', () => VexNextStep.init());
   if (typeof VexPark !== 'undefined') bootStep('park-resume', () => VexPark.init());
+  // Tab tools (js/tab-mru.js, nav-history-menu.js, strip-actions.js), the night coach and the
+  // announcement desk: each starts on its own, so one that fails leaves the others alone.
+  if (typeof VexTabMru !== 'undefined') bootStep('tab-mru', () => VexTabMru.init());
+  if (typeof VexNavHistoryMenu !== 'undefined') bootStep('nav-history-menu', () => VexNavHistoryMenu.init());
+  if (typeof VexStripActions !== 'undefined') bootStep('strip-actions', () => VexStripActions.init());
+  if (typeof VexTabToolsSettings !== 'undefined') VexTabToolsSettings.init();
+  if (typeof NightCoach !== 'undefined') bootStep('night-coach', () => NightCoach.init());
+  if (typeof AnnounceDesk !== 'undefined') bootStep('announce-desk', () => AnnounceDesk.init());
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a
@@ -1574,8 +1582,10 @@ function vexOwnTextFocused(doc) {
       ?.catch(err => window.showToast?.(String((err && err.message) || err).replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, ''), 'error')));
     ShortcutsRegistry.register('fullscreen',     () => { console.log('[Vex F11] renderer ShortcutsRegistry fullscreen handler fired — calling window.vex.toggleFullscreen()'); window.vex?.toggleFullscreen?.(); });
     ShortcutsRegistry.register('focus-url',      focusAddressBar); // was #url-bar (doesn't exist) → Ctrl+L did nothing
-    ShortcutsRegistry.register('next-tab',       () => cycleTab(1));
-    ShortcutsRegistry.register('prev-tab',       () => cycleTab(-1));
+    // Ctrl+Tab by recency (js/tab-mru.js) steps in the main process and leaves the key-down to reach the
+    // page and this window, so these two stand aside while it owns the key.
+    ShortcutsRegistry.register('next-tab',       () => { if (!(typeof VexTabMru !== 'undefined' && VexTabMru.takes('next-tab'))) cycleTab(1); });
+    ShortcutsRegistry.register('prev-tab',       () => { if (!(typeof VexTabMru !== 'undefined' && VexTabMru.takes('prev-tab'))) cycleTab(-1); });
     // The other keys browsers have for these (F5, Ctrl+F5, Shift+F5, F6,
     // Alt+D, Ctrl+PageUp/PageDown).
     ShortcutsRegistry.register('reload-f5',            () => NavLock.run('reload'));

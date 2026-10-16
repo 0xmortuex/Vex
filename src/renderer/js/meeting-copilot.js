@@ -67,7 +67,19 @@ const MeetingCopilot = {
     if (iso) return this._validIso(iso[1]);
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const w = /(?:@|\b(?:by|due|until|before|on)\s+)(today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.exec(s);
-    if (!w) return '';
+    if (!w) {
+      // A Turkish due date: "son tarih 15.03.2026", "15 Mart'a kadar", "yarına kadar",
+      // "cumaya kadar" (js/vex-tr.js). A day word with Turkish suffixes is read by its stem.
+      const tr = globalThis.VexTr || (typeof require === 'function' ? require('./vex-tr.js').VexTr : null);
+      if (!tr) return '';
+      const m = /(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-zÇĞİÖŞÜçğıöşü]{3,9}(?:\s+\d{4})?|yarın|yarin|bugün|bugun|pazartesi|salı|sali|çarşamba|carsamba|perşembe|persembe|cuma|cumartesi|pazar)(?:['’]?\w{0,3})?\s+(?:kadar|günü|gunu|itibarıyla|itibariyla)\b|(?:son tarih|teslim)[:\s]+(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-zÇĞİÖŞÜçğıöşü]{3,9}(?:\s+\d{4})?)/iu.exec(s);
+      if (!m) return '';
+      let day = null;
+      // An impossible date in the words ("31 Şubat'a kadar") is no due date: none is set.
+      try { day = tr.parseDay((m[1] || m[2]).replace(/\s+/g, ' '), now); }
+      catch { /* vex-allow-empty-catch: the text named a day that does not exist, so it names no due date */ return ''; }
+      return day ? this._iso(day.date) : '';
+    }
     const v = w[1].toLowerCase();
     if (v === 'today') return this._iso(day);
     if (v === 'tomorrow') { day.setDate(day.getDate() + 1); return this._iso(day); }

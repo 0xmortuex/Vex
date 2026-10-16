@@ -65,6 +65,23 @@ const VexSnooze = {
       return done(new Date(now + n * unit));
     }
 
+    // Turkish: "yarın sabah", "yarın 14:30", "bu akşam", "hafta sonu", "haftaya", "cuma 17:00",
+    // "15 Mart" (js/vex-tr.js), before the clock below would take "14:30" for today.
+    // Text that is not Turkish is not understood here, as before.
+    const tr = globalThis.VexTr || (typeof require === 'function' ? require('./vex-tr.js').VexTr : null);
+    if (tr) {
+      const f = tr.fold(s);
+      if (/^(bu )?aksam$/.test(f)) return done(this._nextClock(now, 19));
+      if (/^(bu )?(ogleden sonra)$/.test(f)) return done(this._nextClock(now, 14));
+      if (/^hafta sonu$/.test(f)) return done(this._nextWeekday(now, 6, 10));
+      if (/^haftaya$/.test(f)) return done(this._nextWeekday(now, 1, 9));
+      let when = null;
+      // An impossible date ("31 Şubat") is not understood: null, like any text that is not a time.
+      try { when = tr.parseWhen(String(text), new Date(now), 9); }
+      catch { /* vex-allow-empty-catch: the text named a day that does not exist, so it is not understood */ return null; }
+      if (when) return done(when);
+    }
+
     // An explicit clock time: "at 5pm", "8:30", "tomorrow at 8am".
     const clock = /(?:^|\s)(?:at )?(\d{1,2})(?::(\d{2}))? ?(am|pm)?$/.exec(s);
     const hasDayWord = /\b(tomorrow|today|tonight)\b/.test(s);
@@ -92,6 +109,7 @@ const VexSnooze = {
     }
     m = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/.exec(s);
     if (m) return done(this._nextWeekday(now, this._DAYS[m[1]], partHour == null ? 9 : partHour));
+
     return null;
   },
 
