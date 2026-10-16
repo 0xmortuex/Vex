@@ -15,7 +15,10 @@ const MODULES = [
   'link-triage.js', 'listen-reader.js', 'one-box.js', 'workspace-metrics.js', 'vex-expression.js',
   'vex-fortune.js', 'fun/fun-core.js', 'vex-fun.js', 'living-core.js',
   'distraction-budget.js', 'smart-bookmarks.js', 'search-again.js', 'command-aliases.js',
-  'meeting-prep.js', 'routine-detect.js', 'tab-cleanup.js', 'vex-usage-registry.js',
+  'meeting-prep.js', 'routine-detect.js', 'tab-cleanup.js',
+  // The attention work: the master level, the inbox and the New Tab grid are features too.
+  'vex-defaults.js', 'attention-state.js', 'attention-inbox.js', 'vex-playfulness.js', 'newtab-slots.js',
+  'vex-usage-registry.js',
 ];
 
 let ids;
@@ -42,7 +45,7 @@ describe('feature registry', () => {
     ids = VexUsageRegistry.register();
     expect(ids.length).toBeGreaterThan(20);
     for (const f of VexUsage.features()) expect(typeof f.isEnabled, f.id).toBe('function');
-    for (const must of ['brief-mail-triage', 'delight-mood-themes', 'workflow-ask-tabs', 'citations', 'listen-reader', 'play-tetris', 'distraction-budget']) {
+    for (const must of ['brief-mail-triage', 'delight-mood-themes', 'workflow-ask-tabs', 'citations', 'listen-reader', 'play-tetris', 'distraction-budget', 'playfulness', 'attention-inbox', 'newtab-slots']) {
       expect(ids, must).toContain(must);
     }
   });

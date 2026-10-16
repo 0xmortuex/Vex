@@ -145,6 +145,9 @@ const VexUsageRegistry = {
       MeetingPrep: () => (typeof MeetingPrep !== 'undefined' ? MeetingPrep : null),
       RoutineDetect: () => (typeof RoutineDetect !== 'undefined' ? RoutineDetect : null),
       TabCleanup: () => (typeof TabCleanup !== 'undefined' ? TabCleanup : null),
+      VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
+      AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      NewTabSlots: () => (typeof NewTabSlots !== 'undefined' ? NewTabSlots : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -200,6 +203,10 @@ const VexUsageRegistry = {
       ['meeting-prep', 'Meeting prep', 'Meeting prep', A.mode(G.MeetingPrep, 'mode', 'setMode', 'off', 'ask')],
       ['routine-detect', 'Routine detection', 'Routine', A.mode(G.RoutineDetect, 'mode', 'setMode', 'off', 'on')],
       ['tab-cleanup', 'Evening tab cleanup', 'Tab cleanup', A.mode(G.TabCleanup, 'mode', 'setMode', 'off', 'ask')],
+      // Attention (js/vex-playfulness.js, js/attention-inbox.js, js/newtab-slots.js)
+      ['playfulness', 'Playfulness', 'Playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
+      ['attention-inbox', 'Attention Inbox', 'Attention', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      ['newtab-slots', 'Calm New Tab layout', 'New Tab layout', A.api(G.NewTabSlots, 'enabled', 'setEnabled')],
     ];
   },
 
