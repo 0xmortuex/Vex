@@ -37,7 +37,7 @@ const VexSelectionTools = {
     const list = this._strict();
     if (list.length >= this.MAX_PINNED) throw new Error('Five tools are pinned already; remove one first');
     if (!serverId || !tool || !arg) throw new Error('Choose a server, a tool and the argument that receives the selection');
-    const entry = { id: 'st' + Date.now().toString(36), serverId, tool, arg, label: String(label || tool).slice(0, 40) };
+    const entry = { id: vexId('st'), serverId, tool, arg, label: String(label || tool).slice(0, 40) };
     list.push(entry);
     this._save(list);
     return entry;

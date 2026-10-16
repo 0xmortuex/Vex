@@ -124,7 +124,7 @@ const VexI18nUI = {
       // The chips that stayed English, and every section heading (a heading
       // holds the section's mark, so only its text node is translated).
       'Profiles': 'Profiller', 'Data': 'Veriler', 'Permissions': 'İzinler',
-      'Boosts': 'Güçlendirmeler', 'Chains': 'Zincirler', 'Extras': 'Ekstralar', 'Play': 'Oyun',
+      'Boosts': 'Güçlendirmeler', 'Developer': 'Geliştirici', 'Chains': 'Zincirler', 'Extras': 'Ekstralar', 'Play': 'Oyun',
       // Chips added with the 2026-10 features.
       'Focus OS': 'Odak planı', 'Knowledge': 'Bilgi', 'Vex health': 'Vex sağlığı',
       'Health check': 'Sağlık denetimi', 'Minimal Vex': 'Sade Vex', 'Feature usage': 'Özellik kullanımı',

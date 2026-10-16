@@ -51,6 +51,19 @@ function stripLineComments(src) {
 // future listeners, or a hook another builder is expected to consume; none has
 // a listener today. Remove an entry when it gets one.
 const EVENTS_DISPATCHED_NEVER_USED = new Map([
+  ['vex:actions-board', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:courses-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:ci-failure', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:endpoint-health', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:dep-radar', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:deploy-desk', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:electron-ticker', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:exams-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:exam-mode', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:form-rescue-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:game-warmdown', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:github-vault', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
+  ['vex:study-block', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:agent-kill', 'agent run cancelled: dispatched for extension points'],
   ['vex:autopilot-done', 'telemetry hook'],
   ['vex:brief-changed', 'state-changed notification, no consumer yet'],
@@ -63,7 +76,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:levels-changed', 'state-changed notification, no consumer yet'],
   ['vex:offline-pages-changed', 'state-changed notification, no consumer yet'],
   ['vex:patch-radar', 'state-changed notification, no consumer yet'],
-  ['vex:space-changed', 'state-changed notification, no consumer yet'],
   ['vex:routine-suggested', 'state-changed notification, no consumer yet'],
   ['vex:panel-keepawake', 'state-changed notification, no consumer yet'],
   ['vex:skin-changed', 'state-changed notification, no consumer yet'],

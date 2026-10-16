@@ -168,7 +168,7 @@ describe('which windows hear of a download', () => {
 
   it('main leaves private windows out when asked to', () => {
     const MAIN = require('fs').readFileSync(require('path').join(__dirname, '../../src/main.js'), 'utf8');
-    const fn = MAIN.slice(MAIN.indexOf('function _broadcastDownloadEvent('), MAIN.indexOf('function _broadcastDownloadEvent(') + 400);
+    const fn = MAIN.slice(MAIN.indexOf('function _broadcastDownloadEvent('), MAIN.indexOf('function _broadcastDownloadEvent(') + 900);
     expect(fn).toContain('if (skipPrivate && secureSessions.owner(w.webContents)?.privatePartition) return;');
   });
 });

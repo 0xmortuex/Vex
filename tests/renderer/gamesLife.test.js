@@ -275,7 +275,7 @@ describe('Break prompts (T2-036)', () => {
     B.setEnabled(true);
     globalThis.GameSession = { active: true };
     const prompt = vi.spyOn(B, 'prompt').mockImplementation(() => {});
-    B._activeMs = 25 * 60000; B._lastInput = 1; B._lastTick = 1_000_000 - 15000;
+    B._activeMs = 25 * 60000; B._lastInput = 1_000_000 - 1000; B._lastTick = 1_000_000 - 15000;
     expect(B.tick(1_000_000)).toBe('held:Game mode');
     expect(prompt).not.toHaveBeenCalled();
     delete globalThis.GameSession;
@@ -283,6 +283,7 @@ describe('Break prompts (T2-036)', () => {
     expect(B.heldBecause()).toBe('an exam day');
   });
   it('counts what happened to a card', () => {
+    globalThis.VexSettingsGroups = { button: (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', fn); return b; } };
     const card = B.showCard('eye', 'x');
     card.querySelectorAll('button')[0].click();
     expect(B.today().taken).toBe(1);
@@ -353,7 +354,7 @@ describe('Exam calendar (T2-085)', () => {
     const r = await ExamCalendar.add({ title: 'YKS application', kind: 'application', body: 'osym', day: '2027-02-02', endDay: '2027-02-08' }, { now });
     expect(r.failed).toEqual([]);
     // opens: 7 days (passed), 1 day (Feb 1), today (Feb 2); closes: 7 days (Feb 1), 1 day (Feb 7), today (Feb 8)
-    expect(globalThis.reminders).toHaveLength(6);
+    expect(globalThis.reminders).toHaveLength(5);   // two for the opening (the 7-day one is past), three for the closing
     expect(globalThis.reminders[0].message).toMatch(/Check the official site \(OSYM\)/);
   });
   it('import asks first, skips what is already there, and never fetches', async () => {

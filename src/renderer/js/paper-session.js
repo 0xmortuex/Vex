@@ -96,7 +96,7 @@ const VexPaperSession = {
     if (plannedMin != null && plannedMin !== '' && !(Number.isFinite(planned) && planned >= 1 && planned <= 600)) throw new Error('Length is 1 to 600 minutes');
     const tm = totalMarks == null || totalMarks === '' ? null : Number(totalMarks);
     if (tm != null && !(Number.isFinite(tm) && tm > 0 && tm <= 10000)) throw new Error('Total marks must be a positive number');
-    d.running = { id: 'ps' + Date.now().toString(36), course: String(course || '').trim().slice(0, 80), paper: String(paper || 'Past paper').trim().slice(0, 100), startedAt: Date.now(), pausedMs: 0, plannedMin: Number.isFinite(planned) && planned > 0 ? planned : null, totalMarks: tm, questions: [] };
+    d.running = { id: vexId('ps'), course: String(course || '').trim().slice(0, 80), paper: String(paper || 'Past paper').trim().slice(0, 100), startedAt: Date.now(), pausedMs: 0, plannedMin: Number.isFinite(planned) && planned > 0 ? planned : null, totalMarks: tm, questions: [] };
     this._write(d);
     return d.running;
   },

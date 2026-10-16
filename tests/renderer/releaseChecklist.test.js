@@ -99,7 +99,7 @@ describe('ticks', () => {
     expect(Object.keys(V.ticked('1.0.0')).sort()).toEqual(['a', 'b']);
     V.setTick('1.0.0', 'a', false);
     expect(Object.keys(V.ticked('1.0.0'))).toEqual(['b']);
-    expect(V.progress('1.0.0', [{ id: 'a' }, { id: 'b' }])).toEqual({ done: 1, total: 2 });
+    expect(V.progress('1.0.0', [{ id: 'a' }, { id: 'b' }])).toEqual({ done: 1, total: 2, auto: 0 });
   });
   it('keep only the five newest versions', () => {
     for (const v of ['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4', '1.0.5']) V.setTick(v, 'x', true);

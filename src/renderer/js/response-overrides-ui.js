@@ -138,7 +138,7 @@ const VexOverrides = {
     if (origin == null) return;
     const pattern = await vexPrompt({ title: 'Address pattern', message: 'Which requests. * matches anything, for example http://localhost:3000/api/*', label: 'Pattern', value: origin.replace(/\/$/, '') + '/*' });
     if (pattern == null) return;
-    const rule = { id: 'r' + Date.now().toString(36), kind, origin: origin.trim(), pattern: pattern.trim() };
+    const rule = { id: vexId('r'), kind, origin: origin.trim(), pattern: pattern.trim() };
     if (kind === 'body') {
       rule.contentType = (await vexPrompt({ title: 'Content type', label: 'Content type', value: 'application/json' })) || 'application/json';
       const useFile = await vexConfirm({ title: 'Answer with a file?', message: 'Choose a file from your computer, or cancel to type the text instead.', okLabel: 'Choose a file', cancelLabel: 'Type text' });

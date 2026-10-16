@@ -114,7 +114,7 @@ describe('main.js', () => {
   });
 
   it('the DevTools keys and buttons do nothing while locked', () => {
-    expect(block('function handleWindowKeys(')).toMatch(/event\.preventDefault\(\);\s+\/\/ No DevTools while Vex is locked[^\n]*\s+if \(_vexLocked\) return true;/);
+    expect(block('function handleWindowKeys(', 2500)).toMatch(/event\.preventDefault\(\);\s+\/\/ No DevTools while Vex is locked[^\n]*\s+if \(_vexLocked\) return true;/);
     expect(block('function handleDevToolsShortcut(')).toContain('if (_vexLocked) return true;');
     for (const ch of ['devtools:toggle-host', 'devtools:toggle-webview', 'devtools:open-for-webcontents']) {
       expect(block("ipcMain.handle('" + ch + "'", 200)).toContain("if (_vexLocked) return { ok: false, error: 'Vex is locked' };");

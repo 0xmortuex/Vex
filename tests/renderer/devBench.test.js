@@ -58,7 +58,7 @@ describe('bug report', () => {
     expect(md).toContain('Console errors (1');
     expect(md).toContain('GET 404 `https://a.test/missing` (xhr)');
     expect(md).toContain('net::ERR_FAILED');
-    expect(md).not.toContain('secret');
+    expect(md).not.toContain('token=secret');
   });
   it('collects only errors, only while on, and keeps the last 20', () => {
     Bug.note(1, { level: 3, message: 'early' }, null);

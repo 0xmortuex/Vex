@@ -64,7 +64,7 @@ describe('cookies removed while Vex runs', () => {
   it('refuses an action it does not know', () => {
     const { sw } = make();
     expect(() => sw.noteAction('wipe-everything')).toThrow(/Not a known clearing action/);
-    expect(Object.keys(VEX_ACTIONS).length).toBe(4);
+    expect(Object.keys(VEX_ACTIONS).length).toBe(5);
   });
 });
 

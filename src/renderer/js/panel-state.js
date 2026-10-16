@@ -183,7 +183,7 @@ const PanelState = {
     const st = document.createElement('style');
     st.id = 'panel-state-style';
     st.textContent = `
-      .sidebar-icon > .icon-badge.ps-play { position:absolute; bottom:1px; right:1px; width:14px; height:14px; border-radius:50%; background:var(--primary, #4f8cff); color:#fff; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+      .sidebar-icon > .icon-badge.ps-play { position:absolute; bottom:1px; right:1px; width:14px; height:14px; border-radius:50%; background:var(--primary, #4f8cff); color:var(--on-primary, #fff); display:flex; align-items:center; justify-content:center; pointer-events:none; }
       #panel-state-strip { position:fixed; left:12px; bottom:10px; z-index:900; display:flex; flex-wrap:wrap; gap:6px; max-width:min(70vw,720px); pointer-events:none; }
       #panel-state-strip button { pointer-events:auto; font-size:11.5px; color:var(--text); background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:3px 10px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.18); }
       #panel-state-strip button:hover { border-color:var(--primary, #4f8cff); }

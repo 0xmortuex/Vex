@@ -12,7 +12,7 @@ describe('colour', () => {
   it('reads theme blocks and flags a pair under 4.5', () => {
     const css = ':root { --vex-text-primary: #111; --vex-bg-base: #fff; }\n[data-theme="dim"] { --vex-text-primary: #888; --vex-bg-base: #999999; --vex-text-muted: #777; --vex-bg-deep: #fff; }';
     const found = G.contrastFindings(G.themeTokens([css]));
-    expect(found.map(f => f.key)).toEqual(['dim|text-primary|bg-base', 'dim|text-muted|bg-deep']);
+    expect(found.map(f => f.key)).toEqual(['dim|text-primary|bg-base', 'dim|text-primary|bg-deep', 'dim|text-muted|bg-base', 'dim|text-muted|bg-deep']);
   });
   it('a listed pair may not get worse and an unlisted one may not fail', () => {
     const found = [{ key: 'a|text-muted|bg-base', theme: 'a', fg: 'text-muted', bg: 'bg-base', ratio: 3.9, min: 4.5 }];

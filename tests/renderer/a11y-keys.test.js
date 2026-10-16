@@ -88,9 +88,9 @@ describe('the tab strip as a tablist', () => {
     await Promise.resolve();
     expect(document.activeElement.dataset.tabId).toBe('a');
 
-    globalThis.TabManager = { closeTab: vi.fn() };
+    globalThis.TabManager = { requestClose: vi.fn() };
     press(document.activeElement, 'Delete');
-    expect(globalThis.TabManager.closeTab).toHaveBeenCalledWith('a');
+    expect(globalThis.TabManager.requestClose).toHaveBeenCalledWith('a');
   });
 });
 
@@ -171,9 +171,9 @@ describe('the side tabs as vertical tablists', () => {
     press(tab('y'), 'F10', { shiftKey: true });
     press(tab('y'), 'ContextMenu');
     expect(menu).toHaveBeenCalledTimes(2);
-    globalThis.TabManager = { tabs: [], closeTab: vi.fn() };
+    globalThis.TabManager = { tabs: [], requestClose: vi.fn() };
     press(tab('y'), 'Delete');
-    expect(globalThis.TabManager.closeTab).toHaveBeenCalledWith('y');
+    expect(globalThis.TabManager.requestClose).toHaveBeenCalledWith('y');
   });
 
   it('keeps focus on the same tab when the list is rebuilt under it', async () => {

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 globalThis.vexId = (p) => p + Math.random().toString(36).slice(2, 8);
+window.escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const { VexSkills: S } = require('../../src/renderer/js/skills.js');
 
 beforeEach(() => {

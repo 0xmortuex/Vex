@@ -128,7 +128,7 @@ const GameChecklist = {
       #game-checklist .gc-check { color:var(--text-muted); font-size:11.5px; padding:2px 0; }
       #game-checklist .gc-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
       #game-checklist button { font-size:12px; color:var(--text); background:none; border:1px solid var(--border); border-radius:6px; padding:4px 10px; cursor:pointer; }
-      #game-checklist button.gc-primary { background:var(--primary, #4f8cff); color:#fff; border-color:transparent; }
+      #game-checklist button.gc-primary { background:var(--primary, #4f8cff); color:var(--on-primary, #fff); border-color:transparent; }
     `;
     document.head.appendChild(st);
   },

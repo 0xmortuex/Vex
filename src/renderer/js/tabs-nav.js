@@ -277,7 +277,7 @@
     let u;
     try { u = new URL(String(url)); } catch { return null; }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    if (u.search || u.hash) { u.search = ''; u.hash = ''; if (u.pathname !== '/') return u.href; }
+    if (u.search || u.hash) { u.search = ''; u.hash = ''; return u.href; }
     const parts = u.pathname.split('/').filter(Boolean);
     if (!parts.length) return null;
     parts.pop();
@@ -373,7 +373,7 @@
   let onTopState = { wanted: false, active: false, held: false };
   const isPrivateWindow = () => typeof VexTabPolicy !== 'undefined' && !!VexTabPolicy.isPrivateWindow;
   async function syncOnTop() {
-    if (isPrivateWindow() || !window.vex || typeof window.vex.keepWindowOnTop !== 'function') return onTopState;
+    if (typeof window === 'undefined' || isPrivateWindow() || !window.vex || typeof window.vex.keepWindowOnTop !== 'function') return onTopState;
     const want = enabled() && prefs().keepOnTop === true;
     if (!want && !onTopState.wanted) return onTopState;
     onTopState = await window.vex.keepWindowOnTop(want);

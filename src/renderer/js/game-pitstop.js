@@ -169,7 +169,7 @@ const GamePitstop = {
       #game-pitstop .gp-digest div { padding:2px 0; }
       #game-pitstop .gp-btns { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
       #game-pitstop button { font-size:12px; color:var(--text); background:none; border:1px solid var(--border); border-radius:6px; padding:4px 10px; cursor:pointer; }
-      #game-pitstop button.gp-primary { background:var(--primary, #4f8cff); color:#fff; border-color:transparent; }
+      #game-pitstop button.gp-primary { background:var(--primary, #4f8cff); color:var(--on-primary, #fff); border-color:transparent; }
     `;
     document.head.appendChild(st);
   },

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // T2-006: the strict study block with a cooldown (js/study-block.js).
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
 let S;
+afterEach(() => { delete globalThis.VexSettingsGroups; });
 beforeEach(() => {
   localStorage.clear();
   document.body.innerHTML = '';

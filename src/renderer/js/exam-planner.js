@@ -94,7 +94,7 @@ const VexExamPlanner = {
   // Exams in the shape of the due-ness list ({id,kind,text,at,hasTime}); read-only, for the Due list
   // and the brief. kind 'event' so the ranking treats it as a calendar entry.
   dueItems(now = Date.now()) {
-    return this._read().filter(e => e.date >= now - 3600e3).map(e => ({ id: 'exam:' + e.id, kind: 'event', text: (e.course ? e.course + ': ' : '') + e.title, at: e.date, hasTime: !!e.hasTime }));
+    return this.list().filter(e => e.date >= now - 3600e3).map(e => ({ id: 'exam:' + e.id, kind: 'event', text: (e.course ? e.course + ': ' : '') + e.title, at: e.date, hasTime: !!e.hasTime }));
   },
   briefLine(now = Date.now()) {
     const next = this.list().find(e => e.date >= now - 3600e3);

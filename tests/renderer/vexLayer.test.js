@@ -7,6 +7,8 @@ const JS = '../../src/renderer/js/';
 let L;
 beforeEach(() => {
   document.body.innerHTML = '';
+  // jsdom has no layout, so no hit testing: with nothing laid out the page answers with its body.
+  document.elementFromPoint = () => document.body;
   vi.resetModules();
   delete require.cache[require.resolve(JS + 'vex-layer.js')];
   L = require(JS + 'vex-layer.js').VexLayer;

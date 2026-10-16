@@ -78,7 +78,7 @@ const VexSkills = {
   // ======================================================================================
   OUTPUTS: ['text', 'checklist', 'table', 'note', 'reminder'],
   OUTPUT_LABEL: { text: 'Text in the chat', checklist: 'Checklist', table: 'Table', note: 'A note', reminder: 'A reminder' },
-  VAR_RE: /\{\{\s*([a-z]+)(?::([^{}]{1,80}))?\s*\}\}/gi,
+  VAR_RE: /\{\{\s*([a-z]+)(?::([^{}]{0,80}))?\s*\}\}/gi,
   VARS: ['selection', 'url', 'title', 'host', 'date', 'time', 'ask'],
   MAX_VERSIONS: 10,
 
