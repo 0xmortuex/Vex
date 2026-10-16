@@ -103,7 +103,6 @@
     "src/renderer/js/agent-task-panel.js": 2,
     "src/renderer/js/agent-task-runner.js": 2,
     "src/renderer/js/agent-tools.js": 3,
-    "src/renderer/js/ai-memory.js": 2,
     "src/renderer/js/ai-news-ui.js": 1,
     "src/renderer/js/ai-news.js": 1,
     "src/renderer/js/ai-panel.js": 8,
