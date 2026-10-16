@@ -1,0 +1,326 @@
+{
+  "format": "vex-pack",
+  "version": 1,
+  "id": "vex-builtin.tr-holidays",
+  "name": "Turkish public holidays 2026-2028",
+  "author": "Vex",
+  "description": "The fixed national holidays and the bayram days for 2026, 2027 and 2028. The bayram dates are marked \"verify with Diyanet\": they follow the religious calendar, and the official announcement is what counts. Government \"bridge\" extensions are decided each year and are not listed.",
+  "items": [
+    {
+      "type": "dates",
+      "id": "tr-public",
+      "name": "Public holidays",
+      "region": "TR",
+      "entries": [
+        {
+          "date": "2026-01-01",
+          "name": "Yılbaşı (New Year's Day)",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-03-19",
+          "name": "Ramazan Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2026-03-20",
+          "name": "Ramazan Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-03-21",
+          "name": "Ramazan Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-03-22",
+          "name": "Ramazan Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-04-23",
+          "name": "Ulusal Egemenlik ve Çocuk Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-05-01",
+          "name": "Emek ve Dayanışma Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-05-19",
+          "name": "Atatürk'ü Anma, Gençlik ve Spor Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-05-26",
+          "name": "Kurban Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2026-05-27",
+          "name": "Kurban Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-05-28",
+          "name": "Kurban Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-05-29",
+          "name": "Kurban Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-05-30",
+          "name": "Kurban Bayramı, day 4",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2026-07-15",
+          "name": "Demokrasi ve Millî Birlik Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-08-30",
+          "name": "Zafer Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2026-10-28",
+          "name": "Cumhuriyet Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": false
+        },
+        {
+          "date": "2026-10-29",
+          "name": "Cumhuriyet Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-01-01",
+          "name": "Yılbaşı (New Year's Day)",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-03-08",
+          "name": "Ramazan Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2027-03-09",
+          "name": "Ramazan Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-03-10",
+          "name": "Ramazan Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-03-11",
+          "name": "Ramazan Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-04-23",
+          "name": "Ulusal Egemenlik ve Çocuk Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-05-01",
+          "name": "Emek ve Dayanışma Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-05-16",
+          "name": "Kurban Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2027-05-17",
+          "name": "Kurban Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-05-18",
+          "name": "Kurban Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-05-19",
+          "name": "Atatürk'ü Anma, Gençlik ve Spor Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-05-19",
+          "name": "Kurban Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-05-20",
+          "name": "Kurban Bayramı, day 4",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2027-07-15",
+          "name": "Demokrasi ve Millî Birlik Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-08-30",
+          "name": "Zafer Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2027-10-28",
+          "name": "Cumhuriyet Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": false
+        },
+        {
+          "date": "2027-10-29",
+          "name": "Cumhuriyet Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-01-01",
+          "name": "Yılbaşı (New Year's Day)",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-02-25",
+          "name": "Ramazan Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2028-02-26",
+          "name": "Ramazan Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-02-27",
+          "name": "Ramazan Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-02-28",
+          "name": "Ramazan Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-04-23",
+          "name": "Ulusal Egemenlik ve Çocuk Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-05-01",
+          "name": "Emek ve Dayanışma Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-05-04",
+          "name": "Kurban Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": true
+        },
+        {
+          "date": "2028-05-05",
+          "name": "Kurban Bayramı, day 1",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-05-06",
+          "name": "Kurban Bayramı, day 2",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-05-07",
+          "name": "Kurban Bayramı, day 3",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-05-08",
+          "name": "Kurban Bayramı, day 4",
+          "kind": "religious",
+          "verify": true
+        },
+        {
+          "date": "2028-05-19",
+          "name": "Atatürk'ü Anma, Gençlik ve Spor Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-07-15",
+          "name": "Demokrasi ve Millî Birlik Günü",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-08-30",
+          "name": "Zafer Bayramı",
+          "kind": "fixed",
+          "verify": false
+        },
+        {
+          "date": "2028-10-28",
+          "name": "Cumhuriyet Bayramı arifesi (afternoon off)",
+          "kind": "half-day",
+          "verify": false
+        },
+        {
+          "date": "2028-10-29",
+          "name": "Cumhuriyet Bayramı",
+          "kind": "fixed",
+          "verify": false
+        }
+      ]
+    }
+  ],
+  "permissions": [],
+  "hash": "d34b0df9c0f14de7c6ff0deabaeeef1093d7150c3f14839f9dd455682ca99664"
+}

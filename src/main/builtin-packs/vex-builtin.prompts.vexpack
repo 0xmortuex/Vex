@@ -1,0 +1,104 @@
+{
+  "format": "vex-pack",
+  "version": 1,
+  "id": "vex-builtin.prompts",
+  "name": "Prompt library",
+  "author": "Vex",
+  "description": "Ready-made AI skills: prompts that read the page you are on. They are only text; nothing is sent until you run one. Copy the ones you want into your AI Skills, where you can edit them (Vex keeps their history and shows the changes).",
+  "items": [
+    {
+      "type": "skills",
+      "id": "study-notes",
+      "name": "Study notes from this page",
+      "icon": "book-open",
+      "prompt": "Turn this page into study notes: a title, the 5 ideas that matter most, one sentence on why each matters, and 3 questions I should be able to answer afterwards. Use only what the page says.",
+      "output": "note",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "quiz-me",
+      "name": "Quiz me on this page",
+      "icon": "brain",
+      "prompt": "Write 5 questions that test whether I understood this page. Put each answer on the line below its question, after the word \"Answer:\". Do not ask about details the page does not contain.",
+      "output": "text",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "claims-check",
+      "name": "List the claims and what would settle them",
+      "icon": "search",
+      "prompt": "List every factual claim on this page. For each one, say what kind of source would settle it (a statistic, a primary document, a study). Do not say whether a claim is true unless the page itself gives evidence.",
+      "output": "table",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "plain-selection",
+      "name": "Say my selection in plain words",
+      "icon": "type",
+      "prompt": "Rewrite this in plain, short sentences without losing any meaning:\n\n{{selection}}",
+      "output": "text",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "translate-selection",
+      "name": "Translate my selection",
+      "icon": "message",
+      "prompt": "Translate this into {{ask:Which language?}}. Keep names, numbers and formatting. If a phrase has no direct equivalent, give the closest and add a short note in brackets.\n\n{{selection}}",
+      "output": "text",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "reply-short",
+      "name": "Reply to this, saying what I want",
+      "icon": "edit",
+      "prompt": "Draft a short, polite reply to the message or thread on this page. What I want to say: {{ask:What do you want to say?}}. Match the language and tone of the thread. Give me only the reply text.",
+      "output": "text",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "action-items",
+      "name": "Action items with owners and dates",
+      "icon": "check",
+      "prompt": "Extract every action item from this page as a checklist. For each, name who is responsible and any date, if the page gives them. If the page names neither, leave that part out; do not guess.",
+      "output": "checklist",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "bug-report",
+      "name": "Write a bug report from this page",
+      "icon": "code",
+      "prompt": "Write a bug report from what is on this page ({{url}}). Sections: Summary, Steps to reproduce, Expected result, Actual result, and What I do not know yet. Do not invent steps that the page does not show.",
+      "output": "note",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "earliest-deadline",
+      "name": "Remind me of the earliest deadline here",
+      "icon": "flag",
+      "prompt": "Find the earliest upcoming deadline or closing date on this page. The reminder message should say what it is for, in one line.",
+      "output": "reminder",
+      "sites": []
+    },
+    {
+      "type": "skills",
+      "id": "pr-summary",
+      "name": "Summarise this pull request",
+      "icon": "list",
+      "prompt": "Summarise this pull request in 5 bullets: what changes, why, what is risky, what is untested, and what a reviewer should look at first. Use only what the page shows.",
+      "output": "text",
+      "sites": [
+        "github.com"
+      ]
+    }
+  ],
+  "permissions": [],
+  "hash": "145842eda09e78bbd0881aab9ea35d2437d44a1aa217bfb698d4991a9e312fdf"
+}

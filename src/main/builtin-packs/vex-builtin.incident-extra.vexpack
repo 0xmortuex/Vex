@@ -1,0 +1,248 @@
+{
+  "format": "vex-pack",
+  "version": 1,
+  "id": "vex-builtin.incident-extra",
+  "name": "More \"something went wrong\" checklists",
+  "author": "Vex",
+  "description": "Four more checklists for the Something Went Wrong screen: a taken-over Roblox account, a stolen Discord login, a lost phone, and money or a code sent to a scammer. Each says when it was last checked. Anything about Windows or another company is a step you do yourself.",
+  "items": [
+    {
+      "type": "playbook",
+      "id": "roblox-taken-over",
+      "title": "My Roblox account was taken over",
+      "sub": "Items gone, a changed email, or strangers in your friends list. Go in order; tick each step when you have done it.",
+      "verified": "2026-10-16",
+      "steps": [
+        {
+          "id": "site",
+          "title": "Clear Roblox in Vex and open its sign-out page",
+          "text": "Pick roblox.com. Vex removes its cookies and stored data in every container, then opens the page where the site lets you sign out of other sessions.",
+          "run": "kill"
+        },
+        {
+          "id": "email",
+          "title": "Take back the email first",
+          "text": "If the email on the account was changed, use the old address to follow the \"this was not me\" link Roblox sent, or contact Roblox Support from its official site. Change the password of that mailbox before anything else.",
+          "run": ""
+        },
+        {
+          "id": "password",
+          "title": "Change the Roblox password",
+          "text": "Choose a long password that you have never used anywhere else. The saved logins list shows where you reused one.",
+          "run": "logins"
+        },
+        {
+          "id": "2step",
+          "title": "Turn on two-step verification",
+          "text": "In Roblox Settings, Security, turn on two-step verification with an authenticator app, not only email.",
+          "run": ""
+        },
+        {
+          "id": "sessions",
+          "title": "Sign out of every other session",
+          "text": "In Roblox Settings, Security, sign out of all other sessions. Remove any connected app you do not remember.",
+          "run": ""
+        },
+        {
+          "id": "purchases",
+          "title": "Look at what was bought or traded",
+          "text": "Check the transaction and trade history. Report anything you did not do to Roblox Support from its official site, with the dates.",
+          "run": ""
+        },
+        {
+          "id": "files",
+          "title": "Think about where it started",
+          "text": "Takeovers often start from a \"free Robux\" page, a cheat or an executor, or a file from a stranger. Look at your downloads folder for names you do not recognise.",
+          "run": "downloads"
+        },
+        {
+          "id": "extensions",
+          "title": "Check your browser extensions",
+          "text": "Remove any extension you do not remember installing.",
+          "run": "extensions"
+        },
+        {
+          "id": "scan",
+          "title": "Run a Windows Security scan",
+          "text": "Open Windows Security, Virus and threat protection, and run a Full scan. Vex does not scan files.",
+          "run": ""
+        }
+      ]
+    },
+    {
+      "type": "playbook",
+      "id": "discord-login-stolen",
+      "title": "Someone is using my Discord login",
+      "sub": "Messages with links you did not send, new servers, or a login from somewhere you are not.",
+      "verified": "2026-10-16",
+      "steps": [
+        {
+          "id": "site",
+          "title": "Clear Discord in Vex and open its sign-out page",
+          "text": "Pick discord.com. Vex removes its cookies and stored data in every container.",
+          "run": "kill"
+        },
+        {
+          "id": "password",
+          "title": "Change the Discord password",
+          "text": "Changing it makes Discord end the old sessions. Use a long password you have not used anywhere else.",
+          "run": "logins"
+        },
+        {
+          "id": "2fa",
+          "title": "Turn on two-step verification",
+          "text": "In User Settings, My Account, turn on an authenticator app. Save the backup codes somewhere that is not Discord.",
+          "run": ""
+        },
+        {
+          "id": "apps",
+          "title": "Remove apps and devices you do not know",
+          "text": "In User Settings, look at Authorized Apps and Devices, and remove what is not yours.",
+          "run": ""
+        },
+        {
+          "id": "servers",
+          "title": "Check the servers you manage",
+          "text": "Look for new bots, webhooks, roles or invites you did not make, and remove them. Tell the other admins.",
+          "run": ""
+        },
+        {
+          "id": "friends",
+          "title": "Warn the people who got messages",
+          "text": "A short note that the links were not yours, and that nobody should open them.",
+          "run": ""
+        },
+        {
+          "id": "files",
+          "title": "Look at your downloads folder",
+          "text": "Login theft often comes from a game mod or a file sent in a chat. Look at names you do not recognise.",
+          "run": "downloads"
+        },
+        {
+          "id": "extensions",
+          "title": "Check your browser extensions",
+          "text": "A bad extension can read pages. Remove any you do not remember installing.",
+          "run": "extensions"
+        },
+        {
+          "id": "scan",
+          "title": "Run a Windows Security scan",
+          "text": "Open Windows Security, Virus and threat protection, and run a Full scan. Vex does not scan files.",
+          "run": ""
+        }
+      ]
+    },
+    {
+      "type": "playbook",
+      "id": "lost-phone",
+      "title": "I lost my phone",
+      "sub": "Lost or stolen. The phone is probably your second factor for many accounts, so work from the most important ones down.",
+      "verified": "2026-10-16",
+      "steps": [
+        {
+          "id": "locate",
+          "title": "Lock or locate it from another device",
+          "text": "Use Find My Device (Android) or Find My (iPhone) from a computer. Lock it and show a message with a number to call. Erase it only when you are sure it is gone.",
+          "run": ""
+        },
+        {
+          "id": "carrier",
+          "title": "Call your mobile carrier",
+          "text": "Ask them to block the SIM so no one can receive your codes, and to block the device itself if it was stolen. Ask for a new SIM with the same number.",
+          "run": ""
+        },
+        {
+          "id": "email",
+          "title": "Secure your email first",
+          "text": "Change the password of your main email and sign out of other sessions. Email resets everything else.",
+          "run": "logins"
+        },
+        {
+          "id": "signedin",
+          "title": "See where you are signed in on this computer",
+          "text": "The list shows the accounts that matter. Use the recovery or backup codes you saved to get into those that asked for the phone.",
+          "run": "signedin"
+        },
+        {
+          "id": "authenticator",
+          "title": "Move your authenticator codes",
+          "text": "If your codes lived only on the phone, use each account's backup codes to sign in and set up a new authenticator. Vex can show which accounts have a saved login.",
+          "run": ""
+        },
+        {
+          "id": "bank",
+          "title": "Tell your bank if a banking app was on it",
+          "text": "Ask them to block the app and your cards if you are not sure. Check recent transactions.",
+          "run": ""
+        },
+        {
+          "id": "sessions",
+          "title": "Remove the phone from your accounts",
+          "text": "In your Google, Apple and Microsoft account security pages, remove the phone from the list of devices.",
+          "run": ""
+        },
+        {
+          "id": "police",
+          "title": "Report it if it was stolen",
+          "text": "A report helps with the carrier and with insurance. Keep the device serial number or IMEI from its box or your account.",
+          "run": ""
+        }
+      ]
+    },
+    {
+      "type": "playbook",
+      "id": "sent-money-or-code",
+      "title": "I sent money or a code to a scammer",
+      "sub": "A payment, card details, or a code from a text or an authenticator. Speed matters more than anything else here.",
+      "verified": "2026-10-16",
+      "steps": [
+        {
+          "id": "stop",
+          "title": "Stop talking to them",
+          "text": "Do not send more, and do not click the \"recovery\" offers that follow: they are usually the same people.",
+          "run": ""
+        },
+        {
+          "id": "bank",
+          "title": "Call your bank or card issuer now",
+          "text": "Use the number on the back of your card, not one the scammer gave you. Ask to block the card and to dispute or recall the payment.",
+          "run": ""
+        },
+        {
+          "id": "evidence",
+          "title": "Keep the evidence",
+          "text": "Save screenshots, usernames, addresses, phone numbers and receipts. Do not delete the conversation.",
+          "run": ""
+        },
+        {
+          "id": "code",
+          "title": "If you gave a login code, treat that account as taken",
+          "text": "Change its password at once and use the checklist for a taken-over account. A code you read out is a key you handed over.",
+          "run": "logins"
+        },
+        {
+          "id": "signedin",
+          "title": "See where you are signed in",
+          "text": "Sign out of the sessions on the accounts that matter.",
+          "run": "signedin"
+        },
+        {
+          "id": "report",
+          "title": "Report it",
+          "text": "Report it to the platform where it happened and to your local cyber-crime police. Reports are what let others get money back.",
+          "run": ""
+        },
+        {
+          "id": "watch",
+          "title": "Watch your accounts for a few weeks",
+          "text": "Check statements and your credit report. People who were scammed once are often contacted again.",
+          "run": ""
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "runs:checks"
+  ],
+  "hash": "58b2eb551a54eac220a7166af0de5003d73ce5e157460df466c2609a1a88a3a8"
+}

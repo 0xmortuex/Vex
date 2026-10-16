@@ -2266,7 +2266,7 @@ ipcMain.handle('calendar:fetch', async (_e, url) => {
 ipcMain.handle('api:request', async (_e, opts = {}) => {
   const t0 = Date.now();
   try {
-    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null, publicOnly = false, viewer = false, allowLocal = false } = opts || {};
+    const { url, method = 'GET', headers = {}, body = null, binary = false, mcpServer = null, publicOnly = false, viewer = false, allowLocal = false, egress = '' } = opts || {};
     if (!url || !/^https?:\/\//i.test(url)) return { ok: false, error: 'Invalid URL (must be http/https)' };
     // The built-in API viewer (js/devtools-pack.js) is a person's own request
     // builder: it follows the playground's rules. Public addresses only, and
@@ -2279,6 +2279,8 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
       return { ok: true, status: r.status, statusText: r.statusText, headers: hdrs, body: r.body, size: r.size, capped: false, timeMs: r.timeMs };
     }
     const init = { method: String(method || 'GET').toUpperCase(), headers: headers && typeof headers === 'object' ? { ...headers } : {} };
+    // The feature that asked, for the "what left this computer" ledger (main/egress-ledger.js).
+    if (typeof egress === 'string' && egress.trim()) init.egress = { feature: egress.trim().slice(0, 40), kind: 'fetch' };
     // An MCP server's token, kept encrypted in main (mcp:auth-set).
     if (mcpServer) {
       const token = (await _mcpAuthAll())[mcpServer];
@@ -10346,8 +10348,14 @@ ipcMain.handle('userscripts:fetch', async (_e, url) => {
 // (ipc-policy.js UI_ONLY_CHANNELS), and closed in private windows.
 const _packsFs = require('node:fs');
 const _packsDir = path.join(app.getPath('userData'), 'packs');
+// The packs that ship inside Vex (main/packs-builtin.js): read from the app's own folder,
+// hash-pinned, unsigned, start switched off. A damaged one is reported, not hidden: the
+// store then runs with the ones that loaded (none, as they are loaded together).
+let _builtinPacks = [];
+try { _builtinPacks = require('./main/packs-builtin').loadBuiltinPacks({ fs: _packsFs }); }
+catch (err) { console.error('[Packs] the built-in packs could not be loaded and are not available:', err && err.message); }
 const _packs = require('./main/packs-store').createPackStore({
-  dir: _packsDir, fs: _packsFs, log: console,
+  dir: _packsDir, fs: _packsFs, log: console, builtins: _builtinPacks,
   seal: (bytes) => {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('OS encryption is unavailable, so a signing key cannot be protected');
     return safeStorage.encryptString(Buffer.from(bytes).toString('base64'));

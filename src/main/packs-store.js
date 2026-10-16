@@ -35,7 +35,10 @@ const MAX_LOG = 300;
 const STAGE_TTL_MS = 10 * 60 * 1000;
 const MAX_STAGED = 8;
 
-function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal = null, unseal = null }) {
+// builtins: the packs that ship inside Vex, already judged by main/packs-builtin.js
+// (parsePack with builtin: true and a hash that matches the pinned one). They are never
+// written to the installed folder, cannot be removed or replaced, and start switched OFF.
+function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal = null, unseal = null, builtins = [] }) {
   if (!dir) throw new Error('A pack store needs a folder');
   if (!fs || !fs.promises) throw new Error('A pack store needs the fs module');
   const fsp = fs.promises;
@@ -53,6 +56,13 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
   const staged = new Map();           // token -> { parsed, source, expires }
   let author = null;                  // { publicKey, fingerprint, sealed }
   let globalEnabled = true;
+  const builtinById = new Map();      // id -> { pack, trust: 'builtin' }
+  for (const b of builtins) {
+    if (!b || !b.pack || typeof b.pack.id !== 'string' || !b.pack.id.startsWith(packs.BUILTIN_PREFIX)) throw new Error('A built-in pack must come from the built-in loader');
+    if (builtinById.has(b.pack.id)) throw new Error('Two built-in packs share the id ' + b.pack.id);
+    builtinById.set(b.pack.id, { pack: b.pack, trust: 'builtin' });
+  }
+  let builtinOn = new Set();           // ids of the built-in packs the person switched on
   let entries = [];
   let loaded = false;
   let chain = Promise.resolve();
@@ -114,6 +124,7 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
     }
     const state = await readJsonIfExists(files.state);
     globalEnabled = !state || state.globalEnabled !== false;
+    builtinOn = new Set(state && Array.isArray(state.builtinOn) ? state.builtinOn.filter(x => builtinById.has(x)) : []);
     const logRaw = await readJsonIfExists(files.log);
     entries = Array.isArray(logRaw) ? logRaw.filter(e => e && typeof e.event === 'string').slice(-MAX_LOG) : [];
     installed.clear();
@@ -149,11 +160,19 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
       permissions: r.pack.permissions.map(p => ({ id: p, text: packs.PERMISSIONS[p] })),
     };
   }
+  function builtinRows() {
+    return [...builtinById.entries()].map(([id, r]) => ({
+      id, name: r.pack.name, author: r.pack.author, description: r.pack.description, builtin: true,
+      enabled: builtinOn.has(id), trust: 'builtin', fingerprint: '', installedAt: 0, source: 'ships with Vex',
+      hash: r.pack.hash, items: itemSummary(r.pack),
+      permissions: r.pack.permissions.map(p => ({ id: p, text: packs.PERMISSIONS[p] })),
+    }));
+  }
   function list() {
     need();
     return {
       globalEnabled,
-      packs: [...installed.entries()].map(([id, r]) => row(id, r)).sort((a, b) => a.name.localeCompare(b.name)),
+      packs: [...builtinRows(), ...[...installed.entries()].map(([id, r]) => row(id, r))].sort((a, b) => a.name.localeCompare(b.name)),
       damaged: damaged.slice(),
       trusted: [...trusted.values()].map(t => ({ fingerprint: t.fingerprint, label: t.label, addedAt: t.addedAt })),
       authorKey: author ? { fingerprint: author.fingerprint } : null,
@@ -168,6 +187,10 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
     need();
     if (!globalEnabled) return [];
     const out = [];
+    for (const [id, r] of builtinById) {
+      if (!builtinOn.has(id)) continue;
+      for (const item of r.pack.items) out.push({ packId: id, packName: r.pack.name, trust: 'builtin', item: JSON.parse(JSON.stringify(item)) });
+    }
     for (const [id, r] of installed) {
       if (!r.meta.enabled) continue;
       for (const item of r.pack.items) {
@@ -249,9 +272,17 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
   async function writeRecord(id, r) {
     await writeAtomic(fileFor(id), JSON.stringify({ v: 1, pack: r.pack, meta: r.meta }, null, 2));
   }
+  const stateText = () => JSON.stringify({ globalEnabled, builtinOn: [...builtinOn] });
   function setEnabled(id, on) {
     return locked(async () => {
       need();
+      if (builtinById.has(id)) {
+        const prev = new Set(builtinOn);
+        if (on) builtinOn.add(id); else builtinOn.delete(id);
+        try { await writeAtomic(files.state, stateText()); await record(on ? 'enable' : 'disable', id, builtinById.get(id).pack.name + ' (built in)'); }
+        catch (err) { builtinOn = prev; try { await writeAtomic(files.state, stateText()); } catch (undoErr) { log.error('[Packs] could not undo a switch:', undoErr && undoErr.message); } throw err; }
+        return builtinRows().find(x => x.id === id);
+      }
       const r = installed.get(id);
       if (!r) throw new Error('That pack is not installed');
       const prev = r.meta.enabled;
@@ -270,7 +301,7 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
       need();
       const prev = globalEnabled;
       globalEnabled = !!on;
-      try { await writeAtomic(files.state, JSON.stringify({ globalEnabled })); await record('kill-switch', '', on ? 'all packs on' : 'all packs off'); }
+      try { await writeAtomic(files.state, stateText()); await record('kill-switch', '', on ? 'all packs on' : 'all packs off'); }
       catch (err) { globalEnabled = prev; throw err; }
       return globalEnabled;
     });
@@ -278,6 +309,7 @@ function createPackStore({ dir, fs, now = () => Date.now(), log = console, seal 
   function uninstall(id) {
     return locked(async () => {
       need();
+      if (builtinById.has(id)) throw new packs.PackError('builtin', 'A pack that ships with Vex cannot be removed. Switch it off instead.');
       const r = installed.get(id);
       if (!r) throw new Error('That pack is not installed');
       const file = fileFor(id);

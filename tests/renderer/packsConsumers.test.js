@@ -17,7 +17,7 @@ function load() {
   localStorage.clear();
   document.body.innerHTML = '';
   for (const k of ['VexAliases', 'SiteReadability', 'PageActions', 'BriefIntegration', 'VexFortune', 'VexWidgets', 'StickerSheet', 'VexCosmetics',
-    'VexUnlock', 'VexExpression', 'VexPacks', 'VexPackConsumers', 'VexBrief', 'CommandBar', 'TabManager', 'WebviewManager', 'VexLiving', 'VexModuleCommands']) delete globalThis[k];
+    'VexUnlock', 'VexExpression', 'VexPacks', 'VexPackConsumers', 'VexBrief', 'CommandBar', 'TabManager', 'WebviewManager', 'VexLiving', 'VexModuleCommands', 'VexSkills', 'VexIncident', 'VexPackContent']) delete globalThis[k];
   window.VexTabPolicy = { isPrivateWindow: false, canReadWebview: () => true, canFillWebview: () => true, canShareTab: () => true };
   globalThis.CommandChains = { run() {} };
   globalThis.CommandBar = { commands: [{ id: 'open-settings', label: 'Open Settings' }, { id: 'new-tab', label: 'New tab' }] };
@@ -31,6 +31,9 @@ function load() {
   globalThis.StickerSheet = fresh('sticker-sheet.js').StickerSheet;
   globalThis.BriefIntegration = fresh('brief-integration.js').BriefIntegration;
   globalThis.PageActions = fresh('page-actions.js').PageActions;
+  globalThis.VexSkills = fresh('skills.js').VexSkills;
+  globalThis.VexIncident = fresh('incident-playbooks.js').VexIncident;
+  globalThis.VexPackContent = fresh('pack-content.js').VexPackContent;
   globalThis.VexPacks = { items: (t) => items.filter(x => !t || x.item.type === t), onChange: () => () => {} };
   return fresh('packs-consumers.js').VexPackConsumers;
 }
