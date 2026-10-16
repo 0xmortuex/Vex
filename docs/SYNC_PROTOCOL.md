@@ -755,6 +755,7 @@ A small per-account mailbox, separate from the record document.
 - **Send**: `POST /sync/drop {"encryptedBlob": string}` (Bearer, registered device).
   - The payload is `SyncCrypto.encrypt({url, title}, key)`: the same AES-GCM format and the same account key as the document (§3.2).
   - The desktop only sends `http:`/`https:` URLs, `url` truncated to 2048 characters and `title` to 300 (`String(title||'')`).
+  - The payload MAY also carry `note`, a string of at most 1000 characters: the text a phone's share sheet sent along with the link ([PHONE_SHARE.md](PHONE_SHARE.md)). A receiver that does not know `note` ignores it; the desktop keeps it with the item and files it in the Clips inbox together with the link. It is not forwarded with an addressed hand-on.
   - The server requires a non-empty string of **≤ 16 384 characters**, else **400** `{"error":"Encrypted handoff required (max 16 KB)"}`.
   - It stores `{id: <16 hex>, encryptedBlob, fromDeviceId, fromDeviceName, at: <ISO>}`, keeps only the **newest 20** items, and refreshes the whole mailbox's TTL to **7 days** on each send.
   - Returns 200 `{"ok":true}`.

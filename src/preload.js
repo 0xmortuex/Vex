@@ -401,6 +401,12 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsLatest: (ecosystem, name) => ipcRenderer.invoke('devfeeds:latest', ecosystem, name),
   devfeedsAdvisories: (ecosystem, name, version) => ipcRenderer.invoke('devfeeds:advisories', ecosystem, name, version),
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
+  // One Crossref request for a DOI, only when the person asks (main/doi-resolve.js).
+  sourcesResolveDoi: (doi) => ipcRenderer.invoke('sources:resolve-doi', doi),
+  // The built-in PDF toolkit (main/pdf-toolkit.js): pick files, run one operation, forget the picked list.
+  pdftoolPickFiles: () => ipcRenderer.invoke('pdftool:pick-files'),
+  pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
+  pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
 
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),

@@ -90,6 +90,8 @@ const Handoff = {
         at: typeof it.at === 'string' ? it.at : new Date(now).toISOString(),
         receivedAt: now,
       };
+      // The text a phone's share sheet sent along with the link (docs/PHONE_SHARE.md); optional.
+      if (typeof it.note === 'string' && it.note.trim()) entry.note = it.note.slice(0, 1000);
       have.add(id); this._seen.add(id);
       list.push(entry); fresh.push(entry);
     }
@@ -139,6 +141,12 @@ const Handoff = {
       }
       return [];
     } finally { this._busy = false; }
+    // What a phone shared may go straight into the Clips inbox, if the person chose that (js/phone-share.js, off by default);
+    // those are not also shown as New Tab cards.
+    if (fresh.length && typeof VexPhoneShare !== 'undefined') {
+      const filed = await VexPhoneShare.onFresh(fresh);
+      fresh = fresh.filter(i => !filed.includes(i.id));
+    }
     if (fresh.length) {
       this.pushAll();
       this.notify(fresh);

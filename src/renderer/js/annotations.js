@@ -261,6 +261,8 @@ const Annotations = {
     // Also written into the "Highlights" note with the page's address
     // (js/web-taming.js; off with the "Highlights to Notes" command).
     const inNotes = typeof HighlightNotes !== 'undefined' && HighlightNotes.add({ text, url, title: t.title || url });
+    // Told to whoever keeps the page's source stamp (js/sources.js); nothing listens unless that is on.
+    document.dispatchEvent(new CustomEvent('vex:highlight-added', { detail: { text, url, title: t.title || url, at: Date.now() } }));
     window.showToast?.('Highlighted (' + this.forUrl(url).length + ' on this page)' + (inNotes ? ' and saved to Notes' : ''));
   },
 

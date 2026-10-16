@@ -95,6 +95,13 @@ const VexCopySource = {
     await navigator.clipboard.writeText(r.text);
     if (typeof CitationTracker !== 'undefined' && CitationTracker.enabled()) CitationTracker.record({ text: src.text, url: src.url, title: src.title });
     if (typeof VexUsage !== 'undefined') VexUsage.touch('copy-source');
+    // A copy that carries its source is a citation: the sources list keeps the passage under its page
+    // (js/sources.js) and "archive on cite" may offer to keep a copy of the page (js/archive-on-cite.js).
+    // Both are no-ops while off and neither can stop the copy, which is already done.
+    if (kind !== 'plain') {
+      if (typeof VexSources !== 'undefined') VexSources.keepPassage({ text: src.text, kind: 'quote' });
+      document.dispatchEvent(new CustomEvent('vex:source-cited', { detail: { url: src.url, title: src.title, via: 'copy-source' } }));
+    }
     window.showToast?.(r.warning ? 'Copied. ' + r.warning : 'Copied as ' + this.FORMATS.find(f => f.id === kind).label.toLowerCase(), r.warning ? 'warn' : 'info', r.warning ? 6000 : 3000);
     return r;
   },
