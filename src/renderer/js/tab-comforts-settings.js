@@ -31,7 +31,7 @@ const VexTabComfortsSettings = {
     toggle('Remember where I was on a page', 'A tab you reopen with Ctrl+Shift+T, or open again after closing Vex, comes back to where you were reading it. Kept with the tab; never from a private or Tor tab.',
       VexScrollMemory.enabled(), (on) => VexScrollMemory.setEnabled(on));
 
-    toggle('Essential tabs', 'Right-click a tab, "Make essential": it is pinned and stays open in every workspace (Ctrl+Alt+E lists them).',
+    toggle('Essential tabs', 'Right-click a tab, "Make essential": it is pinned and stays open in every workspace (Ctrl+K, "Essential tabs", lists them).',
       VexEssentials.enabled(), (on) => VexEssentials.setEnabled(on));
 
     toggle('English and Turkish spelling', 'Right-click a text box: "Spelling language" and "Add to the dictionary". Turkish\'s dictionary is fetched by Chromium the first time you use it.',
@@ -68,7 +68,7 @@ const VexTabComfortsSettings = {
     toggle('Paste as plain text in the right-click menu', 'Also Ctrl+K, "Paste as plain text". Ctrl+Shift+V pastes plain text inside a page by itself.',
       VexPastePlain.enabled(), (on) => VexPastePlain.setEnabled(on));
 
-    toggle('Find text in all tabs', 'Ctrl+Alt+F: which open tab has these exact words? Reads the text of loaded tabs, in memory only.',
+    toggle('Find text in all tabs', 'Ctrl+K, "Find text in all tabs": which open tab has these exact words? Reads the text of loaded tabs, in memory only.',
       VexTabTextFind.enabled(), (on) => VexTabTextFind.setEnabled(on));
   },
 

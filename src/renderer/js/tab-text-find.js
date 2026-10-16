@@ -15,7 +15,7 @@
 // a private or Tor tab. A tab that has not loaded yet since Vex started (asleep, or
 // not opened) has nothing to search; the list says how many.
 //
-// Ctrl+Alt+F, or Ctrl+K, "Find text in all tabs".
+// Ctrl+K, "Find text in all tabs" (no default key: Ctrl+Alt+F is Focus mode).
 const VexTabTextFind = {
   KEY: 'vex.tabTextFind',            // '0' = off
   MIN_CHARS: 2,

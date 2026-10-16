@@ -16,6 +16,7 @@ const WAVE1 = [
   'dueness', 'first-open', 'inbox-unified', 'next-step', 'park-resume', 'copy-source', 'deadline-extractor',
   'panel-capture', 'vip-rules', 'needs-me', 'panel-state', 'away-mode', 'attention-digest', 'close-protect',
   'tab-mru', 'tab-search', 'nav-history-menu', 'strip-actions', 'night-coach', 'announce-desk',
+  'version-review',
 ];
 
 beforeEach(() => {

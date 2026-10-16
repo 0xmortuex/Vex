@@ -16,7 +16,7 @@
 //
 // Only an ordinary signed-in tab can be essential. A private, Tor or burner tab
 // belongs to no workspace and is never written down, so it is refused, out loud.
-// Reached by one key from anywhere: Ctrl+Alt+E (or Ctrl+K, "Essential tabs")
+// Reached from anywhere with Ctrl+K, "Essential tabs" (no default key: Ctrl+Alt+E is Everything)
 // lists them; Enter goes to one.
 const VexEssentials = {
   KEY: 'vex.essentials',          // '0' = off

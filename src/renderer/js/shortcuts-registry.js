@@ -104,9 +104,9 @@ const ShortcutsRegistry = (() => {
     'last-tab':       { default: 'Alt+Q',         label: 'Back to the last tab you used', category: 'Tabs' },
     // Ctrl+Shift+A (Chrome's key for it) is the AI panel here; Ctrl+Alt+Z was free.
     'tab-search':     { default: 'Ctrl+Alt+Z',   label: 'Search open tabs',           category: 'Tabs',       cmd: 'tab-search' },
-    // Wave 3 tab comforts. Ctrl+Alt+E and Ctrl+Alt+F were free.
-    'essentials':     { default: 'Ctrl+Alt+E',   label: 'Essential tabs (kept in every workspace)', category: 'Tabs', cmd: 'essentials' },
-    'tab-text-find':  { default: 'Ctrl+Alt+F',   label: 'Find text in all tabs',      category: 'Tabs',       cmd: 'tab-text-find' },
+    // Wave 3 tab comforts (Essential tabs, Find text in all tabs) have no default key: Ctrl+Alt+E and Ctrl+Alt+F
+    // are Everything and Focus mode, and every other Ctrl+Alt letter is taken (H is the boss key). Both are Ctrl+K
+    // commands, and "give something else a key" in Settings > Shortcuts can bind them.
     // Wave 3: split view panes, and keyboard hints for links and tabs (Ctrl+Alt letters with no Turkish AltGr character).
     'split-focus':    { default: 'Ctrl+Alt+O',   label: 'Split view: next pane',      category: 'Tabs',       cmd: 'split-focus-next' },
     'split-swap':     { default: 'Ctrl+Alt+Y',   label: 'Split view: swap panes',     category: 'Tabs',       cmd: 'split-swap-panes' },
