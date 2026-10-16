@@ -122,7 +122,7 @@ const VexDueness = {
     await guard('tasks', async () => {
       for (const t of await src.tasks()) {
         if (!t || t.done || !Number.isFinite(t.due)) continue;
-        items.push({ id: 'task:' + t.noteId + ':' + t.index, kind: 'task', text: String(t.text || '').replace(/(?:^|\s)@(?:\d{4}-\d{2}-\d{2}|today|tomorrow)\b/i, '').trim() || String(t.text || ''), at: t.due, hasTime: false, sub: t.noteTitle });
+        items.push({ id: 'task:' + t.noteId + ':' + t.index, kind: 'task', text: OpenTasks.stripDue(t.text) || String(t.text || ''), at: t.due, hasTime: false, sub: t.noteTitle });
       }
     });
     await guard('calendar', async () => {

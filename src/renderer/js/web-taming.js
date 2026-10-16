@@ -575,6 +575,7 @@ const TabDedupe = {
     if (!toClose.length) return 0;
     // closeTabsWithUndo puts them back with the toast's Undo.
     TabManager.closeTabsWithUndo(toClose, `Merged ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'} into ${groups.length}, keeping your place`);
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:fun-action', { detail: { kind: 'organize' } }));
     return toClose.length;
   },
 };
