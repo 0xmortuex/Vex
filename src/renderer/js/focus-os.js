@@ -319,6 +319,16 @@ const FocusOS = {
     this._medal('focus-os-first-block');
     this._changed();
     this._say((auto ? 'Starting ' : 'Started ') + '"' + g.title + '"' + (notes.length ? ' — ' + notes.join(', ') : ''));
+    // Only a block Vex started by itself belongs in the "Why did that happen?" list (js/vex-ledger.js).
+    if (auto && typeof VexLedger !== 'undefined') {
+      VexLedger.note({
+        feature: 'focus-os',
+        what: 'Started the focus block "' + String(g.title).slice(0, 60) + '"' + (notes.length ? ' (' + notes.join(', ').slice(0, 80) + ')' : ''),
+        why: 'It was planned for now and its goal is set to start by itself.',
+        undo: { kind: 'focus-finish', blockId },
+        stop: { kind: 'focus-no-autostart', goalId: g.id },
+      });
+    }
     return b;
   },
 
@@ -584,6 +594,22 @@ const FocusOS = {
     return out;
   },
 };
+
+// "Why did that happen?" (js/vex-ledger.js): end the block that started by itself, or stop that goal starting blocks by itself.
+if (typeof VexLedger !== 'undefined') {
+  VexLedger.registerUndo('focus-finish', async (token) => {
+    const run = FocusOS.active();
+    if (!run || run.id !== token.blockId) throw new Error('That block is no longer running');
+    await FocusOS.finish(token.blockId, { quiet: true });
+  });
+  VexLedger.registerStop('focus-no-autostart', async (token) => {
+    const g = FocusOS.goal(token.goalId);
+    if (!g) throw new Error('That goal is gone');
+    g.autoStart = false;
+    FocusOS._write();
+    FocusOS._changed();
+  });
+}
 
 if (typeof window !== 'undefined') window.FocusOS = FocusOS;
 if (typeof module !== 'undefined' && module.exports) module.exports = { FocusOS };

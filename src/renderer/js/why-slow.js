@@ -37,6 +37,11 @@ const WhySlow = {
     } catch (err) { out.error = err.message; }
     // tab-cost: the last five minutes, not just this instant (js/tab-cost.js)
     try { if (typeof TabCost !== 'undefined') out.cost = TabCost.snapshot({ scope: 'recent' }); } catch { /* the rest still answers */ }
+    // Features over the budget their manifest declared, and ones switched off for repeated failures (js/vex-cost.js, js/vex-breaker.js).
+    try {
+      if (typeof VexCost !== 'undefined') out.over = VexCost.overruns();
+      if (typeof VexBreaker !== 'undefined') out.tripped = VexBreaker.status().filter(s => s.state === 'open');
+    } catch (err) { console.error('[WhySlow] could not read the feature budgets:', err.message); }
     try { out.route = await window.vex.routingGetAll(); } catch { /* the rest still answers */ }
     try { out.gpu = await window.vex.gpu(); } catch { /* no card reading; say nothing about it */ }
     try { out.game = typeof GameMode !== 'undefined' && GameMode.on(); } catch { /* not a reason then */ }
@@ -128,6 +133,20 @@ const WhySlow = {
           : 'Every request goes through ' + (d.route.custom || 'your proxy') + ' first. If that is far away or busy, so is every page.',
         fix: 'routing',
       });
+    }
+
+    // A feature past the budget it declared: it said what it would cost, and it costs more.
+    for (const r of (d.over || []).slice(0, 3)) {
+      found.push({
+        id: 'budget:' + r.id,
+        weight: 600,
+        title: r.title + ' is using more than it declared',
+        detail: r.over.map(o => o.item + ' ' + o.used + ' against ' + o.budget + (o.unit ? ' ' + o.unit : '')).join('; ') + '. Switch it off in Settings if you do not need it.',
+        fix: null,
+      });
+    }
+    for (const t of (d.tripped || []).slice(0, 3)) {
+      found.push({ id: 'tripped:' + t.id, weight: 550, title: t.id + ' is switched off for a while', detail: (t.reason || 'It failed repeatedly') + '. It tries again by itself.', fix: null });
     }
 
     // The card: a game has it, or something else has filled it.

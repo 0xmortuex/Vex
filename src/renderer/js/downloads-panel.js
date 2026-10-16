@@ -324,6 +324,15 @@ const DownloadsPanel = {
         if (!r || !r.ok) { fail('Could not tidy up', r); return; }
         window.showToast?.('Moved ' + r.moved + ' file' + (r.moved === 1 ? '' : 's') + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : ''), r.failed.length ? 'error' : undefined);
         if (typeof this.refreshExistence === 'function') this.refreshExistence();
+        // The "Why did that happen?" list (js/vex-ledger.js): the undo outlives this toast and a restart.
+        if (r.moved && typeof VexLedger !== 'undefined') {
+          VexLedger.note({
+            feature: 'downloads-tidy',
+            what: 'Moved ' + r.moved + ' old download' + (r.moved === 1 ? '' : 's') + ' into folders by type',
+            why: 'You asked for a tidy-up of files older than ' + MIN_AGE_DAYS + ' days.',
+            undo: { kind: 'downloads-tidy-undo' },
+          });
+        }
       } finally { go.disabled = false; }
     });
     undo.addEventListener('click', async () => {
@@ -777,6 +786,18 @@ const DownloadsPanel = {
 
   _esc(s) { return window.escapeHtml(s); }
 };
+
+// Undo of a tidy-up from the ledger: main undoes the LAST tidy-up, so only the newest one that is still
+// on the list can be undone from here (an older one would undo the wrong batch).
+if (typeof VexLedger !== 'undefined') {
+  VexLedger.registerUndo('downloads-tidy-undo', async (_token, entry) => {
+    const newer = VexLedger.list(200).find(e => e.undo && e.undo.kind === 'downloads-tidy-undo' && !e.undone && e.id > entry.id);
+    if (newer) throw new Error('A later tidy-up came after this one; undo that one first');
+    const r = await window.vex.downloadsTidyUndo();
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Could not put the files back');
+    if (r.left && r.left.length) window.showToast?.(r.left.length + ' file' + (r.left.length === 1 ? '' : 's') + ' could not be put back (' + r.left[0].error + ')', 'error');
+  });
+}
 
 if (typeof window !== 'undefined') window.DownloadsPanel = DownloadsPanel;
 if (typeof module !== 'undefined' && module.exports) module.exports = { DownloadsPanel };

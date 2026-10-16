@@ -1706,6 +1706,12 @@
   <script src="js/vex-utils.js"></script>
   <!-- The feature registry (js/vex-usage.js): before any module that registers. -->
   <script src="js/vex-usage.js"></script>
+  <!-- The manifests (one per feature), the "why did Vex do that" ledger, the per-feature breaker and the cost meter. Order matters: manifests, ledger, breaker, cost. -->
+  <script src="js/feature-registry.js"></script>
+  <script src="js/feature-manifests.js"></script>
+  <script src="js/vex-ledger.js"></script>
+  <script src="js/vex-breaker.js"></script>
+  <script src="js/vex-cost.js"></script>
   <script src="js/idn.js"></script>
   <script src="js/vex-markdown.js"></script>
   <script src="js/theme-custom.js"></script>
@@ -2021,6 +2027,7 @@
   <script src="js/workspace-snapshots.js"></script>
   <script src="js/time-travel.js"></script>
   <script src="js/tuning-advisor-ui.js"></script>
+  <script src="js/vex-ledger-ui.js"></script>
   <script src="js/reading-digest.js"></script>
   <script src="js/session-timeline.js"></script>
   <script src="js/smart-bookmarks.js"></script>

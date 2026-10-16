@@ -277,7 +277,8 @@ const Knowledge = {
   _sync() {
     const want = this.enabled() && !this._unavailable() && !!(this._api() && this._api().kbPlan) && typeof VexJobs !== 'undefined';
     if (want && !this._job) {
-      this._job = VexJobs.every(this.JOB, this.TICK_MS, () => this.tick(), { when: 'ui', deferOnBattery: true });
+      // Indexing is heavy work: it waits for a quiet moment and is refused in Game mode or when memory is low (VexJobs.heavy).
+      this._job = VexJobs.every(this.JOB, this.TICK_MS, () => VexJobs.heavy(this.JOB, () => this.tick(), { kind: 'index', feature: 'knowledge-base' }), { when: 'ui', deferOnBattery: true, feature: 'knowledge-base' });
     } else if (!want && this._job) {
       this._job.stop();
       this._job = null;

@@ -69,6 +69,8 @@ const VexFeatures = {
       what: 'Live memory per tab, measured rather than estimated, with sleep and wake on each row.' },
     { id: 'keys-sheet', phrases: 'what keys can i press keyboard shortcuts list cheat sheet hotkeys what does ctrl do', cat: 'tabs', cmd: 'keys-sheet', name: 'What you can press', keys: 'Ctrl+Shift+K',
       what: 'Every key Vex answers to, over whatever you are doing, with the ones that matter where you are first.' },
+    { id: 'why-did-that', phrases: 'why did that happen undo what did vex just do tab slept itself theme changed by itself stop doing this', cat: 'tabs', cmd: 'why-did-that', name: 'Why did that happen?',
+      what: 'Everything Vex does on its own (sleeping a tab, grouping, filing a download, switching the theme, starting a focus block) is listed with the reason. Undo works after a restart, and Stop doing this switches that feature off.' },
     { id: 'why-slow', phrases: 'why is vex slow lagging stuttering sluggish what is making it slow slow down', cat: 'tabs', cmd: 'why-slow', name: 'Why is Vex slow right now?',
       what: 'One screen: what is holding a processor core, what is holding the memory, whether a route is on and whether a game has the card \u2014 each with the button that fixes it.' },
     { id: 'tab-cost', phrases: 'what is slowing my browser battery draining fan loud cpu hot which tab site extension heavy using processor', cat: 'tabs', cmd: 'tab-cost', name: 'What is slowing my browser?',
