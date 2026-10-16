@@ -2028,6 +2028,8 @@ const SyncEngine = (() => {
         const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
         if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) {
           const got = { ...item, url: payload.url, title: String(payload.title || '') };
+          // Optional text shared along with the link from a phone's share sheet (docs/PHONE_SHARE.md).
+          if (typeof payload.note === 'string' && payload.note.trim()) got.note = payload.note.slice(0, 1000);
           if (typeof payload.to === 'string' && DEVICE_ID_RE.test(payload.to)) {
             got.to = payload.to;
             got.hop = Number.isInteger(payload.hop) && payload.hop > 0 ? Math.min(payload.hop, 9) : 0;
