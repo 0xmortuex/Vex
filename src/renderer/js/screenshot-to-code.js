@@ -18,6 +18,11 @@ const ScreenshotToCode = {
       dataUrl = resized.toDataURL();
     } catch (e) { window.showToast?.('Could not capture this page'); return; }
     if (!dataUrl || dataUrl.length < 100) { window.showToast?.('Capture was empty'); return; }
+    // The address of the captured page rides along so the sensitivity gate can tell a bank,
+    // mail or vault page from an ordinary one.
+    let pageUrl = '';
+    try { pageUrl = String(wv.getURL ? wv.getURL() : ''); } catch (err) { throw new Error('Could not read the address of the captured page: ' + err.message, { cause: err }); }
+    this._pageUrl = pageUrl;
     this.openModal(dataUrl);
   },
 
@@ -89,6 +94,12 @@ const ScreenshotToCode = {
   async generate(image, framework) {
     const url = (typeof AIRouter !== 'undefined' && AIRouter.cloudWorkerUrl && AIRouter.cloudWorkerUrl()) || '';
     if (!url) throw new Error('Cloud AI not configured (Settings › Cloud). Screenshot-to-code needs the cloud vision model.');
+    // The sensitivity gate (js/ai-sensitivity.js): a screenshot is "an image attached", which
+    // is asked about every time, and a mail, bank, vault or private page is held back. Not
+    // loaded means nothing is sent.
+    if (typeof VexSensitivity === 'undefined') throw new Error('The sensitivity gate is not loaded (js/ai-sensitivity.js), so nothing is sent to the cloud');
+    const gated = await VexSensitivity.gate('screenshotToCode', { dataClass: 'image', pageContext: { url: this._pageUrl || '' }, framework }, { canLocal: false });
+    if (gated.action !== 'send') throw new Error('Not sent to the cloud.');
     const r = await (window.VexConfig?.fetchAI || fetch)(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

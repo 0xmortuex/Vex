@@ -254,6 +254,9 @@ const VexRepos = {
 
 if (typeof window !== 'undefined') {
   window.VexRepos = VexRepos;
+  // The developer loop (js/dev-loop.js, loaded before this file) looks at the repositories
+  // listed here as well as its own list. A switched-off registry hands over nothing.
+  if (typeof DevLoopRepos !== 'undefined') DevLoopRepos.addSource(() => (VexRepos.enabled() ? VexRepos.list().map(r => r.name) : []));
   VexRepos.registerCommands();
   document.addEventListener('DOMContentLoaded', () => VexRepos.registerCommands());
   const check = () => { try { if (typeof TabManager !== 'undefined' && TabManager.getActiveTab) VexRepos.suggestFor(TabManager.getActiveTab()); } catch (err) { console.error('[Repos] could not check the tab:', err); } };

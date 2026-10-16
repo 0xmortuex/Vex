@@ -302,6 +302,24 @@ const AnnounceDesk = {
     if (typeof VexSettingsGroups !== 'undefined') {
       VexSettingsGroups.register({ id: 'announce-desk', title: 'Announcement desk', keywords: 'school university exam result osym meb yok duyuru sonuc', render: (body) => this.render(body) });
     }
+    // A section of the Morning Brief: the desk's pages that changed since yesterday. Off until the
+    // person chooses it in the brief's settings (optIn), like Mail.
+    if (typeof VexBrief !== 'undefined') {
+      const D = this;
+      VexBrief.register({
+        id: 'announce-desk', title: 'Announcements', icon: 'newspaper', order: 55, optIn: true, defaultOn: false, maxItems: 5,
+        build(ctx) {
+          if (!D.enabled()) return null;
+          const mine = new Map(D.pages().map(p => [p.watch.id, p]));
+          const rows = ((ctx.snap || {}).changed || []).filter(c => mine.has(c.id));
+          const items = rows.slice(0, 5).map(c => {
+            const lines = D.newLines(c.id);
+            return { text: mine.get(c.id).entry.label || c.text, sub: lines.length ? String(lines[0]).slice(0, 140) : '', url: c.url };
+          });
+          return { summary: rows.length ? rows.length + (rows.length === 1 ? ' announcement page' : ' announcement pages') + ' changed since yesterday' : '', items };
+        },
+      });
+    }
     if (typeof CommandBar !== 'undefined' && Array.isArray(CommandBar.commands)) {
       CommandBar.commands.push({ id: 'announce-desk', label: 'Announcement desk', hint: 'What is new on the school, university and exam pages you follow, and result-day watching', icon: 'newspaper', action: () => { try { this.open(); } catch (err) { window.showToast?.(err.message, 'error'); } } });
     }

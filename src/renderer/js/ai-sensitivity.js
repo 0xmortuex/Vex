@@ -34,8 +34,9 @@ const VexSensitivity = {
 
   // class -> what happens. 'refuse' has no way through, 'ask' needs a yes for
   // this one call, 'redact' sends only the redacted copy.
-  POLICY: { history: 'ask', mail: 'ask', 'bank-health': 'ask', vault: 'refuse', 'private-tab': 'refuse', secrets: 'redact' },
+  POLICY: { history: 'ask', mail: 'ask', 'bank-health': 'ask', vault: 'refuse', 'private-tab': 'refuse', secrets: 'redact', image: 'ask' },
   LABELS: {
+    image: 'a screenshot of a page',
     history: 'browsing history', mail: 'mail', 'bank-health': 'a bank, payment or health page',
     vault: 'a password manager or vault page', 'private-tab': 'a private window or tab', secrets: 'a secret (card, IBAN, ID number, key or code)',
   },
@@ -181,6 +182,10 @@ const VexSensitivity = {
     if (this.HISTORY_FEATURES.includes(feature) || Array.isArray(req.historyEntries) || req.dataClass === 'history') {
       add('history', Array.isArray(req.historyEntries) ? req.historyEntries.length + ' history entries' : 'browsing history');
     }
+    // A picture can show anything on the page and cannot be scanned or redacted, so a request
+    // that exists to send one (screenshot to code) asks every time. The agent's own screenshots
+    // inside a run are not this: they ride on an agent request the person already started.
+    if (feature === 'screenshotToCode' || req.dataClass === 'image') add('image', 'an image attached');
     if (req.dataClass === 'mail') add('mail', 'mail text');
     if (req.dataClass === 'vault') add('vault', 'vault data');
     if (req.dataClass === 'private') add('private-tab', 'a private tab');
