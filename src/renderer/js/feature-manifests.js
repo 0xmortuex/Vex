@@ -128,6 +128,31 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 1: panels and messages (js/panels-comms-ui.js draws them all) ------------
+    // All 'new': an existing profile gets them OFF and is offered them; none sends anything off this computer.
+    { id: 'panel-capture', title: 'Notifications from panels', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.panelCapture.on', 'vex.panelCapture.sites', 'vex.panelCapture.items', 'vex.panelCapture.mutes'], usesKeys: ['vex.consents'],
+      events: ['vex:panel-notification'], commands: ['panel-notifications'], panels: ['discord', 'whatsapp'],
+      permissions: { reads: ['the title and the first 300 characters of a Discord or WhatsApp notification, for the sites you turn on'], writes: ['a list of them on this computer for 7 days, up to 200'], sends: [] } },
+    { id: 'vip-rules', title: 'VIP people and words', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.vip'], events: ['vex:vip-changed'],
+      permissions: { reads: ['the title and text of notifications and Inbox rows Vex already holds'], writes: ['your list of people, words and panels'], sends: [] } },
+    { id: 'needs-me', title: 'Needs me', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.needsMe.on', 'vex.needsMe.weights', 'vex.needsMe.snoozed', 'vex.needsMe.dismissed', 'vex.needsMe.ranked'], commands: ['needs-me'],
+      permissions: { reads: ['panel unread counts, kept notifications, the Inbox and Autopilot'], writes: ['what you snoozed, dismissed and usually open'], sends: [] } },
+    { id: 'panel-state', title: 'Panel state and unread ledger', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.panelState.on', 'vex.panelState.strip', 'vex.panelState.ledger', 'vex.panelState.looked'], commands: ['panel-ledger'],
+      permissions: { reads: ['the unread number in each panel title, and the song and artist a playing panel publishes'], writes: ['numbers and times of unread changes'], sends: [] } },
+    { id: 'away-mode', title: 'Away mode', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.away.on', 'vex.away.state', 'vex.away.autoLock'], events: ['vex:away-summary'], commands: ['away-toggle'],
+      permissions: { reads: ['kept notifications, the unread ledger and the Inbox, to count what happened'], writes: ['when you went away'], sends: [] } },
+    { id: 'attention-digest', title: 'Delivery windows', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.digest.on', 'vex.digest.times', 'vex.digest.last', 'vex.digest.half', 'vex.digest.focusEnd'], jobs: ['Digest windows'],
+      permissions: { reads: ['the Inbox and kept notifications'], writes: ['when the last digest was shown'], sends: [] } },
+    { id: 'close-protect', title: 'Close-protect', group: 'Panels and messages', maturity: 'new',
+      storageKeys: ['vex.closeProtect.on'],
+      permissions: { reads: ['whether a tab plays sound, is in a call, or has a text box with something in it (yes or no, never the text)'], writes: ['its own switch'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

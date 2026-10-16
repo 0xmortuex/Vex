@@ -64,7 +64,7 @@ describe('a desktop notification from a panel, clicked', () => {
 
   it("the guest's Notification is wrapped so a click reaches the host, still a real Notification", () => {
     const src = fs.readFileSync(path.join(__dirname, '../../src/preload-webview.js'), 'utf8');
-    const start = src.indexOf('function wrapNotification(clicked) {');
+    const start = src.indexOf('function wrapNotification(clicked, seen) {');
     const end = src.indexOf('\n  function inject()', start);
     const wrap = new Function('return ' + src.slice(start, end).trim())();
     class FakeNotification extends EventTarget {
@@ -74,16 +74,18 @@ describe('a desktop notification from a panel, clicked', () => {
     }
     window.Notification = FakeNotification;
     const clicked = vi.fn();
-    wrap(clicked);
+    const seen = vi.fn();
+    wrap(clicked, seen);
     expect(window.Notification).not.toBe(FakeNotification);
     expect(window.Notification.permission).toBe('granted');
     const n = new window.Notification('New message', { body: 'hi' });
     expect(n).toBeInstanceOf(FakeNotification);
     expect(n.title).toBe('New message');
+    expect(seen).toHaveBeenCalledWith('New message', 'hi');   // title and body go to the host window (js/panel-capture.js)
     n.dispatchEvent(new Event('click'));
     expect(clicked).toHaveBeenCalledTimes(1);
     const again = window.Notification;
-    wrap(clicked);                         // a second injection does not wrap twice
+    wrap(clicked, seen);                   // a second injection does not wrap twice
     expect(window.Notification).toBe(again);
   });
 

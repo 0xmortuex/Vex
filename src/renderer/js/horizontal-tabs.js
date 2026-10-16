@@ -208,7 +208,7 @@ const HorizontalTabs = (() => {
       TabManager.switchTab(tab.id);
     });
     el.addEventListener('auxclick', (e) => {
-      if (e.button === 1) { e.preventDefault(); e.stopPropagation(); TabManager.closeTab(tab.id); }
+      if (e.button === 1) { e.preventDefault(); e.stopPropagation(); TabManager.requestClose(tab.id); }
     });
     const closeBtn = el.querySelector('.tab-close');
     if (closeBtn) {
@@ -224,7 +224,7 @@ const HorizontalTabs = (() => {
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        TabManager.closeTab(tab.id);
+        TabManager.requestClose(tab.id);
       });
     }
     el.addEventListener('contextmenu', (e) => {

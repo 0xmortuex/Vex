@@ -257,7 +257,7 @@ const VexA11yKeys = (() => {
         if (!tabId || typeof TabManager === 'undefined') return;
         e.preventDefault();
         refocus = { list: L };
-        TabManager.closeTab(tabId);
+        TabManager.requestClose(tabId);
         return;
       }
       case 'ContextMenu': case 'F10': {

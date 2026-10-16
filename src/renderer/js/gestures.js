@@ -38,7 +38,7 @@ const MouseGestures = {
       'R': () => { try { wv.canGoForward() && wv.goForward(); } catch {} return '→ Forward'; },
       'U': () => { try { wv.executeJavaScript('window.scrollTo({top:0,behavior:"smooth"})'); } catch {} return '↑ Top'; },
       'D': () => { try { wv.reload(); } catch {} return '↓ Reload'; },
-      'DR': () => { if (t) TabManager.closeTab(t.id); return '↓→ Close tab'; },
+      'DR': () => { if (t) TabManager.requestClose(t.id); return '↓→ Close tab'; },
       // TabManager's method is reopenLastClosed; the old reopenClosedTab?.()
       // named nothing, so the gesture did nothing (found 2026-09-29).
       'DL': () => { try { TabManager.reopenLastClosed(); } catch {} return '↓← Reopen tab'; },

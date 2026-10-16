@@ -421,6 +421,12 @@ const WebviewManager = {
         if (id && typeof TabManager !== 'undefined' && TabManager.activeTabId !== id) TabManager.switchTab(id);
         return;
       }
+      // What a Discord or WhatsApp notification from this tab said, for the list
+      // of Notifications from panels (js/panel-capture.js; a no-op unless opted in).
+      if (e.channel === 'vex-notification-seen') {
+        if (typeof PanelCapture !== 'undefined') PanelCapture.fromTab(webview, e.args && e.args[0]);
+        return;
+      }
       // Microphone / camera in use (preload-webview.js getUserMedia wrapper).
       if (e.channel === 'vex-media-capture') {
         const d = (e.args && e.args[0]) || {};

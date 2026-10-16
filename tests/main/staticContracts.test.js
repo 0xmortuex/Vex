@@ -62,7 +62,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:level-up', 'state-changed notification, no consumer yet'],
   ['vex:levels-changed', 'state-changed notification, no consumer yet'],
   ['vex:offline-pages-changed', 'state-changed notification, no consumer yet'],
-  ['vex:panel-unread', 'state-changed notification, no consumer yet'],
   ['vex:patch-radar', 'state-changed notification, no consumer yet'],
   ['vex:space-changed', 'state-changed notification, no consumer yet'],
   ['vex:routine-suggested', 'state-changed notification, no consumer yet'],
@@ -80,7 +79,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:medal-progress', 'part of the VexMedals event API (vex-medals.js header), no consumer yet'],
   ['vex:medal-profile', 'part of the VexMedals event API (vex-medals.js header), no consumer yet'],
   // Wave 0 state-changed notifications: published so a later feature can follow them without an import.
-  ['vex:attention-state', 'AttentionState.changed(): the quiet state changed; main is told through the attention bridge, no in-window consumer yet'],
   ['vex:newtab-layout', 'NewTabSlots.setLayout(): the New Tab layout changed; the page re-reads it on open, no in-window consumer yet'],
   ['vex:consent', 'VexDefaults consent given or withdrawn; no in-window consumer yet'],
   ['vex:playfulness-changed', 'VexPlayfulness.setLevel(); the Play flags already tell their followers through vex:play-changed'],

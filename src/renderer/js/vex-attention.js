@@ -144,6 +144,11 @@ const VexAttention = {
     };
 
     if (this.isMuted(feature)) return refuse('muted');
+    // A person or word the person marked as VIP (js/vip-rules.js) is let through like something
+    // they asked to be told about: not counted in the caps, not held for a quiet moment.
+    if (opts.vipText != null && typeof VipRules !== 'undefined' && VipRules.hit(opts.vipText, opts.vipSource)) {
+      return { allow: true, route: 'toast', reason: 'vip', urgency };
+    }
     const last = this._seen.get(key);
     if (last !== undefined && now - last < this.REPEAT_MS) return refuse('repeat', false);
     const st = this._state();

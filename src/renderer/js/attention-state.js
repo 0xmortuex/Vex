@@ -7,7 +7,7 @@
 //
 //   AttentionState.get() -> {
 //     quiet: boolean,
-//     reason: 'game' | 'meeting' | 'focus' | 'quiet-hours' | 'wind-down' | 'quiet-switch' | '',
+//     reason: 'game' | 'meeting' | 'focus' | 'away' | 'quiet-hours' | 'wind-down' | 'quiet-switch' | '',
 //     until: number | 0,            // ms epoch when the reason ends, 0 when unknown
 //     sources: [{ id, until }],     // every reason that applies, strongest first
 //   }
@@ -25,7 +25,7 @@
 // hidden.
 const AttentionState = {
   // Strongest first: the first one that applies is the `reason`.
-  ORDER: ['game', 'meeting', 'focus', 'quiet-hours', 'wind-down', 'quiet-switch'],
+  ORDER: ['game', 'meeting', 'focus', 'away', 'quiet-hours', 'wind-down', 'quiet-switch'],
   QUIET_HOURS_TTL_MS: 30 * 1000,
 
   _qh: null,           // { at, inWindow, until } from the main process
@@ -58,6 +58,11 @@ const AttentionState = {
   _focus() {
     if (typeof FocusMode !== 'undefined' && FocusMode && FocusMode.active) return { until: Number(FocusMode.until) || 0 };
     if (typeof FocusFlows !== 'undefined' && FocusFlows && FocusFlows._active && FocusFlows._active.flow) return { until: 0 };
+    return null;
+  },
+  // "I am away" (js/away-mode.js): everything not urgent waits for the person's return.
+  _away() {
+    if (typeof AwayMode !== 'undefined' && AwayMode && typeof AwayMode.active === 'function' && AwayMode.active()) return { until: 0 };
     return null;
   },
   _wind() {
@@ -107,7 +112,7 @@ const AttentionState = {
 
   get() {
     const readers = {
-      game: () => this._game(), meeting: () => this._meeting(), focus: () => this._focus(),
+      game: () => this._game(), meeting: () => this._meeting(), focus: () => this._focus(), away: () => this._away(),
       'quiet-hours': () => this._quietHours(), 'wind-down': () => this._wind(), 'quiet-switch': () => this._switch(),
     };
     const sources = [];

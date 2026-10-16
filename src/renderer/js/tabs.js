@@ -621,6 +621,18 @@ const TabManager = {
     else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
   },
 
+  // A person closing ONE tab (Ctrl+W, the X, a middle click, a gesture, the menu): asks first when it is
+  // playing sound, in a call or holding typed text (js/close-protect.js). Bulk and programmatic closes
+  // call closeTab directly and never ask. Resolves true when the tab was closed.
+  requestClose(id) {
+    if (typeof CloseProtect === 'undefined') { this.closeTab(id); return Promise.resolve(true); }
+    return CloseProtect.close(id).catch((err) => {
+      console.error('[Tabs] the tab could not be closed:', err);
+      window.VexProblems?.note('Tabs', 'A tab could not be closed', err);
+      return false;
+    });
+  },
+
   closeTab(id) {
     this._notifyTabsChanged();
     document.dispatchEvent(new CustomEvent('vex:tab-closed', { detail: { tabId: id } }));
@@ -1101,7 +1113,7 @@ const TabManager = {
     if (tabIcon) tabIcon.src = tab.favicon;
     el.addEventListener('click', (e) => {
       if (e.target.closest('.tab-close')) {
-        this.closeTab(tab.id);
+        this.requestClose(tab.id);
       } else if (e.target.closest('.tab-audio')) {
         // Plain click mutes; with Shift, choose which speakers it plays
         // through — Windows gives a whole program one device, so without this
@@ -1963,7 +1975,7 @@ const TabManager = {
       { label: 'What is this using?…', action: () => { if (typeof VexTasks !== 'undefined') VexTasks.open({ tab: tab.id }); } },
       { label: this._isKeptAwake(tab) ? 'Keep awake — change…' : 'Prevent from sleeping…', action: () => this._showKeepAwakeChooser(tab) },
       { sep: true },
-      { label: 'Close', action: () => this.closeTab(tab.id), danger: true },
+      { label: 'Close', action: () => this.requestClose(tab.id), danger: true },
       { label: 'Close Others', action: () => this.closeOtherTabs(tab.id), danger: true },
       { label: 'Close Tabs to the Right', action: () => this.closeTabsToTheRight(tab.id), danger: true }
     ];

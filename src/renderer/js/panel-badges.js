@@ -7,6 +7,7 @@
 const PanelBadges = {
   _timer: null,
   _total: 0,
+  counts: {},   // panel -> unread count from the last sweep
 
   // Panels whose title is never a message count: Spotify's is "Song • Artist"
   // while it plays.
@@ -53,21 +54,26 @@ const PanelBadges = {
     try {
       if (typeof SidebarManager === 'undefined' || !SidebarManager.panelWebviews) return;
       let total = 0;
+      // Panel by panel, for the panel state strip and its ledger (js/panel-state.js).
+      // A panel that is asleep or closed has no entry: it has no page to count from.
+      const counts = {};
       Object.keys(SidebarManager.panelWebviews).forEach(panel => {
         const wv = SidebarManager.panelWebviews[panel];
         let title = '';
         try { title = (wv && typeof wv.getTitle === 'function') ? wv.getTitle() : ''; } catch {}
         const n = this._unreadFromTitle(title, panel);
         this._setBadge(panel, n);
+        counts[panel] = n;
         total += n;
       });
+      this.counts = counts;
       // A slept (or closed) panel has no page to count from: its last count
       // stayed on the icon for good.
       document.querySelectorAll('.sidebar-icon[data-panel] > .panel-badge').forEach(b => {
         if (!SidebarManager.panelWebviews[b.parentElement.dataset.panel]) b.remove();
       });
       this._total = total;
-      window.dispatchEvent(new CustomEvent('vex:panel-unread', { detail: { total } }));
+      window.dispatchEvent(new CustomEvent('vex:panel-unread', { detail: { total, counts } }));
     } catch {}
   },
 
