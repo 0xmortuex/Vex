@@ -71,7 +71,7 @@
     }
     const need = p.uv === 'required';
     return `<label class="vex-dialog-label" for="pk-pin">${need ? 'Vex PIN' : 'Vex PIN (optional)'}</label>
-      <input class="vex-dialog-input" id="pk-pin" type="password" inputmode="numeric" maxlength="12" autocomplete="off" aria-describedby="pk-error"${need ? ' aria-required="true"' : ''}>`;
+      <input class="vex-dialog-input" id="pk-pin" type="password" maxlength="128" autocomplete="off" aria-describedby="pk-error"${need ? ' aria-required="true"' : ''}>`;
   }
 
   function sheetHtml(p) {

@@ -215,6 +215,7 @@ const finite = value => typeof value === 'number' && Number.isFinite(value);
 // The opener's look and its Simple/Full mode (js/simple-mode.js): a private
 // window keeps its own storage, so it has neither unless it is told.
 define('open-private-window', [optional(string(40)), optional(oneOf(['simple', 'full']))]);
+define('open-guest-window', [optional(string(40)), optional(oneOf(['simple', 'full']))]);
 define('open-clean-window', [web, optional(string(40)), optional(oneOf(['simple', 'full']))]);
 define('open-pip-window', [web, optional(shape({
   src: web,
@@ -248,7 +249,7 @@ define('sync-secrets-put-back', [shape({ kind: secretKind, id: string(64), item:
 // credential id. No private key is ever an argument or a result.
 define('passkeys:request', [object]);
 define('passkeys:cancel passkeys:conditional-list', [string(64)]);
-define('passkeys:conditional-choose', [string(64), string(1400), optional(string(24))]);
+define('passkeys:conditional-choose', [string(64), string(1400), optional(string(128))]);
 define('passkeys:answer', [string(64), object]);
 define('passkeys:list', []);
 define('passkeys:delete passkeys:undo-delete', [string(1400)]);
@@ -262,6 +263,16 @@ define('storage-save', [string(64), value => value !== undefined]);
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
 // A password or one-time code to copy, and how long until it is cleared.
 define('clipboard:write-secret', [value => typeof value === 'string' && value.length > 0 && value.length <= 10000, optional(value => Number.isInteger(value) && value >= 5 && value <= 300)]);
+// The paste-and-run tripwire's "clear it": the exact text a page put on the clipboard (js/clipboard-tripwire.js).
+define('clipboard:clear-if', [value => typeof value === 'string' && value.length > 0 && value.length <= 4000]);
+// Tier 3 security helpers: the startup check is read-only; the app lock makes a scrypt record, reports the secure
+// stores and does the typed-confirmation reset; the photo preparer's two dialogs.
+define('startup:list applock:stores', []);
+define('applock:make-record', [string(128)]);
+define('applock:lock-on-minimize', [boolean]);
+define('applock:reset', [string(64)]);
+define('photoprep:open', []);
+define('photoprep:save', [value => value instanceof Uint8Array && value.length > 0 && value.length <= 40 * 1024 * 1024, string(120)]);
 // urgency / feature / id: the Attention Budget (src/main/notify.js). No urgency is "asked".
 define('notify:show',[shape({ title: string(200), body: optional(string(2000)), urgency: optional(oneOf(['critical', 'asked', 'useful', 'ambient'])), feature: optional(string(64)), id: optional(string(120)) })]);
 // The window tells main whether it is a bad moment for a toast (js/attention-state.js).

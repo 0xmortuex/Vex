@@ -549,6 +549,17 @@ contextBridge.exposeInMainWorld('vex', {
   // The same check without unlocking anything: asking again before a secret
   // is shown (js/vex-lock.js recheck).
   verifyLockPin: (pin) => ipcRenderer.invoke('vex-lock:verify', pin),
+  // App lock extras (T3-123, js/secure-lock.js): a scrypt record for a new PIN or passphrase, the report of
+  // the secure stores, and the explicit reset that erases them.
+  applockMakeRecord: (secret) => ipcRenderer.invoke('applock:make-record', secret),
+  applockStores: () => ipcRenderer.invoke('applock:stores'),
+  applockLockOnMinimize: (on) => ipcRenderer.send('applock:lock-on-minimize', !!on),
+  applockReset: (confirm) => ipcRenderer.invoke('applock:reset', confirm),
+  // Startup-persistence check (T3-122): read-only.
+  startupList: () => ipcRenderer.invoke('startup:list'),
+  // Photo preparer (T3-105): the two dialogs; the work is done in the window.
+  photoprepOpen: () => ipcRenderer.invoke('photoprep:open'),
+  photoprepSave: (bytes, suggestedName) => ipcRenderer.invoke('photoprep:save', bytes, suggestedName),
   cancelTor: () => ipcRenderer.invoke('tor:cancel'),
   onViewSource: (callback) => subscribe('view-source', callback),
   onSaveSessionBeforeQuit: (callback) => subscribe('save-session-before-quit', callback),
@@ -562,6 +573,7 @@ contextBridge.exposeInMainWorld('vex', {
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   onFullscreenChanged: (callback) => subscribe('fullscreen-changed', callback),
   openPrivateWindow: (look, uiMode) => ipcRenderer.invoke('open-private-window', look, uiMode),
+  openGuestWindow: (look, uiMode) => ipcRenderer.invoke('open-guest-window', look, uiMode),
   openCleanWindow: (url, look, uiMode) => ipcRenderer.invoke('open-clean-window', url, look, uiMode),
   // New Identity: a throwaway isolated session (random consistent Chrome UA).
   createIdentity: () => ipcRenderer.invoke('identity:create'),
@@ -650,6 +662,8 @@ contextBridge.exposeInMainWorld('vex', {
   // A password or one-time code onto the clipboard; the main process empties
   // it after `seconds` if it is still there, focus or no focus.
   copySecret: (text, seconds) => ipcRenderer.invoke('clipboard:write-secret', text, seconds),
+  // Empty the clipboard only if it still holds exactly this text (the paste-and-run tripwire).
+  clearClipboardIf: (text) => ipcRenderer.invoke('clipboard:clear-if', text),
   // Web safety (main/web-safety.js): lookalike addresses, risky downloads,
   // over-asking prompts and per-site paranoid mode. Each answers the whole
   // current state: { sensitivity, allow: [host], paranoid: [origin] }.

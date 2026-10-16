@@ -57,7 +57,23 @@ const VexLock = {
     if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
   },
 
-  clearPin() { localStorage.removeItem(this.PIN_KEY); },
+  clearPin() { localStorage.removeItem(this.PIN_KEY); if (typeof VexSecureLock !== 'undefined') VexSecureLock.syncMinimize(); },
+
+  // A record made by main with scrypt (js/secure-lock.js, T3-123): a PIN or a passphrase. The window
+  // cannot check one (Web Crypto has no scrypt), so unlocking and the re-check go straight to main,
+  // which also keeps the wrong-try count.
+  isScryptRecord() { try { const r = JSON.parse(localStorage.getItem(this.PIN_KEY) || 'null'); return !!r && r.kdf === 'scrypt'; } catch { return false; } },
+
+  // Stores the record main made for a new PIN or passphrase. Main is asked first, so a refused
+  // secret (too short) throws here and nothing is stored.
+  async setSecret(secret) {
+    if (!window.vex?.applockMakeRecord) throw new Error('Vex could not make the lock record');
+    const record = await window.vex.applockMakeRecord(String(secret));
+    JSON.parse(record);
+    localStorage.setItem(this.PIN_KEY, record);
+    this._fails = 0; this._rounds = 0; this._waitUntil = 0;
+    if (typeof PersistentStorage !== 'undefined') await PersistentStorage._flush();
+  },
 
   // Asked again before a secret is shown or copied (a saved password, the sync
   // recovery code): the Vex PIN when one is set, checked by main with the same
@@ -68,7 +84,7 @@ const VexLock = {
     const pin = await window.vexPrompt({ title, message: message + ' Enter your Vex PIN to continue.', label: 'Vex PIN', password: true, okLabel });
     if (pin === null) return false;
     let result;
-    try { result = await window.vex.verifyLockPin(String(pin).trim().slice(0, 12)); }
+    try { result = await window.vex.verifyLockPin(String(pin).trim().slice(0, 128)); }
     catch (err) { window.showToast?.('Could not check the PIN: ' + err.message, 'error'); return false; }
     if (!result || !result.ok) { window.showToast?.((result && result.error) || 'Wrong PIN', 'error'); return false; }
     return true;
@@ -104,11 +120,13 @@ const VexLock = {
     el.innerHTML = `<form class="vex-lock-card" role="dialog" aria-label="Vex is locked">
         <div class="vex-lock-icon">${VexIcons.svg('lock', { size: 30 })}</div>
         <div class="vex-lock-title">Vex is locked</div>
-        <input type="password" inputmode="numeric" autocomplete="off" maxlength="12" aria-label="PIN" placeholder="PIN">
+        <input type="password" autocomplete="off" maxlength="128" aria-label="PIN or passphrase" placeholder="PIN or passphrase">
         <button type="submit">Unlock</button>
         <div class="vex-lock-msg" aria-live="polite"></div>
       </form>`;
     document.body.appendChild(el);
+    // The "forgot it" recovery path, when the person turned it on (js/secure-lock.js).
+    if (typeof VexSecureLock !== 'undefined') VexSecureLock.decorateLockScreen(el);
     // Everything but the PIN screen is inert: Tab walked the focus to the
     // buttons behind it, and a panel opened by a shortcut sat there usable
     // (found 2026-09-29). Anything added to the page while locked is made
@@ -128,6 +146,11 @@ const VexLock = {
     const msg = el.querySelector('.vex-lock-msg');
     el.querySelector('form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (this.isScryptRecord()) {
+        try { await this.unlock(input.value); }
+        catch (err) { input.value = ''; msg.textContent = err.message; }
+        return;
+      }
       if (this._waitUntil && Date.now() < this._waitUntil) { msg.textContent = 'Too many tries — wait ' + this._waitText(this._waitUntil - Date.now()); return; }
       if (await this.check(input.value)) {
         try { await this.unlock(input.value); }

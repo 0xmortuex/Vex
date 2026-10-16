@@ -1467,6 +1467,81 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Paste-and-run tripwire: a page writing the clipboard on its own (main world) ===
+// ClickFix pages put a shell one-liner on the clipboard and tell the visitor to
+// paste it into Run or PowerShell. This watches the page's clipboard WRITES
+// (navigator.clipboard.writeText / write, document.execCommand('copy')) and
+// reports the ones made while the page has NO user activation: a script
+// copying by itself, not a click or a key. It only reports (sendToHost, to the
+// Vex window, never to the page) and always lets the write go through; the
+// window decides whether the text looks like a command and whether to warn
+// (js/clipboard-tripwire.js, off unless the person switched it on). A write
+// made inside a click or keypress is not reported: a "Copy" button on a docs
+// page is exactly that, and so is the "I am not a robot" button of a ClickFix
+// page, which no one can tell apart from the outside (docs/security-tier3-threat-notes.md).
+// The bridge is handed to the shim as an argument, never set on the page's window.
+(function () {
+  let proto = '';
+  try { proto = (window.location && window.location.protocol) || ''; } catch { return; }
+  if (!(proto === 'http:' || proto === 'https:')) return;
+  let contextBridge = null, ipcRenderer = null;
+  try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
+  let sent = 0;
+  const bridge = {
+    written: (text, how) => {
+      if (sent >= 5) return;
+      sent++;
+      try { ipcRenderer.sendToHost('vex-clipboard-tripwire', { text: String(text).slice(0, 4000), how: String(how).slice(0, 40), host: location.hostname.replace(/^www\./, '') }); }
+      catch { /* vex-allow-empty-catch: host gone */ }
+    },
+  };
+  const shimSrc = `(function(){try{
+    if(!bridge) return;
+    var nav = navigator;
+    // Unknown activation state counts as a gesture: no warning rather than a wrong one.
+    function gesture(){ try{ return nav.userActivation ? !!nav.userActivation.isActive : true; }catch(e){ return true; } }
+    function report(text, how){ try{ if(!gesture() && typeof text === 'string' && text) bridge.written(text, how); }catch(e){} }
+    var cb = nav.clipboard;
+    if(cb && typeof cb.writeText === 'function'){
+      var ow = cb.writeText;
+      cb.writeText = function(t){ report(t, 'clipboard.writeText'); return ow.apply(this, arguments); };
+    }
+    if(cb && typeof cb.write === 'function'){
+      var oW = cb.write;
+      cb.write = function(items){
+        try{
+          if(!gesture() && items && items.length){
+            Array.prototype.forEach.call(items, function(it){
+              if(it && it.types && it.types.indexOf('text/plain') >= 0) it.getType('text/plain').then(function(b){ return b.text(); }).then(function(t){ if(t) bridge.written(t, 'clipboard.write'); }, function(){});
+            });
+          }
+        }catch(e){}
+        return oW.apply(this, arguments);
+      };
+    }
+    var oe = document.execCommand;
+    if(typeof oe === 'function'){
+      document.execCommand = function(cmd){
+        try{
+          if(String(cmd).toLowerCase() === 'copy' && !gesture()){
+            var el = document.activeElement, t = '';
+            if(el && typeof el.value === 'string' && typeof el.selectionStart === 'number') t = el.value.slice(el.selectionStart, el.selectionEnd);
+            if(!t){ var sel = window.getSelection && window.getSelection(); t = sel ? String(sel) : ''; }
+            if(t) bridge.written(t, 'execCommand');
+          }
+        }catch(e){}
+        return oe.apply(this, arguments);
+      };
+    }
+  }catch(e){}})();`;
+  function inject() {
+    try { contextBridge.executeInMainWorld({ func: new Function('bridge', shimSrc), args: [bridge] }); }
+    catch (err) { console.error('[Vex] the clipboard tripwire could not reach this page:', err && err.message); }
+  }
+  if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
+})();
+
 // === Screen-share quality shim (main world) ===
 // Electron's setDisplayMediaRequestHandler chooses the SOURCE but can't set the
 // captured resolution/FPS/audio — those come from the page's getDisplayMedia
