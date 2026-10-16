@@ -344,6 +344,10 @@ define('links:check', [value => Array.isArray(value) && value.length <= 2000 && 
 define('devtools:open-for-webcontents', [value => Number.isInteger(value), optional(web)]);
 define('devtools:toggle-host', []);
 define('spellcheck:replace-misspelling', [integer, string(1024), optional(web)]);
+// Spelling languages and "Add to dictionary" (js/spell-lang.js).
+define('spellcheck:set-languages', [value => value === 'auto' || value === 'en' || value === 'tr' || value === 'both']);
+define('spellcheck:state', []);
+define('spellcheck:add-word', [integer, string(64)]);
 define('vex:set-bg-throttling', [integer, boolean]);
 define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000 && value.every(integer)]);
 // Every key the renderer's shortcut registry answers to, as written combos.

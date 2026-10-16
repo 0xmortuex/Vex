@@ -2952,18 +2952,32 @@ function ensureSpellDictionary() {
   return _spellDictReady;
 }
 
-function wireSpellcheckOnSession(ses) {
-  if (!ses || ses.__vexSpellWired) return;
-  ses.__vexSpellWired = true;
-  try {
-    const avail = ses.availableSpellCheckerLanguages || [];
-    const want = [];
+// The spelling languages Settings chose (js/spell-lang.js, T3-040): 'auto' is what Vex always did (the
+// system language and English); 'en', 'tr' or 'both' pin English and/or Turkish. Applied to every session
+// wired below, now and when one is wired later.
+let _spellChoice = 'auto';
+const _spellSessions = new Set();
+const SPELL_CHOICES = { en: ['en-US'], tr: ['tr'], both: ['en-US', 'tr'] };
+function spellLanguagesFor(ses) {
+  const avail = ses.availableSpellCheckerLanguages || [];
+  const want = [];
+  if (_spellChoice === 'auto') {
     try {
       const l = app.getLocale();
       if (l) { want.push(l, l.split('-')[0]); }
     } catch {}
     want.push('en-US', 'en');
-    const langs = [...new Set(want)].filter(l => avail.includes(l));
+  } else {
+    want.push(...SPELL_CHOICES[_spellChoice]);
+  }
+  return [...new Set(want)].filter(l => avail.includes(l));
+}
+function wireSpellcheckOnSession(ses) {
+  if (!ses || ses.__vexSpellWired) return;
+  ses.__vexSpellWired = true;
+  _spellSessions.add(ses);
+  try {
+    const langs = spellLanguagesFor(ses);
     // A blocked/unreachable dictionary CDN is otherwise invisible — the
     // checker just never turns on. Surface it in the log.
     ses.on('spellcheck-dictionary-download-failure', (_e, lang) => {
@@ -8773,6 +8787,40 @@ ipcMain.handle('spellcheck:replace-misspelling', (_e, webContentsId, suggestion,
     console.warn('[Vex spell] replace-misspelling failed:', result.error, '| requestedId:', webContentsId);
   }
   return result;
+});
+
+// Spelling languages (js/spell-lang.js): English, Turkish, both, or automatic; and "Add to dictionary".
+// A dictionary that is not on disk yet is fetched by Chromium itself the first time it is switched on
+// (the same way the system language's always was); a failure is logged by wireSpellcheckOnSession.
+ipcMain.handle('spellcheck:set-languages', (_e, choice) => {
+  if (choice !== 'auto' && !SPELL_CHOICES[choice]) throw new Error('Unknown spelling language choice: ' + choice);
+  const previous = _spellChoice;
+  _spellChoice = choice;
+  let languages = [];
+  for (const ses of _spellSessions) {
+    const langs = spellLanguagesFor(ses);
+    if (!langs.length) { _spellChoice = previous; throw new Error('No spelling dictionary is available for that choice'); }
+    ses.setSpellCheckerLanguages(langs);
+    if (!languages.length) languages = langs;
+  }
+  return { choice, languages };
+});
+ipcMain.handle('spellcheck:state', () => {
+  const first = _spellSessions.values().next().value;
+  const avail = first ? first.availableSpellCheckerLanguages || [] : [];
+  return { choice: _spellChoice, languages: first ? first.getSpellCheckerLanguages() : [], available: { en: avail.includes('en-US'), tr: avail.includes('tr') } };
+});
+ipcMain.handle('spellcheck:add-word', (_e, webContentsId, word) => {
+  const guest = webContents.fromId(webContentsId);
+  if (!guest || guest.isDestroyed()) throw new Error('That page is gone');
+  const clean = String(word).trim();
+  if (!/^[\p{L}\p{M}'’-]{1,64}$/u.test(clean)) throw new Error('That is not a single word');
+  // A private window's page keeps the word in its own memory; an ordinary page's goes to every kept profile.
+  const targets = new Set([guest.session]);
+  if (guest.session.isPersistent()) for (const ses of _spellSessions) if (ses.isPersistent()) targets.add(ses);
+  let added = false;
+  for (const ses of targets) added = ses.addWordToSpellCheckerDictionary(clean) || added;
+  return { ok: added };
 });
 
 // Downloads IPC — open/show

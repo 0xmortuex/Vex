@@ -10,6 +10,7 @@
 // private tab is never touched.
 const TabContentIndex = {
   MAX_WORDS: 400,        // per tab: enough to recognise a page, not a copy of it
+  MAX_TEXT_CHARS: 6000000,   // all the pages' text together, in characters
   MIN_WORD: 3,
   _byTab: new Map(),     // tabId -> { url, words:Set, title, at }
   STOP: new Set(('the a an and or but of to in for on at by with from as is are was were be been it its this that these those you your we our they their he she his her not no do does did have has had will would can could should may might must i me my if then than so such about into over under out up down more most some any all each other new use used using page site web home menu search close open cookie cookies accept privacy terms sign log in out'.split(' '))),
@@ -38,16 +39,60 @@ const TabContentIndex = {
     try {
       text = await window.vexGuestEval(webview, `(() => {
         const el = document.querySelector('article, main, [role="main"]') || document.body;
-        return (el.innerText || el.textContent || '').slice(0, 20000);
+        return (el.innerText || el.textContent || '').slice(0, 40000);
       })()`, false, 4000);
     } catch (err) {
       // A page that will not answer is simply not indexed; it is still findable
       // by title, which is what it was before.
       return null;
     }
-    const entry = { url: tab.url, title: tab.title || '', words: this.keywords(text), at: Date.now() };
+    // The page's own words are kept in memory too, for an exact search over them (searchText, js/tab-text-find.js):
+    // never written to disk, never sent anywhere, dropped with the tab and trimmed to MAX_TEXT_CHARS in all.
+    const entry = { url: tab.url, title: tab.title || '', words: this.keywords(text), at: Date.now(), text: String(text).normalize('NFC').replace(/\s+/g, ' ').trim() };
     this._byTab.set(tabId, entry);
+    this._trimText();
     return entry;
+  },
+
+  // The oldest pages lose their text first when all of it is more than MAX_TEXT_CHARS (their words stay).
+  _trimText() {
+    let total = 0;
+    for (const e of this._byTab.values()) total += e.text ? e.text.length : 0;
+    if (total <= this.MAX_TEXT_CHARS) return;
+    for (const e of [...this._byTab.values()].sort((a, b) => a.at - b.at)) {
+      if (!e.text) continue;
+      total -= e.text.length;
+      e.text = '';
+      if (total <= this.MAX_TEXT_CHARS) break;
+    }
+  },
+
+  // Which open tabs contain this EXACT text? Case, the Turkish dotted/dotless I and ç/ğ/ö/ş/ü are not told apart
+  // ("istanbul" finds "İstanbul"), nothing else is loosened: no stemming, no typos, no partial words missed.
+  // A query in double quotes is matched letter for letter instead. → [{ tabId, url, title, count, before, match, after }]
+  searchText(query, { limit = 50, around = 48 } = {}) {
+    let q = String(query == null ? '' : query).normalize('NFC').trim();
+    const strict = q.length > 2 && q.startsWith('"') && q.endsWith('"');
+    if (strict) q = q.slice(1, -1);
+    if (q.length < 2) return [];
+    const tr = globalThis.VexTr || null;
+    const fold = strict || !tr ? (x) => x : (x) => tr.fold(x);
+    const needle = fold(q);
+    const out = [];
+    for (const [tabId, e] of this._byTab) {
+      if (!e.text) continue;
+      const hay = fold(e.text);
+      let at = hay.indexOf(needle), count = 0, first = -1;
+      while (at !== -1) { if (first < 0) first = at; count++; at = hay.indexOf(needle, at + needle.length); }
+      if (!count) continue;
+      // The words around the first hit, from the page's own text (the folded copy only when it is the same length).
+      const src = hay.length === e.text.length ? e.text : hay;
+      out.push({ tabId, url: e.url, title: e.title, count,
+        before: src.slice(Math.max(0, first - around), first),
+        match: src.slice(first, first + needle.length),
+        after: src.slice(first + needle.length, first + needle.length + around) });
+    }
+    return out.sort((a, b) => b.count - a.count).slice(0, limit);
   },
 
   forget(tabId) { this._byTab.delete(tabId); },

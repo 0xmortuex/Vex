@@ -56,7 +56,8 @@ const WorkspaceManager = {
   saveCurrentState() {
     const ws = this.getActive();
     if (!ws) return;
-    const tabs = window.VexTabPolicy.snapshot(TabManager.tabs);
+    // Essential tabs belong to every workspace, not to this one (js/essentials.js).
+    const tabs = window.VexTabPolicy.snapshot(typeof VexEssentials !== 'undefined' ? VexEssentials.leaveOut(TabManager.tabs) : TabManager.tabs);
     ws.tabs = tabs;
     ws.groups = TabManager.groups.map(g => ({ ...g }));
     // Stacks are per-workspace state exactly like groups. Without this, a
@@ -107,7 +108,8 @@ const WorkspaceManager = {
       //    it by hand does, so its session (cookies, cache, Tor circuit)
       //    ends with it.
       if (closeEphemeral) this._closeEphemeralTabs();
-      TabManager.closeAllTabs({ keep: (t) => this._isEphemeral(t) });
+      // Private and Tor tabs, and essential tabs (js/essentials.js), stay open through the switch.
+      TabManager.closeAllTabs({ keep: (t) => this._isEphemeral(t) || (typeof VexEssentials !== 'undefined' && VexEssentials.stays(t)) });
       await new Promise(r => setTimeout(r, 0));
 
       // 5. Update theme immediately

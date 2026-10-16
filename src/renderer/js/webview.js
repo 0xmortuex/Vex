@@ -132,6 +132,9 @@ const WebviewManager = {
     onWebview('did-start-navigation', (e) => {
       if (e.isMainFrame === false || e.isSameDocument || e.isInPlace) return;
       tab._loadFailed = null;
+      // Vex's own "did not load" page goes when the next page starts (js/load-failure.js);
+      // Chromium's error page committing is the failure itself, not a next page.
+      if (typeof VexLoadFailure !== 'undefined' && !/^chrome-error:/i.test(e.url || '')) VexLoadFailure.clear(tab.id);
     });
     onWebview('did-fail-load', (e) => {
       if (e.isMainFrame === false || e.errorCode === -3) return;
@@ -140,6 +143,8 @@ const WebviewManager = {
       // (js/vex-mini-games.js); nothing is required to be listening.
       document.dispatchEvent(new CustomEvent('vex:page-load-failed', { detail: { tabId: tab.id, code: e.errorCode, url: e.validatedURL } }));
       if (typeof SitePanel !== 'undefined' && TabManager.activeTabId === tab.id) SitePanel.refreshIcon();
+      // Vex's own page for it, with Try again and the other ways (js/load-failure.js).
+      if (typeof VexLoadFailure !== 'undefined') VexLoadFailure.note(tab.id, e);
       // A page you archived that will not load: offer your copy (and Wayback).
       if (typeof ArchiveLibrary !== 'undefined' && TabManager.activeTabId === tab.id) ArchiveLibrary.offerForDeadPage(e.validatedURL, { isMainFrame: true, errorCode: e.errorCode });
     });
@@ -1656,6 +1661,8 @@ const WebviewManager = {
       } else {
         spellingItems.push({ label: 'No suggestions', disabled: true });
       }
+      // "Add to the dictionary" (js/spell-lang.js).
+      if (typeof VexSpellLang !== 'undefined') spellingItems.push(...VexSpellLang.menuRows(webview, e.params).word);
       spellingItems.push({ sep: true });
     }
 
@@ -1670,7 +1677,11 @@ const WebviewManager = {
       editItems.push({ label: 'Cut', action: () => webview.cut?.(), disabled: f.canCut === false });
       editItems.push({ label: 'Copy', action: () => webview.copy?.(), disabled: f.canCopy === false });
       editItems.push({ label: 'Paste', action: () => webview.paste?.(), disabled: f.canPaste === false });
+      // Without the page's fonts, colours and links (js/paste-plain.js).
+      if (typeof VexPastePlain !== 'undefined') editItems.push(...VexPastePlain.menuRows(webview, e.params));
       editItems.push({ label: 'Select All', action: () => webview.selectAll?.() });
+      // English / Turkish / both / automatic (js/spell-lang.js).
+      if (typeof VexSpellLang !== 'undefined') editItems.push(...VexSpellLang.menuRows(webview, e.params).lang);
       editItems.push({ sep: true });
     }
 

@@ -85,6 +85,9 @@
         partition: tab.partition || null, pinned: !!tab.pinned, groupId: tab.groupId || null,
         stackId: tab.stackId || null, sleeping: !!tab.sleeping, muted: !!tab.muted, originalUrl: tab.originalUrl || null,
         scrollPosition: tab.scrollPosition || null, keepAwakeUntil: tab.keepAwakeUntil || 0, note: tab.note || '',
+        // Kept across a restart (js/essentials.js, js/pinned-home.js): written only when set.
+        ...(tab.essential ? { essential: true } : {}),
+        ...(typeof tab.homeUrl === 'string' && tab.homeUrl ? { homeUrl: tab.homeUrl } : {}),
         // Only a sleeping tab's figure means anything: an awake tab's is stale.
         memBeforeSleep: tab.sleeping ? policy.sleepMemory(tab) : null,
         ...(history ? { history } : {}) };
