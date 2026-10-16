@@ -289,7 +289,7 @@ GameMode.initGaming = function () {
 };
 
 // Is Vex holding background AI right now? (read by AIRouter and Scheduler)
-GameMode.holdingAi = function () { return this.gaming && this.gamingSetting('holdAi'); };
+GameMode.holdingAi = function () { return this.gaming && (this.gamingSetting('holdAi') || (typeof CommitGuard !== 'undefined' && CommitGuard.holding())); };
 
 GameMode.onGameStart = async function (app) {
   if (this.gaming) { this.gamingApp = app || this.gamingApp; return this._gamingReport; }

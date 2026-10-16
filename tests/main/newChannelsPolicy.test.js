@@ -14,13 +14,13 @@ const CHANNELS = ('clips-inbox:add clips-inbox:clear clips-inbox:list clips-inbo
   + 'kb:context kb:forget kb:keep-out kb:keep-out-clear kb:plan kb:put kb:related kb:related-page kb:search kb:status kb:step kb:sync-archive '
   + 'packs:discard packs:export packs:generate-key packs:install packs:items packs:list packs:pick-file packs:preview packs:set-enabled packs:set-global '
   + 'packs:trust-key packs:uninstall packs:untrust-key playground:send privacy:report privacy:report-clean quiet:drop quiet:get quiet:held quiet:release '
-  + 'quiet:set screen-share:preflight signout:why tabsnap:clear tabsnap:load tabsnap:save tuning:advise tuning:forget tuning:history websafety:allow-host websafety:check websafety:forget-host '
+  + 'quiet:set screen-share:preflight signout:why commit:state tabsnap:clear tabsnap:load tabsnap:save tuning:advise tuning:forget tuning:history websafety:allow-host websafety:check websafety:forget-host '
   + 'websafety:get websafety:set-paranoid websafety:set-sensitivity').split(' ');
 
 // Open to a private window on purpose: they only read what the window already
 // shows (the safety level; the verdict for one address) or are another feature's
 // own channel that predates this list.
-const PRIVATE_OK = new Set(['websafety:get', 'websafety:check', 'screen-share:preflight']);
+const PRIVATE_OK = new Set(['websafety:get', 'websafety:check', 'screen-share:preflight', 'commit:state']);
 
 const policySrc = read('src', 'main', 'ipc-policy.js');
 const PRIVATE_DISABLED = eval(policySrc.match(/const PRIVATE_DISABLED = (\/.*\/);/)[1]); // eslint-disable-line no-eval

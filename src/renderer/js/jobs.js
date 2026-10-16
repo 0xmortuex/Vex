@@ -40,6 +40,7 @@ const VexJobs = {
   heldBecause(when, job) {
     const gaming = typeof GameMode !== 'undefined' && GameMode.gaming;
     if (gaming) return 'a game is running';
+    if (typeof CommitGuard !== 'undefined' && CommitGuard.holding()) return 'Windows is short of memory';
     if (job && job.deferOnBattery && typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs()) return 'saving battery';
     if (when === 'ui' && typeof document !== 'undefined' && document.hidden) return 'Vex is hidden';
     return '';

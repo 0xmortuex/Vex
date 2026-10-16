@@ -44,7 +44,7 @@ const UI_ONLY_CHANNELS = new Set([
   'privacy:report', 'privacy:report-clean', 'extensions:usage-audit', 'tabsnap:save', 'tabsnap:load', 'tabsnap:clear',
   'quiet:get', 'quiet:set', 'quiet:held', 'quiet:release', 'quiet:drop',
   'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
-  'screen-share:preflight', 'signout:why',
+  'screen-share:preflight', 'signout:why', 'commit:state',
   'companion:start', 'companion:publish', 'companion:status', 'companion:stop',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).

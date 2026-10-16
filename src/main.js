@@ -1384,6 +1384,29 @@ ipcMain.handle('gamemode:games', async (_e, games, watch) => {
 });
 ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end()));
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
+// Commit-charge guard (src/main/commit-guard.js): Windows' commit headroom, read
+// every 15 s with one system call. A change of level goes to the interface
+// ('commit:pressure'), which sheds Vex's OWN load during Game mode. With the
+// game running and the headroom critical, ONE Windows notification says so per
+// stretch of pressure. No other program is ever touched.
+let _commitToldAt = 0;
+const _commitGuard = require('./main/commit-guard').createCommitGuard({
+  info: () => process.getSystemMemoryInfo(),
+  log: (m) => console.error(m),
+  onLevel: (s) => {
+    console.log(`[CommitGuard] ${s.previous} -> ${s.level}: ${s.availMB} MB of the ${s.limitMB} MB commit limit still free`);
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('commit:pressure', { level: s.level, previous: s.previous, availMB: s.availMB, limitMB: s.limitMB, usedMB: s.usedMB }); } catch { /* window gone */ }
+    const gaming = !!(_mergedGameState().game || _gameModeSession.active());
+    if (s.level === 'critical' && gaming && Date.now() - _commitToldAt > 10 * 60 * 1000) {
+      _commitToldAt = Date.now();
+      notifier.show({ title: 'Windows is almost out of memory', body: `Only ${(s.availMB / 1024).toFixed(1)} GB of ${(s.limitMB / 1024).toFixed(0)} GB is left to promise. Vex put its own tabs, AI and background work to rest. It has not touched ${_gameModeSession.state().app || 'your game'}.`, tag: 'commit-guard' })
+        .catch((err) => console.error('[CommitGuard] could not show the warning:', err.message));
+    }
+  },
+});
+app.whenReady().then(() => _commitGuard.start());
+ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message); } return _commitGuard.state(); });
+app.on('will-quit', () => { try { _commitGuard.stop(); } catch {} });
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
 // Time travel and the tuning advisor (src/main/state-journal.js,

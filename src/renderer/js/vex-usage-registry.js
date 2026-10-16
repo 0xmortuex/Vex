@@ -141,6 +141,7 @@ const VexUsageRegistry = {
       DistractionBudget: () => (typeof DistractionBudget !== 'undefined' ? DistractionBudget : null),
       SmartBookmarks: () => (typeof SmartBookmarks !== 'undefined' ? SmartBookmarks : null),
       VexSearchAgain: () => (typeof VexSearchAgain !== 'undefined' ? VexSearchAgain : null),
+      CommitGuard: () => (typeof CommitGuard !== 'undefined' ? CommitGuard : null),
       VexSignoutWhy: () => (typeof VexSignoutWhy !== 'undefined' ? VexSignoutWhy : null),
       VexAliases: () => (typeof VexAliases !== 'undefined' ? VexAliases : null),
       MeetingPrep: () => (typeof MeetingPrep !== 'undefined' ? MeetingPrep : null),
@@ -181,6 +182,8 @@ const VexUsageRegistry = {
       ['page-actions', 'Page actions', 'Page actions', A.api(G.PageActions, 'enabled', 'setEnabled')],
       // Says why a sign-in was lost after the next sign-in (js/signout-why-ui.js); the record itself stays.
       ['signout-why', 'Say why a sign-in was lost', '', A.api(G.VexSignoutWhy, 'enabled', 'setEnabled')],
+      // Sheds Vex's own load when Windows is short of memory during Game mode (js/commit-guard.js).
+      ['commit-guard', 'Protect Windows from running out of memory', 'Game mode', A.api(G.CommitGuard, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', 'Vex Pet', 'Play: fun and progress', A.progress('pet')],
       ['fun-discovery', 'Discovery log', 'Play: fun and progress', A.progress('discovery')],
