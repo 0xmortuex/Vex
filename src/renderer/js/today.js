@@ -149,6 +149,12 @@ const VexToday = {
       if (typeof VexBrief !== 'undefined') snap.morning = await VexBrief.build({ now, force: !!VexBrief._force, snap });
     } catch (err) { snap.errors.push('morning brief: ' + ((err && err.message) || 'unavailable')); }
 
+    // The New Tab slot grid (js/newtab-slots.js): which blocks the page shows, by
+    // priority and cost. Last, so it sees the finished brief and payload.
+    try {
+      if (typeof NewTabSlots !== 'undefined') NewTabSlots.applyTo(snap);
+    } catch (err) { snap.errors.push('new tab layout: ' + ((err && err.message) || 'unavailable')); }
+
     return snap;
   },
 
