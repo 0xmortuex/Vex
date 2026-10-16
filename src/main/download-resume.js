@@ -107,7 +107,7 @@ function createResumeStore({ fs, file, now = () => Date.now() }) {
   function plan(rec) {
     let st;
     try { st = fs.statSync(rec.partPath); }
-    catch (err) { throw new Error('The partial file of ' + path.basename(rec.savePath) + ' is gone (' + err.code + ')'); }
+    catch (err) { throw new Error('The partial file of ' + path.basename(rec.savePath) + ' is gone (' + err.code + ')', { cause: err }); }
     if (!st.isFile() || st.size <= 0) throw new Error('The partial file of ' + path.basename(rec.savePath) + ' is empty');
     if (rec.totalBytes > 0 && st.size >= rec.totalBytes) throw new Error('The partial file of ' + path.basename(rec.savePath) + ' is not smaller than the whole file');
     if (!rec.eTag && !rec.lastModified) throw new Error('There is no way to check that ' + path.basename(rec.savePath) + ' is unchanged');

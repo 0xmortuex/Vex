@@ -68,7 +68,7 @@ const PanelBadges = {
         let title = '';
         try { title = (wv && typeof wv.getTitle === 'function') ? wv.getTitle() : ''; } catch {}
         let url = '';
-        try { url = (wv && typeof wv.getURL === 'function') ? wv.getURL() : ''; } catch {}
+        try { url = (wv && typeof wv.getURL === 'function') ? wv.getURL() : ''; } catch { /* vex-allow-empty-catch: getURL throws until the webview is attached; the title is then read without the Gmail form */ }
         const n = this._unreadFromTitle(title, panel, url);
         this._setBadge(panel, n);
         counts[panel] = n;
