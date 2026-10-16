@@ -494,6 +494,7 @@ const WebviewManager = {
       // Arrived: the bar follows the page from here (navigate() above).
       const arriving = TabManager.tabs.find(t => t.id === tab.id);
       if (arriving) delete arriving._typedUrl;
+      if (typeof VexBugBundle !== 'undefined') VexBugBundle.reset(tab.id);
       // A fresh page starts with a clean count.
       if (tab.consoleErrors) { tab.consoleErrors = 0; tab.lastConsoleError = ''; TabManager.renderTabUpdate(tab); }
       // An address pretending to be a familiar one (js/link-safety.js). Said
@@ -645,6 +646,7 @@ const WebviewManager = {
       // file://) get a count on the tab — the console is not open while you
       // are looking at the page, so a thrown error was invisible until you
       // went looking. Only yours: a badge on every site would be noise.
+      if (typeof VexBugBundle !== 'undefined') VexBugBundle.note(tab.id, e, webview);
       if (e.level >= 3 && TabManager.isLocalPage?.(tab.url)) {
         tab.consoleErrors = (tab.consoleErrors || 0) + 1;
         tab.lastConsoleError = String(e.message || '').slice(0, 300);
@@ -1650,6 +1652,8 @@ const WebviewManager = {
       { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),
     ];
+    // Developer bench tools (js/dev-bench.js): Copy bug report, Save code blocks...
+    if (isTab && typeof VexBench !== 'undefined') pageItems.push(...VexBench.pageItems(webview));
     const siteItems = [
       // Per-site controls (dark mode + reset). Zoom already has keyboard shortcuts;
       // "Reset this site" clears this host's saved zoom and dark-mode override.
@@ -1809,6 +1813,8 @@ const WebviewManager = {
         action: () => { if (typeof ReadAloud !== 'undefined') ReadAloud.start({ wv: webview, selection: true }); }
       });
     }
+    // Developer bench: send to my MCP tool, Solved, Save as code block (js/dev-bench.js).
+    if (typeof VexBench !== 'undefined' && e.params.selectionText && !e.params.isEditable) textItems.push(...VexBench.textItems(e.params.selectionText, webview, {}));
     groups.push(() => this._pushGroup(items, textItems, (it) => it.label === 'Copy' || /^Search "/.test(it.label), 'More for this text', 'type'));
 
     const linkItems = [];

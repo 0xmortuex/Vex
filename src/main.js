@@ -2601,6 +2601,68 @@ const { isHeavyDiscordMedia, stillVersionOf } = require('./main/discord-lite');
 let _discordLite = false;
 ipcMain.handle('discord:lite', (_e, on) => { _discordLite = !!on; return _discordLite; });
 
+// === Developer bench (renderer: js/dev-bench.js and the files it gathers) ===
+// Failed requests for a bug report (main/request-log.js), response overrides and
+// header rules (main/response-overrides.js, OFF at every start, per-origin
+// allowlist), a read-only log tailer (main/log-tail.js) and package page facts
+// (main/pkg-intel.js). The listeners are the ones each session already has:
+// onBeforeRequest (wireAdblockerOnSession), onBeforeSendHeaders
+// (wireClientHintsOnSession), onHeadersReceived (_dnrResponseHeaders) and
+// onCompleted / onErrorOccurred (wireMediaSnifferOnSession). A second listener
+// would replace Vex's own.
+const _devRequestLog = require('./main/request-log').createRequestLog();
+const DEV_OVERRIDES_FILE = path.join(userDataPath, 'response-overrides.json');
+let _devOverrides = null;
+try {
+  _devOverrides = require('./main/response-overrides').createOverrides({
+    load: () => (fs.existsSync(DEV_OVERRIDES_FILE) ? JSON.parse(fs.readFileSync(DEV_OVERRIDES_FILE, 'utf-8')) : null),
+    save: (data) => { const tmp = DEV_OVERRIDES_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8'); fs.renameSync(tmp, DEV_OVERRIDES_FILE); },
+    readFile: { stat: (p) => fs.statSync(p), read: (p) => fs.readFileSync(p) },
+    pageUrlOf: (id) => _pageUrlOf(id),
+  });
+} catch (err) { console.error('[DevBench]', err.message); }
+const _devLogTail = require('./main/log-tail').createLogTail({ fs, WebSocketImpl: globalThis.WebSocket });
+const _devPkg = require('./main/pkg-intel').createPkgIntel({
+  getJson: async (url) => {
+    const res = await boundedPublicFetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'Vex-Browser (package page card)' }, maxBytes: 3 * 1024 * 1024, timeoutMs: 8000, egress: { feature: 'Package page card', kind: 'fetch' } });
+    if (!res.ok) throw new Error('the registry answered ' + res.status);
+    return res.json();
+  },
+  postJson: async (url, body) => {
+    const res = await boundedPublicFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'Vex-Browser (package page card)' }, body: JSON.stringify(body), maxBytes: 1024 * 1024, timeoutMs: 8000, egress: { feature: 'Package page card', kind: 'fetch' } });
+    if (!res.ok) throw new Error('the registry answered ' + res.status);
+    return res.json();
+  },
+});
+const _devNeedOverrides = () => { if (!_devOverrides) throw new Error('Response overrides are unavailable: the saved rules could not be read (see the log)'); return _devOverrides; };
+const _devReply = (fn) => async (...args) => { try { return { ok: true, ...(await fn(...args)) }; } catch (err) { return { ok: false, error: (err && err.message) || String(err) }; } };
+ipcMain.handle('devbench:requests', _devReply((_e, pageId) => ({ requests: _devRequestLog.list(pageId) })));
+ipcMain.handle('devbench:overrides-get', _devReply(() => _devNeedOverrides().get()));
+ipcMain.handle('devbench:overrides-set', _devReply((_e, cfg) => _devNeedOverrides().set(cfg)));
+ipcMain.handle('devbench:overrides-active', _devReply((_e, on) => ({ active: _devNeedOverrides().setActive(on) })));
+ipcMain.handle('devbench:overrides-state', _devReply((_e, url) => (_devOverrides ? _devOverrides.state(url) : { active: false, origin: null, listed: false, rules: 0, total: 0 })));
+ipcMain.handle('devbench:overrides-pick-file', _devReply(async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const opts = { title: 'File to serve for a rule', buttonLabel: 'Use this file', properties: ['openFile'] };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
+  _devNeedOverrides().grantFile(r.filePaths[0]);
+  return { path: r.filePaths[0] };
+}));
+ipcMain.handle('devbench:log-pick-file', _devReply(async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const opts = { title: 'Log file to follow (read-only)', buttonLabel: 'Follow this file', properties: ['openFile'] };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
+  return { canceled: false, ..._devLogTail.grantFile(r.filePaths[0]) };
+}));
+ipcMain.handle('devbench:log-follow-socket', _devReply((_e, url) => _devLogTail.grantSocket(url)));
+ipcMain.handle('devbench:log-poll', _devReply((_e, id, since) => _devLogTail.poll(id, since)));
+ipcMain.handle('devbench:log-stop', _devReply((_e, id) => ({ stopped: _devLogTail.close(id) })));
+ipcMain.handle('devbench:log-list', _devReply(() => ({ logs: _devLogTail.list() })));
+ipcMain.handle('devbench:pkg', _devReply(async (_e, eco, name) => ({ info: await _devPkg.lookup(eco, name) })));
+app.on('before-quit', () => _devLogTail.closeAll());
+
 function wireAdblockerOnSession(ses, tag) {
   if (!ses || ses.__vexAdblockWired) return;
   ses.__vexAdblockWired = true;
@@ -2627,6 +2689,14 @@ function wireAdblockerOnSession(ses, tag) {
       _recordTracker(details.url, details.webContentsId);
       callback({ cancel: true });
     } else {
+      // A response override the person turned on for this page's origin
+      // (main/response-overrides.js; off at every start).
+      let overridden = null;
+      if (_devOverrides) {
+        try { overridden = _devOverrides.answer(ses, details); }
+        catch (err) { console.error('[DevBench] an override could not be served, the real response is used:', err.message); }
+      }
+      if (overridden) { callback({ redirectURL: overridden.redirectURL }); return; }
       // Then the rules of the extensions in this session (declarativeNetRequest).
       callback(_dnrRequest(ses, details) || _httpsAnswer(details));
     }
@@ -2670,6 +2740,8 @@ function wireClientHintsOnSession(ses) {
     const h = details.requestHeaders || {};
     // An extension's header rules first, so the switches below still win.
     _dnrRequestHeaders(ses, details, h);
+    // A header rule for a page origin the person listed (off at every start).
+    if (_devOverrides) _devOverrides.requestHeaders(ses, details, h);
     // A site whose cookies are switched off is sent none.
     if (Object.keys(_siteRules).length && SiteRules.blocksCookies(_siteRules, details.url)) {
       for (const k of Object.keys(h)) if (k.toLowerCase() === 'cookie') delete h[k];
@@ -2821,6 +2893,7 @@ function wireMediaSnifferOnSession(ses) {
   ses.webRequest.onCompleted({ urls: ['http://*/*', 'https://*/*'] }, (details) => {
     _extRequestCompleted(ses, details);
     _countNetBytes(details); // tab-cost
+    _devRequestLog.record(details); // failed requests for a bug report (address only)
     try {
       const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
       if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
@@ -2849,6 +2922,9 @@ function wireMediaSnifferOnSession(ses) {
       }
     } catch { /* sniffing is best-effort */ }
   });
+  // Requests that never got an answer (the other half of a bug report). No other
+  // code registers onErrorOccurred, so this does not replace anything.
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => _devRequestLog.record(details));
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).
@@ -5157,6 +5233,8 @@ function _dnrRequestHeaders(ses, details, headers) {
 function _dnrResponseHeaders(ses, details, headers) {
   const r = _dnrQuery(ses, details, true);
   if (r && r.responseOps.length) _extDnrMod.applyHeaderOps(headers, r.responseOps, true);
+  // ...and the developer bench's header rules for a page origin the person listed.
+  if (_devOverrides) _devOverrides.responseHeaders(ses, details, headers);
 }
 
 // Events Electron never fires for an extension: tabs, webRequest.onCompleted

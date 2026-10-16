@@ -116,6 +116,17 @@ define('rec:cancel', [string(80)]);
 define('capture:submit', [shape({ kind: string(20), text: string(4000) })]);
 define('capture:close capture:open', []);
 // The text clips inbox (src/main/capture-inbox.js).
+// Developer bench (renderer js/dev-bench.js; main/request-log.js, response-overrides.js, log-tail.js,
+// pkg-intel.js). Files only ever come from main's own dialogs; the tailer follows a granted id.
+define('devbench:requests', [integer]);
+define('devbench:overrides-get devbench:overrides-pick-file devbench:log-pick-file devbench:log-list', []);
+define('devbench:overrides-set', [object]);
+define('devbench:overrides-active', [boolean]);
+define('devbench:overrides-state', [string(2048)]);
+define('devbench:log-follow-socket', [string(300)]);
+define('devbench:log-poll', [string(40), optional(value => Number.isSafeInteger(value) && value >= 0)]);
+define('devbench:log-stop', [string(40)]);
+define('devbench:pkg', [oneOf(['npm', 'pypi', 'crates']), string(220)]);
 define('clips-inbox:list clips-inbox:clear', []);
 define('clips-inbox:add', [string(4000)]);
 define('clips-inbox:remove', [string(80)]);
