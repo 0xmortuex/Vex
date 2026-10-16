@@ -158,7 +158,12 @@ const TabSnapshots = {
           const cap = await this._withTimeout(wv.executeJavaScript('(' + vexSnapshotCapture.toString() + ')(' + JSON.stringify({ forms }) + ')', false), 2000);
           // Sent even when empty: a form that was sent or cleared must replace
           // its old snapshot, not leave it to be restored after a crash.
-          if (cap) { entries.push({ url: k, scroll: cap.scroll, fields: cap.fields }); keepUrls.delete(k); }
+          if (cap) {
+            entries.push({ url: k, scroll: cap.scroll, fields: cap.fields }); keepUrls.delete(k);
+            // Kept in memory too: a page killed under us is reloaded where it was
+            // (js/webview.js, render-process-gone). Only for tabs this sampler may read.
+            if (cap.scroll) tab._lastScroll = { x: cap.scroll.x, y: cap.scroll.y, url: k };
+          }
         } catch (err) { console.warn('[TabSnapshots] skipped a page:', this._msg(err)); }
       }
       const r = await window.vex.tabSnapshots.save({ entries, keepUrls: [...keepUrls].slice(0, 200) });

@@ -1608,6 +1608,8 @@ ipcMain.handle('app:diagnostics', () => {
     update, remindersScheduled: scheduled, version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
     safeMode: _boot.safeMode, bootFails: _boot.fails, extensionTimes: _diag.extensionTimes,
     crashHistory: _crashLog.recent(),
+    crashTrend: _crashLog.trend(),
+    widevine: _widevineStatus,
     // The Windows build, for a problem report (js/report-problem.js).
     os: process.getSystemVersion(), arch: process.arch,
   };
