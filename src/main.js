@@ -6546,15 +6546,11 @@ try {
   console.warn('[Vex] Gmail cleanup skipped:', err.message);
 }
 
-try {
-  const staleNetflixPartition = path.join(userDataPath, 'Partitions', 'netflix');
-  if (fs.existsSync(staleNetflixPartition)) {
-    fs.rmSync(staleNetflixPartition, { recursive: true, force: true });
-    console.log('[Vex] Removed stale Netflix partition data');
-  }
-} catch (err) {
-  console.warn('[Vex] Netflix partition cleanup skipped:', err.message);
-}
+// There used to be a cleanup here that deleted <userData>\Partitions\netflix on
+// every launch. That folder is where Electron keeps the live 'persist:netflix'
+// session (the Netflix / Prime Video / Disney+ sidebar panel), so every start
+// signed you out of all three (found 2026-10-17: the folder's creation time was
+// the launch time, every other partition's was months old).
 
 // === Phase 13: Vex Sync — encryption key + session metadata ===
 const syncKeyFile = path.join(userDataPath, 'sync-key.bin');
