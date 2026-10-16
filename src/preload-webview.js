@@ -1723,7 +1723,14 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
   if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
   if (/^(?:(?:[a-z0-9-]+\.)?discord\.com|web\.whatsapp\.com)$/i.test(host)) return;
+  // At most this many held per page load, like the clipboard tripwire's 5: a page that fires notifications in a
+  // loop cannot flood the host window. Past it `held` throws, and the wrapper below then shows the notification
+  // as the page asked, so nothing is dropped unseen.
+  const MAX_HELD_PER_PAGE = 20;
+  let heldCount = 0;
   const held = (title, body) => {
+    if (heldCount >= MAX_HELD_PER_PAGE) throw new Error('too many held notifications on this page');
+    heldCount++;
     try { ipcRenderer.sendToHost('vex-push-held', { title: String(title).slice(0, 200), body: String(body).slice(0, 300) }); }
     catch { /* vex-allow-empty-catch: host gone */ }
   };

@@ -90,6 +90,31 @@ describe('mod metadata and the mod desk', () => {
     expect(meta('d.jar')).toMatchObject({ loader: 'quilt', mc: '1.20.2' });
   });
 
+  // Audit (2026-10): readModMeta trusts header.size to decide a metadata file is small enough. adm-zip
+  // caps inflation at that declared size, so a jar that lies about it fails instead of filling memory.
+  it('a jar entry that declares a small size but inflates to megabytes is refused, not read', () => {
+    const big = Buffer.from('{"id":"x","version":"1"}' + ' '.repeat(5 * 1024 * 1024));
+    const z = new AdmZip();
+    z.addFile('fabric.mod.json', big);
+    const file = path.join(dir, 'bomb.jar');
+    const buf = z.toBuffer();
+    // Lie in the central directory (offset 24 of its entry) and the local header (offset 22).
+    const cen = buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    const loc = buf.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    expect(buf.readUInt32LE(cen + 24)).toBe(big.length);
+    buf.writeUInt32LE(100, cen + 24);
+    buf.writeUInt32LE(100, loc + 22);
+    fs.writeFileSync(file, buf);
+    const zip = new AdmZip(file);
+    expect(zip.getEntry('fabric.mod.json').header.size).toBe(100);
+    expect(() => D.readModMeta(zip, 'bomb.jar')).toThrow();
+  });
+
+  it('an entry that declares more than the metadata limit is refused by its header', () => {
+    jar('huge.jar', { 'fabric.mod.json': FABRIC('1') + ' '.repeat(600 * 1024) });
+    expect(() => D.readModMeta(new AdmZip(path.join(dir, 'huge.jar')), 'huge.jar')).toThrow(/unexpectedly large/);
+  });
+
   it('falls back to the file name for the game version', () => {
     jar('sodium-fabric-0.5.8+mc1.20.4.jar', { 'fabric.mod.json': JSON.stringify({ id: 'sodium', version: '0.5.8' }) });
     expect(D.readModMeta(new AdmZip(path.join(dir, 'sodium-fabric-0.5.8+mc1.20.4.jar')), 'sodium-fabric-0.5.8+mc1.20.4.jar').mc).toBe('1.20.4');

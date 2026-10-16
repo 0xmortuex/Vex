@@ -828,6 +828,8 @@ if (!gotTheLock) {
     // A taskbar action (right-click on Vex in the taskbar; src/main/jump-list.js).
     const jump = require('./main/jump-list').actionFromArgv(commandLine);
     if (jump) { _jumpFromSecondStart(jump); return; }
+    // Locked: the link waits in memory and opens after the PIN, not on top of the lock screen.
+    if (url && _vexLocked) { _holdLinkWhileLocked(url); return; }
     // A link from another program, in a small window of its own when that is switched on (main/mini-window.js).
     if (url && _miniWindows().take(url)) { console.log('[Vex URL]   opened in a mini window'); return; }
     if (url && mainWindow) {
@@ -1614,6 +1616,8 @@ ipcMain.handle('hotkeys:get', () => ({ current: _gameHotkeys.current(), actions:
 // exactly the interruption this avoids.
 let _captureWin = null;
 function openQuickCapture() {
+  // A floating box over a locked Vex would read and write notes behind the lock.
+  if (_vexLocked) { console.log('[Lock] quick capture refused while Vex is locked'); return null; }
   if (_captureWin && !_captureWin.isDestroyed()) { _captureWin.show(); _captureWin.focus(); return _captureWin; }
   // The screen the mouse is on, so the box appears where you are looking.
   const { screen } = require('electron');
@@ -1642,7 +1646,7 @@ function openQuickCapture() {
 }
 // A feature you can only reach by a hotkey you must first set up is nearly
 // invisible, so it is a command too.
-ipcMain.handle('capture:open', () => { openQuickCapture(); return { ok: true }; });
+ipcMain.handle('capture:open', () => ({ ok: !!openQuickCapture() }));
 ipcMain.on('capture:close', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (win && !win.isDestroyed()) win.close();
@@ -2336,6 +2340,33 @@ let _vexLocked = false;
 // They are hidden while locked and come back on unlock. The video pop-out
 // stays: it shows only the video you were watching.
 let _hiddenByLock = [];
+// Things other programs or the last session asked for while Vex was locked.
+// Memory only: they are dropped if Vex quits locked, and run after the PIN.
+const MAX_HELD_LINKS = 20;
+let _heldLinks = [];
+let _appRestoreHeld = false;
+function _holdLinkWhileLocked(url) {
+  _heldLinks.push(url);
+  if (_heldLinks.length > MAX_HELD_LINKS) _heldLinks.shift();
+  console.log('[Lock] a link from another program is held until Vex is unlocked');
+}
+function _openHeldLinks() {
+  const links = _heldLinks;
+  _heldLinks = [];
+  for (const url of links) {
+    try {
+      if (_miniWindows().take(url)) continue;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('open-url', url);
+      else _reopenMainWindow(url);
+    } catch (err) { console.error('[Lock] could not open a held link:', err.message); }
+  }
+}
+function _restoreAppWindows() {
+  for (const a of _windowSet.appsToRestore()) {
+    try { _openAppWindow(a.url, a.title, a.partition, a.bounds); }
+    catch (err) { console.error('[WindowSet] could not bring back ' + a.url + ':', err.message); }
+  }
+}
 function _lockVex() {
   _vexLocked = true;
   for (const w of BrowserWindow.getAllWindows()) {
@@ -2371,6 +2402,8 @@ ipcMain.handle('vex-lock:unlock', async (e, pin) => {
   _vexLocked = false;
   for (const w of _hiddenByLock) if (!w.isDestroyed()) w.show();
   _hiddenByLock = [];
+  if (_appRestoreHeld) { _appRestoreHeld = false; _restoreAppWindows(); }
+  _openHeldLinks();
   return { ok: true };
 });
 // Asking again before a saved password is shown or copied, or the sync
@@ -7110,6 +7143,12 @@ ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({
   secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), fetch: boundedNetFetch,
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
   pickFolder: async () => {
     const win = BrowserWindow.getFocusedWindow();
     const opts = { title: 'Folder where your Vencord plugin writes vex-bridge.json', buttonLabel: 'Use this folder', properties: ['openDirectory'] };
@@ -7549,10 +7588,9 @@ function createWindow() {
   if (!_appWindowsRestored) {
     _appWindowsRestored = true;
     mainWindow.webContents.once('did-finish-load', () => setTimeout(() => {
-      for (const a of _windowSet.appsToRestore()) {
-        try { _openAppWindow(a.url, a.title, a.partition, a.bounds); }
-        catch (err) { console.error('[WindowSet] could not bring back ' + a.url + ':', err.message); }
-      }
+      // Locked: the saved app windows wait for the PIN (vex-lock:unlock).
+      if (_vexLocked) { _appRestoreHeld = true; return; }
+      _restoreAppWindows();
     }, 2500));
   }
   // Stopped answering: written in the crash log with what was open, and a
@@ -10965,6 +11003,7 @@ function _openLinksAsTabs(contents) {
 // Used by the button below and by restoring the windows that were open at the last
 // quit (src/main/window-set.js); `bounds` is where it was, when it is known.
 function _openAppWindow(url, title, partition, bounds) {
+  _refuseWhileLocked();
   _refuseMainProfileCopy(partition);
   // The tab's own session: from a container tab it opened signed in to the
   // main profile instead, with that profile's cookies (audit TA5).
@@ -11001,6 +11040,8 @@ ipcMain.handle('windows:state', (event) => {
 });
 ipcMain.handle('windows:reopen-closed', (event) => {
   _windowsFromMainWindow(event);
+  // Before takeClosed(), which would drop the entry for a window that is then refused.
+  _refuseWhileLocked();
   const c = _windowSet.takeClosed();
   if (!c) return { ok: false, reason: 'No closed window to bring back' };
   _openAppWindow(c.url, c.title, c.partition, c.bounds);

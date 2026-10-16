@@ -65,7 +65,11 @@ const TEMPLATES = {
     build: (p) => [p.file, ...p.args],
   },
   'uv-run': {
-    label: 'uv run <words>', exe: 'uv', fields: ['args'], needArgs: true,
+    label: 'uv run <tool> [words]', exe: 'uv', fields: ['args'], needArgs: true,
+    // `uv run cmd /c ...` would make uv a general launcher: the first word is one of a few Python tools,
+    // and no word has a path or drive character.
+    firstWords: ['python', 'pytest', 'ruff', 'mypy', 'black', 'flake8'],
+    argRe: /^[A-Za-z0-9_.=@-]{1,80}$/,
     build: (p) => ['run', ...p.args],
   },
 };
@@ -140,8 +144,10 @@ function createLocalServices({
     if (t.fields.includes('args')) {
       const raw = Array.isArray(p.args) ? p.args : String(p.args == null ? '' : p.args).split(/\s+/).filter(Boolean);
       if (raw.length > MAX_ARGS) throw new Error('At most ' + MAX_ARGS + ' words after the command');
-      for (const a of raw) if (typeof a !== 'string' || !ARG_RE.test(a)) throw new Error('"' + String(a).slice(0, 30) + '" has a character that is not allowed (words only, no spaces or quotes)');
+      const wordRe = t.argRe || ARG_RE;
+      for (const a of raw) if (typeof a !== 'string' || !wordRe.test(a)) throw new Error('"' + String(a).slice(0, 30) + '" has a character that is not allowed (words only, no spaces or quotes)');
       if (t.needArgs && !raw.length) throw new Error('Type what to run after the command');
+      if (t.firstWords && raw.length && !t.firstWords.includes(raw[0])) throw new Error('The first word must be one of: ' + t.firstWords.join(', '));
       out.args = raw.slice();
     }
     return out;

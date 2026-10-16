@@ -26,7 +26,8 @@ const nodeFs = require('fs');
 const nodePath = require('path');
 const crypto = require('crypto');
 
-const LIMITS = Object.freeze({ fileBytes: 60 * 1024 * 1024, files: 20, pages: 4000, tokens: 100 });
+// totalBytes: all the files of one run together. pdf-lib parses on the main event loop, so 20 files of 60 MB would freeze Vex.
+const LIMITS = Object.freeze({ fileBytes: 60 * 1024 * 1024, totalBytes: 200 * 1024 * 1024, files: 20, pages: 4000, tokens: 100 });
 
 function lib() { return require('pdf-lib'); }
 
@@ -205,10 +206,17 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
       const win = windowFor(e);
       const tokens = req.tokens;
       if (!Array.isArray(tokens) || !tokens.length) throw new Error('Choose a PDF first');
+      const tooBig = () => new Error('These PDFs add up to more than ' + Math.round(LIMITS.totalBytes / 1048576) + ' MB. Choose fewer or smaller ones');
+      // The sizes seen when they were chosen, checked before any file is read.
+      if (tokens.reduce((sum, t) => sum + fileOf(t).bytes, 0) > LIMITS.totalBytes) throw tooBig();
       const inputs = [];
+      let read = 0;
       for (const t of tokens) {
         const f = fileOf(t);
-        inputs.push({ file: f.file, name: f.name, bytes: await fsImpl.promises.readFile(f.file) });
+        const bytes = await fsImpl.promises.readFile(f.file);
+        // A file that grew since it was chosen.
+        if ((read += bytes.length) > LIMITS.totalBytes) throw tooBig();
+        inputs.push({ file: f.file, name: f.name, bytes });
       }
       const first = inputs[0];
       const dir = nodePath.dirname(first.file);

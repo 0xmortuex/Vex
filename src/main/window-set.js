@@ -73,7 +73,7 @@ function createWindowSet({ file, fs, getWorkAreas, getPrimaryWorkArea, getPrefs,
       if (v && v.v === 1) {
         state.main = v.main && isRect(v.main.bounds) ? { bounds: v.main.bounds, maximized: v.main.maximized === true } : null;
         state.apps = (Array.isArray(v.apps) ? v.apps : []).filter(a => a && typeof a.url === 'string' && /^https?:/i.test(a.url)).slice(0, MAX_APPS);
-        state.closed = (Array.isArray(v.closed) ? v.closed : []).filter(a => a && typeof a.url === 'string').slice(0, MAX_CLOSED);
+        state.closed = (Array.isArray(v.closed) ? v.closed : []).filter(keepable).slice(0, MAX_CLOSED);
       }
     } catch (err) {
       // A damaged record is not worth failing a start for: it is said, and begun again.
@@ -170,7 +170,9 @@ function createWindowSet({ file, fs, getWorkAreas, getPrimaryWorkArea, getPrefs,
   // The latest closed window, taken off the list. → its record, or null.
   function takeClosed() {
     const s = load();
-    const c = s.closed.shift();
+    // An entry that is not an http(s) address in a kept session (a hand-edited file) is dropped, not opened.
+    let c = s.closed.shift();
+    while (c && !keepable(c)) c = s.closed.shift();
     if (!c) return null;
     scheduleSave();
     return { url: c.url, title: c.title, partition: c.partition, bounds: isRect(c.bounds) ? fitBounds(c.bounds, getWorkAreas(), getPrimaryWorkArea()) : null };
