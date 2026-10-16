@@ -424,6 +424,28 @@
     { id: 'first-use-sheet', title: 'First-use sheet', maturity: 'new', storageKeys: ['vex.firstUse.enabled'],
       permissions: quiet({ reads: ['the first time you use a new or beta feature'], writes: ['which sheets were shown'] }) },
 
+    // ---- Wave 3: trust and housekeeping (js/ai-spend-cap.js, summary-cache.js, tos-highlight.js, settings-changes.js,
+    //      whats-new-me.js, revisit-watch.js, workspace-archive.js, download-desk-ui.js). All 'new': off for an existing profile. ----
+    // The cap is a safety net (like the sensitivity gate): Minimal Vex must never lift it, so it has no switch to flip.
+    { id: 'ai-spend-cap', title: 'Daily cap on cloud AI calls', group: 'AI spend cap', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiSpend'],
+      permissions: { reads: ['how many cloud AI calls were made today'], writes: ['the count and the cap you chose'], sends: [] } },
+    { id: 'summary-cache', title: 'Summary cache', group: 'Summary cache', maturity: 'new', storageKeys: ['vex.summaryCache', 'vex.summaryCache.enabled'], budget: { storageKB: 600 },
+      permissions: { reads: ['the text of a page you ask to have summarised, to tell whether it changed'], writes: ['the finished summaries, on this computer, up to 40 for 30 days'], sends: [] } },
+    { id: 'tos-highlighter', title: 'Terms of service highlighter', group: 'Terms of service highlighter', maturity: 'new', storageKeys: ['vex.tosHighlighter'], commands: ['tos-highlight'],
+      permissions: { reads: ['the text of the page in front, when you ask'], writes: ['yellow marks on that page, until it reloads'], sends: ['A single marked sentence to your local model, only when you press Explain; never to the cloud'] } },
+    { id: 'what-i-changed', title: 'What I changed', group: 'What I changed', maturity: 'new', storageKeys: ['vex.changes.enabled'], commands: ['what-i-changed'],
+      permissions: { reads: ['your Settings switches and dropdowns and which features are on'], writes: ['a setting, only when you press Revert'], sends: [] } },
+    { id: 'whats-new-me', title: "What's new for me", group: "What's new for me", maturity: 'new', storageKeys: ['vex.whatsNewMe.seen', 'vex.whatsNewMe.enabled'], commands: ['whatsnew-me'],
+      permissions: { reads: ['the release notes that ship inside the app'], writes: ['the version you last looked at'], sends: [] } },
+    { id: 'revisit-watch', title: 'Watch suggestions', group: 'Watch suggestions', maturity: 'new', storageKeys: ['vex.revisit', 'vex.revisit.enabled'],
+      permissions: { reads: ['the address and title of the pages you open (never a private or Tor tab)'], writes: ['the address, title and open times of up to 200 pages, here'], sends: [] } },
+    { id: 'workspace-archive', title: 'Idle workspaces', group: 'Idle workspaces', maturity: 'new',
+      storageKeys: ['vex.workspaceArchive.active', 'vex.workspaceArchive.cards', 'vex.workspaceArchive.pruned', 'vex.workspaceArchive.enabled'],
+      jobs: ['Workspace archive check'], commands: ['workspace-archive'], budget: { jobMsPerMin: 20, storageKB: 1024 },
+      permissions: { reads: ['when each workspace was last in front, your workspaces and their snapshots'], writes: ['archives a workspace into a card and removes old snapshots, only after you confirm; both can be undone'], sends: [] } },
+    { id: 'download-desk', title: 'Download desk', group: 'Download desk', maturity: 'new', storageKeys: ['vex.downloadDesk'], commands: ['mods-sort', 'mods-sort-undo'],
+      permissions: { reads: ['GitHub release downloads (a hash is computed here) and the small info files inside .jar mods in Downloads'], writes: ['moves .jar mods inside the Downloads folder after you confirm (Undo puts them back); sends older installers to the Recycle Bin after you confirm'], sends: ['Only when you press VirusTotal: a link containing the file\'s hash, opened in a tab; the file is never uploaded'] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },

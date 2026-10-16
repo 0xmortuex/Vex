@@ -57,6 +57,7 @@ const Scheduler = {
     // Deliberately delayed: TabManager/AgentLoop/SessionManager finish wiring
     // after the scheduler starts, and a catch-up run needs them.
     this._startup = setTimeout(() => { this._startup = null; this._checkDueTasks(); }, 5000);
+    this._wireNoop();
     console.log('[Scheduler] Started');
   },
 
@@ -667,12 +668,16 @@ const Scheduler = {
       hint: 'Frees memory by suspending every tab except the one you are looking at.',
       validate: () => [],
       summary: () => 'Put background tabs to sleep',
-      async run() {
+      // A scheduled run that finds nothing to do is silent and not logged (T3-097): the hourly
+      // "Free some memory" task did nothing 132 times in 144 runs.
+      quietNoop: true,
+      async run(_task, ctx) {
         if (typeof TabManager?.sleepAllInactive !== 'function') throw new Error('Tab sleeping is not available');
         const awakeBefore = (TabManager.tabs || []).filter(t => !t.sleeping).length;
         await TabManager.sleepAllInactive();
         const awakeAfter = (TabManager.tabs || []).filter(t => !t.sleeping).length;
         const slept = Math.max(0, awakeBefore - awakeAfter);
+        if (slept === 0 && ctx) ctx.noop = true;
         return 'Put ' + slept + ' tab' + (slept === 1 ? '' : 's') + ' to sleep';
       },
     },
@@ -800,6 +805,29 @@ const Scheduler = {
     return Math.min(this.MAX_CATCHUP_MIN, Math.max(1, Number(task.catchUpWindowMin) || 720)) * 60000;
   },
 
+  // After this many scheduled runs in a row that found nothing to do, the task is offered to be
+  // turned off. Offered once per streak (the streak restarts when it does something).
+  NOOP_PROPOSE_AT: 10,
+  _proposeNoop(task, streak) {
+    if (typeof VexAttention === 'undefined') return;
+    VexAttention.suggest({
+      feature: 'scheduler-noop', id: task.id, label: 'Quiet schedules',
+      title: '"' + task.name + '" has found nothing to do ' + streak + ' times in a row',
+      body: 'It ran quietly each time. Turn it off, or let Auto-sleep do this job instead.',
+      action: { label: 'Turn it off', key: 'off:' + task.id },
+    });
+  },
+  _wireNoop() {
+    if (this._noopWired || typeof AttentionInbox === 'undefined') return;
+    this._noopWired = true;
+    AttentionInbox.handle('scheduler-noop', (key) => {
+      if (!String(key).startsWith('off:')) return;
+      const id = String(key).slice(4);
+      if (!this.updateTask(id, { enabled: false })) throw new Error('That scheduled task is gone');
+      window.showToast?.('Scheduled task turned off');
+    });
+  },
+
   _checkDueTasks(nowMs) {
     // While a game is running (and "hold background AI" is on), nothing is
     // claimed: a due task simply stays due, and the first check after the game
@@ -925,14 +953,18 @@ const Scheduler = {
     const controller = new AbortController();
     this._controllers.set(task.id, controller);
     const cleanups = [];
-    const ctx = { controller, cleanup: fn => cleanups.push(fn) };
+    const ctx = { controller, cleanup: fn => cleanups.push(fn), noop: false };
     const timeout = setTimeout(() => controller.abort(new Error('Scheduled task exceeded ten minutes')), 10 * 60 * 1000);
 
     try {
       if (!spec) throw new Error('Unknown action "' + task.action?.type + '"');
-      window.showToast?.((manual ? 'Running' : 'Scheduled') + ': ' + task.name);
+      // A task that may turn out to be a no-op says nothing until it has done something.
+      const quiet = !manual && spec.quietNoop === true;
+      if (!quiet) window.showToast?.((manual ? 'Running' : 'Scheduled') + ': ' + task.name);
       run.summary = await spec.run(task, ctx);
       run.status = 'success';
+      run.noop = ctx.noop === true;
+      if (quiet && !run.noop) window.showToast?.('Scheduled: ' + task.name + ' — ' + run.summary);
       if (task.notifyOnComplete && task.action.type !== 'reminder') this._notify('Task complete: ' + task.name, run.summary);
     } catch (err) {
       run.status = 'failed';
@@ -949,7 +981,9 @@ const Scheduler = {
 
     run.finishedAt = new Date().toISOString();
     run.durationMs = Date.now() - startedMs;
-    this._record(run);
+    // A scheduled run that did nothing is not logged (a manual one always is: you asked).
+    const silent = run.status === 'success' && run.noop === true && !manual && spec?.quietNoop === true;
+    if (!silent) this._record(run);
 
     // Re-read: the task may have been edited (or deleted) while the run was in
     // flight, and writing back a stale copy would roll runCount backwards.
@@ -961,9 +995,14 @@ const Scheduler = {
         runCount: (current.runCount || 0) + 1,
         failCount: (current.failCount || 0) + (run.status === 'failed' ? 1 : 0),
       };
+      if (spec?.quietNoop === true && !manual) {
+        patch.noopStreak = silent ? (current.noopStreak || 0) + 1 : 0;
+        if (silent) patch.noopCount = (current.noopCount || 0) + 1;
+      }
       // A one-off that has run is done; stop it polling forever.
       if (current.schedule.type === 'once' && run.status === 'success' && !manual) patch.enabled = false;
       this.updateTask(task.id, patch);
+      if (silent && patch.noopStreak === this.NOOP_PROPOSE_AT) this._proposeNoop(current, patch.noopStreak);
     }
     this._emit();
     return run;

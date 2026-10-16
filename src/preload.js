@@ -513,6 +513,11 @@ contextBridge.exposeInMainWorld('vex', {
   downloadsTidyApply:    (planId) => ipcRenderer.invoke('downloads:tidy-apply', planId),
   downloadsTidyUndo:     () => ipcRenderer.invoke('downloads:tidy-undo'),
   downloadsTidyHistory:  () => ipcRenderer.invoke('downloads:tidy-history'),
+  downloadsReleaseAssist: (filePath) => ipcRenderer.invoke('downloads:release-assist', filePath),
+  downloadsModsPlan:     () => ipcRenderer.invoke('downloads:mods-plan'),
+  downloadsModsApply:    (planId) => ipcRenderer.invoke('downloads:mods-apply', planId),
+  downloadsModsUndo:     () => ipcRenderer.invoke('downloads:mods-undo'),
+  downloadsModsHistory:  () => ipcRenderer.invoke('downloads:mods-history'),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),
@@ -695,6 +700,7 @@ contextBridge.exposeInMainWorld('vex', {
   devbenchLogList: () => ipcRenderer.invoke('devbench:log-list'),
   devbenchPkg: (eco, name) => ipcRenderer.invoke('devbench:pkg', eco, name),
   downloadsSetAsk: (on) => ipcRenderer.invoke('downloads:set-ask', on),
+  downloadsSetMediaNames: (on) => ipcRenderer.invoke('downloads:set-media-names', on),
   downloadsResetPrefs: () => ipcRenderer.invoke('downloads:reset-prefs'),
   calendarFetch: (url) => ipcRenderer.invoke('calendar:fetch', url),
   qrGenerate: (text) => ipcRenderer.invoke('qr:generate', text),

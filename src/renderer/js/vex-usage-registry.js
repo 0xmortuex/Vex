@@ -300,6 +300,13 @@ const VexUsageRegistry = {
       VexChores: () => (typeof VexChores !== 'undefined' ? VexChores : null),
       VexWeekSkeleton: () => (typeof VexWeekSkeleton !== 'undefined' ? VexWeekSkeleton : null),
       VexTriage: () => (typeof VexTriage !== 'undefined' ? VexTriage : null),
+      VexSummaryCache: () => (typeof VexSummaryCache !== 'undefined' ? VexSummaryCache : null),
+      VexTos: () => (typeof VexTos !== 'undefined' ? VexTos : null),
+      VexChanges: () => (typeof VexChanges !== 'undefined' ? VexChanges : null),
+      VexWhatsNewMe: () => (typeof VexWhatsNewMe !== 'undefined' ? VexWhatsNewMe : null),
+      VexRevisit: () => (typeof VexRevisit !== 'undefined' ? VexRevisit : null),
+      VexWorkspaceArchive: () => (typeof VexWorkspaceArchive !== 'undefined' ? VexWorkspaceArchive : null),
+      VexDownloadDesk: () => (typeof VexDownloadDesk !== 'undefined' ? VexDownloadDesk : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -391,6 +398,15 @@ const VexUsageRegistry = {
       ['park-resume', A.api(G.VexPark, 'enabled', 'setEnabled')],
       ['copy-source', A.api(G.VexCopySource, 'enabled', 'setEnabled')],
       ['deadline-extractor', A.api(G.VexDeadlines, 'enabled', 'setEnabled')],
+      // Wave 3: trust and housekeeping. The AI spend cap is deliberately NOT here: it is a safety net, and
+      // Minimal Vex must not lift it.
+      ['summary-cache', A.api(G.VexSummaryCache, 'enabled', 'setEnabled')],
+      ['tos-highlighter', A.api(G.VexTos, 'enabled', 'setEnabled')],
+      ['what-i-changed', A.api(G.VexChanges, 'enabled', 'setEnabled')],
+      ['whats-new-me', A.api(G.VexWhatsNewMe, 'enabled', 'setEnabled')],
+      ['revisit-watch', A.api(G.VexRevisit, 'enabled', 'setEnabled')],
+      ['workspace-archive', A.api(G.VexWorkspaceArchive, 'enabled', 'setEnabled')],
+      ['download-desk', A.api(G.VexDownloadDesk, 'enabled', 'setEnabled')],
       // Panels and messages (js/panels-comms-ui.js draws them). Turning notifications from panels back on
       // needs the consent the person gave, so it never comes back by itself without it.
       ['panel-capture', A.api(G.PanelCapture, 'enabled', 'setEnabled')],
