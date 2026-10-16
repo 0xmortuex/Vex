@@ -21,6 +21,8 @@ const SplitScreen = {
         const rect = container.getBoundingClientRect();
         let ratio = (e.clientX - rect.left) / rect.width;
         ratio = Math.max(0.2, Math.min(0.8, ratio));
+        // Clicks into place at 25, 50 and 75 percent (js/split-keys.js).
+        if (typeof VexSplitKeys !== 'undefined') ratio = VexSplitKeys.snapNear(ratio);
         this.splitRatio = ratio;
         container.style.gridTemplateColumns = `${ratio}fr 4px ${1 - ratio}fr`;
         this.updateMiniUrlBars();

@@ -179,7 +179,7 @@
     "src/renderer/js/game-mode.js": 1,
     "src/renderer/js/game-session.js": 2,
     "src/renderer/js/geo-search.js": 1,
-    "src/renderer/js/gestures.js": 8,
+    "src/renderer/js/gestures.js": 1,
     "src/renderer/js/github-desk.js": 1,
     "src/renderer/js/github-panel.js": 2,
     "src/renderer/js/gui-style.js": 19,

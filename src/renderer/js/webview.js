@@ -468,6 +468,11 @@ const WebviewManager = {
     if (typeof PasswordVault !== 'undefined') PasswordVault.attach(webview);
     // Mouse gestures (right-drag strokes announced by preload-webview.js)
     if (typeof MouseGestures !== 'undefined') MouseGestures.attach(webview);
+    // Alt+click on a link opens it in the other pane (js/split-keys.js), and link hints (js/link-hints.js)
+    if (typeof VexSplitKeys !== 'undefined') VexSplitKeys.attach(webview);
+    if (typeof VexLinkHints !== 'undefined') VexLinkHints.attach(webview);
+    // Connect ahead to a link the pointer rests on (js/preconnect.js)
+    if (typeof VexPreconnect !== 'undefined') VexPreconnect.attach(webview);
     // Floating Explain/Summarize/Translate bar on text selection
     if (typeof SelectionAIBar !== 'undefined') SelectionAIBar.attach(webview);
     // What you copied off this page (private and Tor tabs are refused inside)

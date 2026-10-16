@@ -94,7 +94,7 @@ const SettingsUI = {
     { name: 'Recall',          icon: 'clock',    color: '#2dd4bf', match: ['recall'] },
     { name: 'Chains',          icon: 'link',     color: '#a3a3a3', match: ['chain'] },
     { name: 'Shortcuts',       icon: 'keyboard', color: '#94a3b8', match: ['shortcut'] },
-    { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping', 'tab tools'] },
+    { name: 'Tab Groups',      icon: 'layers',   color: '#fb923c', match: ['tab grouping', 'tab tools', 'more tab tools', 'links and windows'] },
     { name: 'History',         icon: 'clock',    color: '#7dd3fc', match: ['history', 'time travel'] },
     { name: 'Play',            icon: 'puzzle',   color: '#f472b6', match: ['play: ', 'playfulness', 'fun and', 'living vex', 'profile and medals', 'little surprises', 'weekly page, offline'] },
     { name: 'Vex health',      icon: 'info',     color: '#94a3b8', match: ['health check', 'minimal vex', 'feature usage', 'release check'] },

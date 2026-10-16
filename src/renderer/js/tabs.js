@@ -536,7 +536,11 @@ const TabManager = {
     if (!tab) return;
     // The one you were on a moment ago, for the back-and-forth key
     // (lastUsedTab below). Alt+Tab for tabs, without holding anything.
-    if (this.activeTabId && this.activeTabId !== id) this._previousTabId = this.activeTabId;
+    if (this.activeTabId && this.activeTabId !== id) {
+      this._previousTabId = this.activeTabId;
+      // A picture of the page being left, for waking it quickly later (js/tab-thumbs.js).
+      if (typeof VexTabThumbs !== 'undefined') VexTabThumbs.leaving(this.activeTabId);
+    }
     // Going to another tab ends the run of tabs opened next to one (_insertIndexFor).
     if (this._openerRun && this._openerRun.openerId !== id) this._openerRun = null;
 
@@ -1080,6 +1084,7 @@ const TabManager = {
     el.className = 'tab-item';
     el.dataset.tabId = tab.id;
     el.draggable = true;
+    if (typeof VexTabSelect !== 'undefined') VexTabSelect.mark(el, tab);
 
     if (tab.id === this.activeTabId) el.classList.add('active');
     // Sleeping tabs render dimmed. Set here so any render path (init restore,
@@ -1101,7 +1106,7 @@ const TabManager = {
       }
       ${this._privateBadge(tab)}
       <div class="tab-info">
-        <div class="tab-title">${this._escapeHtml(tab.title)}</div>
+        <div class="tab-title">${this._escapeHtml((typeof VexTabNames !== 'undefined' && VexTabNames.display(tab)) || tab.title)}</div>
         ${tab.note ? `<div class="tab-note-line" title="${this._escapeHtml(tab.note)}">${this._escapeHtml(tab.note)}</div>` : ''}
       </div>
       ${tab.sleeping ? TAB_ICONS.sleeping : ''}
@@ -1124,6 +1129,8 @@ const TabManager = {
         if (e.shiftKey && typeof AudioOutput !== 'undefined') this.chooseAudioOutput(tab, e.target.closest('.tab-audio'));
         else this.toggleMuteTab(tab.id);
       } else {
+        // Ctrl or Shift-click picks several tabs (js/tab-select.js).
+        if (typeof VexTabSelect !== 'undefined' && VexTabSelect.handleClick(e, tab)) return;
         this.switchTab(tab.id);
       }
     });
@@ -1307,7 +1314,7 @@ const TabManager = {
     }
 
     const titleEl = el.querySelector('.tab-title');
-    if (titleEl) titleEl.textContent = tab.title;
+    if (titleEl) titleEl.textContent = (typeof VexTabNames !== 'undefined' && VexTabNames.display(tab)) || tab.title;
 
     // Unread dot
     const unreadEl = el.querySelector('.tab-unread');
@@ -1757,7 +1764,11 @@ const TabManager = {
     }
   },
 
-  async _newGroupFromTab(tab) {
+  _newGroupFromTab(tab) { return this._newGroupFromTabs([tab]); },
+
+  // One new group holding every tab in `tabs` (the tab menu's "Add to new
+  // group", and the bulk Group action on selected tabs, js/tab-select.js).
+  async _newGroupFromTabs(tabs) {
     // Electron's renderer disables the native window.prompt() — it returns
     // null silently, which silently swallowed this whole flow before. Use the
     // in-app modal instead.
@@ -1772,7 +1783,7 @@ const TabManager = {
     // Unpins it too (moveTabToGroup): a pinned tab stayed in the pinned row
     // and the new group was never drawn, under a "Created group" toast
     // (found 2026-09-29).
-    this.moveTabToGroup(tab.id, id);
+    for (const tab of tabs) this.moveTabToGroup(tab.id, id);
     VexStorage.saveGroups(this.groups);
     this.rebuildAllTabs();
     this.persistTabs();
@@ -1899,6 +1910,9 @@ const TabManager = {
       // strip never got .pinned, so "Pin Tab" looked like it did nothing until
       // some unrelated rebuild happened to run.
       { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', action: () => this.togglePinTab(tab.id) },
+      ...(typeof VexTabNames !== 'undefined' && VexTabNames.enabled() && VexTabNames.allowed(tab)
+        ? [{ label: 'Rename tab…', action: () => VexTabNames.rename(tab).catch(err => window.showToast?.(err.message, 'error')) }]
+        : []),
       ...(webPage && typeof Bookmarks !== 'undefined'
         ? [{ label: Bookmarks.has(tab.url) ? 'Remove bookmark' : 'Bookmark…', action: () => Bookmarks.toggle(tab.url, tab.title) }]
         : []),
@@ -2478,6 +2492,8 @@ const TabManager = {
     // Restore scroll position once the page has loaded. One-shot listener;
     // best-effort (cross-origin pages may ignore it, that's fine).
     const wv = WebviewManager.webviews.get(id);
+    // The last picture of the page stands in until it has loaded (js/tab-thumbs.js).
+    if (wv && typeof VexTabThumbs !== 'undefined') VexTabThumbs.showWhileWaking(tab, wv);
     if (wv && tab.scrollPosition) {
       const pos = tab.scrollPosition;
       const restoreScroll = () => {
