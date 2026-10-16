@@ -367,6 +367,9 @@ define('tabs:closed', [value => Array.isArray(value) && value.length <= 10 && va
 // A tab's back list read by its page's id, and handed back for the page made
 // for it again (session-security.js, carryHistory, which checks each entry).
 define('tabs:history', [integer]);
+// The Back/Forward menu's list (tabs:nav-list) and Ctrl+Tab by recency being on or off (tabs:mru-keys).
+define('tabs:nav-list', [integer]);
+define('tabs:mru-keys', [boolean]);
 // The tab in front changed: its page, for extensions' tabs.onActivated.
 define('tabs:activated', [integer]);
 define('tabs:carry-history', [value => typeof value === 'string' && /^c\d{1,9}$/.test(value), string(160),

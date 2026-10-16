@@ -428,6 +428,11 @@ contextBridge.exposeInMainWorld('vex', {
   // A tab closed: its pages' saved back lists are dropped at once.
   tabClosed:            (pageIds) => ipcRenderer.send('tabs:closed', pageIds),
   tabHistory:           (pageId) => ipcRenderer.invoke('tabs:history', pageId),
+  // A tab's back/forward list with each entry's place in the page's history (js/nav-history-menu.js).
+  tabNavList:           (pageId) => ipcRenderer.invoke('tabs:nav-list', pageId),
+  // Ctrl+Tab by recency: tell main whether it is on, and hear its steps (js/tab-mru.js).
+  setMruKeys:           (on) => ipcRenderer.send('tabs:mru-keys', on),
+  onMruKey:             (callback) => subscribe('tabs:mru-key', callback),
   // The tab in front changed (extensions' chrome.tabs.onActivated).
   tabActivated:         (pageId) => ipcRenderer.send('tabs:activated', pageId),
   carryTabHistory:      (token, partition, list) => ipcRenderer.send('tabs:carry-history', token, partition, list),

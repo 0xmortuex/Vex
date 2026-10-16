@@ -195,6 +195,12 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexTabMru: () => (typeof VexTabMru !== 'undefined' ? VexTabMru : null),
+      VexTabSearch: () => (typeof VexTabSearch !== 'undefined' ? VexTabSearch : null),
+      VexNavHistoryMenu: () => (typeof VexNavHistoryMenu !== 'undefined' ? VexNavHistoryMenu : null),
+      VexStripActions: () => (typeof VexStripActions !== 'undefined' ? VexStripActions : null),
+      NightCoach: () => (typeof NightCoach !== 'undefined' ? NightCoach : null),
+      AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +246,13 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Tab tools, the night coach and the announcement desk (Wave 1). Off, each leaves what it kept where it is.
+      ['tab-mru', A.api(G.VexTabMru, 'enabled', 'setEnabled')],
+      ['tab-search', A.api(G.VexTabSearch, 'enabled', 'setEnabled')],
+      ['nav-history-menu', A.api(G.VexNavHistoryMenu, 'enabled', 'setEnabled')],
+      ['strip-actions', A.api(G.VexStripActions, 'enabled', 'setEnabled')],
+      ['night-coach', A.api(G.NightCoach, 'enabled', 'setEnabled')],
+      ['announce-desk', A.api(G.AnnounceDesk, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

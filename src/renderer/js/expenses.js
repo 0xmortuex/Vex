@@ -43,7 +43,10 @@ const Expenses = {
   // The chosen currency's own marks: its symbol ("$", "£", "€") and its code.
   _marks(currency) {
     const sym = new Intl.NumberFormat(undefined, { style: 'currency', currency }).formatToParts(1).find(p => p.type === 'currency');
-    return new Set([currency.toLowerCase(), sym ? sym.value.toLowerCase() : currency.toLowerCase()]);
+    const marks = new Set([currency.toLowerCase(), sym ? sym.value.toLowerCase() : currency.toLowerCase()]);
+    // Turkish lira is written "TL" as often as "₺" ("250 TL").
+    if (currency === 'TRY') { marks.add('tl'); marks.add('₺'); }
+    return marks;
   },
 
   // "12.50", "12,50", "1,234.56", "1.234,56", "£12" → cents. A lone comma

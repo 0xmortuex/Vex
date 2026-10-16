@@ -7,7 +7,7 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   // frame's own address; a refused tab is simply given none.
   'userscripts:page', 'userscripts:gm']);
 const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:download', 'webview:hard-reload',
-  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history',
+  'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
   'permissions:set-for-page', 'permissions:reset-for-page', 'site:certificate',
@@ -45,6 +45,8 @@ const UI_ONLY_CHANNELS = new Set([
   'quiet:get', 'quiet:set', 'quiet:held', 'quiet:release', 'quiet:drop',
   // The Attention Budget (main/notify.js): the window's quiet state, and the toasts it held back.
   'attention:state', 'attention:denied', 'attention:clear-denied',
+  // Ctrl+Tab by recency (main/mru-keys.js) and the Back/Forward menu's list of a tab's pages.
+  'tabs:mru-keys', 'tabs:nav-list',
   'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'screen-share:preflight', 'signout:why', 'commit:state',
   'companion:start', 'companion:publish', 'companion:status', 'companion:stop',

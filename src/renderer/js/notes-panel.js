@@ -82,14 +82,16 @@ const NotesPanel = {
   },
 
   matches(note, query) {
-    const q = String(query || '').trim().toLowerCase();
+    // Folded, so "istanbul" finds "İstanbul" (js/vex-tr.js).
+    const tr = globalThis.VexTr || require('./vex-tr.js').VexTr;
+    const q = tr.fold(String(query || '').trim());
     if (!q) return true;
     const n = this.normalize(note);
-    return n.title.toLowerCase().includes(q) ||
-      n.content.toLowerCase().includes(q) ||
-      n.tags.some(t => t.toLowerCase().includes(q)) ||
-      n.sourceTitle.toLowerCase().includes(q) ||
-      n.sourceUrl.toLowerCase().includes(q);
+    return tr.fold(n.title).includes(q) ||
+      tr.fold(n.content).includes(q) ||
+      n.tags.some(t => tr.fold(t).includes(q)) ||
+      tr.fold(n.sourceTitle).includes(q) ||
+      tr.fold(n.sourceUrl).includes(q);
   },
 
   // Pinned notes always lead; the chosen key orders the rest.
@@ -99,7 +101,7 @@ const NotesPanel = {
     return [...(list || [])].sort((a, b) => {
       const A = this.normalize(a), B = this.normalize(b);
       if (A.pinned !== B.pinned) return A.pinned ? -1 : 1;
-      if (key === 'title') return (A.title || 'Untitled').localeCompare(B.title || 'Untitled', undefined, { sensitivity: 'base' });
+      if (key === 'title') return (globalThis.VexTr || require('./vex-tr.js').VexTr).compare(A.title || 'Untitled', B.title || 'Untitled', { ignoreCase: true });
       if (key === 'created') return time(B.createdAt) - time(A.createdAt);
       return time(B.updatedAt) - time(A.updatedAt);
     });
@@ -109,11 +111,11 @@ const NotesPanel = {
     const seen = new Map();
     for (const note of list || []) {
       for (const tag of this.normalize(note).tags) {
-        const k = tag.toLowerCase();
+        const k = (globalThis.VexTr || require('./vex-tr.js').VexTr).lower(tag);
         if (!seen.has(k)) seen.set(k, tag);
       }
     }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return [...seen.values()].sort((a, b) => (globalThis.VexTr || require('./vex-tr.js').VexTr).compare(a, b, { ignoreCase: true }));
   },
 
   // One-line summary for the list: markdown syntax stripped so a note that
@@ -1026,8 +1028,9 @@ const NotesPanel = {
     const list = this._el('notes-list');
     if (!list || this.section !== 'sticky') return;
 
-    const q = String(this.query || '').trim().toLowerCase();
-    const rows = entries.filter(n => !q || n.key.toLowerCase().includes(q) || n.text.toLowerCase().includes(q) || (n.title || '').toLowerCase().includes(q));
+    const tr = globalThis.VexTr || require('./vex-tr.js').VexTr;
+    const q = tr.fold(String(this.query || '').trim());
+    const rows = entries.filter(n => !q || tr.fold(n.key).includes(q) || tr.fold(n.text).includes(q) || tr.fold(n.title || '').includes(q));
 
     if (!rows.length) {
       list.innerHTML = `<div class="notes-list-empty"><div>${entries.length ? 'Nothing matches' : 'No page notes yet'}</div><div class="hint">${entries.length ? 'Try a different search' : 'Use the sticky button above to add one for the page you are on'}</div></div>`;

@@ -159,6 +159,12 @@ const VexQuickReminder = {
       return this._checkFuture(when, at);
     }
 
+    // Turkish days and clocks: "yarın 14:30", "15 Mart saat 9", "15.03.2026 akşam 8",
+    // "cuma 17:00" (js/vex-tr.js). Throws for an impossible date such as 31 Şubat.
+    const tr = globalThis.VexTr || (typeof require === 'function' ? require('./vex-tr.js').VexTr : null);
+    const turkish = tr ? tr.parseWhen(String(text || ''), at, this.DEFAULT_HOUR) : null;
+    if (turkish) return this._checkFuture(turkish, at);
+
     throw new Error(`Could not read "${text}" as a time. Try "in 2 hours", "tomorrow 9am", "friday 17:00" or "2026-09-20 14:00".`);
   },
 

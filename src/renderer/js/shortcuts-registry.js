@@ -101,7 +101,9 @@ const ShortcutsRegistry = (() => {
     // Alt+Tab's useful half, for tabs: one press and you are back on the tab
     // you were on before this one. Alt+Q because Alt+Tab itself belongs to
     // Windows and can never be taken from it.
-    'last-tab':       { default: 'Alt+Q',         label: 'Back to the last tab you used', category: 'Tabs' }
+    'last-tab':       { default: 'Alt+Q',         label: 'Back to the last tab you used', category: 'Tabs' },
+    // Ctrl+Shift+A (Chrome's key for it) is the AI panel here; Ctrl+Alt+Z was free.
+    'tab-search':     { default: 'Ctrl+Alt+Z',   label: 'Search open tabs',           category: 'Tabs',       cmd: 'tab-search' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.

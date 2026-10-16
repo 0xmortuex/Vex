@@ -128,6 +128,22 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 1: tab tools, the night coach and the announcement desk (all new: off on a profile that already existed, offered to try) ----
+    { id: 'tab-mru', title: 'Ctrl+Tab by recency', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.tabMru'], settingsKeys: [],
+      permissions: { reads: ['which tabs you used last'], writes: ['nothing but its own switch'], sends: [] } },
+    { id: 'tab-search', title: 'Search open tabs', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.tabSearch'], commands: ['tab-search'],
+      permissions: { reads: ['the titles and addresses of your open tabs'], writes: ['closes a tab only when you press Delete on it'], sends: [] } },
+    { id: 'nav-history-menu', title: 'Back and Forward list', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.navHistoryMenu'],
+      permissions: { reads: ['the pages behind and ahead of the one you are on'], writes: ['nothing but its own switch'], sends: [] } },
+    { id: 'strip-actions', title: 'Quick actions on the tab strip', group: 'Tab tools', maturity: 'new', storageKeys: ['vex.stripActions'],
+      permissions: { reads: ['your open tabs and the clipboard when you right-click +'], writes: ['mutes, pins, duplicates or closes tabs when you press its buttons'], sends: [] } },
+    { id: 'night-coach', title: 'Night usage coach', group: 'Night usage coach', maturity: 'new', storageKeys: ['vex.nightCoach', 'vex.nightCoach.log'],
+      jobs: ['Night coach'], commands: ['nightcoach-quiet', 'nightcoach-week'], budget: { jobMsPerMin: 20 },
+      permissions: { reads: ['whether the window is visible and the computer idle; your tabs when you accept to send some to later'], writes: ['minutes of use after bedtime, per night, for two weeks'], sends: [] } },
+    { id: 'announce-desk', title: 'Announcement desk', group: 'Announcement desk', maturity: 'new', storageKeys: ['vex.announceDesk'],
+      jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
+      permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

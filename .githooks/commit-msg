@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuses a commit whose message has no valid Rank: line. Switched on with: git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/check-commit-rank.js" "$1"

@@ -701,7 +701,10 @@ const TabManager = {
       // the internal list, which could be one hidden in a collapsed group or
       // a folded stack, put in front with nothing on the strip showing it
       // (found 2026-10-10).
-      const next = this._nextShownAfter(orderBefore || this.displayOrder(), id);
+      // Back to the tab that opened it, when the person asked for that
+      // (js/strip-actions.js, off by default) and that tab is still on screen.
+      const opener = typeof VexStripActions !== 'undefined' ? VexStripActions.openerToReturnTo(closing, this) : null;
+      const next = opener || this._nextShownAfter(orderBefore || this.displayOrder(), id);
       this.switchTab(next.id);
     }
 

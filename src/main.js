@@ -155,6 +155,24 @@ ipcMain.handle('tabs:history', (_event, pageId) => {
   const guest = webContents.fromId(pageId);
   return guest && !guest.isDestroyed() ? secureSessions.readHistory(guest) : null;
 });
+// The whole back/forward list of a tab, with the position of each entry in
+// the page's own history, for the Back/Forward menu (js/nav-history-menu.js).
+// Only a window around the current entry, so a very long history stays small.
+// The page is one of the asking window's own (ipc-policy.js, TARGET_CHANNELS).
+const NAV_LIST_SPAN = 40;
+ipcMain.handle('tabs:nav-list', (_event, pageId) => {
+  const guest = webContents.fromId(pageId);
+  if (!guest || guest.isDestroyed()) return null;
+  const nav = guest.navigationHistory;
+  const all = nav.getAllEntries();
+  const index = nav.getActiveIndex();
+  const from = Math.max(0, index - NAV_LIST_SPAN), to = Math.min(all.length, index + NAV_LIST_SPAN + 1);
+  return {
+    index,
+    total: all.length,
+    entries: all.slice(from, to).map((entry, k) => ({ at: from + k, url: String(entry.url || '').slice(0, 2048), title: String(entry.title || '').slice(0, 200) })),
+  };
+});
 ipcMain.on('tabs:carry-history', (event, token, partition, list) => {
   const host = secureSessions.owner(event.sender);
   if (!host) return;
@@ -567,10 +585,26 @@ ipcMain.on('legal:gate', (event, up) => { _agreementGate.set(event.sender, up); 
 function _agreementBlocks(contents) {
   return _agreementGate.blocks(_windowOfContents(contents));
 }
+// Ctrl+Tab by recency (main/mru-keys.js). Off until the window says it is on
+// (tabs:mru-keys), so Ctrl+Tab does what it always did until then.
+let _mruKeysOn = false;
+const _mruKeys = require('./main/mru-keys').createMruKeys({
+  isOn: () => _mruKeysOn,
+  send: (win, message) => { if (!win.isDestroyed()) win.webContents.send('tabs:mru-key', message); },
+});
+ipcMain.on('tabs:mru-keys', (_event, on) => {
+  _mruKeysOn = on === true;
+  if (!_mruKeysOn) _mruKeys.stop();
+});
 function handleWindowKeys(event, input, contents) {
   // The shortcut editor is recording in the main window: the key is its.
   if (_shortcutCapturing && mainWindow && !mainWindow.isDestroyed() && contents === mainWindow.webContents) return false;
   if (_agreementBlocks(contents)) return false;
+  // Ctrl+Tab, Ctrl+Shift+Tab, Ctrl released, Escape: the most-recently-used switcher, from the window and from a page alike.
+  // Only Escape and Enter ending a cycle are kept from the page: a swallowed Ctrl+Tab key-down
+  // would make Chromium drop the key-up of Ctrl (main/mru-keys.js, THE TRAP).
+  const mruWin = _shortcutWindow(contents);
+  if (mruWin && _mruKeys.handle(input, mruWin)) { event.preventDefault(); return true; }
   if (_windowKeys.isBossKey(input)) {
     event.preventDefault();
     const r = _bossKey.hide();
@@ -692,6 +726,8 @@ function _shortcutWindow(contents) {
 }
 
 function handleBrowserShortcut(event, input, contents) {
+  // Ctrl+Tab belongs to the recency switcher while it is on (handleWindowKeys).
+  if (_mruKeys.owns(input)) return false;
   const win = _shortcutWindow(contents);
   if (!win) return false;
   let url;

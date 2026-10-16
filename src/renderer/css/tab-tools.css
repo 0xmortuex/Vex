@@ -1,0 +1,99 @@
+/* === Tab tools: Ctrl+Tab by recency, Search open tabs, Back/Forward list, strip quick actions ===
+ * Every piece here is a layer over the page (position: fixed, appended to the
+ * body). None of it is ever a child of the tab strip or the toolbar, so none of
+ * it can move a tab or change the height of a bar in any look.
+ */
+.tt-overlay {
+  position: fixed; inset: 0; z-index: 100060;
+  display: flex; justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.tt-mru { align-items: center; pointer-events: none; }
+.tt-search { align-items: flex-start; padding-top: 12vh; }
+.tt-card {
+  width: 620px; max-width: 92vw; max-height: 70vh;
+  display: flex; flex-direction: column;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 18px 48px var(--vex-shadow-color, rgba(0, 0, 0, 0.45));
+  overflow: hidden;
+}
+.tt-mru .tt-card { width: 460px; }
+.tt-thumb { display: none; background: var(--vex-hover-fill); }
+.tt-thumb.has-image { display: block; }
+.tt-thumb img { display: block; width: 100%; max-height: 180px; object-fit: cover; object-position: top; }
+.tt-input {
+  margin: 10px 12px 6px; padding: 9px 12px; font: inherit; font-size: 14px;
+  color: var(--text); background: var(--bg, transparent);
+  border: 1px solid var(--border); border-radius: 8px; outline: none;
+}
+.tt-input:focus-visible { border-color: var(--primary); }
+.tt-list { list-style: none; margin: 0; padding: 4px 6px 6px; overflow-y: auto; }
+.tt-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; cursor: default; }
+.tt-row.selected { background: color-mix(in srgb, var(--primary) 22%, transparent); }
+.tt-row:not(.selected):hover { background: var(--vex-hover-fill); }
+.tt-fav { width: 16px; height: 16px; flex: none; display: inline-flex; }
+.tt-fav img { width: 16px; height: 16px; border-radius: 3px; }
+.tt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tt-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tt-flags { display: inline-flex; gap: 6px; color: var(--text-muted); flex: none; }
+.tt-empty { padding: 14px; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+.tt-hint { padding: 6px 14px 9px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); }
+.tt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Back / Forward list and the new-tab menu */
+.tt-menu {
+  position: fixed; z-index: 100065; width: 330px; max-height: 60vh; overflow-y: auto;
+  display: flex; flex-direction: column; padding: 4px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 32px var(--vex-shadow-color, rgba(0, 0, 0, 0.4));
+}
+.tt-menu-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 6px 10px; text-align: left; font: inherit; color: inherit;
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+}
+.tt-menu-item:hover, .tt-menu-item:focus-visible { background: var(--vex-hover-fill); }
+.tt-menu-item:disabled { opacity: 0.6; cursor: default; }
+.tt-menu-item .tt-title, .tt-menu-item .tt-sub { max-width: 100%; }
+.tt-menu-empty { padding: 10px; font-size: 12px; color: var(--text-muted); }
+
+/* The four buttons that float over a hovered tab */
+.tt-quick {
+  position: fixed; z-index: 100055; display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 7px;
+  box-shadow: 0 2px 8px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+}
+.tt-quick-btn {
+  width: 22px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; color: inherit; background: none; border: none; border-radius: 5px; cursor: pointer;
+}
+.tt-quick-btn:hover, .tt-quick-btn:focus-visible { background: var(--vex-hover-fill); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tt-quick, .tt-menu, .tt-card { animation: tt-in 90ms ease-out; }
+  @keyframes tt-in { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* The last week, after bedtime (js/night-coach.js) */
+.nc-row { display: grid; grid-template-columns: 7.5em 1fr 11em; gap: 10px; align-items: center; padding: 4px 0; font-size: 12.5px; }
+.nc-day { color: var(--text-muted); }
+.nc-track { height: 8px; border-radius: 99px; background: var(--vex-hover-fill); overflow: hidden; }
+.nc-bar { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
+.nc-what { text-align: right; color: var(--text-muted); }
+
+/* The announcement desk (js/announce-desk.js) */
+.ad-page { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 10px; }
+.ad-page.fresh { border-color: var(--primary); }
+.ad-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.ad-state { font-size: 11px; color: var(--text-muted); }
+.ad-url, .ad-result { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-new { margin: 6px 0 2px; padding-left: 18px; font-size: 12.5px; }
+.ad-new li { margin: 2px 0; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.ad-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ad-form { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.ad-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-muted); }
+.ad-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--text-muted); }

@@ -27,6 +27,9 @@
 // there; older releases and their tags keep their numbers.
 //
 // Usage: node scripts/version-points.js   prints the table and the version.
+//        node scripts/version-points.js --prepare [--write]   also works out the
+//        release-ranks lines for plainly-bookkeeping commits and the CHANGELOG
+//        draft, and prints what it would change (scripts/release-prepare.js).
 'use strict';
 
 const { execSync } = require('child_process');
@@ -110,7 +113,7 @@ function plan() {
   return { tag, current, ...score(commits, readOverrides(text)) };
 }
 
-if (require.main === module) {
+if (require.main === module && !process.argv.includes('--prepare')) {
   try {
     const p = plan();
     console.log(`Since ${p.tag}${p.current !== p.tag.slice(1) ? ` (counts as ${p.current})` : ''}:`);
@@ -122,3 +125,9 @@ if (require.main === module) {
 }
 
 module.exports = { parseRank, nextVersion, readOverrides, readBases, score, plan };
+
+// --prepare is release-prepare.js's, which needs the exports above (so it comes after them).
+if (require.main === module && process.argv.includes('--prepare')) {
+  try { process.exitCode = require('./release-prepare.js').main(process.argv.slice(2)); }
+  catch (e) { console.error('version-points: ' + e.message); process.exitCode = 1; }
+}
