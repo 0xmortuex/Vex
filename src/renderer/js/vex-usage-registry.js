@@ -307,6 +307,15 @@ const VexUsageRegistry = {
       VexRevisit: () => (typeof VexRevisit !== 'undefined' ? VexRevisit : null),
       VexWorkspaceArchive: () => (typeof VexWorkspaceArchive !== 'undefined' ? VexWorkspaceArchive : null),
       VexDownloadDesk: () => (typeof VexDownloadDesk !== 'undefined' ? VexDownloadDesk : null),
+      ConsentBlock: () => (typeof ConsentBlock !== 'undefined' ? ConsentBlock : null),
+      VexMarketplaceSigns: () => (typeof VexMarketplaceSigns !== 'undefined' ? VexMarketplaceSigns : null),
+      VexChatFlag: () => (typeof VexChatFlag !== 'undefined' ? VexChatFlag : null),
+      VexChatThrowaway: () => (typeof VexChatThrowaway !== 'undefined' ? VexChatThrowaway : null),
+      VexQrVerdict: () => (typeof VexQrVerdict !== 'undefined' ? VexQrVerdict : null),
+      VexDefenderShortcut: () => (typeof VexDefenderShortcut !== 'undefined' ? VexDefenderShortcut : null),
+      VexMotwCheck: () => (typeof VexMotwCheck !== 'undefined' ? VexMotwCheck : null),
+      VexScreenShareSafe: () => (typeof VexScreenShareSafe !== 'undefined' ? VexScreenShareSafe : null),
+      VexVaultHygiene: () => (typeof VexVaultHygiene !== 'undefined' ? VexVaultHygiene : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -488,6 +497,16 @@ const VexUsageRegistry = {
       ['chores', A.api(G.VexChores, 'enabled', 'setEnabled')],
       ['week-skeleton', A.api(G.VexWeekSkeleton, 'enabled', 'setEnabled')],
       ['weekly-triage', A.api(G.VexTriage, 'enabled', 'setEnabled')],
+      // Wave 3, safer browsing (js/security-helpers.js). Off, each leaves what it kept where it is.
+      ['cookie-reject', A.api(G.ConsentBlock, 'enabled', 'setEnabled')],
+      ['marketplace-signs', A.api(G.VexMarketplaceSigns, 'enabled', 'setEnabled')],
+      ['chat-new-domain', A.api(G.VexChatFlag, 'enabled', 'setEnabled')],
+      ['chat-throwaway', A.api(G.VexChatThrowaway, 'enabled', 'setEnabled')],
+      ['qr-verdict', A.api(G.VexQrVerdict, 'enabled', 'setEnabled')],
+      ['defender-shortcut', A.api(G.VexDefenderShortcut, 'enabled', 'setEnabled')],
+      ['motw-check', A.api(G.VexMotwCheck, 'enabled', 'setEnabled')],
+      ['screen-share-safe', A.api(G.VexScreenShareSafe, 'enabled', 'setEnabled')],
+      ['vault-hygiene', A.api(G.VexVaultHygiene, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

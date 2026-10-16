@@ -90,7 +90,7 @@ const PermissionPrompts = (() => {
     const actions = riskyFile
       ? `<button class="btn-danger-sm" data-decision="deny" data-remember="false">Don't download</button>
         <button class="btn-secondary-sm" data-decision="allow" data-remember="false">Download anyway</button>
-        ${entry.data.remember === false ? '' : '<button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow from this site</button>'}`
+        ${entry.data.remember === false || (entry.data.risk && entry.data.risk.quarantine) ? '' : '<button class="btn-primary-sm" data-decision="allow" data-remember="true">Always allow from this site</button>'}`
       : entry.data.choice === 'allow-block'
       ? `<button class="btn-danger-sm" data-decision="deny" data-remember="${keep}">Block</button>
         <button class="btn-primary-sm" data-decision="allow" data-remember="${keep}">Allow</button>`
@@ -113,7 +113,9 @@ const PermissionPrompts = (() => {
       const head = !riskyFile && risk.summary ? `<div class="perm-risk-head">${_esc(risk.summary)}</div>` : '';
       const reasons = why.length
         ? `<details class="perm-risk-why"><summary>Why was this flagged?</summary><ul>${why.map(w => `<li>${_esc(w)}</li>`).join('')}</ul></details>` : '';
-      const quiet = (why.length || riskyFile) && !riskyFile ? `<button type="button" class="perm-risk-quiet" data-quiet>Don't warn me about this site</button>` : '';
+      // A cheat tool or fake update (src/main/download-guard.js) is held without an "always allow";
+      // "do not warn me about this site" is its way out, in web-safety's own allow list.
+      const quiet = (why.length && !riskyFile) || (riskyFile && risk.quarantine) ? `<button type="button" class="perm-risk-quiet" data-quiet>Don't warn me about this site</button>` : '';
       return `<div class="perm-risk perm-risk-${_esc(level)}">${head}${line ? `<div class="perm-risk-line">${_esc(line)}</div>` : ''}${reasons}${quiet}</div>`;
     })();
     const messageHtml = riskyFile

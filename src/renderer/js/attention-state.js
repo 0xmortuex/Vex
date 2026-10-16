@@ -25,7 +25,8 @@
 // hidden.
 const AttentionState = {
   // Strongest first: the first one that applies is the `reason`.
-  ORDER: ['game', 'exam', 'meeting', 'focus', 'study', 'away', 'quiet-hours', 'wind-down', 'quiet-switch'],
+  // 'sharing': the screen is being shared (js/screen-share-safe.js, T3-114).
+  ORDER: ['sharing', 'game', 'exam', 'meeting', 'focus', 'study', 'away', 'quiet-hours', 'wind-down', 'quiet-switch'],
   QUIET_HOURS_TTL_MS: 30 * 1000,
 
   _qh: null,           // { at, inWindow, until } from the main process
@@ -49,6 +50,11 @@ const AttentionState = {
   _game() {
     if (typeof GameSession !== 'undefined' && GameSession && GameSession.active) return { until: 0 };
     if (typeof GameMode !== 'undefined' && GameMode && GameMode.gaming) return { until: 0 };
+    return null;
+  },
+  // Your screen is being shared: nothing that is not urgent should appear on it (js/screen-share-safe.js).
+  _sharing() {
+    if (typeof VexScreenShareSafe !== 'undefined' && VexScreenShareSafe && typeof VexScreenShareSafe.active === 'function' && VexScreenShareSafe.active()) return { until: 0 };
     return null;
   },
   _meeting() {
@@ -121,7 +127,7 @@ const AttentionState = {
 
   get() {
     const readers = {
-      game: () => this._game(), exam: () => this._exam(), meeting: () => this._meeting(), focus: () => this._focus(), study: () => this._study(), away: () => this._away(),
+      sharing: () => this._sharing(), game: () => this._game(), exam: () => this._exam(), meeting: () => this._meeting(), focus: () => this._focus(), study: () => this._study(), away: () => this._away(),
       'quiet-hours': () => this._quietHours(), 'wind-down': () => this._wind(), 'quiet-switch': () => this._switch(),
     };
     const sources = [];

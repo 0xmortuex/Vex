@@ -667,6 +667,79 @@ const ConsentBlock = {
   KEY: 'vex.consentBlock',
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
 
+  // T3-077 (cookie-banner auto-reject, on top of the above): sites the person switched it off for, how many
+  // banners it has rejected, and the pages it never touches (banks, payments, sign-in: js/sensitive-pages.js).
+  SITES_KEY: 'vex.consentBlock.sites',
+  COUNT_KEY: 'vex.consentBlock.count',
+  _read(key, fallback) {
+    let raw;
+    try { raw = localStorage.getItem(key); } catch (err) { throw new Error('Could not read ' + key + ': ' + err.message, { cause: err }); }
+    if (raw == null) return fallback;
+    try { return JSON.parse(raw); } catch (err) { throw new Error(key + ' holds something that is not JSON: ' + err.message, { cause: err }); }
+  },
+  _hostOf(url) { try { const u = new URL(String(url)); return /^https?:$/.test(u.protocol) ? u.hostname.toLowerCase().replace(/^www\./, '') : ''; } catch { return ''; } },
+  sitesOff() { const v = this._read(this.SITES_KEY, []); return Array.isArray(v) ? v.filter(x => typeof x === 'string') : []; },
+  siteOff(host) { const h = this._hostOf('https://' + String(host)) ; return !!h && this.sitesOff().some(s => h === s || h.endsWith('.' + s)); },
+  setSiteOff(host, off) {
+    const h = this._hostOf('https://' + String(host));
+    if (!h) throw new Error('That is not a site name');
+    const list = this.sitesOff().filter(s => s !== h);
+    if (off) list.push(h);
+    localStorage.setItem(this.SITES_KEY, JSON.stringify(list.slice(-300)));
+    this.reapplyAll();
+    return list.includes(h);
+  },
+  // Why this page is left alone: '' (it is not), 'site-off', 'sensitive', or 'not-web'.
+  skipReason(url) {
+    const host = this._hostOf(url);
+    if (!host) return 'not-web';
+    if (this.siteOff(host)) return 'site-off';
+    // Without the list of sensitive pages the safe answer is to do nothing, and to say so once.
+    if (typeof VexSensitive === 'undefined') {
+      if (!this._warnedNoList) { this._warnedNoList = true; if (window.VexProblems) window.VexProblems.note('Cookie banners', 'The list of banking and sign-in pages is missing, so no banner is rejected', new Error('VexSensitive is not loaded')); }
+      return 'sensitive';
+    }
+    return VexSensitive.isSensitiveUrl(url) ? 'sensitive' : '';
+  },
+  // Banners rejected: { total, since, days: { 'YYYY-MM-DD': n } } (kept 30 days).
+  counts() {
+    const v = this._read(this.COUNT_KEY, null);
+    return v && typeof v === 'object' ? { total: Number(v.total) || 0, since: v.since || '', days: v.days && typeof v.days === 'object' ? v.days : {} } : { total: 0, since: '', days: {} };
+  },
+  weekCount(now = Date.now()) {
+    const c = this.counts(); let n = 0;
+    for (let i = 0; i < 7; i++) n += Number(c.days[new Date(now - i * 86400000).toISOString().slice(0, 10)]) || 0;
+    return n;
+  },
+  _note(now = Date.now()) {
+    const c = this.counts();
+    const day = new Date(now).toISOString().slice(0, 10);
+    c.total++;
+    if (!c.since) c.since = day;
+    c.days[day] = (Number(c.days[day]) || 0) + 1;
+    for (const k of Object.keys(c.days)) if (now - Date.parse(k) > 30 * 86400000) delete c.days[k];
+    localStorage.setItem(this.COUNT_KEY, JSON.stringify(c));
+    return c;
+  },
+  // The script sets window.__vexConsentClicked when it presses a site's own "reject" button; counted once per page.
+  _countLater(webview) {
+    const url = this._hostOf(webview.getURL ? webview.getURL() : '') + '|' + Date.now();
+    webview.__vexConsentToken = url;
+    for (const ms of [3500, 11000]) {
+      setTimeout(async () => {
+        if (webview.__vexConsentToken !== url || webview.__vexConsentCounted === url) return;
+        try {
+          if (typeof window.vexGuestEval !== 'function') return;
+          const clicked = await window.vexGuestEval(webview, 'window.__vexConsentClicked===true', false, 1500);
+          if (clicked === true) { webview.__vexConsentCounted = url; this._note(); }
+        } catch (err) {
+          // The page moved on or closed before the check: nothing to count, and nothing wrong.
+          if (!/did not answer|no page|WebView must be attached|destroyed/i.test(String(err && err.message))) { if (window.VexProblems) window.VexProblems.note('Cookie banners', 'Could not check whether a banner was rejected', err); }
+        }
+      }, ms);
+    }
+  },
+
   // Turning the feature off has to take effect on the pages that are already
   // open: the hide rule is injected into every guest, so simply not injecting
   // it any more left every open tab with its banners still hidden until the
@@ -712,10 +785,16 @@ const ConsentBlock = {
     '#cookie-banner', '#cookieBanner', '#cookie-notice', '.cookie-notice',
     '.cookie-banner', '.cookie-consent', '#cookieConsent', '.cc-window.cc-banner',
     '#gdpr-banner', '.gdpr-banner', '#consent-banner', '.consent-banner',
+    '#iubenda-cs-banner', '#cookie-law-info-bar', '#cookiescript_injected', '#cmplz-cookiebanner-container', '.cky-consent-container',
+    '.osano-cm-window', '#BorlabsCookieBox', '#axeptio_overlay',
   ],
 
   applyTo(webview) {
     if (!this.enabled()) return;
+    // Never on a bank, a payment or a sign-in page, nor on a site switched off (T3-077).
+    let url = '';
+    try { url = webview.getURL ? webview.getURL() : ''; } catch { url = ''; /* detached: skipReason says not-web */ }
+    if (this.skipReason(url)) { this.removeFrom(webview); return; }
     const sel = this.SELECTORS.join(',');
     const hideCss = sel + '{display:none!important;visibility:hidden!important}';
     // Scroll/position un-lock that undoes a banner's body scroll-lock. This must
@@ -738,24 +817,27 @@ const ConsentBlock = {
       'button[mode="primary"].qc-cmp2-summary-button', '[data-testid="uc-deny-all-button"]',
       '.fc-cta-do-not-consent', '.fc-button.fc-cta-do-not-consent',
       '[data-testid="reject-all"]', '[aria-label="Reject all"]', '[title="Reject all"]',
+      // Iubenda, CookieYes, Complianz, Osano, Termly, Borlabs, Cookie Script, Axeptio, Cookie Law Info (T3-077)
+      '.iubenda-cs-reject-btn', '.cky-btn-reject', '.cmplz-deny', '.osano-cm-denyAll', '[data-tid="banner-decline"]',
+      'a._brlbs-refuse-btn', '#cookiescript_reject', '#axeptio_btn_dismiss', '#wt-cli-reject-btn', '#cookie_action_close_header_reject',
     ]);
     const js = `(function(){try{
       var sel=${JSON.stringify(sel)};
       var REJECT_IDS=${rejectIds};
-      var RX=/(^\\s*(reject|decline|refuse|deny|disagree)\\b)|reject all|decline all|only necessary|necessary only|essential( cookies)? only|continue without accepting|do not (sell|share|accept)/i;
+      var RX=/(^\\s*(reject|decline|refuse|deny|disagree)\\b)|reject all|decline all|only necessary|necessary only|essential( cookies)? only|continue without accepting|do not (sell|share|accept)|reddet|kabul etme|yaln[ıi]zca gerekli|sadece gerekli|alle ablehnen|ablehnen|tout refuser|refuser|rechazar|rifiuta|weigeren|odrzu[cć]/i;
       var clicked=false;
       function vis(el){if(!el)return false;var r=el.getBoundingClientRect();if(r.width<2||r.height<2)return false;var cs=getComputedStyle(el);return cs.visibility!=='hidden'&&cs.display!=='none';}
       function tryReject(){
         if(clicked)return true;
-        for(var i=0;i<REJECT_IDS.length;i++){var b=document.querySelector(REJECT_IDS[i]);if(b&&vis(b)){try{b.click();clicked=true;return true;}catch(e){}}}
+        for(var i=0;i<REJECT_IDS.length;i++){var b=document.querySelector(REJECT_IDS[i]);if(b&&vis(b)){try{b.click();clicked=true;window.__vexConsentClicked=true;return true;}catch(e){}}}
         var cs=document.querySelectorAll(sel);
         for(var c=0;c<cs.length;c++){var bs=cs[c].querySelectorAll('button,a,[role=button],input[type=button],input[type=submit]');
-          for(var j=0;j<bs.length;j++){var t=(bs[j].textContent||bs[j].value||'').trim();if(t&&t.length<40&&RX.test(t)&&vis(bs[j])){try{bs[j].click();clicked=true;return true;}catch(e){}}}}
+          for(var j=0;j<bs.length;j++){var t=(bs[j].textContent||bs[j].value||'').trim();if(t&&t.length<40&&RX.test(t)&&vis(bs[j])){try{bs[j].click();clicked=true;window.__vexConsentClicked=true;return true;}catch(e){}}}}
         return false;
       }
       var id='vex-consent-style';
       function ensure(){var el=document.getElementById(id);if(!el){el=document.createElement('style');el.id=id;document.documentElement.appendChild(el);}return el;}
-      function paint(){var has=!!document.querySelector(sel);if(has)tryReject();ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
+      function paint(){if(document.querySelector('input[type="password"]')){var pw=document.getElementById(id);if(pw)pw.textContent='';return false;}var has=!!document.querySelector(sel);if(has)tryReject();ensure().textContent=${JSON.stringify(hideCss)}+(has?${JSON.stringify(unlockCss)}:'');return has;}
       // The watcher and the teardown hang off window.__vexConsentOff. Without a
       // way to stop the watcher, clearing the stylesheet when the feature is
       // switched off is itself a DOM mutation that wakes the watcher, which
@@ -776,6 +858,7 @@ const ConsentBlock = {
       }
     }catch(e){}})();`;
     try { webview.executeJavaScript(js).catch(() => {}); } catch {}
+    this._countLater(webview);
   },
 };
 

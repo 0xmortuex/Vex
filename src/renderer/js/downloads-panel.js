@@ -629,6 +629,10 @@ const DownloadsPanel = {
       const on = this.setOpenWhenDone(b.dataset.id, !this.wantsOpen(b.dataset.id));
       window.showToast?.(on ? 'It will open the moment it finishes' : 'It will not open by itself');
     }));
+    // "Scan with Windows Security": opens its scan page and shows the file; Vex runs no scan (js/download-safety.js).
+    rowEl.querySelectorAll('[data-action="scan-defender"]').forEach(b => b.addEventListener('click', () => {
+      VexDefenderShortcut.open(b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
+    }));
     rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
     rowEl.querySelectorAll('[data-action="pause"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'pause')));
     rowEl.querySelectorAll('[data-action="resume"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'resume')));
@@ -728,6 +732,11 @@ const DownloadsPanel = {
     return `${size} &middot; ${date}${label}`;
   },
 
+  _scanButton(dl) {
+    if (typeof VexDefenderShortcut === 'undefined' || !VexDefenderShortcut.offers(dl.filename)) return '';
+    return `<button class="dl-btn" data-action="scan-defender" data-path="${this._esc(dl.path)}" title="Scan with Windows Security" aria-label="Scan with Windows Security">${VexIcons.svg('shield', { size: 14 })}</button>`;
+  },
+
   _rowHtml(dl) {
     const isActive = dl.state === 'progressing';
     // Finished, but the file has been deleted since (checkDeleted): no Open,
@@ -750,6 +759,7 @@ const DownloadsPanel = {
     } else if (isComplete) {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
+            ${this._scanButton(dl)}
             <button class="dl-btn" data-action="delete-file" data-id="${id}" title="Delete the file" aria-label="Delete the file">${this.ICONS.trash}</button>`;
     } else if (dl.state === 'interrupted' && this.activeDownloads.has(dl.id)) {
       // The connection dropped but the download is still open in Vex: it can

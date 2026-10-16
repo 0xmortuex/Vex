@@ -72,14 +72,20 @@ function _removeHeld(dir) {
 }
 // Across drives a rename fails; a copy keeps the file's "downloaded from the
 // internet" mark (its Zone.Identifier stream) as the rename does.
+// The mark is read before and checked after (src/main/mark-of-the-web.js, T3-111): a
+// copy onto another drive or a file system without streams used to lose it silently.
+const _motw = require('./mark-of-the-web').createMarkOfTheWeb({ fs: require('fs'), log: (m) => console.log(m) });
 function _moveFile(from, to) {
   const fs = require('fs');
-  try { fs.renameSync(from, to); }
-  catch (err) {
-    if (err.code !== 'EXDEV') throw err;
-    fs.copyFileSync(from, to);
-    fs.unlinkSync(from);
-  }
+  const kept = _motw.move(from, to, () => {
+    try { fs.renameSync(from, to); }
+    catch (err) {
+      if (err.code !== 'EXDEV') throw err;
+      fs.copyFileSync(from, to);
+      fs.unlinkSync(from);
+    }
+  });
+  if (kept.carried && !kept.kept && !kept.restored) console.error('[Downloads] ' + kept.error + ': ' + to);
 }
 // "Ask where to save each file" for a download that was held: Electron's own
 // dialog was skipped by saving it into the holding folder.
@@ -480,6 +486,8 @@ function retry(sender, url, id) {
   return { ok: true };
 }
 
-return { wireDownloadsOnSession, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites };
+return { wireDownloadsOnSession, control, askWhere, _takeAsk, markMine, autoDownloadCheck, _liveDownloads, retry, isDownloadedFile, _noteFile, _sources, flushKnown: () => _knownWrites,
+  // The finished files Vex downloaded (not a private window's), newest first: the read-only mark-of-the-web check reads them.
+  knownFiles: () => [..._loadKnown()], markOfTheWeb: _motw };
 }
 module.exports = { createDownloadService };

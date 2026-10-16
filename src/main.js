@@ -6824,6 +6824,9 @@ app.on('web-contents-created', (_event, contents) => {
             // The page the link was in, so the tab opens next to its own
             // (js/app.js); it went to the far end (found 2026-10-10).
             opener: contents.id,
+            // Clicked inside a chat (Discord, WhatsApp Web ...): from the opener's address only.
+            // js/chat-links.js flags a new domain and may open it in a throwaway session.
+            fromChat: require('./main/chat-origin').chatLinkFrom(openerUrl, url) || undefined,
           });
         }
       }
@@ -8810,6 +8813,8 @@ const _downloadTidy = require('./main/download-tidy').createDownloadTidy({
   fs, logFile: path.join(userDataPath, 'download-tidy-log.json'),
   // A file Vex downloaded keeps being "ours" after it moves, so Open still works.
   onMoved: (from, to) => { if (_downloadService.isDownloadedFile(from)) _downloadService._noteFile(to, false); },
+  // The "downloaded from the internet" mark is checked across each move (src/main/mark-of-the-web.js).
+  motw: _downloadService.markOfTheWeb,
 });
 const _tidyCall = (fn) => { try { return { ok: true, ...fn() }; } catch (err) { return { ok: false, error: err.message }; } };
 ipcMain.handle('downloads:tidy-plan', (_e, minAgeDays) => _tidyCall(() => _downloadTidy.plan(_downloadPrefs.get().folder, { minAgeDays })));
@@ -8835,6 +8840,18 @@ ipcMain.handle('downloads:mods-plan', (_e) => _tidyCall(() => _modDesk.plan(_dow
 ipcMain.handle('downloads:mods-apply', (_e, planId) => _tidyCall(() => _modDesk.apply(planId)));
 ipcMain.handle('downloads:mods-undo', () => _tidyCall(() => _modDesk.undo()));
 ipcMain.handle('downloads:mods-history', () => _tidyCall(() => ({ batches: _modDesk.history() })));
+// Read-only: which of the files Vex downloaded no longer carry the "downloaded from the
+// internet" mark (T3-111). Names only, never paths; nothing is written.
+ipcMain.handle('downloads:motw-check', () => _tidyCall(() => {
+  const r = _downloadService.markOfTheWeb.check(_downloadService.knownFiles().slice(0, 300));
+  return { supported: r.supported, checked: r.checked, marked: r.marked, gone: r.gone, missing: r.missingMark.slice(0, 50).map(f => path.basename(f)), missingCount: r.missingMark.length };
+}));
+// "Scan with Windows Security" (T3-110): one fixed protocol address, no process started.
+const _defender = require('./main/defender-shortcut').createDefenderShortcut({ shell, isDownloadedFile: (p) => _downloadService.isDownloadedFile(p) });
+ipcMain.handle('downloads:open-defender', async (_e, filePath) => {
+  try { return { ok: true, ...(await _defender.open(filePath)) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 ipcMain.handle('downloads:open-folder', async () => {
   try { const r = await shell.openPath(_downloadPrefs.get().folder); return { ok: !r, error: r || null }; }
   catch (err) { return { ok: false, error: err.message }; }

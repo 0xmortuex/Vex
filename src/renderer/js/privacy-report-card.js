@@ -69,6 +69,12 @@ const PrivacyReportCard = {
     const blocked = this._blockedThisWeek();
     const num = (n) => Number(n).toLocaleString();
     const stat = (value, label) => `<div style="flex:1;min-width:120px;text-align:center;padding:10px 6px;border:1px solid var(--border);border-radius:10px"><div style="font-size:22px;font-weight:800">${value}</div><div style="font-size:11px;color:var(--text-muted)">${label}</div></div>`;
+    // Cookie banners Vex pressed "reject" on for you (page-extras.js, ConsentBlock; T3-077).
+    let bannerStat = '';
+    if (typeof ConsentBlock !== 'undefined' && typeof ConsentBlock.weekCount === 'function') {
+      try { bannerStat = stat(num(ConsentBlock.weekCount()), 'cookie banners rejected for you in 7 days'); }
+      catch (err) { bannerStat = stat('—', 'cookie banner count could not be read'); window.VexProblems?.note('Privacy report', 'Could not read the cookie banner count', err); }
+    }
     const trackerSites = r.stored.sites.filter(s => s.tracker);
     const offenders = r.stored.sites.filter(s => s.tracker || s.count >= 15).slice(0, 12);
     const row = (s) => `<label style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12.5px">
@@ -84,6 +90,7 @@ const PrivacyReportCard = {
         ${stat(num(r.stored.total), 'cookies stored now')}
         ${stat(num(r.stored.trackerCookies), 'of them from trackers')}
         ${stat(num(r.setThisWeek.total), 'cookies set in 7 days')}
+        ${bannerStat}
       </div>
       <div style="font-weight:700;margin:6px 0">Worst offenders</div>
       ${offenders.length ? `<div id="prc-list">${offenders.map(row).join('')}</div>

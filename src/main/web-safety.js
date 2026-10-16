@@ -307,7 +307,8 @@ for (const e of 'exe msi msix msixbundle appx appxbundle appinstaller scr com pi
 for (const e of 'bat cmd ps1 psm1 vbs vbe js jse wsf wsh hta reg lnk sh command py url scf'.split(' ')) KIND_BY_EXT[e] = 'script';
 for (const e of 'docm xlsm pptm dotm xlam'.split(' ')) KIND_BY_EXT[e] = 'macro';
 for (const e of 'iso img vhd vhdx dmg pkg apk deb rpm'.split(' ')) KIND_BY_EXT[e] = 'installer';
-const KIND_WORD = { program: 'a program', script: 'a script', macro: 'a document with macros', installer: 'an installer or disk image' };
+const KIND_WORD = { program: 'a program', script: 'a script', macro: 'a document with macros', installer: 'an installer or disk image', archive: 'a compressed folder' };
+const ARCHIVE_NAME = /\.(zip|rar|7z)$/i;
 
 // Abused cheaply registered suffixes: not "bad", but the place throwaway
 // malware hosts are put because they cost almost nothing.
@@ -335,17 +336,22 @@ function classifyDownload({ filename = '', url = '' } = {}, { sensitivity = 'sta
   const ext = extOf(name);
   const fileKind = KIND_BY_EXT[ext] || null;
   const decoy = DECOY_EXT.test(name) || BIDI.test(name);
-  if (!fileKind && !decoy) return out;
-  out.fileKind = fileKind || 'program';
-
+  // Cheat and exploit tools, and fake "updates" (download-guard.js, T3-010): by the
+  // file's name only. An archive counts here, since that is how they are handed out.
   const allowed = new Set((allow || []).map(bareHost));
-  if (allowed.has(host) || allowed.has(reg)) return out;
+  const siteAllowed = allowed.has(host) || allowed.has(reg);
   const trusted = BRAND_SET.has(reg) || (topHosts || []).map(registrable).includes(reg);
+  const guard = siteAllowed || isPrivateName(host) ? null : require('./download-guard').inspectName(name, host, { trusted });
+  if (!fileKind && !decoy && !guard) return out;
+  out.fileKind = fileKind || (guard && ARCHIVE_NAME.test(name) ? 'archive' : 'program');
+
+  if (siteAllowed) return out;
   const strict = sensitivity === 'strict';
 
   const reasons = [];
   let highs = 0;
   const risk = (high, why) => { reasons.push(why); if (high) highs++; };
+  if (guard) risk(true, guard.reason);
 
   if (BIDI.test(name)) risk(true, 'The file name hides its real ending behind reversed text.');
   else if (DECOY_EXT.test(name)) risk(true, `The name ends “.${ext}” behind a picture or document ending, so it looks like a file it is not.`);
@@ -360,7 +366,7 @@ function classifyDownload({ filename = '', url = '' } = {}, { sensitivity = 'sta
   // wants one sure reason or two weaker ones; strict warns for any program or
   // script from a site that is not yours and not a known one.
   let warn = false;
-  if (decoy) warn = true;
+  if (decoy || guard) warn = true;
   else if (fileKind && !trusted && !isPrivateName(host)) {
     warn = highs > 0 || reasons.length >= 2 || (strict && (fileKind === 'program' || fileKind === 'script' || reasons.length > 0));
   }
@@ -368,10 +374,13 @@ function classifyDownload({ filename = '', url = '' } = {}, { sensitivity = 'sta
   if (!reasons.length) reasons.push(`It is ${KIND_WORD[fileKind] || 'a file that can run code'} from a site you have not used before.`);
   out.warn = true;
   out.level = highs > 0 ? 'high' : 'medium';
-  out.kind = decoy ? 'disguised' : isIpLiteral(host) ? 'ip-host' : hostCheck.flagged ? 'lookalike-host' : 'unknown-host';
+  out.kind = guard ? guard.kind : decoy ? 'disguised' : isIpLiteral(host) ? 'ip-host' : hostCheck.flagged ? 'lookalike-host' : 'unknown-host';
   out.reasons = reasons;
   const first = reasons[0];
   out.line = `${name || 'This file'} is ${KIND_WORD[out.fileKind] || 'a file that can run code'}. ${first}`;
+  // A cheat tool or fake update is held until the person answers, and the prompt does
+  // not offer "always allow from this site" for it (permission-prompts.js).
+  if (guard) { out.guard = guard.kind; out.quarantine = true; }
   return out;
 }
 
