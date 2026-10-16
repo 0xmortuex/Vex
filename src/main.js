@@ -1394,6 +1394,9 @@ ipcMain.handle('gamemode:games', async (_e, games, watch) => {
   if (watch && games.length) await _gameProcs.start(); else _gameProcs.stop();
   return { watching: !!(watch && games.length), ..._gameProcs.state() };
 });
+// The games the launchers say are installed (Steam, Epic, Roblox): a read-only listing so the
+// person can add them to the list above one confirm at a time (main/game-library.js).
+ipcMain.handle('gamemode:library', () => require('./main/game-library').scanLibraries({ fsp: fs.promises, env: process.env }));
 ipcMain.handle('gamemode:session', (_e, s) => (s.on ? _gameModeSession.begin({ app: s.app, holds: s.holds }) : _gameModeSession.end()));
 ipcMain.handle('gamemode:state', () => _gameModeSession.state());
 // Commit-charge guard (src/main/commit-guard.js): Windows' commit headroom, read
@@ -1804,6 +1807,9 @@ const RECALL_FILE = () => path.join(app.getPath('userData'), 'recall.json');
 // every page read (./main/recall-writer.js).
 const { createRecallWriter } = require('./main/recall-writer');
 let _recall = null;
+// The caps and the retention (T2-004): 12 MB of page text, 3000 pages, pages kept 90 days. The person
+// changes them in Settings > Storage (recall:limits); Vex sends the saved ones when it starts.
+const RECALL_LIMITS = { maxBytes: 12 * 1024 * 1024, maxRecords: 3000, retainMs: 90 * 24 * 3600 * 1000 };
 function recallStore() {
   if (_recall) return _recall;
   let records = [];
@@ -1812,14 +1818,19 @@ function recallStore() {
     if (fsx.existsSync(RECALL_FILE())) records = JSON.parse(fsx.readFileSync(RECALL_FILE(), 'utf8'));
     if (!Array.isArray(records)) records = [];
   } catch { records = []; }
-  _recall = new RecallIndex(records);
+  const before = records.length;
+  _recall = new RecallIndex(records, { ...RECALL_LIMITS });
+  // What the caps and the retention dropped at load is written out at the next save.
+  if (_recall.size < before) setTimeout(() => _recallWriter.touch(), 0);
   return _recall;
 }
 const _recallWriter = createRecallWriter({
   serialize: () => JSON.stringify(_recall ? _recall.toJSON() : []),
   write: async (bytes, { erase }) => {
-    await atomicWrite(RECALL_FILE(), bytes, { backup: !erase });
-    if (erase) await fs.promises.rm(RECALL_FILE() + '.bak', { force: true });
+    // No .bak: the index is rebuilt from the pages read, the write is atomic (a temp file renamed over
+    // it), and the copy doubled the 4.4 MB on disk. An old .bak is removed once the write succeeded.
+    await atomicWrite(RECALL_FILE(), bytes, { backup: false });
+    await fs.promises.rm(RECALL_FILE() + '.bak', { force: true });
   },
   onError: (err) => console.error('[Recall] could not save the page index (tried again on the next save):', err && err.message),
 });
@@ -1898,6 +1909,17 @@ ipcMain.handle('recall:search', (_e, query, options) => {
       since: opts.since, until: opts.until, site: opts.site,
     });
   } catch { return { total: 0, hits: [], terms: [], took: 0 }; }
+});
+ipcMain.handle('recall:limits', async (_e, limits) => {
+  const l = limits || {};
+  const store = recallStore();
+  const dropped = store.setLimits({
+    ...(l.days != null ? { retainMs: l.days * 24 * 3600 * 1000 } : {}),
+    ...(l.maxMB != null ? { maxBytes: Math.round(l.maxMB * 1024 * 1024) } : {}),
+    ...(l.maxPages != null ? { maxRecords: l.maxPages } : {}),
+  });
+  if (dropped) { recallTouch(); await recallFlush(); }
+  return { dropped, ...store.stats() };
 });
 ipcMain.handle('recall:stats', () => {
   try { return recallStore().stats(); }
@@ -7401,6 +7423,30 @@ function createWindow() {
       }).catch((e) => console.warn('[DPI-bypass] start error:', e && e.message));
     } catch (e) { console.warn('[DPI-bypass] init failed:', e && e.message); }
     ipcMain.handle('discord:set-bypass-mode', (_e, mode, opts) => { _discordModeAsked = mode; return _applyDiscordBypass(mode, opts || {}); });
+    // "Site down, or my bypass?" (main/bypass-probe.js): one request straight from this computer
+    // and one through the bypass rules the person already runs, on two throw-away sessions of its
+    // own. Read-only: it never starts, stops or changes a bypass (Zapret/winws included, which
+    // must not be touched while Game Control Center protects a game).
+    const _bypassProbe = require('./main/bypass-probe').createBypassProbe({
+      rules: (host) => ((/(^|\.)roblox\.com$/i.test(host) ? _lastRobloxRules : _lastDiscordRules) || null),
+      request: async (url, route, timeoutMs) => {
+        const started = Date.now();
+        const ses = secureSessions.fromPartition(route.kind === 'direct' ? 'vex-probe-direct' : 'vex-probe-bypass');
+        await ses.setProxy(route.kind === 'direct' ? { mode: 'direct' } : _discordProxyConfig(route.rules));
+        return new Promise((resolve) => {
+          let done = false;
+          const fin = (v) => { if (!done) { done = true; resolve({ ms: Date.now() - started, ...v }); } };
+          try {
+            const req = net.request({ url, session: ses, useSessionCookies: false });
+            const to = setTimeout(() => { try { req.abort(); } catch { /* vex-allow-empty-catch: the request had already ended */ } fin({ ok: false, error: 'no answer in ' + Math.round(timeoutMs / 1000) + ' s' }); }, timeoutMs);
+            req.on('response', (res) => { clearTimeout(to); try { res.resume(); } catch { /* vex-allow-empty-catch: the response had already ended */ } fin({ ok: (res.statusCode || 0) > 0, status: res.statusCode || 0 }); });
+            req.on('error', (err) => { clearTimeout(to); fin({ ok: false, error: (err && err.message) || 'failed' }); });
+            req.end();
+          } catch (err) { fin({ ok: false, error: (err && err.message) || 'failed' }); }
+        });
+      },
+    });
+    ipcMain.handle('bypass:probe', (_e, url) => _bypassProbe.probe(url));
     ipcMain.handle('roblox:set-bypass', (_e, on) => _applyRobloxBypass(!!on));
     ipcMain.handle('gui-style:set', async (_e, style) => {
       await dataStore.write('gui-style', style === 'glass' ? 'glass' : 'classic');

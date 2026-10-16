@@ -778,7 +778,7 @@ const SidebarManager = {
     // Apply the saved Master Volume level to this panel's media (Spotify,
     // Netflix, etc.) on load + as media appears, like tab webviews do.
     wv.addEventListener('dom-ready', () => {
-      if (typeof MasterVolume !== 'undefined' && MasterVolume.level() !== 1) MasterVolume.applyToWebview(wv);
+      if (typeof MasterVolume !== 'undefined' && MasterVolume.needsApply(wv)) MasterVolume.applyToWebview(wv);
       if (typeof PasswordVault !== 'undefined') { try { PasswordVault.autofill(wv, wv.getURL()); } catch {} }
       if (typeof TotpAutofill !== 'undefined') { try { TotpAutofill.autofill(wv, wv.getURL()); } catch {} }
       if (typeof EmailCodeAutofill !== 'undefined') { try { EmailCodeAutofill.tryFill(wv, wv.getURL()); } catch {} }

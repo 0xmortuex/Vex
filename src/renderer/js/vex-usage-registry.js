@@ -195,6 +195,12 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      GameLibrary: () => (typeof GameLibrary !== 'undefined' ? GameLibrary : null),
+      MasterVolume: () => (typeof MasterVolume !== 'undefined' ? MasterVolume : null),
+      LinkRouting: () => (typeof LinkRouting !== 'undefined' ? LinkRouting : null),
+      RefreshOnDeploy: () => (typeof RefreshOnDeploy !== 'undefined' ? RefreshOnDeploy : null),
+      BypassDoctor: () => (typeof BypassDoctor !== 'undefined' ? BypassDoctor : null),
+      WatchAlerts: () => (typeof WatchAlerts !== 'undefined' ? WatchAlerts : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +246,13 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Wave 2 (fixes and foundations)
+      ['game-library', A.api(G.GameLibrary, 'enabled', 'setEnabled')],
+      ['site-audio-memory', A.api(G.MasterVolume, 'siteMemoryEnabled', 'setSiteMemoryEnabled')],
+      ['link-routing', A.api(G.LinkRouting, 'enabled', 'setEnabled')],
+      ['refresh-on-deploy', A.api(G.RefreshOnDeploy, 'enabled', 'setEnabled')],
+      ['bypass-doctor', A.api(G.BypassDoctor, 'enabled', 'setEnabled')],
+      ['watch-alerts', A.api(G.WatchAlerts, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

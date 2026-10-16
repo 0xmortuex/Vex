@@ -243,8 +243,12 @@ const PatchRadar = {
     const text = items.length === 1
       ? this._line(items[0])
       : this._t('New patch notes for') + ' ' + [...new Set(items.map(i => i.name))].join(', ');
-    window.showToast?.(text, 'info', 8000);
-    try { window.vex?.notify?.('Vex — ' + this._t('patch notes'), text); } catch (err) { this._note('The desktop notification failed', err); }
+    const show = () => {
+      window.showToast?.(text, 'info', 8000);
+      try { window.vex?.notify?.('Vex — ' + this._t('patch notes'), text); } catch (err) { this._note('The desktop notification failed', err); }
+    };
+    // One alert per change, digest first (js/watch-alerts.js; off = shown at once, as before).
+    if (typeof WatchAlerts === 'undefined' || !WatchAlerts.route({ source: 'patch-radar', entity: 'patch:' + [...new Set(items.map(i => i.name))].join(','), title: text, show })) show();
   },
   // The game ended: what was found meanwhile is told now, once.
   flush() {

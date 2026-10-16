@@ -128,7 +128,26 @@
     { id: 'newtab-slots', title: 'New Tab layout', group: 'New Tab layout', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.newtab.layout'],
       permissions: { reads: ['which cards are available'], writes: ['the layout you chose'], sends: [] } },
 
+    // ---- Wave 2: fixes and foundations (new, so staged OFF on a profile that already exists) ----
+    { id: 'game-library', title: 'Installed games', group: 'Game mode', maturity: 'new', storageKeys: ['vex.gameLibrary.enabled', 'vex.gameLibrary.lastScan', 'vex.gameLibrary.skipped'],
+      jobs: ['Game library check'], commands: ['game-library-find'],
+      permissions: { reads: ['the Steam, Epic and Roblox install lists (file names only; nothing is opened or started)'], writes: ['a game on your Game mode list, only after you confirm it'], sends: [] } },
+    { id: 'site-audio-memory', title: 'Volume kept per site', group: 'Volume', maturity: 'new', usesKeys: ['vex.masterVolume'], storageKeys: ['vex.masterVolume.sites', 'vex.masterVolume.siteMemory', 'vex.masterVolume.warned'],
+      jobs: ['Loud volume reminder'], permissions: quiet({ reads: ['the site of each tab, to give it its kept level'], writes: ['a volume level per site'] }) },
+    { id: 'link-routing', title: 'Links open in the matching panel', group: 'Links and panels', maturity: 'new', storageKeys: ['vex.linkRouting.enabled', 'vex.linkRouting.rules', 'vex.linkRouting.told'], commands: ['link-routing'],
+      permissions: { reads: ['the address of a link that would open as a new tab'], writes: ['loads that link in the panel for the site; your rules'], sends: [] } },
+    { id: 'refresh-on-deploy', title: 'Refresh after a successful build', group: 'Refresh after a build', maturity: 'new', storageKeys: ['vex.refreshOnDeploy.enabled', 'vex.refreshOnDeploy.sites'],
+      permissions: { reads: ['which GitHub run succeeded and which tabs are open'], writes: ['reloads a tab, only when you press Refresh'], sends: [] } },
+    { id: 'bypass-doctor', title: 'Site down or my bypass?', group: 'Bypass check', maturity: 'new', storageKeys: ['vex.bypassDoctor.enabled', 'vex.bypassDoctor.lastPreflight'], commands: ['site-or-bypass'],
+      permissions: { reads: ['whether a site answers directly and through the bypass you already run'], writes: ['nothing: it never starts, stops or changes a bypass'], sends: ['One request to the address you ask about, and one to discord.com shortly after start'] } },
+    { id: 'watch-alerts', title: 'One alert per change, digest first', group: 'Watcher alerts', maturity: 'new', storageKeys: ['vex.watchAlerts.enabled', 'vex.watchAlerts.instant'],
+      permissions: { reads: ['alerts from the page watch, patch radar and GitHub watch'], writes: ['one line in the Attention Inbox per change'], sends: [] } },
+
     // ---- core entries: data no switchable feature owns -----------------------------
+    { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
+      permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
+    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['ai-answered-by'],
+      permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],
       permissions: { reads: ['a sign-in code in your mail, when you ask or allow it'], writes: ['the sites you trusted to receive a code'], sends: [] } },

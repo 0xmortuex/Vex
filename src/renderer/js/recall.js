@@ -387,7 +387,8 @@ const Recall = {
           : 'Indexing is off. Turn it on in Settings › Recall.';
       } else {
         statEl.textContent = `${s.pages.toLocaleString()} page${s.pages === 1 ? '' : 's'} indexed · ` +
-          `${this.formatBytes(s.bytes)} · newest ${this.relativeTime(s.newest)}`;
+          `${this.formatBytes(s.bytes)}${s.maxBytes ? ' of ' + this.formatBytes(s.maxBytes) : ''} · newest ${this.relativeTime(s.newest)}` +
+          (s.retainMs ? ` · kept ${Math.round(s.retainMs / 86400000)} days` : '');
       }
       const keep = siteSel.value;
       siteSel.innerHTML = '<option value="">All sites</option>' +

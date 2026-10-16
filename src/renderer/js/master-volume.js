@@ -46,6 +46,64 @@ const MasterVolume = {
   },
   _setLevel(v) { try { localStorage.setItem(this.KEY, String(v)); } catch {} },
 
+  // ---- A level kept for one site (T2-003) -------------------------------------------
+  // The level above is for every tab and panel. A site that needs a boost (a quiet
+  // video site) can keep its own, so the rest are not blasted by it: the person
+  // chooses "Keep this level for <site>" in the slider's box. A kept level is
+  // used for that site's pages instead of the level above. Off: every site uses
+  // the level above, and what was kept stays saved.
+  SITES_KEY: 'vex.masterVolume.sites',        // { [host]: gain }  (1 = 100%)
+  MEMORY_KEY: 'vex.masterVolume.siteMemory',  // 'off' turns the kept levels off
+  WARN_KEY: 'vex.masterVolume.warned',        // when the loud-level reminder was last shown
+  WARN_EVERY_MS: 7 * 24 * 3600 * 1000,
+
+  siteMemoryEnabled() { try { return localStorage.getItem(this.MEMORY_KEY) !== 'off'; } catch { return true; } },
+  setSiteMemoryEnabled(on) { localStorage.setItem(this.MEMORY_KEY, on ? 'on' : 'off'); },
+  hostOf(url) { try { return new URL(String(url)).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } },
+  sites() {
+    const raw = localStorage.getItem(this.SITES_KEY);
+    if (raw === null) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The levels kept per site could not be read', { cause: err }); }
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    const out = {};
+    for (const [h, g] of Object.entries(o)) if (Number.isFinite(g) && g >= 0 && g <= this.MAX) out[h] = g;
+    return out;
+  },
+  siteLevel(url) {
+    if (!this.siteMemoryEnabled()) return null;
+    const host = this.hostOf(url);
+    if (!host) return null;
+    const all = this.sites();
+    // A level kept for example.com covers www.example.com and its subdomains.
+    const key = Object.keys(all).find(h => host === h || host.endsWith('.' + h));
+    return key === undefined ? null : all[key];
+  },
+  setSiteLevel(url, g) {
+    const host = this.hostOf(url);
+    if (!host) throw new Error('That is not a web page');
+    if (!(Number.isFinite(g) && g >= 0 && g <= this.MAX)) throw new Error('A level is between 0% and ' + this.MAX * 100 + '%');
+    const all = this.sites();
+    all[host] = g;
+    localStorage.setItem(this.SITES_KEY, JSON.stringify(all));
+    return host;
+  },
+  forgetSite(host) {
+    const all = this.sites();
+    if (!(host in all)) return false;
+    delete all[host];
+    localStorage.setItem(this.SITES_KEY, JSON.stringify(all));
+    return true;
+  },
+  // The level a page should have: the one kept for its site, else the level for every site.
+  levelFor(url) {
+    const kept = this.siteLevel(url);
+    return kept === null ? this.level() : kept;
+  },
+  _urlOf(wv) { try { return typeof window.vexGuestUrl === 'function' ? window.vexGuestUrl(wv) : wv.getURL(); } catch { return ''; } },
+  // Does this page need the script at all? (100% and nothing kept: no.)
+  needsApply(wv) { return this.levelFor(this._urlOf(wv)) !== 1; },
+
   // Idempotent per-page injector. Installs a Web-Audio gain tap per media element
   // (with a same-origin guard + element.volume fallback) and keeps enforcing on
   // play / newly-added media.
@@ -306,14 +364,17 @@ const MasterVolume = {
   applyToWebview(wv) {
     if (!wv) return;
     // A page that could not take it is said in the console, not swallowed.
-    try { window.vexGuestEvalFrames(wv, this._script(this.level())).catch(err => console.warn('[MasterVolume] could not apply to a page:', err && err.message)); }
+    try { window.vexGuestEvalFrames(wv, this._script(this.levelFor(this._urlOf(wv)))).catch(err => console.warn('[MasterVolume] could not apply to a page:', err && err.message)); }
     catch (err) { console.warn('[MasterVolume] could not apply to a page:', err && err.message); }
   },
 
   // A player frame the page adds after it loaded gets the level too
   // (site-volume.js); dom-ready covers only the page itself.
   init() {
-    window.vexOnLateFrame((wv) => { if (this.level() !== 1) this.applyToWebview(wv); });
+    window.vexOnLateFrame((wv) => { if (this.needsApply(wv)) this.applyToWebview(wv); });
+    // A level above 100% is louder than the source: said once a week, not every start.
+    if (typeof VexJobs !== 'undefined') VexJobs.every('Loud volume reminder', 6 * 3600 * 1000, () => this.warnIfLoud(), { when: 'ui', feature: 'site-audio-memory' });
+    if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle('site-audio-memory', () => this.show());
     return this;
   },
 
@@ -326,11 +387,31 @@ const MasterVolume = {
 
   apply(g) {
     this._setLevel(g);
-    const script = this._script(g);
     for (const wv of this._allWebviews()) {
+      // A site with a level of its own keeps it; the slider moves the rest.
+      const kept = this.siteLevel(this._urlOf(wv));
+      const script = this._script(kept === null ? g : kept);
       try { window.vexGuestEvalFrames(wv, script).catch(err => console.warn('[MasterVolume] could not apply to a page:', err && err.message)); }
       catch (err) { console.warn('[MasterVolume] could not apply to a page:', err && err.message); }
     }
+  },
+
+  // One line in the Attention Inbox when the level for every site is above 100%.
+  // -> true when it was added.
+  warnIfLoud(now = Date.now()) {
+    if (!this.siteMemoryEnabled()) return false;
+    const g = this.level();
+    if (g <= 1) return false;
+    const last = Number(localStorage.getItem(this.WARN_KEY)) || 0;
+    if (now - last < this.WARN_EVERY_MS) return false;
+    if (typeof VexAttention === 'undefined') throw new Error('VexAttention is not loaded');
+    localStorage.setItem(this.WARN_KEY, String(now));
+    return VexAttention.suggest({
+      feature: 'site-audio-memory', id: 'loud', label: 'Volume',
+      title: 'Master volume is at ' + Math.round(g * 100) + '%, louder than the source',
+      body: 'Every site is boosted, loud ones too. Keep a boost only for the sites that need it, and leave the rest at 100%.',
+      action: { label: 'Open volume', key: 'open' },
+    });
   },
 
   // The pages in front: the tab you are on and the panels showing beside it.
@@ -425,6 +506,8 @@ const MasterVolume = {
       </div>
       <div class="mastervol-ticks"><span style="--at:0">0</span><span style="--at:0.2">100</span><span style="--at:0.5">250</span><span style="--at:1">500%</span></div>
       <div class="mastervol-sub">Applies to every tab &amp; panel · above 100% boosts louder than the source</div>
+      <div class="mastervol-warn" role="note" hidden>Above 100% is louder than the source: loud sites get louder too, and it can distort or tire your ears. Keep a boost only for the sites that need it.</div>
+      <div class="mastervol-site"></div>
       <div class="mastervol-status" role="status" aria-live="polite" hidden></div>`;
     document.body.appendChild(el);
     this._el = el;
@@ -433,7 +516,32 @@ const MasterVolume = {
     const slider = el.querySelector('.mastervol-slider');
     const pctEl = el.querySelector('.mastervol-pct');
     const mute = el.querySelector('.mastervol-mute');
+    const warn = el.querySelector('.mastervol-warn');
+    const siteBox = el.querySelector('.mastervol-site');
     let lastNonZero = pct || 100;
+    // "Keep this level for <site>" (T2-003): the site in front, if it is a web page.
+    const frontUrl = () => { try { const t = typeof TabManager !== 'undefined' && TabManager.getActiveTab && TabManager.getActiveTab(); return t && t.url ? t.url : ''; } catch { return ''; } };
+    const drawSite = () => {
+      siteBox.textContent = '';
+      if (!this.siteMemoryEnabled()) return;
+      const url = frontUrl();
+      const host = this.hostOf(url);
+      if (!/^https?:/i.test(url) || !host) return;
+      const kept = this.siteLevel(url);
+      const mk = (text, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'mastervol-keep'; b.textContent = text; b.addEventListener('click', fn); return b; };
+      const note = document.createElement('div');
+      note.className = 'mastervol-keepnote';
+      if (kept !== null) {
+        note.textContent = host + ' keeps its own level: ' + Math.round(kept * 100) + '%. The slider does not move it.';
+        siteBox.append(note, mk('Use the slider for ' + host + ' again', () => { try { this.forgetSite(Object.keys(this.sites()).find(h => host === h || host.endsWith('.' + h))); window.showToast?.(host + ' follows the slider again'); this.apply(this.level()); } catch (err) { window.showToast?.(err.message, 'error'); } drawSite(); }));
+      } else {
+        siteBox.appendChild(mk('Keep ' + (+slider.value) + '% for ' + host, () => {
+          try { this.setSiteLevel(url, (+slider.value) / 100); window.showToast?.(host + ' keeps ' + (+slider.value) + '%'); }
+          catch (err) { window.showToast?.(err.message, 'error'); }
+          drawSite();
+        }));
+      }
+    };
     // Opening the panel only shows the level; nothing is applied to any page
     // until the slider or mute actually moves (found 2026-09-29: opening it at
     // 100% injected the script into every tab and pinned all media volume).
@@ -442,6 +550,7 @@ const MasterVolume = {
       slider.value = p; pctEl.textContent = p + '%';
       slider.setAttribute('aria-valuetext', p + '%');
       pctEl.style.color = p > 100 ? 'var(--warning, #e8b84a)' : 'var(--primary, #6366f1)';
+      warn.hidden = !(p > 100);
       mute.innerHTML = VexIcons.svg(p === 0 ? 'mute' : 'volume', { size: 18 });
       if (p > 0) lastNonZero = p;
       if (apply) {
@@ -456,6 +565,8 @@ const MasterVolume = {
     slider.addEventListener('input', () => set(+slider.value));
     mute.addEventListener('click', () => set(+slider.value === 0 ? lastNonZero : 0));
     set(pct, false); // colourise the % label on open
+    drawSite();
+    slider.addEventListener('change', drawSite);
     // On the slider at once, so the arrow keys set the level when it was opened
     // with Ctrl+K: it was a long Tab away from wherever the focus had been.
     slider.focus({ preventScroll: true });
@@ -521,6 +632,11 @@ const MasterVolume = {
       .mastervol-status{margin-top:8px;padding:8px 10px;font-size:11px;line-height:1.45;border-radius:8px;
         color:var(--text,#e9e9ee);background:rgba(232,184,74,0.12);border:1px solid rgba(232,184,74,0.4);}
       .mastervol-status[hidden]{display:none;}
+      .mastervol-warn{margin-top:8px;padding:8px 10px;font-size:11px;line-height:1.45;border-radius:8px;color:var(--text,#e9e9ee);background:rgba(232,184,74,0.12);border:1px solid rgba(232,184,74,0.4);}
+      .mastervol-warn[hidden]{display:none;}
+      .mastervol-site{margin-top:8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;}
+      .mastervol-keepnote{font-size:11px;line-height:1.4;color:var(--text-muted,#9a9aa5);}
+      .mastervol-keep{font:inherit;font-size:11.5px;padding:4px 10px;border-radius:7px;cursor:pointer;color:var(--text,#e9e9ee);background:transparent;border:1px solid var(--border,rgba(255,255,255,0.18));}
     `;
     document.head.appendChild(st);
   },

@@ -85,6 +85,7 @@ define('game:state', []);
 define('gamemode:games', [value => Array.isArray(value) && value.length <= 50 && value.every(shape({ id: string(80), name: string(120), exe: string(260) })), boolean]);
 define('gamemode:session', [shape({ on: boolean, app: optional(string(120)), holds: optional(value => Array.isArray(value) && value.length <= 8 && value.every(oneOf(['extensionUpdates', 'sync', 'indexing', 'recall']))) })]);
 define('gamemode:state', []);
+define('gamemode:library', []);
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). Sizes are bounded here and again where used.
 const journalTs = value => Number.isSafeInteger(value) && value >= 0 && value <= 8.64e15;
@@ -312,6 +313,7 @@ define('routing:forget', [string(160)]);
 define('routing:prune', [value => Array.isArray(value) && value.length <= 500 && value.every(string(160))]);
 // 'auto' is the Auto-configure sweep (js/discord-bypass.js); it was missing
 // here, so every Auto-configure was refused before it started.
+define('bypass:probe', [string(2048)]);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong','auto']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
 // Light and dark (src/main/system-theme.js): is Windows in dark mode.
@@ -386,6 +388,7 @@ define('recall:search', [string(512), optional(shape({
   limit: count(200), offset: count(100000), sort: optional(oneOf(['relevance', 'newest', 'oldest'])),
   since: count(Number.MAX_SAFE_INTEGER), until: count(Number.MAX_SAFE_INTEGER), site: optional(string(253)),
 }))]);
+define('recall:limits', [shape({ days: optional(value => Number.isInteger(value) && value >= 7 && value <= 3650), maxMB: optional(value => Number.isFinite(value) && value >= 1 && value <= 64), maxPages: optional(value => Number.isInteger(value) && value >= 100 && value <= 10000) })]);
 define('recall:forget', [shape({ url: optional(web), host: optional(string(253)) })]);
 // Recall by meaning (src/main/recall-vectors.js): the embedding model and the
 // local Ollama address, the hosts Recall is told to stay out of, and how many

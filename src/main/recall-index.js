@@ -266,9 +266,27 @@ class RecallIndex {
     return rec;
   }
 
-  /** Drop the oldest pages until both the count and byte budgets are met. */
-  prune() {
+  /**
+   * Change the caps and the retention (T2-004) and apply them now.
+   * retainMs: pages last read longer ago than this are dropped (0 = keep for ever).
+   * -> how many pages were dropped.
+   */
+  setLimits({ maxRecords, maxBytes, retainMs } = {}) {
+    const next = { ...this.options };
+    if (maxRecords != null) { if (!(Number.isInteger(maxRecords) && maxRecords >= 1)) throw new Error('maxRecords has to be a whole number of at least 1'); next.maxRecords = maxRecords; }
+    if (maxBytes != null) { if (!(Number.isFinite(maxBytes) && maxBytes >= 1024)) throw new Error('maxBytes has to be at least 1024'); next.maxBytes = maxBytes; }
+    if (retainMs != null) { if (!(Number.isFinite(retainMs) && retainMs >= 0)) throw new Error('retainMs has to be 0 or more'); next.retainMs = retainMs; }
+    this.options = next;
+    return this.prune();
+  }
+
+  /** Drop pages past the retention, then the oldest until both the count and byte budgets are met. */
+  prune(now = Date.now()) {
     let dropped = 0;
+    const keepAfter = this.options.retainMs > 0 ? now - this.options.retainMs : 0;
+    if (keepAfter > 0) {
+      for (const rec of this.records.slice()) if (rec.at < keepAfter) { this._drop(rec); dropped++; }
+    }
     while (this.records.length > this.options.maxRecords ||
            (this._bytes > this.options.maxBytes && this.records.length > 1)) {
       this._drop(this.records[this.records.length - 1]);
@@ -314,6 +332,7 @@ class RecallIndex {
       oldest, newest,
       maxPages: this.options.maxRecords,
       maxBytes: this.options.maxBytes,
+      retainMs: this.options.retainMs || 0,
       hosts: [...hosts].sort((a, b) => b[1] - a[1]).slice(0, 24).map(([host, count]) => ({ host, count })),
     };
   }

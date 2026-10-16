@@ -26,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:)/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|bypass:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|signout:|kb:|packs:|companion:|egress:|journal:|tuning:|attention:)/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -64,7 +64,11 @@ const UI_ONLY_CHANNELS = new Set([
   'pcbb:link-set', 'pcbb:link-state', 'pcbb:tabcost',
   // Game mode (main/game-mode.js): which programs to watch for, and lowering
   // Vex's own process priority, are never a page's call.
-  'gamemode:games', 'gamemode:session', 'gamemode:state',
+  'gamemode:games', 'gamemode:session', 'gamemode:state', 'gamemode:library',
+  // Recall's caps and retention (main/recall-index.js): never a page's call.
+  'recall:limits',
+  // "Site down, or my bypass?" (main/bypass-probe.js): requests an address from this computer.
+  'bypass:probe',
   // Time travel and the tuning advisor (main/state-journal.js,
   // main/tuning-advisor.js): the journal of what was open and the cost
   // history are never a page's to read, write or forget.
