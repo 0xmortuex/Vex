@@ -1312,6 +1312,17 @@ function vexOwnTextFocused(doc) {
   if (typeof VexPacks !== 'undefined') VexPacks.init();
   // Installed packs reach the features that read them (aliases, presets, quotes...).
   if (typeof VexPackConsumers !== 'undefined') VexPackConsumers.init();
+  // Wave 2, daily planning: each starts through bootStep so a crash in one leaves out that one alone.
+  if (typeof VexCarry !== 'undefined') bootStep('carry-forward', () => VexCarry.init());
+  if (typeof VexWhen !== 'undefined') bootStep('snooze-syntax', () => VexWhen.init());
+  if (typeof VexCloseDay !== 'undefined') bootStep('close-day', () => VexCloseDay.init());
+  if (typeof VexRefind !== 'undefined') bootStep('refind', () => VexRefind.init());
+  if (typeof VexTabIntent !== 'undefined') bootStep('tab-intent', () => VexTabIntent.init());
+  if (typeof VexChanged !== 'undefined') bootStep('workspace-changes', () => VexChanged.init());
+  if (typeof VexFocusCal !== 'undefined') bootStep('focus-calibration', () => VexFocusCal.init());
+  if (typeof VexChores !== 'undefined') bootStep('chores', () => VexChores.init());
+  if (typeof VexWeekSkeleton !== 'undefined') bootStep('week-skeleton', () => VexWeekSkeleton.init());
+  if (typeof VexTriage !== 'undefined') bootStep('weekly-triage', () => VexTriage.init());
   // Every feature switch is described to the usage record once all modules exist.
   if (typeof VexUsageRegistry !== 'undefined') VexUsageRegistry.register();
   // New and beta features arrive off on a profile that already existed, with a
