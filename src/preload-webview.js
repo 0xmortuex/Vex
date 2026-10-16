@@ -1699,6 +1699,69 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   if (document.documentElement) inject(); else document.addEventListener('readystatechange', inject, { once: true });
 })();
 
+// === Site notifications held for the hourly bundle (main world) ==============
+//
+// "Bundle notifications from sites" (js/push-bundle.js, T3-052) lets the person list a
+// few sites whose non-urgent notifications should arrive together instead of one by
+// one. The window tells this page, when it loads, which hosts are listed and what must
+// still come straight through (one-time codes, security and emergency words, and the
+// words the person gave); a page whose host is not listed is never touched.
+//
+// On a listed page the page's Notification is wrapped: a notification that matches the
+// pass-through words is shown exactly as the page asked; any other one is NOT shown, its
+// title and body (cut short) go to the host window as 'vex-push-held', and the page is
+// handed an inert Notification object so its own code keeps working. The host window
+// shows the held ones together. Nothing goes to the page, and nothing is changed on
+// any other site. A pass-through pattern that cannot be read switches holding OFF for
+// the page (everything is shown as usual) rather than risk holding a code.
+// Discord and WhatsApp are not handled here (js/panel-capture.js).
+(function () {
+  let host = '', https = false;
+  try { host = (window.location && window.location.hostname) || ''; https = window.location.protocol === 'https:'; } catch { return; }
+  if (!https || !host) return;
+  let contextBridge = null, ipcRenderer = null;
+  try { const e = require('electron'); contextBridge = e.contextBridge; ipcRenderer = e.ipcRenderer; } catch { return; }
+  if (!ipcRenderer || !contextBridge || typeof contextBridge.executeInMainWorld !== 'function') return;
+  if (/^(?:(?:[a-z0-9-]+\.)?discord\.com|web\.whatsapp\.com)$/i.test(host)) return;
+  const held = (title, body) => {
+    try { ipcRenderer.sendToHost('vex-push-held', { title: String(title).slice(0, 200), body: String(body).slice(0, 300) }); }
+    catch { /* vex-allow-empty-catch: host gone */ }
+  };
+  // Runs in the page's own world; self-contained on purpose (only its source text is sent).
+  function apply(report, passSource, enable) {
+    let state = window.__vexPush;
+    let pass = null, readable = true;
+    try { pass = passSource ? new RegExp(passSource, 'i') : null; } catch (e) { readable = false; }
+    if (state) { state.on = !!enable && readable; state.pass = pass; return; }
+    if (!enable || !readable) return;
+    const N = window.Notification;
+    if (typeof N !== 'function') return;
+    state = { on: true, pass: pass };
+    Object.defineProperty(window, '__vexPush', { value: state, configurable: true });
+    const Wrapped = function Notification(title, options) {
+      const t = title == null ? '' : String(title), b = options && options.body != null ? String(options.body) : '';
+      if (!state.on || (state.pass && state.pass.test(t + ' ' + b))) return new N(title, options);
+      try { report(t, b); } catch (e) { return new N(title, options); }   // cannot be held: shown, never lost
+      const stub = new EventTarget();
+      stub.title = t; stub.body = b; stub.close = function () {};
+      return stub;
+    };
+    Wrapped.prototype = N.prototype;
+    Object.defineProperty(Wrapped, 'permission', { get: () => N.permission, configurable: true });
+    if (typeof N.requestPermission === 'function') Wrapped.requestPermission = N.requestPermission.bind(N);
+    if ('maxActions' in N) Object.defineProperty(Wrapped, 'maxActions', { get: () => N.maxActions, configurable: true });
+    window.Notification = Wrapped;
+  }
+  ipcRenderer.on('vex-push-rules', (_e, rules) => {
+    try {
+      const hosts = rules && Array.isArray(rules.hosts) ? rules.hosts.filter(h => typeof h === 'string').slice(0, 50) : [];
+      const listed = hosts.some(h => host === h || host.endsWith('.' + h));
+      const pass = rules && typeof rules.pass === 'string' && rules.pass.length < 4000 ? rules.pass : '';
+      contextBridge.executeInMainWorld({ func: apply, args: [held, pass, listed] });
+    } catch (err) { console.error('[Vex] site notification bundling could not be set on this page:', err && err.message); }
+  });
+})();
+
 // === Where this tab's sound comes out (main world) ==========================
 //
 // Windows sets ONE output device for a whole program, so a browser plays

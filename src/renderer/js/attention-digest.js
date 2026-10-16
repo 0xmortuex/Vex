@@ -56,7 +56,9 @@ const AttentionDigest = {
     const inbox = typeof AttentionInbox !== 'undefined'
       ? AttentionInbox.list().filter(r => r.ts > since && !(typeof VipRules !== 'undefined' && VipRules.hit(r.title + ' ' + (r.body || ''), ''))) : [];
     const panel = typeof PanelCapture !== 'undefined' && PanelCapture.enabled() ? PanelCapture.list({ since }).filter(n => !n.vip && !n.read) : [];
-    return { inbox, panel };
+    // Site notifications the person asked to have bundled (js/push-bundle.js) ride along.
+    const push = typeof VexPushBundle !== 'undefined' && VexPushBundle.enabled() ? VexPushBundle.list({ since }) : [];
+    return { inbox, panel, push };
   },
 
   // The latest window that has opened since the last digest, or 0.
@@ -84,11 +86,12 @@ const AttentionDigest = {
     const since = this.last();
     const p = this.pending(since);
     localStorage.setItem(this.KEYS.last, String(now));
-    const n = p.inbox.length + p.panel.length;
+    const n = p.inbox.length + p.panel.length + p.push.length;
     if (!n) return null;
     const parts = [];
     if (p.inbox.length) parts.push(p.inbox.length + ' in the Inbox');
     if (p.panel.length) parts.push(p.panel.length + ' panel notification' + (p.panel.length === 1 ? '' : 's'));
+    if (p.push.length) parts.push(p.push.length + ' site notification' + (p.push.length === 1 ? '' : 's'));
     const text = n + ' thing' + (n === 1 ? '' : 's') + ' waited for you: ' + parts.join(', ') + '.';
     const show = () => {
       if (!window.showToast) return;
@@ -100,6 +103,7 @@ const AttentionDigest = {
     if (typeof VexAttention === 'undefined') throw new Error('VexAttention is not loaded: js/vex-attention.js must come before js/attention-digest.js');
     // The person chose these times, so the digest is "asked" (the budget lets it through).
     VexAttention.notify({ feature: 'attention-digest', urgency: 'asked', id: 'd' + now, title: text }, show);
+    if (p.push.length) VexPushBundle.markReleased(p.push.map(i => i.id));
     if (typeof VexLedger !== 'undefined') {
       VexLedger.note({ feature: 'attention-digest', what: 'Showed one digest of ' + n + ' held item' + (n === 1 ? '' : 's'), why: reason === 'focus-end' ? 'Your Focus block ended and Delivery windows is on' : 'A delivery window you chose opened' });
     }

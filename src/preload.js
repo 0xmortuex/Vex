@@ -435,6 +435,8 @@ contextBridge.exposeInMainWorld('vex', {
   commsBridgePick: () => ipcRenderer.invoke('comms:bridge-pick'),
   commsBridgeRead: () => ipcRenderer.invoke('comms:bridge-read'),
   commsBridgeForget: () => ipcRenderer.invoke('comms:bridge-forget'),
+  // The services' own public status pages, for the ones the person listed (main/status-check.js).
+  statusCheck: (list) => ipcRenderer.invoke('status:check', list),
 
   // Password vault (safeStorage-encrypted in main)
   vaultList: () => ipcRenderer.invoke('vault:list'),

@@ -577,6 +577,8 @@ define('fx:tcmb', []);
 define('comms:webhook-status comms:webhook-clear comms:bridge-status comms:bridge-pick comms:bridge-read comms:bridge-forget', []);
 define('comms:webhook-set', [string(300)]);
 define('comms:webhook-send', [shape({ content: string(2000), allowEveryone: optional(boolean) })]);
+// The status pages to read (main/status-check.js): up to 12 addresses, each judged there.
+define('status:check', [value => Array.isArray(value) && value.length >= 1 && value.length <= 12 && value.every(v => typeof v === 'string' && v.length <= 300)]);
 define('privacy:set-config', [object]);
 define('popup-chrome:action', [shape({ action: string(80) })]);
 // A page's alert / confirm / prompt (preload-webview.js, main/page-dialogs.js):

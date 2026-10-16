@@ -109,9 +109,11 @@ const ReadLater = {
   },
 
   open(item) {
-    item.read = true; this.save();
+    // A saved video (js/video-later.js) is not read by opening it: it is done when it has been watched.
+    const video = !!item.video && typeof VideoLater !== 'undefined';
+    if (!video) { item.read = true; this.save(); }
     SidebarManager.hideActivePanel?.();
-    TabManager.createTab(item.url, true);
+    TabManager.createTab(video ? VideoLater.resumeUrl(item) : item.url, true);
   },
 
   // One at a time: the oldest unread link replaces the page in the tab you are

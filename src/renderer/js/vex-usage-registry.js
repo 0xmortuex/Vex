@@ -362,6 +362,16 @@ const VexUsageRegistry = {
       VexMotwCheck: () => (typeof VexMotwCheck !== 'undefined' ? VexMotwCheck : null),
       VexScreenShareSafe: () => (typeof VexScreenShareSafe !== 'undefined' ? VexScreenShareSafe : null),
       VexVaultHygiene: () => (typeof VexVaultHygiene !== 'undefined' ? VexVaultHygiene : null),
+      VexPatchDigest: () => (typeof VexPatchDigest !== 'undefined' ? VexPatchDigest : null),
+      VexServiceCheck: () => (typeof VexServiceCheck !== 'undefined' ? VexServiceCheck : null),
+      VexPanelGuard: () => (typeof VexPanelGuard !== 'undefined' ? VexPanelGuard : null),
+      VexNetCourtesy: () => (typeof VexNetCourtesy !== 'undefined' ? VexNetCourtesy : null),
+      VideoLater: () => (typeof VideoLater !== 'undefined' ? VideoLater : null),
+      VexGameTimers: () => (typeof VexGameTimers !== 'undefined' ? VexGameTimers : null),
+      VexContentBoard: () => (typeof VexContentBoard !== 'undefined' ? VexContentBoard : null),
+      VexDropsDesk: () => (typeof VexDropsDesk !== 'undefined' ? VexDropsDesk : null),
+      VexWritingDesk: () => (typeof VexWritingDesk !== 'undefined' ? VexWritingDesk : null),
+      VexPushBundle: () => (typeof VexPushBundle !== 'undefined' ? VexPushBundle : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -614,6 +624,17 @@ const VexUsageRegistry = {
       ['discord-status', A.api(G.DiscordStatus, 'enabled', 'setEnabled')],
       ['mod-kit', A.api(G.ModKit, 'enabled', 'setEnabled')],
       ['vencord-bridge', A.api(G.VencordBridge, 'enabled', 'setEnabled')],
+      // Wave 3, games and media: new features, staged off on a profile that already existed. Off, each keeps what it saved.
+      ['patch-digest', A.api(G.VexPatchDigest, 'enabled', 'setEnabled')],
+      ['service-check', A.api(G.VexServiceCheck, 'enabled', 'setEnabled')],
+      ['panel-guard', A.api(G.VexPanelGuard, 'enabled', 'setEnabled')],
+      ['net-courtesy', A.api(G.VexNetCourtesy, 'enabled', 'setEnabled')],
+      ['video-later', A.api(G.VideoLater, 'enabled', 'setEnabled')],
+      ['game-timers', A.api(G.VexGameTimers, 'enabled', 'setEnabled')],
+      ['content-board', A.api(G.VexContentBoard, 'enabled', 'setEnabled')],
+      ['drops-desk', A.api(G.VexDropsDesk, 'enabled', 'setEnabled')],
+      ['writing-desk', A.api(G.VexWritingDesk, 'enabled', 'setEnabled')],
+      ['push-bundle', A.api(G.VexPushBundle, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],

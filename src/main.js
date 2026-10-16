@@ -7110,6 +7110,9 @@ ipcMain.handle('comms:bridge-status', () => _commsTools.bridgeStatus());
 ipcMain.handle('comms:bridge-pick', () => _commsTools.bridgePick());
 ipcMain.handle('comms:bridge-read', () => _commsTools.bridgeRead());
 ipcMain.handle('comms:bridge-forget', () => _commsTools.bridgeForget());
+// Status pages the person listed (main/status-check.js): the services' own public Statuspage summaries, read-only.
+const _statusCheck = require('./main/status-check').createStatusCheck({ publicFetch: boundedPublicFetch });
+ipcMain.handle('status:check', (_event, list) => _statusCheck.check(list));
 ipcMain.handle('cloud:request', async (_event, body) => {
   const url = String(_persistLoad()['vex.aiWorkerUrl'] || '');
   if (!/^https:\/\//.test(url)) throw new Error('Configure an HTTPS AI Worker URL');
