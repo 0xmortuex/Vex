@@ -68,9 +68,11 @@ const VexChanged = {
     o[wsId] = now;
     VexPlanKit.writeJson(this.SEEN, o);
   },
-  _tabUrls(wsId) {
+  // saved: read the workspace's saved tab list even when it is the active one. A switch changes activeId
+  // before the new tabs are on screen, so the open tabs would still be the old workspace's.
+  _tabUrls(wsId, saved = false) {
     if (typeof WorkspaceManager === 'undefined') throw new Error('Workspaces are not loaded');
-    if (wsId === WorkspaceManager.activeId) {
+    if (!saved && wsId === WorkspaceManager.activeId) {
       if (typeof TabManager === 'undefined') throw new Error('Tabs are not loaded');
       return TabManager.tabs.map(t => t.url);
     }
@@ -78,11 +80,11 @@ const VexChanged = {
     return ws && Array.isArray(ws.tabs) ? ws.tabs.map(t => t.url) : [];
   },
   // -> [{ watch, at, summary }] for one workspace.
-  forWorkspace(wsId, now = Date.now()) {
+  forWorkspace(wsId, now = Date.now(), saved = false) {
     if (typeof PageWatch === 'undefined') throw new Error('Page watch is not loaded');
     const seen = this.seen();
     if (!seen[wsId]) { this.stamp(wsId, now); return []; }     // first sight: the baseline, not news
-    return this.changed(PageWatch.list(), this._tabUrls(wsId), seen[wsId])
+    return this.changed(PageWatch.list(), this._tabUrls(wsId, saved), seen[wsId])
       .map(w => ({ watch: w, at: w.lastChangedAt, summary: this.summaryOf(PageWatch.history(w.id)) }));
   },
   all(now = Date.now()) {
@@ -154,7 +156,7 @@ const VexChanged = {
     const before = this.seen()[cur] || 0;
     this.stamp(prev, now);                               // leaving the old one is "looking"
     if (!before || now - before < this.MIN_AWAY_MS) return false;
-    const items = this.forWorkspace(cur, now);
+    const items = this.forWorkspace(cur, now, true);
     if (!items.length) return false;
     this.stamp(cur, now);
     if (typeof VexAttention === 'undefined') throw new Error('The attention gate is not loaded');

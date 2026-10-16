@@ -63,6 +63,8 @@ const VexCloseDay = {
 
   _builtins(now) {
     const out = [];
+    // Wave 1's Park and resume (js/park.js) publishes itself on window; it may not be in this build.
+    const park = typeof window !== 'undefined' ? window.VexPark : null;
     const tomorrow = VexPlanKit.addDays(VexPlanKit.startOfDay(now), 1);
     out.push({
       id: 'tasks', title: 'Tasks for today',
@@ -74,14 +76,14 @@ const VexCloseDay = {
         { key: 'drop', label: 'Drop', run: (it) => { VexPlanKit.setTaskDate(it.task, ''); } },
       ],
     });
-    if (typeof VexPark !== 'undefined' && typeof VexPark.cards === 'function') {
+    if (park && typeof park.cards === 'function') {
       out.push({
         id: 'parked', title: 'Parked contexts',
-        list: () => VexPark.cards().filter(c => !c.resumedAt && !c.dismissedAt).map(c => ({ id: c.id, text: c.note, sub: (c.wsName || 'Workspace') + ' · ' + c.tabs.length + ' tabs', card: c })),
+        list: () => park.cards().filter(c => !c.resumedAt && !c.dismissedAt).map(c => ({ id: c.id, text: c.note, sub: (c.wsName || 'Workspace') + ' · ' + c.tabs.length + ' tabs', card: c })),
         actions: [
           { key: 'keep', label: 'Keep', run: () => {} },
           { key: 'tomorrow', label: 'Tomorrow', run: async (it) => { await this._remind('Resume: ' + it.text, VexPlanKit.addDays(VexPlanKit.startOfDay(now), 1) + 9 * 3600 * 1000); } },
-          { key: 'drop', label: 'Drop', run: (it) => { if (typeof VexPark._patch !== 'function') throw new Error('Park and resume cannot dismiss a card in this build'); VexPark._patch(it.card.id, { dismissedAt: now }); } },
+          { key: 'drop', label: 'Drop', run: (it) => { if (typeof park._patch !== 'function') throw new Error('Park and resume cannot dismiss a card in this build'); park._patch(it.card.id, { dismissedAt: now }); } },
         ],
       });
     }
