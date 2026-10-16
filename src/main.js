@@ -115,7 +115,7 @@ const { shouldBlock, repairAllows } = require('./adblocker');
 const _adblockEngine = require('./adblocker-engine');
 const { initEngine: initAdblockEngine, engineBlocks, enableCosmeticFiltering } = _adblockEngine;
 const _torLauncher = require('./tor-launcher');
-const { createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
+const { setPipMemory, setPipGameFullscreen, createPipWindow, createPipPlayer, pipPlaybackPosition, closePipWindow, togglePipPin, isPipOpen, onPipClosed, setCloseReason, setPipPosition, isPipContents } = require('./pip');
 const _mainHelpers = require('./main-helpers');
 const { safeJoin, safeName, safePipUrl } = _mainHelpers;
 const { registerSidebarConfigIpc } = require('./sidebar-config');
@@ -1454,6 +1454,8 @@ function _keepOnTop() {
 ipcMain.handle('window:keep-on-top', (_e, on) => _keepOnTop().set(on));
 function _sendGameState() {
   if (_keepOnTopInst) { try { _keepOnTopInst.recheck(); } catch (err) { console.error('[KeepOnTop] ' + err.message); } }
+  // T2-059: the floating video hides while a fullscreen game is up (when asked to).
+  try { setPipGameFullscreen(!!_mergedGameState().fullscreen); } catch (err) { console.error('[Vex PiP] could not follow the game state:', err.message); }
   try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('game:state', _mergedGameState()); } catch { /* window gone */ }
 }
 // While Game mode is on for a game: Vex's page processes run below normal
@@ -2167,6 +2169,31 @@ ipcMain.handle('clips:list', async (_e, dir) => {
     return { ok: false, error: err.code === 'ENOENT' ? 'That folder is not there any more' : err.message };
   }
 });
+
+// === Game Control Center bridge, second-screen window, PiP memory =========
+// (T2-068, T2-049, T2-059). The bridge file is read from ONE fixed path, never
+// one the window names (src/main/gcc-bridge.js has the contract).
+ipcMain.handle('gccbridge:read', async () => {
+  const bridge = require('./main/gcc-bridge');
+  return bridge.read(bridge.bridgePath(app.getPath('appData')));
+});
+let _secondScreenLazy = null;
+function _secondScreen() {
+  if (!_secondScreenLazy) {
+    const stateFile = path.join(userDataPath, 'second-screen.json');
+    _secondScreenLazy = require('./main/second-screen').createSecondScreen({
+      BrowserWindow, screen: require('electron').screen, session,
+      readState: () => { try { return JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch (err) { if (err.code === 'ENOENT') return {}; throw err; } },
+      writeState: (o) => { try { fs.writeFileSync(stateFile, JSON.stringify(o)); } catch (err) { console.error('[SecondScreen] could not remember the window:', err.message); } },
+      isGameRunning: () => !!_mergedGameState().game,
+    });
+  }
+  return _secondScreenLazy;
+}
+ipcMain.handle('secondscreen:open', async (_e, req) => _secondScreen().open(req));
+ipcMain.handle('secondscreen:close', async () => _secondScreen().close());
+ipcMain.handle('secondscreen:state', async () => _secondScreen().state());
+ipcMain.handle('pip:memory', async (_e, req) => { setPipMemory(req); return { ok: true }; });
 
 // === What is free to keep this week ========================================
 // Epic's and Steam's own public lists, merged (src/main/free-games.js). No

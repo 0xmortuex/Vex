@@ -26,6 +26,14 @@ const ClipsInbox = {
     return name.replace(/[_-]+/g, ' ').trim() || clip.name;
   },
 
+  // " · Marvel Rivals · ranked night" for a clip Game Control Center described, else ''.
+  gccNote(clip, viewing) {
+    if (!viewing || typeof VexGccBridge === 'undefined') return '';
+    const info = VexGccBridge.clipInfo(clip.name);
+    if (!info) return '';
+    return [info.game, info.session].filter(Boolean).map(s => ' · ' + s).join('');
+  },
+
   async folder(pick) {
     const res = await window.vex.clipsFolder(!!pick);
     if (res && res.cancelled) return res.dir || '';
@@ -53,6 +61,7 @@ const ClipsInbox = {
             <div style="font-size:13.5px;font-weight:650;color:var(--text)">Clips</div>
             <div data-dir style="font-size:10.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
           </div>
+          <button data-gcc type="button" hidden title="Game Control Center's clips folder, read from the file it writes for Vex. Only read, never changed." style="font-size:11.5px;color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer">Game Control Center</button>
           <button data-pick type="button" style="font-size:11.5px;color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;cursor:pointer">Choose folder</button>
         </div>
         <div data-list style="overflow-y:auto;padding:6px;flex:1"></div>
@@ -64,10 +73,19 @@ const ClipsInbox = {
     const listEl = overlay.querySelector('[data-list]');
     const dirEl = overlay.querySelector('[data-dir]');
 
+    // Game Control Center's folder (js/gcc-bridge.js), for this view only: it is
+    // not saved as the chosen folder, and nothing in it is changed.
+    let viewing = '';
+    const gccDir = () => (typeof VexGccBridge !== 'undefined' && VexGccBridge.enabled() ? VexGccBridge.clipsDir() : '');
+    const gccBtn = overlay.querySelector('[data-gcc]');
+    if (gccDir()) gccBtn.hidden = false;
+    gccBtn.addEventListener('click', () => { viewing = gccDir(); draw(false); });
+
     const draw = async (pick) => {
       listEl.innerHTML = '<div style="padding:22px;text-align:center;font-size:12.5px;color:var(--text-muted)">Looking…</div>';
+      if (pick) viewing = '';
       let dir;
-      try { dir = await this.folder(pick); } catch (err) { listEl.textContent = err.message; return; }
+      try { dir = viewing || await this.folder(pick); } catch (err) { listEl.textContent = err.message; return; }
       if (!dir) {
         dirEl.textContent = '';
         listEl.innerHTML = '<div style="padding:22px;text-align:center;font-size:12.5px;color:var(--text-muted)">Choose the folder your recordings land in — OBS, ShadowPlay, Discord.</div>';
@@ -90,7 +108,7 @@ const ClipsInbox = {
         row.innerHTML = `
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(this.title(clip))}</div>
-            <div style="font-size:10.5px;color:var(--text-muted)">${esc(this.describe(clip))}</div>
+            <div style="font-size:10.5px;color:var(--text-muted)">${esc(this.describe(clip))}${esc(this.gccNote(clip, viewing))}</div>
           </div>
           <button data-copy type="button" title="Copy the file's path, to paste into a chat"
                   style="font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:6px;padding:2px 7px;cursor:pointer">Copy path</button>

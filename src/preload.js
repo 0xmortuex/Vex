@@ -189,6 +189,12 @@ contextBridge.exposeInMainWorld('vex', {
   gameModeLibrary: () => ipcRenderer.invoke('gamemode:library'),
   gameModeSession: (s) => ipcRenderer.invoke('gamemode:session', s),
   gameModeState: () => ipcRenderer.invoke('gamemode:state'),
+  // Game Control Center's bridge file, the second-screen window and PiP memory (T2-068, T2-049, T2-059).
+  gccBridgeRead: () => ipcRenderer.invoke('gccbridge:read'),
+  secondScreenOpen: (req) => ipcRenderer.invoke('secondscreen:open', req),
+  secondScreenClose: () => ipcRenderer.invoke('secondscreen:close'),
+  secondScreenState: () => ipcRenderer.invoke('secondscreen:state'),
+  pipMemory: (req) => ipcRenderer.invoke('pip:memory', req),
   // Time travel (src/main/state-journal.js; js/time-travel.js) and the tuning
   // advisor (src/main/tuning-advisor.js; js/tuning-advisor-ui.js).
   journalPush: (snapshot) => ipcRenderer.invoke('journal:push', snapshot),

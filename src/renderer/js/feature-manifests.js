@@ -352,6 +352,26 @@
       permissions: { reads: ['a PDF you choose'], writes: ['a note, only when you save it'], sends: [] } },
     { id: 'mun-dossier', title: 'Model UN dossier', group: 'Model UN dossier', maturity: 'new', storageKeys: ['vex.mun', 'vex.mun.enabled'], usesKeys: ['vex.researchBoard', 'vex.notes'], commands: ['mun-dossier'],
       permissions: quiet({ reads: ['the research board and the page you ask to add from'], writes: ['dossiers and notes with their sources'] }) },
+    // ---- Wave 2: games and daily life ---------------------------------------------------
+    // All new: staged OFF on an existing profile until tried (maturity 'new').
+    { id: 'second-screen', title: 'Guide on a second screen', group: 'Guide on a second screen', maturity: 'new', storageKeys: ['vex.secondScreen.enabled'], commands: ['second-screen', 'second-screen-close'],
+      permissions: { reads: ['a game’s guide pages and loadout links'], writes: ['where the window was, in a file of Vex’s own'], sends: ['Requests for the guide pages you chose, from the second-screen window'] } },
+    { id: 'game-scenes', title: 'Game audio scenes', group: 'Game audio scenes', maturity: 'new', storageKeys: ['vex.gameScenes', 'vex.gameScenes.enabled', 'vex.gameScenes.prior'],
+      permissions: { reads: ['which game is running, by program name'], writes: ['Vex’s own volume while a game runs, put back after'], sends: [] } },
+    { id: 'gcc-bridge', title: 'Game Control Center link', group: 'Game Control Center link', maturity: 'new', storageKeys: ['vex.gccBridge.enabled', 'vex.gccBridge.prior'],
+      permissions: { reads: ['the one small file Game Control Center writes for Vex'], writes: ['starts Game mode and Streamer mode while it says so, then puts them back'], sends: [] } },
+    { id: 'game-loadouts', title: 'Loadout cards', group: 'Loadout cards', maturity: 'new', storageKeys: ['vex.loadouts', 'vex.loadouts.enabled', 'vex.loadouts.seen'], commands: ['game-loadouts'],
+      permissions: { reads: ['when Patch radar last saw a patch'], writes: ['your cards'], sends: [] } },
+    { id: 'intent-gate', title: 'Ask before distracting sites', group: 'Ask before distracting sites', maturity: 'new', storageKeys: ['vex.intentGate', 'vex.intentGate.enabled'], jobs: ['Intent gate'],
+      permissions: { reads: ['the address of the tab in front'], writes: ['your answers, for two weeks'], sends: [] } },
+    { id: 'break-prompts', title: 'Breaks', group: 'Breaks', maturity: 'new', storageKeys: ['vex.breaks', 'vex.breaks.enabled', 'vex.breaks.prefs'], jobs: ['Break prompts'],
+      permissions: { reads: ['whether you are using Vex (not what you type)'], writes: ['how many breaks you took each day'], sends: [] } },
+    { id: 'orders-hub', title: 'Orders', group: 'Orders', maturity: 'new', storageKeys: ['vex.orders', 'vex.orders.enabled'], commands: ['orders-hub'],
+      permissions: { reads: ['your parcels'], writes: ['your parcels and reminders you asked for'], sends: ['Nothing itself: Track opens the carrier’s page in a tab'] } },
+    { id: 'exam-calendar', title: 'Exam and registration dates', group: 'Exam and registration dates', maturity: 'new', storageKeys: ['vex.exams', 'vex.exams.enabled', 'vex.exams.prefs'], commands: ['exam-calendar'],
+      permissions: { reads: ['the dates you typed or imported from a file you chose'], writes: ['those dates and reminders you asked for'], sends: [] } },
+    { id: 'receipt-locker', title: 'Receipts and warranties', group: 'Receipts and warranties', maturity: 'new', storageKeys: ['vex.receipts', 'vex.receipts.enabled'], commands: ['receipt-locker'],
+      permissions: { reads: ['the facts you entered; the receipt files are not read'], writes: ['those facts and reminders you asked for'], sends: [] } },
 
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
