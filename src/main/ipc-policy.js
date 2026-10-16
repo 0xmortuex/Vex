@@ -26,7 +26,7 @@ const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'media:list', 'media:d
 // (main.js, _siteSessionFor). Writes that would land in the main profile are
 // not: restoring saved settings, reminders, mail accounts, and a page opened as
 // an app or an overlay, which live in persist:main (security scan L2, L3).
-const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|kb:|packs:|companion:|journal:|tuning:)/;
+const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-host|set-paranoid)|siterules:set|adblocker-set-state|browsing:|cloud:|sync-|recall:|pagearchive:|userscripts:(?:install|set-enabled|remove|set-global|set-hosts|clear-values|fetch)|vault:save|vault:delete|vault:update|vault:export-csv|vault:breach-check|passkeys:(?:list|delete|undo-delete|rename)|totp:add|totp:delete|totp:rename|totp:import-migration|totp:export-backup|totp:import-backup|routing:set|routing:forget|routing:prune|extensions:|discord:|roblox:|theme:set|privacy:set|privacy:tracker-reset|permissions:revoke|permissions:clear|gui-style:set|updates:(?:download|cancel|install|backup)|app:restart|browser-import:|profiles:|reminders:(?:create|import|delete)|mail:(?:add|remove)|app:open-as-app|overlay:open|pcbb:|mcp:auth-set|news:|downloads:(?:choose-folder|set-ask|reset-prefs|tidy-plan|tidy-apply|tidy-undo|tidy-history)|privacy:report|tabsnap:|quiet:|clips-inbox:|playground:|health:|kb:|packs:|companion:|egress:|journal:|tuning:)/;
 // Channels only Vex's own window may use — never a page, an extension, the
 // Picture-in-Picture pop-out or any other auxiliary window, whatever
 // isAuxiliary comes to allow. clipboard:write-secret puts a password on the
@@ -45,6 +45,9 @@ const UI_ONLY_CHANNELS = new Set([
   'quiet:get', 'quiet:set', 'quiet:held', 'quiet:release', 'quiet:drop',
   'login-item:get', 'login-item:set', 'clipboard:write-secret','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'companion:start', 'companion:publish', 'companion:status', 'companion:stop',
+  // Which feature is starting (safe mode's feature isolation) and the ledger of
+  // what left this computer: Vex's own window only, never a page's.
+  'app:boot-feature', 'app:boot-disabled', 'egress:summary', 'egress:list', 'egress:clear',
   'sync-secrets-seal', 'sync-secrets-apply', 'sync-secrets-describe', 'sync-secrets-put-back',
   // Health check: scans and repairs the profile folder (main/health-check.js).
   'health:scan', 'health:fix', 'health:undo',
@@ -195,6 +198,8 @@ function installIpcPolicy(ipcMain, security) {
       // refused one still answers: as cancelled, never left waiting for ever.
       // The start-page check waits on this one (sendSync): refused, it is told no.
       if (channel === 'userscripts:page') { try { event.returnValue = { scripts: [] }; } catch (replyErr) { console.error('[IPC] could not answer "userscripts:page":', replyErr.message); } return; }
+      // The preload waits on this one (sendSync) while the window loads: refused, it is told none are left out.
+      if (channel === 'app:boot-disabled') { console.warn('[IPC] refused "app:boot-disabled": %s', (err && err.message) || err); try { event.returnValue = []; } catch (replyErr) { console.error('[IPC] could not answer "app:boot-disabled":', replyErr.message); } return; }
       if (channel === 'start-page:is-own') { try { event.returnValue = false; } catch (replyErr) { console.error('[IPC] could not answer "' + channel + '":', replyErr.message); } return; }
       if (channel === 'page-dialog') {
         console.warn('[IPC] refused "page-dialog": %s', (err && err.message) || err);
