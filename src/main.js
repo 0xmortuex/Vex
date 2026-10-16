@@ -3729,8 +3729,14 @@ function _vlog(msg) {
 // Keeping exactly one loadable Vencord build — see ./main/vencord-folders.js
 // for the ordering rule and why a manifest-less folder must go first.
 function _dedupeVencordFolders() {
+  // Never delete the loaded copy or whatever vencord-local.json points at.
+  const protect = [];
+  try { for (const x of secureSessions.fromPartition('persist:discord').getAllExtensions()) protect.push(x.path); }
+  catch (err) { console.error('[Extensions] could not read the Discord panel extensions, so the cleanup only removes marked folders:', err.message); }
+  try { const cfg = JSON.parse(fs.readFileSync(path.join(userDataPath, 'vencord-local.json'), 'utf8')); if (cfg && cfg.path) protect.push(cfg.path); }
+  catch (err) { if (err.code !== 'ENOENT') console.error('[Extensions] vencord-local.json could not be read:', err.message); }
   return require('./main/vencord-folders').dedupeVencordFolders({
-    fs, path, dir: extensionsDir, log: _vlog,
+    fs, path, dir: extensionsDir, log: _vlog, protect,
   });
 }
 
@@ -4472,6 +4478,14 @@ async function _installExtFromZipBuffer(zipBuffer, forceSlug, copyToUpdate, opts
   if (!fs.existsSync(placedManifest)) {
     fs.rmSync(destFolder, { recursive: true, force: true });
     return { ok: false, error: 'manifest not at root after extract' };
+  }
+  // Vex made this Vencord folder, so the cleanup (vencord-folders.js) may remove it later.
+  if (slug === 'vencord') {
+    try { fs.writeFileSync(path.join(destFolder, require('./main/vencord-folders').MARKER), String(Date.now())); }
+    catch (err) {
+      fs.rmSync(destFolder, { recursive: true, force: true });
+      return { ok: false, error: 'Could not mark the new Vencord folder as installed by Vex: ' + err.message };
+    }
   }
   if (opts.manifestKey) {
     try {

@@ -12,12 +12,33 @@
 //      original keep-newest logic kept the dead one and deleted the good one.
 //   2. Of what remains, keep the most recently modified and remove the rest.
 //
+// Only folders Vex itself installed are ever deleted. An install writes
+// MARKER into the folder it creates; a folder without it (a custom build put
+// there by hand, or left by an older Vex) is never touched, and neither is a
+// folder in `protect` (the one currently loaded, the one vencord-local.json
+// points at: a folder equal to, inside, or containing a protected path).
+//
 // Taking a filesystem and a log keeps it testable: the bug was in the ordering
 // rule, not in any Electron behaviour.
-function dedupeVencordFolders({ fs, path, dir, log }) {
+const MARKER = '.vex-installed';
+const _warnedUnmarked = new Set();
+
+function dedupeVencordFolders({ fs, path, dir, log, protect = [] }) {
   const say = typeof log === 'function' ? log : () => {};
   const removed = [];
   let kept = null;
+  const guarded = protect.filter(Boolean).map(p => path.resolve(p).toLowerCase());
+  const within = (a, b) => a === b || a.startsWith(b + path.sep);
+  const isProtected = (v) => { const me = path.resolve(v.path).toLowerCase(); return guarded.some(g => within(g, me) || within(me, g)); };
+  // Deletable = Vex installed it and nothing in use points at it.
+  const deletable = (v) => {
+    if (isProtected(v)) { say(`dedupe: keeping ${v.name} (in use or referenced by the local build)`); return false; }
+    if (!fs.existsSync(path.join(v.path, MARKER))) {
+      if (!_warnedUnmarked.has(v.path)) { _warnedUnmarked.add(v.path); say(`dedupe: leaving ${v.name} alone (Vex did not install it, so it will not delete it)`); }
+      return false;
+    }
+    return true;
+  };
   try {
     const all = fs.readdirSync(dir, { withFileTypes: true })
       .filter(e => e.isDirectory() && e.name.startsWith('vencord-'))
@@ -27,6 +48,7 @@ function dedupeVencordFolders({ fs, path, dir, log }) {
     const valid = [];
     for (const v of all) {
       if (fs.existsSync(path.join(v.path, 'manifest.json'))) { valid.push(v); continue; }
+      if (!deletable(v)) continue;
       try { fs.rmSync(v.path, { recursive: true, force: true }); removed.push(v.name); say(`dedupe: removed manifest-less ${v.name}`); }
       catch (e) { say(`dedupe: could NOT remove manifest-less ${v.name} (${e.message})`); }
     }
@@ -40,6 +62,7 @@ function dedupeVencordFolders({ fs, path, dir, log }) {
     kept = valid[0].name;
     say(`dedupe: ${valid.length} valid vencord folders; keeping ${kept}`);
     for (let i = 1; i < valid.length; i++) {
+      if (!deletable(valid[i])) continue;
       try { fs.rmSync(valid[i].path, { recursive: true, force: true }); removed.push(valid[i].name); say(`dedupe: removed ${valid[i].name}`); }
       catch (e) { say(`dedupe: could NOT remove ${valid[i].name} (${e.message})`); }
     }
@@ -47,4 +70,4 @@ function dedupeVencordFolders({ fs, path, dir, log }) {
   return { kept, removed };
 }
 
-module.exports = { dedupeVencordFolders };
+module.exports = { dedupeVencordFolders, MARKER };
