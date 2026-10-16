@@ -80,8 +80,7 @@ const UI_ONLY_CHANNELS = new Set([
   'recall:limits',
   // "Site down, or my bypass?" (main/bypass-probe.js): requests an address from this computer.
   'bypass:probe',
-  'gamemode:games', 'gamemode:session', 'gamemode:state', 'window:keep-on-top',
-  'gamemode:games', 'gamemode:session', 'gamemode:state',
+  'window:keep-on-top',
   // Game Control Center's file, the second-screen window and the PiP memory (T2-068, T2-049, T2-059):
   // opening a window or reading a file is never a page's call.
   'gccbridge:read', 'secondscreen:open', 'secondscreen:close', 'secondscreen:state', 'pip:memory',
