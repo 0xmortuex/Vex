@@ -83,7 +83,7 @@ const SettingsUI = {
     { name: 'MCP',             icon: 'plug',     color: '#38bdf8', match: ['mcp'], group: 'AI' },
     { name: 'Skills',          icon: 'star',     color: '#fbbf24', match: ['skill'], group: 'AI' },
     { name: 'AI History',      icon: 'clock',    color: '#7dd3fc', match: ['ai history'], group: 'AI', short: 'History' },
-    { name: 'Developer',       icon: 'braces',   color: '#38bdf8', match: ['developer', 'github access', 'refresh after a build'] },
+    { name: 'Developer',       icon: 'gear',      color: '#38bdf8', match: ['developer', 'github access', 'refresh after a build'] },
     { name: 'Boosts',          icon: 'rocket',   color: '#f472b6', match: ['boost', 'userscript'] },
     { name: 'Passwords',       icon: 'key',      color: '#34d399', match: ['password'] },
     { name: 'Passkeys',        icon: 'key',      color: '#2dd4bf', match: ['passkey'] },
