@@ -1405,7 +1405,7 @@ const _commitGuard = require('./main/commit-guard').createCommitGuard({
   },
 });
 app.whenReady().then(() => _commitGuard.start());
-ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message); } return _commitGuard.state(); });
+ipcMain.handle('commit:state', () => { try { _commitGuard.poll(); } catch (err) { throw new Error('Could not read the memory limit: ' + err.message, { cause: err }); } return _commitGuard.state(); });
 app.on('will-quit', () => { try { _commitGuard.stop(); } catch {} });
 app.on('will-quit', () => { try { _gameWatch.stop(); } catch {} try { _gameProcs.stop(); } catch {} try { _gameModeSession.end(); } catch {} });
 
