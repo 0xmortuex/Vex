@@ -48,3 +48,11 @@ most once a second, and whenever something below changes. Maximum size 64 KB.
 
 A missing file is normal (GCC not installed or not running). A file that is
 present but invalid is reported to the person with the reason and is not "fixed".
+
+## Status (2026-10)
+
+Vex reads this file, but Game Control Center does not write it yet. Until GCC ships its half the
+"Game Control Center link" setting stays on "no file found", which is the normal state described
+above, not an error. The first GCC release that writes `vex-bridge.json` must follow the shape and
+the atomic-rename rule in this document; Vex needs no change for it. Nothing in Vex writes to or
+creates anything in `%APPDATA%\game-control-center`.
