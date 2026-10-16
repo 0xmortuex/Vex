@@ -352,6 +352,17 @@
       permissions: { reads: ['a PDF you choose'], writes: ['a note, only when you save it'], sends: [] } },
     { id: 'mun-dossier', title: 'Model UN dossier', group: 'Model UN dossier', maturity: 'new', storageKeys: ['vex.mun', 'vex.mun.enabled'], usesKeys: ['vex.researchBoard', 'vex.notes'], commands: ['mun-dossier'],
       permissions: quiet({ reads: ['the research board and the page you ask to add from'], writes: ['dossiers and notes with their sources'] }) },
+    // ---- Wave 4 fold-ins: add-ons to FlashMind, the knowledge base and the agent ---------------
+    { id: 'study-entry', title: 'Study entry points', group: 'Study entry points', maturity: 'new', storageKeys: ['vex.studyEntry.enabled', 'vex.studyEntry.vocab', 'vex.studyEntry.mistakesRead'],
+      usesKeys: ['vex.paperSessions', 'vex.courses', 'vex.flashmind.url'],
+      commands: ['study-quiz-page', 'study-mistakes', 'study-save-word', 'study-vocab-export', 'study-teach-back'],
+      permissions: quiet({ reads: ['the page or selection you ask about, your past-paper mistakes and your current course'], writes: ['saved words and which mistakes you marked read; files only after you confirm'] }) },
+    { id: 'library-links', title: 'Library links', group: 'Library links', maturity: 'new', storageKeys: ['vex.libraryLinks.enabled'],
+      usesKeys: ['vex.notes', 'vex.kb.enabled'], commands: ['library-related'],
+      permissions: quiet({ reads: ['your notes, the knowledge base and your archived copies'], writes: [] }) },
+    { id: 'agent-pins', title: 'Pinned agent tasks', group: 'Pinned agent tasks', maturity: 'new', storageKeys: ['vex.agentPins.enabled', 'vex.agentPins.ids'],
+      usesKeys: ['vex.agentMacros'], commands: ['agent-pin-task', 'agent-unpin-task'],
+      permissions: quiet({ reads: ['your saved agent tasks'], writes: ['which tasks are pinned; the cloud setting for the agent, only after you confirm'] }) },
     // ---- Wave 2: games and daily life ---------------------------------------------------
     // All new: staged OFF on an existing profile until tried (maturity 'new').
     { id: 'second-screen', title: 'Guide on a second screen', group: 'Guide on a second screen', maturity: 'new', storageKeys: ['vex.secondScreen.enabled'], commands: ['second-screen', 'second-screen-close'],

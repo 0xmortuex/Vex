@@ -525,6 +525,40 @@ const ListenReader = {
     return this._s;   // nothing is spoken until play()
   },
 
+  // Reads text that is not a page aloud: an AI answer with its sources summarised
+  // (js/library-links.js). sections: [{ title, level, paras }]. Same switch, same
+  // game rule, same panel as a page; it starts because the person pressed the button.
+  async speakText({ title, sections, lang = '' } = {}) {
+    if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') {
+      throw new Error('Text-to-speech is not available here');
+    }
+    const secs = (Array.isArray(sections) ? sections : [])
+      .map(s => ({ title: String(s && s.title || '').trim() || 'Text', level: 1, paras: (s && Array.isArray(s.paras) ? s.paras : []).map(p => String(p || '').replace(/\s+/g, ' ').trim()).filter(Boolean) }))
+      .filter(s => s.paras.length);
+    if (!secs.length) throw new Error('There is nothing to read aloud');
+    if (!this.enabled()) {
+      const ok = await window.vexConfirm({
+        title: 'Turn on Listen?',
+        message: 'Listen reads text aloud in your system voice. It never starts by itself and is silent while a game runs. You can switch it off in Settings.',
+        okLabel: 'Turn on',
+      });
+      if (!ok) return null;
+      this.setEnabled(true);
+    }
+    this.stop();
+    let l = String(lang || '').toLowerCase();
+    if (!l && typeof VexTextLang !== 'undefined' && typeof VexTextLang.detect === 'function') {
+      try { l = VexTextLang.detect(secs.map(s => s.paras.join(' ')).join(' ')) || ''; } catch { l = ''; }
+    }
+    this._s = {
+      sections: secs, plan: this.speechPlan(secs, 'full'), chapter: 0, chunk: 0, token: 0,
+      paused: true, rate: this.rate(), mode: 'full', title: String(title || 'Text'), lang: l, utterance: null, watchdog: null, fails: 0, news: null,
+    };
+    this._draw();
+    this.play();
+    return this._s;
+  },
+
   // Re-plan in another mode, or as "what is new". Keeps the panel, not the place.
   setMode(mode) {
     const s = this._s;

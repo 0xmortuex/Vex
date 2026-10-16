@@ -276,6 +276,9 @@ const VexUsageRegistry = {
       VexCourseSpaces: () => (typeof VexCourseSpaces !== 'undefined' ? VexCourseSpaces : null),
       VexPaperBrief: () => (typeof VexPaperBrief !== 'undefined' ? VexPaperBrief : null),
       VexMunDossier: () => (typeof VexMunDossier !== 'undefined' ? VexMunDossier : null),
+      VexStudyEntry: () => (typeof VexStudyEntry !== 'undefined' ? VexStudyEntry : null),
+      VexLibraryLinks: () => (typeof VexLibraryLinks !== 'undefined' ? VexLibraryLinks : null),
+      VexAgentPins: () => (typeof VexAgentPins !== 'undefined' ? VexAgentPins : null),
       VexSecondScreen: () => (typeof VexSecondScreen !== 'undefined' ? VexSecondScreen : null),
       GameScenes: () => (typeof GameScenes !== 'undefined' ? GameScenes : null),
       VexGccBridge: () => (typeof VexGccBridge !== 'undefined' ? VexGccBridge : null),
@@ -441,6 +444,10 @@ const VexUsageRegistry = {
       ['course-spaces', A.api(G.VexCourseSpaces, 'enabled', 'setEnabled')],
       ['paper-brief', A.api(G.VexPaperBrief, 'enabled', 'setEnabled')],
       ['mun-dossier', A.api(G.VexMunDossier, 'enabled', 'setEnabled')],
+      // Wave 4 fold-ins
+      ['study-entry', A.api(G.VexStudyEntry, 'enabled', 'setEnabled')],
+      ['library-links', A.api(G.VexLibraryLinks, 'enabled', 'setEnabled')],
+      ['agent-pins', A.api(G.VexAgentPins, 'enabled', 'setEnabled')],
       // Wave 2: games and daily life (each module keeps its own on/off flag)
       ['second-screen', A.api(G.VexSecondScreen, 'enabled', 'setEnabled')],
       ['game-scenes', A.api(G.GameScenes, 'enabled', 'setEnabled')],

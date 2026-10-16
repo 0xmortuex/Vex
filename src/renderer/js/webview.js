@@ -1691,6 +1691,8 @@ const WebviewManager = {
       ...(isTab && typeof PageWatchUI !== 'undefined' ? [{ label: 'Watch this page for changes…', action: () => PageWatchUI.openForWebview(webview) }] : []),
       // Kept on this PC, in the archive library; refused for private, Tor and routed tabs.
       ...(isTab && typeof ArchiveLibrary !== 'undefined' ? [{ label: 'Archive this page', action: () => ArchiveLibrary.archiveNow() }] : []),
+      // FlashMind doors (js/study-entry.js): Quiz me from this page, Save the selected word with its sentence.
+      ...(isTab && typeof VexStudyEntry !== 'undefined' ? VexStudyEntry.pageItems(e.params.selectionText) : []),
       { label: 'Print…', action: () => this.printPage(webview) },
       { label: 'View Page Source', action: () => this.viewSource(webview) },
       ...(isTab ? [{ label: (typeof AutoReload !== 'undefined' && AutoReload.isOn(webview.dataset.tabId)) ? 'Auto-refresh: on…' : 'Auto-refresh…', action: () => { try { if (window.AutoReload) AutoReload.open(webview.dataset.tabId); } catch {} } }] : []),

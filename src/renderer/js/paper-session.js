@@ -117,6 +117,8 @@ const VexPaperSession = {
     if (got != null && !(Number.isFinite(got) && got >= 0)) throw new Error('Marks got must be a number');
     if (marks != null && got != null && got > marks) throw new Error('You cannot get more than the question is worth');
     const item = { no: d.running.questions.length + 1, at: Date.now(), topic: String(q.topic || '').trim().slice(0, 60), marks, got, wrong: q.wrong === true || (marks != null && got != null && got < marks && q.wrong !== false), text: String(q.text || '').replace(/\s+/g, ' ').trim().slice(0, 1500), note: String(q.note || '').trim().slice(0, 1500) };
+    // The page the question was on, for the mistake journal's reading queue (js/study-entry.js).
+    if (/^https?:\/\//i.test(String(q.url || ''))) item.url = String(q.url).slice(0, 2048);
     d.running.questions.push(item);
     this._write(d);
     return item;
@@ -161,6 +163,15 @@ const VexPaperSession = {
     // A private or Tor page is never read.
     if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return '';
     return String((await window.vexGuestEval(wv, 'String(getSelection()).slice(0, 1500)', false, 4000)) || '');
+  },
+  // The address of the page in front, or '' (never for a private or Tor page).
+  activeUrl() {
+    if (typeof WebviewManager === 'undefined') return '';
+    const wv = WebviewManager.getActiveWebview();
+    const url = wv && wv.getURL ? wv.getURL() : '';
+    if (!wv || !/^https?:/i.test(url)) return '';
+    if (window.VexTabPolicy && !window.VexTabPolicy.canReadWebview(wv)) return '';
+    return url;
   },
 
   // ---- screens -------------------------------------------------------------------------------
@@ -251,7 +262,7 @@ const VexPaperSession = {
     if (marksText.trim()) { const m = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(marksText.trim()); if (!m) throw new Error('Write it as got/worth, like 3/5'); got = Number(m[1]); marks = Number(m[2]); }
     const note = await P({ title: wrong ? 'What should you have done?' : 'A note (optional)', message: sel ? 'The selected text will be kept as the question.' : '', label: 'Note', multiline: true, okLabel: 'Save' });
     if (note == null) return;
-    this.logQuestion({ topic, marks, got, wrong: wrong ? true : undefined, text: sel, note });
+    this.logQuestion({ topic, marks, got, wrong: wrong ? true : undefined, text: sel, note, url: this.activeUrl() });
   },
   async _finishDialog() {
     const v = await window.vexPrompt({ title: 'Your score', message: 'Marks you were given or expect. Leave empty to use the questions you logged.', label: 'Score', okLabel: 'Finish' });

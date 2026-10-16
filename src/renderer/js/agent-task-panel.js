@@ -275,6 +275,18 @@ const AgentTaskPanel = {
         <button type="button" class="vex-at-btn vex-at-primary" data-act="approve">${this._icon('play', 14)} Approve and run</button>
         <button type="button" class="vex-at-btn" data-act="discard">Discard</button>
       </div>`;
+    // How long the plan will take, before you approve it, and the cloud option for a long one (js/agent-pins.js).
+    if (typeof VexAgentPins !== 'undefined' && VexAgentPins.enabled()) {
+      const status = typeof AIRouter !== 'undefined' && AIRouter.getOllamaStatus ? AIRouter.getOllamaStatus() : {};
+      const note = VexAgentPins.planNote({
+        stepCount: p.steps.length, backend: this.backend(), prefs: AgentSafety.prefs(), status,
+        onOffer: () => {
+          VexAgentPins.allowCloud().then((on) => { if (on) { p.backend = this.backend(); this._render(); } })
+            .catch(err => window.showToast?.(err.message, 'error'));
+        },
+      });
+      box.querySelector('.vex-at-actions').before(note);
+    }
     box.querySelector('[data-act=discard]').addEventListener('click', () => { this._plan = null; box.innerHTML = ''; });
     box.querySelector('[data-act=readonly]')?.addEventListener('change', (e) => { p.readOnly = e.target.checked; });
     this._wireWhy(box, () => this._renderPlan());
