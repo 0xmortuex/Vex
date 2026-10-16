@@ -312,14 +312,15 @@ const DownloadsPanel = {
         const byType = {};
         for (const m of p.moves) byType[m.type] = (byType[m.type] || 0) + 1;
         const summary = Object.keys(byType).sort().map(t => byType[t] + ' ' + t.toLowerCase()).join(', ');
-        const sample = p.moves.slice(0, 10).map(m => m.name + '  ->  ' + m.folder).join('\n');
-        const more = p.moves.length > 10 ? '\n... and ' + (p.moves.length - 10) + ' more' : '';
-        const ok = await vexConfirm({
+        // The shared dry-run list (js/plan-preview.js). The plan is applied as a whole by its id, so the
+        // list is read-only here: the choice is to do it or not.
+        const plan = await VexPlan.confirm({
           title: 'Tidy up ' + p.moves.length + ' file' + (p.moves.length === 1 ? '' : 's') + '?',
-          message: summary + '\n\nFiles older than ' + MIN_AGE_DAYS + ' days move into subfolders of ' + p.dir + '. Nothing is deleted, and "Undo last tidy-up" puts every file back.\n\n' + sample + more,
-          okLabel: 'Move them',
+          intro: summary + '. Files older than ' + MIN_AGE_DAYS + ' days move into subfolders of ' + p.dir + '. Nothing is deleted, and "Undo last tidy-up" puts every file back.',
+          items: p.moves.map((m, n) => ({ id: 'm' + n, label: m.name, detail: '-> ' + m.folder })),
+          okLabel: 'Move them', noun: 'move', selectable: false,
         });
-        if (!ok) return;
+        if (!plan.ok) return;
         const r = await window.vex.downloadsTidyApply(p.id);
         if (!r || !r.ok) { fail('Could not tidy up', r); return; }
         window.showToast?.('Moved ' + r.moved + ' file' + (r.moved === 1 ? '' : 's') + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : ''), r.failed.length ? 'error' : undefined);

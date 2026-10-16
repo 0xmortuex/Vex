@@ -232,6 +232,34 @@
       jobs: ['Announcement desk'], commands: ['announce-desk'], budget: { fetchesPerHour: 30 },
       permissions: { reads: ['the public pages you add, without signing in'], writes: ['page watches for those pages'], sends: ['A request for each page you add, once an hour (every 15 minutes on a result day)'] } },
 
+    // ---- Wave 3: foundations (diagnostics, storage, previews, search, discovery) ----------------
+    // The first group are tools and services with no switch of their own (killSwitch 'none'); the
+    // "new" ones act by themselves (suggest, count, search) so an existing profile is offered them.
+    { id: 'diagnostics-bundle', title: 'Diagnostics bundle', group: 'Diagnostics', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['diagnostics-bundle'],
+      permissions: { reads: ['versions, which features are on, job timings, problems, crashes and where stored data is (never addresses, page text or secrets)'], writes: ['the clipboard or a file, when you press Copy or Save'], sends: [] } },
+    { id: 'storage-ledger', title: 'Storage ledger and sync scope', group: 'Storage and sync scope', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storageScope'],
+      permissions: { reads: ['the size and owner of each stored item'], writes: ['which features you set to never sync'], sends: [] } },
+    { id: 'startup-budget', title: 'Start-up marks', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.boot.marks'],
+      permissions: { reads: ['how long the last ten starts took'], writes: ['those timings'], sends: [] } },
+    { id: 'plan-preview', title: 'Preview before bulk actions', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['the list of what a tidy-up or bulk close would do'], writes: ['nothing itself; the action you confirm does'], sends: [] } },
+    { id: 'feature-sheet', title: 'What each feature touches', group: 'What each feature touches', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.firstUse.seen'],
+      permissions: { reads: ['the feature descriptions; the stored data a feature owns, when you reset it'], writes: ['deletes the data of one feature, only after you confirm, with Undo'], sends: [] } },
+    { id: 'your-data', title: 'Your data (export and import)', group: 'Your data', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['your-data'],
+      permissions: { reads: ['everything Vex stores except saved logins, authenticator codes and tokens'], writes: ['a file you save; or what you bring back from a file, with Undo; Markdown files in a folder you pick'], sends: [] } },
+    { id: 'provenance-chip', title: 'Provenance chip on generated output', killSwitch: 'none', maturity: 'stable', storageKeys: [],
+      permissions: { reads: ['which backend and model wrote a piece of text'], writes: [], sends: [] } },
+    { id: 'search-index', title: 'Shared search index', group: 'Search index', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.searchIndex.capMB'],
+      permissions: { reads: ['history, notes, clips, mail headers, read later and bookmarks, to search them'], writes: ['its size limit; the index itself lives in memory only'], sends: [] } },
+    { id: 'progressive-disclosure', title: 'New for you', group: 'New for you', maturity: 'new', storageKeys: ['vex.disclosure', 'vex.disclosure.enabled'], jobs: ['Progressive disclosure'], commands: ['new-for-you'],
+      permissions: quiet({ reads: ['which features you have used, by kind'], writes: ['which features it already pointed out; a row in the Attention Inbox'] }) },
+    { id: 'intent-search', title: 'Search by what you want', group: 'Search by what you want', maturity: 'new', storageKeys: ['vex.intentSearch.enabled'],
+      permissions: quiet({ reads: ['what you type in Ctrl+K; the settings, feature and command lists'] }) },
+    { id: 'usage-counters', title: 'Usage counts and suggestions', group: 'Usage counts and suggestions', maturity: 'new', storageKeys: ['vex.usageCounters', 'vex.usageCounters.enabled', 'vex.usageCounters.state'], jobs: ['Usage suggestions'],
+      permissions: quiet({ reads: ['how often each feature is opened, held back, fails or is switched off by Vex'], writes: ['daily counts for 35 days; what it suggested; commands you pinned'] }) },
+    { id: 'first-use-sheet', title: 'First-use sheet', maturity: 'new', storageKeys: ['vex.firstUse.enabled'],
+      permissions: quiet({ reads: ['the first time you use a new or beta feature'], writes: ['which sheets were shown'] }) },
+
     // ---- core entries: data no switchable feature owns -----------------------------
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

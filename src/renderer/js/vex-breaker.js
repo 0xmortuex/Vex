@@ -43,6 +43,7 @@ const VexBreaker = {
     if (typeof id !== 'string' || !id) throw new Error('A failure has to name the feature');
     const r = this._rec(id);
     r.last = (err && err.message) ? String(err.message) : String(err == null ? 'it failed' : err);
+    if (typeof VexUsageCounters !== 'undefined') VexUsageCounters.note(id, 'errored');   // js/usage-counters.js: local counts
     if (r.state === 'open') return false;
     r.fails++;
     if (r.state === 'probing') { this._open(id, r, 'it failed again right after coming back (' + r.last + ')', Math.min(r.cooldown * 2, this.MAX_COOLDOWN_MS)); return true; }
@@ -73,6 +74,7 @@ const VexBreaker = {
     r.until = this._now() + cooldown;
     r.cooldown = cooldown;
     r.trips++;
+    if (typeof VexUsageCounters !== 'undefined') VexUsageCounters.note(id, 'backedOff');   // js/usage-counters.js: local counts
     r.reason = reason;
     r.fails = 0;
     // Switch it off with its own switch, and remember whether it was on, so the

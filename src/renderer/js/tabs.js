@@ -3351,6 +3351,14 @@ const TabManager = {
   // active tab is preferred as the copy that stays. URLs are normalized (origin
   // + path + query, trailing slash dropped) so "site.com" and "site.com/" dedupe.
   closeDuplicateTabs() {
+    const toClose = this.duplicateTabIds();
+    if (toClose.length) this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
+    else window.showToast?.('No duplicate tabs', 'info');
+    return toClose.length;
+  },
+
+  // The tabs closeDuplicateTabs() would close, without closing any (the dry-run list, js/plan-preview.js).
+  duplicateTabIds() {
     // The container is part of "the same page": a Work-container Gmail and a
     // personal one are two different tabs (as in js/duplicate-tabs.js).
     const norm = (u, t) => {
@@ -3367,9 +3375,7 @@ const TabManager = {
       if (seen.has(k)) { if (t.id !== seen.get(k)) toClose.push(t.id); }
       else seen.set(k, t.id);
     }
-    if (toClose.length) this.closeTabsWithUndo(toClose, `Closed ${toClose.length} duplicate tab${toClose.length === 1 ? '' : 's'}`);
-    else window.showToast?.('No duplicate tabs', 'info');
-    return toClose.length;
+    return toClose;
   },
 
   // === Pin/Unpin (icon-only mode) ===

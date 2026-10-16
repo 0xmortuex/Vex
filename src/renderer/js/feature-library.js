@@ -64,6 +64,8 @@ const FeatureLibrary = {
       where,
       steps,
       near,
+      // What it reads, writes and sends, from its manifest (js/feature-sheet.js, T3-091). Empty when it has none.
+      touches: (typeof VexFeatureSheet !== 'undefined') ? VexFeatureSheet.linesForCatalog(f.id) : [],
       // The buttons, in order (VexFeatures.actions): each one really opens
       // something. An entry with none of them gets `how` instead.
       actions,
@@ -288,6 +290,7 @@ const FeatureLibrary = {
           ${c.where.length ? `<div class="flib-sub">Where it lives</div><ul>${c.where.map(w => `<li>${this._esc(w)}</li>`).join('')}</ul>` : ''}
           ${c.steps.length ? `<div class="flib-sub">What to do</div><ol>${c.steps.map(s => `<li>${this._esc(s)}</li>`).join('')}</ol>` : ''}
           ${c.how ? `<div class="flib-sub">How it works</div><p class="flib-how">${this._esc(c.how)}</p>` : ''}
+          ${c.touches.length ? `<div class="flib-sub">What it touches</div><ul>${c.touches.map(t => `<li>${this._esc(t)}</li>`).join('')}</ul>` : ''}
           ${c.near.length ? `<div class="flib-near">Near it: ${c.near.map(n => this._esc(n)).join(' · ')}</div>` : ''}
           <div class="flib-acts">
             ${c.actions.map((a, i) => `<button data-act="${this._esc(a.act)}" data-id="${this._esc(c.id)}" class="flib-btn${i === 0 ? ' primary' : ''}" type="button">${this._esc(a.label)}</button>`).join('')}

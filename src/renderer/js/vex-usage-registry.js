@@ -193,6 +193,10 @@ const VexUsageRegistry = {
       VexSignoutWhy: () => (typeof VexSignoutWhy !== 'undefined' ? VexSignoutWhy : null),
       CommitGuard: () => (typeof CommitGuard !== 'undefined' ? CommitGuard : null),
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
+      VexDisclosure: () => (typeof VexDisclosure !== 'undefined' ? VexDisclosure : null),
+      VexIntent: () => (typeof VexIntent !== 'undefined' ? VexIntent : null),
+      VexUsageCounters: () => (typeof VexUsageCounters !== 'undefined' ? VexUsageCounters : null),
+      VexFeatureSheet: () => (typeof VexFeatureSheet !== 'undefined' ? VexFeatureSheet : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
       GameFlush: () => (typeof GameFlush !== 'undefined' ? GameFlush : null),
@@ -278,6 +282,11 @@ const VexUsageRegistry = {
       ['game-checklist', A.api(G.GameChecklist, 'enabled', 'setEnabled')],
       // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
       ['release-check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
+      // Wave 3: they act by themselves, so each can be switched off (and starts off on an existing profile).
+      ['progressive-disclosure', A.api(G.VexDisclosure, 'enabled', 'setEnabled')],
+      ['intent-search', A.api(G.VexIntent, 'enabled', 'setEnabled')],
+      ['usage-counters', A.api(G.VexUsageCounters, 'enabled', 'setEnabled')],
+      ['first-use-sheet', A.api(G.VexFeatureSheet, 'enabled', 'setEnabled')],
       // Attention (js/vex-playfulness.js, js/attention-inbox.js). The New Tab layout (js/newtab-slots.js)
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
@@ -352,13 +361,15 @@ const VexUsageRegistry = {
   },
 
   // Registers every feature whose module is present. Returns the ids registered.
-  register(U) {
+  // `only` (a list of ids) registers just those: a module loaded after start-up (VexLazy.afterIdle) joins late.
+  register(U, only) {
     const usage = U || (typeof VexUsage !== 'undefined' ? VexUsage : null);
     if (!usage || typeof usage.register !== 'function') throw new Error('The usage record is not loaded');
     const done = [];
     const manifests = typeof VexRegistry !== 'undefined' ? VexRegistry : null;
     if (!manifests) throw new Error('The feature manifests are not loaded (js/feature-registry.js)');
     for (const [id, make] of this.table()) {
+      if (only && !only.includes(id)) continue;
       const manifest = manifests.get(id);
       if (!manifest) throw new Error('Feature "' + id + '" has no manifest in js/feature-manifests.js');
       let h;
