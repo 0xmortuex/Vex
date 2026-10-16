@@ -19,17 +19,17 @@ function memStore() {
   };
 }
 
-let dir, store, calls, respond, picked;
+let dir, store, calls, respond, picked, asked, answer;
 function make(over = {}) {
   return T.createCommsTools({
     secretStore: store, webhookFile: 'hook.enc', bridgeConfigFile: path.join(dir, 'comms-bridge.json'),
     fetch: async (url, init) => { calls.push({ url, init }); return respond(url, init); },
-    pickFolder: async () => picked, now: () => 1_700_000_000_000, ...over,
+    pickFolder: async () => picked, confirm: async (q) => { asked.push(q); return answer; }, now: () => 1_700_000_000_000, ...over,
   });
 }
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vex-comms-'));
-  store = memStore(); calls = []; picked = null;
+  store = memStore(); calls = []; picked = null; asked = []; answer = true;
   respond = () => ({ status: 204 });
 });
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
@@ -61,6 +61,34 @@ describe('T3-050 webhook', () => {
     expect(JSON.parse(calls[0].init.body)).toEqual({ content: 'Patch 1.2 is out', allowed_mentions: { parse: [] } });
     await c.webhookSend({ content: 'hi @everyone', allowEveryone: true });
     expect(JSON.parse(calls[1].init.body).allowed_mentions.parse).toEqual(['everyone']);
+  });
+
+  it('a post that pings everyone is confirmed by main: host only, first 200 characters, refused when declined', async () => {
+    const c = make();
+    await c.webhookSet(HOOK);
+    answer = false;
+    await expect(c.webhookSend({ content: 'x'.repeat(300), allowEveryone: true })).rejects.toThrow(/cancelled/);
+    expect(calls).toHaveLength(0);
+    expect(asked).toHaveLength(1);
+    expect(asked[0].message).toContain('discord.com');
+    expect(asked[0].message).not.toContain('AAAA');
+    expect(asked[0].message).not.toContain('/api/webhooks');
+    expect(asked[0].message).toContain('x'.repeat(200));
+    expect(asked[0].message).not.toContain('x'.repeat(201));
+    answer = true;
+    await c.webhookSend({ content: 'hello', allowEveryone: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a plain post is not asked about again (the window already showed it)', async () => {
+    const c = make();
+    await c.webhookSet(HOOK);
+    await c.webhookSend({ content: 'hello' });
+    expect(asked).toHaveLength(0);
+  });
+
+  it('refuses to be made without a confirm box', () => {
+    expect(() => make({ confirm: undefined })).toThrow(/confirm box/);
   });
 
   it('the window builds the same body as main (so the confirm shows the truth)', () => {

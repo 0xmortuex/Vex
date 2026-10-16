@@ -7128,6 +7128,12 @@ ipcMain.handle('fx:tcmb', () => _fxRates.tcmb());
 // in comms-webhook.enc and never handed back, and the folder of the Vencord bridge file, read-only.
 const _commsTools = require('./main/comms-tools').createCommsTools({
   secretStore, webhookFile: path.join(userDataPath, 'comms-webhook.enc'), bridgeConfigFile: path.join(userDataPath, 'comms-bridge.json'), fetch: boundedNetFetch,
+  confirm: async ({ title, message, okLabel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'warning', title: 'Vex', message: title, detail: message, buttons: [okLabel || 'OK', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
   pickFolder: async () => {
     const win = BrowserWindow.getFocusedWindow();
     const opts = { title: 'Folder where your Vencord plugin writes vex-bridge.json', buttonLabel: 'Use this folder', properties: ['openDirectory'] };

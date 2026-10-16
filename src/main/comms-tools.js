@@ -111,11 +111,12 @@ function sanitizeBridge(raw) {
   return { schema: BRIDGE_SCHEMA, generatedAt: when(raw.generatedAt), account: clean(raw.account && raw.account.name, LIMITS.name), mentions, replies, channels, skipped };
 }
 
-function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nodeFs, fetch, pickFolder, now = () => Date.now() } = {}) {
+function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nodeFs, fetch, pickFolder, confirm, now = () => Date.now() } = {}) {
   if (!secretStore || typeof secretStore.read !== 'function' || typeof secretStore.write !== 'function' || typeof secretStore.clear !== 'function') throw new Error('createCommsTools needs a secret store');
   if (!webhookFile || !bridgeConfigFile) throw new Error('createCommsTools needs its two files');
   if (typeof fetch !== 'function') throw new Error('createCommsTools needs a fetch');
   if (typeof pickFolder !== 'function') throw new Error('createCommsTools needs a folder picker');
+  if (typeof confirm !== 'function') throw new Error('createCommsTools needs a confirm box');
 
   const scrub = (text, url) => {
     let s = String(text == null ? '' : text);
@@ -152,6 +153,16 @@ function createCommsTools({ secretStore, webhookFile, bridgeConfigFile, fs = nod
     const text = String(content == null ? '' : content).trim();
     if (!text) throw new Error('There is nothing to post');
     if (text.length > MAX_CONTENT) throw new Error('Discord takes at most ' + MAX_CONTENT + ' characters in one message; this is ' + text.length);
+    // A post that pings everyone is confirmed here, by main, so a script in a window cannot answer for the owner.
+    // Shown: the host only (the address carries the secret) and the first 200 characters.
+    if (allowEveryone) {
+      const yes = await confirm({
+        title: 'Post to your Discord webhook and ping everyone?',
+        message: 'To: ' + new URL(url).host + '\n\n' + text.slice(0, 200) + (text.length > 200 ? '…' : ''),
+        okLabel: 'Post',
+      });
+      if (!yes) throw new Error('The post was cancelled');
+    }
     let res;
     try {
       res = await fetch(url, { method: 'POST', redirect: 'error', credentials: 'omit', headers: { 'Content-Type': 'application/json', 'User-Agent': 'Vex' }, body: buildPayload(text, !!allowEveryone), timeoutMs: 15000, maxBytes: 64 * 1024, egress: { feature: 'Announcement composer (your webhook)', kind: 'fetch' } });
