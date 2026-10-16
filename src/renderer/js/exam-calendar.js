@@ -12,9 +12,9 @@
 // in the item form is not needed: the lead days are in Settings), and one on the
 // day itself. Reminders are the main process's, so they fire with Vex closed.
 const ExamCalendar = {
-  KEY: 'vex.exams',
-  ON_KEY: 'vex.exams.enabled',
-  PREFS_KEY: 'vex.exams.prefs',
+  KEY: 'vex.examDates',
+  ON_KEY: 'vex.examDates.enabled',
+  PREFS_KEY: 'vex.examDates.prefs',
   MAX_ITEMS: 300,
   MAX_ICS_BYTES: 1024 * 1024,
   MAX_IMPORT: 200,
@@ -214,7 +214,7 @@ const ExamCalendar = {
   },
   open() {
     if (typeof VexUsage !== 'undefined') VexUsage.touch('exam-calendar');
-    const { body } = VexSettingsGroups.dialog({ id: 'vex-exams', title: 'Exam and registration dates', sub: 'Your own dates. Vex does not check them: confirm on the official site.' });
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-exam-dates', title: 'Exam and registration dates', sub: 'Your own dates. Vex does not check them: confirm on the official site.' });
     const draw = () => {
       body.textContent = '';
       const bar = document.createElement('div');

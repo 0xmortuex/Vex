@@ -13,7 +13,7 @@ const fresh = (rel) => { const p = path.join(JS, rel); delete require.cache[requ
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const NAMES = ['AttentionState', 'VexAttention', 'AttentionInbox', 'VexConsent', 'VipRules', 'PanelCapture', 'PanelState', 'NeedsMe', 'AwayMode',
-  'AttentionDigest', 'CloseProtect', 'PanelBadges', 'SidebarManager', 'TabManager', 'WebviewManager', 'Autopilot', 'VexLedger', 'VexJobs', 'FocusMode', 'GameMode'];
+  'AttentionDigest', 'CloseProtect', 'PanelBadges', 'SidebarManager', 'TabManager', 'WebviewManager', 'Autopilot', 'VexAutopilot', 'VexLedger', 'VexJobs', 'FocusMode', 'GameMode'];
 let now, S, A, I, C, V, P, N, W, D, X, toasts;
 
 function load() {
@@ -251,7 +251,7 @@ describe('T1-007 Needs me', () => {
   });
 
   it('reports a source that cannot be read instead of hiding it', async () => {
-    globalThis.Autopilot = { stream: async () => { throw new Error('mail down'); } };
+    globalThis.VexAutopilot = { stream: async () => { throw new Error('mail down'); } };
     const r = await N.collect({ now });
     expect(r.problems.join(' ')).toMatch(/mail down/);
     N.registerSource('extra', async () => [{ id: 'x:1', origin: 'x', learnKey: '', title: 'Extra', sub: '', ts: now, score: 10, why: ['test'], ref: {} }]);

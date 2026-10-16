@@ -110,7 +110,7 @@
       permissions: { reads: ['the clock, Windows light/dark mode, a saved location'], writes: ['the current theme'], sends: [] } },
 
     // ---- Wave 2: capture tools --------------------------------------------------------
-    { id: 'text-snippets', title: 'Text snippets', group: 'Text snippets', maturity: 'new', storageKeys: ['vex.snippets', 'vex.snippets.prefs'],
+    { id: 'text-snippets', title: 'Text snippets', group: 'Text snippets', maturity: 'new', storageKeys: ['vex.textSnippets', 'vex.textSnippets.prefs'],
       permissions: { reads: ['the text box you press Tab or Space in, never a password, card or payment field'], writes: ['your snippet list and the sites it is off on'], sends: [] } },
     { id: 'table-extract', title: 'Copy tables and lists', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.tableExtract.enabled'], commands: ['table-extract'],
       permissions: { reads: ['the table or list you click on a page'], writes: ['the clipboard or a note, when you ask'], sends: [] } },
@@ -368,7 +368,7 @@
       permissions: { reads: ['whether you are using Vex (not what you type)'], writes: ['how many breaks you took each day'], sends: [] } },
     { id: 'orders-hub', title: 'Orders', group: 'Orders', maturity: 'new', storageKeys: ['vex.orders', 'vex.orders.enabled'], commands: ['orders-hub'],
       permissions: { reads: ['your parcels'], writes: ['your parcels and reminders you asked for'], sends: ['Nothing itself: Track opens the carrier’s page in a tab'] } },
-    { id: 'exam-calendar', title: 'Exam and registration dates', group: 'Exam and registration dates', maturity: 'new', storageKeys: ['vex.exams', 'vex.exams.enabled', 'vex.exams.prefs'], commands: ['exam-calendar'],
+    { id: 'exam-calendar', title: 'Exam and registration dates', group: 'Exam and registration dates', maturity: 'new', storageKeys: ['vex.examDates', 'vex.examDates.enabled', 'vex.examDates.prefs'], commands: ['exam-calendar'],
       permissions: { reads: ['the dates you typed or imported from a file you chose'], writes: ['those dates and reminders you asked for'], sends: [] } },
     { id: 'receipt-locker', title: 'Receipts and warranties', group: 'Receipts and warranties', maturity: 'new', storageKeys: ['vex.receipts', 'vex.receipts.enabled'], commands: ['receipt-locker'],
       permissions: { reads: ['the facts you entered; the receipt files are not read'], writes: ['those facts and reminders you asked for'], sends: [] } },

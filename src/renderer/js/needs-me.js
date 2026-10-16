@@ -114,8 +114,8 @@ const NeedsMe = {
   },
 
   async _fromAutopilot() {
-    if (typeof Autopilot === 'undefined' || typeof Autopilot.stream !== 'function') return { rows: [], problems: [] };
-    const g = await Autopilot.stream();
+    if (typeof VexAutopilot === 'undefined' || typeof VexAutopilot.stream !== 'function') return { rows: [], problems: [] };
+    const g = await VexAutopilot.stream();
     const rows = [];
     for (const tier of ['now', 'today', 'fyi']) {
       for (const it of g[tier] || []) {

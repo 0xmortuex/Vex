@@ -104,8 +104,8 @@ function vexSnippetsInstall(expand, cfg) {
 }
 
 const VexSnippets = {
-  KEY: 'vex.snippets',
-  PREFS_KEY: 'vex.snippets.prefs',
+  KEY: 'vex.textSnippets',
+  PREFS_KEY: 'vex.textSnippets.prefs',
   MAX: 100,
   MAX_TEXT: 2000,
   TRIGGER: /^:[a-z0-9_-]{1,24}$/,

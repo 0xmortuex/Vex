@@ -16,8 +16,6 @@ const CHANNELS = ('clips-inbox:add clips-inbox:clear clips-inbox:list clips-inbo
   + 'packs:trust-key packs:uninstall packs:untrust-key playground:send repos:pick-folder privacy:report privacy:report-clean quiet:drop quiet:get quiet:held quiet:release '
   + 'devbench:requests devbench:overrides-get devbench:overrides-set devbench:overrides-active devbench:overrides-state devbench:overrides-pick-file '
   + 'devbench:log-pick-file devbench:log-follow-socket devbench:log-poll devbench:log-stop devbench:log-list devbench:pkg '
-  + 'packs:discardpacks:export packs:generate-key packs:install packs:items packs:list packs:pick-file packs:preview packs:set-enabled packs:set-global '
-  + 'packs:trust-key packs:uninstall packs:untrust-key playground:send privacy:report privacy:report-clean quiet:drop quiet:get quiet:held quiet:release '
   + 'quiet:set screen-share:preflight signout:why commit:state tabsnap:clear tabsnap:load tabsnap:save tuning:advise tuning:forget tuning:history websafety:allow-host websafety:check websafety:forget-host '
   + 'websafety:get websafety:set-paranoid websafety:set-sensitivity '
   + 'devdesk:config devdesk:set-config devdesk:grant-root devdesk:revoke-root devdesk:open-file devdesk:open-terminal devdesk:branch devdesk:ports '
