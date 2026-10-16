@@ -57,6 +57,9 @@ describe('the update notifier', () => {
 describe('the evening tab cleanup', () => {
   it('leaves a suggestion in the inbox instead of opening a card, and Review opens the card', () => {
     const { TabCleanup } = fresh('tab-cleanup.js');
+    // Pin the clock (Date only) so "23:00 today" does not depend on when the suite runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 5, 10, 12, 0, 0));
     const old = Date.now() - 10 * 86400000;
     globalThis.TabManager = { activeTabId: 'a', tabs: [
       { id: 'a', url: 'https://a.example/', _lastActive: Date.now() },
@@ -67,6 +70,7 @@ describe('the evening tab cleanup', () => {
     TabCleanup.start();                                   // registers the inbox button's handler (and needs VexJobs)
     const evening = new Date(); evening.setHours(23, 0, 0, 0);
     const items = TabCleanup.tick(evening.getTime());
+    vi.useRealTimers();
     expect(items).toHaveLength(1);
     expect(TabCleanup.showCard).not.toHaveBeenCalled();
     expect(I.list()[0]).toMatchObject({ feature: 'tab-cleanup', title: 'Tidy 1 tab?' });
