@@ -97,7 +97,8 @@ describe('the guide and the feature list point at real places', () => {
     for (const f of VexFeatures.ITEMS) {
       if (!f.setting) continue;
       const target = f.setting.id || f.setting.section;
-      expect(html.includes('id="' + target + '"'), f.id + ' → ' + target).toBe(true);
+      // A section VexSettingsGroups.register builds at run time is not in index.html.
+      expect(html.includes('id="' + target + '"') || require('./_catalogTargets.js').groupSections.has(target), f.id + ' → ' + target).toBe(true);
     }
   });
 

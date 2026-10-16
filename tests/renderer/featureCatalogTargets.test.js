@@ -13,6 +13,9 @@ const commandSrc = read('js/command.js');
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
 const classes = new Set([...html.matchAll(/\sclass="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)));
 
+// Commands that other modules add to the command bar themselves.
+const registeredElsewhere = require('./_catalogTargets.js').commandIds;
+
 // A selector the guide can point at: an id or class that is in the page, or
 // one the code creates at runtime (those are listed here on purpose, so a
 // typo still fails).
@@ -27,7 +30,7 @@ function selectorExists(sel) {
 
 describe('every catalogue entry points at something real', () => {
   it('each named command exists in the command bar', () => {
-    const missing = VexFeatures.ITEMS.filter(f => f.cmd && !new RegExp("id: '" + f.cmd + "'").test(commandSrc)).map(f => f.id + ' → ' + f.cmd);
+    const missing = VexFeatures.ITEMS.filter(f => f.cmd && !(new RegExp("id: '" + f.cmd + "'").test(commandSrc) || registeredElsewhere.has(f.cmd))).map(f => f.id + ' → ' + f.cmd);
     expect(missing).toEqual([]);
   });
 

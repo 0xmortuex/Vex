@@ -26,6 +26,8 @@ globalThis.CommandBar = CommandBar;
 
 const { VexFeatures } = require('../../src/renderer/js/feature-catalog.js');
 globalThis.VexFeatures = VexFeatures;
+// Commands and Settings sections that other modules add themselves.
+const { commandIds: registeredElsewhere, groupSections } = require('./_catalogTargets.js');
 const { VexTour } = require('../../src/renderer/js/tour.js');
 globalThis.VexTour = VexTour;
 const { VexDiscover } = require('../../src/renderer/js/discover.js');
@@ -59,7 +61,7 @@ describe('the catalogue', () => {
   // The point of naming a command instead of copying its label.
   it('every `cmd` resolves to a real Ctrl+K command', () => {
     const missing = VexFeatures.ITEMS
-      .filter(f => f.cmd && !VexFeatures.command(f))
+      .filter(f => f.cmd && !VexFeatures.command(f) && !registeredElsewhere.has(f.cmd))
       .map(f => `${f.id} -> ${f.cmd}`);
     expect(missing, 'catalogue entries pointing at commands that no longer exist').toEqual([]);
   });
@@ -302,7 +304,7 @@ describe('the catalogue points at controls that exist in index.html', () => {
     for (const f of VexFeatures.ITEMS) {
       if (f.sel && f.sel.startsWith('#') && !html.includes(`id="${f.sel.slice(1)}"`)) bad.push(`${f.id} sel ${f.sel}`);
       if (f.setting?.id && !html.includes(`id="${f.setting.id}"`)) bad.push(`${f.id} setting ${f.setting.id}`);
-      if (f.setting?.section && !html.includes(`id="${f.setting.section}"`)) bad.push(`${f.id} section ${f.setting.section}`);
+      if (f.setting?.section && !html.includes(`id="${f.setting.section}"`) && !groupSections.has(f.setting.section)) bad.push(`${f.id} section ${f.setting.section}`);
     }
     expect(bad, 'catalogue targets missing from index.html').toEqual([]);
   });

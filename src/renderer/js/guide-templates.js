@@ -187,6 +187,69 @@ const GuideTemplates = {
       ],
       feature: 'pip',
     },
+    {
+      id: 'new-features-off',
+      ask: ['where are the new features', 'new features not showing', 'turn on the new features', 'why is this feature off', 'feature is switched off', 'how do i turn on a feature'],
+      headline: 'Features marked New start switched off on a profile that already existed, so nothing changes under you.',
+      steps: [
+        'Ctrl+K → "Discover" lists every feature and says where it is switched on; "Everything Vex Can Do" is the same list with what each one is for.',
+        'Most have their own Settings section, named in that entry, for example Settings › Close the day.',
+        'Minimal Vex mode switches the optional ones off in one step and restores them when you leave it.',
+      ],
+      feature: 'library',
+    },
+    {
+      id: 'due-today',
+      ask: ['what is due', 'what is due today', 'what did i forget', 'what am i forgetting', 'what do i need to do today'],
+      headline: 'One list of what is due: reminders, dated tasks in your notes, calendar events and scheduled tasks, most urgent first.',
+      steps: [
+        'Ctrl+K → "What is due". If it is not there, switch it on in Settings › What is due.',
+        'Tasks whose day passed come back with Today, Tomorrow or Drop: Ctrl+K → "Left-overs from earlier".',
+      ],
+      feature: 'dueness',
+    },
+    {
+      id: 'missed-messages',
+      ask: ['what did i miss on discord', 'missed discord messages', 'missed whatsapp messages', 'what is waiting on me', 'who messaged me'],
+      headline: 'Vex can keep what Discord and WhatsApp notifications said, and rank what is waiting on you.',
+      steps: [
+        'Ctrl+K → "Needs me" ranks unread panels, kept notifications and your Inbox, with the reason for each.',
+        'Ctrl+K → "Notifications from panels" shows what was said; it keeps the title and the first 300 characters for 7 days, and only for the sites you turn on in Settings › Panels and messages.',
+      ],
+      feature: 'needs-me',
+    },
+    {
+      id: 'find-seen-page',
+      ask: ['a page i saw last week', 'find something i saw', 'i saw it somewhere', 'where did i see this', 'find a page from last week'],
+      headline: 'Find it by when you saw it and what it was about, across history, page text, notes, read later and clips.',
+      steps: [
+        'In Ctrl+K type h: then what you are after and when, for example h: cookies in the last 2 hours. Ctrl+K → "Find by time and topic" opens the same search.',
+        'For pages you read and cannot name, Ctrl+K → "Recall" searches their text.',
+      ],
+      feature: 'refind',
+    },
+    {
+      id: 'build-failed',
+      ask: ['my build failed', 'ci failed', 'github actions failed', 'why did the build fail', 'the deploy failed'],
+      headline: 'Failed GitHub Actions runs of your repositories are listed in one place, with the log readable.',
+      steps: [
+        'Give Vex a read-only GitHub token in Settings › GitHub access, and list your repositories in Settings › Developer loop.',
+        'Ctrl+K → "CI failures" lists the failed runs; a log excerpt goes to your local model only when you ask for a suggested fix.',
+        'Open a raw log with Ctrl+K → "Read this page as a log": sections fold and First error jumps to the line that matters.',
+      ],
+      feature: 'ci-fix-loop',
+    },
+    {
+      id: 'exam-help',
+      ask: ['exam countdown', 'when is my exam', 'plan my revision', 'make a study plan', 'study for my exam'],
+      headline: 'Vex keeps exam dates with countdown reminders, a revision plan, and a strict study block for the day.',
+      steps: [
+        'Ctrl+K → "Exams" holds the dates and a revision plan placed in your free time; reminders are created only after you confirm.',
+        'Ctrl+K → "Study Block" starts a session where only the sites on your allowlist open.',
+        'The night before: Ctrl+K → "Exam-Day Pack and Exam Mode".',
+      ],
+      feature: 'exam-planner',
+    },
   ],
 
   // Words that say nothing about WHICH question it is. Dropping every word of
