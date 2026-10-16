@@ -2667,9 +2667,13 @@ const AIPanel = {
     const cats = Array.isArray(F.CATS) ? F.CATS : [];
     const seen = new Set(matched.map(f => f.id));
     for (const c of cats) {
-      const names = F.ITEMS.filter(f => f.cat === c.id && !seen.has(f.id)).map(f => f.name);
-      if (!names.length) continue;
-      lines.push(`- ${c.name} — ${names.join(', ')}`);
+      // The ~170 newer entries (`newer: true`) are only counted here: the ones the
+      // question is about arrive above, with their descriptions, through the search.
+      const here = F.ITEMS.filter(f => f.cat === c.id && !seen.has(f.id));
+      const names = here.filter(f => !f.newer).map(f => f.name);
+      const newer = here.filter(f => f.newer).length;
+      if (!names.length && !newer) continue;
+      lines.push(`- ${c.name} — ${names.join(', ')}${newer ? (names.length ? '; ' : '') + newer + ' newer ones' : ''}`);
     }
 
     lines.push('', 'Describe only what is listed here. If something is not in this list, say you are not sure rather than guessing from the page.');

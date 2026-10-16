@@ -24,6 +24,16 @@ describe('finding the right template', () => {
     expect(T.match('I need two accounts on the same site').id).toBe('two-accounts');
   });
 
+  it('the newer daily-life questions land on their own answer', () => {
+    expect(T.match('what is due today').id).toBe('due-today');
+    expect(T.match('what did I forget').id).toBe('due-today');
+    expect(T.match('what did I miss on discord').id).toBe('missed-messages');
+    expect(T.match('I saw it somewhere last week').id).toBe('find-seen-page');
+    expect(T.match('my build failed').id).toBe('build-failed');
+    expect(T.match('when is my exam').id).toBe('exam-help');
+    expect(T.match('why is this feature off').id).toBe('new-features-off');
+  });
+
   it('words that merely look similar do not fire one', () => {
     expect(T.match('what is the weather tomorrow')).toBe(null);
     expect(T.match('ram raider game')).toBe(null);

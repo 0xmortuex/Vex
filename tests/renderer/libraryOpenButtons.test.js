@@ -25,6 +25,10 @@ const commandSrc = read('js/command.js');
 const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
 const panels = new Set([...html.matchAll(/data-panel="([^"]+)"/g)].map(m => m[1]));
 const cmdIds = [...commandSrc.matchAll(/\{ id: '([^']+)'/g)].map(m => m[1]);
+// Commands and Settings sections that other modules add themselves
+// (VexExtras.registerCommand, the dev loop's cmd(), VexSettingsGroups.register).
+const { commandIds: extraCommandIds, groupSections } = require('./_catalogTargets.js');
+for (const id of extraCommandIds) if (!cmdIds.includes(id)) cmdIds.push(id);
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,7 +65,7 @@ describe('every catalogue entry can be opened or explained', () => {
       if (f.cmd && !cmdIds.includes(f.cmd)) bad.push(f.id + ' cmd ' + f.cmd);
       if (f.panel && !panels.has(f.panel)) bad.push(f.id + ' panel ' + f.panel);
       if (f.setting && f.setting.id && !ids.has(f.setting.id)) bad.push(f.id + ' setting ' + f.setting.id);
-      if (f.setting && f.setting.section && !ids.has(f.setting.section)) bad.push(f.id + ' section ' + f.setting.section);
+      if (f.setting && f.setting.section && !ids.has(f.setting.section) && !groupSections.has(f.setting.section)) bad.push(f.id + ' section ' + f.setting.section);
       if (f.setting && !f.setting.id && !f.setting.section) bad.push(f.id + ' setting with no target');
     }
     expect(bad).toEqual([]);

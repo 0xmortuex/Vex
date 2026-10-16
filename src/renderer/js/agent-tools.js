@@ -420,7 +420,14 @@ const AgentTools = {
   // reaches for a website. vex_features has the details.
   featureDigest() {
     if (typeof VexFeatures === 'undefined') return '';
-    return VexFeatures.CATS.map(c => c.name + ': ' + VexFeatures.ITEMS.filter(f => f.cat === c.id).map(f => VexFeatures.nameOf(f)).join(', ')).join('. ');
+    // The digest rides in every request. The newer entries (Wave 0-3, about 170 of them) are
+    // only counted here; vex_features finds them by words.
+    return VexFeatures.CATS.map(c => {
+      const here = VexFeatures.ITEMS.filter(f => f.cat === c.id);
+      const newer = here.filter(f => f.newer).length;
+      return c.name + ': ' + here.filter(f => !f.newer).map(f => VexFeatures.nameOf(f)).join(', ')
+        + (newer ? ' (and ' + newer + ' newer ones: search them with vex_features)' : '');
+    }).join('. ');
   },
 
   // Runs what the user would type into Ctrl+K: a sentence the command bar
