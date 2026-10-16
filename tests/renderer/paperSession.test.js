@@ -3,6 +3,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 const JS = '../../src/renderer/js/';
+// vexId is a global of vex-utils.js in the app; stored ids come from it.
+globalThis.vexId = (p) => p + Math.random().toString(36).slice(2, 8);
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
 let P;
 beforeEach(() => {
