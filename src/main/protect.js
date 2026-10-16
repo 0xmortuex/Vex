@@ -78,7 +78,10 @@ function registerProtect({
 
   // --- Quiet hours -----------------------------------------------------------
   const realShow = notifier.show.bind(notifier);
-  const quiet = require('./quiet-hours').createQuietHours({ store: jsonStore, show: realShow, now, log });
+  // The Attention Budget for OS toasts (notify.js): urgency classes, caps, dedupe
+  // and the attention state the window reports. Quiet hours sits in front of it.
+  const attention = require('./notify').createNotifyGate({ show: realShow, now, log });
+  const quiet = require('./quiet-hours').createQuietHours({ store: jsonStore, show: attention.gated, now, log });
   // Everything that shows a toast calls notifier.show at the moment it needs
   // one, so replacing the property puts every sender behind the quiet window.
   notifier.show = quiet.gated;
@@ -89,7 +92,11 @@ function registerProtect({
   ipcMain.handle('quiet:release', () => { guard(); return quiet.release(); });
   ipcMain.handle('quiet:drop', () => { guard(); return quiet.dropHeld(); });
 
-  return { report, usage, snapshots, quiet, tally, signout };
+  ipcMain.handle('attention:state', (_e, s) => { guard(); return attention.setState(s); });
+  ipcMain.handle('attention:denied', () => { guard(); return attention.denied(); });
+  ipcMain.handle('attention:clear-denied', () => { guard(); attention.clearDenied(); return true; });
+
+  return { report, usage, snapshots, quiet, tally, signout, attention };
 }
 
 module.exports = { registerProtect };

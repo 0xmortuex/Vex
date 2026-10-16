@@ -94,7 +94,9 @@ const GitHubWatch = {
   announce(text, url) {
     window.showToast?.(text, 'info', 10000);
     if (typeof window.vex?.notify === 'function') {
-      window.vex.notify('Vex — GitHub', text).catch(err => window.VexProblems?.note('GitHub watch', 'Could not show the desktop notification', err));
+      (typeof VexAttention !== 'undefined'
+        ? VexAttention.osNotify({ feature: 'github-watch', label: 'GitHub watch', urgency: 'useful', id: text, title: 'Vex — GitHub', body: text })
+        : window.vex.notify('Vex — GitHub', text)).catch(err => window.VexProblems?.note('GitHub watch', 'Could not show the desktop notification', err));
     }
     document.dispatchEvent(new CustomEvent('vex:github-watch', { detail: { text, url } }));
   },

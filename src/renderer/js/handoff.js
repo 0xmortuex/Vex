@@ -175,7 +175,9 @@ const Handoff = {
     const froms = [...new Set(fresh.map(i => i.from))];
     const title = one ? 'From ' + one.from : fresh.length + ' tabs from ' + (froms.length === 1 ? froms[0] : 'your devices');
     const body = (one ? (one.title || one.url) : fresh.map(i => i.title || i.url).slice(0, 3).join(' · ')) + ' — on your New Tab page';
-    return Promise.resolve(window.vex.notify(title.slice(0, 200), body.slice(0, 2000)))
+    return Promise.resolve(typeof VexAttention !== 'undefined'
+      ? VexAttention.osNotify({ feature: 'handoff', label: 'Tabs from your devices', urgency: 'useful', id: title, title: title.slice(0, 200), body: body.slice(0, 2000) })
+      : window.vex.notify(title.slice(0, 200), body.slice(0, 2000)))
       .catch(err => window.VexProblems?.note?.('Send to your devices', 'Could not show the desktop notification', err));
   },
 

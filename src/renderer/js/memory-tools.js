@@ -959,7 +959,10 @@ const VexMemoryTools = {
     if (Date.now() - last < 24 * 3600000) return false;
     try { localStorage.setItem(this.KEYS.lastNudge, String(Date.now())); } catch { /* may ask again */ }
     const at = this.lastBackupAt();
-    window.showToast?.(at ? 'Your last backup was ' + this._ago(at) + '. Save your notes, bookmarks and settings now?' : 'You have not backed up your notes, bookmarks and settings yet. Save a copy now?', 'info', 20000, {
+    const text = at ? 'Your last backup was ' + this._ago(at) + '. Save your notes, bookmarks and settings now?' : 'You have not backed up your notes, bookmarks and settings yet. Save a copy now?';
+    // A backup reminder is never urgent: it waits in the Attention Inbox (js/attention-inbox.js).
+    if (typeof VexAttention !== 'undefined') return VexAttention.suggest({ feature: 'backup', label: 'Backup reminder', id: 'due', title: text, action: { label: 'Export now', key: 'export' } });
+    window.showToast?.(text, 'info', 20000, {
       action: { label: 'Export now', run: () => { this.exportNow().catch(err => this._fail(err)); } },
     });
     return true;
@@ -1141,6 +1144,7 @@ const VexMemoryTools = {
     if (this._wired) return false;
     this._wired = true;
     this.briefModules = this._makeBrief();
+    if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle('backup', (key) => { if (key === 'export') return this.exportNow().catch(err => this._fail(err)); throw new Error('Unknown backup action ' + key); });
     const reg = (window.VexBriefModules = window.VexBriefModules || []);
     for (const m of this.briefModules) if (!reg.some(x => x && x.id === m.id)) reg.push(m);
     // Page copies, as ClipboardHistory records them.

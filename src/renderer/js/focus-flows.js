@@ -196,6 +196,7 @@ const FocusFlows = {
       }
 
       this._active = { flow, styleEl, pollTimer };
+      if (typeof AttentionState !== 'undefined') AttentionState.changed();
       // Theme, tab group and panels from its profile rule (js/focus-profiles.js).
       try { if (window.FocusProfiles) window.FocusProfiles.applyExtras(flow, (opts && opts.source) || flow); } catch {}
       this._showEndBar(flow);
@@ -210,6 +211,7 @@ const FocusFlows = {
       try { document.body.classList.remove('focus-flow-dim'); } catch {}
       try { document.getElementById('focus-flow-endbar')?.remove(); } catch {}
       this._active = null;
+      if (typeof AttentionState !== 'undefined') AttentionState.changed();
       try { if (window.FocusProfiles) window.FocusProfiles.onEnded(a.flow && a.flow.id); } catch {}
       window.showToast?.('Flow ended');
     } catch {}

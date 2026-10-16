@@ -184,6 +184,8 @@
       <button id="btn-notes-top" class="nav-btn" title="Notes (Ctrl+Shift+N)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       </button>
+      <!-- The Attention Inbox (js/attention-inbox.js): shown only while it holds something. -->
+      <button id="btn-attention" class="nav-btn" type="button" title="Inbox" aria-label="Inbox" aria-haspopup="dialog" hidden></button>
       <button id="btn-downloads-top" class="nav-btn" title="Downloads">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </button>
@@ -1906,7 +1908,11 @@
   <script src="js/search-engine-custom.js"></script>
   <script src="js/tour.js"></script>
   <script src="js/feature-catalog.js"></script>
+  <!-- One attention budget: versioned consent and run-once migrations (js/vex-defaults.js) first, then the attention state, the gate and the inbox. -->
+  <script src="js/vex-defaults.js"></script>
+  <script src="js/attention-state.js"></script>
   <script src="js/vex-attention.js"></script>
+  <script src="js/attention-inbox.js"></script>
   <script src="js/vex-medals.js"></script>
   <script src="js/vex-medals-catalog.js"></script>
   <script src="js/vex-medals-profile.js"></script>
@@ -1927,6 +1933,10 @@
   <script src="js/vex-usage-ui.js"></script>
   <script src="js/vex-minimal-mode.js"></script>
   <script src="js/vex-health.js"></script>
+  <!-- Playfulness master level, Settings > Attention, the New Tab slot grid. -->
+  <script src="js/vex-playfulness.js"></script>
+  <script src="js/attention-settings.js"></script>
+  <script src="js/newtab-slots.js"></script>
   <script src="js/update-safety-net.js"></script>
   <script src="js/post-update-selftest.js"></script>
   <script src="js/sync-conflict-detail.js"></script>

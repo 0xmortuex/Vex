@@ -559,7 +559,13 @@ contextBridge.exposeInMainWorld('vex', {
   // Desktop notifications are sent by the main process — the renderer is a
   // file:// page and Chromium denies it the Notification API. Resolves once
   // Windows has shown the toast; rejects with the reason when it did not.
-  notify: (title, body) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body) }),
+  notify: (title, body, opts) => ipcRenderer.invoke('notify:show', { title, body: body == null ? '' : String(body), ...(opts && opts.urgency ? { urgency: opts.urgency } : {}), ...(opts && opts.feature ? { feature: opts.feature } : {}), ...(opts && opts.id ? { id: String(opts.id) } : {}) }),
+  // The Attention Budget for OS toasts (main/notify.js).
+  attention: {
+    state: (s) => ipcRenderer.invoke('attention:state', s),
+    denied: () => ipcRenderer.invoke('attention:denied'),
+    clearDenied: () => ipcRenderer.invoke('attention:clear-denied'),
+  },
   // AI news (js/ai-news.js): a Windows toast with Open and "Mute this source"
   // buttons. `tag` starts "news-"; `url` is https only. A click or a button
   // arrives as news:waiting, and pending() hands over what was clicked.

@@ -668,7 +668,12 @@ const AINews = {
   _bodyOf(item) { return ((item.source ? item.source + ' · ' : '') + (item.summary || '')).slice(0, 400); },
 
   async _windows(payload) {
-    try { await this.io().notify(payload); return { ok: true }; }
+    try {
+      const res = await this.io().notify(payload);
+      // Held back by the Attention Budget in main (quiet moment, caps): not a failure.
+      if (res && res.suppressed) return { ok: false, suppressed: true, reason: res.reason };
+      return { ok: true };
+    }
     catch (err) {
       const message = (err && err.message) || String(err);
       // Locked: nothing was shown on purpose; the item stays queued.
@@ -679,6 +684,23 @@ const AINews = {
       this.io().toast('Windows did not show an AI news notification: ' + message, 'error', 9000);
       return { ok: false, error: message };
     }
+  },
+
+  // The Attention Budget (js/vex-attention.js): an in-app pop-up is spoken only at a
+  // good moment and under the caps, otherwise the story waits in the Attention
+  // Inbox (it is also always in the AI News panel). `already` = Windows already
+  // refused it, so only the waiting is done.
+  _attend(item, already) {
+    if (typeof VexAttention === 'undefined') return true;
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('ai-news', (key, row) => {
+        if (key !== 'open') throw new Error('Unknown AI News action ' + key);
+        return this.openItem(row.sub);
+      });
+    }
+    const row = { feature: 'ai-news', label: 'AI News', id: item.id, title: String(item.title).slice(0, 120), body: this._bodyOf(item), action: { label: 'Open', key: 'open' } };
+    if (already) { VexAttention.suggest(row); return false; }
+    return VexAttention.request({ ...row, urgency: 'useful' }).route === 'toast';
   },
 
   _popup(item) {
@@ -699,10 +721,12 @@ const AINews = {
       const r = await this._windows({ title: item.title.slice(0, 120), body: this._bodyOf(item), tag: this.tagOf(item), url: item.url, silent });
       if (r.ok) { st.sent.windows.push(now); n++; }
       else if (r.locked) { if (!st.queue.includes(item.id)) st.queue.push(item.id); }
+      else if (r.suppressed) { this._attend(item, true); popped.add(item.id); }   // waits in the Attention Inbox
       else { this._popup(item); popped.add(item.id); n++; }   // refused: the story still appears, inside Vex
     }
     for (const { item } of plan.toast) {
       if (popped.has(item.id)) continue;
+      if (!this._attend(item)) continue;
       this._popup(item);
       st.sent.toast.push(now); n++;
     }

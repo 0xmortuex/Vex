@@ -2296,12 +2296,12 @@
     })();
   </script>
 
-  <div class="tools-section">
+  <div class="tools-section" id="tools-section">
     <h3>My Tools</h3>
     <div class="tools-scroll" id="tools-scroll"></div>
   </div>
 
-  <div class="weather-section">
+  <div class="weather-section" id="weather-section">
     <div class="weather-card">
       <h4>Weather <button class="loc-btn" id="weather-loc-btn" title="Set your city"></button></h4>
       <div class="weather-temp" id="weather-temp">--°</div>
@@ -2323,7 +2323,7 @@
     </div>
   </div>
 
-  <div class="recent-section">
+  <div class="recent-section" id="recent-section">
     <h3>Recent</h3>
     <div class="recent-list" id="recent-list">
       <div class="recent-item" style="color: var(--vex-text-muted); padding: 20px; text-align: center; justify-content: center;">
@@ -2332,7 +2332,7 @@
     </div>
   </div>
 
-  <div class="gh-activity-section">
+  <div class="gh-activity-section" id="gh-activity-section">
     <h3>Recent GitHub Activity</h3>
     <div class="gh-activity-list" id="gh-activity-list">
       <div class="gh-activity-item" style="justify-content:center; color:var(--vex-text-muted);">Loading...</div>
@@ -3534,6 +3534,7 @@
     <div id="vex-newtab-pet" role="img" style="line-height:0;color:var(--vex-text-primary,currentColor)"></div>
   </aside>
   <style>
+    .vex-slot-off { display: none !important; }
     #vex-newtab-extras:not([hidden]) { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
     #vex-newtab-widgets { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
     .vex-nt-widget { font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: var(--vex-radius-md, 10px); background: var(--vex-glass-light, rgba(128,128,128,.12)); border: 1px solid var(--vex-border-subtle, rgba(128,128,128,.25)); color: var(--vex-text-primary, inherit); }
@@ -3606,6 +3607,14 @@
           if (prof === 'project' || prof === 'reading') brief.parentNode.insertBefore(today, brief);
           else brief.parentNode.insertBefore(brief, today);
         }
+        // The slot grid (js/newtab-slots.js): hide the blocks it did not choose. Only
+        // ids from this fixed list can be hidden, whatever the payload says.
+        var SLOTTED = ['brief-section', 'today-section', 'weather-section', 'tools-section', 'recent-section', 'gh-activity-section'];
+        var hidden = (n.slots && Array.isArray(n.slots.hide)) ? n.slots.hide : [];
+        SLOTTED.forEach(function (id) {
+          var blk = document.getElementById(id);
+          if (blk) blk.classList.toggle('vex-slot-off', hidden.indexOf(id) >= 0);
+        });
         var shelf = document.getElementById('vex-newtab-widgets');
         shelf.textContent = '';
         (Array.isArray(n.widgets) ? n.widgets : []).slice(0, 8).forEach(function (w) {

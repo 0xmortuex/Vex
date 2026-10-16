@@ -37,7 +37,9 @@ const VexBriefStreaks = {
 
   isEnabled() {
     const s = this._json(this.SETTINGS_KEY, {});
-    return !(s && s.streaks === false);
+    if (s && s.streaks === false) return false;
+    // The master level (js/vex-playfulness.js): off in Simple mode, Focus, a meeting, a game.
+    return typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed('streak');
   },
 
   dayKey(d) {

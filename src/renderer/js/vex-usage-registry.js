@@ -149,6 +149,9 @@ const VexUsageRegistry = {
       RoutineDetect: () => (typeof RoutineDetect !== 'undefined' ? RoutineDetect : null),
       TabCleanup: () => (typeof TabCleanup !== 'undefined' ? TabCleanup : null),
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
+      VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
+      AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      NewTabSlots: () => (typeof NewTabSlots !== 'undefined' ? NewTabSlots : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -212,6 +215,10 @@ const VexUsageRegistry = {
       ['tab-cleanup', 'Evening tab cleanup', 'Tab cleanup', A.mode(G.TabCleanup, 'mode', 'setMode', 'off', 'ask')],
       // Release check (js/release-checklist.js): the CHANGELOG as a hand-check list.
       ['release-check', 'Release check', 'Release check', A.api(G.VexReleaseChecklist, 'enabled', 'setEnabled')],
+      // Attention (js/vex-playfulness.js, js/attention-inbox.js, js/newtab-slots.js)
+      ['playfulness', 'Playfulness', 'Playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
+      ['attention-inbox', 'Attention Inbox', 'Attention', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      ['newtab-slots', 'Calm New Tab layout', 'New Tab layout', A.api(G.NewTabSlots, 'enabled', 'setEnabled')],
     ];
   },
 

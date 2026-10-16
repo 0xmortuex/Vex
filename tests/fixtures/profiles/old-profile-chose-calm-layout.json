@@ -1,0 +1,7 @@
+{
+  "_comment": "A profile whose owner already picked a playfulness level and a New Tab layout: a migration must never touch them.",
+  "vex.uiMode": "full",
+  "vex.onboarding.done": "1",
+  "vex.defaults": "{\"playfulness\":{\"value\":\"calm\",\"explicit\":true},\"newtab.layout\":{\"value\":\"calm\",\"explicit\":true}}",
+  "vex.fun.sounds": "1"
+}

@@ -57,9 +57,21 @@ const SleepConsent = {
     gaming: 'gaming mode',
   },
 
+  // The consent behind "auto" (js/vex-defaults.js, VexConsent). Bump the version
+  // whenever sleeping starts to cover something new: a saved "auto" was agreed
+  // to for the old version, so it falls back to "ask" until it is answered once
+  // more.
+  CONSENT_ID: 'sleep-auto',
+  CONSENT_VERSION: 1,
+  _consentReady() { return typeof VexConsent !== 'undefined' && VexConsent._defs.has(this.CONSENT_ID); },
+  _consentStale() {
+    return this._consentReady() && VexConsent.status(this.CONSENT_ID) === 'stale';
+  },
+
   mode() {
     let v = null;
     try { v = localStorage.getItem(this.KEY); } catch { v = null; }
+    if (v === 'auto' && this._consentStale()) return 'ask';
     return (v === 'auto' || v === 'ask') ? v : 'never';
   },
 
@@ -67,6 +79,7 @@ const SleepConsent = {
     if (!['ask', 'auto', 'never'].includes(mode)) throw new Error('Vex can ask, do it automatically, or never do it');
     try { localStorage.setItem(this.KEY, mode); }
     catch (err) { console.error('[SleepConsent] the choice could not be saved:', err.message); }
+    if (this._consentReady()) VexConsent.record(this.CONSENT_ID, mode === 'auto' ? 'granted' : 'declined');
     document.dispatchEvent(new CustomEvent('vex:sleep-consent', { detail: { mode } }));
     return mode;
   },
@@ -100,7 +113,7 @@ const SleepConsent = {
   // answered "Always" is automatic.
   modeFor(kind) {
     const m = this.mode();
-    if (m === 'ask' && kind && this.always().includes(kind)) return 'auto';
+    if (m === 'ask' && kind && !this._consentStale() && this.always().includes(kind)) return 'auto';
     return m;
   },
 
@@ -285,6 +298,14 @@ if (typeof window !== 'undefined') {
     setTimeout(() => afterHydration(fn, tries + 1), 100);
   };
   afterHydration(() => SleepConsent.migrateOnce());
+  // Versioned consent: a saved "auto" from before consents were versioned counts
+  // as agreed to for version 1 (never as a newer one).
+  if (typeof VexConsent !== 'undefined' && typeof VexMigrations !== 'undefined') {
+    VexConsent.register(SleepConsent.CONSENT_ID, { version: SleepConsent.CONSENT_VERSION, label: 'Let Vex put tabs and panels to sleep by itself' });
+    VexMigrations.register('consent.sleep-auto-adopt', () => {
+      if (localStorage.getItem(SleepConsent.KEY) === 'auto') VexConsent.adopt(SleepConsent.CONSENT_ID, 'granted');
+    });
+  }
   // Before any sleeper's first check (they start seconds after this script).
   if (SleepConsent.resetOnce()) {
     setTimeout(() => window.showToast?.('Vex no longer puts Discord, Claude or your tabs to sleep by itself — Settings › Performance turns it back on', 'info', 9000), 6000);

@@ -212,7 +212,19 @@ const RoutineDetect = {
 
   // The offer.
   offer(s) {
-    if (!(typeof VexAttention === 'undefined' || VexAttention.gate('routine-offer', s.sites.join(',')))) return null;
+    const text = 'You open ' + s.sites.map(h => this.short(h)).join(', ') + ' in this order most mornings (' + s.days + ' days).';
+    // The offer waits in the Attention Inbox: Save, or Never for this feature.
+    if (typeof VexAttention !== 'undefined') {
+      if (typeof AttentionInbox !== 'undefined') {
+        AttentionInbox.handle('routine', (key) => {
+          if (key === 'save' && this._keeper) return this._keeper(s);
+          if (key === 'off') { this.setMode('off'); window.showToast?.('Vex will not watch for routines. The log is cleared.'); return null; }
+          throw new Error('Unknown routine action ' + key);
+        });
+      }
+      VexAttention.suggest({ feature: 'routine', label: 'Routine detection', id: s.sites.join(','), title: text, action: this._keeper ? { label: 'Save as a command chain', key: 'save' } : { label: 'Turn off', key: 'off' } });
+      return null;
+    }
     const actions = [];
     if (this._keeper) actions.push({ label: 'Save as a command chain', run: () => this._keeper(s) });
     actions.push({ label: 'Turn off', run: () => { this.setMode('off'); window.showToast?.('Vex will not watch for routines. The log is cleared.'); } });

@@ -218,7 +218,11 @@ define('storage-save', [string(64), value => value !== undefined]);
 // src/main/notify.js for why the renderer cannot). `at` is epoch milliseconds.
 // A password or one-time code to copy, and how long until it is cleared.
 define('clipboard:write-secret', [value => typeof value === 'string' && value.length > 0 && value.length <= 10000, optional(value => Number.isInteger(value) && value >= 5 && value <= 300)]);
-define('notify:show',[shape({ title: string(200), body: optional(string(2000)) })]);
+// urgency / feature / id: the Attention Budget (src/main/notify.js). No urgency is "asked".
+define('notify:show',[shape({ title: string(200), body: optional(string(2000)), urgency: optional(oneOf(['critical', 'asked', 'useful', 'ambient'])), feature: optional(string(64)), id: optional(string(120)) })]);
+// The window tells main whether it is a bad moment for a toast (js/attention-state.js).
+define('attention:state', [shape({ quiet: boolean, reason: string(40), until: value => Number.isFinite(value) && value >= 0 })]);
+define('attention:denied attention:clear-denied', []);
 // An AI news toast (src/main/news-toast.js checks it again): a tag the toast's
 // buttons carry back, an https address, short text. main.js 'news:notify'.
 const httpsOnly = value => typeof value === 'string' && value.length <= 2048 && (() => { try { return new URL(value).protocol === 'https:'; } catch { return false; } })();
