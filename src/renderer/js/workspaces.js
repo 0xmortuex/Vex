@@ -162,6 +162,8 @@ const WorkspaceManager = {
       this.render();
       this._hideLoading();
       window.showToast?.('Workspace: ' + ws.name);
+      // Park and resume (js/park.js) and the next step (js/next-step.js) follow the switch.
+      document.dispatchEvent(new CustomEvent('vex:workspace-switched', { detail: { id: this.activeId } }));
     } catch (err) {
       console.error('Workspace switch error:', err);
       this._hideLoading();

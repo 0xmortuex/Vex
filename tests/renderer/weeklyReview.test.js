@@ -63,15 +63,15 @@ describe('building the review', () => {
 describe('scheduling itself', () => {
   beforeEach(() => { localStorage.clear(); });
 
-  it('creates one weekly Friday 17:00 review reminder, once', async () => {
+  it('creates one weekly Sunday 18:00 review reminder, once', async () => {
     const create = vi.fn(async (m, at, x) => ({ id: 'rv', message: m, at, ...x }));
     global.window.vex = { reminders: { list: vi.fn(async () => []), create, onFired: vi.fn() } };
     expect(await VexReview.ensureScheduled()).toBe(true);
     expect(create).toHaveBeenCalledTimes(1);
     const [msg, at, extra] = create.mock.calls[0];
     expect(msg).toBe('Weekly review');
-    expect(new Date(at).getDay()).toBe(5);
-    expect(new Date(at).getHours()).toBe(17);
+    expect(new Date(at).getDay()).toBe(0);
+    expect(new Date(at).getHours()).toBe(18);
     expect(extra).toEqual({ kind: 'review', repeat: 'weekly' });
     expect(localStorage.getItem('vex.review.seeded')).toBe('1');
     expect(await VexReview.ensureScheduled()).toBe(false);

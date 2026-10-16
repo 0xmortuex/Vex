@@ -4,13 +4,13 @@
 // and never read, which watched pages changed, which tools you used. All of
 // it is already stored; nothing showed it together.
 //
-// The review is itself a reminder — kind 'review', every Friday at 17:00 —
+// The review is itself a reminder — kind 'review', every Sunday at 18:00 (an evening user's week ends then; T1-008) —
 // so it arrives with Vex closed like any other, and firing it opens this card
 // rather than a toast. It is created once; deleting it in the Schedules
 // panel is respected (a flag records that it was offered).
 const VexReview = {
   SEEDED_KEY: 'vex.review.seeded',
-  DAY: 5, HOUR: 17,
+  DAY: 0, HOUR: 18,   // Sunday evening; only a profile that has not seeded it yet gets this
 
   // Other modules add a section here (Focus OS does): { id, title, build(now) }
   // where build answers { summary?, items?: [{ text, sub? }] } or null. A

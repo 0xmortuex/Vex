@@ -195,6 +195,13 @@ const VexUsageRegistry = {
       VexReleaseChecklist: () => (typeof VexReleaseChecklist !== 'undefined' ? VexReleaseChecklist : null),
       VexPlayfulness: () => (typeof VexPlayfulness !== 'undefined' ? VexPlayfulness : null),
       AttentionInbox: () => (typeof AttentionInbox !== 'undefined' ? AttentionInbox : null),
+      VexDueness: () => (typeof VexDueness !== 'undefined' ? VexDueness : null),
+      VexFirstOpen: () => (typeof VexFirstOpen !== 'undefined' ? VexFirstOpen : null),
+      VexInbox: () => (typeof VexInbox !== 'undefined' ? VexInbox : null),
+      VexNextStep: () => (typeof VexNextStep !== 'undefined' ? VexNextStep : null),
+      VexPark: () => (typeof VexPark !== 'undefined' ? VexPark : null),
+      VexCopySource: () => (typeof VexCopySource !== 'undefined' ? VexCopySource : null),
+      VexDeadlines: () => (typeof VexDeadlines !== 'undefined' ? VexDeadlines : null),
     };
     return [
       // Brief actions group (js/brief-actions.js)
@@ -240,6 +247,14 @@ const VexUsageRegistry = {
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.
       ['playfulness', A.mode(G.VexPlayfulness, 'chosen', 'setLevel', 'off', 'calm')],
       ['attention-inbox', A.api(G.AttentionInbox, 'enabled', 'setEnabled')],
+      // Wave 1, the daily flow: new features, staged off on a profile that already existed.
+      ['dueness', A.api(G.VexDueness, 'enabled', 'setEnabled')],
+      ['first-open', A.api(G.VexFirstOpen, 'enabled', 'setEnabled')],
+      ['inbox-unified', A.api(G.VexInbox, 'enabled', 'setEnabled')],
+      ['next-step', A.api(G.VexNextStep, 'enabled', 'setEnabled')],
+      ['park-resume', A.api(G.VexPark, 'enabled', 'setEnabled')],
+      ['copy-source', A.api(G.VexCopySource, 'enabled', 'setEnabled')],
+      ['deadline-extractor', A.api(G.VexDeadlines, 'enabled', 'setEnabled')],
       // Fun and progress (js/fun/*) and Play (js/vex-fun.js)
       ['fun-pet', A.progress('pet')],
       ['fun-discovery', A.progress('discovery')],
