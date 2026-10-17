@@ -1,8 +1,8 @@
 // === Vex Pet ==================================================================
 //
-// A small, purely decorative companion for the New Tab page. It reacts to a
-// few real things and does nothing else: no needs, no hunger, no way to
-// neglect it. Off until turned on in Settings.
+// An optional New Tab companion with care reactions and saved appearance.
+// Snacks, games and cuddles are play, never obligations: no hunger, decay,
+// reminders or penalties. Off until turned on in Settings.
 //
 // Wiring for the page that shows it (the integrator adds the script tags):
 //   const pet = VexPet.mount(containerElement);   // { update(), destroy() }
@@ -24,11 +24,59 @@
 // prefers-reduced-motion. Nothing is shown during Game mode.
 const VexPet = {
   KEY: 'vex.fun.pet',
+  OPTIONS: { species: ['cat', 'bunny', 'fox'], color: ['theme', '#e7ad80', '#a5bdde', '#b2c9a5', '#d2b4d6'], size: [64, 88, 112], accessory: ['none', 'bandana', 'bow'] },
   CHEER_MS: 90 * 1000,
   LABELS: {
     sleepy: 'Your pet is asleep',
     cheer: 'Your pet is cheering for you',
     calm: 'Your pet is keeping you company',
+    cuddle: 'Your pet is enjoying a cuddle',
+    feed: 'Your pet is enjoying a snack',
+    play: 'Your pet is playing with you',
+  },
+
+  state() {
+    const s = VexProgress.load(this.KEY, {}), p = s.prefs || {};
+    const prefs = {
+      name: typeof p.name === 'string' ? p.name.slice(0, 24) : 'Mochi',
+      species: this.OPTIONS.species.includes(p.species) ? p.species : 'cat',
+      color: this.OPTIONS.color.includes(p.color) ? p.color : 'theme',
+      size: this.OPTIONS.size.includes(p.size) ? p.size : 88,
+      accessory: this.OPTIONS.accessory.includes(p.accessory) ? p.accessory : 'none',
+      hover: p.hover !== false, locked: p.locked === true,
+      position: p.position && Number.isFinite(p.position.x) && Number.isFinite(p.position.y)
+        ? { x: Math.max(0, Math.min(1, p.position.x)), y: Math.max(0, Math.min(1, p.position.y)) } : null,
+    };
+    const count = v => Math.max(0, Math.min(99999, Math.floor(Number(v) || 0)));
+    return { ...s, prefs, snacks: count(s.snacks), plays: count(s.plays), cuddles: count(s.cuddles) };
+  },
+
+  interact(action, patch) {
+    if (!VexProgress.enabled('pet') || !VexProgress.allows('pet')) return false;
+    const s = this.state(), now = VexProgress.now();
+    if (action === 'customize') {
+      if (!patch || typeof patch !== 'object') return false;
+      const p = s.prefs;
+      if (typeof patch.name === 'string') p.name = patch.name.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 24) || 'Mochi';
+      for (const key of ['species', 'color', 'size', 'accessory']) if (this.OPTIONS[key].includes(patch[key])) p[key] = patch[key];
+      for (const key of ['hover', 'locked']) if (typeof patch[key] === 'boolean') p[key] = patch[key];
+      if (patch.position === null) p.position = null;
+      else if (!p.locked && patch.position && Number.isFinite(patch.position.x) && Number.isFinite(patch.position.y)) {
+        p.position = { x: Math.max(0, Math.min(1, patch.position.x)), y: Math.max(0, Math.min(1, patch.position.y)) };
+      }
+    } else {
+      if (!['feed', 'play', 'cuddle', 'sleep', 'wake'].includes(action)) return false;
+      // Hover sends at most one cuddle every few seconds. No XP or penalties.
+      if (action === 'cuddle' && now - (s.lastCuddle || 0) < 2500) return false;
+      if (action === 'feed') s.snacks = Math.min(99999, s.snacks + 1);
+      if (action === 'play') s.plays = Math.min(99999, s.plays + 1);
+      if (action === 'cuddle') { s.cuddles = Math.min(99999, s.cuddles + 1); s.lastCuddle = now; }
+      s.reaction = action === 'sleep' ? 'sleepy' : action === 'wake' ? 'calm' : action;
+      s.reactionUntil = now + (action === 'sleep' ? 30 * 60000 : 8000);
+    }
+    VexProgress.save(this.KEY, s);
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:pet-changed'));
+    return true;
   },
 
   moodFor(o) {
@@ -46,18 +94,22 @@ const VexPet = {
 
   // Starts the cheer. Works even while the pet is off; it simply is not shown.
   cheer() {
-    VexProgress.save(this.KEY, { cheerUntil: VexProgress.now() + this.CHEER_MS });
+    VexProgress.save(this.KEY, { ...this.state(), cheerUntil: VexProgress.now() + this.CHEER_MS });
     try { document.dispatchEvent(new CustomEvent('vex:pet-changed')); } catch { /* no document */ }
   },
 
   mood() {
     const now = VexProgress.now();
+    const s = this.state();
+    if (s.reactionUntil > now && Object.hasOwn(this.LABELS, s.reaction)) return s.reaction;
     return this.moodFor({ hour: new Date(now).getHours(), cheerUntil: this._cheerUntil(), now });
   },
 
   // The drawing. Strokes use currentColor (the theme's text colour) and the
   // body takes the accent, so a light look and a dark look both read.
-  art(mood) {
+  art(mood, species = 'cat', accessory = 'none') {
+    const reaction = mood;
+    if (['cuddle', 'feed', 'play'].includes(mood)) mood = 'cheer';
     const eyes = mood === 'sleepy'
       ? '<path d="M22.5 37.5q3.2 3 6.4 0M35.1 37.5q3.2 3 6.4 0" class="vp-line"/>'
       : mood === 'cheer'
@@ -74,18 +126,19 @@ const VexPet = {
     return '<svg class="vex-pet-art vex-pet-' + mood + '" viewBox="0 0 64 64" width="64" height="64" fill="none" aria-hidden="true">' +
       '<g class="vp-body">' +
         '<path d="M15 42c0-12.4 7.6-22 17-22s17 9.6 17 22c0 7.2-7.4 11.6-17 11.6S15 49.2 15 42z" class="vp-fill"/>' +
-        '<path d="M18.4 26.4 16.6 11.8l11.4 8.2M45.6 26.4l1.8-14.6L36 20" class="vp-fill"/>' +
-        '<path d="M49 46c5.6.6 8.4-2.4 8.2-7" class="vp-line"/>' +
+        (species === 'bunny' ? '<path d="M21 25Q13 0 22 5L29 22M35 22Q42 0 47 5L43 26" class="vp-fill"/>' : '<path d="M18.4 26.4 16.6 11.8l11.4 8.2M45.6 26.4l1.8-14.6L36 20" class="vp-fill"/>') +
+        (species === 'fox' ? '<path d="M47 47Q63 53 59 29Q48 35 49 44" class="vp-fill"/>' : '<path d="M49 46c5.6.6 8.4-2.4 8.2-7" class="vp-line"/>') +
         eyes +
         '<path d="M21 42.4h.1M43 42.4h.1" class="vp-cheek"/>' +
         mouth +
-      '</g>' + extra + '</svg>';
+      '</g>' + (accessory === 'bandana' ? '<path d="M22 50H42L32 59Z" class="vp-ink"/>' : accessory === 'bow' ? '<path d="M23 50L32 53L41 50V57L32 54L23 57Z" class="vp-ink"/>' : '') + extra + (reaction === 'cuddle' ? '<path d="M7 26C1 20 5 15 9 20C13 15 17 20 9 27Z" class="vp-fill"/>' : reaction === 'feed' ? '<path d="M22 55H42L39 61H25Z" class="vp-fill"/>' : reaction === 'play' ? '<circle cx="53" cy="56" r="6" class="vp-fill"/><path d="M48 53L58 59" class="vp-line"/>' : '') + '</svg>';
   },
 
   snapshot() {
     const enabled = VexProgress.enabled('pet');
     const mood = this.mood();
-    return { enabled, mood, label: this.LABELS[mood], svg: enabled ? this.art(mood) : '' };
+    const s = this.state();
+    return { enabled, mood, label: this.LABELS[mood], svg: enabled ? this.art(mood, s.prefs.species, s.prefs.accessory) : '', prefs: s.prefs, snacks: s.snacks, plays: s.plays, cuddles: s.cuddles, reactionUntil: s.reactionUntil || 0 };
   },
 
   _styled: false,

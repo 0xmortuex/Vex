@@ -61,7 +61,6 @@ describe('it switches itself off', () => {
     ['a meeting', () => { globalThis.MeetingMode = { active: () => true }; }, 'a meeting is running'],
     ['Focus', () => { globalThis.FocusMode = { active: true, until: 0 }; }, 'Focus is on'],
     ['battery saver', () => { globalThis.BatteryMode = { isLean: () => true }; }, 'the PC is saving battery'],
-    ['reduced motion', () => { document.documentElement.setAttribute('data-reduce-motion', ''); }, 'reduced motion is on'],
     ['Simple mode', () => { globalThis.VexSimpleMode = { isSimple: () => true }; }, 'Simple mode is on'],
     ['Minimal Vex', () => { globalThis.VexMinimalMode = { isOn: () => true }; }, 'Minimal Vex is on'],
   ])('during %s', (_n, arrange, reason) => {
@@ -71,6 +70,30 @@ describe('it switches itself off', () => {
     expect(P.autoOffReason()).toBe(reason);
     expect(P.allowed('pet')).toBe(false);
     expect(P.why('pet')).toMatch(/paused because/);
+  });
+  it('keeps an opted-in static pet under reduced motion, including in the New Tab payload', () => {
+    document.documentElement.setAttribute('data-reduce-motion', '');
+    expect(P.level()).toBe('off');
+    expect(P.allowed('living')).toBe(false);
+    expect(P.allowed('pet')).toBe(true);
+    globalThis.VexProgress = fresh('fun/fun-core.js').VexProgress;
+    globalThis.VexPet = fresh('fun/vex-pet.js').VexPet;
+    VexProgress.setEnabled('pet', true);
+    expect(VexProgress.allows('pet')).toBe(true);
+    const { VexNewTab } = fresh('vex-integration.js');
+    expect(VexNewTab.snapshot().pet.svg).toContain('<svg');
+    globalThis.VexSimpleMode = { isSimple: () => true };
+    expect(P.allowed('pet')).toBe(false);
+    expect(VexNewTab.snapshot().pet).toBeUndefined();
+    delete globalThis.VexPet;
+  });
+  it('keeps a static pet with the OS reduced-motion preference, but still respects explicit Off', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    try {
+      expect(P.allowed('pet')).toBe(true);
+      P.setLevel('off');
+      expect(P.allowed('pet')).toBe(false);
+    } finally { vi.unstubAllGlobals(); }
   });
 });
 

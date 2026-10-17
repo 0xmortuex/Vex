@@ -3567,6 +3567,8 @@
   <script src="js/living-core.js"></script>
   <script src="js/seasonal-worlds.js"></script>
   <script src="js/weather-layer.js"></script>
+  <link rel="stylesheet" href="css/pet-companion.css">
+  <script src="js/fun/pet-companion.js"></script>
   <script>
     (function () {
       var SVG_OK = { svg: 1, g: 1, path: 1, circle: 1, ellipse: 1, rect: 1, line: 1 };
@@ -3644,10 +3646,13 @@
           shelf.appendChild(d);
         });
         var petBox = document.getElementById('vex-newtab-pet');
+        if (typeof VexPetCompanion !== 'undefined') VexPetCompanion.render(petBox, n.pet && typeof n.pet.svg === 'string' && n.pet.svg.length <= 6000 ? n.pet : null, cleanSvg);
+        else {
         petBox.textContent = '';
         if (n.pet && typeof n.pet.svg === 'string' && n.pet.svg.length <= 6000) {
           var svg = cleanSvg(n.pet.svg);
           if (svg) { petBox.appendChild(svg); petBox.setAttribute('aria-label', String(n.pet.label || 'Vex Pet').slice(0, 80)); }
+        }
         }
         box.hidden = !shelf.childNodes.length && !petBox.childNodes.length;
         living(n);

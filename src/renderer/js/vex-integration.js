@@ -63,7 +63,7 @@ const VexNewTab = {
     if (!VexProgress.enabled('pet') || !VexProgress.allows('pet')) return null;
     const s = VexPet.snapshot();
     if (!s || !s.enabled || typeof s.svg !== 'string' || !s.svg || s.svg.length > this.MAX_SVG) return null;
-    return { label: String(s.label), svg: s.svg };
+    return { label: String(s.label), svg: s.svg, mood: s.mood, prefs: s.prefs, snacks: s.snacks, plays: s.plays, cuddles: s.cuddles, reactionUntil: s.reactionUntil };
   },
 
   // The shelf, as text. A component is drawn into a detached element and its
@@ -121,7 +121,9 @@ const VexNewTab = {
       if (v) out[k] = v;
     }
     // Quiet means nothing moves or draws: the page is given no living layer, no pet.
-    if (out.quiet) { delete out.pet; delete out.living; }
+    // _pet() applies its own gate: reduced motion may keep a still pet even
+    // while animated living layers are quiet.
+    if (out.quiet) { delete out.living; }
     // Bounded: drop the heavy parts rather than hand over an oversized value.
     for (const drop of ['widgets', 'pet', 'living']) {
       if (JSON.stringify(out).length <= this.MAX_JSON) break;

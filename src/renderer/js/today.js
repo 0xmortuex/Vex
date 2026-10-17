@@ -26,6 +26,12 @@ const VexToday = {
     const b = window.vex && window.vex.reminders;
     if (b && typeof b.onFired === 'function') b.onFired(() => this.refresh());
     if (!this._calendarWired) { this._calendarWired = true; document.addEventListener('vex:calendar-updated', () => this.refresh()); }
+    if (!this._extrasWired) {
+      this._extrasWired = true;
+      for (const event of ['vex:fun-changed', 'vex:pet-changed', 'vex:playfulness-changed', 'vex:game-mode']) {
+        document.addEventListener(event, () => this.refresh().catch(err => console.error('[NewTab] extras refresh failed:', err)));
+      }
+    }
     return true;
   },
 

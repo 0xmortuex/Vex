@@ -17,6 +17,7 @@
   const state = { tier: 'all', cat: 'all', root: null, prevFocus: null };
 
   function displayName() {
+    if (window.ProfilesUI?.current()) return window.ProfilesUI.identity().name;
     const p = V.profile().name;
     if (p) return p;
     try { return localStorage.getItem('vex.userName') || ''; } catch { return ''; }
@@ -75,6 +76,10 @@
         </div>
         <button type="button" class="btn-secondary vm-close" id="vm-close">Close</button>
       </div>
+      <div class="vm-actions" style="margin:10px 0;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-primary" id="vm-play-room">Play room</button>
+        <button type="button" class="btn-secondary" id="vm-browser-profiles">Switch or manage browser profiles</button>
+      </div>
       <div class="vm-stats">
         <div class="vm-stat"><b>${V.unlockAll() ? st.shown : st.earned} / ${st.total}</b><span>Medals</span>${unlockLine}</div>
         <div class="vm-stat"><b>${lv.xp}</b><span>Points</span></div>
@@ -95,8 +100,18 @@
 
     const q = (s) => rootEl.querySelector(s);
     q('#vm-close').addEventListener('click', close);
-    q('#vm-name').addEventListener('change', (e) => { V.setProfile({ name: e.target.value }); V.runChecks && V.runChecks(); });
-    rootEl.querySelectorAll('[data-avatar]').forEach(b => b.addEventListener('click', () => { V.setProfile({ avatar: b.dataset.avatar }); render(); const n = rootEl.querySelector('[data-avatar="' + b.dataset.avatar + '"]'); if (n) n.focus(); }));
+    q('#vm-name').addEventListener('change', async (e) => {
+      const name = e.target.value.trim();
+      if (!name) { e.target.value = displayName(); return; }
+      try {
+        if (window.ProfilesUI?.current()) await window.ProfilesUI.saveIdentity(name);
+        else V.setProfile({ name });
+        V.runChecks && V.runChecks();
+      } catch (err) { e.target.value = displayName(); window.showToast?.('Could not save the profile name: ' + err.message, 'error'); }
+    });
+    q('#vm-play-room').addEventListener('click', () => { close(); window.VexPlayRoom?.open(); });
+    q('#vm-browser-profiles').addEventListener('click', () => { close(); window.ProfilesUI?.openManager(); });
+    rootEl.querySelectorAll('[data-avatar]').forEach(b => b.addEventListener('click', () => { V.setProfile({ avatar: b.dataset.avatar }); window.ProfilesUI?.paint(); render(); const n = rootEl.querySelector('[data-avatar="' + b.dataset.avatar + '"]'); if (n) n.focus(); }));
     rootEl.querySelectorAll('[data-tier]').forEach(b => b.addEventListener('click', () => { state.tier = b.dataset.tier; render(); const n = rootEl.querySelector('[data-tier="' + state.tier + '"]'); if (n) n.focus(); }));
     q('#vm-cat').addEventListener('change', (e) => { state.cat = e.target.value; render(); const n = rootEl.querySelector('#vm-cat'); if (n) n.focus(); });
     q('#vm-export').addEventListener('click', () => exportImage().catch(err => window.showToast?.('Could not export the image: ' + ((err && err.message) || err), 'error')));
@@ -112,6 +127,7 @@
     o.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
     document.body.appendChild(o);
     state.root = o;
+    window.ProfilesUI?.hubOpen(true);
     render();
     // Opening it is a real action: it earns its own medal.
     try { V.award('meet-your-profile'); } catch { /* not defined */ }
@@ -122,6 +138,7 @@
     if (!state.root) return;
     state.root.remove();
     state.root = null;
+    window.ProfilesUI?.hubOpen(false);
     try { if (state.prevFocus && state.prevFocus.focus) state.prevFocus.focus(); } catch { /* gone */ }
   }
 
@@ -222,5 +239,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  window.VexProfile = { open, close, render, exportSvg, exportImage };
+  window.VexProfile = { open, close, render, exportSvg, exportImage, isOpen: () => !!state.root };
 })();

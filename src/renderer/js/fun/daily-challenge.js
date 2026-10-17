@@ -15,6 +15,14 @@ const VexDailyChallenge = {
   KEY: 'vex.fun.challenge',
 
   POOL: [
+    { id: 'pixel-creature', text: 'Draw a tiny creature in Ctrl+K > Play room > Pixel postcard.', manual: true, target: 1 },
+    { id: 'memory-garden', text: 'Find eight matching pairs in Ctrl+K > Play room > Memory garden.', manual: true, target: 1 },
+    { id: 'pet-party', text: 'Give your pet a new look, then play a round of ball on the New Tab page.', manual: true, target: 1 },
+    { id: 'tiny-story', text: 'Write a six-word story with a completely ridiculous ending.', manual: true, target: 1 },
+    { id: 'echo-tiles', text: 'Try five rounds of Echo tiles in Ctrl+K > Play room.', manual: true, target: 1 },
+    { id: 'silly-prompt', text: 'Keep one silly idea in Ctrl+K > Play room > Silly little ideas.', manual: true, target: 1 },
+    { id: 'pixel-sandwich', text: 'Make the most questionable pixel sandwich you can in Play room.', manual: true, target: 1 },
+    { id: 'fictional-band', text: 'Invent a band name and its wildly improbable first album title.', manual: true, target: 1 },
     { id: 'close-tabs',   text: 'Close 5 tabs you no longer need.',        auto: 'tabs',     target: 5 },
     { id: 'try-feature',  text: 'Try one Vex feature you have not used.',   auto: 'feature',  target: 1 },
     { id: 'command-bar',  text: 'Use the command bar (Ctrl+K) 3 times.',    auto: 'commands', target: 3 },

@@ -21,10 +21,10 @@ const VexProgress = {
   KEY: 'vex.fun',
   FLAGS: ['pet', 'discovery', 'levels', 'challenge'],
   LABELS: {
-    pet: { label: 'Vex Pet', hint: 'A small companion on the New Tab page. It is only decoration: sleepy at night, cheerful after a focus session.' },
+    pet: { label: 'Vex Pet', hint: 'Open a New Tab, then click your companion for snacks, a ball game, cuddles, naps and appearance options. Drag it to move it, or use arrow keys while it is focused. Hover to cuddle. Care is optional; nothing decays while you are away. Hidden while Playfulness is Off or a quiet mode is active.' },
     discovery: { label: 'Discovery log', hint: 'Keeps a list of the Vex features you have tried, and counts how many are left to find.' },
     levels: { label: 'Browser levels', hint: 'Points for useful things: tidying tabs, clearing the inbox, finishing the reading queue, writing notes. Never for time spent.' },
-    challenge: { label: 'Daily one-minute challenge', hint: 'One small idea a day, such as closing five tabs you do not need. Skip it any time: nothing happens.' },
+    challenge: { label: 'Daily one-minute challenge', hint: 'A little idea a day: pixel creatures, memory games, silly stories, pet play or a small browser task. Skip any time. Find the games in Ctrl+K > Play room.' },
   },
 
   // Tests replace this.
@@ -89,7 +89,10 @@ const VexProgress = {
   // meeting, battery saver, reduced motion or Simple mode.
   playfulOff() { return typeof VexPlayfulness !== 'undefined' && VexPlayfulness.isOff(); },
   // May this kind of playful thing appear now? (kinds: VexPlayfulness.NEEDS)
-  allows(kind) { return !this.silenced() && (typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed(kind)); },
+  allows(kind) {
+    if (kind === 'pet' && typeof VexPlayfulness !== 'undefined') return !this.gameActive() && !this.quiet() && VexPlayfulness.allowed(kind);
+    return !this.silenced() && (typeof VexPlayfulness === 'undefined' || VexPlayfulness.allowed(kind));
+  },
 
   // The playful kind each switch is (js/vex-playfulness.js NEEDS).
   KIND: { pet: 'pet', discovery: 'delight', levels: 'delight', challenge: 'delight' },

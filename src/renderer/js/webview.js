@@ -731,7 +731,10 @@ const WebviewManager = {
         if (!_isTrustedStartPage(emitterUrl)) return;
         try {
           const cmd = JSON.parse(e.message.slice(8));
-          if (cmd.type === 'navigate' && cmd.url) {
+          if (cmd.type === 'pet-action') {
+            if (cmd.action === 'refresh' && typeof VexToday !== 'undefined') VexToday.refresh().catch(err => console.error('[Pet] refresh failed:', err));
+            else if (typeof VexPet !== 'undefined') VexPet.interact(cmd.action, cmd.prefs);
+          } else if (cmd.type === 'navigate' && cmd.url) {
             // Navigate THIS webview (the start-page tab that emitted the command)
             // rather than spawning a new tab. Matches Chrome's new-tab page where
             // search submissions and shortcut clicks replace the current tab's

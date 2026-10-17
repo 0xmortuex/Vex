@@ -52,6 +52,7 @@ const VexPlayfulness = {
   // Off in Simple mode and Minimal Vex: automatic, because those two lower the level to Off (autoOffReason).
   // Sound: none is on by default (every sound switch below is off until chosen; the test reads them).
   MODULES: [
+    { id: 'play-room', file: 'play-room.js', explicit: true, why: 'opens only when chosen; still, untimed games under reduced motion; no ambient sound or animation' },
     { id: 'medals', file: 'vex-medals.js', kind: 'medal-toast', gate: "allowed('medal-toast')" },
     { id: 'levels', file: 'fun/levels.js', kind: 'celebrate', gate: "VexProgress.allows('celebrate')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
     { id: 'vex-pet', file: 'fun/vex-pet.js', kind: 'pet', gate: "VexProgress.allows('pet')", gateFile: 'fun/fun-core.js', gateRoot: 'VexPlayfulness.allowed(kind)' },
@@ -97,7 +98,7 @@ const VexPlayfulness = {
   isExplicit() { return this._def().isExplicit(this.KEY); },
 
   // Why the chosen level is being treated as Off right now, or ''.
-  autoOffReason() {
+  autoOffReason(staticPet = false) {
     if (this._quietSwitch()) return 'the quiet switch is on';
     if (typeof AttentionState !== 'undefined') {
       const src = AttentionState.get().sources.map(s => s.id);
@@ -106,8 +107,8 @@ const VexPlayfulness = {
       if (src.includes('focus')) return 'Focus is on';
     }
     try { if (typeof BatteryMode !== 'undefined' && BatteryMode && typeof BatteryMode.isLean === 'function' && BatteryMode.isLean()) return 'the PC is saving battery'; } catch (err) { console.error('[Playfulness] battery state unreadable:', err); }
-    try { if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no media queries here */ }
-    try { if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-reduce-motion')) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no document */ }
+    try { if (!staticPet && typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no media queries here */ }
+    try { if (!staticPet && typeof document !== 'undefined' && document.documentElement.hasAttribute('data-reduce-motion')) return 'reduced motion is on'; } catch { /* vex-allow-empty-catch: no document */ }
     try { if (typeof VexSimpleMode !== 'undefined' && VexSimpleMode.isSimple()) return 'Simple mode is on'; } catch (err) { console.error('[Playfulness] Simple mode unreadable:', err); }
     try { if (typeof VexMinimalMode !== 'undefined' && VexMinimalMode.isOn()) return 'Minimal Vex is on'; } catch (err) { console.error('[Playfulness] Minimal mode unreadable:', err); }
     return '';
@@ -124,6 +125,9 @@ const VexPlayfulness = {
   allowed(kind) {
     const need = this.NEEDS[kind];
     if (!need) throw new Error('Unknown playful thing "' + kind + '"');
+    // Reduced motion disables animation, not the opted-in pet's still image.
+    // All other quiet conditions, including Simple mode, still apply.
+    if (kind === 'pet') return !this.autoOffReason(true) && this._rank(this.chosen()) >= this._rank(need);
     return this._rank(this.level()) >= this._rank(need);
   },
   // '' when allowed, else a sentence for a tooltip.

@@ -24,7 +24,11 @@ const ProfilesUI = {
     this._btn = document.getElementById('btn-profile');
     if (!this._btn) return;
     if (window.VexTabPolicy?.isPrivateWindow || !window.vex?.profiles) { this._btn.hidden = true; return; }
-    this._btn.addEventListener('click', () => (this._menu ? this.close() : this.open()));
+    this._btn.addEventListener('click', () => {
+      if (window.VexProfile?.isOpen()) window.VexProfile.close();
+      else if (this._menu) this.close();
+      else this.open().catch(err => window.showToast?.('Could not open your profile: ' + this.message(err), 'error'));
+    });
     document.getElementById('setting-profiles-open')?.addEventListener('click', () => this.open());
     try { await this.refresh(); }
     catch (err) { window.VexProblems?.note('Profiles', 'Could not read the profile list', err); }
@@ -45,6 +49,17 @@ const ProfilesUI = {
   esc(s) { return window.escapeHtml ? window.escapeHtml(String(s ?? '')) : String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); },
 
   current() { return this._state?.profiles?.find(p => p.current) || null; },
+  identity() {
+    const me = this.current(), personal = window.VexMedals?.profile();
+    return { name: personal?.name || me?.name || 'Your profile', avatar: personal?.avatar || 'sunrise' };
+  },
+  hubOpen(on) { this._btn?.setAttribute('aria-expanded', String(on)); },
+  async saveIdentity(name) {
+    const me = this.current();
+    if (me && window.vex?.profiles) this._state = await window.vex.profiles.update(me.id, { name });
+    window.VexMedals?.setProfile({ name });
+    this.paint();
+  },
 
   // What the window is called: just "Vex" while there is only one profile.
   titleFor(state) {
@@ -56,6 +71,9 @@ const ProfilesUI = {
 
   async refresh() {
     this._state = await window.vex.profiles.list();
+    const me = this.current(), name = window.VexMedals?.profile().name;
+    if (me && name && me.name !== name) this._state = await window.vex.profiles.update(me.id, { name });
+    else if (me && !name && me.name !== 'Default') window.VexMedals?.setProfile({ name: me.name });
     this.paint();
     return this._state;
   },
@@ -64,13 +82,14 @@ const ProfilesUI = {
     const me = this.current();
     if (!me || !this._btn) return;
     const several = (this._state.profiles || []).length > 1 || !me.isDefault;
-    this._btn.innerHTML = `<span class="profile-btn-icon" aria-hidden="true">${this.icon(me.icon, 16)}</span>` +
+    const personal = window.VexMedals;
+    this._btn.innerHTML = `<span class="profile-btn-icon" aria-hidden="true">${personal ? personal.avatarSvg(this.identity().avatar, 20) : this.icon(me.icon, 16)}</span>` +
       (several ? `<span class="profile-btn-dot" aria-hidden="true" style="--pc:${this.safeColor(me.color)}"></span>` : '');
-    const label = several ? `Profile: ${me.name}` : 'Profiles';
+    const label = personal ? `Profile: ${this.identity().name}` : several ? `Profile: ${me.name}` : 'Profiles';
     this._btn.title = label;
     this._btn.setAttribute('aria-label', label);
     this._btn.setAttribute('aria-haspopup', 'dialog');
-    this._btn.setAttribute('aria-expanded', this._menu ? 'true' : 'false');
+    this._btn.setAttribute('aria-expanded', this._menu || window.VexProfile?.isOpen() ? 'true' : 'false');
     document.title = this.titleFor(this._state);
     document.body.dataset.vexProfile = me.id;
   },
@@ -78,6 +97,15 @@ const ProfilesUI = {
   // ---- the menu ------------------------------------------------------------
 
   async open() {
+    if (!window.VexProfile && window.VexLazy?.ensure) await window.VexLazy.ensure('js/vex-medals-profile.js');
+    if (window.VexProfile) {
+      try { await this.refresh(); } catch (err) { window.showToast?.('Could not read profiles: ' + this.message(err), 'error'); return; }
+      this.close(); window.VexProfile.open(); return;
+    }
+    return this.openManager();
+  },
+
+  async openManager() {
     try { await this.refresh(); }
     catch (err) { window.showToast?.('Could not read the profiles: ' + this.message(err), 'error', 5000); return; }
     this.close();
@@ -124,12 +152,13 @@ const ProfilesUI = {
     const list = this._state?.profiles || [];
     const me = this.current();
     const rows = list.map(p => {
+      const name = p.current ? this.identity().name : p.name;
       const state = p.current ? 'This window' : (p.running ? 'Open' : '');
       const canDelete = !p.isDefault && !p.current;
       return `<div class="pm-row${p.current ? ' current' : ''}">
         <button type="button" class="pm-open" data-act="open" data-id="${this.esc(p.id)}" title="${p.current ? 'This window' : 'Open ' + this.esc(p.name) + ' in its own window'}">
-          <span class="pm-avatar" style="--pc:${this.safeColor(p.color)}" aria-hidden="true">${this.icon(p.icon, 15)}</span>
-          <span class="pm-name">${this.esc(p.name)}</span>
+          <span class="pm-avatar" style="--pc:${this.safeColor(p.color)}" aria-hidden="true">${p.current && window.VexMedals ? window.VexMedals.avatarSvg(this.identity().avatar, 24) : this.icon(p.icon, 15)}</span>
+          <span class="pm-name">${this.esc(name)}</span>
           ${state ? `<span class="pm-state">${state}</span>` : ''}
         </button>
         <button type="button" class="pm-mini" data-act="edit" data-id="${this.esc(p.id)}" title="Rename or recolour ${this.esc(p.name)}" aria-label="Edit ${this.esc(p.name)}">${this.icon('edit', 14)}</button>
@@ -137,7 +166,8 @@ const ProfilesUI = {
       </div>`;
     }).join('');
     m.innerHTML = `
-      <div class="pm-head">Profiles</div>
+      <div class="pm-head">Browser profiles</div>
+      <button type="button" class="pm-action" data-act="my-profile">${this.icon('user', 15)}<span>My profile, XP and play</span></button>
       <div class="pm-list">${rows}</div>
       <div class="pm-sep" role="separator"></div>
       <button type="button" class="pm-action" data-act="add">${this.icon('plus', 15)}<span>Add profile</span></button>
@@ -147,6 +177,7 @@ const ProfilesUI = {
   },
 
   async act(what, id) {
+    if (what === 'my-profile') { this.close(); window.VexProfile?.open(); return; }
     const p = (this._state?.profiles || []).find(x => x.id === id);
     if (what === 'open') return this.openProfile(p);
     if (what === 'edit') return this.renderForm(p);
@@ -243,6 +274,7 @@ const ProfilesUI = {
     try {
       if (p) {
         this._state = await window.vex.profiles.update(p.id, look);
+        if (p.current) window.VexMedals?.setProfile({ name });
         this.paint();
         this.renderList(); this.place();
         window.showToast?.(`Saved ${name}`);

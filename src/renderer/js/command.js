@@ -804,8 +804,10 @@ const CommandBar = {
       // put Search first (found 2026-09-29).
       const rq = typeof VexQuickCommands !== 'undefined' && VexQuickCommands.withoutOpener ? VexQuickCommands.withoutOpener(q) : q;
       const ranked = this._guard('commands', () => this._rankCommands(rq, true), []);
+      const features = this._guard('features', () => this._featureResults(rq, ranked.map(e => e.c)), []);
       const both = ranked.map(e => ({ item: e.c, score: e.score + 0.5 }))
         .concat(this._guard('tools', () => this._toolResults(rq, true), []).map(e => ({ item: e.r, score: e.score })))
+        .concat(features.map(item => ({ item, score: item.matchScore })))
         .sort((a, b) => b.score - a.score);
       this.results.push(...both.filter(e => e.score >= 80).map(e => e.item));
       this.results.push(...quickAfter);
@@ -829,13 +831,8 @@ const CommandBar = {
       // (AI fallback removed — use Ctrl+J for Ask Vex AI)
 
       this.results.push(...both.filter(e => e.score < 80).map(e => e.item));
-      // And then what Vex can DO, which is not the same list. A command is
-      // named after itself; the feature catalogue carries the words people
-      // actually type. "make text bigger" and "hide my ip for one site" both
-      // exist and neither matched a command name, so Ctrl+K said nothing.
-      const found = ranked.map(e => e.c);
-      if (this._isSlow('features')) late.push(['features', 'Library', () => this._featureResults(q, found)]);
-      else this.results.push(...this._guard('features', () => this._featureResults(q, found), []));
+      // Feature names participate in the same ranking as commands and tools;
+      // a direct feature match must not wait behind weak substring matches.
       // Providers added with registerProvider(): they answer after the first
       // paint unless they say slow: false.
       for (const p of this._providers) {
@@ -1169,25 +1166,31 @@ const CommandBar = {
     } catch (err) { console.error('[Command] clipboard history failed:', err); throw err; }
   },
 
-  // Features whose own words match, that the command search did not already
-  // find. Deliberately last and deliberately few: this is the safety net for
-  // a query that would otherwise come back with nothing but a web search,
-  // not a second opinion on a query that already worked.
+  // Features whose own words match, not already represented by a command.
   FEATURE_HITS: 4,
 
   _featureResults(q, alreadyFound) {
-    if (!q || q.length < 3 || typeof VexFeatures === 'undefined') return [];
+    if (!q || q.length < 2 || typeof VexFeatures === 'undefined') return [];
     let hits = [];
     try { hits = VexFeatures.search(q) || []; }
     catch (err) { console.warn('[Command] the feature search failed:', err.message); return []; }
     const have = new Set((alreadyFound || []).map(c => c.id));
     return hits
       .filter(f => !f.cmd || !have.has(f.cmd))
-      .slice(0, this.FEATURE_HITS)
       .map(f => {
+        const words = _tr().fold(q).split(/\s+/).filter(Boolean);
+        const keywords = _tr().fold(f.phrases || '').split(/\s+/);
+        const keywordMatch = words.every(word => keywords.some(key => key.startsWith(word)));
+        const nameScore = this._scoreCommand(q, { id: f.id, label: VexFeatures.nameOf(f), hint: f.phrases || f.what || '' });
+        return { f, score: Math.max(nameScore, keywordMatch ? 80 : 40) };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, this.FEATURE_HITS)
+      .map(({ f, score }) => {
         const name = VexFeatures.nameOf(f);
         return {
           id: 'feature:' + f.id,
+          matchScore: score,
           label: name,
           hint: f.what || 'In the Library',
           icon: VexFeatures.iconOf(f),
