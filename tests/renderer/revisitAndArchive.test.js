@@ -16,8 +16,13 @@ describe('VexRevisit', () => {
     vi.resetModules();
     suggest = vi.fn(() => true);
     globalThis.VexAttention = { suggest };
-    globalThis.PageWatch = { list: () => [], isLocal: () => false, refusalFor: () => '' };
+    globalThis.PageWatch = { list: () => [], isLocal: () => false, refusalFor: () => '', _steady: (t) => String(t).replace(/s+/g, ' ').trim() };
+    globalThis.WebviewManager = { webviews: new Map([['t', {}], ['p', {}]]) };
+    // The page says something different on every visit unless a test says otherwise.
+    let visit = 0;
+    window.vexGuestEval = vi.fn(async () => 'The words of this page, as they stood on visit ' + (visit++) + ', long enough to count.');
     ({ VexRevisit: R } = fresh(JS + 'revisit-watch.js'));
+    R.SETTLE_MS = 0;
   });
 
   it('keys a page by host and path and ignores fronts, searches and other schemes', () => {
@@ -50,21 +55,22 @@ describe('VexRevisit', () => {
     expect(R.note(u, 'Item', NOW + 2 * DAY + 6 * 3600 * 1000).suggest).toBe(false);
   });
 
-  it('adds one inbox row on the fifth open and none for a private tab, a watched page or a local page', () => {
+  it('adds one inbox row on the fifth open and none for a private tab, a watched page or a local page', async () => {
     globalThis.TabManager = { tabs: [{ id: 't', title: 'Item', partition: null }, { id: 'p', title: 'Item', partition: 'tor-1' }] };
     window.VexTabPolicy = { canRestore: (t) => !t.partition };
-    const nav = (tabId, url) => R.onNavigated({ tabId, url });
-    vi.useFakeTimers();
+    const settled = [];
+    const nav = (tabId, url) => { TabManager.tabs.find(t => t.id === tabId).url = url; const r = R.onNavigated({ tabId, url }); if (r && r.settled) settled.push(r.settled); return r; };
+    vi.useFakeTimers({ toFake: ['Date'] });
     for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('p', 'https://a.example/x'); }
     expect(R.keyOf('https://a.example/x') in JSON.parse(localStorage.getItem('vex.revisit') || '{}')).toBe(false);
-    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/x'); }
+    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/x'); await settled[settled.length - 1]; }
     expect(suggest).toHaveBeenCalledTimes(1);
     expect(suggest.mock.calls[0][0]).toMatchObject({ feature: 'revisit-watch', action: { key: 'watch:a.example/x' } });
     globalThis.PageWatch.list = () => [{ url: 'https://a.example/y' }];
-    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/y'); }
+    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/y'); await settled[settled.length - 1]; }
     expect(suggest).toHaveBeenCalledTimes(1);
     globalThis.PageWatch.isLocal = () => true;
-    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/z'); }
+    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 3600 * 1000); nav('t', 'https://a.example/z'); await Promise.all(settled); }
     expect(suggest).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
