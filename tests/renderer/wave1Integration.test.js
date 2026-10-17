@@ -50,8 +50,8 @@ describe('Screenshot to Code and the sensitivity gate', () => {
     expect(d.verdict).toBe('refuse');
   });
 
-  it('does not ask about the agent\'s own screenshots or ordinary chat', () => {
-    expect(VexSensitivity.decide('agent', { image: 'data:image/png;base64,AAAA', message: 'next' }).verdict).toBe('send');
+  it('does not ask about ordinary chat; since the picture rule (49d28f65) an agent screenshot is asked about like any picture', () => {
+    expect(VexSensitivity.decide('agent', { image: 'data:image/png;base64,AAAA', message: 'next' }).verdict).toBe('ask');
     expect(VexSensitivity.decide('chat', { message: 'hello' }).verdict).toBe('send');
   });
 
