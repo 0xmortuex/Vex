@@ -24,7 +24,7 @@ const QueuePodcast = {
     if (typeof ReadAloud !== 'undefined' && ReadAloud._s && typeof ReadAloud.stop === 'function') ReadAloud.stop(true);
     this._idx = 0; this._paused = false;
     this._buildBar();
-    window.showToast?.('Playing ' + this._items.length + ' saved article' + (this._items.length === 1 ? '' : 's'));
+    window.showToast?.('Playing ' + this._items.length + ' saved article' + VexPlural.s(this._items.length));
     this._playCurrent();
   },
 

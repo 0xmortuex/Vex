@@ -91,7 +91,7 @@ const VexBoosts = {
   // Custom JS has already run in the page; CSS we can take back, JS we cannot.
   // Say which, instead of a flat "done".
   _offMessage(hadJs, tabs) {
-    const where = tabs ? ` on ${tabs} open tab${tabs === 1 ? '' : 's'}` : '';
+    const where = tabs ? ` on ${tabs} open tab${VexPlural.s(tabs)}` : '';
     return hadJs
       ? `Boost off — styling removed${where}. Custom JS already ran; reload the page to undo it.`
       : `Boost off — styling removed${where}.`;
@@ -255,7 +255,7 @@ const VexBoosts = {
     m.style.cssText = 'position:fixed;inset:0;z-index:100050;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;';
     m.innerHTML = `<div role="dialog" aria-modal="true" aria-label="Boost this site" style="width:560px;max-width:94vw;max-height:88vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 24px 60px rgba(0,0,0,0.5)">
       <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">Boost ${esc(host)}</div>
-      <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 14px">Custom CSS and JS applied to every page on this site. ${(b.zaps || []).length} zapped element${(b.zaps || []).length === 1 ? '' : 's'}.</p>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 14px">Custom CSS and JS applied to every page on this site. ${(b.zaps || []).length} zapped element${VexPlural.s((b.zaps || []).length)}.</p>
       <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:5px">Custom CSS</label>
       <textarea id="bm-css" rows="6" spellcheck="false" placeholder="body { font-family: Georgia !important; }" style="width:100%;box-sizing:border-box;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;resize:vertical;font-family:'JetBrains Mono',monospace">${esc(b.css || '')}</textarea>
       <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin:12px 0 5px">Custom JS (runs at page load)</label>
@@ -291,7 +291,7 @@ const VexBoosts = {
       m.remove();
       if (!saved) { window.showToast?.('Zaps cleared for now, but the change could not be saved — they return when you restart Vex', 'error'); return; }
       window.VexUndo.offer({
-        message: `Brought back ${zaps.length} hidden element${zaps.length === 1 ? '' : 's'} on ${host}${tabs ? ` — ${tabs} open tab${tabs === 1 ? '' : 's'} updated` : ''}`,
+        message: `Brought back ${zaps.length} hidden element${VexPlural.s(zaps.length)} on ${host}${tabs ? ` — ${tabs} open tab${VexPlural.s(tabs)} updated` : ''}`,
         undo: () => this.restoreZaps(host, zaps),
       });
     });
@@ -339,7 +339,7 @@ const VexBoosts = {
     hosts.forEach(host => {
       const b = this.boosts[host];
       const bits = [];
-      if ((b.zaps || []).length) bits.push((b.zaps || []).length + ' zap' + ((b.zaps || []).length === 1 ? '' : 's'));
+      if ((b.zaps || []).length) bits.push((b.zaps || []).length + ' zap' + VexPlural.s((b.zaps || []).length));
       if (b.css) bits.push('CSS');
       if (b.js) bits.push('JS');
       const row = document.createElement('div');

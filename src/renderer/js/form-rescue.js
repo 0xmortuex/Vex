@@ -69,7 +69,7 @@ const FormRescue = {
       list.textContent = '';
       const entries = await this.list();
       if (!entries.length) { say('Nothing unfinished. Text you typed in a page you closed is kept here for 7 days.'); return; }
-      say(entries.length + ' page' + (entries.length === 1 ? '' : 's') + ' closed with unsent text. Stored encrypted on this computer.');
+      say(entries.length + ' page' + VexPlural.s(entries.length) + ' closed with unsent text. Stored encrypted on this computer.');
       for (const e of entries) {
         const box = document.createElement('div');
         box.style.cssText = 'padding:10px 14px;border-bottom:1px solid var(--border)';
@@ -96,7 +96,7 @@ const FormRescue = {
     if (localStorage.getItem(this.DAY_KEY) === day) return false;
     const entries = await this.list();
     if (!entries.length) return false;
-    const ok = VexAttention.suggest({ feature: 'form-rescue', id: 'day-' + day, title: 'You left ' + entries.length + ' page' + (entries.length === 1 ? '' : 's') + ' half-done', body: 'The text you typed is kept for 7 days.', action: { label: 'Open', key: 'open' } });
+    const ok = VexAttention.suggest({ feature: 'form-rescue', id: 'day-' + day, title: 'You left ' + entries.length + ' page' + VexPlural.s(entries.length) + ' half-done', body: 'The text you typed is kept for 7 days.', action: { label: 'Open', key: 'open' } });
     if (ok) localStorage.setItem(this.DAY_KEY, day);
     return ok;
   },

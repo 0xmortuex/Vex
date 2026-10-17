@@ -78,7 +78,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       const toClose = (plan.close || []).filter(id => ids.has(id) && id !== TabManager.activeTabId);
       const groups = (plan.groups || []).map(g => ({ ...g, ids: (g.ids || []).filter(id => ids.has(id)) })).filter(g => g.ids.length >= 2);
       const bits = [];
-      if (toClose.length) bits.push('close ' + toClose.length + ' tab' + (toClose.length === 1 ? '' : 's'));
+      if (toClose.length) bits.push('close ' + toClose.length + ' tab' + VexPlural.s(toClose.length));
       groups.forEach(g => bits.push('group ' + g.ids.length + ' as "' + g.name + '"'));
       const activeNote = keptActive ? 'That is the tab you are on — switch away from it first, or close it with Ctrl+W.' : '';
       // Nothing will happen: never the model's explanation, which may say

@@ -82,7 +82,7 @@ const BriefIntegration = {
           const s = RenewalRadar.snapshot();
           if (!s) return null;
           const out = (s.upcoming || []).slice(0, 5).map(u => ({ text: u.name + ' renews ' + u.next, detail: u.cost != null ? u.cost + ' ' + (u.currency || '') : '' }));
-          if (s.toConfirm) out.push({ text: s.toConfirm + ' possible subscription' + (s.toConfirm === 1 ? '' : 's') + ' to confirm' });
+          if (s.toConfirm) out.push({ text: s.toConfirm + ' possible subscription' + VexPlural.s(s.toConfirm) + ' to confirm' });
           return out.length ? { lines: out } : null;
         },
       },
@@ -92,7 +92,7 @@ const BriefIntegration = {
         build() {
           const s = MeetingCopilot.snapshot();
           if (!s || s.ended) return null;
-          return { lines: [{ text: s.title || 'Meeting', detail: s.decisions + ' decision' + (s.decisions === 1 ? '' : 's') + ', ' + s.actions + ' action' + (s.actions === 1 ? '' : 's') }] };
+          return { lines: [{ text: s.title || 'Meeting', detail: s.decisions + ' decision' + VexPlural.s(s.decisions) + ', ' + s.actions + ' action' + VexPlural.s(s.actions) }] };
         },
       },
     };

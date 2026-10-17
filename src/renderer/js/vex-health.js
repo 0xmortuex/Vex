@@ -110,7 +110,7 @@ const VexHealth = {
         const scan = await this.scan();
         draw(scan);
         const n = scan.findings.length;
-        say(n ? n + ' thing' + (n === 1 ? '' : 's') + ' found. Tick the repairs you want, then Repair selected.' : 'Everything checked is fine.');
+        say(n ? n + ' thing' + VexPlural.s(n) + ' found. Tick the repairs you want, then Repair selected.' : 'Everything checked is fine.');
       } catch (err) { say('The check could not run: ' + err.message, true); }
     };
 

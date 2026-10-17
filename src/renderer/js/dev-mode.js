@@ -170,7 +170,7 @@ const VexDevMode = {
             if (k && (k.startsWith('vex.tool.') || k === 'vex.toolFavourites')) doomed.push(k);
           }
           for (const k of doomed) localStorage.removeItem(k);
-          return `Cleared ${doomed.length} tool preference${doomed.length === 1 ? '' : 's'}`;
+          return `Cleared ${doomed.length} tool preference${VexPlural.s(doomed.length)}`;
         },
       },
       {

@@ -192,7 +192,7 @@ const ReadingQueue = {
         } else {
           const head = document.createElement('div');
           head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:12px;color:var(--text-muted)';
-          head.innerHTML = `<span style="flex:1">${r.picks.length} link${r.picks.length === 1 ? '' : 's'} · ${esc(this.fmt(r.total))}${r.left > 0 ? ' · ' + esc(this.fmt(r.left)) + ' to spare' : ''}</span>`;
+          head.innerHTML = `<span style="flex:1">${r.picks.length} link${VexPlural.s(r.picks.length)} · ${esc(this.fmt(r.total))}${r.left > 0 ? ' · ' + esc(this.fmt(r.left)) + ' to spare' : ''}</span>`;
           head.appendChild(small('Open them all', () => {
             if (typeof ReadLater === 'undefined') return;
             r.picks.forEach((it) => { if (!it.video) it.read = true; TabManager.createTab(it.video && typeof VideoLater !== 'undefined' ? VideoLater.resumeUrl(it) : it.url, it === r.picks[0]); });
@@ -213,7 +213,7 @@ const ReadingQueue = {
       footEl.appendChild(t);
       if (st.unmeasured && !this._gaming()) {
         footEl.appendChild(document.createTextNode(' · '));
-        footEl.appendChild(small('Work out ' + Math.min(st.unmeasured, this.MEASURE_BATCH) + ' missing time' + (st.unmeasured === 1 ? '' : 's'), async (b) => {
+        footEl.appendChild(small('Work out ' + Math.min(st.unmeasured, this.MEASURE_BATCH) + ' missing time' + VexPlural.s(st.unmeasured), async (b) => {
           b.disabled = true; b.textContent = 'Reading…';
           try { await this.measureMissing(); } catch (err) { window.showToast?.(err.message, 'error'); }
           draw();

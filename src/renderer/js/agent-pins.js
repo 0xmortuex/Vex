@@ -45,13 +45,13 @@ const VexAgentPins = {
   estimate(steps, { backend = 'local', maxMinutes = 0 } = {}) {
     const n = Math.max(0, Math.floor(Number(steps) || 0));
     if (backend === 'cloud') {
-      return { steps: n, seconds: null, overBudget: false, text: n + ' step' + (n === 1 ? '' : 's') + ' on the cloud model. How long that takes depends on the pages; it has not been measured.' };
+      return { steps: n, seconds: null, overBudget: false, text: n + ' step' + VexPlural.s(n) + ' on the cloud model. How long that takes depends on the pages; it has not been measured.' };
     }
     const seconds = Math.round(n * this.SECONDS_PER_STEP_LOCAL);
     const over = maxMinutes > 0 && seconds > maxMinutes * 60;
     return {
       steps: n, seconds, overBudget: over,
-      text: 'About ' + this.duration(seconds) + ' for ' + n + ' step' + (n === 1 ? '' : 's') + ' on the local model (about ' + this.SECONDS_PER_STEP_LOCAL + ' s a step, measured).'
+      text: 'About ' + this.duration(seconds) + ' for ' + n + ' step' + VexPlural.s(n) + ' on the local model (about ' + this.SECONDS_PER_STEP_LOCAL + ' s a step, measured).'
         + (over ? ' That is more than your ' + maxMinutes + ' minute budget, so the run would stop before the end.' : ''),
     };
   },

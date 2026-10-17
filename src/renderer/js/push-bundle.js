@@ -170,13 +170,13 @@ const VexPushBundle = {
     if (!force && typeof AttentionDigest !== 'undefined' && AttentionDigest.enabled() && !overdue) return null;
     if (!force && now - oldest < this.BUNDLE_MS) return null;
     if (!force && VexMediaKit.quiet() && !overdue) return null;
-    const text = items.length + ' site notification' + (items.length === 1 ? '' : 's') + ' held for you: ' + this.describe(items) + '.';
+    const text = items.length + ' site notification' + VexPlural.s(items.length) + ' held for you: ' + this.describe(items) + '.';
     this.markReleased(items.map(i => i.id));
     const show = () => VexMediaKit.toast(text, 'info', 12000, { action: { label: 'See them', run: () => this.open() } });
     if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'asked', id: 'b' + now, title: text }, show);
     else show();
     if (typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: this.FEATURE, what: 'Showed ' + items.length + ' held site notification' + (items.length === 1 ? '' : 's') + ' together', why: 'You listed these sites to be bundled once an hour (' + this.describe(items) + ')' });
+      VexLedger.note({ feature: this.FEATURE, what: 'Showed ' + items.length + ' held site notification' + VexPlural.s(items.length) + ' together', why: 'You listed these sites to be bundled once an hour (' + this.describe(items) + ')' });
     }
     return text;
   },

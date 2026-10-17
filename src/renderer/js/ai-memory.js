@@ -243,7 +243,7 @@ const AIMemory = {
     if (!this.data.enabled) { body.appendChild(VexSettingsGroups.note('AI memory is switched off, so no fact is put into any request. Turn it on in Settings › AI Memory.')); return; }
     if (!li) { body.appendChild(VexSettingsGroups.note('No chat request has been made since Vex started.')); return; }
     const when = new Date(li.at).toLocaleTimeString();
-    body.appendChild(VexSettingsGroups.note('At ' + when + (li.where && li.where.host ? ' on ' + li.where.host : '') + (li.facts.length ? ': ' + li.facts.length + ' fact' + (li.facts.length === 1 ? '' : 's') + '.' : ': none applied.')
+    body.appendChild(VexSettingsGroups.note('At ' + when + (li.where && li.where.host ? ' on ' + li.where.host : '') + (li.facts.length ? ': ' + li.facts.length + ' fact' + VexPlural.s(li.facts.length) + '.' : ': none applied.')
       + ' With the cloud backend these are left out unless you ticked "include memory".'));
     const ul = document.createElement('ul'); ul.style.margin = '8px 0 0 18px';
     for (const x of li.facts) {

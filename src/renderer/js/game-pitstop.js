@@ -139,7 +139,7 @@ const GamePitstop = {
     return v && typeof v === 'object' ? v : null;
   },
 
-  _plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); },
+  _plural(n, w) { return n + ' ' + w + VexPlural.s(n); },
   _duration(min) { return min >= 60 ? Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : '') : this._plural(min, 'minute'); },
 
   summaryLine(card) {

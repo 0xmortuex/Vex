@@ -425,7 +425,7 @@ class TaskRun {
     this.ledger.note({
       feature: 'agent-task',
       what: this.safety.redact('Agent task ' + this.status + ': ' + this.goal.slice(0, 80)),
-      why: 'You approved the plan. ' + reads + ' read step' + (reads === 1 ? '' : 's') + ', ' + this.changes + ' change' + (this.changes === 1 ? '' : 's') + ' you allowed' + (this.shield.hits ? ', ' + this.shield.hits + ' instruction-like phrase' + (this.shield.hits === 1 ? '' : 's') + ' removed from pages' : '') + (this.reason ? '. ' + this.safety.redact(this.reason) : ''),
+      why: 'You approved the plan. ' + reads + ' read step' + VexPlural.s(reads) + ', ' + this.changes + ' change' + VexPlural.s(this.changes) + ' you allowed' + (this.shield.hits ? ', ' + this.shield.hits + ' instruction-like phrase' + VexPlural.s(this.shield.hits) + ' removed from pages' : '') + (this.reason ? '. ' + this.safety.redact(this.reason) : ''),
       stop: { kind: 'agent-kill' },
     });
   }
@@ -452,7 +452,7 @@ class TaskRun {
     if (clean.total) {
       this.shield.hits += clean.total;
       for (const x of clean.removed) { const e = this.shield.removed.find(y => y.id === x.id); if (e) e.count += x.count; else this.shield.removed.push({ ...x }); }
-      this._note('Removed ' + clean.total + ' instruction-like phrase' + (clean.total === 1 ? '' : 's') + ' from ' + String(origin).slice(0, 80) + ': page text is data, not orders');
+      this._note('Removed ' + clean.total + ' instruction-like phrase' + VexPlural.s(clean.total) + ' from ' + String(origin).slice(0, 80) + ': page text is data, not orders');
     }
     return { title: _Shield.sanitize(String(r.title || step.url || step.query || 'page')).text.slice(0, 120), text: clean.text.slice(0, T.MAX_OBSERVATION), origin: String(origin).slice(0, 200), removed: clean.removed };
   }

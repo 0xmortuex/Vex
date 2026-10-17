@@ -216,7 +216,7 @@ const DiscordMemory = {
       return out.join('\n');
     }
     out.push('Process ' + d.pid + ': ' + size(d.wsMB) + ' in memory' + (d.privMB != null ? ', ' + size(d.privMB) + ' private to it' : '') + (d.cpu != null ? ', ' + d.cpu.toFixed(0) + '% of a core now' : '') + '.');
-    if (d.sharedWith) out.push('Another ' + d.sharedWith + ' page' + (d.sharedWith === 1 ? '' : 's') + ' shares this process, so part of the number is not Discord’s.');
+    if (d.sharedWith) out.push('Another ' + d.sharedWith + ' page' + VexPlural.s(d.sharedWith) + ' shares this process, so part of the number is not Discord’s.');
     out.push('', 'Where the memory is, biggest first:');
     const base = d.privMB != null ? d.privMB : d.wsMB;
     const parts = [];

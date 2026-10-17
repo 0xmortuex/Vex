@@ -67,7 +67,7 @@ const PluginDev = {
       body.appendChild(S.note('No extension is being developed. Pick the folder that holds its manifest.json.'));
     } else {
       body.appendChild(S.note(st.name + ' ' + st.version + ' (manifest v' + st.manifestVersion + ') from ' + st.folder));
-      body.appendChild(S.note('Reloaded ' + st.reloads + ' time' + (st.reloads === 1 ? '' : 's') + (st.loadedAt ? ', last ' + DevDeskUtil.ago(st.loadedAt) : '') + '.'));
+      body.appendChild(S.note('Reloaded ' + st.reloads + ' time' + VexPlural.s(st.reloads) + (st.loadedAt ? ', last ' + DevDeskUtil.ago(st.loadedAt) : '') + '.'));
       if (st.lastError) {
         const e = S.note('Last problem: ' + st.lastError);
         e.style.color = 'var(--danger, #e5484d)';
@@ -75,7 +75,7 @@ const PluginDev = {
       }
       const rep = st.report;
       if (rep) {
-        body.appendChild(S.note('Read ' + rep.filesRead + ' source file' + (rep.filesRead === 1 ? '' : 's') + (rep.truncated ? ' (more were skipped: too many or too large)' : '') + '.'));
+        body.appendChild(S.note('Read ' + rep.filesRead + ' source file' + VexPlural.s(rep.filesRead) + (rep.truncated ? ' (more were skipped: too many or too large)' : '') + '.'));
         if (!rep.unsupported.length) body.appendChild(S.note('Nothing in the source uses an API Vex lacks.'));
         for (const u of rep.unsupported) {
           const row = DevDeskUtil.el('div', 'vexsr-rule');

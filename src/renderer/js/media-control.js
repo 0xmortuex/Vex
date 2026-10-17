@@ -167,7 +167,7 @@ const VexMediaControl = {
       try { const c = await this._run(r, this.mediaScript('pause')); n += Number(c) || 0; }
       catch (err) { window.VexProblems?.note('Media control', 'Could not pause ' + r.label, err); }
     }
-    window.showToast?.(n ? 'Paused ' + n + ' player' + (n === 1 ? '' : 's') : 'Nothing else was playing', 'info');
+    window.showToast?.(n ? 'Paused ' + n + ' player' + VexPlural.s(n) : 'Nothing else was playing', 'info');
     return n;
   },
 

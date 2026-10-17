@@ -237,7 +237,7 @@ const VexThreadDigest = {
     const render = (r) => {
       out.textContent = '';
       if (r.empty) { status.textContent = r.line; return; }
-      status.textContent = (r.first ? 'First time on this thread. ' : r.newCount + ' new paragraph' + (r.newCount === 1 ? '' : 's') + ' since you last read. ') + r.line + (r.remaining ? ' ' + r.remaining + ' new paragraphs were not read, so they stay unread.' : '');
+      status.textContent = (r.first ? 'First time on this thread. ' : r.newCount + ' new paragraph' + VexPlural.s(r.newCount) + ' since you last read. ') + r.line + (r.remaining ? ' ' + r.remaining + ' new paragraphs were not read, so they stay unread.' : '');
       const section = (title, items) => {
         const h = document.createElement('h4');
         h.textContent = title;
@@ -313,7 +313,7 @@ const VexThreadDigest = {
     el.appendChild(row);
     let n = 0;
     try { n = this.count(); } catch (err) { el.appendChild(VexSettingsGroups.note(err.message)); }
-    el.appendChild(VexSettingsGroups.note('Remembers ' + n + ' thread' + (n === 1 ? '' : 's') + ' (short fingerprints only, no text).'));
+    el.appendChild(VexSettingsGroups.note('Remembers ' + n + ' thread' + VexPlural.s(n) + ' (short fingerprints only, no text).'));
     el.appendChild(VexSettingsGroups.button('Forget all read points', async () => {
       if (typeof vexConfirm !== 'function') { window.showToast?.('The confirm dialog is unavailable', 'error'); return; }
       if (!(await vexConfirm({ title: 'Forget what you have read?', message: 'The next digest of any thread covers all of it again.', okLabel: 'Forget', danger: true }))) return;

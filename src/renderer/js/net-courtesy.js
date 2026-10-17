@@ -98,7 +98,7 @@ const VexNetCourtesy = {
     let n = 0;
     for (const id of [...this.live.keys()]) if (await this._pause(id)) n++;
     if (n && typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: this.FEATURE, what: 'Paused ' + n + ' download' + (n === 1 ? '' : 's') + ' while a game runs', why: 'Network courtesy mode is on; they resume when the game ends', undo: { kind: 'net-courtesy-resume', ids: [...run.paused].slice(0, 20) } });
+      VexLedger.note({ feature: this.FEATURE, what: 'Paused ' + n + ' download' + VexPlural.s(n) + ' while a game runs', why: 'Network courtesy mode is on; they resume when the game ends', undo: { kind: 'net-courtesy-resume', ids: [...run.paused].slice(0, 20) } });
     }
     return n;
   },
@@ -147,7 +147,7 @@ const VexNetCourtesy = {
     if (typeof VexLedger !== 'undefined') {
       VexLedger.registerUndo('net-courtesy-resume', async (token) => {
         const r = await this._resumeAll(Array.isArray(token.ids) ? token.ids : []);
-        if (r.failed) throw new Error(r.failed + ' download' + (r.failed === 1 ? '' : 's') + ' could not be resumed');
+        if (r.failed) throw new Error(r.failed + ' download' + VexPlural.s(r.failed) + ' could not be resumed');
       });
     }
     VexMediaKit.register({ id: 'net-courtesy', title: 'Network courtesy mode', keywords: 'game network downloads pause bandwidth megabytes', render: (b) => this.render(b) });

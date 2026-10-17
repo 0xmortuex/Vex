@@ -130,7 +130,7 @@ const CommandChains = {
       await new Promise(r => setTimeout(r, 350));
     }
     if (problems.length) {
-      window.showToast?.(`Chain "${chain.name}" finished with ${problems.length} problem${problems.length === 1 ? '' : 's'}: ${problems.join(', ')}`, 'error', 7000);
+      window.showToast?.(`Chain "${chain.name}" finished with ${problems.length} problem${VexPlural.s(problems.length)}: ${problems.join(', ')}`, 'error', 7000);
     }
     return { ok: !problems.length, problems };
   },
@@ -181,7 +181,7 @@ const CommandChains = {
     window.VexLedger?.note({ feature: 'command-chains', what: 'Ran the chain "' + chain.name + '" on a schedule', why: 'You scheduled it' + (this.writeSteps(chain).length ? ' and approved its steps' : '') });
     const r = await this.run(chain, { preview: false });
     if (!r.ok) throw new Error('"' + chain.name + '" finished with problems: ' + r.problems.join(', '));
-    return '"' + chain.name + '": ' + chain.steps.length + ' step' + (chain.steps.length === 1 ? '' : 's') + ' done';
+    return '"' + chain.name + '": ' + chain.steps.length + ' step' + VexPlural.s(chain.steps.length) + ' done';
   },
   _register() {
     if (typeof CommandBar === 'undefined' || !Array.isArray(CommandBar.commands)) return;

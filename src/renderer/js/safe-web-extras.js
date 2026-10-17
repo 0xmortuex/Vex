@@ -57,8 +57,8 @@ const SafeWebExtras = {
     if (t.error) return t.error;
     if (t.note) return t.note;
     if (!t.contacted) return 'This page loaded nothing from other sites.';
-    const cookieWords = t.withCookies ? `${t.withCookies} of them ${t.withCookies === 1 ? 'keeps' : 'keep'} ${t.cookies} cookie${t.cookies === 1 ? '' : 's'} here` : 'none of them keeps a cookie here';
-    return `Loaded from ${t.contacted} other site${t.contacted === 1 ? '' : 's'}; ${cookieWords}.`;
+    const cookieWords = t.withCookies ? `${t.withCookies} of them ${t.withCookies === 1 ? 'keeps' : 'keep'} ${t.cookies} cookie${VexPlural.s(t.cookies)} here` : 'none of them keeps a cookie here';
+    return `Loaded from ${t.contacted} other site${VexPlural.s(t.contacted)}; ${cookieWords}.`;
   },
 
   // ---- weekly breach re-check -----------------------------------------------------------------
@@ -193,7 +193,7 @@ const SafeWebExtras = {
       run.disabled = true;
       try {
         const r = await this.recheck({ force: true });
-        window.showToast?.(r.baseline ? `Checked. ${r.count} breached password${r.count === 1 ? '' : 's'} noted as the starting point.` : `Checked. ${r.fresh} new since last time.`);
+        window.showToast?.(r.baseline ? `Checked. ${r.count} breached password${VexPlural.s(r.count)} noted as the starting point.` : `Checked. ${r.fresh} new since last time.`);
       } catch (err) { window.showToast?.('The re-check could not run: ' + this._msg(err), 'error'); }
       run.disabled = false;
     });

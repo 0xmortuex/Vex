@@ -830,7 +830,7 @@ function vexOwnTextFocused(doc) {
   }
   document.getElementById('btn-reindex-open')?.addEventListener('click', () => {
     const n = HistoryIndexer?.reindexOpenTabs?.() || 0;
-    showToast(n > 0 ? `Re-indexing ${n} tab${n === 1 ? '' : 's'}…` : 'No unindexed open tabs');
+    showToast(n > 0 ? `Re-indexing ${n} tab${VexPlural.s(n)}…` : 'No unindexed open tabs');
     setTimeout(updateIndexingStats, 500);
   });
   document.getElementById('btn-clear-summaries')?.addEventListener('click', async () => {
@@ -977,7 +977,7 @@ function vexOwnTextFocused(doc) {
     if (!el || !window.TabGrouper) return;
     const n = Object.keys(TabGrouper.getPatterns()).length;
     const r = (TabGrouper.getRejectedPatterns?.() || []).length;
-    const patternsPart = n === 0 ? 'No patterns yet' : `${n} pattern${n === 1 ? '' : 's'} active`;
+    const patternsPart = n === 0 ? 'No patterns yet' : `${n} pattern${VexPlural.s(n)} active`;
     const rejectedPart = r > 0 ? ` \u00b7 ${r} rejected` : '';
     el.textContent = patternsPart + rejectedPart;
   }
@@ -1554,7 +1554,7 @@ function vexOwnTextFocused(doc) {
       // felt immediately rather than only on the next load.
       const stillUnlocked = CopyUnlock.reapplyAll();
       if (!saved) window.showToast?.('Changed for now, but the setting could not be saved — it resets when you restart Vex', 'error');
-      else if (stillUnlocked) window.showToast?.(`Copy unlock off. ${stillUnlocked} page${stillUnlocked === 1 ? '' : 's'} already unlocked stay that way until you reload them.`);
+      else if (stillUnlocked) window.showToast?.(`Copy unlock off. ${stillUnlocked} page${VexPlural.s(stillUnlocked)} already unlocked stay that way until you reload them.`);
     });
   }
 

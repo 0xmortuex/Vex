@@ -278,7 +278,7 @@ const VexHolidays = {
         try {
           if (f.size > 2 * 1024 * 1024) throw new Error('That file is over 2 MB; a holiday calendar is much smaller');
           const n = this.importIcs(await f.text());
-          window.showToast?.(n + ' new day' + (n === 1 ? '' : 's') + ' added', 'success');
+          window.showToast?.(n + ' new day' + VexPlural.s(n) + ' added', 'success');
           draw();
         } catch (err) { window.showToast?.(err.message, 'error'); }
       });

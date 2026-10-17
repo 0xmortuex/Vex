@@ -113,7 +113,7 @@ const VexWeekdaySet = {
     const common = this.common(st.days, wd, today);
     if (!common.length) {
       const have = Object.keys(st.days).filter(k => k < today && st.days[k].wd === wd).length;
-      return { wd, urls: [], why: have < this.NEED ? 'Vex has seen ' + have + ' ' + this.weekdayName(wd) + ' start' + (have === 1 ? '' : 's') + ' so far; it needs ' + this.NEED + ' to find a set.' : 'No pages were in ' + this.NEED + ' of your last ' + this.LAST + ' ' + this.weekdayName(wd) + ' starts.' };
+      return { wd, urls: [], why: have < this.NEED ? 'Vex has seen ' + have + ' ' + this.weekdayName(wd) + ' start' + VexPlural.s(have) + ' so far; it needs ' + this.NEED + ' to find a set.' : 'No pages were in ' + this.NEED + ' of your last ' + this.LAST + ' ' + this.weekdayName(wd) + ' starts.' };
     }
     const open = new Set(openUrls.map(u => this.normalize(u)));
     const urls = common.filter(u => !open.has(u));
@@ -150,13 +150,13 @@ const VexWeekdaySet = {
     }
     const day = this.weekdayName(c.wd);
     const title = 'Open your ' + day + ' set?';
-    const body = c.urls.length + ' page' + (c.urls.length === 1 ? '' : 's') + ' you usually open first: ' + c.urls.slice(0, 3).map(u => new URL(u).host).join(', ') + (c.urls.length > 3 ? '…' : '');
+    const body = c.urls.length + ' page' + VexPlural.s(c.urls.length) + ' you usually open first: ' + c.urls.slice(0, 3).map(u => new URL(u).host).join(', ') + (c.urls.length > 3 ? '…' : '');
     const run = () => { try { this.openSet(c.urls); } catch (err) { window.showToast?.(err.message, 'error'); } };
     if (typeof VexAttention === 'undefined') throw new Error('The attention gate is not loaded');
     st.offered = today;
     this._save(st);
     VexAttention.notify({ feature: 'weekday-set', label: 'Weekday set', urgency: 'useful', id: today, title, body, action: { label: 'Open the set', key: 'open' } },
-      () => window.showToast?.(title + ' ' + body, 'info', 15000, { action: { label: 'Open ' + c.urls.length + ' tab' + (c.urls.length === 1 ? '' : 's'), run } }));
+      () => window.showToast?.(title + ' ' + body, 'info', 15000, { action: { label: 'Open ' + c.urls.length + ' tab' + VexPlural.s(c.urls.length), run } }));
     this._lastOffer = c;
     return c;
   },

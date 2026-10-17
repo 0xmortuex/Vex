@@ -103,7 +103,7 @@ const StorageCeilings = {
         try {
           this.setLimits({ days: Number(inputs.days.value), maxMB: Number(inputs.maxMB.value), maxPages: Number(inputs.maxPages.value) });
           const r = await this.sendLimits();
-          window.showToast?.(r && r.dropped ? 'Recall trimmed: ' + r.dropped + ' older page' + (r.dropped === 1 ? '' : 's') + ' removed' : 'Recall limits saved');
+          window.showToast?.(r && r.dropped ? 'Recall trimmed: ' + r.dropped + ' older page' + VexPlural.s(r.dropped) + ' removed' : 'Recall limits saved');
         } catch (err) { this._note('Could not apply the Recall limits', err); window.showToast?.(err.message, 'error'); }
         draw();
       });

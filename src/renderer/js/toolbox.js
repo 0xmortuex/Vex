@@ -615,7 +615,7 @@ const Toolbox = {
       for (const f of fams) this._section(list, this._familyLabel(f), all.filter(t => t.family === f).map(toolCard));
       shown = all.length;
     }
-    m.querySelector('#tb-count').textContent = state.q ? `${shown} match${shown === 1 ? '' : 'es'}` : `${this.all().length} tools`;
+    m.querySelector('#tb-count').textContent = state.q ? `${shown} match${VexPlural.es(shown)}` : `${this.all().length} tools`;
     if (!list.children.length) {
       const none = document.createElement('div');
       none.style.cssText = 'padding:30px 0;text-align:center;color:var(--text-muted);font-size:13px';
@@ -743,7 +743,7 @@ const Toolbox = {
           const width = Math.max(0, ...res.map(([k]) => String(k).length));
           return {
             output: res.map(([k, v]) => `${String(k).padEnd(width)}   ${v}`).join('\n'),
-            note: `${res.length} value${res.length === 1 ? '' : 's'}`,
+            note: `${res.length} value${VexPlural.s(res.length)}`,
           };
         }
         return { output: ToolboxPacks.asText(res) };
@@ -842,11 +842,11 @@ const Toolbox = {
             for (let g = 1; g < m.length; g++) lines.push(`   $${g}  ${m[g] === undefined ? '(did not participate)' : m[g]}`);
             for (const [k, v] of Object.entries(m.groups || {})) lines.push(`   $<${k}>  ${v === undefined ? '(did not participate)' : v}`);
           });
-          return { output: lines.join('\n'), note: `${all.length} match${all.length === 1 ? '' : 'es'}` };
+          return { output: lines.join('\n'), note: `${all.length} match${VexPlural.es(all.length)}` };
         }
         return {
           output: all.map((m, i) => `${String(i + 1).padStart(3)}  @${String(m.index).padStart(5)}  ${m[0]}`).join('\n'),
-          note: `${all.length} match${all.length === 1 ? '' : 'es'}`,
+          note: `${all.length} match${VexPlural.es(all.length)}`,
         };
       },
     });
@@ -969,7 +969,7 @@ const Toolbox = {
         if (!rows.length) throw new Error('No rows found.');
         const head = opt.header ? rows[0] : rows[0].map((_, i) => 'column' + (i + 1));
         const body = opt.header ? rows.slice(1) : rows;
-        const note = `${body.length} row${body.length === 1 ? '' : 's'} · ${head.length} column${head.length === 1 ? '' : 's'}`;
+        const note = `${body.length} row${VexPlural.s(body.length)} · ${head.length} column${VexPlural.s(head.length)}`;
 
         if (opt.to === 'jsonArrays') return { output: JSON.stringify(rows, null, 2), note };
         if (opt.to === 'json') {
@@ -1871,7 +1871,7 @@ const Toolbox = {
             lines.push('', `query (${params.length})`);
             for (const [k, v] of params) lines.push(`  ${k} = ${v}`);
           }
-          return { output: lines.join('\n'), note: `${u.hostname} · ${params.length} query parameter${params.length === 1 ? '' : 's'}` };
+          return { output: lines.join('\n'), note: `${u.hostname} · ${params.length} query parameter${VexPlural.s(params.length)}` };
         }
         if (opt.mode === 'encode') {
           let s = opt.scope === 'uri' ? encodeURI(input) : encodeURIComponent(input);
@@ -2041,7 +2041,7 @@ const Toolbox = {
               const level = h.match(/^#+/)[0].length;
               return '  '.repeat(level - 1) + h.replace(/^#+\s*/, '');
             }).join('\n'),
-            note: `${heads.length} heading${heads.length === 1 ? '' : 's'}`,
+            note: `${heads.length} heading${VexPlural.s(heads.length)}`,
           };
         }
         if (opt.to === 'html') {

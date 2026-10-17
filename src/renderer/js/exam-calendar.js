@@ -131,7 +131,7 @@ const ExamCalendar = {
     for (const [day, what] of targets) {
       const dayMs = VexLifeKit.parseDay(day);
       const moments = [[0, 'today']];
-      for (const n of this.prefs().lead) moments.push([n, 'in ' + n + ' day' + (n === 1 ? '' : 's')]);
+      for (const n of this.prefs().lead) moments.push([n, 'in ' + n + ' day' + VexPlural.s(n)]);
       for (const [lead, words] of moments) {
         const when = VexLifeKit.addDays(dayMs, -lead);
         if (new Date(when).setHours(9, 0, 0, 0) <= now) continue;      // that morning has passed: nothing to set
@@ -162,7 +162,7 @@ const ExamCalendar = {
     this._save(this.all().filter(i => i.id !== id));
     const errs = [];
     for (const rid of item.remindIds || []) { try { await VexLifeKit.unremind(rid); } catch (err) { errs.push(err.message); } }
-    if (errs.length) throw new Error('Removed, but ' + errs.length + ' reminder' + (errs.length === 1 ? '' : 's') + ' could not be deleted: ' + errs[0]);
+    if (errs.length) throw new Error('Removed, but ' + errs.length + ' reminder' + VexPlural.s(errs.length) + ' could not be deleted: ' + errs[0]);
   },
 
   // ---- importing a file the person chose ---------------------------------------------------------

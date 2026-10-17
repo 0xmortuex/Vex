@@ -113,8 +113,8 @@ const CommitGuard = {
     this._report = null;
     if (!r) return null;
     const parts = [];
-    if (r.slept) parts.push('slept ' + r.slept + ' tab' + (r.slept === 1 ? '' : 's'));
-    if (r.panels) parts.push('slept ' + r.panels + ' panel' + (r.panels === 1 ? '' : 's'));
+    if (r.slept) parts.push('slept ' + r.slept + ' tab' + VexPlural.s(r.slept));
+    if (r.panels) parts.push('slept ' + r.panels + ' panel' + VexPlural.s(r.panels));
     if (r.models.length) parts.push('unloaded ' + (r.models.length === 1 ? 'the AI model' : 'the AI models'));
     parts.push('held its background work');
     const left = (r.worst.availMB / 1024).toFixed(1), limit = (r.worst.limitMB / 1024).toFixed(0);

@@ -145,7 +145,7 @@ const Authenticator = {
 
   _plainError(err) { return String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (Error: )?/, ''); },
   _counts(r) {
-    const parts = [`${r.added} account${r.added === 1 ? '' : 's'} added`];
+    const parts = [`${r.added} account${VexPlural.s(r.added)} added`];
     if (r.duplicates) parts.push(`${r.duplicates} already here`);
     if (r.skipped) parts.push(`${r.skipped} counter-based (HOTP) left out`);
     if (r.invalid) parts.push(`${r.invalid} with an unusable key left out`);
@@ -183,7 +183,7 @@ const Authenticator = {
       const r = await window.vex.totpExportBackup(pass);
       if (r && r.canceled) return;
       if (!r || !r.ok) throw new Error((r && r.error) || 'unknown error');
-      window.showToast?.(`Backed up ${r.count} account${r.count === 1 ? '' : 's'}`);
+      window.showToast?.(`Backed up ${r.count} account${VexPlural.s(r.count)}`);
     } catch (err) {
       window.showToast?.('Could not back up: ' + this._plainError(err), 'error');
     }

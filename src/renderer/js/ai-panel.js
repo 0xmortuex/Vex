@@ -944,7 +944,7 @@ const AIPanel = {
       const when = this._whenExactly(r.at);
       b.querySelector('.m').textContent = r.hit
         ? (r.hit.role === 'user' ? 'You: ' : 'Vex: ') + r.hit.text
-        : [when, r.msgs.length + ' message' + (r.msgs.length === 1 ? '' : 's'), titleOf(r.tabId)].filter(Boolean).join(' · ');
+        : [when, r.msgs.length + ' message' + VexPlural.s(r.msgs.length), titleOf(r.tabId)].filter(Boolean).join(' · ');
       // Pin, rename, or keep the whole conversation as a note. In a row of
       // their own: appended straight onto the item they each took a full
       // line, because the item is a column — which is what made the list
@@ -1108,7 +1108,7 @@ const AIPanel = {
     if (links.length) {
       chip(links.length === 1 ? 'Open the source' : 'Open the ' + Math.min(links.length, 5) + ' sources', () => {
         for (const u of links.slice(0, 5)) TabManager.createTabBesideActive(u, false);
-        window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + (links.length === 1 ? '' : 's') + ' in the background');
+        window.showToast?.('Opened ' + Math.min(links.length, 5) + ' tab' + VexPlural.s(links.length) + ' in the background');
       });
     }
     return box;
@@ -2501,7 +2501,7 @@ const AIPanel = {
           if (b) b.textContent = thinking;
           const label = thinkEl.querySelector('.ai-thinking-label');
           const words = thinking.trim().split(/\s+/).filter(Boolean).length;
-          if (label) label.textContent = body ? `Thought for ${words} word${words === 1 ? '' : 's'}` : `Thinking… ${words} word${words === 1 ? '' : 's'}`;
+          if (label) label.textContent = body ? `Thought for ${words} word${VexPlural.s(words)}` : `Thinking… ${words} word${VexPlural.s(words)}`;
           const live = thinkEl.querySelector('.ai-thinking-live');
           // Once the answer is being written, the thinking is over.
           if (live) { live.textContent = body ? '' : this._thoughtSubtitle(thinking); live.hidden = !!body; }
@@ -2696,7 +2696,7 @@ const AIPanel = {
     const icon = (window.VexIcons && VexIcons.has('brain')) ? VexIcons.svg('brain', { size: 13 }) : '';
     sum.innerHTML = `<span class="ai-thinking-ico">${icon}</span><span class="ai-thinking-label"></span><span class="ai-thinking-chev">${(window.VexIcons && VexIcons.has('arrow-right')) ? VexIcons.svg('arrow-right', { size: 12 }) : ''}</span>`;
     const words = String(text).trim().split(/\s+/).filter(Boolean).length;
-    sum.querySelector('.ai-thinking-label').textContent = `Thought for ${words} word${words === 1 ? '' : 's'}`;
+    sum.querySelector('.ai-thinking-label').textContent = `Thought for ${words} word${VexPlural.s(words)}`;
     wrap.appendChild(sum);
 
     const body = document.createElement('div');

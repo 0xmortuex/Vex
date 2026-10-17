@@ -190,7 +190,7 @@ const VexTabSelect = {
     const keep = tabs.filter(t => /^https?:/i.test(t.url || '') && !(t.partition && !String(t.partition).startsWith('persist:')) && !Bookmarks.has(t.url));
     const skipped = tabs.length - keep.length;
     if (!keep.length) { window.showToast?.('Nothing new to bookmark in these tabs', 'info'); return; }
-    const folder = await vexPrompt({ title: 'Bookmark ' + keep.length + ' tab' + (keep.length === 1 ? '' : 's'), label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' });
+    const folder = await vexPrompt({ title: 'Bookmark ' + keep.length + ' tab' + VexPlural.s(keep.length), label: 'Folder (blank = Unsorted)', okLabel: 'Bookmark' });
     if (folder === null || folder === undefined) return;
     for (const t of keep.slice().reverse()) {
       const own = typeof TabManager.windowMayAsk === 'function' && !TabManager.windowMayAsk(t.partition);

@@ -210,7 +210,7 @@ const VexFollowUps = {
     text.className = 'vexsr-host';
     text.style.wordBreak = 'normal';
     const age = this.ageDays(it, now);
-    text.textContent = (it.who ? it.who + ': ' : '') + it.what + '  (' + this.CHANNEL_LABEL[it.channel] + ', ' + (it.dir === 'waiting' ? (age === 0 ? 'asked today' : age + ' day' + (age === 1 ? '' : 's')) : (it.due ? 'by ' + new Date(it.due).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'no day')) + ')';
+    text.textContent = (it.who ? it.who + ': ' : '') + it.what + '  (' + this.CHANNEL_LABEL[it.channel] + ', ' + (it.dir === 'waiting' ? (age === 0 ? 'asked today' : age + ' day' + VexPlural.s(age)) : (it.due ? 'by ' + new Date(it.due).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'no day')) + ')';
     row.appendChild(text);
     const act = (label, fn, o) => row.appendChild(VexSettingsGroups.button(label, () => { Promise.resolve().then(fn).then(redraw, err => window.showToast?.(err.message, 'error')); }, o));
     if (it.dir === 'waiting') act('Copy nudge', async () => { await navigator.clipboard.writeText(this.nudgeText(it)); window.showToast?.('Nudge copied. Vex does not send it.', 'info'); }, { label: 'Copy a nudge for ' + it.who });

@@ -214,7 +214,7 @@ const VexTurkishHelpers = {
   // ---- screens ---------------------------------------------------------------------------------
   _showDiff(before, result, onUse) {
     const K = VexStudyKit, G = VexSettingsGroups;
-    const { body, close } = G.dialog({ id: 'vex-tr-diff', title: 'Put the Turkish letters back', sub: result.changed.length + ' word' + (result.changed.length === 1 ? '' : 's') + ' changed. Nothing is replaced until you press the button.' });
+    const { body, close } = G.dialog({ id: 'vex-tr-diff', title: 'Put the Turkish letters back', sub: result.changed.length + ' word' + VexPlural.s(result.changed.length) + ' changed. Nothing is replaced until you press the button.' });
     body.appendChild(K.diffHtml(K.diffWords(before, result.text)));
     if (result.ambiguous.length) body.appendChild(G.note('Left as typed because two readings fit: ' + result.ambiguous.join(', ')));
     body.appendChild(K.el('div', { style: 'display:flex;gap:8px;margin-top:10px' },
@@ -251,7 +251,7 @@ const VexTurkishHelpers = {
       out.textContent = '';
       const list = this.unknown(ta.value);
       if (!list.length) { out.appendChild(G.note('Every word is in the bundled list or your dictionary.')); return; }
-      out.appendChild(G.note(list.length + ' word' + (list.length === 1 ? '' : 's') + ' not in the small bundled list or your dictionary. Most are probably fine.'));
+      out.appendChild(G.note(list.length + ' word' + VexPlural.s(list.length) + ' not in the small bundled list or your dictionary. Most are probably fine.'));
       for (const u of list.slice(0, 60)) {
         out.appendChild(K.el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0;flex-wrap:wrap' }, K.el('strong', { text: u.word + (u.count > 1 ? ' x' + u.count : '') }),
           u.suggestions.length ? K.el('span', { class: 'vex-platform-note', text: 'maybe: ' + u.suggestions.join(', ') }) : null,

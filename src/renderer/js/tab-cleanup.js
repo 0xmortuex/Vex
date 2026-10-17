@@ -195,7 +195,7 @@ const TabCleanup = {
   acceptWithUndo(items) {
     const made = this.accept(items);
     window.VexUndo.offer({
-      message: 'Archived ' + made.length + ' tab' + (made.length === 1 ? '' : 's') + ' (Library panel)',
+      message: 'Archived ' + made.length + ' tab' + VexPlural.s(made.length) + ' (Library panel)',
       undo: () => this.undo(made),
       ms: 20000,
     });
@@ -232,7 +232,7 @@ const TabCleanup = {
     const later = el('button', btn, 'Not tonight'); later.type = 'button';
     const refresh = () => {
       const n = [...boxes.values()].filter(b => b.checked).length;
-      title.textContent = 'Tidy ' + n + ' of ' + described.length + ' tab' + (described.length === 1 ? '' : 's') + '?';
+      title.textContent = 'Tidy ' + n + ' of ' + described.length + ' tab' + VexPlural.s(described.length) + '?';
       accept.textContent = n ? 'Archive ' + n + (n === 1 ? ' tab' : ' tabs') : 'Nothing ticked';
       accept.disabled = !n;
     };
@@ -296,7 +296,7 @@ const TabCleanup = {
     // Tidying is a suggestion, not an interruption: it waits in the Attention
     // Inbox, and the card opens when the person asks for it.
     if (typeof VexAttention !== 'undefined') {
-      VexAttention.suggest({ feature: 'tab-cleanup', label: 'Tab cleanup', id: day, title: 'Tidy ' + items.length + ' tab' + (items.length === 1 ? '' : 's') + '?', body: 'Tabs you have not used for days, or second copies. They go to the Library archive and Undo brings them back.', action: { label: 'Review', key: 'review' } });
+      VexAttention.suggest({ feature: 'tab-cleanup', label: 'Tab cleanup', id: day, title: 'Tidy ' + items.length + ' tab' + VexPlural.s(items.length) + '?', body: 'Tabs you have not used for days, or second copies. They go to the Library archive and Undo brings them back.', action: { label: 'Review', key: 'review' } });
       return items;
     }
     this.showCard(items);

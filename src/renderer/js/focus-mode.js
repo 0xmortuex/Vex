@@ -67,7 +67,7 @@ const FocusMode = {
     // Don't promise blocking we are not doing — an emptied blocklist blocks nothing.
     const blocked = this.blocklist().length;
     window.showToast?.(blocked
-      ? `Focus for ${minutes} min — ${blocked} distracting site${blocked === 1 ? '' : 's'} blocked. Ctrl+K → "Focus" to end early.`
+      ? `Focus for ${minutes} min — ${blocked} distracting site${VexPlural.s(blocked)} blocked. Ctrl+K → "Focus" to end early.`
       : `Focus for ${minutes} min — your blocklist is empty, so nothing is blocked. Ctrl+K → "Focus" to end early.`);
     clearInterval(this._timer);
     this._timer = setInterval(() => {
@@ -148,7 +148,7 @@ const FocusMode = {
       state.style.color = warn ? 'var(--danger, #e5484d)' : '';
       state.innerHTML = warn
         ? `${window.VexIcons?.svg('warning', { size: 13 }) || ''}<span>The list is empty — a focus session will not block anything.</span>`
-        : `<span>${list.length} site${list.length === 1 ? '' : 's'} blocked during a focus session${this.isCustom() ? '' : " (Vex's built-in list)"}.</span>`;
+        : `<span>${list.length} site${VexPlural.s(list.length)} blocked during a focus session${this.isCustom() ? '' : " (Vex's built-in list)"}.</span>`;
       container.querySelector('#focus-restore').disabled = !this.isCustom();
     };
     paintState();
@@ -162,7 +162,7 @@ const FocusMode = {
       }
       paintState();
       window.showToast?.(lines.length
-        ? `Blocklist saved — ${lines.length} site${lines.length === 1 ? '' : 's'}`
+        ? `Blocklist saved — ${lines.length} site${VexPlural.s(lines.length)}`
         : 'Blocklist cleared — focus sessions will not block anything');
     });
 

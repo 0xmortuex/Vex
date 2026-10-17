@@ -349,7 +349,7 @@ const PageRecorder = {
       if (bad.length) throw new Error(bad.join('; ').slice(0, 300));
       this._logRun({ scriptId, name: s.name, mode: 'scheduled', ok: true, lines, error: '' });
       this.recordOutcome(scriptId, true);
-      return s.name + ': ' + lines.length + ' step' + (lines.length === 1 ? '' : 's') + ' done';
+      return s.name + ': ' + lines.length + ' step' + VexPlural.s(lines.length) + ' done';
     } catch (err) {
       const msg = (err && err.message) || String(err);
       if (controller.signal.aborted && this.killed()) {
@@ -460,7 +460,7 @@ const PageRecorder = {
     if (!rec) throw new Error('Nothing is being recorded');
     const built = this.eventsToSource(rec.events);
     if (!built.steps) { window.showToast?.('Nothing was recorded', 'error'); return null; }
-    const finalName = name || (await window.vexPrompt({ title: 'Save this recording', message: built.steps + ' step' + (built.steps === 1 ? '' : 's') + ' on ' + rec.origin
+    const finalName = name || (await window.vexPrompt({ title: 'Save this recording', message: built.steps + ' step' + VexPlural.s(built.steps) + ' on ' + rec.origin
       + (built.asks ? '. ' + built.asks + ' secret field' + (built.asks === 1 ? ' is' : 's are') + ' set to "ask me": you fill them at replay.' : '')
       + (built.truncated ? ' It was longer than a script can be, so it stops there.' : '')
       + (rec.navigated ? ' The page navigated, so the recording ends there.' : ''), label: 'Name', value: 'Recorded on ' + rec.origin.replace(/^https?:\/\//, ''), okLabel: 'Save' }));

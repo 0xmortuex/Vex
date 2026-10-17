@@ -238,7 +238,7 @@ const FocusOSUI = {
     const note = this._proposals[g.id] ? this._noteText(this._proposals[g.id]) : '';
     if (note) wrap.appendChild(this._el('div', 'fo-note', note));
     const row = this._el('div'); row.style.cssText = 'display:flex;gap:6px;margin-top:6px';
-    row.append(this._btn('Confirm ' + prop.length + ' block' + (prop.length === 1 ? '' : 's'), 'check', async () => { await FocusOS.confirmGoal(g.id); delete this._proposals[g.id]; }, true),
+    row.append(this._btn('Confirm ' + prop.length + ' block' + VexPlural.s(prop.length), 'check', async () => { await FocusOS.confirmGoal(g.id); delete this._proposals[g.id]; }, true),
       this._btn('Discard', 'x', async () => { await FocusOS.discard(g.id); delete this._proposals[g.id]; }));
     wrap.appendChild(row);
     return wrap;

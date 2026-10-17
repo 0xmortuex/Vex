@@ -178,7 +178,7 @@ const VexOneBox = {
           if (typeof ReadingQueue === 'undefined') throw new Error('The reading queue is not available in this window');
           ReadingQueue.open({ minutes: u.minutes });
           const r = ReadingQueue.suggest(u.minutes);
-          return r.picks.length ? r.picks.length + ' link' + (r.picks.length === 1 ? '' : 's') + ' fit in ' + u.minutes + ' minutes (' + r.total + ' min).' : 'Nothing measured fits in ' + u.minutes + ' minutes.';
+          return r.picks.length ? r.picks.length + ' link' + VexPlural.s(r.picks.length) + ' fit in ' + u.minutes + ' minutes (' + r.total + ' min).' : 'Nothing measured fits in ' + u.minutes + ' minutes.';
         },
       };
     }

@@ -334,7 +334,7 @@ const VexStudyEntry = {
       try {
         const chosen = kept.filter((_, i) => boxes[i].checked);
         if (!chosen.length) throw new Error('Check at least one question');
-        const ok = await window.vexConfirm({ title: 'Save ' + chosen.length + ' question' + (chosen.length === 1 ? '' : 's') + '?', message: 'They are saved as a CSV file in your downloads. Drop it into FlashMind.', okLabel: 'Save' });
+        const ok = await window.vexConfirm({ title: 'Save ' + chosen.length + ' question' + VexPlural.s(chosen.length) + '?', message: 'They are saved as a CSV file in your downloads. Drop it into FlashMind.', okLabel: 'Save' });
         if (!ok) return;
         const deck = this.deckName(this._course());
         FlashMindBridge.saveFile(FlashMindBridge.fileName(item.title + ' teach-back', '.csv'), FlashMindBridge.cardsToCsv(this.teachBackCards(chosen, deck, item.title)), 'text/csv');
@@ -369,7 +369,7 @@ const VexStudyEntry = {
     el.appendChild(row);
     let n = 0;
     try { n = this.vocab().length; } catch (e) { el.appendChild(G.note(e.message)); }
-    el.appendChild(G.note(n + ' saved word' + (n === 1 ? '' : 's') + '.'));
+    el.appendChild(G.note(n + ' saved word' + VexPlural.s(n) + '.'));
   },
 };
 

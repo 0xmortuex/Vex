@@ -1415,7 +1415,7 @@ const SidebarManager = {
         close();
         if (typeof vexPromptModal !== 'function') { say('The input box is unavailable'); return; }
         const h = parseFloat(await vexPromptModal('Keep ' + label + ' awake for how many hours?', '3'));
-        if (h > 0) { this.setKeepAwakeMode(name, 'until', Date.now() + h * HOUR); say(label + ' kept awake for ' + h + ' hour' + (h === 1 ? '' : 's')); }
+        if (h > 0) { this.setKeepAwakeMode(name, 'until', Date.now() + h * HOUR); say(label + ' kept awake for ' + h + ' hour' + VexPlural.s(h)); }
         else if (!Number.isNaN(h)) say('Enter a number of hours above 0');
         return;
       }

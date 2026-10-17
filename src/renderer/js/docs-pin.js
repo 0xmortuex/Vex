@@ -114,7 +114,7 @@ const VexDocsPin = {
     const accepted = answers.find(a => a.accepted) || null;
     return { questionAge: years(data.question), answers, accepted, newestGood, top };
   },
-  ageText(y) { return y == null ? 'unknown age' : y < 1 ? Math.max(1, Math.round(y * 12)) + ' month' + (Math.round(y * 12) === 1 ? '' : 's') + ' old' : (Math.round(y * 10) / 10) + ' years old'; },
+  ageText(y) { return y == null ? 'unknown age' : y < 1 ? Math.max(1, Math.round(y * 12)) + ' month' + VexPlural.s(Math.round(y * 12)) + ' old' : (Math.round(y * 10) / 10) + ' years old'; },
 
   async onSettled(tab, wv) {
     if (!VexBench.canRead(wv)) return;

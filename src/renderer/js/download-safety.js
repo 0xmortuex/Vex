@@ -48,8 +48,8 @@ const VexMotwCheck = {
   summary(r) {
     if (!r.supported) return 'Windows keeps this mark, so there is nothing to check on this system.';
     if (!r.checked) return 'None of the files Vex downloaded are still on disk to check.';
-    if (!r.missingCount) return 'All ' + r.checked + ' file' + (r.checked === 1 ? '' : 's') + ' Vex downloaded still carry the "downloaded from the internet" mark.';
-    return r.missingCount + ' of ' + r.checked + ' file' + (r.checked === 1 ? '' : 's') + ' no longer carry the mark, so Windows will not treat them as downloaded:\n\n'
+    if (!r.missingCount) return 'All ' + r.checked + ' file' + VexPlural.s(r.checked) + ' Vex downloaded still carry the "downloaded from the internet" mark.';
+    return r.missingCount + ' of ' + r.checked + ' file' + VexPlural.s(r.checked) + ' no longer carry the mark, so Windows will not treat them as downloaded:\n\n'
       + r.missing.join('\n') + (r.missingCount > r.missing.length ? '\n…and ' + (r.missingCount - r.missing.length) + ' more' : '')
       + '\n\nThis can happen when another program copied them. Vex does not change them; treat them as you would any download.';
   },

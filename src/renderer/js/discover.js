@@ -131,7 +131,7 @@ const VexDiscover = {
     if (!this._query && this._cat === this.NEW_TO_YOU) {
       list.innerHTML = `<div class="vexd-cathead">
           <div class="vexd-cathead-name">New to you</div>
-          <div class="vexd-cathead-blurb">${items.length} feature${items.length === 1 ? '' : 's'} you have no record of using.
+          <div class="vexd-cathead-blurb">${items.length} feature${VexPlural.s(items.length)} you have no record of using.
             Vex remembers your last 60 commands, so something you used once long ago can turn up here.</div>
           <button class="vexd-tourcat" id="vexd-tourcat">${VexIcons.svg('compass', { size: 13 })} Show me these</button>
         </div>` + items.map(f => this._row(f)).join('');
@@ -144,7 +144,7 @@ const VexDiscover = {
 
     const header = this._query
       ? `<div class="vexd-cathead"><div class="vexd-cathead-name">Search results</div>
-           <div class="vexd-cathead-blurb">${items.length} feature${items.length === 1 ? '' : 's'} matching “${this._esc(this._query)}”.</div></div>`
+           <div class="vexd-cathead-blurb">${items.length} feature${VexPlural.s(items.length)} matching “${this._esc(this._query)}”.</div></div>`
       : `<div class="vexd-cathead">
            <div class="vexd-cathead-name">${this._esc(cat.name)}</div>
            <div class="vexd-cathead-blurb">${this._esc(cat.blurb)}</div>

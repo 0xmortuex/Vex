@@ -90,9 +90,9 @@ const AttentionDigest = {
     if (!n) return null;
     const parts = [];
     if (p.inbox.length) parts.push(p.inbox.length + ' in the Inbox');
-    if (p.panel.length) parts.push(p.panel.length + ' panel notification' + (p.panel.length === 1 ? '' : 's'));
-    if (p.push.length) parts.push(p.push.length + ' site notification' + (p.push.length === 1 ? '' : 's'));
-    const text = n + ' thing' + (n === 1 ? '' : 's') + ' waited for you: ' + parts.join(', ') + '.';
+    if (p.panel.length) parts.push(p.panel.length + ' panel notification' + VexPlural.s(p.panel.length));
+    if (p.push.length) parts.push(p.push.length + ' site notification' + VexPlural.s(p.push.length));
+    const text = n + ' thing' + VexPlural.s(n) + ' waited for you: ' + parts.join(', ') + '.';
     const show = () => {
       if (!window.showToast) return;
       window.showToast(text, 'info', 9000, { action: { label: 'Open', title: 'See what is waiting', run: () => {
@@ -105,7 +105,7 @@ const AttentionDigest = {
     VexAttention.notify({ feature: 'attention-digest', urgency: 'asked', id: 'd' + now, title: text }, show);
     if (p.push.length) VexPushBundle.markReleased(p.push.map(i => i.id));
     if (typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: 'attention-digest', what: 'Showed one digest of ' + n + ' held item' + (n === 1 ? '' : 's'), why: reason === 'focus-end' ? 'Your Focus block ended and Delivery windows is on' : 'A delivery window you chose opened' });
+      VexLedger.note({ feature: 'attention-digest', what: 'Showed one digest of ' + n + ' held item' + VexPlural.s(n), why: reason === 'focus-end' ? 'Your Focus block ended and Delivery windows is on' : 'A delivery window you chose opened' });
     }
     return text;
   },

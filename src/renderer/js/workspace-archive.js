@@ -167,7 +167,7 @@ const VexWorkspaceArchive = {
       all[wsId] = (all[wsId] || []).filter(s => !ts.has(s.ts));
     }
     snapStore._save(all);
-    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: 'Removed ' + c.count + ' old workspace snapshot' + (c.count === 1 ? '' : 's'), why: 'You asked to keep only the last ' + this.KEEP_SNAPSHOT_DAYS + ' days (the newest of each workspace stays)', undo: { kind: 'snapshots-unprune', at: now } });
+    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: 'Removed ' + c.count + ' old workspace snapshot' + VexPlural.s(c.count), why: 'You asked to keep only the last ' + this.KEEP_SNAPSHOT_DAYS + ' days (the newest of each workspace stays)', undo: { kind: 'snapshots-unprune', at: now } });
     return { removed: c.count };
   },
 
@@ -218,7 +218,7 @@ const VexWorkspaceArchive = {
       };
       if (!idle.length) body.appendChild(VexSettingsGroups.note('No workspace has been idle for ' + this.IDLE_DAYS + ' days.'));
       for (const i of idle) {
-        row(i.name + ' (' + i.tabs + ' tab' + (i.tabs === 1 ? '' : 's') + ', idle ' + i.idleDays + ' days)', [VexSettingsGroups.button('Archive', async () => {
+        row(i.name + ' (' + i.tabs + ' tab' + VexPlural.s(i.tabs) + ', idle ' + i.idleDays + ' days)', [VexSettingsGroups.button('Archive', async () => {
           const ok = await window.vexConfirm({ title: 'Archive "' + i.name + '"?', message: 'It leaves the switcher and becomes a card here. Its tabs and snapshots are kept; Restore puts everything back.', okLabel: 'Archive' });
           if (!ok) return;
           try { this.archive(i.id); window.showToast?.('Archived ' + i.name); } catch (err) { window.showToast?.(err.message, 'error'); }
@@ -237,7 +237,7 @@ const VexWorkspaceArchive = {
           }, { danger: true, label: 'Delete ' + c.ws.name }),
         ]);
       }
-      body.appendChild(VexSettingsGroups.note('Snapshots: ' + prune.count + ' older than ' + this.KEEP_SNAPSHOT_DAYS + ' days in ' + prune.workspaces + ' workspace' + (prune.workspaces === 1 ? '' : 's') + ' (the newest of each stays).'));
+      body.appendChild(VexSettingsGroups.note('Snapshots: ' + prune.count + ' older than ' + this.KEEP_SNAPSHOT_DAYS + ' days in ' + prune.workspaces + ' workspace' + VexPlural.s(prune.workspaces) + ' (the newest of each stays).'));
       if (prune.count) {
         body.appendChild(VexSettingsGroups.button('Prune ' + prune.count + ' snapshots', async () => {
           const ok = await window.vexConfirm({ title: 'Prune old snapshots?', message: prune.count + ' snapshots older than ' + this.KEEP_SNAPSHOT_DAYS + ' days go. The newest of each workspace stays, and the removal can be undone from "Why did that happen?".', okLabel: 'Prune' });

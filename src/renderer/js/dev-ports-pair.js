@@ -131,7 +131,7 @@ const DevPortsPair = {
       }
     }
     if (done.length && typeof VexAttention !== 'undefined') {
-      VexAttention.suggest({ feature: this.FEATURE, label: 'Dev ports', id: 'back:' + port, title: 'localhost:' + port + ' is back', body: done.length + ' tab' + (done.length === 1 ? '' : 's') + ' reloaded.' });
+      VexAttention.suggest({ feature: this.FEATURE, label: 'Dev ports', id: 'back:' + port, title: 'localhost:' + port + ' is back', body: done.length + ' tab' + VexPlural.s(done.length) + ' reloaded.' });
     }
     return done;
   },

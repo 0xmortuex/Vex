@@ -876,7 +876,7 @@ const NotesPanel = {
     const text = ta && !ta.hidden ? ta.value : (note ? this.normalize(note).content : '');
     const s = this.wordStats(text);
     const el = this._el('notes-word-count');
-    if (el) el.textContent = `${s.words} word${s.words === 1 ? '' : 's'} · ${s.chars} char${s.chars === 1 ? '' : 's'}${s.words > 40 ? ' · ~' + s.minutes + ' min' : ''}`;
+    if (el) el.textContent = `${s.words} word${VexPlural.s(s.words)} · ${s.chars} char${VexPlural.s(s.chars)}${s.words > 40 ? ' · ~' + s.minutes + ' min' : ''}`;
   },
 
   _setSaveState(text) {
@@ -1074,7 +1074,7 @@ const NotesPanel = {
     const el = this._el('notes-sticky-count');
     if (!ta || !el) return;
     const s = this.wordStats(ta.value);
-    el.textContent = `${s.words} word${s.words === 1 ? '' : 's'} · ${s.chars} char${s.chars === 1 ? '' : 's'}`;
+    el.textContent = `${s.words} word${VexPlural.s(s.words)} · ${s.chars} char${VexPlural.s(s.chars)}`;
   },
 
   _debounceStickySave() {

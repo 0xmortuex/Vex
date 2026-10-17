@@ -220,7 +220,7 @@ const FocusOSPlanner = {
     const total = today.length;
     return {
       done, total, fraction: total ? done / total : 0,
-      text: total ? done + ' of ' + total + ' block' + (total === 1 ? '' : 's') + ' done' : 'No blocks today',
+      text: total ? done + ' of ' + total + ' block' + VexPlural.s(total) + ' done' : 'No blocks today',
     };
   },
   goalProgress(goal, blocks) {

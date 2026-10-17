@@ -388,7 +388,7 @@ const Recall = {
           ? 'Nothing indexed yet — pages you read get added as you browse.'
           : 'Indexing is off. Turn it on in Settings › Recall.';
       } else {
-        statEl.textContent = `${s.pages.toLocaleString()} page${s.pages === 1 ? '' : 's'} indexed · ` +
+        statEl.textContent = `${s.pages.toLocaleString()} page${VexPlural.s(s.pages)} indexed · ` +
           `${this.formatBytes(s.bytes)}${s.maxBytes ? ' of ' + this.formatBytes(s.maxBytes) : ''} · newest ${this.relativeTime(s.newest)}` +
           (s.retainMs ? ` · kept ${Math.round(s.retainMs / 86400000)} days` : '');
       }
@@ -479,7 +479,7 @@ const Recall = {
           : true;
         if (!ok) return;
         const removed = await this.excludeHost(host);
-        window.showToast?.(`${host} excluded${removed ? ` · ${removed} page${removed === 1 ? '' : 's'} forgotten` : ''}`);
+        window.showToast?.(`${host} excluded${removed ? ` · ${removed} page${VexPlural.s(removed)} forgotten` : ''}`);
         run(false);
         refreshStats();
       }
@@ -501,7 +501,7 @@ const Recall = {
       const count = document.createElement('div');
       count.className = 'recall-count';
       count.textContent = shown >= state.total
-        ? `${state.total} match${state.total === 1 ? '' : 'es'}`
+        ? `${state.total} match${VexPlural.es(state.total)}`
         : `Showing ${shown} of ${state.total} matches`;
       out.appendChild(count);
       if (shown < state.total) {
@@ -667,7 +667,7 @@ const Recall = {
       const s = await this.stats();
       if (!container.isConnected) return;
       statEl.textContent = s.pages
-        ? `${s.pages.toLocaleString()} page${s.pages === 1 ? '' : 's'} · ${this.formatBytes(s.bytes)} of text · ` +
+        ? `${s.pages.toLocaleString()} page${VexPlural.s(s.pages)} · ${this.formatBytes(s.bytes)} of text · ` +
           `oldest ${this.relativeTime(s.oldest)}, newest ${this.relativeTime(s.newest)} · ` +
           `capacity ${s.maxPages ? s.maxPages.toLocaleString() + ' pages' : ''}${s.maxBytes ? ' / ' + this.formatBytes(s.maxBytes) : ''}`
         : 'Nothing indexed yet.';
@@ -696,7 +696,7 @@ const Recall = {
       btn.disabled = true;
       const done = await this.reindexOpenTabs();
       btn.disabled = false;
-      window.showToast?.(done ? `Re-indexed ${done} tab${done === 1 ? '' : 's'}` : 'No open tabs to index');
+      window.showToast?.(done ? `Re-indexed ${done} tab${VexPlural.s(done)}` : 'No open tabs to index');
       paint();
     });
 

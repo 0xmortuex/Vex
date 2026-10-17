@@ -96,7 +96,7 @@ const VexAISpend = {
   // One plain line: where today stands.
   line() {
     const s = this._read();
-    if (!s.cap) return 'No cap. ' + s.used + ' cloud call' + (s.used === 1 ? '' : 's') + ' so far today.';
+    if (!s.cap) return 'No cap. ' + s.used + ' cloud call' + VexPlural.s(s.used) + ' so far today.';
     if (s.used >= s.cap) return 'Cap reached: ' + s.used + ' of ' + s.cap + ' cloud calls today. Until midnight, AI runs on your local model only.';
     return s.used + ' of ' + s.cap + ' cloud calls used today.';
   },

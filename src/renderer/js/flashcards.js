@@ -99,9 +99,9 @@ const Flashcards = {
     if (mins <= 0) return 'now';
     if (mins < 60) return 'in ' + mins + ' minutes';
     const hours = Math.round(mins / 60);
-    if (hours < 24) return 'in ' + hours + ' hour' + (hours === 1 ? '' : 's');
+    if (hours < 24) return 'in ' + hours + ' hour' + VexPlural.s(hours);
     const days = Math.round(hours / 24);
-    return 'in ' + days + ' day' + (days === 1 ? '' : 's');
+    return 'in ' + days + ' day' + VexPlural.s(days);
   },
 
   // --- making cards from what is highlighted -------------------------------
@@ -121,7 +121,7 @@ const Flashcards = {
     for (const h of fresh) {
       try { this.add({ ...h, url, title }); made++; } catch (err) { if (!/already has a card/.test(err.message)) throw err; }
     }
-    window.showToast?.(made + ' card' + (made === 1 ? '' : 's') + ' made — the first are due now');
+    window.showToast?.(made + ' card' + VexPlural.s(made) + ' made — the first are due now');
     return made;
   },
 

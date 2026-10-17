@@ -77,7 +77,7 @@ const ExtensionAuditView = {
     if (!items.length) { body.innerHTML = '<div style="color:var(--text-muted);padding:16px 0">No extensions are installed.</div>'; return; }
     const unusedCount = items.filter(e => e.enabled && e.usage && e.usage.unused === true).length;
     const now = Date.now();
-    body.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px">${items.length} extension${items.length === 1 ? '' : 's'}${unusedCount ? ' · ' + unusedCount + ' not used in ' + this.UNUSED_DAYS + ' days' : ''}. Switching one off keeps it installed; you can switch it back on here.</div>` +
+    body.innerHTML = `<div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px">${items.length} extension${VexPlural.s(items.length)}${unusedCount ? ' · ' + unusedCount + ' not used in ' + this.UNUSED_DAYS + ' days' : ''}. Switching one off keeps it installed; you can switch it back on here.</div>` +
       items.map((e, i) => {
         const a = e.audit || { reach: { says: '', level: 'none' }, powers: [] };
         const heavy = a.powers.filter(p => p.heavy);
@@ -91,7 +91,7 @@ const ExtensionAuditView = {
               : `<span style="font-size:11px;color:var(--text-muted)">Disabled</span><button type="button" class="btn-secondary eaud-on" data-i="${i}" style="padding:5px 12px;font-size:12px">Enable</button>`}
           </div>
           <div style="font-size:12.5px;margin-top:4px">${esc(a.reach.says)}</div>
-          ${a.powers.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${heavy.length ? esc(heavy.map(p => p.says).join(' · ')) : a.powers.length + ' permission' + (a.powers.length === 1 ? '' : 's') + ', none of them sensitive'}</div>` : ''}
+          ${a.powers.length ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${heavy.length ? esc(heavy.map(p => p.says).join(' · ')) : a.powers.length + ' permission' + VexPlural.s(a.powers.length) + ', none of them sensitive'}</div>` : ''}
           ${(a.sessions || []).map(s => `<div class="eaud-session" style="font-size:11.5px;color:var(--danger);margin-top:3px">${esc(s.says)}</div>`).join('')}
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${esc(upd)} · ${esc(this.usedText(e, now))}</div>
         </div>`;

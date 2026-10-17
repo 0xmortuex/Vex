@@ -152,7 +152,7 @@ const VexReview = {
     section('Saved and not yet read', data.saved.unread.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
     section('Watched pages that changed', data.changed.slice(0, 8), (x) => link(x.text, x.url, fmt(x.at)));
     section('Games you played', data.games || [], (x) => link(x.text, null, ''));
-    section('Tools you used', data.tools, (x) => link(x.name, null, x.n + ' result' + (x.n === 1 ? '' : 's')));
+    section('Tools you used', data.tools, (x) => link(x.name, null, x.n + ' result' + VexPlural.s(x.n)));
     for (const x of this.extras) {
       const ex = data.extra && data.extra[x.id];
       if (!ex || (!ex.summary && !(ex.items && ex.items.length))) continue;

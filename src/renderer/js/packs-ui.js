@@ -323,7 +323,7 @@ const VexPacks = {
     if (p.description) card.appendChild(this._el('div', 'vex-packs-desc', p.description));
 
     const items = this._el('details', 'vex-packs-items');
-    items.appendChild(this._el('summary', '', p.items.length + ' item' + (p.items.length === 1 ? '' : 's')));
+    items.appendChild(this._el('summary', '', p.items.length + ' item' + VexPlural.s(p.items.length)));
     const ul = this._el('ul');
     for (const it of p.items) {
       const li = this._el('li', '', it.type + ': ' + it.name);

@@ -90,11 +90,11 @@ const VexSourceBadge = {
     const yrs = this._years(facts.date, now);
     if (yrs == null) flags.push({ id: 'age', label: 'No publication date found on the page', tone: 'warn' });
     else if (yrs < 1) flags.push({ id: 'age', label: 'Published within the last year', tone: 'good' });
-    else flags.push({ id: 'age', label: 'Published about ' + Math.round(yrs) + ' year' + (Math.round(yrs) === 1 ? '' : 's') + ' ago' + (yrs > 5 ? ' (old for fast-changing topics)' : ''), tone: yrs > 5 ? 'warn' : 'info' });
+    else flags.push({ id: 'age', label: 'Published about ' + Math.round(yrs) + ' year' + VexPlural.s(Math.round(yrs)) + ' ago' + (yrs > 5 ? ' (old for fast-changing topics)' : ''), tone: yrs > 5 ? 'warn' : 'info' });
     flags.push(facts.author ? { id: 'author', label: 'A byline or author is named', tone: 'good' } : { id: 'author', label: 'No author found on the page', tone: 'warn' });
     const out = Number(facts.outLinks) || 0;
     if (facts.refs || out >= 3) flags.push({ id: 'cites', label: (facts.refs ? 'Has a references or sources section' : 'Links to ' + out + ' other sites') + (facts.refs && out ? ' and links to ' + out + ' other sites' : ''), tone: 'good' });
-    else flags.push({ id: 'cites', label: out ? 'Links to only ' + out + ' other site' + (out === 1 ? '' : 's') + ', no references section' : 'No references and no links to other sites', tone: 'warn' });
+    else flags.push({ id: 'cites', label: out ? 'Links to only ' + out + ' other site' + VexPlural.s(out) + ', no references section' : 'No references and no links to other sites', tone: 'warn' });
     if (facts.opinionTag || /\/(opinion|op-ed|editorial|column|columns|commentary|blog|blogs|views)(\/|$)/i.test(path)) flags.push({ id: 'opinion', label: 'Marked as opinion, column or blog', tone: 'warn' });
     return { flags, rough: true, host };
   },

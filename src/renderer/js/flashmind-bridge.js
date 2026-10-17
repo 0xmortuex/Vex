@@ -178,7 +178,7 @@ const FlashMindBridge = {
     const cards = this.parseCards(body);
     const out = {
       text: { label: 'Study text to paste into FlashMind', mime: 'text/plain', ext: '.txt', content: text },
-      cards: cards.length ? { label: 'Flashcards file (' + cards.length + ' card' + (cards.length === 1 ? '' : 's') + ')', mime: 'text/csv', ext: '.csv', content: this.cardsToCsv(cards), count: cards.length } : null,
+      cards: cards.length ? { label: 'Flashcards file (' + cards.length + ' card' + VexPlural.s(cards.length) + ')', mime: 'text/csv', ext: '.csv', content: this.cardsToCsv(cards), count: cards.length } : null,
       deck: { label: 'Study set file', mime: 'application/json', ext: '.json', content: JSON.stringify(this.deckJson({ title, body, cards }), null, 2), count: cards.length },
     };
     return out;
@@ -550,7 +550,7 @@ const FlashMindBridge = {
       if (!f) return;
       try {
         const s = this.importDueText(await f.text());
-        window.showToast?.(s.dueToday + ' FlashMind card' + (s.dueToday === 1 ? '' : 's') + ' due today');
+        window.showToast?.(s.dueToday + ' FlashMind card' + VexPlural.s(s.dueToday) + ' due today');
       } catch (err) { fail(err); }
       e.target.value = '';
       redraw();

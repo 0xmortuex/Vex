@@ -149,7 +149,7 @@ const VexErrorMemory = {
     const here = VexBench.pageUrl(webview);
     if (here && !pages.some(p => p.url === here)) pages.unshift({ url: here, title: '' });
     const entry = this.remember(selection, pages);
-    VexBench.toast('Remembered with ' + entry.pages.length + ' page' + (entry.pages.length === 1 ? '' : 's'));
+    VexBench.toast('Remembered with ' + entry.pages.length + ' page' + VexPlural.s(entry.pages.length));
     return entry;
   },
 

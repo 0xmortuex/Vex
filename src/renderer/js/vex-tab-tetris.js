@@ -138,7 +138,7 @@ const VexTabTetris = {
     this._commit();
     const g = tm.groups.find(x => x.id === gid);
     window.VexUndo.offer({
-      message: 'Grouped ' + wanted.length + ' tab' + (wanted.length === 1 ? '' : 's') + (g ? ' in "' + g.name + '"' : ''),
+      message: 'Grouped ' + wanted.length + ' tab' + VexPlural.s(wanted.length) + (g ? ' in "' + g.name + '"' : ''),
       undo: () => this._restore(snap),
     });
     VexFun.medal('play.tetris.grouped');
@@ -157,7 +157,7 @@ const VexTabTetris = {
     }
     this._commit();
     window.VexUndo.offer({
-      message: 'Tidied ' + plan.length + ' site' + (plan.length === 1 ? '' : 's') + ' into groups',
+      message: 'Tidied ' + plan.length + ' site' + VexPlural.s(plan.length) + ' into groups',
       undo: () => this._restore(snap),
     });
     VexFun.medal('play.tetris.grouped');
@@ -214,7 +214,7 @@ const VexTabTetris = {
     mkBtn('Close selected', 'btn-secondary', () => {
       try {
         if (!picked.size) { said('Select blocks to close first.'); return; }
-        const n = this.close([...picked], 'Closed ' + picked.size + ' tab' + (picked.size === 1 ? '' : 's'));
+        const n = this.close([...picked], 'Closed ' + picked.size + ' tab' + VexPlural.s(picked.size));
         picked.clear(); render(); said(n + ' closed. Undo is in the toast.');
       } catch (err) { fail(err); }
     });
@@ -222,7 +222,7 @@ const VexTabTetris = {
       try {
         const n = this.tidy();
         render();
-        said(n ? 'Grouped ' + n + ' site' + (n === 1 ? '' : 's') + '. Undo is in the toast.' : 'No two loose tabs share a site.');
+        said(n ? 'Grouped ' + n + ' site' + VexPlural.s(n) + '. Undo is in the toast.' : 'No two loose tabs share a site.');
       } catch (err) { fail(err); }
     });
 

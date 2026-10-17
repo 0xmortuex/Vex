@@ -148,7 +148,7 @@ const SecretGuard = {
     if (!r.count && !r.paths) { window.showToast?.('Nothing to redact in the clipboard'); return r; }
     await navigator.clipboard.writeText(r.text);
     DevDeskUtil.touch(this.FEATURE);
-    window.showToast?.('Clipboard rewritten: ' + r.count + ' secret' + (r.count === 1 ? '' : 's') + ', ' + r.paths + ' user path' + (r.paths === 1 ? '' : 's'));
+    window.showToast?.('Clipboard rewritten: ' + r.count + ' secret' + VexPlural.s(r.count) + ', ' + r.paths + ' user path' + VexPlural.s(r.paths));
     return r;
   },
 

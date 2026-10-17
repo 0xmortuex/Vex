@@ -84,7 +84,7 @@ const PermissionsSettings = (() => {
       row.className = 'perm-live-row';
       row.innerHTML = '<span class="perm-live-what"></span><span class="perm-live-who"></span>';
       row.querySelector('.perm-live-what').textContent = r.kind === 'mic' ? 'Microphone' : 'Camera';
-      row.querySelector('.perm-live-who').textContent = r.site + ' — ' + (r.now ? 'now; ' : '') + (r.today ? r.today + ' time' + (r.today === 1 ? '' : 's') + ' today' : r.week + ' time' + (r.week === 1 ? '' : 's') + ' this week') + ', last at ' + at(r.last);
+      row.querySelector('.perm-live-who').textContent = r.site + ' — ' + (r.now ? 'now; ' : '') + (r.today ? r.today + ' time' + VexPlural.s(r.today) + ' today' : r.week + ' time' + VexPlural.s(r.week) + ' this week') + ', last at ' + at(r.last);
       host.appendChild(row);
     }
     const clear = document.createElement('button');

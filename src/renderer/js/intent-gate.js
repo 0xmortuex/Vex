@@ -157,7 +157,7 @@ const IntentGate = {
     ta.setAttribute('aria-label', 'Sites to ask about, one per line');
     ta.style.cssText = 'width:100%;box-sizing:border-box;margin-top:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12.5px';
     el.append(ta, VexSettingsGroups.button('Save the list', () => {
-      try { const l = this.setHosts(ta.value.split(/\r?\n/)); window.showToast?.(l.length + ' site' + (l.length === 1 ? '' : 's') + ' saved'); }
+      try { const l = this.setHosts(ta.value.split(/\r?\n/)); window.showToast?.(l.length + ' site' + VexPlural.s(l.length) + ' saved'); }
       catch (err) { window.showToast?.(err.message, 'error'); }
     }));
     const s = this.stats();

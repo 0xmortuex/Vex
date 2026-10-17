@@ -94,7 +94,7 @@ const VexDownloadDesk = {
           if (!r || !r.ok) failed.push(o.name + ': ' + ((r && r.error) || 'failed'));
         }
         if (failed.length) throw new Error('Some could not be removed: ' + failed.join('; '));
-        window.showToast?.('Moved ' + info.older.length + ' older installer' + (info.older.length === 1 ? '' : 's') + ' to the Recycle Bin');
+        window.showToast?.('Moved ' + info.older.length + ' older installer' + VexPlural.s(info.older.length) + ' to the Recycle Bin');
         el.remove();
       }, 'Move the older installers of this repository to the Recycle Bin');
     }
@@ -118,7 +118,7 @@ const VexDownloadDesk = {
     const p = await bridge.downloadsModsPlan();
     if (!p || !p.ok) throw new Error((p && p.error) || 'Could not preview the mod folders');
     if (!p.moves.length) {
-      window.showToast?.('No Minecraft mods (.jar) loose in the downloads folder' + (p.skipped.length ? ' (' + p.skipped.length + ' file' + (p.skipped.length === 1 ? '' : 's') + ' were not mods or could not be read)' : ''));
+      window.showToast?.('No Minecraft mods (.jar) loose in the downloads folder' + (p.skipped.length ? ' (' + p.skipped.length + ' file' + VexPlural.s(p.skipped.length) + ' were not mods or could not be read)' : ''));
       return p;
     }
     const lines = p.moves.slice(0, 14).map(m => m.name + '  ->  ' + m.folder + (m.older ? '   (older than ' + m.newer + ')' : '') + (m.unknownVersion ? '   (game version not found)' : ''));
@@ -126,16 +126,16 @@ const VexDownloadDesk = {
     const older = p.moves.filter(m => m.older).length;
     const skipped = p.skipped.length ? '\n\nLeft alone: ' + p.skipped.slice(0, 4).map(s => s.name + ' (' + s.why + ')').join('; ') + (p.skipped.length > 4 ? '; ...' : '') : '';
     const ok = await window.vexConfirm({
-      title: 'File ' + p.moves.length + ' mod' + (p.moves.length === 1 ? '' : 's') + ' by loader and version?',
+      title: 'File ' + p.moves.length + ' mod' + VexPlural.s(p.moves.length) + ' by loader and version?',
       message: (older ? older + ' older cop' + (older === 1 ? 'y' : 'ies') + ' of a mod you also have a newer file of go to "Older versions". ' : '') + 'Files move inside ' + p.dir + '. Nothing is deleted or run, and Undo puts every file back.\n\n' + lines.join('\n') + more + skipped,
       okLabel: 'Move them',
     });
     if (!ok) return p;
     const r = await bridge.downloadsModsApply(p.id);
     if (!r || !r.ok) throw new Error((r && r.error) || 'Could not move the mods');
-    window.showToast?.('Moved ' + r.moved + ' mod' + (r.moved === 1 ? '' : 's') + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : '') + '. Undo: Ctrl+K › Undo mod sort', r.failed.length ? 'error' : undefined, 8000);
+    window.showToast?.('Moved ' + r.moved + ' mod' + VexPlural.s(r.moved) + (r.failed.length ? ', ' + r.failed.length + ' could not be moved' : '') + '. Undo: Ctrl+K › Undo mod sort', r.failed.length ? 'error' : undefined, 8000);
     if (r.moved && typeof VexLedger !== 'undefined') {
-      VexLedger.note({ feature: this.FEATURE, what: 'Filed ' + r.moved + ' Minecraft mod' + (r.moved === 1 ? '' : 's') + ' by loader and version', why: 'You confirmed the preview', undo: { kind: 'downloads-mods-undo' } });
+      VexLedger.note({ feature: this.FEATURE, what: 'Filed ' + r.moved + ' Minecraft mod' + VexPlural.s(r.moved) + ' by loader and version', why: 'You confirmed the preview', undo: { kind: 'downloads-mods-undo' } });
     }
     if (typeof VexUsage !== 'undefined') VexUsage.touch('download-desk');
     if (typeof DownloadsPanel !== 'undefined' && typeof DownloadsPanel.refreshExistence === 'function') DownloadsPanel.refreshExistence();
@@ -147,7 +147,7 @@ const VexDownloadDesk = {
     if (!ok) return null;
     const r = await window.vex.downloadsModsUndo();
     if (!r || !r.ok) throw new Error((r && r.error) || 'Could not undo');
-    window.showToast?.('Put ' + r.restored + ' file' + (r.restored === 1 ? '' : 's') + ' back' + (r.left.length ? '; ' + r.left.length + ' could not be (' + r.left[0].error + ')' : ''), r.left.length ? 'error' : undefined);
+    window.showToast?.('Put ' + r.restored + ' file' + VexPlural.s(r.restored) + ' back' + (r.left.length ? '; ' + r.left.length + ' could not be (' + r.left[0].error + ')' : ''), r.left.length ? 'error' : undefined);
     return r;
   },
 

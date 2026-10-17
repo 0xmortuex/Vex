@@ -170,7 +170,7 @@ const VexWorkday = {
     const list = this._all().filter(d => d.date !== date);
     list.unshift(day);
     if (!this._save(list)) throw new Error('The session was saved, but the workday index could not be written');
-    if (silent) window.showToast?.('Workday saved · ' + day.tabs + ' tab' + (day.tabs === 1 ? '' : 's'), 'info', 3000);
+    if (silent) window.showToast?.('Workday saved · ' + day.tabs + ' tab' + VexPlural.s(day.tabs), 'info', 3000);
     return day;
   },
 
@@ -208,7 +208,7 @@ const VexWorkday = {
     const when = new Date(day.savedAt).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' });
     const ok = await window.vexConfirm({
       title: 'Resume ' + day.date + '?',
-      message: day.tabs + ' tab' + (day.tabs === 1 ? '' : 's') + ' saved ' + when + (day.thread ? ' and your AI thread' : '') + ' will open beside the tabs you have now.',
+      message: day.tabs + ' tab' + VexPlural.s(day.tabs) + ' saved ' + when + (day.thread ? ' and your AI thread' : '') + ' will open beside the tabs you have now.',
       okLabel: 'Resume',
     });
     if (!ok) return;
@@ -218,7 +218,7 @@ const VexWorkday = {
   async _endOfDayCommand() {
     try {
       const day = this.endOfDay();
-      window.showToast?.('Workday saved · ' + day.tabs + ' tab' + (day.tabs === 1 ? '' : 's') + (day.thread ? ' and the AI thread' : ''));
+      window.showToast?.('Workday saved · ' + day.tabs + ' tab' + VexPlural.s(day.tabs) + (day.thread ? ' and the AI thread' : ''));
     } catch (err) { window.showToast?.(err.message, 'error'); }
   },
 

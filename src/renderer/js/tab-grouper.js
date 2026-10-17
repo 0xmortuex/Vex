@@ -667,7 +667,7 @@ const TabGrouper = (() => {
   function showUndoToast(groupCount) {
     const snapshot = lastGroupedSnapshot;
     window.VexUndo.offer({
-      message: `Created ${groupCount} group${groupCount === 1 ? '' : 's'}`,
+      message: `Created ${groupCount} group${VexPlural.s(groupCount)}`,
       undo: () => { if (lastGroupedSnapshot === snapshot) undoLastGrouping(); else throw new Error('The tabs were grouped again since'); },
     });
   }

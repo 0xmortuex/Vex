@@ -44,7 +44,7 @@ const HorizontalTabs = (() => {
       // the raw hex directly (was garish on cream/light chrome).
       label.style.setProperty('--group-color', group.color || '#6366f1');
       label.textContent = group.name;
-      label.title = `${group.name} \u00b7 ${groupTabs.length} tab${groupTabs.length === 1 ? '' : 's'} \u00b7 right-click for options`;
+      label.title = `${group.name} \u00b7 ${groupTabs.length} tab${VexPlural.s(groupTabs.length)} \u00b7 right-click for options`;
       label.addEventListener('click', () => {
         // The tab in front would vanish with the group and nothing would be
         // marked active (found 2026-09-29); move off it first, as Chrome does.
@@ -88,7 +88,7 @@ const HorizontalTabs = (() => {
       chip.className = 'top-tab top-stack' + (expanded ? ' expanded' : '');
       chip.dataset.stackId = stack.id;
       chip.style.setProperty('--stack-color', stack.color || '#d4a574');
-      chip.title = `${stack.name} · ${members.length} tab${members.length === 1 ? '' : 's'} · click to ${expanded ? 'collapse' : 'expand'}, right-click for options`;
+      chip.title = `${stack.name} · ${members.length} tab${VexPlural.s(members.length)} · click to ${expanded ? 'collapse' : 'expand'}, right-click for options`;
 
       let favicon = topTab.favicon;
       // Never for a tab whose sites Vex's direct window must not ask (a Tor,

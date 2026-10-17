@@ -64,7 +64,7 @@ const VexKeyTrainer = {
 
   // The prompt for one challenge, in the words the trainer is about.
   challengeText(c) {
-    return c.label.replace(/\s*\(.*?\)\s*$/, '') + ' in ' + c.keys + ' key' + (c.keys === 1 ? '' : 's');
+    return c.label.replace(/\s*\(.*?\)\s*$/, '') + ' in ' + c.keys + ' key' + VexPlural.s(c.keys);
   },
 
   matches(combo, ev) {

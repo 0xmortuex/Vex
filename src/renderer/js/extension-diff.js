@@ -231,7 +231,7 @@ const VexExtDiff = {
     const cands = await this.candidatesFor(h);
     const paused = this._pauses()[h];
     if (paused) {
-      body.appendChild(this._el('p', 'setting-info', 'Paused for this site: ' + paused.folders.length + ' extension' + (paused.folders.length === 1 ? '' : 's') + '.'));
+      body.appendChild(this._el('p', 'setting-info', 'Paused for this site: ' + paused.folders.length + ' extension' + VexPlural.s(paused.folders.length) + '.'));
       const back = this._el('button', 'btn-primary', 'Put them back'); back.type = 'button';
       back.addEventListener('click', () => { this.restore(h).then(() => { window.showToast?.('Extensions switched back on'); close(); }).catch((e) => this._fail(e)); });
       body.appendChild(back);

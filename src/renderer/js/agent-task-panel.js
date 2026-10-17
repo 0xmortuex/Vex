@@ -287,7 +287,7 @@ const AgentTaskPanel = {
     const box = this._el && this._el.querySelector('#vex-at-plan');
     if (!box || !this._plan) return;
     const p = this._plan;
-    box.innerHTML = `<h3 class="vex-at-h">Plan - ${p.steps.length} step${p.steps.length === 1 ? '' : 's'}</h3>${this._chipFor(p.backend, 'your goal')}
+    box.innerHTML = `<h3 class="vex-at-h">Plan - ${p.steps.length} step${VexPlural.s(p.steps.length)}</h3>${this._chipFor(p.backend, 'your goal')}
       ${p.trimmed ? `<div class="vex-at-note">The plan was longer than your budget; ${p.trimmed} step${p.trimmed === 1 ? ' was' : 's were'} cut.</div>` : ''}
       <ol class="vex-at-steps">${p.steps.map(s => `<li class="vex-at-step vex-at-${s.kind}"><span class="vex-at-badge">${s.kind === 'write' ? 'asks you first' : 'looks only'}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${this._explainBlock(s, null)}</li>`).join('')}</ol>
       ${p.steps.some(s => s.kind === 'write') ? `<label class="vex-at-note"><input type="checkbox" data-act="readonly" ${p.readOnly ? 'checked' : ''}> Read-only run: skip every step that types, chooses or clicks</label>` : ''}
@@ -358,7 +358,7 @@ const AgentTaskPanel = {
             <button type="button" class="vex-at-btn vex-at-danger" data-act="stopstep">Stop the task</button>
           </div></div>` : ''}
         <ol class="vex-at-steps">${r.steps.map(s => `<li class="vex-at-step vex-at-${s.status}"><span class="vex-at-badge">${mark[s.status] || s.status}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${s.result ? `<div class="vex-at-result">${this._esc(s.result)}</div>` : ''}${this._explainBlock(s, r)}</li>`).join('')}</ol>
-        ${r.shield && r.shield.hits ? `<div class="vex-at-note">${r.shield.hits} instruction-like phrase${r.shield.hits === 1 ? '' : 's'} on the pages ${r.shield.hits === 1 ? 'was' : 'were'} removed before the model saw ${r.shield.hits === 1 ? 'it' : 'them'}: page text is data, never orders.</div>` : ''}
+        ${r.shield && r.shield.hits ? `<div class="vex-at-note">${r.shield.hits} instruction-like phrase${VexPlural.s(r.shield.hits)} on the pages ${r.shield.hits === 1 ? 'was' : 'were'} removed before the model saw ${r.shield.hits === 1 ? 'it' : 'them'}: page text is data, never orders.</div>` : ''}
         ${r.answer ? `<h3 class="vex-at-h">Answer</h3>${this._chipFor(r.backend, 'the pages the agent read')}<div class="vex-at-answer">${this._esc(r.answer)}</div>` : ''}
         <details class="vex-at-history" ${done ? '' : 'open'}><summary>Live log</summary>
           <ul class="vex-at-livelog" aria-live="polite">${r.log.slice(-40).map(l => `<li>${new Date(l.at).toLocaleTimeString()} ${this._esc(l.text)}</li>`).join('')}</ul></details>

@@ -93,7 +93,7 @@ const TrackerReceipts = {
           <span style="font-size:9px;color:var(--text-muted)">${lbl}</span></div>`;
       }).join('');
       const trkRows = topTrackers.map(([h, c]) => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</span><span style="color:var(--text-muted)">${c.toLocaleString()}</span></div>`).join('');
-      const crossRows = topCross.length ? topCross.map(([h, c]) => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</span><span style="color:var(--text-muted)">followed you across ${c} site${c === 1 ? '' : 's'}</span></div>`).join('') : '<div style="color:var(--text-muted);font-size:12px">No cross-site trackers spotted — nice.</div>';
+      const crossRows = topCross.length ? topCross.map(([h, c]) => `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h)}</span><span style="color:var(--text-muted)">followed you across ${c} site${VexPlural.s(c)}</span></div>`).join('') : '<div style="color:var(--text-muted);font-size:12px">No cross-site trackers spotted — nice.</div>';
       body = `
         <div style="text-align:center;margin:6px 0 14px">
           <div style="font-size:30px;font-weight:800;color:var(--text)">${weekTotal.toLocaleString()}</div>

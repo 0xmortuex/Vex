@@ -33,10 +33,10 @@ const MeetingMode = {
   // How long it went on, in words a person would use.
   lasted(ms) {
     const mins = Math.max(1, Math.round(ms / 60000));
-    if (mins < 60) return mins + ' minute' + (mins === 1 ? '' : 's');
+    if (mins < 60) return mins + ' minute' + VexPlural.s(mins);
     const hours = Math.floor(mins / 60);
     const rest = mins % 60;
-    return hours + ' hour' + (hours === 1 ? '' : 's') + (rest ? ' ' + rest + ' minutes' : '');
+    return hours + ' hour' + VexPlural.s(hours) + (rest ? ' ' + rest + ' minutes' : '');
   },
 
   // --- the note ------------------------------------------------------------
@@ -162,7 +162,7 @@ const MeetingMode = {
     document.body.classList.remove('meeting-mode');
     if (typeof AttentionState !== 'undefined') AttentionState.changed();
     window.showToast?.(items
-      ? 'Meeting over — ' + items + ' action item' + (items === 1 ? '' : 's') + ' waiting in your tasks'
+      ? 'Meeting over — ' + items + ' action item' + VexPlural.s(items) + ' waiting in your tasks'
       : 'Meeting over — reminders are back on');
     return { minutes: Math.round(ran / 60000), items };
   },

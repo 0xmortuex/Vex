@@ -29,7 +29,7 @@ async function tuningRunAction(action, { confirm: confirmFn, env }) {
   const need = (name) => { if (typeof env[name] !== 'function') throw new Error('Not available in this build: ' + name); return env[name]; };
   const ids = Array.isArray(action.tabIds) ? action.tabIds : [];
   const ask = {
-    'sleep-tab': () => 'Put ' + ids.length + ' tab' + (ids.length === 1 ? '' : 's') + ' of ' + (action.label || 'this site') + ' to sleep? They wake when you click them.',
+    'sleep-tab': () => 'Put ' + ids.length + ' tab' + VexPlural.s(ids.length) + ' of ' + (action.label || 'this site') + ' to sleep? They wake when you click them.',
     'battery-mode-on': () => 'Turn on battery mode? Idle tabs sleep sooner and background jobs wait until the PC is plugged in.',
     'reduce-motion-on': () => 'Turn on reduced motion? Vex’s animations stop; you can turn it off in Settings.',
     'recall-off': () => 'Turn off ' + (action.label || 'Recall') + '? Pages are no longer indexed until you turn it back on.',

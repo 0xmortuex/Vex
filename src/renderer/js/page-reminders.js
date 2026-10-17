@@ -185,7 +185,7 @@ const VexPageReminders = {
     if (!t) { window.showToast?.('Open a page first', 'error'); return; }
     try {
       const n = this.markDone(t.url);
-      window.showToast?.(n ? n + ' reminder' + (n === 1 ? '' : 's') + ' cleared for this page' : 'No waiting reminder for this page', 'info');
+      window.showToast?.(n ? n + ' reminder' + VexPlural.s(n) + ' cleared for this page' : 'No waiting reminder for this page', 'info');
     } catch (err) { window.showToast?.(err.message, 'error'); }
   },
   open() {

@@ -47,7 +47,7 @@ const DevToolsPrefs = {
   ago(ms) {
     const d = Math.floor((Date.now() - ms) / 86400000);
     if (d < 1) return 'today';
-    if (d < 31) return d + ' day' + (d === 1 ? '' : 's') + ' ago';
+    if (d < 31) return d + ' day' + VexPlural.s(d) + ' ago';
     if (d < 730) return Math.round(d / 30.4) + ' months ago';
     return Math.round(d / 365) + ' years ago';
   },

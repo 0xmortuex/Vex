@@ -192,7 +192,7 @@ const A11yCheck = {
     const errors = result.issues.filter(i => i.severity === 'error').length;
     const warnings = result.issues.filter(i => i.severity === 'warning').length;
     if (!errors && !warnings) return 'Nothing found. This is not a full audit, but the common, certain failures are not here.';
-    return [errors ? errors + ' problem' + (errors === 1 ? '' : 's') : '', warnings ? warnings + ' to look at' : ''].filter(Boolean).join(' and ');
+    return [errors ? errors + ' problem' + VexPlural.s(errors) : '', warnings ? warnings + ' to look at' : ''].filter(Boolean).join(' and ');
   },
 
   report(result, url) {

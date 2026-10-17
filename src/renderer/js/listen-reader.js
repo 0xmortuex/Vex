@@ -671,7 +671,7 @@ const ListenReader = {
       </div>`;
     const cb = g.querySelector('[data-listen-on]');
     const count = g.querySelector('[data-listen-count]');
-    const upd = () => { const n = this.remembered(); count.textContent = n + ' page' + (n === 1 ? '' : 's') + ' remembered'; };
+    const upd = () => { const n = this.remembered(); count.textContent = n + ' page' + VexPlural.s(n) + ' remembered'; };
     cb.checked = this.enabled();
     cb.addEventListener('change', () => {
       try { this.setEnabled(cb.checked); } catch (err) { cb.checked = !cb.checked; window.showToast?.(err.message, 'error'); }

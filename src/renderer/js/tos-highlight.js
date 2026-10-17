@@ -163,7 +163,7 @@ const VexTos = {
       body.appendChild(VexSettingsGroups.note(looks ? 'Nothing here matched the usual patterns (' + result.scanned + ' sentences read). That does not mean it is safe: read it.' : 'This page does not look like terms, and nothing in it matched the patterns (' + result.scanned + ' sentences read).'));
       return;
     }
-    body.appendChild(VexSettingsGroups.note(result.findings.length + ' sentence' + (result.findings.length === 1 ? '' : 's') + ' marked in yellow on the page' + (typeof marked === 'number' ? ' (' + marked + ' found on screen)' : '') + '. Hover a mark for why.'));
+    body.appendChild(VexSettingsGroups.note(result.findings.length + ' sentence' + VexPlural.s(result.findings.length) + ' marked in yellow on the page' + (typeof marked === 'number' ? ' (' + marked + ' found on screen)' : '') + '. Hover a mark for why.'));
     for (const f of result.findings) {
       const row = document.createElement('div');
       row.className = 'vexsr-rule';

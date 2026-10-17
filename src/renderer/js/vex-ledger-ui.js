@@ -88,7 +88,7 @@ const VexLedgerUI = {
     }
     const hint = document.createElement('div');
     hint.className = 'vex-tt-h';
-    hint.textContent = 'The last ' + rows.length + ' thing' + (rows.length === 1 ? '' : 's') + ' Vex did by itself';
+    hint.textContent = 'The last ' + rows.length + ' thing' + VexPlural.s(rows.length) + ' Vex did by itself';
     body.appendChild(hint);
     for (const e of rows) {
       const row = document.createElement('div');

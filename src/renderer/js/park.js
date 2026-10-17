@@ -104,7 +104,7 @@ const VexPark = {
     const card = this.capture({ note, tabs, activeUrl: front && front.url, scroll, wsId: WorkspaceManager.activeId, wsName: ws.name });
     this._save([card, ...this.cards()]);
     if (typeof VexUsage !== 'undefined') VexUsage.touch('park-resume');
-    VexLedger.note({ feature: 'park-resume', what: 'Parked "' + card.note.slice(0, 80) + '" with ' + card.tabs.length + ' tab' + (card.tabs.length === 1 ? '' : 's'), why: 'You asked to park where you were in ' + (card.wsName || 'this workspace'), undo: { kind: 'park-delete', id: card.id } });
+    VexLedger.note({ feature: 'park-resume', what: 'Parked "' + card.note.slice(0, 80) + '" with ' + card.tabs.length + ' tab' + VexPlural.s(card.tabs.length), why: 'You asked to park where you were in ' + (card.wsName || 'this workspace'), undo: { kind: 'park-delete', id: card.id } });
     return card;
   },
 

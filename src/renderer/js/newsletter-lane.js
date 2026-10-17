@@ -67,7 +67,7 @@ const NewsletterLane = {
   digestText(senders, now = Date.now()) {
     const total = senders.reduce((n, s) => n + s.count, 0);
     const day = new Date(now).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
-    const lines = ['Newsletters, week to ' + day + ': ' + total + ' from ' + senders.length + ' sender' + (senders.length === 1 ? '' : 's') + '.', ''];
+    const lines = ['Newsletters, week to ' + day + ': ' + total + ' from ' + senders.length + ' sender' + VexPlural.s(senders.length) + '.', ''];
     for (const s of senders) {
       lines.push('## ' + s.name + ' (' + s.count + ')');
       for (const sub of s.subjects.slice(0, 8)) lines.push('- ' + sub);

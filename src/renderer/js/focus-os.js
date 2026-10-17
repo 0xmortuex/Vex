@@ -501,7 +501,7 @@ const FocusOS = {
     const items = [];
     for (const g of w.perGoal.slice(0, 5)) items.push({ text: g.title, sub: hrs(g.minutes) + ' of focus' });
     for (const t of w.goalsDone) items.push({ text: 'Finished: ' + t, sub: '' });
-    if (w.blocksSkipped) items.push({ text: w.blocksSkipped + ' block' + (w.blocksSkipped === 1 ? '' : 's') + ' set aside', sub: 'plan them again whenever you like' });
+    if (w.blocksSkipped) items.push({ text: w.blocksSkipped + ' block' + VexPlural.s(w.blocksSkipped) + ' set aside', sub: 'plan them again whenever you like' });
     return { summary: w.blocksDone + ' of ' + w.blocksPlanned + ' planned blocks done, ' + hrs(w.minutesDone) + ' of focus.', items };
   },
 

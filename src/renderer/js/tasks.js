@@ -390,13 +390,13 @@ const VexTasks = {
     rows.push({ what: 'How big the page has grown', n: d.nodes.toLocaleString() + ' elements',
       detail: d.nodes > 30000 ? 'Very large — a long-running chat that has never been reloaded keeps every message it has drawn.' : 'Each one costs memory, and an app that is never reloaded only adds them.' });
     if (d.images || d.media) {
-      rows.push({ what: 'Pictures, video and sound', n: d.images.toLocaleString() + ' images' + (d.media ? ', ' + d.media + ' player' + (d.media === 1 ? '' : 's') : ''),
+      rows.push({ what: 'Pictures, video and sound', n: d.images.toLocaleString() + ' images' + (d.media ? ', ' + d.media + ' player' + VexPlural.s(d.media) : ''),
         detail: d.playing ? d.playing + ' playing right now — video and animated pictures are decoded frame by frame and are the most expensive thing on any page.' : 'Animated pictures (emoji, avatars, GIFs) are decoded frame by frame even when you are not looking at them.' });
     }
     if (d.frames && d.frames.length) {
       const by = {};
       for (const h of d.frames) by[h] = (by[h] || 0) + 1;
-      rows.push({ what: 'Other sites embedded in it', n: d.frames.length + ' frame' + (d.frames.length === 1 ? '' : 's'),
+      rows.push({ what: 'Other sites embedded in it', n: d.frames.length + ' frame' + VexPlural.s(d.frames.length),
         detail: Object.entries(by).map(([h, n]) => n > 1 ? h + ' ×' + n : h).join(', ') + ' — each one is its own page, with its own memory.' });
     }
     if (d.workers) rows.push({ what: 'Background workers', n: String(d.workers), detail: 'Service workers keep running after you close the app’s tab, to deliver notifications.' });
@@ -424,10 +424,10 @@ const VexTasks = {
         const mins = Math.max(1, Math.round((pp.seconds || 0) / 60));
         const dearest = pp.rows.filter(r => r.totalMs >= 1);
         detail = dearest.length
-          ? 'Measured over ' + mins + ' minute' + (mins === 1 ? '' : 's') + ': '
+          ? 'Measured over ' + mins + ' minute' + VexPlural.s(mins) + ': '
             + dearest.map(r => r.name + ' ' + this._ms(r.totalMs) + (r.fluxCalls ? ' across ' + r.fluxCalls.toLocaleString() + ' events' : '')).join(', ')
             + '. The rest have cost nothing measurable.'
-          : 'Measured over ' + mins + ' minute' + (mins === 1 ? '' : 's') + ': none of them has cost anything measurable yet. '
+          : 'Measured over ' + mins + ' minute' + VexPlural.s(mins) + ': none of them has cost anything measurable yet. '
             + 'A plugin that patches Discord once at startup costs nothing afterwards.';
       }
       rows.push({ what: 'Vencord plugins running', n: String(d.vencord), detail });

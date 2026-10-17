@@ -265,7 +265,7 @@ const VexStudyGlossary = {
         VexSettingsGroups.button('Keep the ticked terms in "' + subject + '"', K.guard(() => {
           let n = 0;
           for (const r of rows) if (r.cb.checked) { this.add({ term: r.term.value, def: r.def.value, source, subject }); n++; }
-          close(); window.showToast?.(n ? n + ' term' + (n === 1 ? '' : 's') + ' added' : 'Nothing ticked');
+          close(); window.showToast?.(n ? n + ' term' + VexPlural.s(n) + ' added' : 'Nothing ticked');
           resolve(n);
         }), { primary: true }),
         VexSettingsGroups.button('Cancel', () => { close(); resolve(0); }));

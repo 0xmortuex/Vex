@@ -226,7 +226,7 @@ const ReadLater = {
       clear.textContent = 'Clear the old ones';
       clear.addEventListener('click', () => {
         const ids = new Set(stale.map(i => i.id));
-        this.removeWithUndo(i => ids.has(i.id), (n) => 'Cleared ' + n + ' old link' + (n === 1 ? '' : 's') + ' from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
+        this.removeWithUndo(i => ids.has(i.id), (n) => 'Cleared ' + n + ' old link' + VexPlural.s(n) + ' from Read Later', () => { if (container.isConnected) this.renderPanel(container); });
       });
       nudge.appendChild(clear);
       body.appendChild(nudge);
@@ -312,7 +312,7 @@ const TabArchiver = {
       try { TabManager.closeTab(t.id); } catch {}
     });
     this._save(arch, baseline);
-    window.showToast?.('Archived ' + stale.length + ' inactive tab' + (stale.length === 1 ? '' : 's') + ' (Library panel)');
+    window.showToast?.('Archived ' + stale.length + ' inactive tab' + VexPlural.s(stale.length) + ' (Library panel)');
   },
 
   renderSettings(container) {

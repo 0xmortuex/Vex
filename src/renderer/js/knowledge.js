@@ -298,8 +298,8 @@ const Knowledge = {
 
   statusLine(s) {
     if (!s) return '';
-    const kinds = KnowledgeAsk.KINDS.filter(k => s.byKind && s.byKind[k]).map(k => s.byKind[k] + ' ' + KnowledgeAsk.KIND_LABEL[k].toLowerCase() + (s.byKind[k] === 1 ? '' : 's'));
-    let line = s.items + ' item' + (s.items === 1 ? '' : 's') + (kinds.length ? ' (' + kinds.join(', ') + ')' : '')
+    const kinds = KnowledgeAsk.KINDS.filter(k => s.byKind && s.byKind[k]).map(k => s.byKind[k] + ' ' + KnowledgeAsk.KIND_LABEL[k].toLowerCase() + VexPlural.s(s.byKind[k]));
+    let line = s.items + ' item' + VexPlural.s(s.items) + (kinds.length ? ' (' + kinds.join(', ') + ')' : '')
       + ' · ' + KnowledgeAsk.size(s.sizeBytes || s.bytes || 0) + ' of ' + KnowledgeAsk.size(s.maxBytes) + ' · ' + (s.mode === 'meaning' ? 'search by meaning on' : 'keyword search');
     if (s.evicted) line += ' · ' + s.evicted + ' oldest not indexed (full)';
     if (s.keptOut) line += ' · ' + s.keptOut + ' kept out';
@@ -611,7 +611,7 @@ const Knowledge = {
       try {
         const r = await this._api().kbKeepOutClear();
         if (r && r.ok === false) throw new Error(r.message);
-        say(r.released ? r.released + ' item' + (r.released === 1 ? '' : 's') + ' can be indexed again.' : 'Nothing was kept out.');
+        say(r.released ? r.released + ' item' + VexPlural.s(r.released) + ' can be indexed again.' : 'Nothing was kept out.');
         refreshStatus();
       } catch (err) { say(err.message, true); }
     });

@@ -33,7 +33,7 @@ const QuietHoursUI = {
         const c = await q.get();
         start.value = c.start; end.value = c.end; times.value = c.digestTimes.join(', '); vip.value = c.vip.join('\n');
         toggleInput.checked = c.enabled;
-        held.textContent = c.held ? c.held + ' notification' + (c.held === 1 ? '' : 's') + ' held right now.' : 'Nothing is being held.';
+        held.textContent = c.held ? c.held + ' notification' + VexPlural.s(c.held) + ' held right now.' : 'Nothing is being held.';
         status.textContent = c.enabled ? (c.inWindow ? 'Quiet hours are in effect now.' : 'On. Not in the quiet window right now.') : 'Off.';
       } catch (err) { status.textContent = 'Could not read the settings: ' + this._msg(err); }
     };
