@@ -86,6 +86,34 @@ const ModelFit = {
     return lines;
   },
 
+  // Acting on the advice: make a model the one for chat and the agent ('chat'), or for the routine jobs nobody is
+  // watching ('routine': tab group names, history indexing). Only an installed model, one Ledger line with an Undo that
+  // puts the earlier choice back. Nothing is downloaded or loaded by this.
+  ROLES: { chat: 'chat and the agent', routine: 'routine jobs (tab group names, history indexing)' },
+  async use(model, role) {
+    if (!this.ROLES[role]) throw new Error('Use a model for chat or for routine jobs');
+    if (typeof AIRouter === 'undefined') throw new Error('The AI router is not available');
+    const name = String(model == null ? '' : model).trim();
+    if (!name) throw new Error('Pick a model');
+    const installed = (await this.candidates()).map(m => m.name);
+    if (!installed.includes(name)) throw new Error(name + ' is not installed');
+    const previous = role === 'chat' ? AIRouter.getModel() : AIRouter.getSmallModel();
+    if (previous === name) return { changed: false, previous };
+    if (role === 'chat') AIRouter.setModel(name); else AIRouter.setSmallModel(name);
+    if (typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: this.FEATURE, what: 'Set ' + name + ' as the model for ' + this.ROLES[role], why: 'You chose it from the results of your own tasks (Which model fits my tasks?)', undo: { kind: 'modelfit-restore', role, previous } });
+    }
+    return { changed: true, previous };
+  },
+  restore(role, previous) {
+    if (!this.ROLES[role]) throw new Error('Unknown model role ' + role);
+    if (typeof AIRouter === 'undefined') throw new Error('The AI router is not available');
+    if (role === 'chat') {
+      if (!previous) throw new Error('There was no earlier choice to go back to');
+      AIRouter.setModel(previous);
+    } else AIRouter.setSmallModel(previous || '');
+  },
+
   _gaming() {
     if (typeof GameMode !== 'undefined' && GameMode.gaming) return 'a game is running';
     if (typeof BatteryMode !== 'undefined' && typeof BatteryMode.holdingAi === 'function' && BatteryMode.holdingAi()) return 'Vex is saving battery';
@@ -202,6 +230,18 @@ const ModelFit = {
         if (!last) return;
         const ratings = this.state().ratings;
         for (const l of this.advice(last, ratings)) results.appendChild(S.note(l));
+        const best = this.rank(last.filter(r => r.results.some(x => !x.error)), ratings)[0];
+        if (best) {
+          for (const role of ['chat', 'routine']) {
+            results.appendChild(S.button('Use ' + best.model + ' for ' + this.ROLES[role], async () => {
+              try {
+                if (!await vexConfirm({ title: 'Use ' + best.model + '?', message: best.model + ' becomes the model for ' + this.ROLES[role] + '. You can put the earlier one back from Why did that happen?', okLabel: 'Use it' })) return;
+                const r = await this.use(best.model, role);
+                window.showToast?.(r.changed ? best.model + ' is now the model for ' + this.ROLES[role] : best.model + ' already was');
+              } catch (err) { fail(err); }
+            }, { label: 'Use ' + best.model + ' for ' + this.ROLES[role] }));
+          }
+        }
         for (const r of this.rank(last, ratings)) {
           results.appendChild(el('div', 'setting-label', r.model + (r.size ? ' (' + r.size + ')' : '') + (r.loadSeconds ? ' - loaded in ' + r.loadSeconds + ' s' : '')));
           for (const x of r.results) {
@@ -226,6 +266,10 @@ const ModelFit = {
 };
 
 // ------------------------------------------------------------------------------------------------
+if (typeof VexLedger !== 'undefined' && typeof VexLedger.registerUndo === 'function') {
+  VexLedger.registerUndo('modelfit-restore', async (token) => { ModelFit.restore(token.role, token.previous); });
+}
+
 const WarmModel = {
   KEY: 'vex.warmModel',
   FEATURE: 'local-model-tools',
