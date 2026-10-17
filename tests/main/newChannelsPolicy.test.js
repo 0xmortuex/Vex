@@ -20,7 +20,7 @@ const CHANNELS = ('clips-inbox:add clips-inbox:clear clips-inbox:list clips-inbo
   + 'websafety:get websafety:set-paranoid websafety:set-sensitivity '
   + 'devdesk:config devdesk:set-config devdesk:grant-root devdesk:revoke-root devdesk:open-file devdesk:open-terminal devdesk:branch devdesk:ports '
   + 'devext:pick devext:reload devext:stop devext:status devext:vencord castlabs:behind panelguard:throttle '
-  + 'profilecrypt:status profilecrypt:enable profilecrypt:disable profilecrypt:change profilecrypt:new-recovery '
+  + 'discord:heap-begin discord:heap-end discord:heap-usage profilecrypt:status profilecrypt:enable profilecrypt:disable profilecrypt:change profilecrypt:new-recovery '
   + 'transcribe:config transcribe:pick transcribe:clear transcribe:set transcribe:begin transcribe:chunk transcribe:end').split(' ');
 
 // Open to a private window on purpose: they only read what the window already

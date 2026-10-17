@@ -17,7 +17,7 @@ How Vex holds the pages you have open.
 - **Add new tabs to the group they match** (`tab-auto-group`): A new tab that matches an existing group is moved into it. The switch is in Settings > Smart Tab Grouping.
   - Open: Settings > Smart Tab Grouping.
 - **Discord memory care** (`discord-memory-care`): Three opt-in helpers for a Discord panel that grows. The over-limit notice stays on screen until you answer it (Refresh Discord now, Not now for an hour, Turn on automatic refresh) and leaves a row in the Inbox. Automatic refresh reloads the hidden panel at most once every six hours, never in a call, a screen share or while the microphone or camera is in use, and not within half an hour of an unread count. Rest mode tells a hidden Discord the truth about being hidden so it can idle; notifications can lag while it rests. On an existing profile all of it starts off; turn it on in Settings > Performance.
-  - Open: Ctrl+K: "Measure Discord over 10 minutes"; Settings > Panels and messages.
+  - Open: Ctrl+K: "Measure Discord over 10 minutes", "Plugin memory: which Vencord plugin costs how many MB"; Settings > Panels and messages.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Ctrl+Tab by recency** (`tab-mru`): Ctrl+Tab switches in the order you used the tabs last, like Alt+Tab. On an existing profile it starts off; turn it on in Settings > Tab tools.
   - Open: Settings > Tab tools.

@@ -4944,6 +4944,19 @@ ipcMain.handle('discord:install-vencord-local', async (_e, customPath) => {
   }
 });
 
+// === Which Vencord plugin allocates how much (src/main/discord-heap.js) ===================
+// Read-only sampling heap profiler on the Discord panel's page, for a window the window asks for; the line map of the
+// installed Vencord decides which plugin a frame belongs to. Never a path or a command from a window.
+const _discordHeapModule = require('./main/discord-heap');
+const _discordHeap = _discordHeapModule.createDiscordHeap({
+  webContents,
+  isDiscordContents: (wc) => wc.session === secureSessions.fromPartition('persist:discord'),
+  loadManifest: () => { const v = _installedVencord(); return _discordHeapModule.loadRanges(v && v.path); },
+});
+ipcMain.handle('discord:heap-begin', (_e, id, names) => _discordHeap.begin(id, names));
+ipcMain.handle('discord:heap-end', (_e, id, keep) => _discordHeap.end(id, keep));
+ipcMain.handle('discord:heap-usage', (_e, id) => _discordHeap.usage(id));
+
 // === Uninstall with Undo ======================================================
 // The manager's Uninstall switches the extension off at once and lists it as
 // being removed (extensions.js, REMOVING_FILE); the interface's Undo toast

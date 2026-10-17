@@ -6,7 +6,7 @@ const GUEST_CHANNELS = new Set(['compatibility:get', 'geolocation:check-permissi
   // A page's userscripts (userscripts-preload.js): main judges the tab and the
   // frame's own address; a refused tab is simply given none.
   'userscripts:page', 'userscripts:gm']);
-const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'media:list', 'media:download', 'webview:hard-reload',
+const TARGET_CHANNELS = new Set(['vex:set-bg-throttling', 'panelguard:throttle', 'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage', 'media:list', 'media:download', 'webview:hard-reload',
   'devtools:toggle-webview', 'devtools:open-for-webcontents', 'spellcheck:replace-misspelling', 'spellcheck:add-word', 'page:eval-all-frames', 'permissions:list-for-page', 'tabs:favicon', 'tabs:history', 'tabs:nav-list', 'tabs:preconnect',
   // The site panel's per-page permissions and certificate (main.js): a private
   // window's page keeps its answers in memory, so these stay allowed there.
@@ -36,6 +36,8 @@ const PRIVATE_DISABLED = /^(?:websafety:(?:set-sensitivity|allow-host|forget-hos
 // accounts for Vex Sync (main/sync-secrets.js).
 // companion:* pairs a phone browser and publishes the Devices view (main/companion.js).
 const UI_ONLY_CHANNELS = new Set([
+  // The sampling heap profiler on the Discord panel (main/discord-heap.js): Vex's own window only.
+  'discord:heap-begin', 'discord:heap-end', 'discord:heap-usage',
   // Knowledge base (main/knowledge-base.js): the index holds page text.
   'kb:plan', 'kb:put', 'kb:sync-archive', 'kb:status', 'kb:step', 'kb:search', 'kb:context', 'kb:related', 'kb:related-page', 'kb:keep-out', 'kb:keep-out-clear', 'kb:forget',
   // Cookie report and cleanup, extension usage, crash-proof tab snapshots

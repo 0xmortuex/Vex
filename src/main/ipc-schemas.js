@@ -397,6 +397,10 @@ define('routing:prune', [value => Array.isArray(value) && value.length <= 500 &&
 define('bypass:probe', [string(2048)]);
 define('discord:set-bypass-mode', [oneOf(['off','light','strong','auto']), optional(shape({ preset: optional(value => Number.isInteger(value)), custom: optional(string(4096)) }))]);
 define('discord:install-vencord-local', [optional(string())]);
+// Which Vencord plugin allocates how much (main/discord-heap.js): the Discord page's id, then the plugin names.
+define('discord:heap-begin', [integer, optional(value => Array.isArray(value) && value.length <= 600 && value.every(string(64)))]);
+define('discord:heap-end', [integer, boolean]);
+define('discord:heap-usage', [integer]);
 // Light and dark (src/main/system-theme.js): is Windows in dark mode.
 define('system-theme:get', []);
 // A New Tab background image: your own theme's (by its id, js/theme-studio.js),
