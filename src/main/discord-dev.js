@@ -54,7 +54,7 @@ function createDiscordDev({ fs, path, crypto, installed, protectedDir, reloadExt
     if (path.basename(dist).toLowerCase() !== 'dist') throw new Error('browser.js must sit in a folder called dist (your own checkout\'s build output)');
     const repo = path.dirname(dist);
     let pkg;
-    try { pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8').replace(/^﻿/, '')); }
+    try { pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8').replace(/^\uFEFF/, '')); }
     catch (err) { throw new Error('The folder above dist has no readable package.json, so this does not look like a Vencord source checkout', { cause: err }); }
     const pname = String(pkg && pkg.name || '').toLowerCase();
     if (pname !== 'vencord' && pname !== 'equicord') throw new Error('The package.json above dist is named "' + String(pkg && pkg.name).slice(0, 40) + '", not vencord or equicord: that is not your Vencord checkout');
