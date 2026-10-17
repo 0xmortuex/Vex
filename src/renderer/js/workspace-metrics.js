@@ -291,7 +291,7 @@ const WorkspaceMetrics = {
     if (typeof document === 'undefined') return;
     for (const ev of ['mousemove', 'keydown', 'pointerdown', 'wheel']) document.addEventListener(ev, () => this._touch(), { passive: true, capture: true });
     this._lastInput = Date.now();
-    this._timer = setInterval(() => this.tick(), this.TICK_MS);
+    this._timer = VexJobs.every('Workspace metrics', this.TICK_MS, () => this.tick(), { when: 'background' });
     window.addEventListener('beforeunload', () => { if (this._dirty) this.save(); });
     document.addEventListener('DOMContentLoaded', () => this._wrapTabs());
     if (window.VexSettingsGroups) {

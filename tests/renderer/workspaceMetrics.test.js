@@ -3,6 +3,8 @@
 // Workspace metrics: time, tabs opened and notes written per workspace and
 // project, kept locally as numbers per day, exported as CSV.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 require('../../src/renderer/js/vex-utils.js');
 globalThis.VexIcons = require('../../src/renderer/js/vex-icons.js').VexIcons;
 const { VexSettingsGroups } = require('../../src/renderer/js/settings-groups.js');

@@ -2,6 +2,8 @@
 // The profile page and its Settings group render, filter, and keep the
 // Unlock all medals switch honest.
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 const path = require('path');
 const JS = path.join(__dirname, '..', '..', 'src', 'renderer', 'js');
 let V;

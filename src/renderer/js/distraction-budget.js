@@ -202,11 +202,11 @@ const DistractionBudget = {
   start() {
     if (this._timer) return;
     this._lastTick = Date.now();
-    this._timer = setInterval(() => {
+    this._timer = VexJobs.every('Distraction budget', this.TICK_MS, () => {
       try { this.tick(); } catch (err) { console.error('[DistractionBudget] tick failed:', err && err.message); }
-    }, this.TICK_MS);
+    }, { when: 'background' });
   },
-  stop() { clearInterval(this._timer); this._timer = null; this.save(); },
+  stop() { if (this._timer) this._timer.stop(); this._timer = null; this.save(); },
 
   init() {
     this.state();

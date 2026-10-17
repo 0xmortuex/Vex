@@ -5,6 +5,8 @@
 // streamer mode's capture check (5 s). An idle Vex woke its window about twice
 // a second for these, all day, to find nothing had changed.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 const fs = require('fs');
 const path = require('path');
 

@@ -126,7 +126,7 @@ const SchedulesPanel = {
       this._boundChange = () => this._scheduleRender();
       window.addEventListener('vex-schedules-changed', this._boundChange);
     }
-    if (!this._ticker) this._ticker = setInterval(() => { if (this._visible()) this._render(); }, 30000);
+    if (!this._ticker) this._ticker = VexJobs.every('Schedules panel refresh', 30000, () => { if (this._visible()) this._render(); });
 
     this._render();
   },

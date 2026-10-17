@@ -35,16 +35,16 @@ const PrivacyDashboard = {
     // Light poll: only actually fetches while the panel is visible. Once the
     // panel is gone for good the interval stops itself instead of ticking (and
     // holding a detached element) for the rest of the session.
-    this._timer = setInterval(() => {
+    this._timer = VexJobs.every('Privacy panel refresh', 2500, () => {
       if (!this._el || !document.body.contains(this._el)) { this.stop(); return; }
       const panel = document.getElementById('panel-privacy');
       if (!panel || panel.style.display === 'none' || panel.offsetParent === null) return;
       this._refresh();
-    }, 2500);
+    });
   },
 
   stop() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._timer) { this._timer.stop(); this._timer = null; }
   },
 
   // ---- What left this computer (main/egress-ledger.js) -----------------------

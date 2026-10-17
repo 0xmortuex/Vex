@@ -234,12 +234,12 @@ const QueuePanel = {
 
   startAutoRefresh() {
     if (this.refreshTimer) return;
-    this.refreshTimer = setInterval(() => {
+    this.refreshTimer = VexJobs.every('Queue panel refresh', this.REFRESH_MS, () => {
       // Only poll while the Queue panel is the one on screen.
       if (typeof SidebarManager !== 'undefined' && SidebarManager.activePanel === 'queue') {
         this.refresh();
       }
-    }, this.REFRESH_MS);
+    });
   },
 
   escape(s) {

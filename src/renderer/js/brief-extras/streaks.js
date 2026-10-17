@@ -124,11 +124,11 @@ const VexBriefStreaks = {
   // One minute of Focus mode per minute it is on. Call once at start-up.
   start() {
     if (this._timer) return;
-    this._timer = setInterval(() => {
+    this._timer = VexJobs.every('Focus streak minutes', 60 * 1000, () => {
       if (typeof FocusMode !== 'undefined' && FocusMode.active) this.addFocus(1);
-    }, 60 * 1000);
+    }, { when: 'background' });
   },
-  stop() { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
+  stop() { if (this._timer) { this._timer.stop(); this._timer = null; } },
 
   build(now = new Date(), deps = {}) {
     this.sample(now, deps);

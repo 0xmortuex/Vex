@@ -532,12 +532,12 @@ const VexTasks = {
     this.refresh();
     // Live, because the numbers move and because an end has to be seen to have
     // worked. Three seconds matches the Memory panel's own tab refresh.
-    this._timer = setInterval(() => this.refresh(), 3000);
+    this._timer = VexJobs.every('Task manager refresh', 3000, () => this.refresh());
     return el;
   },
 
   close() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._timer) { this._timer.stop(); this._timer = null; }
     if (this._onKey) { window.removeEventListener('keydown', this._onKey, true); this._onKey = null; }
     this._menu?.remove();
     this._menu = null;

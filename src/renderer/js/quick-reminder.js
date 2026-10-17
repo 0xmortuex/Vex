@@ -403,7 +403,7 @@ const VexQuickReminder = {
     // changes; read back when synced data lands, and handed to the main
     // process, which adds what it has not seen.
     this._mirror();
-    setInterval(() => this._mirror(), 5 * 60000);
+    VexJobs.every('Reminder mirror', 5 * 60000, () => this._mirror(), { when: 'background' });
     // A backup being restored lands the same way, and says so.
     window.addEventListener('vex-sync-data-applied', (e) => this._applySynced(e && e.detail && e.detail.source));
     return true;
@@ -477,7 +477,7 @@ const VexQuickReminder = {
     window.addEventListener('vex:tab-activated', () => this._checkSite());
     window.addEventListener('vex:tab-url-changed', () => this._checkSite());
     refreshHosts();
-    setInterval(refreshHosts, 30000);
+    VexJobs.every('Reminder site hosts', 30000, refreshHosts);
   },
 
   // Called after a reminder is created so a site reminder can fire within

@@ -6,6 +6,8 @@
 // panel, a tab, uBlock Origin's background page in some partition, the GPU.
 
 import { describe, it, expect, beforeEach } from 'vitest';
+// VexJobs.every stand-in for a module that now registers its timers there (T0-020): same timers, same fake clocks.
+globalThis.VexJobs ??= { lines: () => [], every: (_name, ms, fn) => { const id = setInterval(fn, ms); return { stop: () => clearInterval(id) }; } };
 
 window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const { MemoryPanel } = require('../../src/renderer/js/memory-panel.js');
