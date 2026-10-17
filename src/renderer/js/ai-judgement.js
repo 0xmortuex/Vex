@@ -692,7 +692,6 @@ const AiRecipes = {
       entry.ms = Date.now() - t0;
       this._busy = false;
       this._pushHistory(id, entry);
-      if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:ai-recipe-ran', { detail: { id, ok: entry.ok } }));
     }
     return entry;
   },

@@ -93,7 +93,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:newtab-layout', 'NewTabSlots.setLayout(): the New Tab layout changed; the page re-reads it on open, no in-window consumer yet'],
   ['vex:consent', 'VexDefaults consent given or withdrawn; no in-window consumer yet'],
   // Wave 3: announced for later consumers; none listens yet.
-  ['vex:ai-fallback', 'AIRouter retried on the other backend (the notice is raised from the same place); no in-window consumer yet'],
   ['vex:feature-reset', 'the feature sheet reset a feature\'s data; no in-window consumer yet'],
   ['vex:storage-scope-changed', 'the storage ledger scope of a feature changed; no in-window consumer yet'],
   ['vex:study-glossary', 'the study glossary changed; no in-window consumer yet'],
