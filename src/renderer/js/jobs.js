@@ -43,11 +43,13 @@ const VexJobs = {
 
   // Why a job of this kind should wait right now, or '' to run it.
   heldBecause(when, job) {
-    const gaming = typeof GameMode !== 'undefined' && GameMode.gaming;
+    const gaming = window.GameMode && window.GameMode.gaming;
     if (gaming) return 'a game is running';
-    if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active) return 'a game launcher is open';
-    if (typeof CommitGuard !== 'undefined' && CommitGuard.holding()) return 'Windows is short of memory';
-    if (job && job.deferOnBattery && typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs()) return 'saving battery';
+    // window.X, not typeof X: a job registered while its chunk loads (the packaged window's scripts are bundled,
+    // scripts/window-bundle.js) runs this before game-warmdown.js has, and typeof of a const still waiting for its line throws.
+    if (window.GameWarmdown && window.GameWarmdown.active) return 'a game launcher is open';
+    if (window.CommitGuard && window.CommitGuard.holding()) return 'Windows is short of memory';
+    if (job && job.deferOnBattery && window.BatteryMode && window.BatteryMode.holdingJobs()) return 'saving battery';
     if (when === 'ui' && typeof document !== 'undefined' && document.hidden) return 'Vex is hidden';
     return '';
   },
@@ -56,11 +58,11 @@ const VexJobs = {
   _key(job) { return job.feature || 'job:' + job.name; },
   // Switched off by the breaker (repeated failures or a budget overrun): not run
   // and not owed — it gets a fresh start when the cool-down ends.
-  _tripped(job) { return typeof VexBreaker !== 'undefined' && VexBreaker.isTripped(this._key(job)); },
+  _tripped(job) { return window.VexBreaker && window.VexBreaker.isTripped(this._key(job)); },
 
   tick(now = Date.now()) {
-    if (typeof VexBreaker !== 'undefined') VexBreaker.sweep();
-    if (typeof VexCost !== 'undefined') VexCost.tick();
+    if (window.VexBreaker) VexBreaker.sweep();
+    if (window.VexCost) VexCost.tick();
     for (const job of this._jobs.values()) {
       if (now < job.next) continue;
       job.next = now + job.ms;
@@ -94,11 +96,11 @@ const VexJobs = {
     job.running = true;
     job.runs++;
     const key = this._key(job);
-    const done = () => { job.running = false; if (typeof VexBreaker !== 'undefined') VexBreaker.ok(key); };
+    const done = () => { job.running = false; if (window.VexBreaker) VexBreaker.ok(key); };
     const failed = (err) => {
       job.running = false;
       window.VexProblems?.note('Background job', job.name + ' failed', err);
-      if (typeof VexBreaker !== 'undefined') VexBreaker.fail(key, err);
+      if (window.VexBreaker) VexBreaker.fail(key, err);
     };
     // The time the job held the interface thread: the synchronous part only.
     // What an async job awaits (a network reply) costs the thread nothing, so
@@ -108,10 +110,10 @@ const VexJobs = {
       const ms = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
       job.totalMs = (job.totalMs || 0) + ms;
       if (ms > (job.maxMs || 0)) job.maxMs = ms;
-      if (typeof VexCost !== 'undefined') VexCost.job(job.feature, ms);
+      if (window.VexCost) VexCost.job(job.feature, ms);
     };
     try {
-      const r = typeof VexCost !== 'undefined' ? VexCost.run(job.feature, job.fn) : job.fn();
+      const r = window.VexCost ? VexCost.run(job.feature, job.fn) : job.fn();
       took();
       if (r && typeof r.then === 'function') r.then(done, failed);
       else done();
@@ -225,13 +227,13 @@ const VexJobs = {
 
   // Why this item may not run right now ('' = go).
   _heavyBlock(item, now = Date.now()) {
-    if (typeof GameMode !== 'undefined' && GameMode.gaming) return 'a game is running';
-    if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active) return 'a game launcher is open';
+    if (window.GameMode && window.GameMode.gaming) return 'a game is running';
+    if (window.GameWarmdown && window.GameWarmdown.active) return 'a game launcher is open';
     const mem = this.memoryLow();
     if (mem) return mem;
-    if (item.breaker !== false && item.feature && typeof VexBreaker !== 'undefined' && VexBreaker.isTripped(item.feature)) return 'it was switched off after repeated failures';
+    if (item.breaker !== false && item.feature && window.VexBreaker && window.VexBreaker.isTripped(item.feature)) return 'it was switched off after repeated failures';
     if (item.kind === 'ai-ask') return '';           // a question you asked: not held for idleness or power
-    if (typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs && BatteryMode.holdingJobs()) return 'saving battery';
+    if (window.BatteryMode && window.BatteryMode.holdingJobs && BatteryMode.holdingJobs()) return 'saving battery';
     if (item.backlog) {
       if (!this._overnight(new Date(now))) return 'it waits for the night';
       if (!this._pluggedIn()) return 'it waits for the charger';
@@ -301,20 +303,20 @@ const VexJobs = {
     const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     const finish = () => {
       this._heavyRunning = false;
-      if (typeof VexCost !== 'undefined') VexCost.job(item.feature, ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
+      if (window.VexCost) VexCost.job(item.feature, ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
       this._pumpHeavy();
     };
-    const ok = (value) => { if (item.breaker !== false && typeof VexBreaker !== 'undefined') VexBreaker.ok(key); finish(); item.resolve({ ran: true, value }); };
+    const ok = (value) => { if (item.breaker !== false && window.VexBreaker) VexBreaker.ok(key); finish(); item.resolve({ ran: true, value }); };
     const bad = (err) => {
       if (item.breaker !== false) {
         window.VexProblems?.note('Background job', item.name + ' failed', err);
-        if (typeof VexBreaker !== 'undefined') VexBreaker.fail(key, err);
+        if (window.VexBreaker) VexBreaker.fail(key, err);
       }
       finish();
       item.reject(err);
     };
     try {
-      const r = typeof VexCost !== 'undefined' ? VexCost.run(item.feature, item.fn) : item.fn();
+      const r = window.VexCost ? VexCost.run(item.feature, item.fn) : item.fn();
       if (r && typeof r.then === 'function') r.then(ok, bad); else ok(r);
     } catch (err) { bad(err); }
   },
