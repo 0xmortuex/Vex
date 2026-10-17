@@ -515,7 +515,7 @@ const AiRecipes = {
       const act = (text, fn, opts) => S.button(text, async () => { try { await fn(); } catch (err) { aiFail('AI recipes', err); } }, opts);
       const list = el('div', 'vexsr-list');
       const dest = el('select', 'set-input'); dest.setAttribute('aria-label', 'Where an unattended answer goes');
-      for (const [v, l] of [['history', 'Unattended answers: history only'], ['note', 'Unattended answers: save as a note']]) dest.appendChild(Object.assign(el('option', '', l), { value: v }));
+      for (const [v, l] of [['history', 'Unattended answers: history only'], ['note', 'Unattended answers: save as a note'], ['clips', 'Unattended answers: keep in the Clips inbox'], ['reminder', 'Unattended answers: show as a notification']]) dest.appendChild(Object.assign(el('option', '', l), { value: v }));
       const backend = el('select', 'set-input'); backend.setAttribute('aria-label', 'Which AI an unattended run uses');
       for (const [v, l] of [['local', 'Unattended runs: my local model'], ['auto', 'Unattended runs: Auto (cloud only past the sensitivity gate)']]) backend.appendChild(Object.assign(el('option', '', l), { value: v }));
       const armRow = el('div', 'vexsr-rule'); armRow.append(dest, backend);
@@ -525,12 +525,12 @@ const AiRecipes = {
         const t = el('span', 'vexsr-host'); t.style.wordBreak = 'normal';
         t.append(el('div', '', r.name), Object.assign(el('div', 'vexsr-mode', 'Reminder: ' + when + (r.runs ? '. Run ' + r.runs + ' time' + (r.runs === 1 ? '' : 's') : '')), { style: 'white-space:normal' }));
         const row = el('div', 'vexsr-rule');
-        if (this.isArmed(r)) t.lastChild.textContent += '. Runs by itself (' + (r.backend === 'auto' ? 'Auto' : 'local model') + ', ' + (r.dest === 'note' ? 'saved as a note' : 'history only') + ')';
+        if (this.isArmed(r)) t.lastChild.textContent += '. Runs by itself (' + (r.backend === 'auto' ? 'Auto' : 'local model') + ', ' + (this.DEST_LABELS[r.dest] || 'history only') + ')';
         row.append(t, act('Open', () => this.open(r.id), { label: 'Open recipe ' + r.name }),
           act(this.isArmed(r) ? 'Disarm' : 'Run by itself...', async () => {
             if (this.isArmed(r)) { await this.arm(r.id, false); draw(); return; }
             if (!r.reminderId) throw new Error('Give the recipe a time first: an armed recipe runs when its reminder fires');
-            const ok = await vexConfirm({ title: 'Let "' + r.name + '" run while you are away?', message: 'When its reminder fires (Windows wakes Vex for it if Vex is closed), Vex will read ' + (r.source ? r.source + ' through a hidden tab' : 'no page') + ' and run your skill on ' + (backend.value === 'auto' ? 'Auto (the cloud only for what the sensitivity gate allows)' : 'your local model') + '. The answer goes to the recipe history' + (dest.value === 'note' ? ' and to a note' : '') + '. Pages that hold mail, bank or health data are never sent to the cloud. You can disarm it any time.', okLabel: 'Arm it' });
+            const ok = await vexConfirm({ title: 'Let "' + r.name + '" run while you are away?', message: 'When its reminder fires (Windows wakes Vex for it if Vex is closed), Vex will read ' + (r.source ? r.source + ' through a hidden tab' : 'no page') + ' and run your skill on ' + (backend.value === 'auto' ? 'Auto (the cloud only for what the sensitivity gate allows)' : 'your local model') + '. The answer goes to the recipe history' + (dest.value !== 'history' ? ' and ' + ({ note: 'to a note', clips: 'to the Clips inbox', reminder: 'to a notification a minute later' }[dest.value] || '') : '') + '. Pages that hold mail, bank or health data are never sent to the cloud. You can disarm it any time.', okLabel: 'Arm it' });
             if (!ok) return;
             await this.arm(r.id, true, { dest: dest.value, backend: backend.value }); draw();
           }, { label: (this.isArmed(r) ? 'Disarm recipe ' : 'Arm recipe ') + r.name }),
@@ -573,7 +573,12 @@ const AiRecipes = {
   // Nothing runs for a recipe that is not armed, and a failure is a history line, never silence.
   HISTORY_MAX: 10,
   TEXT_MAX: 6000,
-  DESTS: ['history', 'note'],
+  // Where an answer goes: only the history; a note; the Clips inbox (Ctrl+K, Search everything and the Inbox
+  // read it); or a reminder one minute later, which Windows shows as a notification (and wakes Vex for).
+  DESTS: ['history', 'note', 'clips', 'reminder'],
+  DEST_LABELS: { history: 'history only', note: 'saved as a note', clips: 'kept in the Clips inbox', reminder: 'shown as a notification' },
+  REMINDER_AFTER_MS: 60000,
+  REMINDER_CHARS: 280,
   BACKENDS: ['local', 'auto'],
   _busy: false,
 
@@ -600,7 +605,7 @@ const AiRecipes = {
     const recipe = this.recipes().find(r => r.id === id);
     if (!recipe) throw new Error('That recipe is gone');
     if (on) {
-      if (!this.DESTS.includes(dest)) throw new Error('Deliver to history or to a note');
+      if (!this.DESTS.includes(dest)) throw new Error('Deliver to ' + this.DESTS.map(d => this.DEST_LABELS[d]).join(', or '));
       if (!this.BACKENDS.includes(backend)) throw new Error('Run on your local model or on Auto');
       if (!recipe.reminderId) throw new Error('Give the recipe a time first: an armed recipe runs when its reminder fires');
     }
@@ -609,7 +614,7 @@ const AiRecipes = {
     mine.armed = !!on;
     if (on) { mine.dest = dest; mine.backend = backend; }
     this.save(s);
-    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: on ? 'Armed the recipe "' + recipe.name + '" to run by itself' : 'Disarmed the recipe "' + recipe.name + '"', why: on ? 'You asked for it to run when its reminder fires (' + (backend === 'local' ? 'on your local model' : 'on Auto, past the sensitivity gate') + ', delivered to ' + (dest === 'note' ? 'a note' : 'history') + ')' : 'You turned unattended runs off for it' });
+    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: on ? 'Armed the recipe "' + recipe.name + '" to run by itself' : 'Disarmed the recipe "' + recipe.name + '"', why: on ? 'You asked for it to run when its reminder fires (' + (backend === 'local' ? 'on your local model' : 'on Auto, past the sensitivity gate') + ', delivered to ' + ({ note: 'a note', clips: 'the Clips inbox', reminder: 'a notification' }[dest] || 'history') + ')' : 'You turned unattended runs off for it' });
     this.registerCommands();
     return mine;
   },
@@ -673,18 +678,19 @@ const AiRecipes = {
       entry.preview = text.replace(/\s+/g, ' ').slice(0, 160);
       const d = this.diff(recipe.lastText, entry.text);
       entry.added = d.added; entry.removed = d.removed; entry.first = d.first;
-      let noteId = '';
-      if (recipe.dest === 'note') noteId = this._toNote(recipe, text, d);
+      const delivered = await this._deliver(recipe, text, d);
+      const noteId = delivered.noteId;
       entry.note = noteId;
+      entry.delivered = delivered.label;
       if (typeof VexLedger !== 'undefined') {
         VexLedger.note({
           feature: this.FEATURE,
-          what: 'Ran the recipe "' + recipe.name + '" by itself' + (noteId ? ' and saved the answer as a note' : ''),
+          what: 'Ran the recipe "' + recipe.name + '" by itself' + (delivered.label ? ' and ' + delivered.label : ''),
           why: 'You armed it, and its reminder fired' + (reason ? ' (' + reason + ')' : '') + '. It ran on ' + (entry.cloud ? 'the cloud AI' : 'your local model') + '.',
-          undo: noteId ? { kind: 'recipe-note-remove', noteId } : undefined,
+          undo: delivered.undo,
         });
       }
-      if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: recipe.id }, () => window.showToast?.('Recipe "' + recipe.name + '" ran' + (noteId ? ': saved as a note.' : '. Its answer is in the recipe history.'), 'info', 6000));
+      if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: recipe.id }, () => window.showToast?.('Recipe "' + recipe.name + '" ran' + (delivered.label ? ': ' + delivered.label + '.' : '. Its answer is in the recipe history.'), 'info', 6000));
     } catch (err) {
       entry.ok = false; entry.error = String((err && err.message) || err).slice(0, 240);
       if (typeof VexProblems !== 'undefined') VexProblems.note('AI recipes', 'The recipe "' + recipe.name + '" could not run by itself', err);
@@ -694,6 +700,40 @@ const AiRecipes = {
       this._pushHistory(id, entry);
     }
     return entry;
+  },
+
+  // Hands the answer to the destination the recipe was armed with. -> { noteId, label, undo }; nothing to undo for history.
+  // A destination that cannot take it throws: the run is then a failed history line, never a silent loss.
+  async _deliver(recipe, text, d) {
+    const dest = recipe.dest || 'history';
+    if (dest === 'note') {
+      const noteId = this._toNote(recipe, text, d);
+      return { noteId, label: 'saved the answer as a note', undo: { kind: 'recipe-note-remove', noteId } };
+    }
+    const line = (d.first ? 'First run.' : 'Since the last run: ' + d.added + ' lines added, ' + d.removed + ' removed.');
+    if (dest === 'clips') {
+      if (!window.vex || typeof window.vex.clipsInboxAdd !== 'function') throw new Error('The Clips inbox is not available here');
+      const r = await window.vex.clipsInboxAdd((recipe.name + ' - ' + new Date().toLocaleString() + '\n' + line + '\n\n' + text).slice(0, 4000));
+      if (!r || !r.ok || !r.id) throw new Error('The Clips inbox did not take the answer');
+      return { noteId: '', label: 'kept the answer in the Clips inbox', undo: { kind: 'recipe-clip-remove', clipId: r.id } };
+    }
+    if (dest === 'reminder') {
+      if (typeof VexQuickReminder === 'undefined') throw new Error('Reminders are not available here');
+      const body = (recipe.name + ': ' + text.replace(/\s+/g, ' ')).slice(0, this.REMINDER_CHARS);
+      const made = await VexQuickReminder.create(body, new Date(Date.now() + this.REMINDER_AFTER_MS), recipe.source ? { url: recipe.source } : undefined);
+      if (!made || !made.id) throw new Error('The reminder for the answer was not created');
+      return { noteId: '', label: 'set a notification with the answer', undo: { kind: 'recipe-reminder-remove', reminderId: made.id } };
+    }
+    return { noteId: '', label: '', undo: undefined };
+  },
+  async removeClip(clipId) {
+    if (!window.vex || typeof window.vex.clipsInboxRemove !== 'function') throw new Error('The Clips inbox is not available here');
+    const r = await window.vex.clipsInboxRemove(clipId);
+    if (!r || !r.ok) throw new Error('That clip is already gone');
+  },
+  async removeReminder(reminderId) {
+    if (typeof VexQuickReminder === 'undefined') throw new Error('Reminders are not available here');
+    await VexQuickReminder.remove(reminderId);
   },
 
   // The answer as a note, with what changed since the last run in its first line.
@@ -733,7 +773,7 @@ const AiRecipes = {
         if (h.cloud && typeof VexAISpend !== 'undefined') { const pc = VexAISpend._read().perCall; if (pc > 0) parts.push('about ' + Math.round(h.approxTokens / 1000 * pc * 1000) / 1000 + ' at your rate'); else parts.push('one cloud call'); }
         else parts.push('no cloud cost');
         parts.push(h.first ? 'first run' : '+' + h.added + ' / -' + h.removed + ' lines');
-        if (h.dest === 'note') parts.push('saved as a note');
+        if (h.dest && h.dest !== 'history' && this.DEST_LABELS[h.dest]) parts.push(this.DEST_LABELS[h.dest]);
       }
       body.appendChild(S.note(parts.join(' · ')));
       if (h.ok && h.preview) body.appendChild(S.note(h.preview + (h.chars > 160 ? '...' : '')));
@@ -948,6 +988,8 @@ if (typeof window !== 'undefined') {
   if (typeof VexLedger !== 'undefined' && typeof VexLedger.registerUndo === 'function') {
     VexLedger.registerUndo('watch-unhold', async (token) => { WatchJudgement.unhold(token.id); });
     VexLedger.registerUndo('recipe-note-remove', async (token) => { AiRecipes.removeNote(token.noteId); });
+    VexLedger.registerUndo('recipe-clip-remove', async (token) => { await AiRecipes.removeClip(token.clipId); });
+    VexLedger.registerUndo('recipe-reminder-remove', async (token) => { await AiRecipes.removeReminder(token.reminderId); });
   }
   AiRecipes.start();
   AiRecipes.registerCommands();
