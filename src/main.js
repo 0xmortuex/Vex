@@ -2803,6 +2803,8 @@ ipcMain.handle('discord:lite', (_e, on) => { _discordLite = !!on; return _discor
 // onCompleted / onErrorOccurred (wireMediaSnifferOnSession). A second listener
 // would replace Vex's own.
 const _devRequestLog = require('./main/request-log').createRequestLog();
+// "Copy as request" from a list of one page's requests (main/request-recorder.js): off until a page is armed, secrets removed as recorded.
+const _requestRecorder = require('./main/request-recorder').createRequestRecorder();
 const DEV_OVERRIDES_FILE = path.join(userDataPath, 'response-overrides.json');
 let _devOverrides = null;
 try {
@@ -2829,6 +2831,17 @@ const _devPkg = require('./main/pkg-intel').createPkgIntel({
 const _devNeedOverrides = () => { if (!_devOverrides) throw new Error('Response overrides are unavailable: the saved rules could not be read (see the log)'); return _devOverrides; };
 const _devReply = (fn) => async (...args) => { try { return { ok: true, ...(await fn(...args)) }; } catch (err) { return { ok: false, error: (err && err.message) || String(err) }; } };
 ipcMain.handle('devbench:requests', _devReply((_e, pageId) => ({ requests: _devRequestLog.list(pageId) })));
+// The request list for "Copy as request": one armed page at a time, never a private or Tor page.
+ipcMain.handle('devbench:record-start', _devReply((_e, pageId) => {
+  const contents = webContents.fromId(pageId);
+  if (!contents || contents.isDestroyed() || contents.getType() !== 'webview') throw new Error('That tab is not a page that can be recorded');
+  const priv = _extPageIsPrivate(contents);
+  const armed = _requestRecorder.arm(pageId, { allowed: !priv, why: 'Private, Tor and private-window tabs are never recorded' });
+  contents.once('destroyed', () => _requestRecorder.disarm(pageId));
+  return { state: _requestRecorder.state(pageId), until: armed.until };
+}));
+ipcMain.handle('devbench:record-list', _devReply((_e, pageId) => ({ requests: _requestRecorder.list(pageId), state: _requestRecorder.state(pageId) })));
+ipcMain.handle('devbench:record-stop', _devReply((_e, pageId) => { _requestRecorder.disarm(pageId); return { state: _requestRecorder.state(pageId) }; }));
 ipcMain.handle('devbench:overrides-get', _devReply(() => _devNeedOverrides().get()));
 ipcMain.handle('devbench:overrides-set', _devReply((_e, cfg) => _devNeedOverrides().set(cfg)));
 ipcMain.handle('devbench:overrides-active', _devReply((_e, on) => ({ active: _devNeedOverrides().setActive(on) })));
@@ -2966,6 +2979,7 @@ function wireClientHintsOnSession(ses) {
     // keeps the entry (its pages' requests are set by its rule).
     if (_siteUaOverridden.size && details.resourceType === 'mainFrame' && _siteUaOverridden.has(details.webContentsId)
       && !(_hasUaRules && SiteRules.userAgentFor(_siteRules, details.url, MOBILE_UA))) _siteUaOverridden.delete(details.webContentsId);
+    _requestRecorder.recordHeaders(details, h); // only a page the person armed; secrets are removed as it is recorded
     callback({ requestHeaders: h });
   });
 }
@@ -3100,6 +3114,7 @@ function wireMediaSnifferOnSession(ses) {
     _extRequestCompleted(ses, details);
     _countNetBytes(details); // tab-cost
     _devRequestLog.record(details); // failed requests for a bug report (address only)
+    _requestRecorder.recordDone(details);
     try {
       const { webContentsId, url, resourceType, responseHeaders, statusCode } = details;
       if (!webContentsId || !url || (statusCode && statusCode >= 400)) return;
@@ -3130,7 +3145,7 @@ function wireMediaSnifferOnSession(ses) {
   });
   // Requests that never got an answer (the other half of a bug report). No other
   // code registers onErrorOccurred, so this does not replace anything.
-  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => _devRequestLog.record(details));
+  ses.webRequest.onErrorOccurred({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details) => { _devRequestLog.record(details); _requestRecorder.recordDone(details); });
 }
 
 // Keep a page as a PDF, or as one file that opens offline (src/main/page-save.js).

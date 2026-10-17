@@ -755,6 +755,9 @@ contextBridge.exposeInMainWorld('vex', {
   reposPickFolder: () => ipcRenderer.invoke('repos:pick-folder'),
   // Developer bench (js/dev-bench.js): failed requests, response overrides, log tailer, package facts.
   devbenchRequests: (pageId) => ipcRenderer.invoke('devbench:requests', pageId),
+  devbenchRecordStart: (pageId) => ipcRenderer.invoke('devbench:record-start', pageId),
+  devbenchRecordList: (pageId) => ipcRenderer.invoke('devbench:record-list', pageId),
+  devbenchRecordStop: (pageId) => ipcRenderer.invoke('devbench:record-stop', pageId),
   devbenchOverridesGet: () => ipcRenderer.invoke('devbench:overrides-get'),
   devbenchOverridesSet: (cfg) => ipcRenderer.invoke('devbench:overrides-set', cfg),
   devbenchOverridesActive: (on) => ipcRenderer.invoke('devbench:overrides-active', on),

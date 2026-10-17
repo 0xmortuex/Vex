@@ -105,3 +105,28 @@ describe('sending to the API playground', () => {
     expect(() => C.toPlayground(REQ)).toThrow(/not available/);
   });
 });
+
+describe('Wave 5: the request list (T1-011)', () => {
+  it('turns a recorded request into the object the converters take, with no body', () => {
+    const rec = { method: 'POST', url: 'https://a.example.com/x?q=1', headers: [{ name: 'Authorization', value: '<REDACTED>' }, { name: 'Accept', value: '*/*' }], status: 200 };
+    const req = C.fromRecorded(rec);
+    expect(req).toEqual({ method: 'POST', url: rec.url, headers: rec.headers, body: '' });
+    expect(C.format(req, 'curl-bash')).toBe("curl -X POST 'https://a.example.com/x?q=1' -H 'Authorization: <REDACTED>' -H 'Accept: */*'");
+    expect(C.removedWhenRecorded(rec)).toBe(1);
+    expect(() => C.fromRecorded(null)).toThrow(/no request/);
+  });
+  it('recording needs the bridge of this build and a page tab, and says so', async () => {
+    delete window.vex;
+    await expect(C.startRecording()).rejects.toThrow(/not available in this build|Tabs are not available/);
+  });
+  it('asks main to arm the active page and reads the answer, raising main\'s refusal', async () => {
+    const calls = [];
+    window.vex = { devbenchRecordStart: async (id) => { calls.push(['start', id]); return { ok: false, error: 'Private, Tor and private-window tabs are never recorded' }; }, devbenchRecordList: async (id) => ({ ok: true, requests: [], state: { armed: false } }), devbenchRecordStop: async () => ({ ok: true }) };
+    globalThis.TabManager = { getActiveTab: () => ({ id: 't1' }) };
+    globalThis.WebviewManager = { webviews: new Map([['t1', { getWebContentsId: () => 42 }]]) };
+    await expect(C.startRecording()).rejects.toThrow(/never recorded/);
+    expect(calls).toEqual([['start', 42]]);
+    expect((await C.recorded()).requests).toEqual([]);
+    delete globalThis.TabManager; delete globalThis.WebviewManager; delete window.vex;
+  });
+});

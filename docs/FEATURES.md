@@ -690,7 +690,7 @@ For building things, not just browsing them.
   - Open: Settings > Developer helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Copy as cURL, fetch or PowerShell** (`copy-as-request`): Copies a request as cURL, fetch or PowerShell with its secrets hidden, or opens it in the API playground. On an existing profile it starts off; turn it on in Settings > Developer helpers.
-  - Open: Ctrl+K: "Copy as cURL, fetch or PowerShell"; Settings > Developer helpers.
+  - Open: Ctrl+K: "Copy as cURL, fetch or PowerShell", "Requests of this tab: copy one as cURL, fetch or PowerShell"; Settings > Developer helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **GitHub page helpers** (`github-helpers`): On a github.com page, right-click > Page gives Copy branch name, Copy git switch command and Copy commit message on issues and pull requests, and Copy permalink (with the commit and line range) on files. It only copies; no GitHub sign-in is used. On an existing profile it starts off; turn it on in Settings > Developer helpers.
   - Open: Settings > Developer helpers.

@@ -129,7 +129,7 @@ const UI_ONLY_CHANNELS = new Set([
   // The quick-capture inbox holds what was clipped (main/capture-inbox.js) and
   // the downloads tidy-up history holds file names: the person's own window only.
   'repos:pick-folder', 'clips-inbox:list', 'clips-inbox:add', 'clips-inbox:remove', 'clips-inbox:clear', 'downloads:tidy-history', 'downloads:tidy-plan', 'downloads:tidy-apply', 'downloads:tidy-undo',
-  'devbench:requests', 'devbench:overrides-get', 'devbench:overrides-set', 'devbench:overrides-active', 'devbench:overrides-state', 'devbench:overrides-pick-file',
+  'devbench:requests', 'devbench:record-start', 'devbench:record-list', 'devbench:record-stop', 'devbench:overrides-get', 'devbench:overrides-set', 'devbench:overrides-active', 'devbench:overrides-state', 'devbench:overrides-pick-file',
   'devbench:log-pick-file', 'devbench:log-follow-socket', 'devbench:log-poll', 'devbench:log-stop', 'devbench:log-list', 'devbench:pkg',
   // The release-download assistant and the mod desk (main/download-desk.js): file names and hashes, the person's own window only.
   'downloads:set-media-names', 'downloads:release-assist', 'downloads:mods-plan', 'downloads:mods-apply', 'downloads:mods-undo', 'downloads:mods-history',

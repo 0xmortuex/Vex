@@ -146,6 +146,7 @@ define('capture:close capture:open', []);
 // Developer bench (renderer js/dev-bench.js; main/request-log.js, response-overrides.js, log-tail.js,
 // pkg-intel.js). Files only ever come from main's own dialogs; the tailer follows a granted id.
 define('devbench:requests', [integer]);
+define('devbench:record-start devbench:record-list devbench:record-stop', [integer]);
 define('devbench:overrides-get devbench:overrides-pick-file devbench:log-pick-file devbench:log-list', []);
 define('devbench:overrides-set', [object]);
 define('devbench:overrides-active', [boolean]);
