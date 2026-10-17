@@ -397,6 +397,7 @@ const VexUsageRegistry = {
       VexTurkishHelpers: () => (typeof VexTurkishHelpers !== 'undefined' ? VexTurkishHelpers : null),
       VexPackContent: () => (typeof VexPackContent !== 'undefined' ? VexPackContent : null),
       PageWatchTemplates: () => (typeof PageWatchTemplates !== 'undefined' ? PageWatchTemplates : null),
+      StorageCeilings: () => (typeof StorageCeilings !== 'undefined' ? StorageCeilings : null),
       GameHolds: () => (typeof GameHolds !== 'undefined' ? GameHolds : null),
       VexBriefCards: () => (typeof VexBriefCards !== 'undefined' ? VexBriefCards : null),
     };
@@ -469,6 +470,7 @@ const VexUsageRegistry = {
       // Wave 4 fold-ins: holidays and phrases from packs, watch templates, the held-while-playing list, four brief cards.
       ['pack-content', A.api(G.VexPackContent, 'enabled', 'setEnabled')],
       ['page-watch-templates', A.api(G.PageWatchTemplates, 'enabled', 'setEnabled')],
+      ['storage-retention', A.api(G.StorageCeilings, 'retentionEnabled', 'setRetentionEnabled')],
       ['game-holds', A.api(G.GameHolds, 'enabled', 'setEnabled')],
       ['brief-cards', A.api(G.VexBriefCards, 'enabled', 'setEnabled')],
       ['credential-interlock', A.api(G.CredentialInterlock, 'enabled', 'setEnabled')],
