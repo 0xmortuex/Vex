@@ -1599,7 +1599,8 @@ const TabManager = {
         // member set also removes the stack object. closeTab rebuilds the
         // strip per-call (see its 4c tail), keeping the DOM in sync.
         const n = members.length;
-        this.closeTabsWithUndo(members.map(t => t.id), `Closed ${n} tab${n === 1 ? '' : 's'} in “${stack.name}”`);
+        this.closeTabsPreviewed(members.map(t => t.id), k => `Closed ${k} tab${k === 1 ? '' : 's'} in “${stack.name}”`, {}, { title: 'Close the ' + n + ' tabs in “' + stack.name + '”?' })
+          .catch(err => window.showToast?.(err.message, 'error'));
         this._expandedStackIds.delete(stackId);
         break;
       }
@@ -1762,7 +1763,8 @@ const TabManager = {
       }
       // Both close at once; Undo on the toast brings the group back whole.
       case 'close-tabs': {
-        this.closeTabsWithUndo(tabsInGroup.map(t => t.id), `Closed ${tabsInGroup.length} tab${tabsInGroup.length === 1 ? '' : 's'} in “${group.name}”`);
+        this.closeTabsPreviewed(tabsInGroup.map(t => t.id), k => `Closed ${k} tab${k === 1 ? '' : 's'} in “${group.name}”`, {}, { title: 'Close the ' + tabsInGroup.length + ' tabs in “' + group.name + '”?' })
+          .catch(err => window.showToast?.(err.message, 'error'));
         break;
       }
       case 'ungroup': {
@@ -3151,6 +3153,24 @@ const TabManager = {
   // Close every tab except the specified one; pinned tabs are preserved.
   // Switches to the kept tab first so we never briefly activate a tab we're
   // about to destroy (which caused flicker + potential webview race conditions).
+  // === Bulk closes show the dry-run list first (T3-051) ===
+  // Closing this many tabs or more at once lists them in the shared preview (js/plan-preview.js): each has a tick,
+  // nothing closes until the button is pressed, and the toast's Undo still brings them back. Fewer than this close
+  // at once, as before. `message(n)` words the Undo toast for the number actually closed.
+  BULK_PREVIEW_MIN: 3,
+  async closeTabsPreviewed(ids, message, opts = {}, wording = {}) {
+    const live = ids.filter(id => this.tabs.some(t => t.id === id));
+    if (live.length < this.BULK_PREVIEW_MIN) return this.closeTabsWithUndo(live, message(live.length), opts);
+    if (typeof VexPlan === 'undefined') throw new Error('The bulk-close preview is not loaded (js/plan-preview.js)');
+    const r = await VexPlan.confirm({
+      title: wording.title || ('Close ' + live.length + ' tabs?'), intro: wording.intro || 'Undo brings them back.', okLabel: 'Close them', noun: 'tab', danger: true,
+      items: live.map(id => { const t = this.tabs.find(x => x.id === id); return { id, label: (t && (t.title || t.url)) || 'Untitled', detail: wording.detail || '' }; }),
+      snapshot: (chosen) => VexPlan.snapshotTabs(this.tabs.filter(t => chosen.includes(t.id))),
+    });
+    if (!r.ok) return 0;
+    return this.closeTabsWithUndo(r.chosen, message(r.chosen.length), opts);
+  },
+
   closeOtherTabs(keepId) {
     const keep = keepId || this.activeTabId;
     if (!keep) return;
@@ -3159,7 +3179,8 @@ const TabManager = {
       window.showToast?.('No other tabs to close', 'info');
       return;
     }
-    this.closeTabsWithUndo(toClose, `Closed ${toClose.length} other tab${toClose.length === 1 ? '' : 's'}`, { focus: keep });
+    return this.closeTabsPreviewed(toClose, n => `Closed ${n} other tab${n === 1 ? '' : 's'}`, { focus: keep }, { title: 'Close ' + toClose.length + ' other tabs?', intro: 'The tab you are keeping stays open, and so do pinned tabs. Undo brings them back.' })
+      .catch(err => window.showToast?.(err.message, 'error'));
   },
 
   // === Closing several tabs, with Undo =====================================
@@ -3400,7 +3421,8 @@ const TabManager = {
       window.showToast?.('No tabs to the right', 'info');
       return;
     }
-    this.closeTabsWithUndo(toClose, `Closed ${toClose.length} tab${toClose.length === 1 ? '' : 's'} to the right`, { focus: toClose.includes(this.activeTabId) ? anchorId : null });
+    return this.closeTabsPreviewed(toClose, n => `Closed ${n} tab${n === 1 ? '' : 's'} to the right`, { focus: toClose.includes(this.activeTabId) ? anchorId : null }, { title: 'Close ' + toClose.length + ' tabs to the right?' })
+      .catch(err => window.showToast?.(err.message, 'error'));
   },
 
   // Close tabs whose URL duplicates another open tab, keeping one of each. The

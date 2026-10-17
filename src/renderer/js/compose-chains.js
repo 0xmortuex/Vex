@@ -92,7 +92,28 @@ const CommandChains = {
   },
   // Runs every step even if one throws, but never pretends the chain worked:
   // a step whose command has gone away, or that failed, is named at the end.
-  async run(chain) {
+  // The first interactive run of a chain (and the first after it was edited) lists its steps in the shared dry-run
+  // dialog; after that it goes straight through. A scheduled run was approved already (runScheduled) and never asks.
+  // Returns true when the steps may run.
+  async previewSteps(chain) {
+    if (typeof VexPlan === 'undefined') throw new Error('The step preview is not loaded (js/plan-preview.js)');
+    const label = (cid) => {
+      const s = window.VexChainSteps && window.VexChainSteps.resolve(cid);
+      return s ? s.label : this._label(cid);
+    };
+    const ok = await VexPlan.confirmSteps({
+      title: 'Run "' + chain.name + '" (' + chain.steps.length + ' steps)?',
+      intro: 'These run one after another. Once you have run it, it will not ask again until you change it.',
+      steps: chain.steps.map((cid, i) => ({ label: (i + 1) + '. ' + label(cid), detail: window.VexChainSteps && window.VexChainSteps.split(cid) ? '' : 'command' })),
+      okLabel: 'Run the chain', noun: 'step',
+    });
+    if (ok && chain.id && this.chains.includes(chain)) { chain.previewed = this.fingerprint(chain.steps); if (!this.save()) throw new Error('The chain ran, but Vex could not remember that you had looked at it'); }
+    return ok;
+  },
+  async run(chain, { preview = true } = {}) {
+    if (preview && chain.steps.length >= (typeof VexPlan !== 'undefined' ? VexPlan.BULK_MIN : 3) && chain.previewed !== this.fingerprint(chain.steps)) {
+      if (!(await this.previewSteps(chain))) return { ok: false, problems: [], cancelled: true };
+    }
     const problems = [];
     for (const cid of chain.steps) {
       let cmd = CommandBar.commands.find(c => c.id === cid);
@@ -157,7 +178,7 @@ const CommandChains = {
     const why = this.unattendedRefusal(chain);
     if (why) throw new Error('"' + chain.name + '" was not run: ' + why);
     window.VexLedger?.note({ feature: 'command-chains', what: 'Ran the chain "' + chain.name + '" on a schedule', why: 'You scheduled it' + (this.writeSteps(chain).length ? ' and approved its steps' : '') });
-    const r = await this.run(chain);
+    const r = await this.run(chain, { preview: false });
     if (!r.ok) throw new Error('"' + chain.name + '" finished with problems: ' + r.problems.join(', '));
     return '"' + chain.name + '": ' + chain.steps.length + ' step' + (chain.steps.length === 1 ? '' : 's') + ' done';
   },

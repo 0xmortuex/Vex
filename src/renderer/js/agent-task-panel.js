@@ -158,6 +158,20 @@ const AgentTaskPanel = {
     if (!this._plan) return;
     if (!AgentSafety.enabled()) throw new Error('The Vex agent is off');
     const prefs = AgentSafety.prefs();
+    // Three or more steps that type, choose or click are listed in the shared dry-run dialog before the run starts.
+    // (Each still asks again when it comes up; a read-only run has none to list.)
+    const writes = this._plan.readOnly === true ? [] : this._plan.steps.filter(s => s.kind === 'write');
+    if (writes.length >= (typeof VexPlan !== 'undefined' ? VexPlan.BULK_MIN : 3)) {
+      if (typeof VexPlan === 'undefined') throw new Error('The step preview is not loaded (js/plan-preview.js)');
+      if (this._confirming) return;          // a second press while the list is open
+      this._confirming = true;
+      let go;
+      try { go = await VexPlan.confirmSteps({
+        title: 'This run can change ' + writes.length + ' things on pages', intro: 'Each of these asks you again when it comes up. Tick Read-only in the plan to skip them all.',
+        steps: writes.map(s => ({ label: AgentTaskRunner.describeStep(s), detail: 'asks first' })), okLabel: 'Start the run', noun: 'change', danger: true,
+      }); } finally { this._confirming = false; }
+      if (!go) return;
+    }
     const budget = new AgentBudget({ maxSteps: prefs.maxSteps, maxMs: prefs.maxMinutes * 60000 });
     const run = new TaskRun({ goal: this._plan.goal, steps: this._plan.steps, deps: this._deps(), budget, backend: this._plan.backend, scope: { readOnly: this._plan.readOnly === true } });
     this._run = run;

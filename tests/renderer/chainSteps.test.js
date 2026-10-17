@@ -28,12 +28,13 @@ beforeEach(async () => {
   await import('../../src/renderer/js/resume-workday.js');
   await import('../../src/renderer/js/compose-chains.js');
   await import('../../src/renderer/js/chain-steps.js');
+  globalThis.VexPlan = { BULK_MIN: 3, confirmSteps: vi.fn(async () => true) };
   S = window.VexChainSteps;
   CommandChains = window.CommandChains;
 });
 
 afterEach(() => {
-  for (const k of ['VexClock', 'SessionManager', 'FocusFlows', 'TabManager', 'WebviewManager', 'CommandBar']) delete globalThis[k];
+  for (const k of ['VexPlan', 'VexClock', 'SessionManager', 'FocusFlows', 'TabManager', 'WebviewManager', 'CommandBar']) delete globalThis[k];
   vi.restoreAllMocks();
 });
 
@@ -52,6 +53,35 @@ describe('writing a chain as lines', () => {
 
   it('writes steps back as the lines they came from', () => {
     expect(S.toText(['timer:15 min', 'reading-mode'])).toBe('timer 15 min\nReading mode');
+  });
+});
+
+describe('the dry-run list before a chain runs (T3-051)', () => {
+  it('lists the steps the first time, runs after the button, and stops asking until it is edited', async () => {
+    const chain = { id: 'c', name: 'Standup', steps: ['open:https://example.com/', 'timer:15 min', 'mute:discord'] };
+    CommandChains.chains = [chain];
+    const r = await CommandChains.run(chain);
+    expect(r.ok).toBe(true);
+    expect(VexPlan.confirmSteps).toHaveBeenCalledTimes(1);
+    expect(VexPlan.confirmSteps.mock.calls[0][0].steps.map(s => s.label)).toEqual(['1. Open https://example.com/', '2. Timer 15 min', '3. Mute discord']);
+    await CommandChains.run(chain);
+    expect(VexPlan.confirmSteps).toHaveBeenCalledTimes(1);
+    chain.steps.push('wait:1');
+    await CommandChains.run(chain);
+    expect(VexPlan.confirmSteps).toHaveBeenCalledTimes(2);
+  });
+
+  it('does nothing when the person says no', async () => {
+    VexPlan.confirmSteps.mockResolvedValueOnce(false);
+    const r = await CommandChains.run({ id: 'c', name: 'X', steps: ['open:https://example.com/', 'timer:1 min', 'wait:1'] });
+    expect(r).toMatchObject({ ok: false, cancelled: true });
+    expect(TabManager.createTab).not.toHaveBeenCalled();
+  });
+
+  it('a chain of fewer than three steps, and a scheduled run, never ask', async () => {
+    await CommandChains.run({ id: 'c', name: 'Short', steps: ['mute:discord', 'unmute:discord'] });
+    await CommandChains.run({ id: 'c', name: 'Long', steps: ['mute:discord', 'unmute:discord', 'wait:1'] }, { preview: false });
+    expect(VexPlan.confirmSteps).not.toHaveBeenCalled();
   });
 });
 
