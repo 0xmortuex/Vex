@@ -195,7 +195,8 @@ function programFromCommand(command, env = process.env) {
 // .lnk, and taskCommand is the "Task To Run" text of the verbose task list for a scheduled task. Without them the answer
 // is still "not checked" with the reason, never a guess. { path, via } says how the program was found.
 function targetOf(item, { env = process.env, fsMod = fs, readShortcut = null, taskCommand = '' } = {}) {
-  let candidate = '', via = '';
+  let candidate;
+  let via = '';
   if (item.kind === 'task') {
     if (!taskCommand) return { why: "a scheduled task's program is not in the list Windows prints" };
     if (/^(com handler|n\/a|multiple actions)/i.test(String(taskCommand).trim())) return { why: 'the task runs ' + String(taskCommand).trim().toLowerCase() + ', not one program Vex can name' };
