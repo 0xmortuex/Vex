@@ -1457,7 +1457,11 @@ function vexOwnTextFocused(doc) {
   // that record is new, so on an upgrade it says nothing about the profile. Most manifests are
   // 'new', so this is what keeps them dark on a profile that predates them.
   if (typeof VexRegistry !== 'undefined') {
-    VexRegistry.stage().then(() => VexRegistry.offerTry()).catch(err => {
+    VexRegistry.stage().then(() => VexRegistry.offerTry()).then(async () => {
+      // A staged feature that has waited out the safety window without a crash is offered once more, calmly.
+      const d = await window.vex.diagnostics();
+      VexRegistry.offerSafe(Array.isArray(d && d.crashHistory) ? d.crashHistory : []);
+    }).catch(err => {
       console.error('[Registry] staged enablement failed:', err);
       if (typeof VexProblems !== 'undefined') VexProblems.note('Features', 'Could not stage the new features', err);
     });

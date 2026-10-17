@@ -52,7 +52,7 @@ describe('define()', () => {
   });
 
   it('rejects bad shapes with a message that names the feature', () => {
-    expect(() => VexRegistry.define({ id: 'x', maturity: 'gold' })).toThrow(/maturity is new, beta or stable/);
+    expect(() => VexRegistry.define({ id: 'x', maturity: 'gold' })).toThrow(/maturity is new, beta, experimental or stable/);
     expect(() => VexRegistry.define({ id: 'x', storageKeys: ['theme'] })).toThrow(/not a vex\.\* storage key/);
     expect(() => VexRegistry.define({ id: 'x', budget: { nope: 1 } })).toThrow(/unknown budget item/);
     expect(() => VexRegistry.define({ id: 'x', budget: { jobMsPerMin: -1 } })).toThrow(/zero or more/);
