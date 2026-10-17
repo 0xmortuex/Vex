@@ -111,7 +111,9 @@ const ShortcutsRegistry = (() => {
     'split-focus':    { default: 'Ctrl+Alt+O',   label: 'Split view: next pane',      category: 'Tabs',       cmd: 'split-focus-next' },
     'split-swap':     { default: 'Ctrl+Alt+Y',   label: 'Split view: swap panes',     category: 'Tabs',       cmd: 'split-swap-panes' },
     'link-hints':     { default: 'Ctrl+Alt+I',   label: 'Hints: click with the keyboard', category: 'Navigation', cmd: 'link-hints' },
-    'tab-hints':      { default: 'Ctrl+Alt+Q',   label: 'Hints: go to a tab',         category: 'Tabs',       cmd: 'tab-hints' }
+    'tab-hints':      { default: 'Ctrl+Alt+Q',   label: 'Hints: go to a tab',         category: 'Tabs',       cmd: 'tab-hints' },
+    // Every Ctrl+Alt letter is taken, so the selection search takes three modifiers (Address bar extras, js/tabs-nav.js).
+    'search-selection': { default: 'Ctrl+Alt+Shift+S', label: 'Search the web for the selection', category: 'Navigation', cmd: 'search-selection' }
   };
 
   // A binding the user made for a Ctrl+K command that has no built-in key.

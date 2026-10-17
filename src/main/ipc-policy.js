@@ -132,7 +132,7 @@ const UI_ONLY_CHANNELS = new Set([
   'devbench:requests', 'devbench:overrides-get', 'devbench:overrides-set', 'devbench:overrides-active', 'devbench:overrides-state', 'devbench:overrides-pick-file',
   'devbench:log-pick-file', 'devbench:log-follow-socket', 'devbench:log-poll', 'devbench:log-stop', 'devbench:log-list', 'devbench:pkg',
   // The release-download assistant and the mod desk (main/download-desk.js): file names and hashes, the person's own window only.
-  'downloads:set-media-names', 'downloads:release-assist', 'downloads:mods-plan', 'downloads:mods-apply', 'downloads:mods-undo', 'downloads:mods-history',
+  'downloads:set-media-names', 'downloads:set-ask-types', 'downloads:release-assist', 'downloads:mods-plan', 'downloads:mods-apply', 'downloads:mods-undo', 'downloads:mods-history',
   // Which downloads lost their "from the internet" mark, and the Windows Security shortcut: the person's own window only.
   'downloads:motw-check', 'downloads:open-defender']);
 function validatePayload(channel, args) {

@@ -174,6 +174,10 @@ const DownloadsPanel = {
     // other Open. The toast is skipped — the file is already in front of you.
     if (this.openWhenDone.has(dl.id)) {
       this._openIfWanted(dl).catch(err => window.VexProblems?.note('Downloads', 'Could not open the finished file', err));
+    } else if (dl.state === 'completed' && dl.path && typeof VexTabsNav !== 'undefined' && VexTabsNav.downloadAction(dl.filename) === 'tab') {
+      // Per-kind default (js/tabs-nav.js): a PDF opens in a tab of its own, through the same check as any Open.
+      this._okToOpen(dl.path, dl.url || '').then((ok) => { if (ok) VexTabsNav.openDownloadInTab(dl.path); })
+        .catch(err => window.VexProblems?.note('Downloads', 'Could not open the PDF in a tab', err));
     } else if (dl.state === 'completed') {
       window.DownloadToast?.show({
         filename: dl.filename,

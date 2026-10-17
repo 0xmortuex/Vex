@@ -84,6 +84,8 @@ define('downloads:tidy-undo downloads:tidy-history', []);
 // Real names for saved media (download-desk.js), the release-download assistant (one file path, checked in main
 // against the files Vex downloaded) and the mod desk (like the tidy-up: no path ever comes from here).
 define('downloads:set-media-names', [boolean]);
+// File kinds that always ask where to save: extensions only (lowercase letters and digits), never a path.
+define('downloads:set-ask-types', [value => Array.isArray(value) && value.length <= 30 && value.every(x => typeof x === 'string' && /^[a-z0-9]{1,8}$/.test(x))]);
 define('downloads:release-assist', [string(1024)]);
 define('downloads:mods-plan downloads:mods-undo downloads:mods-history', []);
 define('downloads:mods-apply', [string(64)]);

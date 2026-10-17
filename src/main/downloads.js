@@ -319,7 +319,10 @@ function wireDownloadsOnSession(ses, tag) {
       catch (err) { console.warn('[Downloads] could not make ' + wanted + ', using ' + dir + ':', err.message); }
     }
     const askImage = _takeAsk(chain);
-    const ask = !resumed && (askImage || where.ask || folderGone);
+    // Some kinds always ask where to save (Settings > Downloads: installers), whatever the general choice is.
+    const kind = path.extname(placed.filename || item.getFilename()).slice(1).toLowerCase();
+    const askKind = !resumed && Array.isArray(where.askTypes) && where.askTypes.includes(kind);
+    const ask = !resumed && (askImage || where.ask || folderGone || askKind);
     // An image or video with a counter for a name gets the site, the page title and the date
     // instead (download-desk.js mediaName), when that is switched on and no rule named it.
     let chosenName = placed.filename || item.getFilename();

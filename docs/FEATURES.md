@@ -29,7 +29,7 @@ How Vex holds the pages you have open.
   - Open: Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Tabs and navigation extras** (`tabs-nav`): Find-bar options, clean copy-link, a switch-to-tab suggestion, and keeping the Vex window on top. Settings > Tabs and navigation.
-  - Open: Ctrl+K: "Keep Vex on top (toggle)"; Settings > Tabs and navigation.
+  - Open: Ctrl+K: "Keep Vex on top (toggle)", "Search the web for the selection", "Go to a higher level of this address"; Settings > Tabs and navigation.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Why is this tab open** (`tab-intent`): Lets you write one line for why a tab is open; it shows on the tab’s hover card. On an existing profile it starts off; turn it on in Settings > Why is this tab open.
   - Open: Ctrl+K: "Say why this tab is open"; Settings > Why is this tab open.
