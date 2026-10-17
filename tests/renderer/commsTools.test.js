@@ -400,7 +400,12 @@ describe('T3-050 announcement composer', () => {
   it('has no way to post by itself: the only send is behind post(), which asks first', () => {
     const src = fs.readFileSync(path.join(JS, 'announce-composer.js'), 'utf8');
     expect(src.match(/commsWebhookSend/g).length).toBe(2);   // the guard check and the single call inside post()
-    expect(src).not.toMatch(/setInterval|setTimeout|VexJobs/);
+    // The one timer is the staged post's notice (T3-050): it only calls tickStaged, which asks and sends nothing.
+    expect(src).not.toMatch(/setInterval|setTimeout/);
+    expect(src.match(/VexJobs/g).length).toBe(2);   // the check and the single every()
+    expect(src).toContain("VexJobs.every('Staged announcement', 30000, () => { try { AnnounceComposer.tickStaged();");
+    const tick = src.slice(src.indexOf('tickStaged(now'), src.indexOf('async sendStaged'));
+    expect(tick).not.toMatch(/commsWebhookSend|\.post\(/);
   });
 });
 

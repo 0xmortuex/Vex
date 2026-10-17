@@ -237,6 +237,16 @@ const CommsToolsUI = {
       for (const d of ds) lists.appendChild(this._row(this._el('span', '', d.title + '  (' + this._ago(d.updatedAt) + ')'), this._btn('Open', () => this.openComposer(d.id)), this._btn('Delete', async () => {
         if (await window.vexConfirm({ title: 'Delete this draft?', message: d.title, okLabel: 'Delete', cancelLabel: 'Keep', danger: true })) { AnnounceComposer.remove(d.id); if (current && current.id === d.id) current = null; redrawLists(); }
       }, { danger: true })));
+      this._heading(lists, 'Staged posts');
+      lists.appendChild(this._note('A staged post waits for its hour. Then a notice offers Review and send; only the Send in the confirm sends. Nothing is sent by itself.'));
+      const st = AnnounceComposer.staged();
+      if (!st.length) lists.appendChild(this._note('None staged.'));
+      for (const x of st) {
+        const state = x.at > Date.now() ? 'at ' + new Date(x.at).toLocaleString() : (x.askedAt ? 'missed at ' + new Date(x.at).toLocaleString() : 'due now');
+        lists.appendChild(this._row(this._el('span', '', x.title + '  (' + state + ')'),
+          ...(x.at <= Date.now() ? [this._btn('Review and send', () => AnnounceComposer.sendStaged(x.id).then((r) => { window.showToast?.(r.sent ? 'Posted to your Discord' : 'Nothing was sent'); redrawLists(); }))] : []),
+          this._btn('Remove', () => { AnnounceComposer.unstage(x.id); redrawLists(); })));
+      }
       this._heading(lists, 'Share to community queue');
       lists.appendChild(this._note('Good links you tag, each with a caption, become one weekly post. Nothing is posted.'));
       const q = AnnounceComposer.queue();
@@ -265,6 +275,16 @@ const CommsToolsUI = {
         if (!date) throw new Error('Vex could not read that time');
         await AnnounceComposer.remind(title.value || area.value.split('\n')[0], date instanceof Date ? date : new Date(date.at || date));
         window.showToast?.('You will be reminded');
+      }),
+      this._btn('Stage a post for a time...', async () => {
+        const when = await window.vexPrompt({ title: 'Stage a post', message: 'When should Vex ask you to send it? For example 21:00 Istanbul, tomorrow 9am or in 2 hours. At that time you get a notice with Review and send. Nothing is sent by itself.', okLabel: 'Stage it' });
+        if (!when) return;
+        const t = typeof VexTimezone !== 'undefined' && /\d/.test(when) ? (() => { try { return new Date(VexTimezone.parse(when).ts); } catch { return null; } })() : null;
+        const date = t || (typeof VexQuickReminder !== 'undefined' ? VexQuickReminder.parseWhen(when) : null);
+        if (!date) throw new Error('Vex could not read that time');
+        await AnnounceComposer.stage(title.value || area.value.split('\n')[0], area.value, date instanceof Date ? date : new Date(date.at || date));
+        window.showToast?.('Staged. You will be asked at that time.');
+        redrawLists();
       }),
       this._btn('Post to my Discord...', async () => {
         const r = await AnnounceComposer.post(area.value);
