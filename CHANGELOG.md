@@ -1,5 +1,17 @@
 # Changelog
 
+## v36.25.1 (2026-10-18) — Play room, your companion and one profile
+
+### New
+- **One profile hub.** The toolbar profile button and Ctrl+K open the same place for your name, avatar, XP and medals. Name changes stay in sync with your browser profile; switching and managing browser profiles is available inside the hub.
+- **Play room:** memory matching, Echo tiles, pixel postcards with PNG export, silly writing prompts, bubble wrap and impossible choices. Collect local souvenirs and earn 5 existing profile points per activity per day, with unlimited replay.
+- **A companion you can care for.** Feed, cuddle, play catch, nap and wake your pet. Drag it or use arrow keys to move it, lock its position, and choose its name, species, coat, size and accessory. Hover cuddles are optional. The pet can stay visible with reduced motion enabled.
+- **More playful daily challenges** with drawing, stories, pet time and imagination prompts.
+
+### Fixed
+- **Discord screen sharing opens the picker again** when Electron reports a live requesting frame as detached. Vex still validates the exact requesting document before sharing and stops requests whose page has changed or closed. Bypass compatibility information remains in on-demand diagnostics instead of appearing on every working share.
+- **Ctrl+K finds features more directly.** Strong feature matches rank alongside commands and tools, so queries such as "pet" and "XP" lead to the relevant feature before weak matches and web search.
+
 ## v36.12.6 (2026-10-17) — Netflix, Prime and Disney+ stay signed in, and every new tool from Waves 0 to 6
 
 ### Highlights
