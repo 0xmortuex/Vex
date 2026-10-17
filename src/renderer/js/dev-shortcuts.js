@@ -246,6 +246,54 @@ const RobloxResolver = {
     catch (err) { throw new Error('Roblox gave an answer that is not JSON', { cause: err }); }
   },
 
+  // A selected id on a Roblox or DevForum page (T3-018): the selection is only the digits (a leading # is fine),
+  // or a roblox.com address, and the page it was selected on is a Roblox page. -> the id or null.
+  PAGE_HOST: /(^|\.)(roblox\.com|robloxdev\.com)$/i,
+  selectionId(text, pageUrl) {
+    let host = '';
+    try { host = new URL(String(pageUrl)).hostname; } catch { return null; }   // vex-allow-empty-catch: no page address means "not a Roblox page"
+    if (!this.PAGE_HOST.test(host)) return null;
+    const s = String(text == null ? '' : text).trim().replace(/^#/, '');
+    if (!s || s.length > 300) return null;
+    try { return this.parse(s); } catch { return null; }   // vex-allow-empty-catch: not an id or a roblox.com address means "nothing to resolve"
+  },
+  // Right-click rows for the selection menu.
+  selectionItems(text, pageUrl) {
+    if (!this.enabled()) return [];
+    const id = this.selectionId(text, pageUrl);
+    if (!id) return [];
+    return [{ label: 'Resolve Roblox id ' + id, action: () => { Promise.resolve().then(() => this.ask(id)).catch((e) => window.showToast?.((e && e.message) || 'That did not work', 'error')); } }];
+  },
+  // Ctrl+K: the selection of the page in front, when that is a Roblox page.
+  async askSelection() {
+    if (typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') throw new Error('Tabs are not available');
+    const tab = TabManager.getActiveTab && TabManager.getActiveTab();
+    const wv = tab && WebviewManager.webviews ? WebviewManager.webviews.get(tab.id) : null;
+    if (!wv || typeof wv.executeJavaScript !== 'function') throw new Error('Open a Roblox or DevForum page and select an id first');
+    const pol = window.VexTabPolicy;
+    if (pol && typeof pol.canReadWebview === 'function' && !pol.canReadWebview(wv)) throw new Error('That tab cannot be read (private, Tor or routed)');
+    const sel = await wv.executeJavaScript('String(window.getSelection())');
+    const id = this.selectionId(sel, tab.url);
+    if (!id) throw new Error('Select an asset or place id (digits) on a roblox.com or DevForum page first');
+    return this.ask(id);
+  },
+
+  // The picture of an asset or place (T3-018): the thumbnail service answers with an address on Roblox's image
+  // host, which is the only host the picture is loaded from.
+  THUMB_HOST: /^t\d{1,2}\.rbxcdn\.com$/i,
+  async thumbnail(kind, id) {
+    const url = kind === 'place'
+      ? 'https://thumbnails.roblox.com/v1/places/gameicons?placeIds=' + encodeURIComponent(id) + '&size=150x150&format=Png&returnPolicy=PlaceHolder'
+      : 'https://thumbnails.roblox.com/v1/assets?assetIds=' + encodeURIComponent(id) + '&size=150x150&format=Png&returnPolicy=PlaceHolder';
+    const j = await this._json(url);
+    const e = j && Array.isArray(j.data) ? j.data[0] : null;
+    if (!e || e.state !== 'Completed' || !e.imageUrl) return { url: '', why: 'Roblox has no picture for this one yet' + (e && e.state ? ' (' + e.state + ')' : '') };
+    let u;
+    try { u = new URL(e.imageUrl); } catch (err) { throw new Error('Roblox sent a picture address Vex could not read', { cause: err }); }
+    if (u.protocol !== 'https:' || !this.THUMB_HOST.test(u.hostname) || u.username || u.password) throw new Error('Roblox sent a picture address that is not on its image host, so it is not loaded');
+    return { url: u.href, why: '' };
+  },
+
   pageUrl(kind, id) { return kind === 'place' ? 'https://www.roblox.com/games/' + id : 'https://www.roblox.com/catalog/' + id; },
 
   summarizeAsset(id, a) {
@@ -286,6 +334,9 @@ const RobloxResolver = {
     }
     if (!out && asset) out = this.summarizeAsset(id, asset);
     if (!out) throw new Error('Roblox has no public asset or place with the id ' + id);
+    // The picture is an extra, never a reason to lose the answer: why it is missing is said on the card.
+    try { const t = await this.thumbnail(out.kind, id); out.thumbnail = t.url; out.thumbnailNote = t.why; }
+    catch (err) { out.thumbnail = ''; out.thumbnailNote = 'The picture could not be fetched: ' + err.message; console.error('[Roblox] thumbnail:', err); }
     this._cache.set(id, { at: Date.now(), value: out });
     return out;
   },
@@ -301,6 +352,13 @@ const RobloxResolver = {
   show(r) {
     const { body } = VexSettingsGroups.dialog({ id: 'vex-roblox-resolved', title: r.name, sub: (r.kind === 'place' ? 'Roblox place ' : 'Roblox asset ') + r.id });
     const S = VexSettingsGroups;
+    if (r.thumbnail) {
+      const img = document.createElement('img');
+      img.src = r.thumbnail; img.width = 150; img.height = 150; img.alt = 'Picture of ' + r.name;
+      img.referrerPolicy = 'no-referrer'; img.loading = 'eager'; img.decoding = 'async';
+      img.style.cssText = 'border-radius:8px;margin:0 0 8px;background:var(--surface)';
+      body.appendChild(img);
+    } else if (r.thumbnailNote) body.appendChild(S.note(r.thumbnailNote));
     for (const l of r.lines) body.appendChild(S.note(l));
     body.appendChild(S.note(r.url));
     const bar = document.createElement('div');
@@ -491,6 +549,7 @@ if (typeof window !== 'undefined') {
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
     const run = (what, fn) => () => { Promise.resolve().then(fn).catch(err => DevShortcutsUI._fail(what, err)); };
     VexExtras.registerCommand({ id: 'cloudflare-shortcuts', label: 'Cloudflare dashboard', hint: 'Deep links to your workers, logs and KV namespaces', icon: 'cloud', action: run('Cloudflare shortcuts', () => CloudflareShortcuts.openUI()) });
+    VexExtras.registerCommand({ id: 'roblox-resolve-selection', label: 'Resolve the selected Roblox id', hint: 'Select an asset or place id on a Roblox or DevForum page first', icon: 'gamepad', action: run('Roblox resolver', () => RobloxResolver.askSelection()) });
     VexExtras.registerCommand({ id: 'roblox-resolve', label: 'Resolve a Roblox id', hint: 'An asset or place id to its page link and a short summary', icon: 'gamepad', action: run('Roblox resolver', () => RobloxResolver.ask()) });
     VexExtras.registerCommand({ id: 'repo-skim', label: 'Skim a repository', hint: 'What a GitHub repository is, how active it is, and red flags', icon: 'git', action: run('Repo skim', () => RepoSkim.ask()) });
   }

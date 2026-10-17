@@ -193,7 +193,7 @@
     // Settings section that holds its switch. Local services and the webhook inspector are off by default.
     { id: 'cloudflare-shortcuts', title: 'Cloudflare dashboard shortcuts', maturity: 'new', storageKeys: ['vex.cfShortcuts'], usesKeys: ['vex.endpoints'], commands: ['cloudflare-shortcuts'],
       permissions: { reads: ['your account id, worker names and KV namespace ids, and the workers.dev addresses on the endpoint board'], writes: ['those saved names'], sends: [] } },
-    { id: 'roblox-resolver', title: 'Roblox id resolver', maturity: 'new', storageKeys: ['vex.robloxResolver'], commands: ['roblox-resolve'], budget: { fetchesPerHour: 30 },
+    { id: 'roblox-resolver', title: 'Roblox id resolver', maturity: 'new', storageKeys: ['vex.robloxResolver'], commands: ['roblox-resolve', 'roblox-resolve-selection'], budget: { fetchesPerHour: 60 },
       permissions: { reads: ['the id or address you paste'], writes: ['the clipboard, when you press Copy'], sends: ['The one id to economy.roblox.com, apis.roblox.com and games.roblox.com (public pages, no cookie, no login), only when you resolve it'] } },
     { id: 'repo-skim', title: 'Repo skim', maturity: 'new', storageKeys: ['vex.repoSkim'], commands: ['repo-skim'], budget: { fetchesPerHour: 60 },
       permissions: { reads: ['the repository you name: description, licence, commits, README, top-level files'], writes: ['the clipboard, when you press Copy'], sends: ['Read requests to api.github.com (with your read-only token if you saved one); the README only to your local model, only when you ask'] } },

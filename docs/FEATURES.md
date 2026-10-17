@@ -672,7 +672,7 @@ For building things, not just browsing them.
   - Open: Ctrl+K: "Cloudflare dashboard".
   - Default: New: starts off on an existing profile until you switch it on.
 - **Roblox id resolver** (`roblox-resolver`): Turns a Roblox asset id, place id or roblox.com address into the public page link and a short summary. Reach it from Ctrl+K with "Resolve a Roblox id". On an existing profile it starts off; turn it on in Settings > Roblox id resolver.
-  - Open: Ctrl+K: "Resolve a Roblox id".
+  - Open: Ctrl+K: "Resolve a Roblox id", "Resolve the selected Roblox id".
   - Default: New: starts off on an existing profile until you switch it on.
 - **Repo skim** (`repo-skim`): Gives a quick read on a GitHub repository: what it is, when it was last touched, its licence and a few red flags. Reach it from Ctrl+K with "Skim a repository". On an existing profile it starts off; turn it on in Settings > Repo skim.
   - Open: Ctrl+K: "Skim a repository".
