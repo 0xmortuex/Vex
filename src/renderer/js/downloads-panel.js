@@ -633,7 +633,7 @@ const DownloadsPanel = {
       // is in the address — the file itself is never uploaded.
       // An archive: what is in it, before it is unpacked. Otherwise the
       // fingerprint check, which is what matters for a program.
-      ...(info.verdict === 'archive' && /\.zip$/i.test(filePath)
+      ...(info.verdict === 'archive' && /\.(zip|rar|7z)$/i.test(filePath)
         ? { extra: { label: 'Look inside', run: () => this.peekArchive(filePath) } }
         : /^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => this.checkOnVirusTotal(filePath, info.sha256) } } : {}),
     });

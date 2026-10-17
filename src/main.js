@@ -9201,7 +9201,19 @@ const _fileCheck = require('./main/file-check').createFileCheck({
 // through the same guards that protect an extract (src/main/archive-security.js).
 ipcMain.handle('archive:list', async (_e, filePath) => {
   try {
-    if (!/\.zip$/i.test(String(filePath || ''))) return { ok: false, error: 'Vex can look inside .zip files only' };
+    // .rar and .7z (Wave 6): only their headers are read, in plain JavaScript (main/archive-list.js); nothing is unpacked.
+    const other = /\.(rar|7z)$/i.exec(String(filePath || ''));
+    if (other) {
+      const list = require('./main/archive-list');
+      const fd = fs.openSync(filePath, 'r');
+      let r;
+      try { r = list.listArchive(list.fileReader(fs, fd, fs.fstatSync(fd).size), other[1].toLowerCase()); }
+      finally { fs.closeSync(fd); }
+      if (!r.ok) return { ok: false, error: r.error };
+      if (r.encrypted) return { ok: false, error: r.note };
+      return { ok: true, count: r.entries.length, entries: r.entries.slice(0, 200), format: r.format, truncated: r.truncated };
+    }
+    if (!/\.zip$/i.test(String(filePath || ''))) return { ok: false, error: 'Vex can look inside .zip, .rar and .7z files only' };
     const AdmZip = require('adm-zip');
     const zip = new AdmZip(filePath);
     const { validateZip } = require('./main/archive-security');
