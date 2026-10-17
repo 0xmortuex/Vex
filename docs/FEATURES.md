@@ -195,7 +195,7 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Ctrl+K: "Share-safe mode: off for this share"; Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Guest session** (`guest-session`): Opens a window that keeps nothing, for a shared or public computer, with a Guest session label always visible. Open it from Ctrl+K, Guest session. On an existing profile it starts off; turn it on in Settings > Guest session.
-  - Open: Ctrl+K: "Guest session", "Forget this guest session"; Settings > Security helpers.
+  - Open: Ctrl+K: "Guest session", "Forget this guest session", "Erase the throwaway workspace"; Settings > Security helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Extension changes and pause** (`extension-diff`): Shows what each extension could read and do now compared with when you last reviewed, and lets you pause the extensions that can read the current site. Use Ctrl+K, Extension changes or Pause extensions on this site. On an existing profile it starts off; turn it on in Settings > Extension changes and pause.
   - Open: Ctrl+K: "Extension changes", "Pause extensions on this site"; Settings > Security helpers.
@@ -210,7 +210,7 @@ Blocking, isolation, Tor, and the things that follow you.
   - Open: Settings > Security helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Photo preparer** (`photo-prep`): Resizes and crops one picture you choose to the size and file limit a form asks for, and saves it as a new file. Open it from Ctrl+K with "Prepare a picture for a form". On an existing profile it starts off; turn it on in Settings > Photo preparer.
-  - Open: Ctrl+K: "Prepare a picture for a form"; Settings > Security helpers.
+  - Open: Ctrl+K: "Prepare a picture for a form", "Turn a requirements page into a checklist", "Document expiry reminders"; Settings > Security helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Containers per site** (`container-memory`): Remembers the last container you used for each website and offers it first when you open a link from the clipboard. Use Ctrl+K: Open clipboard link in a container. On an existing profile it starts off; turn it on in Settings > Containers per site.
   - Open: Ctrl+K: "Open clipboard link in a container"; Settings > Containers per site.
@@ -244,6 +244,9 @@ Getting to the words, and getting through them.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Paper brief** (`paper-brief`): A chapter map and cited summary of a PDF you choose, made by your local model. On an existing profile it starts off; turn it on in Settings > Paper brief.
   - Open: Ctrl+K: "Paper Brief"; Settings > Paper brief.
+  - Default: New: starts off on an existing profile until you switch it on.
+- **Learner reading aids** (`reading-aids`): For reading a page in English or Turkish while you learn it: point at a word for its dictionary form and a short gloss, grey out the words you already know, and save a word with its sentence for FlashMind. Local word lists only, nothing looked up online. On an existing profile it starts off; turn it on in Settings > Reading aids.
+  - Open: Ctrl+K: "Reading aids: mark up this page", "Reading aids: save the selected word", "Reading aids: I know the selected word", "Reading aids: clear the marks"; Settings > Reading aids.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Library links** (`library-links`): Shows what in your library relates to the page you are on: notes that cite it, related knowledge-base items and your archived copy. Open it from Ctrl+K with "Related From My Library (Panel)". On an existing profile it starts off; turn it on in Settings > Library links.
   - Open: Ctrl+K: "Related From My Library (Panel)"; Settings > Library links.
@@ -368,7 +371,7 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Past-Paper Session"; Settings > Past papers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Course spaces** (`course-spaces`): A space per subject that groups its exams, deck and study sites; it switches only when you ask. On an existing profile it starts off; turn it on in Settings > Courses.
-  - Open: Ctrl+K: "Courses"; Settings > Courses.
+  - Open: Ctrl+K: "Courses", "Subject view"; Settings > Courses.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Model UN dossier** (`mun-dossier`): A delegation dossier for Model UN: position, votes, allies and resolutions, each with its source. On an existing profile it starts off; turn it on in Settings > Model UN dossier.
   - Open: Ctrl+K: "Delegation Dossier (Model UN)"; Settings > Model UN dossier.
@@ -705,7 +708,7 @@ For building things, not just browsing them.
   - Open: Settings > Developer helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Reference sets** (`reference-sets`): Named sets of pages and snippets for a project that open as tabs and a group together. On an existing profile it starts off; turn it on in Settings > Developer helpers.
-  - Open: Ctrl+K: "Reference sets", "Pin this page to the reference set", "Open the reference set of this project"; Settings > Developer helpers.
+  - Open: Ctrl+K: "Reference sets", "Pin this page to the reference set", "Open the reference set of this project", "Search inside a reference set"; Settings > Developer helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Refresh after a successful build** (`refresh-on-deploy`): When a GitHub build succeeds, offers to reload the tabs of that site; it reloads only when you press Refresh. On an existing profile it starts off; turn it on in Settings > Refresh after a build.
   - Open: Settings > Refresh after a build.

@@ -270,7 +270,7 @@ const VexDeadlines = {
       const at = new Date(when.value).getTime();
       if (!Number.isFinite(at) || at <= Date.now()) { window.showToast?.('Pick a time in the future', 'error'); return; }
       try {
-        await window.vex.reminders.create(this._message(f), at, src.url ? { url: src.url } : undefined);
+        await window.vex.reminders.create(this._message(f), typeof VexHolidays !== 'undefined' ? VexHolidays.reminderAt(at, f.phrase) : at, src.url ? { url: src.url } : undefined);
         add.disabled = true; add.textContent = 'Added'; no.disabled = true;
       } catch (err) { window.showToast?.('Could not add the reminder: ' + err.message, 'error'); }
     }, { primary: true, label: 'Add a reminder for: ' + f.phrase });

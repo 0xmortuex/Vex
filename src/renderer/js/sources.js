@@ -13,7 +13,11 @@
 //                       Graph, schema.org JSON-LD), with a fixed script that touches nothing.
 //   Look up the DOI     one request to Crossref for that one DOI, only when you press the button
 //                       (main/doi-resolve.js; on the "What left this computer" list). Nothing
-//                       else here ever goes anywhere. arXiv ids and ISBNs are kept, not looked up.
+//                       else here ever goes anywhere. An arXiv id is looked up at export.arxiv.org and an
+//                       ISBN at openlibrary.org the same way (main/source-lookup.js), one request each, only
+//                       when you press the button on a source that has one.
+//   Auto-stamp          opt in: a clipped selection (Clip to Notes) or a screenshot is kept under the page's
+//                       source as well, like a copy or a highlight (ledger line with Undo).
 //   Cite                copies the record in the style picked in Settings; "bundle" adds the quotes.
 //
 // Never from a private, Tor or routed tab, and never from a banking, payment, sign-in, mail or
@@ -32,13 +36,13 @@ const VexSources = {
     let raw = null;
     try { raw = JSON.parse(localStorage.getItem(this.PREF) || 'null'); } catch (err) { throw new Error('The sources settings could not be read: ' + err.message, { cause: err }); }
     const style = raw && VexCiteStyles.STYLES.some(s => s.id === raw.style) ? raw.style : 'apa';
-    return { enabled: !raw || raw.enabled !== false, style };
+    return { enabled: !raw || raw.enabled !== false, style, autoStamp: !!(raw && raw.autoStamp === true) };
   },
   enabled() { try { return this.prefs().enabled; } catch (err) { console.error('[Sources]', err.message); return false; } },
   setPrefs(patch) {
     const next = { ...this.prefs(), ...patch };
     if (!VexCiteStyles.STYLES.some(s => s.id === next.style)) throw new Error('Unknown citation style ' + next.style);
-    try { localStorage.setItem(this.PREF, JSON.stringify({ enabled: !!next.enabled, style: next.style })); }
+    try { localStorage.setItem(this.PREF, JSON.stringify({ enabled: !!next.enabled, style: next.style, autoStamp: !!next.autoStamp })); }
     catch (err) { throw new Error('Could not save that setting: ' + err.message, { cause: err }); }
     return this.prefs();
   },
@@ -309,7 +313,7 @@ const VexSources = {
       const { record, created } = await this.stampActive();
       const item = this.attach(record.id, { kind, text });
       if (typeof VexLedger !== 'undefined') {
-        VexLedger.note({ feature: 'sources', what: (created ? 'Kept a source for ' : 'Added a passage to ') + '"' + record.title.slice(0, 80) + '"', why: 'You ' + (kind === 'highlight' ? 'highlighted' : 'copied') + ' text from that page and Sources is on',
+        VexLedger.note({ feature: 'sources', what: (created ? 'Kept a source for ' : 'Added a passage to ') + '"' + record.title.slice(0, 80) + '"', why: 'You ' + ({ highlight: 'highlighted text from', clip: 'clipped from', screenshot: 'took a screenshot of' }[kind] || 'copied text from') + ' that page and ' + (kind === 'clip' || kind === 'screenshot' ? 'Auto-stamp is on in Sources' : 'Sources is on'),
           undo: created ? { kind: 'source-remove', id: record.id } : (item ? { kind: 'source-detach', id: record.id, item: item.id } : undefined) });
       }
       return { record, item, created };
@@ -320,6 +324,15 @@ const VexSources = {
   },
 
   // ---- DOI lookup -------------------------------------------------------------------------
+  _applyLookup(id, rec, f) {
+    const next = { ...rec, looked: true };
+    for (const k of ['kind', 'title', 'authors', 'container', 'publisher', 'volume', 'issue', 'pages', 'date', 'oaUrl', 'doi']) {
+      const got = Array.isArray(f[k]) ? f[k].length > 0 : !!f[k];
+      if (got) next[k] = f[k];
+    }
+    if (!next.url) next.url = f.url;
+    return this.update(id, next);
+  },
   async lookupDoi(id) {
     const rec = this.get(id);
     if (!rec) throw new Error('That source is gone');
@@ -327,14 +340,18 @@ const VexSources = {
     if (!window.vex || typeof window.vex.sourcesResolveDoi !== 'function') throw new Error('The DOI lookup is not available here');
     const res = await window.vex.sourcesResolveDoi(rec.doi);
     if (!res || !res.ok) throw new Error((res && res.error) || 'The DOI lookup failed');
-    const f = res.record;
-    const next = { ...rec, looked: true };
-    for (const k of ['kind', 'title', 'authors', 'container', 'publisher', 'volume', 'issue', 'pages', 'date', 'oaUrl']) {
-      const got = Array.isArray(f[k]) ? f[k].length > 0 : !!f[k];
-      if (got) next[k] = f[k];
-    }
-    if (!next.url) next.url = f.url;
-    return this.update(id, next);
+    return this._applyLookup(id, rec, res.record);
+  },
+  // which: 'arxiv' | 'isbn'. One request to arxiv.org or openlibrary.org for the id the source already carries.
+  async lookupId(id, which) {
+    if (which !== 'arxiv' && which !== 'isbn') throw new Error('Unknown lookup ' + which);
+    const rec = this.get(id);
+    if (!rec) throw new Error('That source is gone');
+    if (!rec[which]) throw new Error('This source has no ' + (which === 'arxiv' ? 'arXiv id' : 'ISBN') + '. Edit it and type one first');
+    if (!window.vex || typeof window.vex.sourcesResolveId !== 'function') throw new Error('The ' + (which === 'arxiv' ? 'arXiv' : 'ISBN') + ' lookup is not available here');
+    const res = await window.vex.sourcesResolveId(which, rec[which]);
+    if (!res || !res.ok) throw new Error((res && res.error) || 'The lookup failed');
+    return this._applyLookup(id, rec, res.record);
   },
 
   // ---- writing a citation --------------------------------------------------------------------
@@ -442,6 +459,8 @@ const VexSources = {
         act('Bundle', () => this.copyText(this.bundleText(rec.id), 'Copied the citation with ' + rec.items.length + ' passage' + (rec.items.length === 1 ? '' : 's')), { label: 'Copy the passages and citation for ' + rec.title });
         act('BibTeX', () => this.copyText(this.cite(rec.id, 'bibtex'), 'Copied as BibTeX'), { label: 'Copy BibTeX for ' + rec.title });
         if (rec.doi) act(rec.looked ? 'Look up again' : 'Look up DOI', async () => { window.showToast?.('Asking Crossref about ' + rec.doi + '...'); await this.lookupDoi(rec.id); window.showToast?.('Filled in from Crossref'); draw(); }, { label: 'Look up the DOI of ' + rec.title + ' on Crossref' });
+        if (rec.arxiv) act('Look up arXiv', async () => { window.showToast?.('Asking arXiv about ' + rec.arxiv + '...'); await this.lookupId(rec.id, 'arxiv'); window.showToast?.('Filled in from arXiv', 'success'); draw(); }, { label: 'Look up ' + rec.title + ' at arXiv' });
+        if (rec.isbn) act('Look up ISBN', async () => { window.showToast?.('Asking Open Library about ' + rec.isbn + '...'); await this.lookupId(rec.id, 'isbn'); window.showToast?.('Filled in from Open Library', 'success'); draw(); }, { label: 'Look up ' + rec.title + ' at Open Library' });
         act('Edit', () => this.edit(rec.id, draw), { label: 'Edit ' + rec.title });
         act('Remove', () => {
           const gone = this.remove(rec.id);
@@ -467,6 +486,12 @@ const VexSources = {
     select.addEventListener('change', () => { try { this.setPrefs({ style: select.value }); } catch (err) { window.showToast?.(err.message, 'error'); } });
     label.appendChild(select);
     el.appendChild(label);
+    const auto = document.createElement('label'); auto.className = 'vexsr-rule';
+    const acb = document.createElement('input'); acb.type = 'checkbox';
+    try { acb.checked = this.prefs().autoStamp; } catch (err) { window.VexProblems?.note('Sources', 'The auto-stamp setting could not be read', err); }
+    acb.addEventListener('change', () => { try { this.setPrefs({ autoStamp: acb.checked }); } catch (err) { acb.checked = !acb.checked; window.showToast?.(err.message, 'error'); } });
+    auto.append(acb, document.createTextNode(' Also keep a clipped selection (Clip to Notes) and a screenshot under their page\'s source'));
+    el.appendChild(auto);
     el.appendChild(VexSettingsGroups.button('Open sources', () => this.open(), { primary: true }));
     el.appendChild(VexSettingsGroups.button('Keep this page as a source', async () => {
       try { const r = await this.stampActive(); window.showToast?.((r.created ? 'Kept: ' : 'Updated: ') + r.record.title.slice(0, 70)); }
@@ -481,6 +506,12 @@ const VexSources = {
       VexLedger.registerUndo('source-remove', async (token) => { if (!this.remove(token.id)) throw new Error('That source is already gone'); });
       VexLedger.registerUndo('source-detach', async (token) => { this.detach(token.id, token.item); });
     }
+    document.addEventListener('vex:capture-taken', (e) => {
+      const d = e.detail || {};
+      let on = false;
+      try { on = this.enabled() && this.prefs().autoStamp; } catch (err) { window.VexProblems?.note('Sources', 'The auto-stamp setting could not be read', err); }
+      if (on && d.text && (d.kind === 'clip' || d.kind === 'screenshot')) this.keepPassage({ text: d.text, kind: d.kind });
+    });
     document.addEventListener('vex:highlight-added', (e) => {
       const d = e.detail || {};
       if (this.enabled() && d.text) this.keepPassage({ text: d.text, kind: 'highlight' });

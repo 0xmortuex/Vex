@@ -8,6 +8,12 @@
 //                 its description. N and P jump to the next / previous chapter.
 //                 With neither, the captions are cut into five-minute parts.
 //   * Loop        A/B loop and a frame step, for the bit you are learning.
+//   * Slides      "Grab slides" steps through a stretch of the video, takes a picture of the video
+//                 area each few seconds, keeps a picture only when it differs from the last one kept
+//                 (a new slide), and reads the words on each kept slide with the on-device OCR
+//                 (Tesseract in this window). The result goes to a note as timestamped text.
+//   * Brief       "Brief by chapter" asks YOUR LOCAL MODEL for a sentence or two per chapter from the
+//                 captions of that chapter. Never the cloud; with no local model it says so.
 //
 // Local only, and no media is downloaded or saved: nothing is read except caption
 // text and chapter titles the page already exposes, and a DRM or cross-origin video
@@ -76,6 +82,23 @@ function vexVideoControl(cmd, arg) {
   if (!v) return null;
   if (cmd === 'seek') { v.currentTime = Math.max(0, Math.min(Number(arg) || 0, v.duration || 1e9)); return { time: v.currentTime }; }
   if (cmd === 'now') return { time: v.currentTime, duration: v.duration || 0 };
+  if (cmd === 'rect') {
+    var r = v.getBoundingClientRect();
+    return { x: Math.max(0, Math.round(r.left)), y: Math.max(0, Math.round(r.top)), width: Math.round(Math.min(r.right, innerWidth) - Math.max(0, r.left)), height: Math.round(Math.min(r.bottom, innerHeight) - Math.max(0, r.top)), time: v.currentTime, duration: v.duration || 0, paused: v.paused, protectedMedia: !!v.mediaKeys };
+  }
+  if (cmd === 'seekWait') {
+    var target = Math.max(0, Math.min(Number(arg) || 0, v.duration || 1e9));
+    v.pause();
+    return new Promise(function (resolve) {
+      var done = false;
+      var fin = function () { if (done) return; done = true; v.removeEventListener('seeked', fin); setTimeout(function () { resolve({ time: v.currentTime }); }, 250); };
+      v.addEventListener('seeked', fin);
+      setTimeout(fin, 3000);
+      v.currentTime = target;
+    });
+  }
+  if (cmd === 'play') { var p = v.play(); return { playing: true, p: p ? 1 : 0 }; }
+  if (cmd === 'pause') { v.pause(); return { playing: false }; }
   if (cmd === 'step') { v.pause(); v.currentTime = Math.max(0, v.currentTime + (arg > 0 ? 1 : -1) / 30); return { time: v.currentTime }; }
   if (cmd === 'rate') { v.playbackRate = Math.max(0.25, Math.min(Number(arg) || 1, 4)); return { rate: v.playbackRate }; }
   if (window.__vexLoopStop) { window.__vexLoopStop(); window.__vexLoopStop = null; }
@@ -173,6 +196,53 @@ const VideoTools = {
     // Previous: a few seconds into a chapter, "previous" restarts that chapter.
     if (at >= 0 && t - chapters[at].s > 3) return chapters[at];
     return at > 0 ? chapters[at - 1] : null;
+  },
+
+  // ---- slides: frame differences and the note (pure) -------------------------------------------------------
+  SLIDE: { gridW: 32, gridH: 18, threshold: 6, maxSlides: 60, maxSteps: 240, minStep: 2 },
+  // RGBA pixels of a small picture -> grey levels (0 to 255), one per pixel.
+  grayFromRgba(data) {
+    const n = Math.floor(data.length / 4);
+    const out = new Uint8Array(n);
+    for (let i = 0; i < n; i++) out[i] = Math.round(0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2]);
+    return out;
+  },
+  // Mean absolute difference of two equally long grey pictures (0 to 255).
+  frameDiff(a, b) {
+    if (!a || !b || a.length !== b.length || !a.length) throw new Error('The two pictures are not the same size');
+    let sum = 0;
+    for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+    return sum / a.length;
+  },
+  isNewSlide(prev, cur, threshold = this.SLIDE.threshold) { return !prev || this.frameDiff(prev, cur) > threshold; },
+  // Times to look at: from a to b every step seconds, at most maxSteps.
+  scanTimes(a, b, step) {
+    const s = Number(step);
+    if (!(s >= this.SLIDE.minStep)) throw new Error('Look at least ' + this.SLIDE.minStep + ' seconds apart');
+    if (!(b > a) || a < 0) throw new Error('The end must be after the start');
+    const out = [];
+    for (let t = a; t < b && out.length < this.SLIDE.maxSteps; t += s) out.push(Math.round(t * 100) / 100);
+    return out;
+  },
+  // slides: [{ s, text }] -> Markdown lines with a time (a link when the page can be linked to a time).
+  slidesNote(slides, link) {
+    const lines = ['## Slides', ''];
+    slides.forEach((x, i) => {
+      const at = link ? link(x.s) : this.stamp(x.s);
+      lines.push('### Slide ' + (i + 1) + ' ' + at, x.text ? x.text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join('\n') : '(no readable words)', '');
+    });
+    return lines.join('\n');
+  },
+
+  // ---- brief by chapter (pure parts) -------------------------------------------------------------------------
+  // The caption text that falls inside chapter i, cut at maxChars.
+  chapterText(lines, chapters, i, maxChars = 6000) {
+    const from = chapters[i].s;
+    const to = i + 1 < chapters.length ? chapters[i + 1].s : Infinity;
+    return lines.filter(l => l.s >= from && l.s < to).map(l => l.t).join(' ').slice(0, maxChars);
+  },
+  chapterPrompt(title, text) {
+    return 'Here are the captions of one chapter of a video, called "' + String(title).slice(0, 120) + '". Say what it covers in one or two plain sentences. Use only the captions. If they are too short to say, answer "Too little to say."\n\n' + text;
   },
 
   // ---- the page -------------------------------------------------------------------
@@ -277,8 +347,45 @@ const VideoTools = {
       } catch (err) { say(err.message); }
     });
     tbar.append(search, saveNote);
+    const linkFor = (s) => { let url = ''; try { url = wv.getURL(); } catch { /* vex-allow-empty-catch: a detached page; the line is saved without a link */ } return typeof VideoNotes !== 'undefined' && url ? '[' + this.stamp(s) + '](' + VideoNotes.link(url, s) + ')' : this.stamp(s); };
+    const extras = document.createElement('div');
+    extras.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border)';
+    const out = document.createElement('div');
+    out.style.cssText = 'padding:6px 14px;max-height:26vh;overflow:auto;font-size:12px';
+    const stepIn = document.createElement('input'); stepIn.type = 'number'; stepIn.min = String(this.SLIDE.minStep); stepIn.value = '10'; stepIn.style.width = '64px'; stepIn.setAttribute('aria-label', 'Seconds between pictures');
+    let results = null;
+    extras.append(
+      mk('Grab slides from A to B', guard(async () => {
+        if (A == null || B == null) throw new Error('Set A and B first (Set A, then Set B and loop)');
+        await this.control(wv, 'unloop');
+        out.textContent = '';
+        const slides = await this.grabSlides(wv, { a: A, b: B, step: Number(stepIn.value), onProgress: (i, n, k) => say('Looking at ' + i + ' of ' + n + ', ' + k + ' slide' + (k === 1 ? '' : 's') + ' so far') });
+        results = { kind: 'slides', slides };
+        for (const sl of slides) {
+          const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;margin:6px 0;align-items:flex-start';
+          const im = document.createElement('img'); im.src = sl.dataUrl; im.alt = 'Slide at ' + this.stamp(sl.s); im.style.cssText = 'width:120px;border:1px solid var(--border);border-radius:4px';
+          const tx = document.createElement('div'); tx.textContent = this.stamp(sl.s) + ' - ' + (sl.text || '(no readable words)');
+          row.append(im, tx); out.append(row);
+        }
+        say(slides.length + ' slide' + (slides.length === 1 ? '' : 's') + ' found. Save them to a note.');
+      })),
+      stepIn, document.createTextNode('seconds apart'),
+      mk('Brief by chapter (local model)', guard(async () => {
+        out.textContent = '';
+        const items = await this.briefByChapter(probe, { onProgress: (i, n) => say('Local model: chapter ' + i + ' of ' + n) });
+        results = { kind: 'brief', items };
+        for (const it of items) { const p = document.createElement('div'); p.textContent = this.stamp(it.s) + ' ' + it.t + ': ' + it.brief; p.style.margin = '4px 0'; out.append(p); }
+        say('Written on this computer. Save it to a note.');
+      })),
+      mk('Save these to a note', guard(async () => {
+        if (!results) throw new Error('Grab slides or make a brief first');
+        if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
+        const text = results.kind === 'slides' ? this.slidesNote(results.slides, linkFor) : this.briefNote(results.items, linkFor);
+        AgentTools.saveNote(String(probe.title || 'Video').slice(0, 60) + (results.kind === 'slides' ? ' (slides)' : ' (brief)'), text);
+        say('Saved to Notes.');
+      })));
 
-    body.append(controls, chapBox, tbar, list, status);
+    body.append(controls, chapBox, tbar, extras, out, list, status);
     drawLines();
 
     overlay.addEventListener('keydown', guard(async (e) => {
@@ -295,6 +402,94 @@ const VideoTools = {
     overlay.tabIndex = -1;
     overlay.focus({ preventScroll: true });
     return close;
+  },
+
+  // The video area as a picture (the visible part of the window only): a region of the page, so it works for a
+  // video from another site, and gives a black rectangle for protected video, which is refused up front.
+  async _grab(wv) {
+    const r = await this.control(wv, 'rect');
+    if (r.protectedMedia) throw new Error('This video is protected, so its picture cannot be taken');
+    if (!(r.width > 40 && r.height > 40)) throw new Error('Scroll the video into view first');
+    if (typeof wv.capturePage !== 'function') throw new Error('This page cannot be photographed here');
+    const img = await wv.capturePage({ x: r.x, y: r.y, width: r.width, height: r.height });
+    if (!img || (typeof img.isEmpty === 'function' && img.isEmpty())) throw new Error('The picture came back empty');
+    return { dataUrl: img.toDataURL(), rect: r };
+  },
+  async _gray(dataUrl) {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('The picture could not be read')); i.src = dataUrl; });
+    const c = document.createElement('canvas');
+    c.width = this.SLIDE.gridW; c.height = this.SLIDE.gridH;
+    const g = c.getContext('2d');
+    if (!g) throw new Error('A drawing surface could not be made');
+    g.drawImage(img, 0, 0, c.width, c.height);
+    return this.grayFromRgba(g.getImageData(0, 0, c.width, c.height).data);
+  },
+  async _ocr(dataUrl) {
+    if (typeof DocExtract === 'undefined' || typeof DocExtract._loadOcr !== 'function') throw new Error('The text reader is not available here');
+    const lib = await DocExtract._loadOcr();
+    const { data } = await lib.recognize(dataUrl, 'eng');
+    return String((data && data.text) || '').trim();
+  },
+  // Steps through a..b, keeps each picture that differs from the last kept one, reads its words.
+  // -> [{ s, dataUrl, text }]. Puts the video back where it was.
+  async grabSlides(wv, { a, b, step = 10, onProgress, threshold } = {}) {
+    this._guard(wv);
+    const times = this.scanTimes(a, b, step);
+    const start = await this.control(wv, 'rect');
+    const slides = [];
+    let prev = null;
+    const run = async () => {
+      try {
+        for (let i = 0; i < times.length; i++) {
+          if (onProgress) onProgress(i + 1, times.length, slides.length);
+          await this.control(wv, 'seekWait', times[i]);
+          const shot = await this._grab(wv);
+          const gray = await this._gray(shot.dataUrl);
+          if (!this.isNewSlide(prev, gray, threshold)) continue;
+          prev = gray;
+          slides.push({ s: times[i], dataUrl: shot.dataUrl, text: await this._ocr(shot.dataUrl) });
+          if (slides.length >= this.SLIDE.maxSlides) break;
+        }
+      } finally {
+        await this.control(wv, 'seek', start.time);
+        if (!start.paused) await this.control(wv, 'play');
+      }
+      return slides;
+    };
+    const r = typeof VexJobs !== 'undefined' && typeof VexJobs.heavy === 'function'
+      ? await VexJobs.heavy('Video slides', run, { kind: 'ocr', feature: 'video-tools' })
+      : { ran: true, value: await run() };
+    if (!r.ran) throw new Error('Not now: ' + r.reason);
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('video-tools');
+    return r.value;
+  },
+  // One sentence or two per chapter from the captions, by the LOCAL model only. -> [{ s, t, brief }]
+  async briefByChapter(probe, { onProgress } = {}) {
+    if (typeof VexStudyKit === 'undefined') throw new Error('The local model helper is not loaded');
+    const lines = this.lines(probe);
+    if (!lines.length) throw new Error('This page exposes no captions to brief from');
+    const ch = this.chaptersFor(probe).list;
+    if (ch.length < 1) throw new Error('There are no chapters to brief');
+    const run = async () => {
+      const out = [];
+      for (let i = 0; i < ch.length; i++) {
+        if (onProgress) onProgress(i + 1, ch.length);
+        const text = this.chapterText(lines, ch, i);
+        if (text.length < 40) { out.push({ s: ch[i].s, t: ch[i].t, brief: 'Too little to say.' }); continue; }
+        const brief = await VexStudyKit.generateLocal('You summarise video captions in plain words. You never add anything that is not in them.', this.chapterPrompt(ch[i].t, text), { maxTokens: 120 });
+        if (!brief) throw new Error('The local model returned nothing for "' + ch[i].t + '"');
+        out.push({ s: ch[i].s, t: ch[i].t, brief });
+      }
+      return out;
+    };
+    const r = typeof VexJobs !== 'undefined' && typeof VexJobs.heavy === 'function'
+      ? await VexJobs.heavy('Video brief', run, { kind: 'summary', feature: 'video-tools' })
+      : { ran: true, value: await run() };
+    if (!r.ran) throw new Error('Not now: ' + r.reason);
+    return r.value;
+  },
+  briefNote(items, link) {
+    return ['## Brief by chapter', ''].concat(items.map(x => '- ' + (link ? link(x.s) : this.stamp(x.s)) + ' **' + x.t + '**: ' + x.brief)).join('\n');
   },
 
   async openActive() {

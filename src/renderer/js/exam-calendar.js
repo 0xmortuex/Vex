@@ -11,6 +11,11 @@
 // Each dated item gets reminders at 09:00, a week and a day ahead (your choice
 // in the item form is not needed: the lead days are in Settings), and one on the
 // day itself. Reminders are the main process's, so they fire with Vex closed.
+//
+// Fee cutoff and late window: an item can also carry the day the normal fee stops (feeDay) and a late
+// window (lateStart to lateEnd), typed in the form, or picked out of an imported event's description when it
+// says so ("fee until 2027-01-20", "late application 10.02.2027 - 15.02.2027"). They get the same reminders as
+// the other days. Vex still ships no dates of its own.
 const ExamCalendar = {
   KEY: 'vex.examDates',
   ON_KEY: 'vex.examDates.enabled',
@@ -71,7 +76,29 @@ const ExamCalendar = {
       url = u.href;
     }
     const note = String(input.note || '').trim().slice(0, 400);
-    return { id: input.id || VexLifeKit.uid('ex'), uid: input.uid ? String(input.uid).slice(0, 200) : '', kind, body, title, day, endDay, url, note, remindIds: Array.isArray(input.remindIds) ? input.remindIds : [] };
+    const opt = (v, what) => { const s = String(v || '').trim(); if (!s) return ''; try { return VexLifeKit.dayString(VexLifeKit.parseDay(s)); } catch (err) { throw new Error(what + ': ' + err.message, { cause: err }); } };
+    const feeDay = opt(input.feeDay, 'The fee cutoff day');
+    const lateStart = opt(input.lateStart, 'The first late day');
+    let lateEnd = opt(input.lateEnd, 'The last late day');
+    if (lateEnd && !lateStart) throw new Error('Give the first late day too');
+    if (lateStart && lateEnd && lateEnd < lateStart) throw new Error('The last late day is before the first');
+    if (lateStart && !lateEnd) lateEnd = lateStart;
+    return { id: input.id || VexLifeKit.uid('ex'), uid: input.uid ? String(input.uid).slice(0, 200) : '', kind, body, title, day, endDay, feeDay, lateStart, lateEnd, url, note, remindIds: Array.isArray(input.remindIds) ? input.remindIds : [] };
+  },
+
+  // ---- pure: the fee cutoff and late window a description states ------------------------------------------------
+  // -> { feeDay, lateStart, lateEnd } (any may be ''). Day first (10.02.2027) and ISO (2027-02-10) are read; nothing else is guessed.
+  datesFromText(text) {
+    const t = String(text || '');
+    const D = '(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[./]\\d{1,2}[./]\\d{4})';
+    const iso = (s) => { const m = /^(\d{1,2})[./](\d{1,2})[./](\d{4})$/.exec(s); return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : s; };
+    const out = { feeDay: '', lateStart: '', lateEnd: '' };
+    const fee = new RegExp('(?:fee|payment|harç|ücret)[^\\d\\n]{0,40}' + D, 'i').exec(t);
+    if (fee) out.feeDay = iso(fee[1]);
+    const late = new RegExp('(?:late|geç)[^\\d\\n]{0,40}' + D + '(?:\\s*(?:-|–|to|until|ile|ila)\\s*' + D + ')?', 'i').exec(t);
+    if (late) { out.lateStart = iso(late[1]); out.lateEnd = late[2] ? iso(late[2]) : ''; }
+    for (const k of Object.keys(out)) { if (out[k]) { try { VexLifeKit.parseDay(out[k]); } catch { out[k] = ''; } } }
+    return out;
   },
 
   // ---- pure: an .ics file -------------------------------------------------------------------
@@ -118,6 +145,7 @@ const ExamCalendar = {
       } else if (name === 'URL') ev.url = val.trim();
       else if (name === 'DESCRIPTION') ev.note = unescape(val).slice(0, 400);
     }
+    for (const e of out) Object.assign(e, this.datesFromText(e.note));
     return out;
   },
 
@@ -128,6 +156,9 @@ const ExamCalendar = {
     const ids = [], failed = [];
     const targets = [[item.day, item.endDay ? 'opens' : 'is today']];
     if (item.endDay) targets.push([item.endDay, 'closes']);
+    if (item.feeDay) targets.push([item.feeDay, 'normal fee ends']);
+    if (item.lateStart) targets.push([item.lateStart, 'late window opens']);
+    if (item.lateEnd && item.lateEnd !== item.lateStart) targets.push([item.lateEnd, 'late window closes']);
     for (const [day, what] of targets) {
       const dayMs = VexLifeKit.parseDay(day);
       const moments = [[0, 'today']];
@@ -205,6 +236,9 @@ const ExamCalendar = {
         { name: 'body', label: 'Body', type: 'select', options: Object.entries(this.BODIES).map(([k, b]) => [k, b.label]), value: 'osym' },
         { name: 'day', label: 'Date (year-month-day)', required: true, placeholder: '2027-02-10' },
         { name: 'endDay', label: 'Last day, if it is a window', placeholder: 'optional' },
+        { name: 'feeDay', label: 'Last day of the normal fee', placeholder: 'optional' },
+        { name: 'lateStart', label: 'Late window starts', placeholder: 'optional' },
+        { name: 'lateEnd', label: 'Late window ends', placeholder: 'optional' },
         { name: 'url', label: 'Link', placeholder: 'optional' },
         { name: 'note', label: 'Note', type: 'textarea' },
       ],
@@ -234,6 +268,8 @@ const ExamCalendar = {
         const lines = [
           i.title + ' (' + (this.KINDS.find(k => k[0] === i.kind) || [0, 'Other'])[1] + ', ' + b.label + ')',
           i.day + (i.endDay ? ' to ' + i.endDay : '') + ': ' + VexLifeKit.words(i.left) + (i.left < 0 ? ' (passed)' : ''),
+          ...(i.feeDay ? ['Normal fee until ' + i.feeDay] : []),
+          ...(i.lateStart ? ['Late window ' + i.lateStart + (i.lateEnd && i.lateEnd !== i.lateStart ? ' to ' + i.lateEnd : '')] : []),
           'Verify on ' + (b.site ? b.site.replace(/^https:\/\/(www\.)?|\/$/g, '') : 'the official site') + '. Not checked by Vex.',
         ];
         if (i.note) lines.push(i.note);

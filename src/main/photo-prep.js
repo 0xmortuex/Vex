@@ -17,6 +17,8 @@ const path = require('path');
 const MAX_INPUT_BYTES = 40 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 40 * 1024 * 1024;
 const IMAGE_EXT = Object.freeze(['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif']);
+// What may be SAVED: a picture, or the one-page PDF the window builds around a JPEG (checked by its first bytes).
+const SAVE_EXT = Object.freeze(IMAGE_EXT.concat(['pdf']));
 
 function mimeOf(file) {
   const ext = path.extname(file).slice(1).toLowerCase();
@@ -45,12 +47,14 @@ async function savePicture({ dialog, win, bytes, suggestedName, fsMod = fs }) {
   if (bytes.length > MAX_OUTPUT_BYTES) throw new Error('The picture is larger than ' + Math.round(MAX_OUTPUT_BYTES / 1048576) + ' MB');
   const name = String(suggestedName || 'photo.jpg').replace(/[\\/:*?"<>|\0]/g, '_').slice(0, 120) || 'photo.jpg';
   const ext = path.extname(name).slice(1).toLowerCase();
-  if (!IMAGE_EXT.includes(ext)) throw new Error('The saved file has to end in .jpg or .png');
+  if (!SAVE_EXT.includes(ext)) throw new Error('The saved file has to end in .jpg or .png (or .pdf for a document)');
+  if (ext === 'pdf' && String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') throw new Error('That is not a PDF file');
   const out = await dialog.showSaveDialog(win, { title: 'Save the prepared picture as a new file', defaultPath: name, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
   if (out.canceled || !out.filePath) return { ok: true, canceled: true };
   // The dialog may only ever write a picture file, never overwrite a program
   // or a script because the person typed another extension.
-  if (!IMAGE_EXT.includes(path.extname(out.filePath).slice(1).toLowerCase())) throw new Error('The saved file has to end in .jpg or .png');
+  const chosen = path.extname(out.filePath).slice(1).toLowerCase();
+  if (!SAVE_EXT.includes(chosen) || (chosen === 'pdf') !== (ext === 'pdf')) throw new Error('The saved file has to end in .jpg or .png (or .pdf for a document)');
   await fsMod.promises.writeFile(out.filePath, bytes);
   return { ok: true, path: out.filePath, bytes: bytes.length };
 }

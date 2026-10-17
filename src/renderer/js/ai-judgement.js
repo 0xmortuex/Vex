@@ -11,6 +11,11 @@
 //   SeenBefore       T3-037  "have I seen this before?": your history, notes,
 //                    highlights and read-later list searched for the page in
 //                    front, with a similarity hint. Words only, on this computer.
+//                    Two additions: "Also search by meaning" (on demand, only when Recall's
+//                    meaning search is set up: the page's title and first words go to your own
+//                    local Ollama embedding model and nowhere else), and an optional prompt (off
+//                    until you switch it on): after about 40 seconds on a page, if it matches
+//                    something you kept, a quiet suggestion goes to the Attention Inbox.
 //   AiRecipes        T3-065  a recipe is a saved AI skill, an optional page to
 //                    read, and a reminder. When the reminder fires, Vex opens the
 //                    recipe with its inputs ready and waits: the AI runs only when
@@ -244,7 +249,42 @@ const SeenBefore = {
   FEATURE: 'seen-before',
   MAX_TEXT: 6000,
   MAX_HITS: 8,
-  ...aiPrefs('vex.seenBefore', { enabled: true }, 'Seen before'),
+  DWELL_MS: 40000,
+  ...aiPrefs('vex.seenBefore', { enabled: true, dwell: false }, 'Seen before'),
+
+  dwellEnabled() { return this.enabled() && this.state().dwell === true; },
+  setDwell(on) { const s = this.state(); s.dwell = !!on; this.save(s); this._wire(); },
+  _wired: false,
+  _prompted: new Set(),
+  _timer: null,
+  _wire() {
+    if (this._wired || typeof document === 'undefined') return;
+    this._wired = true;
+    const arm = () => this._arm();
+    document.addEventListener('vex:tab-settled', arm);
+    window.addEventListener('vex:tab-activated', arm);
+    document.addEventListener('vex:tab-navigated', () => this._disarm());
+  },
+  _disarm() { if (this._timer) { clearTimeout(this._timer); this._timer = null; } },
+  _arm() {
+    this._disarm();
+    if (!this.dwellEnabled()) return;
+    this._timer = setTimeout(() => { this._timer = null; this.dwellCheck().catch(err => window.VexProblems?.note('Seen before', 'The dwell check failed', err)); }, this.DWELL_MS);
+  },
+  // After a dwell on a page: one quiet suggestion when it matches something kept; never a toast, never twice for a page.
+  async dwellCheck() {
+    if (!this.dwellEnabled()) return null;
+    const page = await this._pageText();
+    const key = this.canonical(page.url);
+    if (!key || this._prompted.has(key)) return null;
+    const r = this.find(page, this.corpus());
+    const strong = r.same || (r.similar[0] && r.similar[0].score >= 0.55);
+    if (!strong) return null;
+    this._prompted.add(key);
+    if (typeof VexAttention === 'undefined') throw new Error('The attention gate is not loaded');
+    VexAttention.suggest({ feature: this.FEATURE, label: 'Have I seen this before?', id: key, title: 'You may have seen this page before', body: r.hint });
+    return r;
+  },
 
   canonical(url) {
     let u;
@@ -370,6 +410,18 @@ const SeenBefore = {
     return { url: tab.url, title: tab.title || '', text: String(text || '') };
   },
 
+  // Pages Recall's meaning search finds for this page, from your own local embedding model only. -> [{ where: 'recall', title, url, at, label }]
+  async meaningMatches(page) {
+    if (typeof Recall === 'undefined' || !Recall.meaningOn()) throw new Error('Meaning search is not set up. Pick an embedding model in Settings > Recall (it runs in your own Ollama)');
+    const q = (String(page.title || '') + ' ' + String(page.text || '').slice(0, 400)).replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!q) throw new Error('There is nothing on this page to compare');
+    const res = await window.vex.recallMeaningSearch(q, Recall._meaningArgs({ limit: 12 }));
+    if (!res || res.ok === false) throw new Error((res && res.message) || 'The meaning search did not work');
+    const own = this.canonical(page.url);
+    return (res.hits || []).filter(h => h && h.url && this.canonical(h.url) !== own).slice(0, this.MAX_HITS)
+      .map(h => ({ where: 'recall', title: String(h.title || h.url), url: String(h.url), at: Number(h.at) || 0, score: 0, label: 'matches by meaning' }));
+  },
+
   async check() {
     if (!this.enabled()) throw new Error('"Have I seen this before?" is switched off (Settings > Reading and watching with AI)');
     if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
@@ -385,8 +437,9 @@ const SeenBefore = {
     body.appendChild(S.note(r.page.text ? 'Compared by the words of the page against your history, notes, highlights and read-later list. Nothing left this computer.' : 'The page text could not be read, so only its title and address were compared.'));
     const list = document.createElement('div');
     list.className = 'vexsr-list';
-    const WHERE = { history: 'History', note: 'Note', highlight: 'Highlight', 'read-later': 'Read later' };
-    for (const s of r.similar) {
+    const WHERE = { history: 'History', note: 'Note', highlight: 'Highlight', 'read-later': 'Read later', recall: 'Recall' };
+    const draw = (items) => {
+    for (const s of items) {
       const row = document.createElement('div');
       row.className = 'vexsr-rule';
       const t = document.createElement('span');
@@ -399,7 +452,20 @@ const SeenBefore = {
       if (/^https?:/i.test(s.url)) row.appendChild(S.button('Open', () => { try { aiOpen(s.url); } catch (err) { aiFail('Seen before', err); } }, { label: 'Open ' + s.title }));
       list.appendChild(row);
     }
+    };
+    draw(r.similar);
     body.appendChild(list);
+    if (typeof Recall !== 'undefined' && Recall.meaningOn()) {
+      const more = S.button('Also search by meaning', async () => {
+        more.disabled = true;
+        try {
+          const found = await this.meaningMatches(r.page);
+          if (!found.length) body.appendChild(S.note('Recall found nothing else by meaning.'));
+          draw(found);
+        } catch (err) { aiFail('Seen before', err); }
+      }, { label: 'Search Recall by meaning with your local embedding model' });
+      body.appendChild(more);
+    }
   },
 };
 
@@ -916,6 +982,13 @@ const AiJudgementUI = {
     const act = (text, fn) => S.button(text, () => { Promise.resolve().then(fn).catch(err => aiFail(text, err)); });
     bar.append(act('Triage my queue', () => ReadingTriage.open()), act('AI recipes', () => AiRecipes.manage()), act('Watch conditions', () => WatchJudgement.manage()));
     el.appendChild(bar);
+    const dwell = document.createElement('label');
+    dwell.className = 'vex-platform-note';
+    const dbox = document.createElement('input');
+    dbox.type = 'checkbox'; dbox.checked = SeenBefore.state().dwell === true;
+    dbox.addEventListener('change', () => { try { SeenBefore.setDwell(dbox.checked); } catch (err) { dbox.checked = !dbox.checked; aiFail('Seen before', err); } });
+    dwell.append(dbox, document.createTextNode(' Seen before: after about 40 seconds on a page, quietly suggest it if it matches something you kept (to the Attention Inbox, never a pop-up)'));
+    el.appendChild(dwell);
     for (const [, label, mod] of this.FEATURES) {
       const l = document.createElement('label');
       l.className = 'vex-platform-note';
@@ -951,5 +1024,6 @@ if (typeof window !== 'undefined') {
   }
   AiRecipes.start();
   AiRecipes.registerCommands();
+  SeenBefore._wire();
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { AiLocal, AiWords, ReadingTriage, SeenBefore, AiRecipes, WatchJudgement, AiJudgementUI };

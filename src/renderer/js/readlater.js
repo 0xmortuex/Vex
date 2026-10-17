@@ -359,6 +359,7 @@ const ClipToNotes = {
           window.VexWeeklyNote.recordClip({ url: t.url, title: t.title || t.url, text: sel.trim() });
         }
       } catch (err) { window.VexProblems?.note('Clip to Notes', 'Could not record the clip for the weekly note', err); }
+      try { document.dispatchEvent(new CustomEvent('vex:capture-taken', { detail: { kind: 'clip', text: sel.trim() || t.url } })); } catch (err) { window.VexProblems?.note('Clip to Notes', 'Could not tell Sources about the clip', err); }
       window.showToast?.(sel ? 'Selection clipped to Notes' : 'Link clipped to Notes');
     } catch (e) { console.error('[ClipToNotes] clip failed:', e.message); window.showToast?.('Clip failed: ' + e.message, 'error'); }
   },

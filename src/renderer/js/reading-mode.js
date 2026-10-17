@@ -621,6 +621,34 @@ document.getElementById('vr-smaller').addEventListener('click',function(){change
 document.getElementById('vr-bigger').addEventListener('click',function(){change('size',Math.min(32,prefs.size+1));});
 document.getElementById('vr-exit').addEventListener('click',function(){send({type:'exit-reading'});});
 document.getElementById('vr-listen').addEventListener('click',function(){send({type:'reader-listen'});});
+var SL=document.getElementById('vr-level');
+if(SL){
+  var OR={},CA={},LIST=null;
+  var para=function(i){return document.querySelector('[data-vr-i="'+i+'"]');};
+  var restore=function(){Array.prototype.forEach.call(document.querySelectorAll('[data-vr-i]'),function(p){var i=p.getAttribute('data-vr-i');if(OR.hasOwnProperty(i))p.innerHTML=OR[i];});};
+  var show=function(level){restore();var c=CA[level]||{};Object.keys(c).forEach(function(i){var p=para(i);if(p)p.textContent=c[i];});};
+  var note=document.getElementById('vr-level-note');
+  window.__vrNote=function(m){if(note)note.textContent=String(m);};
+  window.__vrCollect=function(){
+    if(LIST)return LIST;
+    LIST=[];var n=0;
+    Array.prototype.forEach.call(document.querySelectorAll('#vr-main article p'),function(p){
+      if(p.closest('aside')||p.className==='vr-meta'||n>=40)return;
+      var t=p.textContent.replace(/ {2,}/g,' ').trim();
+      if(t.length<60)return;
+      p.setAttribute('data-vr-i',String(n));LIST.push({i:n,text:t.slice(0,1200)});n++;
+    });
+    return LIST;
+  };
+  window.__vrPut=function(level,i,text){var p=para(i);if(!p)return;if(!OR.hasOwnProperty(i))OR[i]=p.innerHTML;(CA[level]=CA[level]||{})[i]=String(text);if(SL.value===level)p.textContent=String(text);};
+  SL.addEventListener('change',function(e){
+    var v=e.target.value;
+    if(v==='original'){restore();window.__vrNote('');return;}
+    if(CA[v]){show(v);window.__vrNote('');return;}
+    window.__vrNote('Asking your local model...');
+    send({type:'reader-simplify',level:v});
+  });
+}
 var rfOff=document.getElementById('vr-rf-off');
 if(rfOff)rfOff.addEventListener('click',function(){send({type:'reader-first-off'});rfOff.disabled=true;});
 document.addEventListener('keydown',function(e){
@@ -664,6 +692,8 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       + sel('width', 'Width', [['narrow', 'Narrow'], ['medium', 'Medium'], ['wide', 'Wide']], p.width)
       + sel('spacing', 'Lines', [['tight', 'Tight'], ['normal', 'Normal'], ['loose', 'Loose']], p.spacing)
       + sel('theme', 'Theme', [['vex', 'Vex'], ['light', 'Light'], ['sepia', 'Sepia'], ['dark', 'Dark']], p.theme)
+      + (article && article.simplifyLevels && typeof VexTos !== 'undefined'
+        ? sel('level', 'Wording', VexTos.LEVELS, 'original') + '<span id="vr-level-note" class="vr-meta" aria-live="polite"></span>' : '')
       + `<span class="vr-sep" aria-hidden="true"></span>`
       + `<button id="vr-listen" type="button" title="Read this article aloud">${this._icon('volume')}<span>Listen</span></button>`
       + `</div>`;
@@ -731,6 +761,7 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
       return null;
     }
     if (opts && opts.summary && article) article.summarySlot = true;
+    if (article && typeof VexTos !== 'undefined' && VexTos.simplifyEnabled()) article.simplifyLevels = true;
 
     // A recipe, trip or documentation page that says so in its structured
     // data gets a checklist on top (js/reader-kinds.js). Missing or unreadable
@@ -786,6 +817,11 @@ try{document.querySelector('main').focus({preventScroll:true});}catch(e){}
     }
     if (cmd.type === 'reader-first-off') {
       return typeof ReaderFirst !== 'undefined' ? ReaderFirst.disableForTab(tabId) : false;
+    }
+    if (cmd.type === 'reader-simplify') {
+      if (typeof VexTos === 'undefined') return false;
+      VexTos.simplifyReader(tabId, String(cmd.level)).catch(err => window.showToast?.(err.message, 'error'));
+      return true;
     }
     if (cmd.type === 'reader-listen') {
       const wv = (typeof WebviewManager !== 'undefined' && WebviewManager.webviews) ? WebviewManager.webviews.get(tabId) : null;

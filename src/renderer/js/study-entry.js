@@ -111,7 +111,8 @@ const VexStudyEntry = {
     return hit.length > 400 ? hit.slice(0, 400).replace(/\s+\S*$/, '') + '...' : hit;
   },
 
-  addWord({ word, sentence, url, title }, now = Date.now()) {
+  // lang, lemma and gloss are optional: Reading aids (js/reading-aids.js) fills them from its local word lists.
+  addWord({ word, sentence, url, title, lang, lemma, gloss }, now = Date.now()) {
     const w = String(word || '').replace(/\s+/g, ' ').trim();
     if (!w || w.length > this.MAX_WORD) throw new Error('A word is 1 to ' + this.MAX_WORD + ' characters');
     const s = String(sentence || '').replace(/\s+/g, ' ').trim().slice(0, 500);
@@ -122,6 +123,10 @@ const VexStudyEntry = {
     if (dup) return { entry: dup, added: false };
     if (list.length >= this.MAX_VOCAB) throw new Error('That is ' + this.MAX_VOCAB + ' words already: export and clear some first');
     const entry = { id: (typeof vexId === 'function' ? vexId('vw') : 'vw_' + now.toString(36) + Math.random().toString(36).slice(2, 6)), word: w, sentence: s, url: u, title: String(title || '').replace(/\s+/g, ' ').trim().slice(0, 200), at: now };
+    const one = (v, max) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
+    if (one(lang, 2) === 'en' || one(lang, 2) === 'tr') entry.lang = one(lang, 2);
+    if (one(lemma, 60)) entry.lemma = one(lemma, 60);
+    if (one(gloss, 200)) entry.gloss = one(gloss, 200);
     list.push(entry);
     this._writeJson(this.KEY_VOCAB, list, 'vocabulary');
     return { entry, added: true };
@@ -133,7 +138,8 @@ const VexStudyEntry = {
   vocabCards(list, deck) {
     return (Array.isArray(list) ? list : []).filter(v => v && v.word && v.sentence).map(v => {
       const from = [v.title, v.url].filter(Boolean).join(' - ');
-      return { front: v.word, back: v.sentence + (from ? '\nSource: ' + from : ''), difficulty: 'medium', category: deck || 'Vocabulary' };
+      const head = v.gloss ? (v.lemma && v.lemma.toLowerCase() !== v.word.toLowerCase() ? v.lemma + ': ' : '') + v.gloss + '\n' : '';
+      return { front: v.word, back: head + v.sentence + (from ? '\nSource: ' + from : ''), difficulty: 'medium', category: deck || 'Vocabulary' };
     });
   },
   vocabCsv(list, deck) {

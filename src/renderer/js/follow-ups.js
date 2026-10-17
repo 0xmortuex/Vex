@@ -217,7 +217,7 @@ const VexFollowUps = {
     if (it.dir === 'owe' && it.due && it.due > now) act('Remind me', async () => {
       if (!window.vex || !window.vex.reminders) throw new Error('Reminders are not available');
       const at = Math.max(now + 60000, it.due - 8 * 3600 * 1000);
-      await window.vex.reminders.create('You owe: ' + it.what, at, it.url ? { url: it.url } : undefined);
+      await window.vex.reminders.create('You owe: ' + it.what, typeof VexHolidays !== 'undefined' ? VexHolidays.reminderAt(at, it.what) : at, it.url ? { url: it.url } : undefined);
       window.showToast?.('Reminder set', 'success');
     }, { label: 'Remind me about ' + it.what });
     if (it.url) act('Open', () => { if (typeof TabManager === 'undefined') throw new Error('Tabs are not loaded'); TabManager.createTab(it.url, true); }, { label: 'Open the page for ' + it.what });
