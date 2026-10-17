@@ -14,7 +14,10 @@
 //   AiRecipes        T3-065  a recipe is a saved AI skill, an optional page to
 //                    read, and a reminder. When the reminder fires, Vex opens the
 //                    recipe with its inputs ready and waits: the AI runs only when
-//                    you press Run. Nothing runs by itself.
+//                    you press Run. A recipe you ARMED (off by default, one
+//                    confirm) runs by itself when its reminder fires, on the local
+//                    model unless you chose Auto, with a history, a diff against the
+//                    last answer and an optional note as its destination.
 //   WatchJudgement   T3-103  a page watch gets a condition in your words ("only if
 //                    the price drops or stock appears"). The local model reads the
 //                    change and says whether it matters; a change that does not
@@ -505,18 +508,34 @@ const AiRecipes = {
 
   manage() {
     const S = VexSettingsGroups;
-    const { body } = S.dialog({ id: 'vex-ai-recipes', title: 'AI recipes', sub: 'A recipe is an AI skill with a reminder. When the reminder fires Vex opens the recipe and waits for you to press Run: the AI never runs by itself.' });
+    const { body } = S.dialog({ id: 'vex-ai-recipes', title: 'AI recipes', sub: 'A recipe is an AI skill with a reminder. When the reminder fires Vex opens the recipe and waits for you to press Run, unless you armed it: an armed recipe runs by itself, on your local model by default, and keeps a history.' });
     const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
     const draw = () => {
       body.textContent = '';
       const act = (text, fn, opts) => S.button(text, async () => { try { await fn(); } catch (err) { aiFail('AI recipes', err); } }, opts);
       const list = el('div', 'vexsr-list');
+      const dest = el('select', 'set-input'); dest.setAttribute('aria-label', 'Where an unattended answer goes');
+      for (const [v, l] of [['history', 'Unattended answers: history only'], ['note', 'Unattended answers: save as a note']]) dest.appendChild(Object.assign(el('option', '', l), { value: v }));
+      const backend = el('select', 'set-input'); backend.setAttribute('aria-label', 'Which AI an unattended run uses');
+      for (const [v, l] of [['local', 'Unattended runs: my local model'], ['auto', 'Unattended runs: Auto (cloud only past the sensitivity gate)']]) backend.appendChild(Object.assign(el('option', '', l), { value: v }));
+      const armRow = el('div', 'vexsr-rule'); armRow.append(dest, backend);
+      body.append(S.note('Run by itself: pick where the answer goes and which AI it uses, then press "Run by itself..." on a recipe that has a time.'), armRow);
       for (const r of this.recipes()) {
         const when = r.at ? (r.repeat ? r.repeat + ' from ' : '') + new Date(r.at).toLocaleString() : 'no reminder';
         const t = el('span', 'vexsr-host'); t.style.wordBreak = 'normal';
         t.append(el('div', '', r.name), Object.assign(el('div', 'vexsr-mode', 'Reminder: ' + when + (r.runs ? '. Run ' + r.runs + ' time' + (r.runs === 1 ? '' : 's') : '')), { style: 'white-space:normal' }));
         const row = el('div', 'vexsr-rule');
-        row.append(t, act('Open', () => this.open(r.id), { label: 'Open recipe ' + r.name }), act('Remove', async () => {
+        if (this.isArmed(r)) t.lastChild.textContent += '. Runs by itself (' + (r.backend === 'auto' ? 'Auto' : 'local model') + ', ' + (r.dest === 'note' ? 'saved as a note' : 'history only') + ')';
+        row.append(t, act('Open', () => this.open(r.id), { label: 'Open recipe ' + r.name }),
+          act(this.isArmed(r) ? 'Disarm' : 'Run by itself...', async () => {
+            if (this.isArmed(r)) { await this.arm(r.id, false); draw(); return; }
+            if (!r.reminderId) throw new Error('Give the recipe a time first: an armed recipe runs when its reminder fires');
+            const ok = await vexConfirm({ title: 'Let "' + r.name + '" run while you are away?', message: 'When its reminder fires (Windows wakes Vex for it if Vex is closed), Vex will read ' + (r.source ? r.source + ' through a hidden tab' : 'no page') + ' and run your skill on ' + (backend.value === 'auto' ? 'Auto (the cloud only for what the sensitivity gate allows)' : 'your local model') + '. The answer goes to the recipe history' + (dest.value === 'note' ? ' and to a note' : '') + '. Pages that hold mail, bank or health data are never sent to the cloud. You can disarm it any time.', okLabel: 'Arm it' });
+            if (!ok) return;
+            await this.arm(r.id, true, { dest: dest.value, backend: backend.value }); draw();
+          }, { label: (this.isArmed(r) ? 'Disarm recipe ' : 'Arm recipe ') + r.name }),
+          act('History', () => this.showHistory(r.id), { label: 'History of recipe ' + r.name }),
+          act('Remove', async () => {
           if (!(await vexConfirm({ title: 'Remove this recipe?', message: '"' + r.name + '" and its reminder will be removed.', okLabel: 'Remove', danger: true }))) return;
           await this.remove(r.id); draw();
         }, { danger: true, label: 'Remove recipe ' + r.name }));
@@ -540,6 +559,193 @@ const AiRecipes = {
     draw();
   },
 
+  // ---- unattended runs (T3-065, Wave 5) -----------------------------------------------------------
+  // A recipe the person ARMED runs by itself when its reminder fires, which is also what Windows'
+  // Task Scheduler wake-up (main/reminders.js) brings about when Vex was closed. A recipe that was
+  // never armed behaves exactly as before: it opens and waits for Run. An armed run
+  //   - reads the recipe's page through the hidden tab (the same read a page watch uses), or no page;
+  //   - uses the LOCAL model unless the recipe says "auto", and then goes through AIRouter, where the
+  //     sensitivity gate holds back what the cloud may not see (a background feature is refused, not asked);
+  //   - waits for a quiet machine (VexJobs.heavy) and does not run during a game or on low battery;
+  //   - writes a history line (when, how long, which backend, size, what changed since last time), keeps the
+  //     last answer for the comparison, delivers it to the chosen destination, and writes a ledger line
+  //     with an Undo when it created a note.
+  // Nothing runs for a recipe that is not armed, and a failure is a history line, never silence.
+  HISTORY_MAX: 10,
+  TEXT_MAX: 6000,
+  DESTS: ['history', 'note'],
+  BACKENDS: ['local', 'auto'],
+  _busy: false,
+
+  isArmed(r) { return !!(r && r.armed === true); },
+
+  // Plain line diff: how many lines the new answer added and removed against the last one.
+  diff(oldText, newText) {
+    const lines = (t) => String(t || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const a = lines(oldText), b = lines(newText);
+    const count = (list) => { const m = new Map(); for (const l of list) m.set(l, (m.get(l) || 0) + 1); return m; };
+    const ca = count(a), cb = count(b);
+    let added = 0, removed = 0;
+    for (const [l, n] of cb) added += Math.max(0, n - (ca.get(l) || 0));
+    for (const [l, n] of ca) removed += Math.max(0, n - (cb.get(l) || 0));
+    return { added, removed, first: !oldText };
+  },
+
+  history(id) {
+    const r = this.recipes().find(x => x.id === id);
+    return r && Array.isArray(r.history) ? r.history : [];
+  },
+
+  async arm(id, on, { dest = 'history', backend = 'local' } = {}) {
+    const recipe = this.recipes().find(r => r.id === id);
+    if (!recipe) throw new Error('That recipe is gone');
+    if (on) {
+      if (!this.DESTS.includes(dest)) throw new Error('Deliver to history or to a note');
+      if (!this.BACKENDS.includes(backend)) throw new Error('Run on your local model or on Auto');
+      if (!recipe.reminderId) throw new Error('Give the recipe a time first: an armed recipe runs when its reminder fires');
+    }
+    const s = this.state();
+    const mine = s.recipes.find(r => r.id === id);
+    mine.armed = !!on;
+    if (on) { mine.dest = dest; mine.backend = backend; }
+    this.save(s);
+    if (typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: on ? 'Armed the recipe "' + recipe.name + '" to run by itself' : 'Disarmed the recipe "' + recipe.name + '"', why: on ? 'You asked for it to run when its reminder fires (' + (backend === 'local' ? 'on your local model' : 'on Auto, past the sensitivity gate') + ', delivered to ' + (dest === 'note' ? 'a note' : 'history') + ')' : 'You turned unattended runs off for it' });
+    this.registerCommands();
+    return mine;
+  },
+
+  _pushHistory(id, entry) {
+    const s = this.state();
+    const mine = s.recipes.find(r => r.id === id);
+    if (!mine) return;
+    const { text, ...line } = entry;
+    mine.history = [line, ...(Array.isArray(mine.history) ? mine.history : [])].slice(0, this.HISTORY_MAX);
+    if (entry.ok) { mine.lastText = text; mine.runs = (mine.runs || 0) + 1; mine.lastRunAt = entry.at; }
+    this.save(s);
+    delete entry.text;
+  },
+
+  _quietReason() {
+    if (typeof window === 'undefined') return '';
+    if (window.GameMode && typeof window.GameMode.holdingAi === 'function' && window.GameMode.holdingAi()) return 'a game is running';
+    if (window.BatteryMode && typeof window.BatteryMode.holdingAi === 'function' && window.BatteryMode.holdingAi()) return 'Vex is saving battery';
+    return '';
+  },
+
+  // One unattended run. Always resolves with the history entry; never throws into the reminder path.
+  async runUnattended(id, reason) {
+    const recipe = this.recipes().find(r => r.id === id);
+    if (!recipe || !this.enabled() || !this.isArmed(recipe)) return null;
+    const t0 = Date.now();
+    const entry = { at: t0, ok: false, ms: 0, backend: '', model: '', chars: 0, approxTokens: 0, cloud: false, added: 0, removed: 0, dest: recipe.dest || 'history', note: '', error: '', preview: '' };
+    if (this._busy) { entry.error = 'Another recipe was still running'; this._pushHistory(id, entry); return entry; }
+    const held = this._quietReason();
+    if (held) { entry.error = 'Held back: ' + held; this._pushHistory(id, entry); return entry; }
+    this._busy = true;
+    try {
+      if (typeof VexSkills === 'undefined') throw new Error('AI skills are not available');
+      if (typeof AIRouter === 'undefined') throw new Error('The AI is not available');
+      const skill = this.skills().find(s => s.id === recipe.skillId);
+      if (!skill) throw new Error('The skill of this recipe was deleted');
+      if (VexSkills.findVariables(skill.prompt).length) throw new Error('This skill asks questions when it runs, which cannot be answered while you are away');
+      if (typeof VexUsage !== 'undefined') VexUsage.touch(this.FEATURE);
+      let pageContext = null;
+      if (recipe.source) {
+        if (!window.vex || typeof window.vex.pageWatchRender !== 'function') throw new Error('Reading a page through a hidden tab is not available in this build');
+        const p = await window.vex.pageWatchRender({ url: recipe.source });
+        if (!p || !p.ok) throw new Error((p && p.error) || 'The page could not be read');
+        if (!String(p.text || '').trim()) throw new Error('The page had no readable text');
+        pageContext = { url: p.finalUrl || recipe.source, title: p.title || '', text: String(p.text).slice(0, 12000) };
+      }
+      const request = { message: skill.prompt, pageContext };
+      const job = () => (recipe.backend === 'auto' ? AIRouter.callAI('aiRecipe', request) : AIRouter.callOn('local', 'aiRecipe', request));
+      const ran = typeof VexJobs !== 'undefined' && typeof VexJobs.heavy === 'function'
+        ? await VexJobs.heavy('AI recipe: ' + recipe.name, job, { kind: 'ai-ask', feature: this.FEATURE })
+        : { ran: true, value: await job() };
+      if (ran && ran.ran === false) throw new Error('Held back: ' + (ran.reason || 'the machine is busy'));
+      const out = ran && ran.value !== undefined ? ran.value : ran;
+      const text = String((out && typeof out.result === 'string') ? out.result : (out && out.result && (out.result.reply || out.result.text)) || '').trim();
+      if (!text) throw new Error('The AI returned nothing');
+      entry.ok = true; entry.text = text.slice(0, this.TEXT_MAX);
+      entry.backend = out.backend || ''; entry.model = out.model || ''; entry.cloud = out.backend === 'cloud';
+      entry.chars = text.length;
+      entry.approxTokens = Math.ceil(((request.message || '').length + (pageContext ? pageContext.text.length : 0) + text.length) / 4);
+      entry.preview = text.replace(/\s+/g, ' ').slice(0, 160);
+      const d = this.diff(recipe.lastText, entry.text);
+      entry.added = d.added; entry.removed = d.removed; entry.first = d.first;
+      let noteId = '';
+      if (recipe.dest === 'note') noteId = this._toNote(recipe, text, d);
+      entry.note = noteId;
+      if (typeof VexLedger !== 'undefined') {
+        VexLedger.note({
+          feature: this.FEATURE,
+          what: 'Ran the recipe "' + recipe.name + '" by itself' + (noteId ? ' and saved the answer as a note' : ''),
+          why: 'You armed it, and its reminder fired' + (reason ? ' (' + reason + ')' : '') + '. It ran on ' + (entry.cloud ? 'the cloud AI' : 'your local model') + '.',
+          undo: noteId ? { kind: 'recipe-note-remove', noteId } : undefined,
+        });
+      }
+      if (typeof VexAttention !== 'undefined') VexAttention.notify({ feature: this.FEATURE, urgency: 'useful', id: recipe.id }, () => window.showToast?.('Recipe "' + recipe.name + '" ran' + (noteId ? ': saved as a note.' : '. Its answer is in the recipe history.'), 'info', 6000));
+    } catch (err) {
+      entry.ok = false; entry.error = String((err && err.message) || err).slice(0, 240);
+      if (typeof VexProblems !== 'undefined') VexProblems.note('AI recipes', 'The recipe "' + recipe.name + '" could not run by itself', err);
+    } finally {
+      entry.ms = Date.now() - t0;
+      this._busy = false;
+      this._pushHistory(id, entry);
+      if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:ai-recipe-ran', { detail: { id, ok: entry.ok } }));
+    }
+    return entry;
+  },
+
+  // The answer as a note, with what changed since the last run in its first line.
+  _toNote(recipe, text, d) {
+    if (typeof NotesPanel === 'undefined') throw new Error('Notes are not available here');
+    NotesPanel.createNote();
+    const n = NotesPanel.notes[0];
+    const when = new Date().toLocaleString();
+    n.title = recipe.name + ' - ' + when;
+    n.content = (d.first ? 'First run.' : 'Since the last run: ' + d.added + ' lines added, ' + d.removed + ' removed.') + '\n\n' + text;
+    n.updatedAt = new Date().toISOString();
+    NotesPanel._fillEditor(); NotesPanel.save();
+    return n.id;
+  },
+  removeNote(noteId) {
+    if (typeof NotesPanel === 'undefined') throw new Error('Notes are not available here');
+    const i = NotesPanel.notes.findIndex(n => n.id === noteId);
+    if (i < 0) throw new Error('That note is already gone');
+    NotesPanel.notes.splice(i, 1);
+    NotesPanel.save();
+    if (typeof NotesPanel.render === 'function') NotesPanel.render();
+  },
+
+  // The recipe's history as a dialog: when, how long, where it ran, what changed, what it cost.
+  showHistory(id) {
+    const recipe = this.recipes().find(r => r.id === id);
+    if (!recipe) throw new Error('That recipe is gone');
+    const S = VexSettingsGroups;
+    const { body } = S.dialog({ id: 'vex-ai-recipe-history', title: recipe.name + ': history', sub: 'The last ' + this.HISTORY_MAX + ' unattended runs' });
+    const list = this.history(id);
+    if (!list.length) body.appendChild(S.note('No unattended run yet.'));
+    for (const h of list) {
+      const parts = [new Date(h.at).toLocaleString(), h.ok ? 'ok' : 'failed', Math.round(h.ms / 100) / 10 + ' s'];
+      if (h.ok) {
+        parts.push(h.cloud ? 'cloud AI' : 'local model' + (h.model ? ' (' + h.model + ')' : ''));
+        parts.push('about ' + h.approxTokens + ' tokens');
+        if (h.cloud && typeof VexAISpend !== 'undefined') { const pc = VexAISpend._read().perCall; if (pc > 0) parts.push('about ' + Math.round(h.approxTokens / 1000 * pc * 1000) / 1000 + ' at your rate'); else parts.push('one cloud call'); }
+        else parts.push('no cloud cost');
+        parts.push(h.first ? 'first run' : '+' + h.added + ' / -' + h.removed + ' lines');
+        if (h.dest === 'note') parts.push('saved as a note');
+      }
+      body.appendChild(S.note(parts.join(' · ')));
+      if (h.ok && h.preview) body.appendChild(S.note(h.preview + (h.chars > 160 ? '...' : '')));
+      if (!h.ok && h.error) body.appendChild(S.note(h.error));
+    }
+    const rc = this.recipes().find(r => r.id === id);
+    if (rc && rc.lastText) {
+      body.appendChild(S.button('Copy the last answer', async () => { try { await navigator.clipboard.writeText(rc.lastText); window.showToast?.('Copied'); } catch (err) { aiFail('AI recipes', err); } }));
+    }
+  },
+
   registerCommands() {
     if (typeof VexModuleCommands === 'undefined') return;
     const list = [];
@@ -560,6 +766,18 @@ const AiRecipes = {
       const recipe = this.forReminder(p);
       if (recipe) { try { this.open(recipe.id); } catch (err) { aiFail('AI recipe', err); } }
     });
+    // A fired reminder of an ARMED recipe runs it by itself (T3-065). Others are left alone.
+    if (typeof b.onFired === 'function') {
+      b.onFired((p) => {
+        if (!this.enabled() || !p) return;
+        const recipe = this.forReminder(p);
+        if (!recipe || !this.isArmed(recipe)) return;
+        const key = recipe.id + ':' + (p.at || p.id);
+        if (this._lastFired === key) return;
+        this._lastFired = key;
+        this.runUnattended(recipe.id, p.late ? 'Vex was woken for it' : 'the reminder fired');
+      });
+    }
     this.registerCommands();
   },
 };
@@ -688,7 +906,7 @@ const AiJudgementUI = {
   FEATURES: [
     ['reading-triage', 'Reading triage by goals', ReadingTriage],
     ['seen-before', 'Have I seen this before?', SeenBefore],
-    ['ai-recipes', 'Scheduled AI recipes (a reminder; you press Run)', AiRecipes],
+    ['ai-recipes', 'Scheduled AI recipes (a reminder; Run by hand, or armed to run by itself)', AiRecipes],
     ['watch-judgement', 'Watch with judgement', WatchJudgement],
   ],
   group(el) {
@@ -730,6 +948,7 @@ if (typeof window !== 'undefined') {
   }
   if (typeof VexLedger !== 'undefined' && typeof VexLedger.registerUndo === 'function') {
     VexLedger.registerUndo('watch-unhold', async (token) => { WatchJudgement.unhold(token.id); });
+    VexLedger.registerUndo('recipe-note-remove', async (token) => { AiRecipes.removeNote(token.noteId); });
   }
   AiRecipes.start();
   AiRecipes.registerCommands();

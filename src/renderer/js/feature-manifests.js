@@ -206,7 +206,7 @@
     { id: 'seen-before', title: 'Have I seen this before?', maturity: 'new', storageKeys: ['vex.seenBefore'], usesKeys: ['vex.history', 'vex.notes', 'vex.annotations', 'vex.readLater'], commands: ['seen-before'],
       permissions: { reads: ['the page in front, your history, notes, highlights and read-later list'], writes: ['its own switch'], sends: [] } },
     { id: 'ai-recipes', title: 'Scheduled AI recipes', maturity: 'new', storageKeys: ['vex.aiRecipes'], usesKeys: ['vex.skills', 'vex.reminders'], commands: ['ai-recipes'],
-      permissions: { reads: ['your AI skills'], writes: ['your recipes and one reminder per recipe'], sends: ['Nothing by itself: the skill runs through your AI backend only when you press Run'] } },
+      permissions: { reads: ['your AI skills; for a recipe you armed, the page it names'], writes: ['your recipes, one reminder per recipe, and for an armed recipe its history and last answer (and a note, if you chose one)'], sends: ['Nothing by itself unless you arm a recipe: then the skill and its page go to your local model, or on Auto to the cloud only past the sensitivity gate'] } },
     { id: 'watch-judgement', title: 'Watch with judgement', maturity: 'new', storageKeys: ['vex.watchJudge'], usesKeys: ['vex.pageWatches', 'vex.ledger'], commands: ['watch-judgement'],
       permissions: { reads: ['the changed lines of a page you watch, when the watch has a condition'], writes: ['your conditions, the list of changes held back, and a line in "Why did that happen?" for each'], sends: ['The changed lines only to your local model'] } },
     // ---- Developer helpers (js/dev-helpers.js, Settings > Developer helpers) -------------------
