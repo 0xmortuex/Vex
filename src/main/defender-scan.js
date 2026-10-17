@@ -68,7 +68,7 @@ function createDefenderScan({ spawn, confirm, pickFile, isDownloadedFile, fs = n
     const full = nodePath.resolve(p);
     let st;
     try { st = fs.lstatSync(full); }
-    catch (err) { if (err && err.code === 'ENOENT') throw new Error('That file is not there any more'); throw err; }
+    catch (err) { if (err && err.code === 'ENOENT') throw new Error('That file is not there any more', { cause: err }); throw err; }
     if (!st.isFile()) throw new Error('Only a plain file is scanned, not a folder or a link');
     return full;
   }
