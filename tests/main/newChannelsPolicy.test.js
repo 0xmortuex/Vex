@@ -20,7 +20,8 @@ const CHANNELS = ('clips-inbox:add clips-inbox:clear clips-inbox:list clips-inbo
   + 'websafety:get websafety:set-paranoid websafety:set-sensitivity '
   + 'devdesk:config devdesk:set-config devdesk:grant-root devdesk:revoke-root devdesk:open-file devdesk:open-terminal devdesk:branch devdesk:ports '
   + 'devext:pick devext:reload devext:stop devext:status devext:vencord castlabs:behind '
-  + 'profilecrypt:status profilecrypt:enable profilecrypt:disable profilecrypt:change profilecrypt:new-recovery').split(' ');
+  + 'profilecrypt:status profilecrypt:enable profilecrypt:disable profilecrypt:change profilecrypt:new-recovery '
+  + 'transcribe:config transcribe:pick transcribe:clear transcribe:set transcribe:begin transcribe:chunk transcribe:end').split(' ');
 
 // Open to a private window on purpose: they only read what the window already
 // shows (the safety level; the verdict for one address) or are another feature's

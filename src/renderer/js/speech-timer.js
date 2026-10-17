@@ -68,6 +68,8 @@ const VexSpeechTimer = {
     const d = this._read(); d.preset = n; this._st().set(d);
     return n;
   },
+  // The name of the speaker whose turn is running, or '' (the meeting transcript labels its parts with it).
+  currentSpeaker() { return this._run && this._run.current ? this._run.current.name : ''; },
   // The speaker whose turn it is: the first one who has not spoken.
   nextUp() { return this._read().speakers.find(s => s.spoke == null) || null; },
   recordLap(id, seconds) {
@@ -191,11 +193,16 @@ const VexSpeechTimer = {
     }
     clearTimeout(r.timer);
     r.current = this.nextUp();
-    if (!r.current) { r.state.startedAt = 0; r.state.left = r.state.total; this._draw(); this._drawList(); throw new Error('The list is finished: no one is waiting'); }
+    if (!r.current) {
+      r.state.startedAt = 0; r.state.left = r.state.total; this._draw(); this._drawList();
+      window.dispatchEvent(new CustomEvent('vex:speaker-change', { detail: { name: '' } }));
+      throw new Error('The list is finished: no one is waiting');
+    }
     r.state.left = r.state.total; r.state.startedAt = Date.now();
     this._hud.querySelector('[aria-live]').textContent = '';
     this._loop();
     this._drawList();
+    window.dispatchEvent(new CustomEvent('vex:speaker-change', { detail: { name: r.current.name } }));
   },
   _drawList() {
     if (!this.isOpen()) return;

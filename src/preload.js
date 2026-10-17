@@ -608,6 +608,14 @@ contextBridge.exposeInMainWorld('vex', {
   profileCryptDisable: (mode, secret) => ipcRenderer.invoke('profilecrypt:disable', mode, secret),
   profileCryptChange: (current, next) => ipcRenderer.invoke('profilecrypt:change', current, next),
   profileCryptNewRecovery: (passphrase) => ipcRenderer.invoke('profilecrypt:new-recovery', passphrase),
+  // Meeting transcript from the person's own voice (T3 meeting copilot, js/meeting-transcribe.js; main/transcribe.js).
+  transcribeConfig: () => ipcRenderer.invoke('transcribe:config'),
+  transcribePick: (kind) => ipcRenderer.invoke('transcribe:pick', kind),
+  transcribeClear: (kind) => ipcRenderer.invoke('transcribe:clear', kind),
+  transcribeSet: (opts) => ipcRenderer.invoke('transcribe:set', opts),
+  transcribeBegin: (name) => ipcRenderer.invoke('transcribe:begin', name),
+  transcribeChunk: (token, wavBase64) => ipcRenderer.invoke('transcribe:chunk', token, wavBase64),
+  transcribeEnd: (token) => ipcRenderer.invoke('transcribe:end', token),
   // Startup-persistence check (T3-122): read-only.
   startupList: () => ipcRenderer.invoke('startup:list'),
   // Photo preparer (T3-105): the two dialogs; the work is done in the window.

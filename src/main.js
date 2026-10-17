@@ -7501,6 +7501,13 @@ require('./main/profile-lock-ipc').registerProfileLock({
   ipcMain, profileCrypt: _profileCrypt, preferences, dataStore, userDataPath, mainWindowOf: () => mainWindow,
 });
 
+// Local transcription of the owner's own speech for the meeting copilot (main/transcribe.js): the engine and the
+// model are files the person picked; nothing is sent anywhere.
+{
+  const { createTranscriber, registerTranscribe } = require('./main/transcribe');
+  registerTranscribe({ ipcMain, mainWindowOf: () => mainWindow, transcriber: createTranscriber({ store: dataStore, dialog, userDataPath }) });
+}
+
 // Gmail IMAP/SMTP sidebar panel was reverted — see commit history for Phases 1-3.
 // One-time cleanup: remove any leftover encrypted app-password from disk so it
 // doesn't sit around after the feature was pulled. Safe to remove this block

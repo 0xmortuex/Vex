@@ -255,6 +255,7 @@ const VexUsageRegistry = {
       VexStartupCheck: () => (typeof VexStartupCheck !== 'undefined' ? VexStartupCheck : null),
       VexSecureLock: () => (typeof VexSecureLock !== 'undefined' ? VexSecureLock : null),
       VexProfileLock: () => (typeof VexProfileLock !== 'undefined' ? VexProfileLock : null),
+      VexMeetingTranscribe: () => (typeof VexMeetingTranscribe !== 'undefined' ? VexMeetingTranscribe : null),
       VexSlotWatcher: () => (typeof VexSlotWatcher !== 'undefined' ? VexSlotWatcher : null),
       VexPhotoPrep: () => (typeof VexPhotoPrep !== 'undefined' ? VexPhotoPrep : null),
       VexFormAssist: () => (typeof VexFormAssist !== 'undefined' ? VexFormAssist : null),
@@ -663,6 +664,8 @@ const VexUsageRegistry = {
       ['secure-lock', A.api(G.VexSecureLock, 'enabled', 'setEnabled')],
       // Off, it only hides the options: a profile that is already encrypted stays encrypted (the data is never touched by this switch).
       ['profile-lock', A.api(G.VexProfileLock, 'enabled', 'setEnabled')],
+      // Off, the button and the settings go away and a running microphone is stopped; what was transcribed stays in its notes.
+      ['meeting-transcribe', A.api(G.VexMeetingTranscribe, 'enabled', 'setEnabled')],
       ['slot-watcher', A.api(G.VexSlotWatcher, 'enabled', 'setEnabled')],
       ['photo-prep', A.api(G.VexPhotoPrep, 'enabled', 'setEnabled')],
       ['form-assist', A.api(G.VexFormAssist, 'enabled', 'setEnabled')],
