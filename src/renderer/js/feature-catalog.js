@@ -739,6 +739,8 @@ const VexFeatures = {
       what: 'When a site signed you out, says which rule or setting ended the sign-in, read from cookie names and dates only.' },
     { id: 'commit-guard', feature: 'commit-guard', newer: true, cat: 'unique', name: 'Protect Windows from running out of memory', phrases: 'game memory commit crash bsod protect windows', manual: true,
       what: 'While Game mode is on, holds Vex background work when Windows is low on memory, so a game and a build cannot run it out. On by default.' },
+    { id: 'api-playground', feature: 'api-playground', cat: 'dev', name: 'API playground', phrases: 'api http request rest postman insomnia environment variables collection openapi', cmd: 'apiplayground:open',
+      what: 'Builds, saves and re-sends HTTP requests with environments, {{variables}}, collections and an OpenAPI import. Tokens are kept sealed in the main process and filled into a request there; the window never gets them back.' },
     { id: 'release-check', feature: 'release-check', newer: true, cat: 'dev', name: 'Release check', phrases: 'release checklist changelog hand check', cmd: 'release-check', setting: { section: 'vex-sg-release-check', label: 'Release check' },
       what: 'Turns this version’s CHANGELOG into a checklist you tick through by hand, and notes which commands you actually opened.' },
     { id: 'perm-hygiene', feature: 'perm-hygiene', newer: true, cat: 'privacy', name: 'Permission hygiene', phrases: 'permissions camera microphone location sites allowed revoke', cmd: 'perm-hygiene', setting: { section: 'setting-perm-hygiene', label: 'Permission hygiene' },

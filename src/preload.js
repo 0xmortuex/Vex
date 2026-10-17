@@ -388,6 +388,10 @@ contextBridge.exposeInMainWorld('vex', {
   // API playground (js/api-playground.js): one request, sent from main with a
   // short timeout; resolves { ok, status, … } or { ok:false, error }.
   playgroundSend: (req) => ipcRenderer.invoke('playground:send', req),
+  playgroundSendForm: (payload) => ipcRenderer.invoke('playground:send-form', payload),
+  playgroundSecretsKeys: () => ipcRenderer.invoke('playground:secrets-keys'),
+  playgroundSecretsApply: (change) => ipcRenderer.invoke('playground:secrets-apply', change),
+  playgroundSecretsMigrate: (legacy) => ipcRenderer.invoke('playground:secrets-migrate', legacy),
   // An MCP server's token, kept encrypted in main; '' removes it.
   mcpAuthSet: (id, token) => ipcRenderer.invoke('mcp:auth-set', id, token),
   // GitHub read-only token vault (main/github-vault.js): the token goes in once

@@ -13,9 +13,9 @@ const { WebhookInspector: WI } = require('../../src/renderer/js/local-tools-ui.j
 beforeEach(() => { localStorage.clear(); window.showToast = vi.fn(); window.VexTabPolicy = { isPrivateWindow: false }; });
 
 describe('API playground collections and OpenAPI import', () => {
-  it('groups requests, keeps them when a collection is deleted, and drops a stale collection id', () => {
+  it('groups requests, keeps them when a collection is deleted, and drops a stale collection id', async () => {
     const c = PG.saveCollection({ id: '', name: 'owner/repo' });
-    const id = PG.saveRequest({ name: 'List', method: 'GET', url: 'https://a.com/x', body: '', headers: [], collection: c });
+    const id = await PG.saveRequest({ name: 'List', method: 'GET', url: 'https://a.com/x', body: '', headers: [], collection: c });
     expect(PG.load().requests.find(r => r.id === id).collection).toBe(c);
     expect(() => PG.saveCollection({ id: '', name: 'OWNER/repo' })).toThrow(/already a collection/);
     PG.deleteCollection(c);

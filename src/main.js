@@ -7176,6 +7176,16 @@ ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
 ipcMain.handle('github:token-clear', () => _githubVault.clear());
 ipcMain.handle('github:token-test', () => _githubVault.test());
 ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
+// API playground secrets (main/playground-vault.js): sealed by the OS, never handed back to the window; the
+// {{variables}} of a request are filled in here, when it is sent.
+const _playgroundVault = require('./main/playground-vault').createPlaygroundVault({ secretStore, file: path.join(userDataPath, 'playground-secrets.enc'), send: (req) => _apiPlayground.send(req) });
+ipcMain.handle('playground:secrets-keys', () => _playgroundVault.keys());
+ipcMain.handle('playground:secrets-apply', (_event, change) => _playgroundVault.apply(change));
+ipcMain.handle('playground:secrets-migrate', (_event, legacy) => _playgroundVault.migrate(legacy));
+ipcMain.handle('playground:send-form', async (_event, payload) => {
+  try { return await _playgroundVault.sendForm(payload); }
+  catch (err) { return { ok: false, error: (err && err.message) || String(err) }; }
+});
 // Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list, read through the
 // GitHub vault so it gets the token's 5,000 requests an hour when there is one (the token stays in the vault).
 const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: _githubVault.asFetch() });

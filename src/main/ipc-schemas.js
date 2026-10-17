@@ -537,6 +537,10 @@ define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','P
 // API playground (main/api-playground.js): one request from the request
 // builder. Headers are name/value text; main checks every name and value.
 // allowLocal: the person switched on "Allow localhost" for this request.
+define('playground:secrets-keys', []);
+define('playground:secrets-apply', [shape({ set: optional(object), clear: optional(value => Array.isArray(value) && value.length <= 500 && value.every(string(200))) })]);
+define('playground:secrets-migrate', [object]);
+define('playground:send-form', [shape({ form: object, vars: optional(object), secretVars: optional(object) })]);
 define('playground:send', [shape({ url: web, method: oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']), headers: optional(object), body: optional(string(1024 * 1024)), allowLocal: optional(boolean) })]);
 // An MCP server's token, kept encrypted in main; an empty one removes it.
 define('mcp:auth-set', [string(80), string(4096)]);

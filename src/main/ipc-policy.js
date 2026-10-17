@@ -121,7 +121,7 @@ const UI_ONLY_CHANNELS = new Set([
   'userscripts:list', 'userscripts:preview', 'userscripts:install', 'userscripts:set-enabled', 'userscripts:remove', 'userscripts:set-global', 'userscripts:set-hosts', 'userscripts:clear-values', 'userscripts:fetch',
   // The API playground (main/api-playground.js): sending a request with
   // headers the person wrote is never a page's or an extension's call.
-  'playground:send',
+  'playground:send', 'playground:send-form', 'playground:secrets-keys', 'playground:secrets-apply', 'playground:secrets-migrate',
   // Vex Packs (main/packs-store.js): installing, switching, trusting a signing
   // key and exporting are never a page's, an extension's or an auxiliary
   // window's call. Closed in a private window too (PRIVATE_DISABLED).

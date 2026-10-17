@@ -299,8 +299,6 @@ module.exports = [
   "vex.personas",
   "vex.pipButton",
   "vex.pipButtonOff",
-  "vex.playground",
-  "vex.playgroundSecretValues",
   "vex.preferLocalAI",
   "vex.preferOnDeviceAI",
   "vex.priceHistory",

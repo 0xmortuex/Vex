@@ -186,6 +186,8 @@
       permissions: { reads: ['package.json or pyproject.toml of your listed repositories'], writes: ['the radar results'], sends: ['Read requests to api.github.com (also the release notes), registry.npmjs.org, pypi.org and api.osv.dev (package names and versions only)'] } },
     { id: 'deploy-desk', title: 'Deploy desk', group: 'Developer loop', maturity: 'new', storageKeys: ['vex.deployDesk'], usesKeys: ['vex.history'],
       commands: ['deploy-desk'], permissions: { reads: ['how often your history visited the deploy hosts'], writes: ['the pages you pinned'], sends: [] } },
+    { id: 'api-playground', title: 'API playground', group: 'Developer helpers', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.playground', 'vex.playgroundSecretValues'], commands: ['apiplayground:open'],
+      permissions: { reads: ['the requests, environments and history you saved; sensitive values only in the main process, never handed back to the window'], writes: ['saved requests, environments and a history without headers or bodies; sensitive values into an OS-sealed vault file'], sends: ['The one request you press Send on, from the main process, to the address you wrote (public addresses; localhost only when you tick Allow localhost)'] } },
     { id: 'dev-loop-repos', title: 'Developer loop repositories', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.devLoop.repos'], commands: ['dev-loop'],
       permissions: { reads: ['the list of repositories you gave'], writes: ['the list of repositories you gave'], sends: [] } },
     // ---- Wave 3: developer shortcuts, local tools and the AI judgement tools --------------------
