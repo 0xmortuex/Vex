@@ -302,7 +302,7 @@ const FeatureDetails = {
   // ---- Wave 0-3 features: what each reads, keeps and sends (from js/feature-manifests.js) ----
   'brief-mail-triage': 'It reads mail headers from your read-only inbox. It writes only its own on/off switch. What can leave this computer: The text of a message to your AI backend, only when you ask for a drafted reply.',
   'brief-github-desk': 'It reads your GitHub username. It writes only its own on/off switch. What can leave this computer: Requests to api.github.com with your username.',
-  'brief-snooze': 'It reads snoozed items. It keeps or changes snoozed items. It sends nothing anywhere.',
+  'brief-snooze': 'It reads snoozed items. It keeps or changes snoozed items. With the hold switched on (off by default) it switches off the features of unticked lines and back on when you tick them. It sends nothing anywhere.',
   'brief-finder': 'It reads your history. It writes only its own on/off switch. It sends nothing anywhere.',
   'brief-interests': 'It reads your history. It keeps or changes a list of interest words. It sends nothing anywhere.',
   'brief-day-layout': 'It reads nothing beyond its own on/off switch. It writes only its own on/off switch. It sends nothing anywhere.',

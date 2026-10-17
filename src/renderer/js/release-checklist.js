@@ -11,8 +11,12 @@
 //   Settings › Release check             opens the list for the running version (the
 //                                        bundled CHANGELOG, through getReleaseNotes)
 //
-// Not built: keeping a new feature hidden until it is ticked. That would change
-// what every release ships and needs the owner's decision (see the report).
+// Hold until ticked (Wave 6, the owner approved it; OFF by default): with "Hold this version's new features until I tick
+// them" on, a feature that this version's list names (matched by its name in the Features catalogue, never a fix) is
+// switched off through the usual switch (VexRegistry.switchOff) while its line is unticked, and switched back on, if it
+// was on, when you tick the line yourself. Vex's own "opened" mark does not release it: only your tick does. It never
+// touches a feature that is already off, never turns on one you switched off, and every hold is a ledger line with Undo.
+// It is meant for the profile you hand-check releases on, not for everyone.
 //
 // Pure parsing first, so tests and the release script load this file in Node.
 
@@ -20,6 +24,8 @@ const VexReleaseChecklist = {
   KEY: 'vex.releaseCheck',          // { "<version>": { "<item id>": ticked-at-ms } }
   PREF: 'vex.releaseCheck.enabled', // 'off' to hide the Settings section (Minimal Vex)
   AUTO: 'vex.releaseCheck.auto',    // { "<version>": { "<item id>": { at, how } } } what Vex saw happen itself
+  HOLD: 'vex.releaseCheck.hold',    // 'on' = hold this version's new features until ticked (default off)
+  HELD: 'vex.releaseCheck.held',    // { "<version>": { "<feature id>": { item, at } } } what Vex switched off for the hold
   MAX_EXPECT: 240,
 
   // ---- parsing (pure) -----------------------------------------------------------
@@ -158,6 +164,14 @@ const VexReleaseChecklist = {
     const keep = Object.keys(all).sort((a, b) => this._cmp(b, a)).slice(0, 5);
     for (const k of Object.keys(all)) if (!keep.includes(k)) delete all[k];
     localStorage.setItem(this.KEY, JSON.stringify(all));
+    // Ticking releases the feature held for that line; unticking holds it again (when the hold is on).
+    if (typeof VexRegistry !== 'undefined') {
+      const p = on ? this.releaseHeld(version, id) : this.applyHold(version);
+      p.catch((err) => {
+        console.error('[ReleaseCheck] the hold could not be updated:', err);
+        if (typeof VexProblems !== 'undefined') VexProblems.note('Release check', 'Could not update the held features', err);
+      });
+    }
     return mine;
   },
   _cmp(a, b) {
@@ -220,12 +234,103 @@ const VexReleaseChecklist = {
     return hit;
   },
 
+  // ---- hold until ticked ---------------------------------------------------------------
+  holdOn() {
+    try { return localStorage.getItem(this.HOLD) === 'on'; }
+    catch (err) { console.error('[ReleaseCheck] the hold switch could not be read:', err.message); return false; }
+  },
+  _readHeld() {
+    const raw = localStorage.getItem(this.HELD);
+    if (!raw) return {};
+    try { const o = JSON.parse(raw); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; }
+    catch (err) { throw new Error('The list of held features is not readable: ' + err.message); }
+  },
+  _writeHeld(all) {
+    const keep = Object.keys(all).sort((a, b) => this._cmp(b, a)).slice(0, 5);
+    for (const k of Object.keys(all)) if (!keep.includes(k) || !Object.keys(all[k]).length) delete all[k];
+    localStorage.setItem(this.HELD, JSON.stringify(all));
+  },
+  held(version) { return this._readHeld()[version] || {}; },
+  // The catalogue entry a line is about: its name is the line's title or its first words (the same match Try it uses).
+  _catalogHit(item) {
+    if (typeof VexFeatures === 'undefined' || !Array.isArray(VexFeatures.ITEMS)) return null;
+    const title = item.title.replace(/\s*\(.*$/, '').trim().toLowerCase();
+    return VexFeatures.ITEMS.find(f => { const n = String(VexFeatures.nameOf(f) || '').toLowerCase(); return n.length > 3 && (title === n || title.startsWith(n + ' ')); }) || null;
+  },
+  // The feature (manifest id) a line is about, or '' when it is a fix, names no feature, or the feature has no switch.
+  featureOf(item) {
+    if (/^fix/i.test(item.section) || typeof VexRegistry === 'undefined') return '';
+    const hit = this._catalogHit(item);
+    const id = hit ? (hit.feature || hit.id) : '';
+    if (!id || !VexRegistry.has(id)) return '';
+    return VexRegistry.get(id).killSwitch === 'usage' ? id : '';
+  },
+  // Switch off the features of the unticked lines of this version. -> the ids it held now.
+  async applyHold(version) {
+    if (!this.holdOn() || !this.enabled()) return [];
+    if (typeof VexRegistry === 'undefined' || typeof VexUsage === 'undefined') throw new Error('The feature registry is not loaded, so nothing can be held');
+    const list = await this.current();
+    if (version && String(version) !== list.version) return [];
+    const ticked = this.ticked(list.version);
+    const all = this._readHeld();
+    const mine = all[list.version] || {};
+    const now = [];
+    for (const it of list.items) {
+      if (ticked[it.id]) continue;
+      const fid = this.featureOf(it);
+      if (!fid || mine[fid]) continue;
+      if (!VexUsage.get(fid) || !VexUsage.isEnabled(fid)) continue;          // already off: nothing of ours to hold or restore
+      await VexRegistry.switchOff(fid);
+      mine[fid] = { item: it.id, at: Date.now() };
+      all[list.version] = mine;
+      this._writeHeld(all);
+      now.push(fid);
+      if (typeof VexLedger !== 'undefined') {
+        VexLedger.note({ feature: 'release-check', what: 'Kept "' + (VexRegistry.get(fid).title || fid) + '" off until you tick it', why: 'You asked the release check to hold v' + list.version + ' features until they are ticked', undo: { kind: 'release-hold-release', version: list.version, feature: fid } });
+      }
+    }
+    return now;
+  },
+  // Put back the feature held for a line the person ticked. Without `feature`, by the item id.
+  async releaseHeld(version, itemId, feature) {
+    const all = this._readHeld();
+    const mine = all[version] || {};
+    const ids = feature ? [feature] : Object.keys(mine).filter(f => mine[f].item === itemId);
+    const out = [];
+    for (const fid of ids) {
+      if (!mine[fid]) continue;
+      if (typeof VexUsage !== 'undefined' && VexUsage.get(fid) && !VexUsage.isEnabled(fid)) await VexRegistry.switchOn(fid);
+      delete mine[fid];
+      out.push(fid);
+    }
+    all[version] = mine;
+    this._writeHeld(all);
+    return out;
+  },
+  async releaseAllHeld() {
+    const all = this._readHeld();
+    const out = [];
+    for (const version of Object.keys(all)) for (const fid of Object.keys(all[version])) out.push(...await this.releaseHeld(version, null, fid));
+    return out;
+  },
+  async setHold(on) {
+    localStorage.setItem(this.HOLD, on ? 'on' : 'off');
+    if (on) return this.applyHold();
+    return this.releaseAllHeld();
+  },
+
   // ---- the Usage record's switch (Minimal Vex can hide the section) -------------
   enabled() {
     try { return localStorage.getItem(this.PREF) !== 'off'; }
     catch (err) { console.error('[ReleaseCheck] the switch could not be read:', err.message); return true; }
   },
-  setEnabled(on) { localStorage.setItem(this.PREF, on ? 'on' : 'off'); },
+  setEnabled(on) {
+    localStorage.setItem(this.PREF, on ? 'on' : 'off');
+    // Minimal Vex switching this off must not leave features held.
+    if (!on && typeof VexRegistry !== 'undefined') {
+      this.releaseAllHeld().catch((err) => { if (typeof VexProblems !== 'undefined') VexProblems.note('Release check', 'Could not put back the held features', err); else throw err; });
+    }
+  },
 
   // ---- Try it -------------------------------------------------------------------------
   // The first thing that can open the item, most exact first: the Ctrl+K command it
@@ -237,10 +342,9 @@ const VexReleaseChecklist = {
       const cmd = CommandBar.commands.find(c => String(c.label || '').toLowerCase() === want);
       if (cmd && typeof cmd.action === 'function') { cmd.action(); this._seen(item, 'command'); return 'command'; }
     }
-    if (typeof VexFeatures !== 'undefined' && Array.isArray(VexFeatures.ITEMS) && typeof VexGuide !== 'undefined') {
+    if (typeof VexGuide !== 'undefined') {
       // The title without a trailing "(Settings > ...)" note, matched whole or as its first words.
-      const title = item.title.replace(/\s*\(.*$/, '').trim().toLowerCase();
-      const hit = VexFeatures.ITEMS.find(f => { const n = String(VexFeatures.nameOf(f) || '').toLowerCase(); return n.length > 3 && (title === n || title.startsWith(n + ' ')); });
+      const hit = this._catalogHit(item);
       if (hit) { VexGuide.run(hit); this._seen(item, 'feature'); return 'feature'; }
     }
     if (item.route.settings && typeof SettingsUI !== 'undefined' && typeof SidebarManager !== 'undefined') {
@@ -362,6 +466,17 @@ const VexReleaseChecklist = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('Turns this version\'s CHANGELOG into a hand-check list: what to do, what to expect, and a button that opens each change.'));
     el.appendChild(VexSettingsGroups.button('Open the release check', () => this.open(), { primary: true }));
+    const label = document.createElement('label');
+    label.className = 'vex-platform-note';
+    const box = document.createElement('input');
+    box.type = 'checkbox'; box.checked = this.holdOn();
+    box.setAttribute('aria-label', 'Hold this version\'s new features until I tick them');
+    box.addEventListener('change', () => {
+      this.setHold(box.checked).catch((err) => { box.checked = this.holdOn(); window.showToast?.('Could not change the hold: ' + ((err && err.message) || err), 'error'); });
+    });
+    label.append(box, document.createTextNode(' Hold this version\'s new features until I tick them (off by default; for the profile you hand-check releases on)'));
+    el.appendChild(label);
+    el.appendChild(VexSettingsGroups.note('While it is on, a new feature named in this version\'s list stays off until you tick its line yourself. Vex opening a feature does not count. Untick or switch this off and the features come back as they were.'));
   },
 };
 
@@ -374,6 +489,16 @@ if (typeof window !== 'undefined') {
       keywords: 'release check hand check changelog checklist test new version what changed try',
       before: 'about',
       build: (el) => VexReleaseChecklist.group(el),
+    });
+  }
+  if (typeof VexLedger !== 'undefined' && typeof VexLedger.registerUndo === 'function') {
+    VexLedger.registerUndo('release-hold-release', async (token) => { await VexReleaseChecklist.releaseHeld(token.version, null, token.feature); });
+  }
+  // Holding happens when this late module arrives (after the staged enablement of app start).
+  if (typeof VexRegistry !== 'undefined' && VexReleaseChecklist.holdOn()) {
+    VexReleaseChecklist.applyHold().catch((err) => {
+      console.error('[ReleaseCheck] the hold could not be applied:', err);
+      if (typeof VexProblems !== 'undefined') VexProblems.note('Release check', 'Could not hold this version\'s features', err);
     });
   }
   if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {

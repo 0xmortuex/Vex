@@ -134,8 +134,8 @@
       permissions: { reads: ['which sites you were signed in to'], writes: ['what it already told you'], sends: [] } },
     { id: 'commit-guard', title: 'Protect Windows from running out of memory', group: 'Game mode', storageKeys: ['vex.game.commitGuard'],
       permissions: { reads: ['the memory Windows has left'], writes: ['puts Vex background work on hold while you play'], sends: [] } },
-    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled', 'vex.releaseCheck.auto'], commands: ['release-check'],
-      permissions: { reads: ['the change list of this version', 'which Ctrl+K commands you run'], writes: ['which items you ticked', 'which items Vex saw opened'], sends: [] } },
+    { id: 'release-check', title: 'Release check', group: 'Release check', storageKeys: ['vex.releaseCheck', 'vex.releaseCheck.enabled', 'vex.releaseCheck.auto', 'vex.releaseCheck.hold', 'vex.releaseCheck.held'], commands: ['release-check'],
+      permissions: { reads: ['the change list of this version', 'which Ctrl+K commands you run'], writes: ['which items you ticked', 'which items Vex saw opened', 'with "Hold this version\'s new features until I tick them" on (off by default): switches off the features of unticked lines and back on when you tick them'], sends: [] } },
 
     // ---- Wave 2: gates and security ---------------------------------------------------------------
     // All new, so an existing profile has them off until it tries them (staged enablement).

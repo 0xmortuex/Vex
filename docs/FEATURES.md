@@ -645,7 +645,7 @@ For building things, not just browsing them.
   - Open: Settings > Brief actions.
 - **Release radar** (`workflow-release-radar`): Watches the projects you follow and tells you when a new release comes out. Settings > Workflow and chains.
   - Open: Settings > Workflow.
-- **Release check** (`release-check`): Turns this version’s CHANGELOG into a checklist you tick through by hand, and notes which commands you actually opened.
+- **Release check** (`release-check`): Turns this version’s CHANGELOG into a checklist you tick through by hand, and notes which commands you actually opened. An opt-in switch keeps this version’s new features off until you tick their lines.
   - Open: Ctrl+K: "Release check"; Settings > Release check.
 - **GitHub access** (`github-vault`): Keeps a read-only GitHub token sealed in the main process, so the developer features can read GitHub without the token touching a page, a backup or sync. Settings > GitHub access. On an existing profile it starts off; turn it on in Settings > GitHub access.
   - Open: Settings > GitHub access.
