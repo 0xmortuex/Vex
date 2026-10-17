@@ -142,7 +142,7 @@ An assistant and an agent, on your own backend — cloud, local, or on-device.
 Blocking, isolation, Tor, and the things that follow you.
 
 - **Redact pictures** (`redact-tool`): Opens a screenshot or picture, finds text with on-device OCR, and lets you black out parts before saving a copy without metadata. On an existing profile it starts off; turn it on in Settings > Capture tools.
-  - Open: Settings > Capture tools.
+  - Open: Ctrl+K: "Redact a text document"; Settings > Capture tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Permission hygiene** (`perm-hygiene`): Lists which sites can use your camera, microphone, location, screen, clipboard or notifications, for how long, and lets you end or pin each one. On an existing profile it starts off; turn it on in Settings > Permission hygiene.
   - Open: Ctrl+K: "Permission hygiene"; Settings > Permission hygiene.

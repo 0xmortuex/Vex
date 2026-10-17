@@ -17,11 +17,18 @@
 //   Nothing changes by itself. "Use N minutes" in Settings (or Ctrl+K › Focus
 //   block length) sets Focus OS's block length when YOU press it.
 //
+//   Optional, off until ticked ("Plan new blocks with my real length"): Focus OS asks this module
+//   for the length of the workspace in front when it PROPOSES blocks for a goal (FocusOS.plan), and
+//   uses it instead of the one block length of its settings, for that proposal only. The proposal
+//   still waits for a confirm, says in its note that the blocks are your usual length here, and the
+//   Focus OS setting itself is never changed. A workspace with too few spans gets the setting's length.
+//
 // Not recorded: while a game runs, while Vex is hidden, or in a private tab. Kept
 // on this computer, 60 spans per workspace, never synced. Sends nothing.
 
 const VexFocusCal = {
   PREF: 'vex.focusCal.enabled',
+  PLAN_PREF: 'vex.focusCal.plan',    // 'on': Focus OS proposals use the measured length of the workspace in front
   KEY: 'vex.focusCal',               // { v:1, spans: { [wsId]: [{ min, kind, at }] } }
   GAP_MS: 5 * 60 * 1000,
   MIN_SPAN_MIN: 3,
@@ -38,6 +45,20 @@ const VexFocusCal = {
     VexPlanKit.setFlag(this.PREF, on);
     if (!on) this._cur = null;
     return !!on;
+  },
+
+  // Off until ticked (VexPlanKit.flag would answer yes for a key nobody wrote).
+  planWith() { try { return this.enabled() && localStorage.getItem(this.PLAN_PREF) === 'on'; } catch (err) { throw new Error('The planning choice could not be read: ' + err.message, { cause: err }); } },
+  setPlanWith(on) {
+    try { localStorage.setItem(this.PLAN_PREF, on ? 'on' : 'off'); }
+    catch (err) { throw new Error('Could not save that choice: ' + err.message, { cause: err }); }
+    return !!on;
+  },
+  // The measured block length of a workspace for Focus OS to plan with, or 0 (switched off, too few spans).
+  blockFor(wsId = (typeof WorkspaceManager !== 'undefined' ? WorkspaceManager.activeId : 'default')) {
+    if (!this.planWith()) return 0;
+    const list = this.data().spans[wsId];
+    return this.suggest(list);
   },
 
   // ---- pure --------------------------------------------------------------------------
@@ -185,6 +206,14 @@ const VexFocusCal = {
 
   group(el) {
     el.appendChild(VexSettingsGroups.note('Measures how long you stay with one thing before a 5 minute gap, per workspace, and offers the median as the Focus OS block length. Only lengths are kept, on this computer. Nothing changes until you press Use.'));
+    const row = document.createElement('label');
+    row.className = 'setting-toggle-row';
+    const box = document.createElement('input');
+    box.type = 'checkbox'; box.checked = this.planWith(); box.disabled = !this.enabled();
+    box.setAttribute('aria-label', 'Plan new Focus OS blocks with my real length for the workspace I am in');
+    box.addEventListener('change', () => { try { this.setPlanWith(box.checked); } catch (err) { box.checked = !box.checked; window.showToast?.(err.message, 'error'); } });
+    row.append(box, document.createTextNode(' Plan new Focus OS blocks with my real length for the workspace I am in (the Focus OS setting is not changed; each proposal says so and waits for your confirm)'));
+    el.appendChild(row);
     el.appendChild(VexSettingsGroups.button('Show my focus length', () => this.open(), { primary: true }));
   },
 };

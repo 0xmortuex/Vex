@@ -223,6 +223,7 @@ const FocusOSUI = {
     }
     if (left.length) bits.push('Planned without ' + left.join(' or ') + ' (not available here).');
     for (const w of r.warnings || []) bits.push(w);
+    if (r.calibratedBlockMin) bits.push('Blocks are ' + r.calibratedBlockMin + ' minutes: how long you really stay with something in this workspace (Focus block length).');
     return bits.join(' ');
   },
   _noteBox(r) {

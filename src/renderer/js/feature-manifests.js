@@ -122,7 +122,7 @@
       permissions: { reads: ['your highlights and notes'], writes: ['which ones it already brought back'], sends: [] } },
     { id: 'form-rescue', title: 'Unfinished forms', group: 'Unfinished forms', maturity: 'new', storageKeys: ['vex.formRescue.enabled', 'vex.formRescue.nudged'], commands: ['form-rescue'],
       permissions: { reads: ['text typed in plain boxes of a page you closed (never password, card or one-time-code fields)'], writes: ['that text, encrypted, for 7 days'], sends: [] } },
-    { id: 'redact-tool', title: 'Redact pictures', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.redact.enabled'], jobs: [],
+    { id: 'redact-tool', title: 'Redact pictures', group: 'Capture tools', maturity: 'new', storageKeys: ['vex.redact.enabled'], jobs: [], commands: ['redact-document'],
       permissions: { reads: ['the screenshot or picture you open, read by on-device OCR'], writes: ['a redacted copy without metadata, when you save it'], sends: [] } },
 
     // ---- Wave 0: safety, attention and release features ---------------------------
@@ -426,7 +426,7 @@
       permissions: quiet({ reads: ['which page opened a tab and the words searched there (memory only)'], writes: ['the one-line reason you write for a page'] }) },
     { id: 'workspace-changes', title: 'What changed since you looked', group: 'What changed since you looked', maturity: 'new', storageKeys: ['vex.changed.enabled', 'vex.changed.seen'], commands: ['workspace-changes'],
       permissions: quiet({ reads: ['your page watches and the tabs of each workspace'], writes: ['when you last had each workspace in front'] }) },
-    { id: 'focus-calibration', title: 'Focus block length', group: 'Focus block length', maturity: 'new', storageKeys: ['vex.focusCal.enabled', 'vex.focusCal'], commands: ['focus-calibration'],
+    { id: 'focus-calibration', title: 'Focus block length', group: 'Focus block length', maturity: 'new', storageKeys: ['vex.focusCal.enabled', 'vex.focusCal', 'vex.focusCal.plan'], commands: ['focus-calibration'],
       permissions: quiet({ reads: ['that you are active in Vex (not what you type) and the kind of page in front'], writes: ['span lengths per workspace', 'the Focus OS block length, only when you press Use'] }) },
     { id: 'chores', title: 'Chores and bills', group: 'Chores and bills', maturity: 'new', storageKeys: ['vex.chores.enabled', 'vex.chores'], commands: ['chores'], jobs: ['Chores: reminders'],
       permissions: quiet({ reads: ['your chore list'], writes: ['the chore list', 'a reminder a few days before each is due (Undo in the ledger)', 'opens the page you gave when you press Open page; pays nothing'] }) },
