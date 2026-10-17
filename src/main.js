@@ -92,6 +92,13 @@ try {
   const _j = JSON.parse(_fs.readFileSync(_pf, 'utf-8'));
   _memorySaver = _j['vex.memorySaver'] === '1' || _j['vex.memorySaver'] === 1;
 } catch {}
+// Smooth scrolling (Settings > Tabs and navigation): Chromium's own, on unless the person switched it off. A launch
+// switch, so it is read from the same persisted file and takes a restart.
+try {
+  const _sf = require('fs'), _sp = require('path');
+  const _sj = JSON.parse(_sf.readFileSync(_sp.join(app.getPath('userData'), 'vex-persist.json'), 'utf-8'));
+  if (_sj['vex.smoothScroll'] === 'off') app.commandLine.appendSwitch('disable-smooth-scrolling');
+} catch (err) { if (!err || err.code !== 'ENOENT') console.warn('[Startup] could not read the smooth scrolling choice:', err && err.message); }
 let _disableFeatures = 'SpareRendererForSitePerProcess';
 if (_memorySaver) {
   _disableFeatures += ',BackForwardCache,OptimizationGuideModelDownloading,OptimizationHints,Translate';
@@ -3436,6 +3443,11 @@ ipcMain.handle('downloads:set-ask', (_e, on) => {
 // Real names for images and videos saved from a site (src/main/download-desk.js mediaName). Off until chosen.
 ipcMain.handle('downloads:set-media-names', (_e, on) => {
   try { return { ok: true, ..._downloadPrefs.setMediaNames(on) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+// File kinds that always ask where to save (T2-072: installers). Only a list of extensions, never a path.
+ipcMain.handle('downloads:set-ask-types', (_e, list) => {
+  try { return { ok: true, ..._downloadPrefs.setAskTypes(list) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:set-resume', (_e, on) => {

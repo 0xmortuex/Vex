@@ -29,7 +29,7 @@ How Vex holds the pages you have open.
   - Open: Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Tabs and navigation extras** (`tabs-nav`): Find-bar options, clean copy-link, a switch-to-tab suggestion, and keeping the Vex window on top. Settings > Tabs and navigation.
-  - Open: Ctrl+K: "Keep Vex on top (toggle)"; Settings > Tabs and navigation.
+  - Open: Ctrl+K: "Keep Vex on top (toggle)", "Search the web for the selection", "Go to a higher level of this address"; Settings > Tabs and navigation.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Why is this tab open** (`tab-intent`): Lets you write one line for why a tab is open; it shows on the tab’s hover card. On an existing profile it starts off; turn it on in Settings > Why is this tab open.
   - Open: Ctrl+K: "Say why this tab is open"; Settings > Why is this tab open.
@@ -59,7 +59,7 @@ How Vex holds the pages you have open.
   - Open: Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Tab names of my own** (`tab-names`): Gives a page a name of your own in the tab strip. Choose Rename tab in a tab's menu, or Ctrl+K, "Rename this tab". On an existing profile it starts off; turn it on in Settings > Tab tools.
-  - Open: Ctrl+K: "Rename this tab"; Settings > Tab tools.
+  - Open: Ctrl+K: "Rename this tab", "Move this tab to a new window"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Picture while a sleeping tab wakes** (`tab-thumbs`): When you go to a sleeping tab, shows the last picture of its page over the empty area until the real page has loaded. On an existing profile it starts off; turn it on in Settings > Tab tools.
   - Open: Settings > Tab tools.
@@ -68,7 +68,7 @@ How Vex holds the pages you have open.
   - Open: Ctrl+K: "Hints: click with the keyboard", "Hints: go to a tab"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Split view keys** (`split-keys`): Adds keyboard control to split view: move to the next pane, swap panes, and snap the divider to 25/75, 50/50 or 75/25. Find them in Ctrl+K under "Split view". On an existing profile it starts off; turn it on in Settings > Tab tools.
-  - Open: Ctrl+K: "Split view: next pane", "Split view: swap panes", "Split view: 25 / 75", "Split view: 50 / 50", "Split view: 75 / 25"; Settings > Tab tools.
+  - Open: Ctrl+K: "Split view: next pane", "Split view: swap panes", "Split view: 25 / 75", "Split view: 50 / 50", "Split view: 75 / 25", "Split view: fill the area"; Settings > Tab tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Links from other programs in a small window** (`mini-window`): Opens a link handed to Vex by another program in a small window instead of a full tab, and can close that window after a set number of minutes. On an existing profile it starts off; turn it on in Settings > Links and windows.
   - Open: Settings > Links and windows.
@@ -443,7 +443,7 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Follow-ups: I owe, waiting on"; Settings > Follow-ups.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Two-minute drawer** (`two-minute`): Shows up to three of your quick chores tagged #2min with a 2:00 countdown. Tag a task in the capture box or a note line, then open Ctrl+K: Two-minute drawer. On an existing profile it starts off; turn it on in Settings > Two-minute drawer.
-  - Open: Ctrl+K: "Two-minute drawer"; Settings > Two-minute drawer.
+  - Open: Ctrl+K: "Two minutes"; Settings > Two-minute drawer.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Deadlines with countdown** (`deadline-ledger`): Lists deadlines such as exams, assignments and releases with days left and, if you count the work, how much to do per day. Open it with Ctrl+K: Deadlines with countdown. On an existing profile it starts off; turn it on in Settings > Deadlines.
   - Open: Ctrl+K: "Deadlines with countdown"; Settings > Deadlines.
@@ -525,8 +525,8 @@ Video, audio, screen sharing, streaming services.
 - **Video transcript, chapters and loop** (`video-tools`): Shows the captions the page has as a transcript, jumps between chapters with N and P, and loops a section of the video from A to B. On an existing profile it starts off; turn it on in Settings > Capture tools.
   - Open: Ctrl+K: "Video Transcript, Chapters and Loop"; Settings > Capture tools.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Volume kept per site** (`site-audio-memory`): Keeps a volume level per site and reminds you when a loud one is left on. On an existing profile it starts off; turn it on in Settings > Volume.
-  - Open: Settings > Volume.
+- **Volume kept per site** (`site-audio-memory`): Keeps a volume level per site and reminds you when a loud one is left on; also keeps the speed, captions and place in a long video, and can even out the loudness of a site. On an existing profile it starts off; turn it on in Settings > Volume.
+  - Open: Ctrl+K: "Even out loudness on this site (toggle)", "Forget speed, captions and place for this site"; Settings > Volume.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Game audio scenes** (`game-scenes`): Lowers or sets Vex’s own volume while a named game runs, and puts it back afterwards. On an existing profile it starts off; turn it on in Settings > Game audio scenes.
   - Open: Settings > Game audio scenes.

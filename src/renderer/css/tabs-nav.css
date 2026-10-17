@@ -1,5 +1,32 @@
 /* Tabs and navigation extras (js/tabs-nav.js). */
 
+/* Full screen with the toolbar kept one touch away (T2-060). Only in full screen with the extra on; normal
+   windows never match. The strip at the top edge brings the toolbar and tabs back as a layer over the page. */
+#vex-chrome-hotzone { display: none; }
+body.fullscreen.chrome-autohide #vex-chrome-hotzone { display: block; position: fixed; top: 0; left: 0; right: 0; height: 6px; z-index: 320; }
+body.fullscreen.chrome-autohide #top-bar,
+body.fullscreen.chrome-autohide .top-tab-bar {
+  display: flex !important; position: fixed !important; left: 0; right: 0; z-index: 310;
+  transform: translateY(-120%); transition: transform 0.15s ease; pointer-events: none;
+}
+body.fullscreen.chrome-autohide #top-bar { top: 0; }
+body.fullscreen.chrome-autohide .top-tab-bar { top: var(--vex-chrome-top, 40px); }
+body.fullscreen.chrome-autohide.chrome-reveal #top-bar,
+body.fullscreen.chrome-autohide.chrome-reveal .top-tab-bar { transform: none; pointer-events: auto; }
+
+/* The levels of an address, under the address bar (Alt+Shift+Up). */
+#vex-address-path {
+  position: fixed; z-index: 400; display: flex; flex-direction: column; min-width: 220px; max-width: 420px;
+  padding: 4px; border-radius: var(--vex-radius-sm, 6px); border: 1px solid var(--vex-border-subtle, var(--border));
+  background: var(--vex-bg-elevated, var(--surface)); box-shadow: 0 6px 24px var(--vex-shadow-color, rgba(0, 0, 0, 0.35));
+}
+#vex-address-path button {
+  text-align: left; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--vex-text-primary, var(--text));
+  font: inherit; font-size: 12.5px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#vex-address-path button:hover, #vex-address-path button:focus-visible { background: color-mix(in srgb, var(--vex-accent, var(--primary)) 16%, transparent); outline: none; }
+
+
 /* Activity on a background tab: a dot over the favicon's corner, with the count
    from the page's title when it is more than one. Absolutely positioned inside
    the tab (which is position: relative), so it adds nothing to any tab's width or
@@ -44,3 +71,9 @@
   box-shadow: inset 0 0 0 1px var(--vex-border-strong);
 }
 .find-btn.find-case[hidden] { display: none; }
+
+/* A thin reading-progress bar along the top of the page area (js/scroll-memory.js, T3-003). It floats over the
+   page and takes no room, so no layout moves. */
+#vex-read-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 40; pointer-events: none; background: transparent; }
+#vex-read-progress[hidden] { display: none; }
+#vex-read-progress > div { height: 100%; width: 0; background: var(--vex-accent, var(--primary, #4f8cff)); transition: width 0.4s ease; }

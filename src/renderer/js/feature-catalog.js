@@ -852,7 +852,7 @@ const VexFeatures = {
     { id: 'game-library', feature: 'game-library', newer: true, cat: 'unique', name: 'Installed games', phrases: 'installed games steam epic roblox add game mode', cmd: 'game-library-find',
       what: 'Looks at your Steam, Epic and Roblox installs and offers each game to Game mode; nothing is opened or started. On an existing profile it starts off; turn it on in Settings > Game mode.' },
     { id: 'site-audio-memory', feature: 'site-audio-memory', newer: true, cat: 'media', name: 'Volume kept per site', phrases: 'volume per site remember loud', manual: true,
-      what: 'Keeps a volume level per site and reminds you when a loud one is left on. On an existing profile it starts off; turn it on in Settings > Volume.' },
+      what: 'Keeps a volume level per site and reminds you when a loud one is left on; also keeps the speed, captions and place in a long video, and can even out the loudness of a site. On an existing profile it starts off; turn it on in Settings > Volume.' },
     { id: 'link-routing', feature: 'link-routing', newer: true, cat: 'panels', name: 'Links open in the matching panel', phrases: 'links open in panel discord github route', cmd: 'link-routing', setting: { section: 'vex-sg-link-routing', label: 'Links and panels' },
       what: 'A link that would open as a new tab opens inside the panel that already has that site, by rules you can edit. On an existing profile it starts off; turn it on in Settings > Links and panels.' },
     { id: 'refresh-on-deploy', feature: 'refresh-on-deploy', newer: true, cat: 'dev', name: 'Refresh after a successful build', phrases: 'refresh after deploy build success reload', setting: { section: 'vex-sg-refresh-on-deploy', label: 'Refresh after a build' },

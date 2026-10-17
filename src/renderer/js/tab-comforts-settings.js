@@ -29,7 +29,17 @@ const VexTabComfortsSettings = {
     };
 
     toggle('Remember where I was on a page', 'A tab you reopen with Ctrl+Shift+T, or open again after closing Vex, comes back to where you were reading it. Kept with the tab; never from a private or Tor tab.',
-      VexScrollMemory.enabled(), (on) => VexScrollMemory.setEnabled(on));
+      VexScrollMemory.enabled(), (on) => { VexScrollMemory.setEnabled(on); this.render(body); });
+    if (VexScrollMemory.enabled()) {
+      toggle('Remember where I stopped in a long article, even after the tab is closed', 'A page of three screens or more is also kept by its address (200 addresses, 60 days), so opening it again from History or a link brings you back to your place. Forgotten when you reach the end.',
+        VexScrollMemory.articlesEnabled(), (on) => VexScrollMemory.setArticlesEnabled(on));
+      toggle('Thin reading progress bar', 'A line along the top of a long page showing how far down you are. Read every two seconds for the tab in front only.',
+        VexScrollMemory.barEnabled(), (on) => VexScrollMemory.setBarEnabled(on));
+      const forget = el('div', 'setting-row');
+      const fb = el('button', 'btn-secondary', 'Forget the places kept for articles'); fb.type = 'button';
+      fb.addEventListener('click', () => { try { localStorage.removeItem(VexScrollMemory.ARTICLES_KEY); window.showToast?.('Forgotten'); } catch (err) { fail(err); } });
+      forget.appendChild(fb); body.appendChild(forget);
+    }
 
     toggle('Essential tabs', 'Right-click a tab, "Make essential": it is pinned and stays open in every workspace (Ctrl+K, "Essential tabs", lists them).',
       VexEssentials.enabled(), (on) => VexEssentials.setEnabled(on));

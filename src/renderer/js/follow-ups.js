@@ -18,6 +18,12 @@
 // compose hook for that is a Vencord-only idea that waits for the owner's
 // decision on client-mod reading). Everything stays on this computer.
 //
+// Promises in your own words (T3-006, off until switched on): when you type a line into one of VEX'S
+// OWN fields (the quick-capture box, today) that promises something in the first person ("I'll send
+// the form to Selin tomorrow", "will do", "yapacagim"), one line waits in the Attention Inbox offering
+// to add it under "I owe". Nothing is added without the button, only the text you just typed is looked
+// at, and no page, mail or chat is ever read for this.
+//
 //   VexFollowUps.make({...})           pure: a validated entry
 //   VexFollowUps.stage(item, now)      pure: 0, 3 or 7 for a waiting entry
 //   VexFollowUps.pending(items, now)   pure: [{ item, stage }] that should speak up now
@@ -90,6 +96,82 @@ const VexFollowUps = {
     const since = new Date(item.since).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
     const first = item.who.split(/\s+/)[0];
     return 'Hi ' + first + ', a quick nudge about ' + item.what.replace(/[.!?]+$/, '') + ' (I asked on ' + since + '). Could you tell me where it stands? Thank you.';
+  },
+
+  // ---- promises in your own words ---------------------------------------------------------------------
+  PROMISES_PREF: 'vex.followUps.promises',   // 'on' = look at lines typed into Vex's own fields
+  OFFERS_KEY: 'vex.followUps.offers',        // up to 10 offers waiting for a press
+  promisesOn() { try { return localStorage.getItem(this.PROMISES_PREF) === 'on'; } catch (err) { console.error('[FollowUps] the promises switch could not be read:', err); return false; } },
+  setPromises(on) {
+    try { localStorage.setItem(this.PROMISES_PREF, on ? 'on' : 'off'); }
+    catch (err) { throw new Error('Could not save that setting: ' + err.message); }
+    return !!on;
+  },
+  // A first-person promise in one typed line -> { what, who, due, phrase } or null. Questions are not promises.
+  // English and Turkish. `now` only fixes "today"/"tomorrow".
+  detectPromise(text, now = Date.now()) {
+    const line = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    if (!line || line.length > 400 || /\?\s*$/.test(line)) return null;
+    const rules = [
+      /\bI(?:'ll|’ll| will)\s+(?!be\b|probably\b)\S.*/i,
+      /\bwe(?:'ll|’ll| will)\s+\S.*/i,
+      /\bwill do\b/i,
+      /\b(?:let me )?get back to (?:you|him|her|them)\b/i,
+      /\bI(?:'m|’m| am) going to\s+\S.*/i,
+      /\bI promise(?:d)?\b/i,
+      /\b\p{L}+(?:acağım|eceğim|acagim|ecegim)\b/iu,
+      /\bsöz veriyorum\b/i,
+    ];
+    let phrase = '';
+    for (const r of rules) { const m = r.exec(line); if (m) { phrase = m[0]; break; } }
+    if (!phrase) return null;
+    const who = (/\b(?:to|for)\s+(\p{Lu}\p{L}+)/u.exec(line) || [])[1] || '';
+    const day = 24 * 3600 * 1000;
+    const eod = (offset) => { const d = new Date(now + offset * day); d.setHours(17, 0, 0, 0); return d.getTime(); };
+    let due = 0;
+    if (/\btomorrow\b|\byarın\b|\byarin\b/i.test(line)) due = eod(1);
+    else if (/\btoday\b|\btonight\b|\bbugün\b|\bbugun\b/i.test(line)) due = eod(0);
+    else {
+      const names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const w = names.findIndex(n => new RegExp('\\b(?:by |on |this |next )?' + n + '\\b', 'i').test(line));
+      if (w >= 0) { let k = (w - new Date(now).getDay() + 7) % 7; if (k === 0) k = 7; due = eod(k); }
+    }
+    return { what: line.slice(0, 160), who: who.slice(0, 60), due, phrase: phrase.slice(0, 80) };
+  },
+  _offers() {
+    const raw = localStorage.getItem(this.OFFERS_KEY);
+    if (raw == null) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The waiting follow-up offers could not be read: ' + err.message); }
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  },
+  // A line was typed into one of Vex's own fields. -> the offer, or null when it is off or not a promise.
+  offerFromTyped(text, where = 'a box in Vex', now = Date.now()) {
+    if (!this.enabled() || !this.promisesOn()) return null;
+    const p = this.detectPromise(text, now);
+    if (!p) return null;
+    if (typeof VexAttention === 'undefined') throw new Error('The attention gate is not loaded, so the offer cannot be made');
+    const offers = this._offers();
+    const id = 'pr' + now.toString(36) + Math.random().toString(36).slice(2, 5);
+    offers[id] = { ...p, where, at: now };
+    for (const k of Object.keys(offers).sort((a, b) => offers[a].at - offers[b].at).slice(0, Math.max(0, Object.keys(offers).length - 10))) delete offers[k];
+    localStorage.setItem(this.OFFERS_KEY, JSON.stringify(offers));
+    VexAttention.suggest({
+      feature: 'follow-ups', id: 'promise:' + id, label: 'Follow-ups',
+      title: 'That sounds like a promise: ' + (p.what.length > 70 ? p.what.slice(0, 69) + '…' : p.what),
+      body: 'Add it under "I owe"' + (p.due ? ' for ' + new Date(p.due).toLocaleDateString(undefined, { weekday: 'long' }) : '') + '? Only what you typed in ' + where + ' was looked at.',
+      action: { label: 'Add to I owe', key: 'promise:' + id },
+    });
+    return { id, ...p };
+  },
+  acceptOffer(id) {
+    const offers = this._offers();
+    const o = offers[id];
+    if (!o) throw new Error('That offer has expired');
+    const it = this.add({ dir: 'owe', who: o.who, what: o.what, channel: 'other', due: o.due || 0 });
+    delete offers[id];
+    localStorage.setItem(this.OFFERS_KEY, JSON.stringify(offers));
+    return it;
   },
 
   // ---- storage -------------------------------------------------------------------------
@@ -251,6 +333,9 @@ const VexFollowUps = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('A list of what you owe and what you are waiting on. A waiting entry comes back at 3 and 7 days with a nudge you can copy. You add every entry (or confirm one found on a page); nothing is read from mail or chat and nothing is sent.'));
     el.appendChild(VexSettingsGroups.button('Open follow-ups', () => this.open(), { primary: true }));
+    if (typeof VexSettingsGroup === 'undefined') throw new Error('Settings groups are not loaded');
+    el.appendChild(VexSettingsGroup.toggle('Offer to add a promise I type into Vex’s own boxes', this.promisesOn(), (on) => this.setPromises(on),
+      'Looks only at the line you just typed in the quick-capture box ("I’ll send the form tomorrow"); you press the button to add it. No page, mail or chat is read.'));
   },
 
   init() {
@@ -258,6 +343,8 @@ const VexFollowUps = {
     this._wired = true;
     if (typeof AttentionInbox !== 'undefined') {
       AttentionInbox.handle('follow-ups', (key) => {
+        const m = /^promise:(.+)$/.exec(String(key));
+        if (m) { try { this.acceptOffer(m[1]); window.showToast?.('Added under "I owe"'); } catch (err) { window.showToast?.(err.message, 'error'); } return; }
         if (key !== 'open') throw new Error('Unknown action ' + key);
         this.open();
       });

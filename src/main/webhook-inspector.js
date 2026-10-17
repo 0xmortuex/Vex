@@ -4,7 +4,8 @@
 // test, a curl) puts in a request, so a handler can be written against the real
 // shape. Deliberately small and closed:
 //
-//   - Off until the owner starts it, on a port the owner types, for a number of
+//   - Off until the owner starts it, on a port the owner types (or port 0: the
+//     operating system picks a free one, which is shown), for a number of
 //     minutes the owner picks (1 to 60); it stops itself when they are up.
 //   - Bound to 127.0.0.1 and nothing else. A request whose Host header is not
 //     this address (a page trying a DNS rebind) is answered 421 and not listed.
@@ -29,7 +30,8 @@ const MIN_MINUTES = 1;
 const MAX_MINUTES = 60;
 
 function checkOptions({ port, minutes }) {
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('A port is a number from 1024 to 65535');
+  // 0 asks the operating system for a free port, so there is no port to collide with or to guess ahead of time.
+  if (!Number.isInteger(port) || (port !== 0 && (port < 1024 || port > 65535))) throw new Error('A port is a number from 1024 to 65535 (or 0 for a free one the system picks)');
   if (!Number.isInteger(minutes) || minutes < MIN_MINUTES || minutes > MAX_MINUTES) throw new Error('Choose between ' + MIN_MINUTES + ' and ' + MAX_MINUTES + ' minutes');
 }
 
@@ -116,7 +118,9 @@ function createWebhookInspector({ http, now = () => Date.now(), setTimeout: setT
         reject(new Error(err && err.code === 'EADDRINUSE' ? 'Port ' + wanted + ' is already in use. Choose another.' : 'Could not listen on port ' + wanted + ': ' + (err && err.message)));
       });
       s.listen(wanted, '127.0.0.1', () => {
-        server = s; port = wanted; startedAt = now(); stopsAt = startedAt + minutes * 60000;
+        const bound = s.address();
+        if (!bound || !Number.isInteger(bound.port)) { s.close(); reject(new Error('The inspector could not tell which port it got')); return; }
+        server = s; port = bound.port; startedAt = now(); stopsAt = startedAt + minutes * 60000;
         requests = []; total = 0; nextId = 1;
         timer = setT(() => { stop().then(() => log('[Webhook] stopped by its timer')).catch((err) => log('[Webhook] could not stop on its timer: ' + err.message)); }, minutes * 60000);
         if (timer && typeof timer.unref === 'function') timer.unref();

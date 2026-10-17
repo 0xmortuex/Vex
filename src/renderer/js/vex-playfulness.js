@@ -80,7 +80,7 @@ const VexPlayfulness = {
     { id: 'version-review', file: 'version-review.js', explicit: true, why: 'a review the person chooses to write; the medal and the one XP for a version arrive only after they submit it, through the gated medals and levels modules; no sound, no Brief or New Tab card' },
   ],
   // Audio that is NOT playful: it does a job the person asked for. Listed so the test can tell it from a new toy.
-  FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js'],
+  FUNCTIONAL_AUDIO: ['brief-extras/audio-digest.js', 'clock-panel.js', 'dictation.js', 'listen-reader.js', 'master-volume.js', 'night-audio.js', 'page-extras.js', 'queue-podcast.js', 'site-volume.js'],
 
   _rank(level) { return this.LEVELS.indexOf(level); },
   _quietSwitch() { try { return localStorage.getItem(this.QUIET_KEY) === '1'; } catch { return false; } },

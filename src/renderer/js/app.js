@@ -144,7 +144,7 @@ function vexOwnTextFocused(doc) {
   // Shared navigate logic: resolve a typed string to a URL (or search), then
   // navigate the active tab (or open a new tab with newTab=true). Extracted so
   // the Smart Searchbar suggestion path reuses the EXACT same submit behavior.
-  function submitUrlBar(val, newTab) {
+  function submitUrlBar(val, newTab, newWindow) {
     val = (val || '').trim();
     if (!val) return;
 
@@ -153,12 +153,26 @@ function vexOwnTextFocused(doc) {
     // same answer Ctrl+K and the New Tab box give).
     const where = VexTypedAddress.resolve(val);
     const url = where.url;
+    // A bang of the table counts toward the short word offer (js/search-bangs.js).
+    if (where.kind === 'keyword' && typeof VexBangs !== 'undefined') {
+      try { VexBangs.noteUse(val); } catch (err) { window.VexProblems?.note('Search bangs', 'could not count a bang use', err.message); }
+    }
 
     // An address already open in another tab: go there instead of opening it a
     // second time, and count the site as one you type (js/tabs-nav.js).
     if (typeof VexTabsNav !== 'undefined' && where.kind === 'address') {
       if (VexTabsNav.on('typedRanking')) VexTabsNav.typed.record(url);
       if (!newTab && VexTabsNav.switchToOpen(url)) { urlInput.blur(); return; }
+    }
+
+    // Shift+Enter: the address opens in a window of its own (Address bar extras).
+    if (newWindow && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('addressExtras') && /^https?:\/\//i.test(url)) {
+      const tab = TabManager.getActiveTab();
+      window.vex.openAsApp(url, '', (tab && tab.partition) || '')
+        .then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open a new window', 'error'); },
+          (err) => window.showToast?.('Could not open a new window: ' + ((err && err.message) || err), 'error'));
+      urlInput.blur();
+      return;
     }
 
     // If sidebar panel is open, close it first
@@ -209,7 +223,13 @@ function vexOwnTextFocused(doc) {
     }
 
     if (e.key === 'Enter') {
-      submitUrlBar(completeWithCtrlEnter(urlInput.value, e), e.altKey);
+      submitUrlBar(completeWithCtrlEnter(urlInput.value, e), e.altKey, e.shiftKey && !e.altKey && !e.ctrlKey);
+    } else if (e.key === 'ArrowUp' && e.altKey && e.shiftKey && !e.ctrlKey && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('addressExtras')) {
+      // Alt+Shift+Up: a menu with every level of the address (js/tabs-nav.js).
+      const tab = TabManager.getActiveTab();
+      e.preventDefault();
+      try { VexTabsNav.showSegments(urlInput, tab ? tab.url : '', (u) => submitUrlBar(u, false)); }
+      catch (err) { window.showToast?.(err.message); }
     } else if (e.key === 'ArrowUp' && e.altKey && !e.ctrlKey && !e.shiftKey && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('addressExtras')) {
       // Alt+Up: one level up the address (/a/b/c to /a/b), as in Firefox's "Up".
       const tab = TabManager.getActiveTab();

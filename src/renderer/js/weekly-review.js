@@ -10,6 +10,7 @@
 // panel is respected (a flag records that it was offered).
 const VexReview = {
   SEEDED_KEY: 'vex.review.seeded',
+  EVENING_KEY: 'vex.review.eveningOffered',   // set once the Sunday-evening move has been offered (or is not needed)
   DAY: 0, HOUR: 18,   // Sunday evening; only a profile that has not seeded it yet gets this
 
   // Other modules add a section here (Focus OS does): { id, title, build(now) }
@@ -26,6 +27,13 @@ const VexReview = {
     const b = window.vex && window.vex.reminders;
     if (!b || typeof b.onFired !== 'function') return false;
     b.onFired((r) => { if (r && r.kind === 'review') this.open(); });
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('weekly-review', (key) => {
+        const m = /^evening:(.+)$/.exec(String(key));
+        if (!m) throw new Error('Unknown action ' + key);
+        this.moveToEvening(m[1]).then(() => window.showToast?.('Your weekly review is now on Sunday at 18:00'), err => window.showToast?.(err.message, 'error'));
+      });
+    }
     this.ensureScheduled().catch(err => console.error('[Review] could not schedule:', err && err.message));
     return true;
   },
@@ -33,7 +41,7 @@ const VexReview = {
   async ensureScheduled() {
     const b = window.vex && window.vex.reminders;
     if (!b) return false;
-    try { if (localStorage.getItem(this.SEEDED_KEY) === '1') return false; } catch { /* storage unavailable: offer anyway */ }
+    try { if (localStorage.getItem(this.SEEDED_KEY) === '1') { await this.offerEvening(); return false; } } catch { /* storage unavailable: offer anyway */ }
     const existing = (await b.list()).some(r => r.kind === 'review' && !r.firedAt);
     if (!existing) {
       const d = new Date(); d.setHours(this.HOUR, 0, 0, 0);
@@ -42,6 +50,37 @@ const VexReview = {
     }
     try { localStorage.setItem(this.SEEDED_KEY, '1'); } catch { /* it will be offered again next start */ }
     return true;
+  },
+
+  // A profile that seeded the review before it moved to Sunday 18:00 keeps its old time. Once, one
+  // line in the Attention Inbox offers the move; the button replaces that one reminder. Nothing is
+  // changed without the button, and a review the person deleted is not brought back. -> true when offered.
+  async offerEvening() {
+    if (localStorage.getItem(this.EVENING_KEY)) return false;
+    const b = window.vex && window.vex.reminders;
+    if (!b) return false;
+    const mine = (await b.list()).find(r => r.kind === 'review' && !r.firedAt);
+    if (!mine) return false;                       // deleted on purpose: respected
+    const at = new Date(mine.at);
+    if (at.getDay() === this.DAY && at.getHours() === this.HOUR) { localStorage.setItem(this.EVENING_KEY, '1'); return false; }
+    if (typeof VexAttention === 'undefined') throw new Error('VexAttention is not loaded, so the Sunday-evening offer cannot be made');
+    localStorage.setItem(this.EVENING_KEY, '1');
+    VexAttention.suggest({
+      feature: 'weekly-review', id: 'evening', label: 'Weekly review',
+      title: 'Move your weekly review to Sunday evening?',
+      body: 'It is set for ' + at.toLocaleString([], { weekday: 'long', hour: '2-digit', minute: '2-digit' }) + '. Most of your use is in the evening, so the week ends later. Only this reminder changes.',
+      action: { label: 'Move to Sunday 18:00', key: 'evening:' + mine.id },
+    });
+    return true;
+  },
+  async moveToEvening(id) {
+    const b = window.vex && window.vex.reminders;
+    if (!b) throw new Error('Reminders are not available');
+    const d = new Date(); d.setHours(this.HOUR, 0, 0, 0);
+    while (d.getDay() !== this.DAY || d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    await b.create('Weekly review', d.getTime(), { kind: 'review', repeat: 'weekly' });
+    await b.delete(id);
+    return d.getTime();
   },
 
   // The numbers for the last seven days.

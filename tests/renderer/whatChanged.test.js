@@ -115,3 +115,90 @@ describe('brief module', () => {
     expect(out.summary).toMatch(/1 watched page changed in Work/);
   });
 });
+
+describe('new comments on watched GitHub threads (T2-046)', () => {
+  const thread = (id, n) => watch(id, 'https://github.com/o/r/issues/' + n, 1, { lastChangedAt: 0 });
+  let json;
+  beforeEach(() => {
+    globalThis.TabManager = { tabs: [{ url: 'https://github.com/o/r/issues/7' }, { url: 'https://github.com/o/r/issues/9' }] };
+    globalThis.PageWatch = { list: () => [thread('t7', 7), thread('t9', 9), watch('other', 'https://github.com/o/r/releases', 1)], history: () => [] };
+    json = vi.fn(async (path) => ({ comments: path.endsWith('/7') ? 5 : 2 }));
+    globalThis.GitHubVault = { json };
+  });
+  it('parses issue and pull request addresses only', () => {
+    expect(C.githubThread('https://github.com/o/r/issues/7')).toEqual({ owner: 'o', repo: 'r', number: 7 });
+    expect(C.githubThread('https://github.com/o/r/pull/9/files')).toEqual({ owner: 'o', repo: 'r', number: 9 });
+    expect(C.githubThread('https://github.com/o/r/releases')).toBeNull();
+    expect(C.githubThread('https://gitlab.com/o/r/issues/1')).toBeNull();
+  });
+  it('is off until switched on: no request is made', async () => {
+    expect(await C.commentNews('ws_work')).toEqual([]);
+    expect(json).not.toHaveBeenCalled();
+  });
+  it('takes the first count as the baseline, then reports only more comments', async () => {
+    C.setSource('comments', true);
+    expect(await C.commentNews('ws_work')).toEqual([]);
+    expect(json).toHaveBeenCalledTimes(2);
+    json.mockImplementation(async (path) => ({ comments: path.endsWith('/7') ? 8 : 2 }));
+    const news = await C.commentNews('ws_work');
+    expect(news.map(n => [n.watch.id, n.added, n.total])).toEqual([['t7', 3, 8]]);
+    expect(await C.commentNews('ws_work')).toHaveLength(1);        // still news until you have looked
+    C.stamp('ws_work', NOW);
+    expect(await C.commentNews('ws_work')).toEqual([]);
+  });
+  it('raises when GitHub access is missing or says nothing useful', async () => {
+    C.setSource('comments', true);
+    json.mockImplementation(async () => ({}));
+    await expect(C.commentNews('ws_work')).rejects.toThrow(/did not say how many comments/);
+    delete globalThis.GitHubVault;
+    await expect(C.commentNews('ws_work')).rejects.toThrow(/GitHub access is not loaded/);
+  });
+  it('shows in the brief when on', async () => {
+    C.setSource('comments', true);
+    C.stamp('ws_work', Date.now() - 5 * H);
+    await C.commentNews('ws_work');
+    json.mockImplementation(async () => ({ comments: 10 }));
+    const out = await C.briefModule().build();
+    expect(out.summary).toMatch(/new comments in Work/);
+    expect(out.lines.some(l => /new comment/.test(l.detail))).toBe(true);
+  });
+});
+
+describe('new mail from the sites of watched pages (T2-046)', () => {
+  const SINCE = NOW - 5 * H;
+  let inbox;
+  beforeEach(() => {
+    globalThis.TabManager = { tabs: [{ url: 'https://shop.example/track/123' }] };
+    globalThis.PageWatch = { list: () => [watch('s', 'https://shop.example/track/123', 1)], history: () => [] };
+    const msg = (uid, addr, seen, ago) => ({ uid, subject: 'S' + uid, from: { name: '', address: addr }, date: NOW - ago * H, seen });
+    inbox = vi.fn(async () => ({ ok: true, value: { messages: [msg(1, 'orders@mail.shop.example', false, 1), msg(2, 'x@elsewhere.test', false, 1), msg(3, 'orders@shop.example', true, 1), msg(4, 'orders@shop.example', false, 9)] } }));
+    window.vex = { mail: { accounts: vi.fn(async () => ({ ok: true, value: [{ id: 'a1' }] })), inbox } };
+  });
+  it('is off until switched on: no mail is asked for', async () => {
+    expect(await C.mailNews('ws_work', SINCE)).toEqual([]);
+    expect(window.vex.mail.accounts).not.toHaveBeenCalled();
+  });
+  it('lists only unread mail since you looked from the same site as a watched page', async () => {
+    C.setSource('mail', true);
+    const out = await C.mailNews('ws_work', SINCE);
+    expect(out.map(m => m.subject)).toEqual(['S1']);
+    expect(inbox).toHaveBeenCalledWith('a1', 30);
+  });
+  it('asks nothing when no page is watched in the workspace, or you never looked', async () => {
+    C.setSource('mail', true);
+    expect(await C.mailNews('ws_work', 0)).toEqual([]);
+    globalThis.PageWatch = { list: () => [], history: () => [] };
+    expect(await C.mailNews('ws_work', SINCE)).toEqual([]);
+    expect(window.vex.mail.accounts).not.toHaveBeenCalled();
+  });
+  it('raises when mail does not answer', async () => {
+    C.setSource('mail', true);
+    inbox.mockImplementation(async () => ({ ok: false, error: 'Mail: connect ECONNREFUSED' }));
+    await expect(C.mailNews('ws_work', SINCE)).rejects.toThrow(/ECONNREFUSED/);
+  });
+  it('matches sites with or without a subdomain, both ways', () => {
+    expect(C.sameSite('mail.shop.example', 'shop.example')).toBe(true);
+    expect(C.sameSite('shop.example', 'www.shop.example')).toBe(true);
+    expect(C.sameSite('evilshop.example', 'shop.example')).toBe(false);
+  });
+});

@@ -11,6 +11,32 @@
 // pages in the normal profile get one: a private, Tor or container tab is never
 // written down, and neither is a page of Vex's own. At most 300 names are kept; the
 // oldest go first.
+// Move a tab to a window of its own (T3-118, the second half): the tab's address opens in a new Vex window
+// (the same window Open as App makes, js/webview.js), in the tab's own profile, and the tab closes with an
+// Undo once the window is open. It is a fresh load of the page, not a hand-over: what was typed into a form
+// or the state of a running page is not carried. A private or Tor tab is refused by the main process and the
+// tab stays where it is. 'Open a copy' leaves the tab alone. It is on with the tab names switch.
+const VexTabWindow = {
+  // The address that can move: an ordinary web page.
+  canMove(tab) { return !!tab && /^https?:\/\//i.test(String(tab.url || '')); },
+  async move(tab, { copy = false } = {}) {
+    if (!this.canMove(tab)) throw new Error('Only a web page can open in a window of its own');
+    if (!window.vex || typeof window.vex.openAsApp !== 'function') throw new Error('New windows are not available here');
+    const r = await window.vex.openAsApp(tab.url, tab.title || '', tab.partition || '');
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Vex could not open a new window for it');
+    if (!copy && typeof TabManager !== 'undefined') TabManager.closeTabsWithUndo([tab.id], 'Moved “' + String(tab.title || tab.url).slice(0, 40) + '” to its own window');
+    return true;
+  },
+  menuItems(tab) {
+    if (typeof VexTabNames === 'undefined' || !VexTabNames.enabled() || !this.canMove(tab)) return [];
+    const fail = (err) => window.showToast?.((err && err.message) || String(err), 'error');
+    return [{ label: 'Window', sub: [
+      { label: 'Move to a new window', action: () => this.move(tab).catch(fail) },
+      { label: 'Open a copy in a new window', action: () => this.move(tab, { copy: true }).catch(fail) },
+    ] }];
+  },
+};
+
 const VexTabNames = {
   KEY: 'vex.tabNames',
   ON_KEY: 'vex.tabNamesOn',
@@ -78,5 +104,5 @@ const VexTabNames = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexTabNames = VexTabNames;
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexTabNames };
+if (typeof window !== 'undefined') { window.VexTabNames = VexTabNames; window.VexTabWindow = VexTabWindow; }
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexTabNames, VexTabWindow };

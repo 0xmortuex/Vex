@@ -99,6 +99,17 @@ const VexDeadlineLedger = {
     }
     return out;
   },
+  // What the open entries ask on one given day, spread evenly from today to each due day: { hours: 2, cards: 20 }.
+  // A day after an entry's due day asks nothing of it. dayStart is the local midnight of that day.
+  shareOn(dayStart, now = Date.now(), entries = this.list()) {
+    const out = {};
+    for (const e of entries) {
+      if (e.doneAt || this._parseDay(e.due).getTime() < dayStart) continue;
+      const s = this.share(e, now);
+      if (s && s.perDay) out[s.unit] = (out[s.unit] || 0) + s.perDay;
+    }
+    return out;
+  },
   cardsDue(now = Date.now()) {
     if (typeof Flashcards === 'undefined' || typeof Flashcards.due !== 'function') return null;
     return Flashcards.due(now).length;

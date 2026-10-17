@@ -8,8 +8,12 @@
 //   - from text you selected on any page: right-click > "Make a task from this",
 //     or Ctrl+K > "Task from the selection".
 //
-// "The Queue panel" of the idea is the Telegram queue, which is another person's
-// service with a secret; nothing here writes to it. The task goes where Vex's tasks
+// "The Queue panel" of the idea is your own Telegram queue bot (a Worker with a secret). The task
+// always goes where Vex's tasks already live (below). With "Also add it to my Queue" on (off until
+// chosen) the same line is also sent to your queue bot's `POST /queue` route, using the address and secret
+// the Queue panel already reads from your local sidebar-config.json. The deployed bot has no such route
+// yet: docs/queue-bot-add-endpoint.md is the change to make to it; until then the switch says so and
+// nothing is lost, because the To-do line is written first. The task goes where Vex's tasks
 // already live: a "- [ ] ..." line in the To-do note (js/open-tasks.js), which the
 // Tasks list, the board and the reminders already read. With a day it carries
 // "@2026-10-17", so it is due, sorts by it and can be reminded from there.
@@ -22,12 +26,29 @@ const UnreadTask = {
   _now() { return new Date(); },
 
   prefs() {
-    const p = CommsStore.record(this.KEY, { on: true, due: 'tomorrow' }, 'unread-to-task settings');
-    return { on: p.on !== false, due: this.DUES.some(d => d[0] === p.due) ? p.due : 'tomorrow' };
+    const p = CommsStore.record(this.KEY, { on: true, due: 'tomorrow', queue: false }, 'unread-to-task settings');
+    return { on: p.on !== false, due: this.DUES.some(d => d[0] === p.due) ? p.due : 'tomorrow', queue: p.queue === true };
   },
   enabled() { return this.prefs().on; },
   setEnabled(on) { const p = this.prefs(); p.on = !!on; CommsStore.write(this.KEY, p); },
   defaultDue() { return this.prefs().due; },
+  queueOn() { return this.prefs().queue; },
+  setQueue(on) { const p = this.prefs(); p.queue = !!on; CommsStore.write(this.KEY, p); },
+
+  // Sends one line to your queue bot. Resolves when it took it; raises (with what to do) when it did not.
+  async toQueue(line) {
+    if (typeof QueuePanel === 'undefined') throw new Error('The Queue panel is not loaded');
+    if (!QueuePanel.isConfigured()) await QueuePanel.loadConfig();
+    if (!QueuePanel.isConfigured()) throw new Error('The Queue is not set up on this computer (queueUrl and queueSecret)');
+    if (typeof buildQueueUrl !== 'function') throw new Error('The Queue panel is not loaded');
+    const url = buildQueueUrl(QueuePanel.config.queueUrl, '/queue', QueuePanel.config.queueSecret);
+    const f = (window.VexNet && window.VexNet.fetch) || fetch;
+    const res = await f(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: String(line).slice(0, 2000), source: 'vex' }) });
+    if (res.status === 404 || res.status === 405) throw new Error('Your queue bot has no way to add items yet (see docs/queue-bot-add-endpoint.md)');
+    if (res.status === 403) throw new Error('The queue bot refused the secret');
+    if (!res.ok) throw new Error('The queue bot answered ' + res.status);
+    return true;
+  },
   setDefaultDue(due) {
     if (!this.DUES.some(d => d[0] === due)) throw new Error('A day is none, today, tomorrow or week');
     const p = this.prefs(); p.due = due; CommsStore.write(this.KEY, p);
@@ -66,7 +87,9 @@ const UnreadTask = {
     const note = OpenTasks.add(line);
     CommsStore.emit('vex:unread-task', { line });
     if (typeof VexUsage !== 'undefined') VexUsage.touch('unread-task');
-    return { line, noteId: note.id };
+    // The same line to your queue bot, when asked for. The To-do line is already written, so a refusal loses nothing.
+    const queued = this.queueOn() ? this.toQueue(line).then(() => true, (err) => { window.showToast?.('The task is in your To-do note, but not in the Queue: ' + err.message, 'error', 9000); return false; }) : null;
+    return { line, noteId: note.id, queued };
   },
 
   fromNotification(id) {

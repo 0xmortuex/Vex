@@ -46,3 +46,13 @@ The table is `DEFAULT_SHORTCUTS` in `src/renderer/js/shortcuts-registry.js`.
 
 Ctrl and Ctrl+Shift letters are mostly spoken for by Chromium and by Vex; Ctrl+Alt is
 where there is room.
+
+## The order of the results
+
+With words typed, a command's score is how well the words match its name (name starts with them 100,
+a word of the name 85, its id 80, every word in the name or hint 70, name contains 60, hint contains 45,
+the letters in order 30) plus what its history adds: 3 for each use up to 12, **halved for every 14 days
+since it was last used**, and 3 more for today (`CommandBar._frecencyBonus`). A line under the list, "Why
+this order", says which of those put the highlighted command there. `Ctrl+K` "Reset command order" forgets
+the history (`vex.commandUsage`); shortcut words and pinned commands are separate and stay.
+The toolbar buttons that have a command say its name in their tooltip (`CommandBar.TIPS`).

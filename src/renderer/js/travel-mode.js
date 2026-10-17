@@ -16,9 +16,11 @@
 //
 // Travel mode never changes your tabs, your sync or your network. It is off
 // until you turn it on, and the tickets stay on this computer.
-// Deferred: moving your timed reminders into the new time zone. A reminder is
-// kept as an exact moment, and rewriting them on a guess would be worse than
-// leaving them.
+// Shifted reminders (Wave 5): a reminder is kept as an exact moment, so nothing is rewritten by itself. In the
+// trip workspace, "Shift my reminders to the time there" lists the timed reminders of the next 14 days (not the
+// repeating or site ones), each with its new moment (the same clock time in the trip's time zone); you tick the
+// ones to move, confirm, and each gets a new reminder before the old one is removed. One ledger line puts them
+// back.
 //
 //   VexTravel.sortItems(items, now)        pure: next departure first
 //   VexTravel.leaveDue(item, now, lead)    pure
@@ -253,6 +255,7 @@ const VexTravel = {
       body.appendChild(onRow);
       body.appendChild(VexSettingsGroups.note(st.on ? 'Travel mode is on: notices that are not urgent wait in the Attention Inbox.' : 'Travel mode is off. Turning it on quiets notices that are not urgent.'));
       if (st.trip.tz) { try { const c = this.clock(st.trip.tz); body.appendChild(VexSettingsGroups.note('There ' + c.there + ' | Here ' + c.here + ' (' + c.diffText + ')')); } catch (err) { body.appendChild(VexSettingsGroups.note(err.message)); } }
+      if (st.trip.tz) body.appendChild(VexSettingsGroups.button('Shift my reminders to the time there...', () => { this.openShift().catch(err => window.showToast?.(err.message, 'error')); }));
 
       const f = mk('div'); f.className = 'vexsr-rule'; f.style.flexWrap = 'wrap';
       const kind = mk('select'); kind.setAttribute('aria-label', 'Kind'); for (const k of this.KINDS) kind.append(new Option(this.KIND_LABEL[k], k));
@@ -301,6 +304,113 @@ const VexTravel = {
     draw();
   },
 
+  // ---- shifted reminders ---------------------------------------------------------------------------------
+  // Minutes east of UTC that `tz` is at the moment `at`.
+  zoneOffsetMin(tz, at) {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const p = Object.fromEntries(f.formatToParts(new Date(at)).map(x => [x.type, x.value]));
+    return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(at / 1000) * 1000) / 60000);
+  },
+  homeZone() { return Intl.DateTimeFormat().resolvedOptions().timeZone; },
+  // The same wall-clock time (09:00 on Tuesday) in another zone: the moment at which `toTz` reads what `fromTz` read at `at`.
+  shiftTime(at, fromTz, toTz) {
+    const wall = at + this.zoneOffsetMin(fromTz, at) * 60000;
+    const t0 = wall - this.zoneOffsetMin(toTz, at) * 60000;
+    return wall - this.zoneOffsetMin(toTz, t0) * 60000;
+  },
+  // Which pending reminders would move, and to when. Only a timed reminder that has not fired, within `days`, that does not
+  // repeat and is not tied to a site; and only when the new moment is still ahead. -> { rows, skipped }
+  shiftPlan(reminders, toTz, now = Date.now(), days = 14, fromTz = this.homeZone()) {
+    if (!this.validZone(toTz)) throw new Error('"' + toTz + '" is not a time zone (try Europe/Istanbul or Asia/Tokyo)');
+    const rows = [];
+    let skipped = 0;
+    for (const r of Array.isArray(reminders) ? reminders : []) {
+      if (!r || typeof r.id !== 'string' || typeof r.message !== 'string' || !Number.isFinite(r.at) || r.firedAt || r.at <= now || r.at > now + days * 86400000) continue;
+      if (r.repeat || r.site) { skipped++; continue; }
+      const newAt = this.shiftTime(r.at, fromTz, toTz);
+      if (Math.abs(newAt - r.at) < 60000) continue;
+      if (newAt <= now + 60000) { skipped++; continue; }
+      rows.push({ id: r.id, message: r.message, at: r.at, newAt, url: typeof r.url === 'string' ? r.url : '', urgent: !!r.urgent, kind: typeof r.kind === 'string' ? r.kind : '' });
+    }
+    return { rows: rows.sort((a, b) => a.at - b.at).slice(0, 40), skipped };
+  },
+  _extra(r) { return { ...(r.url ? { url: r.url } : {}), ...(r.urgent ? { urgent: true } : {}), ...(r.kind ? { kind: r.kind } : {}) }; },
+  // Moves the chosen reminders: a new one at the new moment, then the old one removed. A reminder whose old one cannot be removed
+  // is not left twice. One ledger line with an Undo. -> { moved, failed: [text] }
+  async applyShift(rows, toTz) {
+    const b = typeof window !== 'undefined' && window.vex && window.vex.reminders;
+    if (!b || typeof b.create !== 'function' || typeof b.delete !== 'function') throw new Error('Reminders are not available in this window');
+    const pairs = [], failed = [];
+    for (const r of rows) {
+      let made;
+      try { made = await b.create(r.message, r.newAt, this._extra(r)); }
+      catch (err) { failed.push(r.message.slice(0, 40) + ': ' + err.message); continue; }
+      const newId = made && made.id;
+      if (!newId) { failed.push(r.message.slice(0, 40) + ': Vex did not say which reminder it made'); continue; }
+      try { await b.delete(r.id); }
+      catch (err) {
+        failed.push(r.message.slice(0, 40) + ': the old reminder could not be removed (' + err.message + ')');
+        try { await b.delete(newId); } catch (e2) { failed.push(r.message.slice(0, 40) + ': and the new one could not be removed either, so it is there twice'); }
+        continue;
+      }
+      pairs.push({ n: newId, m: r.message.slice(0, 80), a: r.at, u: r.url || '', g: r.urgent ? 1 : 0 });
+    }
+    if (pairs.length && typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'travel-mode', what: 'Moved ' + pairs.length + ' reminder' + (pairs.length === 1 ? '' : 's') + ' to the time in ' + toTz, why: 'You pressed Shift in the trip workspace',
+        undo: { kind: 'travel-shift-undo', pairs: pairs.slice(0, 12) } });
+    }
+    return { moved: pairs.length, failed };
+  },
+  async undoShift(token) {
+    const b = window.vex && window.vex.reminders;
+    if (!b) throw new Error('Reminders are not available in this window');
+    let back = 0, late = 0;
+    for (const p of Array.isArray(token.pairs) ? token.pairs : []) {
+      await b.delete(p.n);
+      if (p.a > Date.now() + 60000) { await b.create(p.m, p.a, { ...(p.u ? { url: p.u } : {}), ...(p.g ? { urgent: true } : {}) }); back++; } else late++;
+    }
+    if (late) window.showToast?.(late + ' reminder' + (late === 1 ? ' was' : 's were') + ' past its old time, so it was not put back', 'info', 7000);
+    return back;
+  },
+  async openShift() {
+    if (!this.enabled()) { window.showToast?.('Travel mode is switched off in Settings', 'info'); return; }
+    const st = this.state();
+    if (!st.trip.tz) { window.showToast?.('Set the time zone of the place you are going first', 'error'); return; }
+    const b = window.vex && window.vex.reminders;
+    if (!b || typeof b.list !== 'function') { window.showToast?.('Reminders are not available in this window', 'error'); return; }
+    let plan;
+    try { plan = this.shiftPlan(await b.list(), st.trip.tz); }
+    catch (err) { window.showToast?.(err.message, 'error'); return; }
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-travel-shift', title: 'Shift reminders to ' + st.trip.tz, sub: 'A reminder keeps the clock time you gave it, moved to the time there. Pick the ones to move; nothing else changes, and the ledger can put them back.' });
+    if (!plan.rows.length) body.appendChild(VexSettingsGroups.note('No timed reminder in the next 14 days would move.' + (plan.skipped ? ' ' + plan.skipped + ' repeating, site, or too-soon reminder' + (plan.skipped === 1 ? ' is' : 's are') + ' left alone.' : '')));
+    const boxes = [];
+    const fmt = (ms, tz) => new Date(ms).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: tz });
+    for (const r of plan.rows) {
+      const row = document.createElement('label');
+      row.className = 'vexsr-rule';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true; cb.setAttribute('aria-label', 'Move ' + r.message);
+      const text = document.createElement('span');
+      text.className = 'vexsr-host'; text.style.wordBreak = 'normal';
+      text.textContent = r.message.slice(0, 70) + '  (' + fmt(r.at) + ' here, to ' + fmt(r.newAt) + ' here = ' + fmt(r.newAt, st.trip.tz) + ' there)';
+      row.append(cb, text);
+      body.appendChild(row);
+      boxes.push([cb, r]);
+    }
+    if (plan.rows.length) {
+      body.appendChild(VexSettingsGroups.button('Move the ticked reminders', async () => {
+        const chosen = boxes.filter(([cb]) => cb.checked).map(([, r]) => r);
+        if (!chosen.length) { window.showToast?.('Tick at least one'); return; }
+        const ok = await window.vexConfirm({ title: 'Move ' + chosen.length + ' reminder' + (chosen.length === 1 ? '' : 's') + '?', message: 'Each gets a new time in the time zone ' + st.trip.tz + ' and the old one is removed. Ctrl+K "Why did that happen?" can put them back.', okLabel: 'Move' });
+        if (!ok) return;
+        try {
+          const r = await this.applyShift(chosen, st.trip.tz);
+          window.showToast?.('Moved ' + r.moved + (r.failed.length ? '; ' + r.failed.length + ' could not be: ' + r.failed[0] : ''), r.failed.length ? 'error' : 'success', 9000);
+        } catch (err) { window.showToast?.(err.message, 'error'); }
+      }, { primary: true }));
+    }
+  },
+
   group(el) {
     el.appendChild(VexSettingsGroups.note('Tickets, QR codes and booking references in one bright view, sorted by next departure, with the time where you are going and a "time to leave" notice. Travel mode also quiets notices that are not urgent.'));
     el.appendChild(VexSettingsGroups.button('Open the trip workspace', () => this.open(), { primary: true }));
@@ -312,6 +422,7 @@ const VexTravel = {
     this._wired = true;
     if (typeof VexLedger !== 'undefined') {
       VexLedger.registerUndo('travel-mode-set', async (token) => { this.setOn(!!token.on); });
+      VexLedger.registerUndo('travel-shift-undo', (token) => this.undoShift(token));
     }
     if (typeof VexJobs !== 'undefined') VexJobs.every(this.JOB, 2 * 60 * 1000, () => this.tick(), { feature: 'travel-mode' });
     this._changed();

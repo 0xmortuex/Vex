@@ -596,6 +596,8 @@ const HighlightNotes = {
   add({ text, url, title }) {
     if (!this.enabled() || !text || !url) return false;
     try {
+      // Kept on the page's Read later row when the inbox routes captures there (js/inbox.js).
+      if (typeof VexInbox !== 'undefined' && VexInbox.route({ url, title, excerpt: text, from: 'highlight' })) return true;
       const notes = WebTaming.readJson('vex.notes', []);
       if (!Array.isArray(notes)) throw new Error('The notes store is damaged');
       let note = notes.find(n => n && n.title === this.TITLE);

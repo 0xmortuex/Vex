@@ -18,12 +18,19 @@
 //     sealed by the operating system in the main process (main/comms-tools.js) and never
 //     comes back to this window, to storage, to Vex Sync, to a backup or to a log.
 //
+// A staged send (Wave 5): "Stage a post for a time" keeps this text and a reminder for the hour you choose. At
+// that hour a toast says "Time to post" with a "Review and send" button; the button opens the same confirm that
+// shows the exact message, and only its Send sends. It never sends by itself, so a toast ignored or a Vex that
+// was closed at the hour sends nothing: the staged post waits, marked as missed, until you send or remove it.
+// It needs the webhook of your own server to be saved first.
+//
 // The limits are the places' published limits and they change; each is editable. A text
 // that does not fit is never cut for you: the preview says how far over it is.
 const AnnounceComposer = {
   KEY: 'vex.announceComposer',
   MAX_DRAFTS: 30,
   MAX_QUEUE: 40,
+  MAX_STAGED: 10,
   MAX_TEXT: 20000,
   // Defaults. Markdown: 'keep' (the place renders it) or 'plain' (it shows the symbols as they are).
   TARGETS: [
@@ -41,8 +48,9 @@ const AnnounceComposer = {
 
   // ---- state -------------------------------------------------------------------------------
   state() {
-    const s = CommsStore.record(this.KEY, { on: true, drafts: [], queue: [], limits: {}, allowEveryone: false }, 'announcement drafts');
+    const s = CommsStore.record(this.KEY, { on: true, drafts: [], queue: [], limits: {}, allowEveryone: false, staged: [] }, 'announcement drafts');
     return {
+      staged: Array.isArray(s.staged) ? s.staged.filter(x => x && typeof x.id === 'string' && typeof x.text === 'string' && Number.isFinite(x.at)) : [],
       on: s.on !== false,
       drafts: Array.isArray(s.drafts) ? s.drafts.filter(d => d && typeof d.id === 'string') : [],
       queue: Array.isArray(s.queue) ? s.queue.filter(q => q && typeof q.id === 'string') : [],
@@ -153,6 +161,62 @@ const AnnounceComposer = {
     return VexQuickReminder.create('Post the announcement: ' + CommsStore.line(title, 100) + ' (open Ctrl+K, Announcement composer)', when);
   },
 
+  // ---- a staged send: the toast at the hour, the confirm for the send -----------------------------------------
+  staged() { return this.state().staged.slice().sort((a, b) => a.at - b.at); },
+  async stage(title, text, when) {
+    if (!this.enabled()) throw new Error('The announcement composer is switched off in Settings');
+    CommsStore.needKept('A staged post');
+    if (!(when instanceof Date) || Number.isNaN(when.getTime()) || when.getTime() <= this._now() + 60000) throw new Error('Choose a time that is still ahead');
+    const r = this.render(text, this.targets().find(x => x.id === 'discord'));
+    if (!r.text.trim()) throw new Error('Write the announcement first');
+    if (!r.fits) throw new Error('This is ' + r.over + ' characters over the ' + r.limit + ' Discord takes in one message. Shorten it first.');
+    const status = await this.webhookStatus();
+    if (!status.has) throw new Error('There is no webhook saved. Add the address of your own server\'s webhook in Settings first.');
+    const s = this.state();
+    if (s.staged.length >= this.MAX_STAGED) throw new Error('At most ' + this.MAX_STAGED + ' staged posts. Remove one first.');
+    const rec = { id: CommsStore.id('st'), title: CommsStore.line(title, 80) || CommsStore.line(r.text.split('\n')[0], 60) || 'Announcement', text: CommsStore.block(text, this.MAX_TEXT), at: when.getTime(), askedAt: 0 };
+    s.staged.push(rec);
+    this._save(s);
+    // The reminder is the back-up for a Vex that is closed at the hour; it reminds and sends nothing.
+    if (typeof VexQuickReminder !== 'undefined') await this.remind(rec.title, when);
+    return rec;
+  },
+  unstage(id) {
+    const s = this.state();
+    const next = s.staged.filter(x => x.id !== id);
+    if (next.length === s.staged.length) return false;
+    s.staged = next; this._save(s);
+    return true;
+  },
+  // Staged posts whose hour has come and that have not been announced yet. Pure given the list.
+  dueStaged(now = this._now(), list = this.state().staged) { return list.filter(x => x.at <= now && !x.askedAt); },
+  // The toast at the hour. -> how many were announced.
+  tickStaged(now = this._now()) {
+    if (!this.enabled()) return 0;
+    const due = this.dueStaged(now);
+    if (!due.length) return 0;
+    if (typeof VexAttention === 'undefined') throw new Error('The attention gate is not loaded');
+    const s = this.state();
+    for (const d of due) {
+      const rec = s.staged.find(x => x.id === d.id);
+      rec.askedAt = now;
+      const title = 'Time to post: ' + rec.title;
+      // You staged it for this hour, so it is the "asked" class and is not held back by a quiet mode. It still sends nothing.
+      VexAttention.notify({ feature: 'announce-composer', label: 'Announcements', urgency: 'asked', id: 'staged:' + rec.id, title, body: 'Review it and send it, or leave it: nothing is sent unless you press Send.', action: { label: 'Review and send', key: 'send:' + rec.id } },
+        () => window.showToast?.(title, 'info', 60000, { action: { label: 'Review and send', run: () => this.sendStaged(rec.id).catch(err => window.showToast?.(err.message, 'error')) } }));
+    }
+    this._save(s);
+    return due.length;
+  },
+  // The button: the same confirm as "Post to my Discord" (it shows the exact message); a staged post leaves the list only when sent.
+  async sendStaged(id) {
+    const rec = this.state().staged.find(x => x.id === id);
+    if (!rec) throw new Error('That staged post is gone');
+    const r = await this.post(rec.text);
+    if (r.sent) this.unstage(id);
+    return r;
+  },
+
   // ---- the share-to-community queue ---------------------------------------------------------------------
   queue() { return this.state().queue; },
   queueLink({ url, title = '', caption = '' } = {}) {
@@ -228,5 +292,19 @@ const AnnounceComposer = {
   },
 };
 
-if (typeof window !== 'undefined') window.AnnounceComposer = AnnounceComposer;
+if (typeof window !== 'undefined') {
+  window.AnnounceComposer = AnnounceComposer;
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('announce-composer', (key) => {
+        const m = /^send:(.+)$/.exec(String(key));
+        if (!m) throw new Error('Unknown action ' + key);
+        AnnounceComposer.sendStaged(m[1]).catch(err => window.showToast?.(err.message, 'error'));
+      });
+    }
+    if (typeof VexJobs !== 'undefined') {
+      VexJobs.every('Staged announcement', 30000, () => { try { AnnounceComposer.tickStaged(); } catch (err) { window.VexProblems?.note('Announcements', 'Could not announce a staged post', err); } }, { when: 'ui', feature: 'announce-composer' });
+    }
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { AnnounceComposer };

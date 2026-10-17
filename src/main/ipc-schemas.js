@@ -85,6 +85,8 @@ define('downloads:tidy-undo downloads:tidy-history', []);
 // Real names for saved media (download-desk.js), the release-download assistant (one file path, checked in main
 // against the files Vex downloaded) and the mod desk (like the tidy-up: no path ever comes from here).
 define('downloads:set-media-names', [boolean]);
+// File kinds that always ask where to save: extensions only (lowercase letters and digits), never a path.
+define('downloads:set-ask-types', [value => Array.isArray(value) && value.length <= 30 && value.every(x => typeof x === 'string' && /^[a-z0-9]{1,8}$/.test(x))]);
 define('downloads:release-assist', [string(1024)]);
 define('downloads:mods-plan downloads:mods-undo downloads:mods-history', []);
 define('downloads:mods-apply', [string(64)]);
@@ -623,7 +625,7 @@ define('localsvc:status localsvc:pick-folder webhook:stop webhook:status webhook
 define('localsvc:arm', [boolean]);
 define('localsvc:add', [shape({ name: string(60), token: string(64), template: string(40), params: optional(object), port: optional(value => Number.isSafeInteger(value) && value >= 0 && value <= 65535) })]);
 define('localsvc:remove localsvc:start localsvc:stop localsvc:logs', [string(80)]);
-define('webhook:start', [shape({ port: integer, minutes: integer })]);
+define('webhook:start', [shape({ port: value => Number.isInteger(value) && value >= 0 && value <= 65535, minutes: integer })]);
 define('webhook:list', [optional(value => Number.isSafeInteger(value) && value >= 0)]);
 define('webhook:get', [integer]);
 // The optional version-review relay (main/feedback-relay.js): the relay address and the review; main validates both again.

@@ -34,12 +34,12 @@ describe('decide()', () => {
 
 describe('preferences', () => {
   it('default to offering after 4 hours', () => {
-    expect(F.prefs()).toEqual({ mode: 'offer', awayHours: 4 });
+    expect(F.prefs()).toEqual({ mode: 'offer', awayHours: 4, digest: false });
     expect(F.enabled()).toBe(true);
   });
   it('are validated and never replaced by a default once saved', () => {
     F.setPrefs({ mode: 'open', awayHours: 6 });
-    expect(F.prefs()).toEqual({ mode: 'open', awayHours: 6 });
+    expect(F.prefs()).toEqual({ mode: 'open', awayHours: 6, digest: false });
     expect(() => F.setPrefs({ mode: 'sometimes' })).toThrow(/off, offer or open/);
     expect(() => F.setPrefs({ awayHours: 0 })).toThrow(/between 1 and 48/);
     expect(() => F.setPrefs({ awayHours: 100 })).toThrow(/between 1 and 48/);

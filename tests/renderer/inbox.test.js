@@ -2,7 +2,7 @@
 //
 // T1-009: one read-only inbox over notes, saved pages, highlights, sticky notes
 // and quick captures (js/inbox.js). Nothing is moved or deleted.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
@@ -130,5 +130,59 @@ describe('the Notes-based capture features land in the inbox, each under its own
     globalThis.SidebarManager = { openPanel: vi.fn() };
     expect(I.openItem({ source: 'weekly-note', noteId: 'd' })).toBe('notes');
     delete globalThis.VexMemoryTools; delete globalThis.SidebarManager;
+  });
+});
+
+describe('keeping captures in Read later (T1-009 routing)', () => {
+  let RL, AT;
+  beforeEach(() => {
+    vi.resetModules();
+    globalThis.vexId = (p) => p + '_' + Math.random().toString(36).slice(2, 8);
+    delete globalThis.TabManager;
+    RL = fresh(JS + 'readlater.js');
+    globalThis.ReadLater = RL.ReadLater;
+    ReadLater.items = [];
+    ReadLater.save = vi.fn();
+    ({ VexInbox: I } = fresh(JS + 'inbox.js'));
+    globalThis.VexInbox = I;
+    ({ AgentTools: AT } = fresh(JS + 'agent-tools.js'));
+  });
+  afterEach(() => { delete globalThis.ReadLater; delete globalThis.VexInbox; delete globalThis.vexId; });
+
+  it('is off until chosen: a note from a page still goes to Notes', () => {
+    const n = AT.saveNote('Clip', 'some words', 'https://example.com/a');
+    expect(JSON.parse(localStorage.getItem('vex.notes'))).toHaveLength(1);
+    expect(n.routed).toBeUndefined();
+    expect(ReadLater.items).toHaveLength(0);
+  });
+  it('when on, a note from a web page becomes an excerpt on that page\'s Read later row', () => {
+    I.setRoute(true);
+    const n = AT.saveNote('Clip', 'some words', 'https://example.com/a');
+    expect(n.routed).toBe('read-later');
+    expect(localStorage.getItem('vex.notes')).toBeNull();
+    expect(ReadLater.items).toHaveLength(1);
+    expect(ReadLater.items[0].excerpts[0]).toMatchObject({ text: 'some words', from: 'note' });
+    AT.saveNote('Clip 2', 'other words', 'https://example.com/a');
+    expect(ReadLater.items).toHaveLength(1);
+    expect(ReadLater.items[0].excerpts).toHaveLength(2);
+    AT.saveNote('Clip 2', 'other words', 'https://example.com/a');
+    expect(ReadLater.items[0].excerpts).toHaveLength(2);
+  });
+  it('a note with no web page still goes to Notes, even when on', () => {
+    I.setRoute(true);
+    AT.saveNote('Idea', 'no page');
+    expect(JSON.parse(localStorage.getItem('vex.notes'))).toHaveLength(1);
+    expect(ReadLater.items).toHaveLength(0);
+  });
+  it('the inbox counts a highlight kept as an excerpt once', async () => {
+    const hl = { 'example.com/a': [{ id: 'h1', text: 'a highlighted sentence', url: 'https://example.com/a', at: NOW - 1000 }] };
+    const rl = [{ id: 'r1', url: 'https://example.com/a', title: 'A', at: NOW - 1000, read: false, excerpts: [{ text: 'a highlighted sentence' }] }];
+    const { items } = await I.collect(NOW, sources({ highlights: () => hl, readLater: () => rl }));
+    expect(items.filter(i => i.source === 'highlight')).toHaveLength(0);
+    expect(items.filter(i => i.source === 'read-later')).toHaveLength(1);
+  });
+  it('addCapture refuses a non-web address and an empty excerpt', () => {
+    expect(() => globalThis.ReadLater.addCapture({ url: 'file:///x', excerpt: 'a' })).toThrow(/web address/);
+    expect(() => globalThis.ReadLater.addCapture({ url: 'https://a.example/', excerpt: '  ' })).toThrow(/nothing/);
   });
 });

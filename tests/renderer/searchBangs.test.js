@@ -79,3 +79,43 @@ describe('the address bar', () => {
     expect(SS.resolveSearchShortcut('!npm zod')).toBe('https://duckduckgo.com/?q=!npm%20zod');
   });
 });
+
+describe('the short word offer (T1-005)', () => {
+  const T0 = 1_800_000_000_000;
+  const DAY = 24 * 3600 * 1000;
+  let seen;
+  beforeEach(() => { seen = []; globalThis.VexAttention = { suggest: (o) => { seen.push(o); return true; } }; });
+
+  it('offers a short word on the third use in a week, once', () => {
+    expect(B.noteUse('!npm zod', T0)).toBeNull();
+    expect(B.noteUse('react !npm', T0 + DAY)).toBeNull();
+    expect(B.noteUse('!npm vite', T0 + 2 * DAY)).toBe('n');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ feature: 'search-bangs', action: { key: 'alias:npm:n' } });
+    expect(B.noteUse('!npm again', T0 + 3 * DAY)).toBeNull();
+    expect(seen).toHaveLength(1);
+  });
+  it('does not count uses more than a week apart', () => {
+    B.noteUse('!npm a', T0); B.noteUse('!npm b', T0 + 2 * DAY);
+    expect(B.noteUse('!npm c', T0 + 9 * DAY)).toBeNull();
+    expect(seen).toHaveLength(0);
+  });
+  it('ignores a bang that is not in the table and a switched-off table', () => {
+    for (let i = 0; i < 4; i++) B.noteUse('!yt cats', T0 + i);
+    B.setEnabled(false);
+    for (let i = 0; i < 4; i++) B.noteUse('!npm zod', T0 + i);
+    expect(seen).toHaveLength(0);
+  });
+  it('picks a free word and the button adds it to the table', () => {
+    B.set('n', 'https://example.com/?q=%s');
+    expect(B.suggestAlias('npm')).toBe('np');
+    expect(B.takeAlias('alias:npm:np')).toBe('np');
+    expect(B.resolve('!np zod').url).toBe('https://www.npmjs.com/search?q=zod');
+    expect(() => B.takeAlias('nonsense')).toThrow(/not a short word/);
+  });
+  it('refuses to count when the attention gate is missing', () => {
+    delete globalThis.VexAttention;
+    B.noteUse('!npm a', T0); B.noteUse('!npm b', T0 + 1);
+    expect(() => B.noteUse('!npm c', T0 + 2)).toThrow(/VexAttention/);
+  });
+});

@@ -934,7 +934,11 @@ const WebviewManager = {
   // and Ctrl+P / Ctrl+U did nothing (found 2026-09-29).
   printPage(wv = this.getActiveWebview()) {
     if (!wv || typeof wv.print !== 'function') { window.showToast?.('Open a page to print first'); return; }
-    Promise.resolve(wv.print()).catch(err => window.showToast?.('Could not print: ' + ((err && err.message) || err), 'error'));
+    // A page named "site - title - date" when that extra is on (js/tabs-nav.js): the name Windows offers for the PDF.
+    const named = typeof VexTabsNav !== 'undefined' ? VexTabsNav.namePrintJob(wv).catch(err => { window.VexProblems?.note('Print', 'Could not name the printout', err); return null; }) : Promise.resolve(null);
+    named.then(restore => Promise.resolve(wv.print())
+      .finally(() => { if (restore) restore().catch(err => window.VexProblems?.note('Print', 'Could not put the page title back', err)); }))
+      .catch(err => window.showToast?.('Could not print: ' + ((err && err.message) || err), 'error'));
   },
 
   viewSource(wv = this.getActiveWebview()) {

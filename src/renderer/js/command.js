@@ -377,6 +377,7 @@ const CommandBar = {
     { id: 'reload', label: 'Reload', hint: 'Reload current tab', shortcut: 'Ctrl+R', icon: 'refresh', action: () => NavLock.run('reload') },
     { id: 'hard-reload', label: 'Hard Reload', hint: 'Clear cache then reload', shortcut: 'Ctrl+Shift+R', icon: 'refresh', action: () => NavLock.run('hardReload') },
     { id: 'history-overlay', label: 'History (quick view)', hint: 'View browsing history in an overlay', icon: 'clipboard', action: () => CommandBar.showHistory() },
+    { id: 'reset-command-order', label: 'Reset command order', hint: 'Forget which commands you use most, so Ctrl+K lists them by name again; nothing else is changed', icon: 'refresh', action: async () => { if (await window.vexConfirm({ title: 'Reset the command order?', message: 'Ctrl+K forgets how often and when you used each command. Your shortcut words and pinned commands stay.', okLabel: 'Reset' })) { CommandBar.resetUsage(); window.showToast?.('Ctrl+K lists commands by name again'); } } },
     { id: 'settings', label: 'Settings', hint: 'Open settings', icon: 'settings', action: () => SidebarManager.openPanel('settings') },
     { id: 'tools', label: 'Tools', hint: 'Open your tools', icon: 'wrench', action: () => CommandBar.showTools() },
     { id: 'start', label: 'Start Page', hint: 'Go to start page', icon: 'home', action: () => TabManager.createTab(START_URL, true) },
@@ -1224,13 +1225,85 @@ const CommandBar = {
         let score = this._scoreCommand(q, c);
         if (score > 0) {
           const u = usage[c.id];
-          if (u) score += Math.min(12, (u.n || 0) * 3) + ((now - (u.at || 0)) < 864e5 ? 3 : 0);
+          if (u) score += this._frecencyBonus(u, now);
         }
         return { c, score };
       })
       .filter(e => e.score > 0)
       .sort((a, b) => b.score - a.score)
       .map(e => (withScores ? e : e.c));
+  },
+
+  // How much a command's history adds to its score (T2-041): how often (3 per use, 12 at most), halved for
+  // every 14 days since it was last used, and a flat 3 for today. A command used a lot long ago no longer
+  // outranks one you use now. "Reset command order" (below) forgets all of it.
+  HALF_LIFE_DAYS: 14,
+  _frecencyBonus(u, now = Date.now()) {
+    const days = Math.max(0, (now - (u.at || 0)) / 864e5);
+    return Math.min(12, (u.n || 0) * 3) * Math.pow(0.5, days / this.HALF_LIFE_DAYS) + (days < 1 ? 3 : 0);
+  },
+  _ago(ms) {
+    const d = Math.floor(Math.max(0, ms) / 864e5);
+    if (d < 1) return 'today';
+    if (d === 1) return 'yesterday';
+    return d + ' days ago';
+  },
+  // The reason the highlighted result is where it is, in one line, or '' for a result that is not a command.
+  // query is what is in the box (a leading > is ignored).
+  _whyOrder(item, query, now = Date.now()) {
+    if (!item || !this.commands.includes(item)) return '';
+    const q = String(query || '').replace(/^>/, '').trim().toLowerCase();
+    const u = this._usage()[item.id];
+    const used = u ? 'used ' + u.n + (u.n === 1 ? ' time' : ' times') + ', last ' + this._ago(now - (u.at || 0)) : '';
+    if (!q) {
+      const pinned = typeof VexUsageCounters !== 'undefined' && VexUsageCounters.pinnedCommands().includes(item.id);
+      if (pinned) return 'Why this order: you pinned it' + (used ? '; ' + used : '');
+      return 'Why this order: ' + (used ? 'you ' + used : 'a suggestion Vex starts with');
+    }
+    const tiers = [[100, 'its name starts with what you typed'], [85, 'a word in its name starts with what you typed'], [80, 'its id starts with what you typed'],
+      [70, 'every word you typed is in its name or description'], [60, 'its name contains what you typed'], [45, 'its description contains what you typed'], [30, 'the letters you typed appear in its name in order']];
+    const score = this._scoreCommand(q, item);
+    const tier = tiers.find(t => t[0] === score);
+    if (!tier) return 'Why this order: it came from a shortcut word or another list, not from the name';
+    const bonus = u ? this._frecencyBonus(u, now) : 0;
+    return 'Why this order: ' + tier[1] + (u ? '; ' + used + ' (adds ' + (Math.round(bonus * 10) / 10) + ')' : '');
+  },
+  _showWhy() {
+    const box = document.getElementById('command-bar');
+    if (!box) return;
+    let el = document.getElementById('command-why');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'command-why';
+      el.setAttribute('role', 'status');
+      box.appendChild(el);
+    }
+    const input = document.getElementById('command-input');
+    el.textContent = this._whyOrder(this.results[this.selectedIndex], input ? input.value : '');
+    el.hidden = !el.textContent;
+  },
+  // Forgets how often and when each command was used: the order starts again from the names alone.
+  resetUsage() {
+    try { localStorage.removeItem(this.USAGE_KEY); }
+    catch (err) { throw new Error('Could not reset the command order: ' + err.message); }
+  },
+
+  // Titles of the toolbar buttons that have a Ctrl+K command also say its name, so the way to
+  // reach it from the keyboard can be learned from the button. Safe to run again.
+  TIPS: { 'btn-downloads-top': 'downloads', 'btn-notes-top': 'notes', 'btn-tor': 'tor', 'btn-split': 'split', 'btn-toggle-ai': 'ai', 'btn-ai-news': 'ai-news', 'btn-dev-dash': 'dev-dashboard', 'btn-reload': 'reload' },
+  nameTips() {
+    let n = 0;
+    for (const [btnId, cmdId] of Object.entries(this.TIPS)) {
+      const btn = document.getElementById(btnId);
+      const c = this.commands.find(x => x.id === cmdId);
+      if (!btn || !c || btn.dataset.cmdTip === c.label) continue;
+      const base = (btn.dataset.cmdTipBase !== undefined ? btn.dataset.cmdTipBase : btn.getAttribute('title')) || '';
+      btn.dataset.cmdTipBase = base;
+      btn.dataset.cmdTip = c.label;
+      btn.setAttribute('title', (base ? base + ' · ' : '') + 'Ctrl+K: ' + c.label);
+      n++;
+    }
+    return n;
   },
 
   // Empty-query view: most recently used commands first, defaults fill the rest.
@@ -1346,6 +1419,7 @@ const CommandBar = {
       resultsEl.removeAttribute('role');
       resultsEl.innerHTML = '<div class="command-empty" role="status">No results found</div>';
       this._ariaSync(null);
+      this._showWhy();
       return;
     }
     resultsEl.setAttribute('role', 'listbox');
@@ -1356,6 +1430,7 @@ const CommandBar = {
     this._drawRows(resultsEl, Math.max(this.FIRST_ROWS, this.selectedIndex + 1));
     if (this._rendered < this.results.length) this._scheduleRest();
     this._ariaSync(document.getElementById('command-opt-' + this.selectedIndex));
+    this._showWhy();
   },
 
   _scheduleRest() {
@@ -1456,6 +1531,7 @@ const CommandBar = {
     const selected = document.querySelector('.command-result.selected');
     if (selected) selected.scrollIntoView({ block: 'nearest' });
     this._ariaSync(selected);
+    this._showWhy();
   },
 
   executeSelected() {
@@ -1558,5 +1634,8 @@ for (const c of CommandBar.commands) {
   const typed = c.shortcut;
   Object.defineProperty(c, 'shortcut', { get() { return CommandBar._keyFor.call(CommandBar, c, typed); }, enumerable: true, configurable: true });
 }
+
+// The toolbar buttons learn their Ctrl+K names once the modules have added their commands.
+if (typeof window !== 'undefined') window.addEventListener('load', () => setTimeout(() => CommandBar.nameTips(), 1500));
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { CommandBar };

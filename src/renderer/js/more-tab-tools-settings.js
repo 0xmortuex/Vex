@@ -28,6 +28,7 @@ const VexMoreTabToolsSettings = {
     toggle('Show the last picture while a sleeping tab wakes', 'Pictures of the last 12 tabs you left are kept in memory only, never for private or Tor tabs.', VexTabThumbs.enabled(), (on) => VexTabThumbs.setEnabled(on));
     toggle('Keyboard hints', 'Ctrl+Alt+I labels the links and buttons in view; Ctrl+Alt+Q labels the tabs. Type a label to use it.', VexLinkHints.enabled(), (on) => VexLinkHints.setEnabled(on));
     toggle('Split view keys', 'Ctrl+Alt+O next pane, Ctrl+Alt+Y swap panes, 25/50/75 snaps and double-click the divider.', VexSplitKeys.prefs().on, (on) => { VexSplitKeys.setEnabled(on); this.render(body); });
+    if (VexSplitKeys.prefs().on) toggle('Drag a tab onto the page to split', 'While you drag a tab, two targets (left and right) cover the page; drop it on one to split with that tab. Not shown when the screen is already split.', VexSplitKeys.prefs().dragSplit, (on) => VexSplitKeys.save({ dragSplit: on }));
     if (VexSplitKeys.prefs().on) toggle('Alt+click opens a link in the other pane', 'Alt+click normally saves the link. With this on it opens beside the page instead.', VexSplitKeys.prefs().altClick, (on) => VexSplitKeys.save({ altClick: on }));
   },
 
@@ -36,6 +37,7 @@ const VexMoreTabToolsSettings = {
     VexSettingsGroups.register({ id: this.ID, title: 'More tab tools', keywords: 'select tabs bulk hold width close rename name thumbnail wake hints split keys', render: (body) => this.render(body) });
     if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
       VexExtras.registerCommand({ id: 'rename-tab', label: 'Rename this tab', hint: 'A name of your own for this page, shown on the strip', icon: 'edit', action: () => VexTabNames.rename().catch(err => window.showToast?.(err.message, 'error')) });
+      VexExtras.registerCommand({ id: 'move-tab-to-window', label: 'Move this tab to a new window', hint: 'Opens this page in a window of its own and closes the tab, with an Undo; a private or Tor tab stays where it is', icon: 'window', action: () => { const t = TabManager.getActiveTab(); VexTabWindow.move(t).catch(err => window.showToast?.((err && err.message) || String(err), 'error')); } });
     }
   },
 };

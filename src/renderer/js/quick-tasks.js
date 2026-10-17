@@ -12,6 +12,10 @@
 // Morning Brief shows a "Two minutes" line when there are any. The timer is only
 // a countdown you start; when it ends you get one notice you asked for.
 //
+// On the New Tab page it is a card of its own, "Two minutes" (a New Tab slot, js/newtab-slots.js): it asks for a
+// place only while something is tagged #2min, competes with the other cards by priority (70, below the brief and
+// today), and shows the same three tasks as the Morning Brief section.
+//
 //   VexTwoMinute.isTagged(text)     pure
 //   VexTwoMinute.strip(text)        pure: the task without its tag
 //   VexTwoMinute.pick(tasks, n)     pure: the first n tagged, open tasks
@@ -119,10 +123,20 @@ const VexTwoMinute = {
     el.appendChild(VexSettingsGroups.button('Open the drawer', () => this.open(), { primary: true }));
   },
 
+  // Is anything tagged #2min? Read quietly (no tasks store loaded = nothing to show).
+  hasTasks() {
+    if (typeof OpenTasks === 'undefined') return false;
+    return this.pick(this.all()).length > 0;
+  },
+  slot() {
+    return { id: 'two-minute', label: 'Two minutes', slot: 'card', priority: 70, cost: 3, bytes: 500, briefSection: 'two-minute', available: () => this.enabled() && this.hasTasks() };
+  },
+
   init() {
     if (this._wired) return true;
     this._wired = true;
     if (typeof VexBrief !== 'undefined' && typeof VexBrief.register === 'function') VexBrief.register(this.section());
+    if (typeof NewTabSlots !== 'undefined') NewTabSlots.register(this.slot());
     return true;
   },
 };

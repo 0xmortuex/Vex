@@ -32,7 +32,11 @@
     textFragment: true,     // Copy link to selected text
     typedRanking: false,    // inline completion prefers the sites you type most (changes what Enter picks)
     switchToTab: false,     // Enter on an address that is already open goes to that tab (changes Enter)
-    addressExtras: false,   // Alt+Up one level, drag the padlock as a link, calculator row
+    addressExtras: false,   // Alt+Up one level, Alt+Shift+Up path menu, Shift+Enter new window, search-selection key, drag the padlock as a link, calculator row
+    smartPrint: false,      // a printed or saved-as-PDF page is named "site - title - date" (T2-060)
+    autoHideChrome: false,  // in full screen the toolbar and tabs slide in when the pointer touches the top edge (T2-060)
+    downloadTypes: false,   // a finished PDF opens in a tab (T2-072)
+    downloadEnter: false,   // Enter opens the file of the newest finished-download card (T2-072)
     activityDot: true,      // a count in a background tab's title marks a dot
     findMatchCase: false,   // the Aa toggle in the find bar (a remembered choice)
     keepOnTop: false,       // Vex's own window above others (never over a full-screen game)
@@ -287,6 +291,62 @@
     u.search = ''; u.hash = '';
     return u.href;
   }
+  // The levels of an address, nearest the site first: [{ label, url }]. "example.com", "/docs", "/docs/api".
+  // The page's own query is not a level. -> [] for a page that is not http(s).
+  function segments(url) {
+    let u;
+    try { u = new URL(String(url)); } catch { return []; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return [];
+    const out = [{ label: u.host, url: u.origin + '/' }];
+    let acc = '';
+    for (const part of u.pathname.split('/').filter(Boolean)) {
+      acc += '/' + part;
+      out.push({ label: decodeSafe(part), url: u.origin + acc });
+    }
+    return out;
+  }
+  function decodeSafe(s) { try { return decodeURIComponent(s); } catch { return s; } }
+  // A small menu under the address bar with each level of the address; choosing one goes there.
+  function showSegments(anchor, url, go) {
+    const segs = segments(url);
+    document.getElementById('vex-address-path')?.remove();
+    if (!segs.length) throw new Error('This address has no levels to go to');
+    const box = document.createElement('div');
+    box.id = 'vex-address-path';
+    box.setAttribute('role', 'menu');
+    box.setAttribute('aria-label', 'Levels of this address');
+    const close = () => { box.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', onKey, true); };
+    const outside = (e) => { if (!box.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); anchor.focus(); } };
+    for (const s of segs) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('role', 'menuitem');
+      b.textContent = s.label; b.title = s.url;
+      b.addEventListener('click', () => { close(); go(s.url); });
+      box.appendChild(b);
+    }
+    const r = anchor.getBoundingClientRect();
+    box.style.left = Math.max(4, r.left) + 'px';
+    box.style.top = (r.bottom + 2) + 'px';
+    document.body.appendChild(box);
+    document.addEventListener('mousedown', outside, true);
+    document.addEventListener('keydown', onKey, true);
+    box.querySelector('button')?.focus();
+    return box;
+  }
+  // The words selected on the page in front, searched with the engine you chose, in a new tab.
+  async function searchSelection() {
+    if (!on('addressExtras')) throw new Error('Turn on "Address bar extras" in Settings > Tabs and navigation first');
+    if (typeof TabManager === 'undefined' || typeof WebviewManager === 'undefined') throw new Error('Tabs are not loaded');
+    const wv = WebviewManager.webviews.get(TabManager.activeTabId);
+    if (!wv) throw new Error('Open a page first');
+    const words = await seedFromSelection(wv);
+    if (!words) throw new Error('Select a few words on the page first');
+    const where = VexTypedAddress.resolve(words);
+    if (!where) throw new Error('Those words could not be searched');
+    TabManager.createTab(where.url, true);
+    return words;
+  }
   // The answer to a typed sum or unit conversion ("12*7", "20cm to in"), or null.
   function calcFor(text) {
     if (!on('addressExtras') || typeof VexCalc === 'undefined' || typeof VexCalc.evaluate !== 'function') return null;
@@ -344,6 +404,21 @@
     });
   }
 
+  // ---- what a finished download does by kind (T2-072) ------------------------------------------------
+  // With "downloadTypes" on, a finished PDF opens in a tab of its own (Vex shows it) instead of waiting in a card.
+  // Installers ask where to save: that is a main-process preference (downloads:set-ask-types), set from Settings.
+  const INSTALLER_KINDS = Object.freeze(['exe', 'msi', 'msix', 'appx', 'msp', 'bat', 'cmd', 'ps1', 'scr', 'jar']);
+  const kindOf = (filename) => { const m = /\.([A-Za-z0-9]{1,8})$/.exec(String(filename || '')); return m ? m[1].toLowerCase() : ''; };
+  const fileUrl = (p) => encodeURI('file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '')).replace(/#/g, '%23').replace(/\?/g, '%3F');
+  // -> 'tab' for a file that should open in a tab when it finishes, else ''.
+  function downloadAction(filename) {
+    return on('downloadTypes') && kindOf(filename) === 'pdf' ? 'tab' : '';
+  }
+  function openDownloadInTab(path) {
+    if (!path || typeof TabManager === 'undefined') throw new Error('There is no file to open');
+    return TabManager.createTab(fileUrl(path), true);
+  }
+
   // ---- download speed and time left (T2-072) -------------------------------------------------
   // Feed every progress report to rateStep(previous, receivedBytes, nowMs); it keeps a smoothed
   // bytes-per-second (a paused or stalled transfer decays to 0). etaText() says how long is left.
@@ -369,6 +444,78 @@
     if (s < 3600) return Math.round(s / 60) + ' min left';
     const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
     return h + ' h ' + m + ' min left';
+  }
+
+  // ---- smart print file name (T2-060) --------------------------------------------------------------
+  // "example.com - Page title - 2026-10-17": the name Windows offers for a printed page or a PDF. The title
+  // is cleaned of what a file name cannot hold and of a closing " | Site" that names the site again; 90
+  // characters at most.
+  function printName(title, url, when = new Date()) {
+    let host = '';
+    try { host = new URL(String(url)).hostname.replace(/^www\./, ''); } catch { host = ''; }
+    const site = (host.split('.').slice(-2, -1)[0] || host).toLowerCase();
+    const seg = String(title == null ? '' : title).split(/\s+[|–—-]\s+/);
+    if (seg.length > 1 && site && seg[seg.length - 1].toLowerCase().includes(site)) seg.pop();
+    const t = seg.join(' - ').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const d = when.getFullYear() + '-' + String(when.getMonth() + 1).padStart(2, '0') + '-' + String(when.getDate()).padStart(2, '0');
+    const name = [host, t, d].filter(Boolean).join(' - ');
+    return name.length > 90 ? name.slice(0, 89).trim() + '…' : name;
+  }
+  // Gives the page the smart name while it prints; -> a function that puts the old title back (or null when
+  // the extra is off or the page cannot be read).
+  async function namePrintJob(wv) {
+    if (!on('smartPrint') || !wv || typeof wv.executeJavaScript !== 'function') return null;
+    if (typeof VexTabPolicy !== 'undefined' && VexTabPolicy.canReadWebview && !VexTabPolicy.canReadWebview(wv)) return null;
+    const old = String(await wv.executeJavaScript('document.title', true));
+    const next = printName(old, wv.getURL());
+    await wv.executeJavaScript('document.title = ' + JSON.stringify(next), true);
+    return async () => {
+      await wv.executeJavaScript('(() => { if (document.title === ' + JSON.stringify(next) + ') document.title = ' + JSON.stringify(old) + '; })()', true);
+    };
+  }
+
+  // ---- full screen without losing the toolbar (T2-060) ----------------------------------------------
+  // With the extra on, in full screen a thin strip at the top edge brings the toolbar and the tab strip back
+  // while the pointer is on it, and they slide away again. Normal windows are not touched at all.
+  let revealTimer = null;
+  function setReveal(show) {
+    if (typeof document === 'undefined') return;
+    clearTimeout(revealTimer);
+    if (show) {
+      const bar = document.getElementById('top-bar');
+      if (bar) document.documentElement.style.setProperty('--vex-chrome-top', bar.offsetHeight + 'px');
+      document.body.classList.add('chrome-reveal');
+    } else {
+      document.body.classList.remove('chrome-reveal');
+    }
+  }
+  function syncAutoHide() {
+    if (typeof document === 'undefined' || !document.body) return;
+    document.body.classList.toggle('chrome-autohide', on('autoHideChrome'));
+    if (!on('autoHideChrome')) setReveal(false);
+  }
+  function wireAutoHide() {
+    const zone = document.createElement('div');
+    zone.id = 'vex-chrome-hotzone';
+    zone.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(zone);
+    zone.addEventListener('mouseenter', () => { if (document.body.classList.contains('fullscreen') && on('autoHideChrome')) setReveal(true); });
+    const leave = () => {
+      clearTimeout(revealTimer);
+      revealTimer = setTimeout(() => {
+        const keep = document.activeElement && document.activeElement.closest && document.activeElement.closest('#top-bar, #top-tab-bar');
+        if (!keep) setReveal(false);
+      }, 500);
+    };
+    for (const id of ['top-bar', 'top-tab-bar']) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.addEventListener('mouseleave', leave);
+      el.addEventListener('mouseenter', () => clearTimeout(revealTimer));
+      el.addEventListener('focusout', leave);
+    }
+    document.addEventListener('vex:tabs-nav-changed', syncAutoHide);
+    syncAutoHide();
   }
 
   // ---- Keep Vex on top (T2-053) -----------------------------------------------------------------------
@@ -400,7 +547,9 @@
     fragmentEncode, textFragmentUrl,
     typed, hostKey, lookalikeHost, completionOptions,
     addressKey, findOpenTab, switchToOpen,
-    parentUrl, calcFor,
+    parentUrl, calcFor, segments, showSegments, searchSelection,
+    printName, namePrintJob, syncAutoHide, setReveal,
+    INSTALLER_KINDS, kindOf, fileUrl, downloadAction, openDownloadInTab,
     titleCount, noteTitle, clearActivity, activityOf, decorateStrip,
     rateStep, formatRate, etaText,
     syncOnTop, setKeepOnTop, onTopState: () => ({ ...onTopState }),
@@ -426,6 +575,7 @@
     });
     // The padlock can be dragged out as a link (T2-065).
     document.addEventListener('DOMContentLoaded', () => {
+      try { wireAutoHide(); } catch (err) { warn('could not wire the full-screen toolbar', err); }
       const btn = document.getElementById('url-site-btn');
       if (!btn) return;
       btn.draggable = true;

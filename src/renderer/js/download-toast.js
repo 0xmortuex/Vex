@@ -94,6 +94,22 @@ const DownloadToast = {
     return toast;
   },
 
+  // Enter opens the file of the newest card (Settings > Tabs and navigation > "Enter opens the file of the
+  // newest finished-download card", off until chosen). Only when nothing is being typed into and no dialog is up.
+  enterOpens(e) {
+    if (!e || e.key !== 'Enter' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || e.defaultPrevented) return false;
+    if (typeof VexTabsNav === 'undefined' || !VexTabsNav.on('downloadEnter')) return false;
+    const a = document.activeElement;
+    if (a && a !== document.body && (/^(INPUT|TEXTAREA|SELECT|BUTTON|A|WEBVIEW|IFRAME)$/.test(a.tagName) || a.isContentEditable)) return false;
+    if (document.querySelector('[role="dialog"]:not([hidden]), .vex-dialog-overlay')) return false;
+    const cards = [...document.querySelectorAll('#download-toast-container .download-toast:not(.leaving)')];
+    const btn = cards.length ? cards[cards.length - 1].querySelector('[data-action="open"]') : null;
+    if (!btn) return false;
+    e.preventDefault();
+    btn.click();
+    return true;
+  },
+
   _formatBytes(bytes) {
     if (!bytes || bytes <= 0) return '0 B';
     const k = 1024;
@@ -103,5 +119,8 @@ const DownloadToast = {
   }
 };
 
-if (typeof window !== 'undefined') window.DownloadToast = DownloadToast;
+if (typeof window !== 'undefined') {
+  window.DownloadToast = DownloadToast;
+  document.addEventListener('keydown', (e) => { try { DownloadToast.enterOpens(e); } catch (err) { window.VexProblems?.note('Downloads', 'Enter could not open the download', err); } });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { DownloadToast };
