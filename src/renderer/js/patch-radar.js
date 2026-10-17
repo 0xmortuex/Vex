@@ -95,7 +95,7 @@ const PatchRadar = {
     const refused = PageWatch.refusalFor({ url });
     if (refused) throw new Error(refused);
     const local = PageWatch.isLocal(url);
-    const r = local ? await PageWatch._getLocal(url) : await AgentTools._get(url);
+    const r = local ? await PageWatch._getLocal(url) : await AgentTools._get(url, null, PageWatch.POLITE);
     const body = String(r.body || '');
     const flavour = this.detect(body);
     if (flavour) {

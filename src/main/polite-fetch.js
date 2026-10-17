@@ -17,6 +17,11 @@
 //     memory cache (LRU, `maxEntries` entries, `maxCacheBytes` in all) and
 //     asked again with If-None-Match / If-Modified-Since; a 304 is answered
 //     from the cache. Nothing is written to disk;
+//   - the cache key is the address PLUS who is asking: a digest of the request headers (Authorization,
+//     Cookie, Accept ... so an authenticated answer is never served to an anonymous request, nor the
+//     other way round) and the caller's `partition` (cookie-less public reads vs direct reads). The
+//     digest, not the secret, is what is kept. A request that carries its own conditional headers
+//     (If-None-Match, If-Modified-Since, Range) is rate-limited but never cached or revalidated here;
 //   - a User-Agent that says who is asking, unless the caller set one;
 //   - jitter, for a public page polled by a timer, so many installs do not
 //     all arrive on the hour;
@@ -29,6 +34,8 @@
 // createPoliteFetch({ fetch, userAgent, metered, now, sleep, random, log, ... }) so
 // tests pass stand-ins; no timer or network is touched here that the caller did
 // not hand in.
+
+const crypto = require('crypto');
 
 const DEFAULTS = {
   burst: 4,
@@ -136,6 +143,17 @@ function createPoliteFetch(opts = {}) {
     return res;
   }
 
+  // Headers that make a request ask about a specific stored copy. The caller owns the answer.
+  const CONDITIONAL = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'range'];
+  // What the answer depends on besides the address. User-Agent is ours and the same for everyone.
+  function identityOf(headers, rest, polite) {
+    const parts = [];
+    headers.forEach((v, k) => { if (k !== 'user-agent') parts.push(k + ':' + v); });
+    parts.sort();
+    parts.push('credentials:' + (rest.credentials || ''), 'partition:' + (polite.partition || ''));
+    return crypto.createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32);
+  }
+
   async function politeFetch(url, init = {}) {
     const href = String(url);
     const host = hostOf(href);
@@ -150,7 +168,8 @@ function createPoliteFetch(opts = {}) {
     const headers = new Headers(rest.headers || {});
     if (!headers.has('user-agent')) headers.set('User-Agent', userAgent);
 
-    const key = method === 'GET' ? href : null;
+    const callerConditional = CONDITIONAL.some(h => headers.has(h));
+    const key = method === 'GET' && !callerConditional ? href + ' ' + identityOf(headers, rest, polite) : null;
     let entry = key ? cache.get(key) : null;
     if (entry) entry.key = key;
     if (entry && polite.ttlMs > 0 && now() - entry.at < polite.ttlMs) { stats.cacheHits++; return fromCache(entry, 'fresh', href); }
@@ -176,7 +195,9 @@ function createPoliteFetch(opts = {}) {
     }
 
     if (res.status === 304 && entry) { stats.revalidated++; entry.at = now(); return fromCache(entry, 'revalidated', href); }
-    if (key && res.status === 200 && (polite.ttlMs > 0 || res.headers.get('etag') || res.headers.get('last-modified'))) {
+    const declared = Number(res.headers.get('content-length'));
+    const tooBigToKeep = Number.isFinite(declared) && declared > cfg.maxEntryBytes;   // do not read a big body twice just to drop it
+    if (key && res.status === 200 && !tooBigToKeep && (polite.ttlMs > 0 || res.headers.get('etag') || res.headers.get('last-modified'))) {
       const body = new Uint8Array(await res.clone().arrayBuffer());
       res.__ttl = polite.ttlMs;
       remember(key, res, body);
