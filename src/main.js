@@ -7124,7 +7124,12 @@ const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath);
 // The data schema version of the files main reads itself (main/file-store.js stamps it as `v`). A file at an
 // older version is migrated on its next read; one written by a newer Vex is refused, not overwritten.
-for (const key of ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style']) dataStore.schema(key, { version: 1 });
+// T0-012: every key the main process or the window saves through this store has a schema version, so a file
+// written by a newer Vex is refused instead of overwritten and an older file can be migrated. The other JsonStore
+// instances (the reminders, and the protect modules' store) register theirs where they are created.
+const STORE_KEYS = ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style',
+  'sync-tombstones', 'sync-known-devices', 'tabs', 'theme', 'userscripts', 'devdesk'];
+for (const key of STORE_KEYS) dataStore.schema(key, { version: 1 });
 const secretStore = new SecretStore(safeStorage);
 // Developer desk (main/dev-desk.js): open the file a stack trace points to, open a
 // terminal and read a branch, only inside folders picked in the folder dialog, only
@@ -10674,7 +10679,8 @@ function startReminders() {
     log: (m) => console.log(m),
   });
   reminders = require('./main/reminders').createReminders({
-    store: new JsonStore(userDataPath),
+    // T0-012: the reminders and their bookkeeping are versioned like every other store file.
+    store: new JsonStore(userDataPath).schema('reminders', { version: 1 }).schema('reminders_meta', { version: 1 }),
     notifier,
     osScheduler,
     log: (m) => console.log(m),
@@ -10700,7 +10706,13 @@ const _protect = require('./main/protect').registerProtect({
   notifier,
   getSession: () => secureSessions.fromPartition('persist:main'),
   watchedSessions: () => ({ 'persist:main': () => secureSessions.fromPartition('persist:main'), 'persist:discord': () => secureSessions.fromPartition('persist:discord') }),
-  jsonStore: new (require('./main/file-store').JsonStore)(userDataPath),
+  // T0-012: the keys the protect modules keep here (cookie tally, sign-out reasons, extension usage, quiet hours and what it
+  // held, the tab snapshot index) are versioned like every other store file.
+  jsonStore: (() => {
+    const st = new (require('./main/file-store').JsonStore)(userDataPath);
+    for (const key of ['privacy-cookie-tally', 'signout-why', 'extension-usage', 'quiet-hours', 'quiet-hours-held', require('./main/tab-snapshots').PLAIN_KEY]) st.schema(key, { version: 1 });
+    return st;
+  })(),
   secretStore,
   secretsDir: userDataPath,
   encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
