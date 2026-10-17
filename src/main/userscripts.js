@@ -316,6 +316,48 @@ function compareVersions(a, b) {
   return 0;
 }
 
+// --- what each permission lets a script do, in plain words (Wave 5, T3-120) -----
+// -> [{ id, says, risk: 'low' | 'medium' | 'high' }]. "High" is a power that can move what the page shows
+// or what you copy somewhere else, or reach into the page's own scripts. A script with a high power that is
+// installed without the person having been shown this list (reviewed !== true) is installed switched OFF,
+// and the Turn on button shows the list first, so the first run is always after a look.
+const GRANT_WORDS = Object.freeze({
+  GM_getValue: ['low', 'keeps small notes for itself, on this computer'],
+  GM_setValue: ['low', 'keeps small notes for itself, on this computer'],
+  GM_deleteValue: ['low', 'deletes its own saved notes'],
+  GM_listValues: ['low', 'lists its own saved notes'],
+  GM_addStyle: ['low', 'changes how the page looks'],
+  GM_info: ['low', 'reads its own name and version'],
+  GM_log: ['low', 'writes to the developer console'],
+  GM_notification: ['medium', 'shows desktop notifications (at most 5 a minute)'],
+  GM_openInTab: ['medium', 'opens new tabs (at most 3 a minute)'],
+  GM_setClipboard: ['high', 'replaces what is on your clipboard'],
+  GM_xmlhttpRequest: ['high', 'sends requests from your computer'],
+  unsafeWindow: ['high', "reads and changes the page's own JavaScript, so it sees everything the page sees"],
+});
+function grantReview(meta) {
+  const out = [];
+  for (const g of meta.grants) {
+    const w = GRANT_WORDS[g];
+    if (!w) continue;
+    let says = w[1];
+    if (g === 'GM_xmlhttpRequest') {
+      says = meta.connects.length
+        ? (meta.connects.includes('*') ? 'sends requests to ANY site you could name, so what the page shows can be sent anywhere' : 'sends requests, but only to: ' + meta.connects.join(', '))
+        : 'asks to send requests but names no site, so it cannot reach any';
+    }
+    out.push({ id: g, says, risk: g === 'GM_xmlhttpRequest' && !meta.connects.length ? 'low' : w[0] });
+  }
+  if (meta.requires && meta.requires.length) out.push({ id: '@require', says: 'wants ' + meta.requires.length + ' outside file' + (meta.requires.length === 1 ? '' : 's') + ' (@require) that Vex does not download, so it may not work', risk: 'medium' });
+  return out;
+}
+const hasHighPower = (meta) => grantReview(meta).some(r => r.risk === 'high');
+// A power the old copy did not have.
+const gainsHighPower = (meta, previousMeta) => {
+  const had = new Set(previousMeta ? grantReview(previousMeta).filter(r => r.risk === 'high').map(r => r.id) : []);
+  return grantReview(meta).some(r => r.risk === 'high' && !had.has(r.id));
+};
+
 // --- the preview an install or an update shows ------------------------------
 function describe(parsed, { previous = null } = {}) {
   const m = parsed.meta;
@@ -330,6 +372,11 @@ function describe(parsed, { previous = null } = {}) {
   if (m.connects.length) lines.push('Can contact: ' + m.connects.join(', '));
   else if (m.grants.includes('GM_xmlhttpRequest')) lines.push('Can contact: no site');
   if (m.connects.includes('*')) lines.push('WARNING: it asks to contact ANY site.');
+  const review = grantReview(m);
+  if (review.length) {
+    lines.push('What each permission lets it do:');
+    for (const r of review) lines.push('  ' + (r.risk === 'high' ? '[high] ' : r.risk === 'medium' ? '[medium] ' : '') + r.id + ': ' + r.says);
+  }
   if (previous) {
     const added = (a, b) => a.filter(x => !b.includes(x));
     const pm = previous.meta;
@@ -472,6 +519,7 @@ function createUserscripts({ store, key = 'userscripts', log = console, crypto =
           id: s.id, name: s.meta.name, version: s.meta.version, description: s.meta.description, author: s.meta.author,
           enabled: s.enabled, runAt: s.meta.runAt, matches: s.meta.matches.concat(s.meta.includes), excludes: s.meta.excludes.concat(s.meta.excludeMatches),
           grants: s.meta.grants, connects: s.meta.connects, anyHost: s.anyHost, userHosts: s.userHosts, sourceUrl: s.sourceUrl,
+          review: grantReview(s.meta),
           updateUrl: s.meta.updateURL || s.meta.downloadURL || s.sourceUrl || '',
           valueCount: Object.keys(s.values).length, valueBytes: valueBytes(s), installedAt: s.installedAt, updatedAt: s.updatedAt,
           sourceBytes: Buffer.byteLength(s.source, 'utf8'),
@@ -489,13 +537,14 @@ function createUserscripts({ store, key = 'userscripts', log = console, crypto =
         ok: true, errors: [], warnings: parsed.warnings,
         meta: m, lines: describe(parsed, { previous: existing || null }),
         wantsAnyHost: m.connects.includes('*') && m.grants.includes('GM_xmlhttpRequest'),
+        review: grantReview(m), highPower: hasHighPower(m),
         replaces: existing ? { id: existing.id, version: existing.meta.version, name: existing.meta.name } : null,
         older: !!(existing && existing.meta.version && m.version && compareVersions(m.version, existing.meta.version) < 0),
         sameVersion: !!(existing && existing.source === source),
       };
     },
 
-    async install({ source, anyHost = false, sourceUrl = '', replaceId = '' } = {}) {
+    async install({ source, anyHost = false, sourceUrl = '', replaceId = '', reviewed = false } = {}) {
       const parsed = parseMetadata(source);
       if (!parsed.ok) throw new Error('Not installed: ' + parsed.errors[0]);
       const m = parsed.meta;
@@ -512,10 +561,14 @@ function createUserscripts({ store, key = 'userscripts', log = console, crypto =
       if (!entry) throw new Error('Not installed: the script could not be read');
       // An update never keeps a "contact any site" approval the person did not give again.
       if (existing) { if (!(anyHost === true && wantsAny)) entry.anyHost = false; entry.enabled = existing.enabled; }
+      // First run only after a look: a script (or an update) that brings a high power in without the person
+      // having been shown the permission list is installed switched off. The Turn on button shows the list.
+      let held = false;
+      if (reviewed !== true && gainsHighPower(m, existing ? existing.meta : null)) { entry.enabled = false; held = true; }
       if (existing) state.scripts[state.scripts.indexOf(existing)] = entry; else state.scripts.push(entry);
       assignSlots();
       await flushNow();
-      return { id: entry.id, name: m.name, replaced: !!existing };
+      return { id: entry.id, name: m.name, replaced: !!existing, held };
     },
 
     async setEnabled(id, on) { byId(id).enabled = !!on; await flushNow(); return true; },
@@ -609,5 +662,5 @@ module.exports = {
   LIMITS, OP_GRANT, SUPPORTED_GRANTS, RUN_AT,
   parseMetadata, parseMatchPattern, matchesPattern, compileGlobOrRegex, scriptMatches,
   isSensitiveHost, isLocalOrPrivateHost, isIpLiteral, isWebUrl, tabAllowed, connectAllowed,
-  compareVersions, describe, createUserscripts,
+  compareVersions, describe, createUserscripts, grantReview, hasHighPower, gainsHighPower,
 };

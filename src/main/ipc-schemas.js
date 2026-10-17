@@ -617,7 +617,7 @@ const profileLook = value => object(value) && Object.keys(value).every(k => ['na
 define('userscripts:page userscripts:list', []);
 define('userscripts:gm', [shape({ id: string(64), op: oneOf(['setValue', 'deleteValue', 'xhr', 'xhr-abort', 'clipboard', 'notification', 'openTab']), args: value => Array.isArray(value) && value.length <= 4 })]);
 define('userscripts:preview', [string(450000), optional(string(64))]);
-define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)) })]);
+define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)), reviewed: optional(boolean) })]);
 define('userscripts:set-enabled', [string(64), boolean]);
 define('userscripts:remove userscripts:clear-values', [string(64)]);
 define('userscripts:set-global', [boolean]);
