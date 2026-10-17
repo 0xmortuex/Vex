@@ -24,7 +24,7 @@ const VexUsageCounters = {
   KINDS: ['opened', 'suppressed', 'errored', 'backedOff'],
   KEEP_DAYS: 35,
   MIN_DAYS: 14,
-  EVERY_MS: 30 * 24 * 3600 * 1000,
+  EVERY_MS: 30 * 24 * 3600 * 1000,       // between suggestions; the capability dial's Power level shortens it to a week
   REOFFER_MS: 180 * 24 * 3600 * 1000,
   DAILY_USE_DAYS: 10,
   DAY_MS: 24 * 3600 * 1000,
@@ -177,7 +177,9 @@ const VexUsageCounters = {
     if (typeof VexUsage === 'undefined') throw new Error('The usage record is not loaded');
     if (typeof VexAttention === 'undefined') throw new Error('The attention budget is not loaded');
     const st = this.state();
-    if (now - st.lastAt < this.EVERY_MS) return null;
+    // Monthly; weekly when the capability dial (js/capability-dial.js) is on Power.
+    const every = typeof VexCapabilityDial !== 'undefined' && VexCapabilityDial.enabled() ? VexCapabilityDial.suggestEveryMs() : this.EVERY_MS;
+    if (now - st.lastAt < every) return null;
     const c = this.candidates(VexUsage.list(), now);
     const pick = c.pin[0] ? { kind: 'pin', ...c.pin[0] } : (c.hide[0] ? { kind: 'hide', ...c.hide[0] } : null);
     if (!pick) return null;

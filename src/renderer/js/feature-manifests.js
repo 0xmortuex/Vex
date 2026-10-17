@@ -460,6 +460,8 @@
       permissions: quiet({ reads: ['what you type in Ctrl+K; the settings, feature and command lists'] }) },
     { id: 'usage-counters', title: 'Usage counts and suggestions', group: 'Usage counts and suggestions', maturity: 'new', storageKeys: ['vex.usageCounters', 'vex.usageCounters.enabled', 'vex.usageCounters.state'], jobs: ['Usage suggestions'],
       permissions: quiet({ reads: ['how often each feature is opened, held back, fails or is switched off by Vex'], writes: ['daily counts for 35 days; what it suggested; commands you pinned'] }) },
+    { id: 'capability-dial', title: 'Simple, Standard or Power', group: 'Simple, Standard or Power', maturity: 'new', storageKeys: ['vex.capabilityDial', 'vex.capabilityDial.enabled'], usesKeys: ['vex.usageCounters', 'vex.usageCounters.state'], commands: ['capability-dial'],
+      permissions: quiet({ reads: ['how often each feature is opened (the usage counts), the commands you pinned'], writes: ['which features it switched off, so they can be put back'] }) },
     { id: 'first-use-sheet', title: 'First-use sheet', maturity: 'new', storageKeys: ['vex.firstUse.enabled'],
       permissions: quiet({ reads: ['the first time you use a new or beta feature'], writes: ['which sheets were shown'] }) },
 
