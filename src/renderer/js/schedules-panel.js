@@ -162,7 +162,7 @@ const SchedulesPanel = {
   _when(iso) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString((window.VexI18n?.dateLocale('en-GB') || 'en-GB'), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   },
 
   // ------------------------------------------------------------------ active

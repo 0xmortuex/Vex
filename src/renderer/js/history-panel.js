@@ -358,7 +358,7 @@ const HistoryPanel = {
 
   // One day's heading, used both to group rows and to clear that group.
   _dayLabel(d) {
-    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   },
 
   // Clearing everything was the only way to remove anything in bulk. These two
@@ -524,7 +524,7 @@ const HistoryPanel = {
       <div class="history-date-group">
         <div class="history-date-label">${date}<button class="history-day-clear" data-day="${this._esc(date)}" title="Remove every entry from this day">Clear day</button></div>
         ${items.slice(0, 100).map(e => {
-          const time = this._when(e).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          const time = this._when(e).toLocaleTimeString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { hour: '2-digit', minute: '2-digit' });
           const favicon = this._iconFor(e);
           return `
             <div class="history-item" data-id="${this._esc(e.id)}" data-url="${this._esc(e.url)}" tabindex="0" role="link">

@@ -14,6 +14,12 @@
 // in features from other branches (the integrator does this once), run:
 //     $env:VEX_L10N_WRITE = '1'; pnpm vitest run tests/renderer/localeCompleteness.test.js
 //
+// Since Wave 5 the baseline is EMPTY: every heading, chip and command has Turkish. It stays as the place a
+// future exception would be written down, and the test still refuses entries that no longer need it.
+//
+// The strings of js/i18n.js (setup wizard, page dialogs, legal, authenticator, passwords), Turkish dates and
+// Turkish plurals are checked in the second half of this file.
+//
 // What is scanned: headings = <label class="setting-label"> in index.html and the title of every
 // VexSettingsGroups.register({...}); chips = SettingsUI.CATS names and their short names;
 // commands = the label of every entry in command.js and of every VexExtras.registerCommand.
@@ -30,7 +36,7 @@ const { VexI18nUI } = require('../../src/renderer/js/i18n-ui.js');
 const { SettingsUI } = require('../../src/renderer/js/settings-ui.js');
 
 // Brand names and acronyms that read the same in Turkish.
-const SAME_IN_TURKISH = new Set(['MCP', 'AI', 'GitHub', 'Vex', 'WebGPU']);
+const SAME_IN_TURKISH = new Set(['MCP', 'AI', 'GitHub', 'Vex', 'WebGPU', 'AIJudge', 'BillForge', 'ChatGPT', 'Claude AI', 'FlashMind', 'LoopholeMap', 'NetMap', 'Spotify', 'WhatsApp', 'YouTube', 'Vex AI']);
 
 function unescape1(s) { return s.replace(/\\'/g, "'").trim(); }
 
@@ -128,5 +134,126 @@ describe('T3-053 Turkish completeness of headings, chips and commands', () => {
       const a = (en.match(/\{\}/g) || []).length, b = (t.match(/\{\}/g) || []).length;
       expect(b, en).toBe(a);
     }
+  });
+});
+
+// ===== Wave 5: the strings of js/i18n.js, Turkish dates, Turkish plurals =====================================
+
+describe('T3-053 the strings in js/i18n.js', () => {
+  require('../../src/renderer/js/i18n.js');
+  const { en, tr } = window.VexI18n.strings;
+  const placeholders = (x) => (String(x).match(/\{\w*\}/g) || []).sort().join(',');
+
+  it('every English string has a Turkish one', () => {
+    const missing = Object.keys(en).filter(k => !(k in tr));
+    expect(missing, 'Add these to the Turkish block of js/i18n.js:\n' + missing.join('\n')).toEqual([]);
+  });
+
+  it('no Turkish string is empty, and none is a copy of a long English sentence', () => {
+    for (const [k, v] of Object.entries(tr)) {
+      expect(String(v).trim().length, k).toBeGreaterThan(0);
+      if (en[k] && en[k].length > 30) expect(v, k + ' is still English').not.toBe(en[k]);
+    }
+  });
+
+  it('a placeholder ({n}, {host}, {site} ...) is in the Turkish string exactly when it is in the English one', () => {
+    for (const k of Object.keys(en)) if (k in tr) expect(placeholders(tr[k]), k).toBe(placeholders(en[k]));
+  });
+
+  it('every key the dialogs, legal text, authenticator and password code ask for has Turkish', () => {
+    const files = ['page-dialogs.js', 'legal.js', 'totp-autofill.js', 'password-manual.js', 'workspaces.js', 'webview.js', 'service-status.js', 'vex-dialog.js'];
+    const wanted = new Map();
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(JS, f), 'utf8');
+      // the module's own t(key, fallback), or VexI18n.t(key, ...), with a literal key
+      for (const m of src.matchAll(/(?:VexI18n\??\.t|(?<![\w.$])t)\(\s*'([A-Za-z][\w.]*)'\s*[,)]/g)) if (!wanted.has(m[1])) wanted.set(m[1], f);
+    }
+    expect(wanted.size).toBeGreaterThan(20);
+    const gaps = [...wanted].filter(([k]) => !(k in tr)).map(([k, f]) => k + ' (' + f + ')');
+    expect(gaps, 'These keys are asked for in code and have no Turkish in js/i18n.js:\n' + gaps.join('\n')).toEqual([]);
+  });
+
+  it('every setup step has a Turkish title and sub-title', () => {
+    const steps = ['welcome', 'setupstyle', 'theme', 'job', 'language', 'wisdom', 'name', 'weather', 'github', 'search', 'defaultbrowser', 'aicloud', 'ollama', 'ondevice', 'sync', 'passwords', 'done', 'look', 'performance', 'browsing', 'aidata', 'privacy', 'notifications'];
+    for (const k of steps) { expect(tr[k], k).toBeTruthy(); expect(tr[k + '.sub'], k + '.sub').toBeTruthy(); }
+  });
+});
+
+describe('T3-053 Turkish plurals', () => {
+  // Turkish does not make the noun plural after a number: "3 sekme", never "3 sekmeler". English has a
+  // singular and a plural string for the same count; both Turkish strings must say the same thing.
+  const { tr, en } = window.VexI18n.strings;
+
+  it('no Turkish string puts a plural ending on the noun that follows a number placeholder', () => {
+    const bad = [];
+    const all = { ...tr, ...Object.fromEntries(Object.entries(VexI18nUI.TABLE.tr)) };
+    for (const [k, v] of Object.entries(all)) if (/\{(?:n|count)\}\s+\p{L}+(?:ler|lar)\b/u.test(String(v))) bad.push(k + ' -> ' + v);
+    expect(bad).toEqual([]);
+  });
+
+  it('the singular and plural strings of a count read the same in Turkish', () => {
+    // minuteLeft / minutesLeft, and wsPrivate.one / wsPrivate.many (the second pair has no English twin here:
+    // the English wording is built in js/workspaces.js)
+    expect(en.minuteLeft && en.minutesLeft).toBeTruthy();
+    expect(tr['wsPrivate.one'] && tr['wsPrivate.many']).toBeTruthy();
+    expect(tr['wsPrivate.one']).toMatch(/^Bir gizli veya Tor sekmesi açık/);
+    expect(tr.minuteLeft).toBe('yaklaşık 1 dakika kaldı');
+    expect(tr.minutesLeft.replace('{n}', '5')).toBe('yaklaşık 5 dakika kaldı');
+    expect(tr['wsPrivate.many'].replace('{n}', '3')).toMatch(/^3 gizli veya Tor sekmesi açık/);
+  });
+
+  it('a count in the page-dialog strings keeps the noun singular', () => {
+    expect(tr.pageDialogMore.replace('{n}', '2')).toBe('(+2 tane daha)');
+  });
+});
+
+describe('T3-053 Turkish dates', () => {
+  const { dateLocale } = window.VexI18n;
+  const d = new Date(2026, 9, 17, 14, 5);
+
+  it('a Turkish interface formats dates with Turkish month and day names', () => {
+    localStorage.setItem('vex.lang', JSON.stringify('tr'));
+    expect(dateLocale('en-US')).toBe('tr-TR');
+    const long = d.toLocaleDateString(dateLocale('en-US'), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    expect(long).toContain('Ekim');
+    expect(long).toContain('Cumartesi');
+    expect(d.toLocaleString(dateLocale('en-GB'), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })).toContain('Eki');
+    localStorage.clear();
+  });
+
+  it('an English interface keeps exactly the locale each screen always used', () => {
+    localStorage.clear();
+    expect(dateLocale('en-US')).toBe('en-US');
+    expect(dateLocale('en-GB')).toBe('en-GB');
+    localStorage.setItem('vex.lang', JSON.stringify('en'));
+    expect(d.toLocaleDateString(dateLocale('en-US'), { month: 'long' })).toBe('October');
+    localStorage.clear();
+  });
+
+  it('the screens that show dates ask for the interface locale, not a fixed English one', () => {
+    const SCREENS = ['downloads-panel.js', 'history-panel.js', 'schedules-panel.js', 'sessions.js', 'weekly-note.js', 'scheduler.js'];
+    for (const f of SCREENS) {
+      const src = fs.readFileSync(path.join(JS, f), 'utf8');
+      expect(src, f).not.toMatch(/toLocale(?:Date|Time)?String\(\s*'en-/);
+      expect(src, f).toMatch(/VexI18n\?\.dateLocale\(/);
+    }
+  });
+
+  it('a new hard-coded English locale in a screen fails here, unless it is one of these with a reason', () => {
+    const REASON = {
+      'calc.js': 'the calculator prints numbers in one fixed format',
+      'community-metrics.js': 'a number inside an English sentence',
+      'password-gen.js': 'a number followed by the English word "years"',
+      'reading-mode.js': 'a number followed by the English word "words"',
+      'screenshot.js': 'a pixel count in a technical readout',
+      'selection-decoder.js': 'a fixed 24-hour reading for a decoded timestamp',
+    };
+    const hits = [];
+    for (const f of fs.readdirSync(JS).filter(n => n.endsWith('.js'))) {
+      const src = fs.readFileSync(path.join(JS, f), 'utf8');
+      if (/toLocale(?:Date|Time)?String\(\s*'en-(?:US|GB)'/.test(src) && !REASON[f]) hits.push(f);
+    }
+    expect(hits, 'These show a date or number in a fixed English format; use VexI18n.dateLocale(...) or list them with a reason:\n' + hits.join('\n')).toEqual([]);
+    for (const f of Object.keys(REASON)) expect(REASON[f].length).toBeGreaterThan(10);
   });
 });

@@ -232,7 +232,7 @@ const SessionManager = {
     }
 
     list.innerHTML = this.sessions.map(s => {
-      const date = new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const date = new Date(s.createdAt).toLocaleDateString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
       return `
         <div class="session-item" data-id="${s.id}">
           <div class="session-item-info">

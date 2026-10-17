@@ -128,7 +128,19 @@
     legalLicenseTitle: 'Lisans (MIT)', legalNoticesTitle: 'Üçüncü taraf bildirimleri',
     legalLinkLater: 'Bağlantılar, kabul ettikten veya kurulumu kapattıktan sonra açılır.',
     legalAcceptedOn: 'Gizlilik politikası ve kullanım koşulları (sürüm {v}) {d} tarihinde kabul edildi', legalNotAccepted: 'Gizlilik politikası ve kullanım koşulları bu profilde henüz kabul edilmedi' });
+  // The dialogs a web page opens (alert, confirm, prompt, leave-site) in Vex's own window (js/page-dialogs.js).
+  Object.assign(strings.en, { pageDialogWaiting: 'This page is waiting for an answer', pageDialogSays: '{site} says', pageDialogThisPage: 'This page says',
+    pageDialogStop: "Don't let this page show more dialogs", pageDialogAPage: 'A page', pageDialogOpen: 'Open', pageDialogAsks: '{name} asks a question',
+    pageDialogMore: '(+{n} more)', pageDialogLeaveFullscreen: 'Press Esc to leave fullscreen and answer',
+    leaveSiteTitle: 'Leave site?', leaveSiteMessage: 'Changes you made may not be saved.', leaveSiteLeave: 'Leave', leaveSiteStay: 'Stay' });
+  Object.assign(strings.tr, { pageDialogWaiting: 'Bu sayfa bir yanıt bekliyor', pageDialogSays: '{site} diyor ki', pageDialogThisPage: 'Bu sayfa diyor ki',
+    pageDialogStop: 'Bu sayfanın daha fazla iletişim kutusu göstermesine izin verme', pageDialogAPage: 'Bir sayfa', pageDialogOpen: 'Aç', pageDialogAsks: '{name} bir soru soruyor',
+    pageDialogMore: '(+{n} tane daha)', pageDialogLeaveFullscreen: 'Tam ekrandan çıkıp yanıtlamak için Esc tuşuna basın',
+    leaveSiteTitle: 'Siteden ayrılınsın mı?', leaveSiteMessage: 'Yaptığınız değişiklikler kaydedilmemiş olabilir.', leaveSiteLeave: 'Ayrıl', leaveSiteStay: 'Kal' });
   function locale() { let value; try { value = localStorage.getItem('vex.lang') || 'en'; try { value = JSON.parse(value); } catch {} } catch {} return value === 'tr' ? 'tr' : 'en'; }
   function t(key, fallback) { return strings[locale()][key] || strings.en[key] || fallback || key; }
-  window.VexI18n = { t, locale, strings };
+  // The locale tag for dates and times shown in Vex's own screens: Turkish month and day names in a Turkish
+  // interface; otherwise the tag the caller always used (so English users see no change).
+  function dateLocale(fallback) { return locale() === 'tr' ? 'tr-TR' : fallback; }
+  window.VexI18n = { t, locale, strings, dateLocale };
 })();
