@@ -106,11 +106,15 @@ define('gamemode:library', []);
 // second-screen window (http/https pages only, re-checked in main) and the PiP memory (T2-068,
 // T2-049, T2-059).
 define('gccbridge:read secondscreen:close secondscreen:state', []);
-define('secondscreen:open', [shape({
-  pages: value => Array.isArray(value) && value.length >= 1 && value.length <= 12 && value.every(shape({ title: optional(string(200)), url: string(2048) })),
+const secondScreenOpen = shape({
+  pages: value => Array.isArray(value) && value.length <= 12 && value.every(shape({ title: optional(string(200)), url: string(2048) })),
+  // The reset timers (js/game-timers.js): the next moment of each and how often it repeats; main re-checks them.
+  timers: optional(value => Array.isArray(value) && value.length <= 24 && value.every(shape({ name: string(60), at: v => typeof v === 'number' && Number.isFinite(v), every: v => v === 0 || v === 86400000 || v === 604800000 }))),
   index: optional(value => Number.isInteger(value) && value >= 0 && value < 12),
   zoom: optional(value => typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 3),
-})]);
+});
+// At least one guide page or one timer: an empty request is refused here and again in main.
+define('secondscreen:open', [value => secondScreenOpen(value) && (value.pages.length >= 1 || (Array.isArray(value.timers) && value.timers.length >= 1))]);
 define('pip:memory', [shape({ context: optional(string(80)), hideOverGame: optional(boolean) })]);
 // Time travel and the tuning advisor (src/main/state-journal.js,
 // src/main/tuning-advisor.js). Sizes are bounded here and again where used.

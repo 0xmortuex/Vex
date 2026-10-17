@@ -41,7 +41,12 @@ const VexSecondScreen = {
     if (!this.enabled()) throw new Error('The second-screen window is switched off');
     if (typeof VexUsage !== 'undefined') VexUsage.touch('second-screen');
     const b = this._bridge('secondScreenOpen');
-    return b.secondScreenOpen({ pages: this.pagesFor(gameId), index });
+    // The reset timers go on a page of their own in the window, only when asked for (Settings, Reset timers).
+    const timers = typeof VexGameTimers !== 'undefined' && VexGameTimers.enabled() && VexGameTimers.onSecondScreen() ? VexGameTimers.secondScreenTimers() : [];
+    let pages = [];
+    try { pages = this.pagesFor(gameId); }
+    catch (err) { if (!timers.length) throw err; }
+    return b.secondScreenOpen(timers.length ? { pages, index, timers } : { pages, index });
   },
   async close() { return this._bridge('secondScreenClose').secondScreenClose(); },
   async state() { return this._bridge('secondScreenState').secondScreenState(); },
