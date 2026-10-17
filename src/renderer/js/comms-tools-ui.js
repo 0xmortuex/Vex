@@ -188,8 +188,24 @@ const CommsToolsUI = {
       }, { primary: true })));
       this._heading(body, 'Starting points');
       for (const p of DiscordNoise.PRESETS) body.appendChild(this._row(this._el('span', '', p.label), this._btn('Add', () => { DiscordNoise.addRule(p); draw(); })));
+      this._heading(body, 'Collapse noisy lines in the Discord page');
+      body.appendChild(this._note('Shrinks bot messages, and join, leave, boost and pin lines, to one faded row that opens when you point at it. A style sheet only: no script runs, nothing is read, and Discord is not changed. Off until you switch it on.'));
+      this._toggle(body, 'Collapse bot messages', () => DiscordNoise.collapse().bots, (v) => DiscordNoise.setCollapse({ bots: v }));
+      this._toggle(body, 'Collapse join, leave, boost and pin lines', () => DiscordNoise.collapse().system, (v) => DiscordNoise.setCollapse({ system: v }));
+      this._heading(body, 'Servers you never open');
+      body.appendChild(this._note('While this is on, Vex remembers only the number of each server whose page you open, from the address of the Discord page. It never reads a message, a channel name or a person. "Look at my servers" reads the server names in the server bar of Discord once, when you press it.'));
+      this._toggle(body, 'Remember which servers I open', () => DiscordNoise.tracking(), (v) => { DiscordNoise.setTracking(v); draw(); });
+      if (DiscordNoise.tracking()) {
+        const since = DiscordNoise.state().since;
+        const res = this._el('div', 'setting-info', since ? 'Watching since ' + this._when(since) + '. Vex knows nothing about servers before that.' : '');
+        body.appendChild(res);
+        body.appendChild(this._row(this._btn('Look at my servers', async () => {
+          const r = await DiscordNoise.findNeverOpened();
+          res.textContent = r.never.length ? 'Not opened since Vex started watching (' + r.never.length + ' of ' + r.servers + '): ' + r.never.map(x => x.name).join(', ') + '. Leaving a server is yours to do on Discord.' : 'You have opened all ' + r.servers + ' servers since Vex started watching.';
+        }), this._btn('Forget what I opened', () => { DiscordNoise.forgetOpened(); draw(); })));
+      }
       this._heading(body, 'Quiet-worthy');
-      body.appendChild(this._note('Conversations and servers that notified you at least 5 times while none of it was marked read. Vex cannot see which servers you never open; this is only what the kept notifications say. Leaving a server is yours to do on Discord.'));
+      body.appendChild(this._note('Conversations and servers that notified you at least 5 times while none of it was marked read. This is only what the kept notifications say. Leaving a server is yours to do on Discord.'));
       const noisy = DiscordNoise.noisiest();
       if (!noisy.length) body.appendChild(this._note('Nothing stands out.'));
       for (const g of noisy) {
@@ -360,6 +376,24 @@ const CommsToolsUI = {
           draw();
         }),
         this._btn(todayOnly ? 'Show all' : 'Show today only', () => { todayOnly = !todayOnly; draw(); })));
+      this._heading(body, 'Channels you opted in');
+      body.appendChild(this._note('Press the button below to read the links of the messages already on the screen of an opted-in channel that is open. Only the address of each link is read, and only when you press it. A channel you did not opt in is never read.'));
+      const chans = LinkHarvester.channels();
+      if (!chans.length) body.appendChild(this._note('No channel is opted in.'));
+      for (const c of chans) body.appendChild(this._row(this._el('span', '', c.label), this._btn('Remove', () => { LinkHarvester.optOut(c.key); draw(); })));
+      body.appendChild(this._row(
+        this._btn('Opt in the channel that is open now', () => {
+          const open = LinkHarvester.openChannel();
+          if (!open) throw new Error('Open a Discord channel (the panel or a tab) first');
+          const c = LinkHarvester.optIn(open.url, open.label);
+          window.showToast?.('Opted in: ' + c.label);
+          draw();
+        }),
+        this._btn('Collect from the opted-in channels that are open', async () => {
+          const r = await LinkHarvester.harvestOpen();
+          window.showToast?.('Read ' + r.channels + ' channel(s): ' + r.added + ' new link(s), ' + r.seen + ' already known');
+          draw();
+        }, { primary: true })));
       const exp = LinkHarvester.expiring();
       if (exp.length) {
         this._heading(body, 'About to expire');
@@ -388,6 +422,7 @@ const CommsToolsUI = {
     const row = this._row(this._el('span', '', label));
     row.append(this._btn('Open', () => LinkHarvester.open(l.id)));
     row.append(this._btn(l.saved ? 'Saved' : 'Save for later', () => { LinkHarvester.saveForLater(l.id); redraw(); }));
+    if (l.expiresAt && st !== 'expired') row.append(this._btn(l.fileSaved ? 'File saved' : 'Save the file now', async () => { if (await LinkHarvester.saveFile(l.id)) { window.showToast?.('Downloading the file'); redraw(); } }));
     if (l.expiresAt && st !== 'expired') row.append(this._btn('Remind me', async () => { await LinkHarvester.remind(l.id); window.showToast?.('You will be reminded before it runs out'); }));
     row.append(this._btn('Remove', () => { LinkHarvester.remove(l.id); redraw(); }));
     return row;

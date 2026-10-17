@@ -296,9 +296,10 @@ describe('T3-013 Discord noise tools', () => {
     expect(DN.ruleCovers(noisy[0])).toBe(true);
   });
 
-  it('touches nothing on the page: the module never calls a webview or injects anything', () => {
+  it('touches the page only by the opt-in stylesheet and one read of the server bar: no script of its own, no input, no network', () => {
     const src = fs.readFileSync(path.join(JS, 'discord-noise.js'), 'utf8');
-    expect(src).not.toMatch(/executeJavaScript|insertCSS|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
+    expect(src).not.toMatch(/executeJavaScript|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
+    expect(src.match(/vexGuestEval\(/g)).toHaveLength(1);       // the server bar, on a click
   });
 });
 
@@ -535,7 +536,7 @@ describe('T3-060 chat link harvester', () => {
     expect(LH.collectFromNotifications()).toEqual({ added: 1, seen: 0, scanned: 1 });
   });
 
-  it('never reads a chat or goes to the network', () => {
+  it('reads a chat only through the opted-in channel path and never goes to the network by itself', () => {
     const src = fs.readFileSync(path.join(JS, 'link-harvester.js'), 'utf8');
     expect(src).not.toMatch(/executeJavaScript|\bfetch\(|XMLHttpRequest|setInterval|VexJobs/);
   });

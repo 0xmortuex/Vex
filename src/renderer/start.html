@@ -2276,7 +2276,11 @@
         });
         // The Recent section below Today: real visits, newest first.
         var recentList = document.getElementById('recent-list');
-        if (recentList && snap.recent && snap.recent.length) {
+        // While the screen is shared (js/screen-share-safe.js) the browser sets hideRecent: the list is emptied and hidden.
+        var recentSec = document.getElementById('recent-section');
+        if (recentSec) recentSec.style.display = snap.hideRecent === true ? 'none' : '';
+        if (recentList && snap.hideRecent === true) recentList.innerHTML = '';
+        else if (recentList && snap.recent && snap.recent.length) {
           recentList.innerHTML = '';
           snap.recent.forEach(function (p) {
             var a = document.createElement('a'); a.className = 'recent-item'; a.href = p.url;

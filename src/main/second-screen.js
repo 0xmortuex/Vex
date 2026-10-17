@@ -27,6 +27,8 @@ const ZOOM_STEP = 0.1;
 const DEFAULT_ZOOM = 1.4;           // "big text": the second screen is read from a chair, not a desk
 const DEFAULT_SIZE = { width: 720, height: 900 };
 const PARTITION = 'persist:vex-second-screen';
+const MAX_TIMERS = 24;
+const EVERY_CHOICES = [0, 86400000, 604800000];    // one-off, daily, weekly
 
 // [{ title, url }] -> the same, cleaned. Throws on anything but http(s).
 function cleanPages(pages) {
@@ -39,6 +41,43 @@ function cleanPages(pages) {
     if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http and https pages can be shown on the second screen');
     return { title: String(p.title || u.hostname).slice(0, 120), url: u.href };
   });
+}
+
+// [{ name, at, every }] -> the same, cleaned. `at` is the next moment (ms), `every` the period (0 = one-off).
+function cleanTimers(timers) {
+  if (timers === undefined || timers === null) return [];
+  if (!Array.isArray(timers)) throw new Error('The timers are a list');
+  if (timers.length > MAX_TIMERS) throw new Error('The second screen shows up to ' + MAX_TIMERS + ' timers');
+  return timers.map((t, i) => {
+    if (!t || typeof t.name !== 'string' || !t.name.trim()) throw new Error('Timer ' + (i + 1) + ' has no name');
+    if (!Number.isFinite(t.at) || t.at <= 0) throw new Error('Timer ' + (i + 1) + ' has no moment');
+    if (!EVERY_CHOICES.includes(t.every)) throw new Error('Timer ' + (i + 1) + ' repeats in a way the second screen does not know');
+    return { name: t.name.trim().slice(0, 60), at: t.at, every: t.every };
+  });
+}
+
+// The page of reset timers: plain text, counted down in the window itself. The names are put in
+// as data (JSON with < escaped), never as markup, and the page may not load or run anything else.
+function timersHtml(timers) {
+  const data = JSON.stringify(timers).replace(/</g, '\\u003c').replace(/\u2028|\u2029/g, ' ');
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'">'
+    + '<title>Reset timers</title><style>'
+    + 'body{margin:0;padding:24px;background:#111;color:#eee;font:20px/1.4 system-ui,sans-serif}h1{font-size:22px;margin:0 0 16px;font-weight:600}'
+    + 'ul{list-style:none;margin:0;padding:0}li{display:flex;justify-content:space-between;gap:24px;padding:12px 0;border-top:1px solid #333}li:first-child{border-top:0}'
+    + '.t{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}.n{opacity:.9}.d{opacity:.6;font-size:15px}'
+    + '</style></head><body><h1>Reset timers</h1><ul id="l"></ul>'
+    + '<script>const T=' + data + ';'
+    + 'function nextAt(t,now){if(!t.every)return t.at>=now?t.at:null;if(t.at>=now)return t.at;return t.at+Math.ceil((now-t.at)/t.every)*t.every;}'
+    + 'function span(ms){const s=Math.max(0,Math.floor(ms/1000)),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),x=s%60;'
+    + 'return d?d+" d "+h+" h":h?h+" h "+m+" min":m?m+" min "+x+" s":x+" s";}'
+    + 'function draw(){const now=Date.now(),l=document.getElementById("l");l.textContent="";'
+    + 'const rows=T.map(t=>({t,n:nextAt(t,now)})).sort((a,b)=>(a.n==null)-(b.n==null)||a.n-b.n);'
+    + 'for(const r of rows){const li=document.createElement("li"),a=document.createElement("span"),b=document.createElement("span");'
+    + 'a.className="n";a.textContent=r.t.name;b.className="t";b.textContent=r.n==null?"has passed":span(r.n-now);li.append(a,b);l.appendChild(li);}'
+    + 'if(!rows.length){const li=document.createElement("li");li.textContent="No timers.";l.appendChild(li);}}'
+    + 'draw();setInterval(draw,1000);'
+    + '</script></body></html>';
 }
 
 function clampZoom(z) {
@@ -124,7 +163,8 @@ function createSecondScreen(deps) {
     if (!win || win.isDestroyed()) return;
     const p = pages[index];
     win.setTitle(title());
-    win.loadURL(p.url).catch((err) => { if (err && err.code !== 'ERR_ABORTED') log('[SecondScreen] could not load ' + p.url + ': ' + err.message); });
+    const target = p.timers ? 'data:text/html;charset=utf-8,' + encodeURIComponent(timersHtml(p.timers)) : p.url;
+    win.loadURL(target).catch((err) => { if (err && err.code !== 'ERR_ABORTED') log('[SecondScreen] could not load ' + p.url + ': ' + err.message); });
   }
 
   function persist() {
@@ -150,8 +190,11 @@ function createSecondScreen(deps) {
     else if (action === 'close') close();
   }
 
-  function open({ pages: given, index: at = 0, zoom: z }) {
-    const clean = cleanPages(given);
+  function open({ pages: given, index: at = 0, zoom: z, timers: givenTimers }) {
+    const timers = cleanTimers(givenTimers);
+    const clean = Array.isArray(given) && given.length ? cleanPages(given) : [];
+    if (!clean.length && !timers.length) throw new Error('There is no page to show on the second screen');
+    if (timers.length) clean.push({ title: 'Reset timers', url: '', timers });
     const saved = readState() || {};
     const displays = screen.getAllDisplays();
     const display = pickDisplay({ displays, primaryId: screen.getPrimaryDisplay().id, savedId: saved.displayId, gameRunning: !!isGameRunning() });
@@ -211,4 +254,4 @@ function createSecondScreen(deps) {
   return { open, close, state, act };
 }
 
-module.exports = { createSecondScreen, cleanPages, clampZoom, pickDisplay, fitsDisplay, placeOn, keyAction, MAX_PAGES, DEFAULT_ZOOM, PARTITION };
+module.exports = { createSecondScreen, cleanPages, cleanTimers, timersHtml, clampZoom, pickDisplay, fitsDisplay, placeOn, keyAction, MAX_PAGES, DEFAULT_ZOOM, PARTITION };

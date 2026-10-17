@@ -1170,6 +1170,12 @@ ipcMain.handle('vex:set-bg-throttling', (_e, wcId, enabled) => {
   } catch { /* ignore */ }
 });
 
+// Lower (or put back) how much one Vex side panel may take of the processor
+// (main/panel-throttle.js; js/panel-guard.js). The page is one of the asking window's own
+// (ipc-policy.js, TARGET_CHANNELS); the process id never comes from the window.
+const _panelThrottle = require('./main/panel-throttle').createPanelThrottle({ os: require('os'), webContents, log: (m) => console.log(m) });
+ipcMain.handle('panelguard:throttle', (_e, wcId, on) => _panelThrottle.set(wcId, !!on));
+
 ipcMain.handle('app:metrics', () => {
   try {
     return app.getAppMetrics().map(p => ({

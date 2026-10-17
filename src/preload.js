@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('vex', {
 
   // Toggle background throttling on a live webContents (kept-awake tabs).
   setBackgroundThrottling: (wcId, enabled) => ipcRenderer.invoke('vex:set-bg-throttling', wcId, enabled),
+  // Panel guard: lower (or put back) the processor priority of one side panel's own process.
+  throttlePanel: (wcId, on) => ipcRenderer.invoke('panelguard:throttle', wcId, on),
 
   // Per-container routing (Tor / custom proxy / direct) for a session partition.
   routingSet: (partition, mode, custom) => ipcRenderer.invoke('routing:set', partition, mode, custom),

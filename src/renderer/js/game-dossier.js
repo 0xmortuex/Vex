@@ -150,6 +150,12 @@ const GameDossier = {
     const s = typeof GameSession !== 'undefined' ? GameSession : null;
     if (!s || !s.active || !s.gameId) return 'no-game';
     if (!this.enabledFor(s.gameId)) return 'off';
+    return this.pageSkipReason(tab, title);
+  },
+
+  // The page-level reasons a page is never remembered, whether or not a game is running.
+  // The pit-stop card uses it to offer the pages of a game that has just ended.
+  pageSkipReason(tab, title) {
     if (window.VexTabPolicy) {
       if (window.VexTabPolicy.isPrivateWindow) return 'private';
       if (typeof window.VexTabPolicy.canShareTab === 'function' && !window.VexTabPolicy.canShareTab(tab)) return 'private-tab';

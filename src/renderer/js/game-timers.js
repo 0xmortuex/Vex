@@ -22,9 +22,12 @@
 //   Calendar       weekly and one-off timers (a daily one would fill every square)
 //   Ctrl+K         "Reset timers" opens the list
 //
-// Deferred: the second-screen companion window (Wave 2) is not in this build.
+//   Second screen a page of its own in the second-screen window (js/second-screen.js,
+//                  main/second-screen.js), counted down there by the window itself. Off until
+//                  switched on in Settings; the window stays an ordinary one (never on top,
+//                  never over a game) and the page can load nothing else.
 const VexGameTimers = {
-  KEYS: { on: 'vex.gameTimers.enabled', list: 'vex.gameTimers' },
+  KEYS: { on: 'vex.gameTimers.enabled', list: 'vex.gameTimers', second: 'vex.gameTimers.secondScreen' },
   MAX: 24,
   KINDS: ['daily', 'weekly', 'once'],
   FEATURE: 'game-timers',
@@ -175,6 +178,18 @@ const VexGameTimers = {
   },
 
   // ---- where it shows -----------------------------------------------------------------
+  onSecondScreen() { return VexMediaKit.flag(this.KEYS.second, false); },
+  setSecondScreen(on) { VexMediaKit.setFlag(this.KEYS.second, !!on); },
+  // For the second-screen window: [{ name, at, every }] - the next moment of each timer and its period.
+  secondScreenTimers(now = this._now()) {
+    const out = [];
+    for (const t of this.list()) {
+      const at = this.next(t, now);
+      if (at == null) continue;
+      out.push({ name: t.name, at, every: t.kind === 'daily' ? 86400000 : t.kind === 'weekly' ? 604800000 : 0 });
+    }
+    return out.sort((a, b) => a.at - b.at).slice(0, 24);
+  },
   widgetLines(now = this._now()) {
     if (!this.enabled()) return [];
     return this.list().filter(t => t.showNewTab && this.next(t, now) != null)
@@ -259,6 +274,7 @@ const VexGameTimers = {
     body.textContent = '';
     body.appendChild(K.info('Daily and weekly resets and the end of a season, counted down on the New Tab and in the calendar. You type the times in; Vex asks no game server.'));
     body.appendChild(K.switchRow('Reset and season timers', this.enabled(), (on) => this.setEnabled(on)));
+    body.appendChild(K.switchRow('Show the timers in the second-screen window', this.onSecondScreen(), (on) => this.setSecondScreen(on)));
     body.appendChild(K.button('Edit the timers', () => this.open()));
   },
   init() {
