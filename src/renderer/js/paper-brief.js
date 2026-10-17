@@ -231,7 +231,7 @@ const VexPaperBrief = {
       const bar = document.createElement('div');
       bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
       bar.append(
-        G.button('Save as a note', () => { try { AgentTools.saveNote('Brief: ' + brief.fileName, md); window.showToast?.('Saved to Notes'); } catch (e) { fail(e); } }, { primary: true }),
+        G.button('Save as a note', () => { try { AgentTools.saveNote('Brief: ' + brief.fileName, md, undefined, { origin: 'paper-brief' }); window.showToast?.('Saved to Notes'); } catch (e) { fail(e); } }, { primary: true }),
         G.button('Copy', async () => { try { await navigator.clipboard.writeText(md); window.showToast?.('Copied'); } catch (e) { fail(e); } }),
         G.button('Back to the chapters', () => { doc.chapters = brief.chapters; drawMap(); }),
       );

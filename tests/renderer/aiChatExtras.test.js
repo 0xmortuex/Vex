@@ -31,7 +31,7 @@ describe('answers', () => {
     AIPanel._renderMessages();
     const answer = document.querySelectorAll('.ai-msg.assistant')[0];
     answer.querySelector('[title="Save as note"]').click();
-    expect(AgentTools.saveNote).toHaveBeenCalledWith('Compare the Pixel 9 and iPhone 16', CONV[1].content);
+    expect(AgentTools.saveNote).toHaveBeenCalledWith('Compare the Pixel 9 and iPhone 16', CONV[1].content, undefined, { origin: 'ai-answer' });
   });
 
   it('under the latest answer: dig deeper, and open the sources it cites', () => {
@@ -77,7 +77,7 @@ describe('the chat list', () => {
   it('a whole chat can be kept as one note', () => {
     AIPanel._renderHistory();
     [...document.querySelectorAll('.ai-history-item button')].find(b => b.textContent === 'To note').click();
-    expect(AgentTools.saveNote).toHaveBeenCalledWith('Compare the Pixel 9 and iPhone 16', expect.stringMatching(/^\*\*You:\*\* Compare.*\*\*Vex AI:\*\*/s));
+    expect(AgentTools.saveNote).toHaveBeenCalledWith('Compare the Pixel 9 and iPhone 16', expect.stringMatching(/^\*\*You:\*\* Compare.*\*\*Vex AI:\*\*/s), undefined, { origin: 'ai-chat' });
   });
 });
 

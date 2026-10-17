@@ -584,7 +584,7 @@ const CommandBar = {
       if (!tables.length) { window.showToast?.('No data tables on this page'); return; }
       const tab = TabManager.tabs.find(t => t.id === TabManager.activeTabId);
       const body = tables.map((t, i) => '## ' + (t.caption || 'Table ' + (i + 1)) + '\n\n' + PageTools.toMarkdown(t.rows)).join('\n\n');
-      try { AgentTools.saveNote('Tables from ' + ((tab && tab.title) || 'a page'), body, tab && tab.url); window.showToast?.('Saved to Notes'); }
+      try { AgentTools.saveNote('Tables from ' + ((tab && tab.title) || 'a page'), body, tab && tab.url, { origin: 'page-tables' }); window.showToast?.('Saved to Notes'); }
       catch (err) { window.showToast?.((err && err.message) || 'Could not save it', 'error'); }
     } },
     { id: 'speed', label: 'Video speed', hint: 'How fast videos play on this site, remembered', icon: 'video', isPrimary: true, action: async () => {

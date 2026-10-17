@@ -15,9 +15,11 @@
 //
 // It migrates and deletes NOTHING: every item stays in the store that holds it
 // (the stores keep their own panels and sync). Opening a row goes to the page
-// or the note it came from. The quick-capture box and the highlighter write
-// where they always did; nothing is redirected until the owner decides that
-// (see the report).
+// or the note it came from. Every feature that writes into Notes shows up here
+// with its own name: AgentTools.saveNote takes the feature's id ({ origin }) and keeps it as a
+// "from:<id>" tag, the few that write the Notes list themselves leave a tag the inbox knows
+// (ORIGINS below), and each origin present gets its own filter. A note saved announces
+// itself with vex:note-saved, so a count shown anywhere can be refreshed at once.
 
 const VexInbox = {
   PREF: 'vex.inbox.enabled',     // 'off' hides the command and the brief section
@@ -32,6 +34,20 @@ const VexInbox = {
     journal: 'Journal',
   },
 
+  // Names for the features that write into Notes. A "from:<id>" tag (AgentTools.saveNote) or one of the tags the
+  // features that write the list themselves already leave ('meeting', 'cornell', 'pdf').
+  ORIGINS: {
+    agent: 'AI agent', 'agent-answer': 'AI agent answer', 'ai-chat': 'AI chat', 'ai-answer': 'AI answer', 'page-tables': 'Page tables', mun: 'Model UN',
+    newsletter: 'Newsletter digest', 'paper-brief': 'Paper brief', 'paper-session': 'Past paper review', 'quick-capture': 'Quick capture box', clips: 'Clips inbox',
+    video: 'Video note', 'video-transcript': 'Video transcript', study: 'Study tools', meeting: 'Meeting copilot', cornell: 'Cornell note', pdf: 'PDF highlights',
+  },
+  noteOrigin(n) {
+    const tags = Array.isArray(n && n.tags) ? n.tags : [];
+    const t = tags.find(x => typeof x === 'string' && x.startsWith('from:'));
+    if (t && this.ORIGINS[t.slice(5)]) return t.slice(5);
+    for (const key of ['meeting', 'cornell', 'pdf']) if (tags.includes(key)) return key;
+    return '';
+  },
   // Where a note came from. Tags are what those features already set: the weekly note ('weekly'), screenshot to note
   // ('screenshot'), clip-to-note and quick capture (AgentTools.saveNote: 'agent'); the Highlights note is found by its title.
   noteSource(n) {
@@ -85,7 +101,7 @@ const VexInbox = {
         if (!n || !n.id) continue;
         const at = Date.parse(n.updatedAt || n.createdAt || '') || 0;
         if (at < since) continue;
-        items.push({ id: 'note:' + n.id, source: this.noteSource(n), text: this._line(n.title || n.content || 'Untitled note'), sub: this._line(n.content, 90), at, noteId: n.id });
+        items.push({ id: 'note:' + n.id, source: this.noteSource(n), origin: this.noteOrigin(n), text: this._line(n.title || n.content || 'Untitled note'), sub: this._line(n.content, 90), at, noteId: n.id });
       }
     });
     // The daily journal (js/memory-tools.js) keeps one entry per day, not a list of notes.
@@ -132,7 +148,7 @@ const VexInbox = {
   rank(items, { limit = this.LIMIT, source = '' } = {}) {
     const seen = new Set();
     return (Array.isArray(items) ? items : [])
-      .filter(i => i && i.id && (!source || i.source === source) && !seen.has(i.id) && seen.add(i.id))
+      .filter(i => i && i.id && (!source || (source.startsWith('o:') ? i.origin === source.slice(2) : i.source === source)) && !seen.has(i.id) && seen.add(i.id))
       .sort((a, b) => b.at - a.at || a.id.localeCompare(b.id))
       .slice(0, limit);
   },
@@ -185,7 +201,7 @@ const VexInbox = {
         if (!items.length && !errors.length) return null;
         return {
           summary: n ? n + ' new since you last looked' : 'Nothing new since you last looked',
-          items: this.rank(items, { limit: 4 }).map(i => ({ text: i.text, sub: this.SOURCES[i.source], when: '', url: /^https?:\/\//i.test(i.url || '') ? i.url : '' })),
+          items: this.rank(items, { limit: 4 }).map(i => ({ text: i.text, sub: this.SOURCES[i.source] + (i.origin ? ' · ' + this.ORIGINS[i.origin] : ''), when: '', url: /^https?:\/\//i.test(i.url || '') ? i.url : '' })),
           note: errors.length ? 'Could not read: ' + errors.join('; ') : '',
         };
       },
@@ -214,7 +230,7 @@ const VexInbox = {
         row.className = 'vexsr-rule';
         const chip = document.createElement('span');
         chip.className = 'vexsr-mode';
-        chip.textContent = this.SOURCES[it.source] + (it.at > seen ? ' · new' : '');
+        chip.textContent = this.SOURCES[it.source] + (it.origin ? ' · ' + this.ORIGINS[it.origin] : '') + (it.at > seen ? ' · new' : '');
         chip.style.minWidth = '120px';
         const text = document.createElement('span');
         text.className = 'vexsr-host';
@@ -231,6 +247,10 @@ const VexInbox = {
     for (const [key, label] of chips) {
       const n = key ? res.items.filter(i => i.source === key).length : res.items.length;
       bar.appendChild(VexSettingsGroups.button(label + ' ' + n, () => { filter = key; draw(); }, { label: 'Show ' + label }));
+    }
+    for (const key of Object.keys(this.ORIGINS)) {
+      const n = res.items.filter(i => i.origin === key).length;
+      if (n) bar.appendChild(VexSettingsGroups.button(this.ORIGINS[key] + ' ' + n, () => { filter = 'o:' + key; draw(); }, { label: 'Show ' + this.ORIGINS[key] }));
     }
     body.append(bar, list);
     if (res.errors.length) body.appendChild(VexSettingsGroups.note('Could not read: ' + res.errors.join('; ')));

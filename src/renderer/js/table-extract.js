@@ -196,7 +196,7 @@ const TableExtract = {
       try {
         if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
         let title = 'Table'; try { title = (wv && wv.getTitle && wv.getTitle()) || title; } catch { /* vex-allow-empty-catch: a detached page; the note gets the plain title */ }
-        AgentTools.saveNote(String(title).slice(0, 60) + ' (table)', this.toMarkdown(data.rows));
+        AgentTools.saveNote(String(title).slice(0, 60) + ' (table)', this.toMarkdown(data.rows), undefined, { origin: 'page-tables' });
         status.textContent = 'Saved to Notes.';
       } catch (err) { status.textContent = err.message; }
     });

@@ -416,7 +416,7 @@ const AgentExecutor = {
         }
 
         case 'save_note': {
-          const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl);
+          const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl, { origin: 'agent' });
           const back = AgentTools.searchNotes(note.title).some(n => n.id === note.id);
           if (!back) return { ok: false, error: 'The note did not save — check Memory panel › Health for the reason' };
           return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)', undo: { kind: 'note', id: note.id, label: 'the note "' + (note.title || 'Untitled') + '"' } };

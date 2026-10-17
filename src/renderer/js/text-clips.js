@@ -66,7 +66,7 @@ const TextClips = {
           try {
             if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
             const words = item.text.split(/\s+/);
-            AgentTools.saveNote(words.slice(0, 7).join(' ').slice(0, 60) + (words.length > 7 ? '…' : ''), item.text);
+            AgentTools.saveNote(words.slice(0, 7).join(' ').slice(0, 60) + (words.length > 7 ? '…' : ''), item.text, undefined, { origin: 'clips' });
             window.showToast?.('Saved to Notes');
           } catch (err) { window.showToast?.(err.message, 'error'); }
         });

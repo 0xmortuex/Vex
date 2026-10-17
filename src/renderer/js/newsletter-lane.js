@@ -113,7 +113,7 @@ const NewsletterLane = {
   },
   saveDigest(senders) {
     if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
-    AgentTools.saveNote('Newsletter digest ' + new Date().toISOString().slice(0, 10), this.digestText(senders));
+    AgentTools.saveNote('Newsletter digest ' + new Date().toISOString().slice(0, 10), this.digestText(senders), undefined, { origin: 'newsletter' });
     const st = this.state(); st.lastDigest = Date.now(); this._saveState(st);
   },
 
