@@ -57,7 +57,7 @@ const VideoChat = {
     if (at == null) throw new Error('There is no video on this page');
     const stamp = new Date(Math.floor(at) * 1000).toISOString().slice(at >= 3600 ? 11 : 14, 19);
     const link = this.momentLink(tab.url, at);
-    AgentTools.saveNote(tab.title || 'Video note', '[' + stamp + '](' + link + ')' + (note ? ' — ' + note : ''), link);
+    AgentTools.saveNote(tab.title || 'Video note', '[' + stamp + '](' + link + ')' + (note ? ' — ' + note : ''), link, { origin: 'video' });
     return { stamp, link };
   },
 

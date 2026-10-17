@@ -57,6 +57,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 | @ghostery/adblocker-extended-selectors | 2.18.0 | MPL-2.0 |
 | @ghostery/url-parser | 1.3.1 | MPL-2.0 |
 | @isaacs/fs-minipass | 4.0.1 | ISC |
+| @pdf-lib/fontkit | 1.1.1 | MIT |
 | @pdf-lib/standard-fonts | 1.0.0 | MIT |
 | @pdf-lib/upng | 1.0.1 | MIT |
 | @pinojs/redact | 0.4.0 | MIT |
@@ -201,6 +202,7 @@ The full SIL Open Font License 1.1 text is in [SIL Open Font License 1.1](#sil-o
 
 Used by Electron, castLabs Electron and the packages below. Each package's copyright line(s) are listed; the licence text that applies to all of them follows.
 
+- **@pdf-lib/fontkit@1.1.1** — Copyright (c) 2014 Devon Govett; fork by Andrew Dillon
 - **@pdf-lib/standard-fonts@1.0.0** — Copyright (c) 2018 Andrew Dillon
 - **@pdf-lib/upng@1.0.1** — Copyright (c) 2017 Photopea
 - **@pinojs/redact@0.4.0** — Copyright (c) 2025 pinojs contributors

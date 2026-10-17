@@ -148,7 +148,7 @@ An assistant and an agent, on your own backend — cloud, local, or on-device.
 Blocking, isolation, Tor, and the things that follow you.
 
 - **Redact pictures** (`redact-tool`): Opens a screenshot or picture, finds text with on-device OCR, and lets you black out parts before saving a copy without metadata. On an existing profile it starts off; turn it on in Settings > Capture tools.
-  - Open: Settings > Capture tools.
+  - Open: Ctrl+K: "Redact a text document"; Settings > Capture tools.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Permission hygiene** (`perm-hygiene`): Lists which sites can use your camera, microphone, location, screen, clipboard or notifications, for how long, and lets you end or pin each one. On an existing profile it starts off; turn it on in Settings > Permission hygiene.
   - Open: Ctrl+K: "Permission hygiene"; Settings > Permission hygiene.
@@ -437,7 +437,7 @@ Notes, sessions, monitoring, automation.
   - Open: Ctrl+K: "Meeting transcript settings"; Settings > Security helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Appointment slot watcher** (`slot-watcher`): Watches public booking pages you add and tells you when a slot appears, using words you choose for open and for none. Open it from Ctrl+K, Appointment slot watcher. On an existing profile it starts off; turn it on in Settings > Appointment slot watcher.
-  - Open: Ctrl+K: "Appointment slot watcher"; Settings > Security helpers.
+  - Open: Ctrl+K: "Appointment slot watcher", "Slot watcher: look at this tab", "Slot watcher: keep looking at this tab"; Settings > Security helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Sources and citations** (`sources`): Keeps one source record per page (title, authors, date, DOI) with the passages you took from it, and writes it as APA, MLA, Chicago, Turkish Kaynakca or BibTeX. Open it from Ctrl+K, "Sources and citations". On an existing profile it starts off; turn it on in Settings > Sources and citations.
   - Open: Ctrl+K: "Sources and citations", "Keep this page as a source"; Settings > Sources and citations.

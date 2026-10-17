@@ -1735,8 +1735,8 @@ ipcMain.handle('capture:submit', async (_e, entry) => {
   // lands while Vex is hidden, busy or behind a game. The window is only told
   // (never shown or focused) so its inbox and search can refresh.
   if (kind === 'clip') {
-    const { count } = _captureInbox().add(text, { source: 'capture' });
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count }); } catch { /* window gone */ }
+    const { count, entry } = _captureInbox().add(text, { source: 'capture' });
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count, id: entry.id, source: 'capture' }); } catch { /* window gone */ }
     return { said: 'Kept in the clips inbox (' + count + ')' };
   }
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Vex is not running');
@@ -1762,6 +1762,12 @@ ipcMain.handle('clips-inbox:add', (_e, text) => {
   return { ok: true, id: r.entry.id, count: r.count };
 });
 ipcMain.handle('clips-inbox:remove', (_e, id) => ({ ok: _captureInbox().remove(id) }));
+// The page and course a clip was kept from, sent by the window right after the clip landed (js/text-clips.js).
+ipcMain.handle('clips-inbox:stamp', (_e, id, meta) => {
+  const entry = _captureInbox().stamp(id, meta);
+  if (entry) { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count: _captureInbox().list().length, id: entry.id, source: 'stamp' }); } catch { /* vex-allow-empty-catch: the window is gone, there is nobody to tell */ } }
+  return { ok: true, stamped: !!entry };
+});
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
 ipcMain.on('app:started', () => _bootGuard.started());
@@ -2501,7 +2507,7 @@ require('./main/browser-import').registerBrowserImport({ ipcMain, dialog, window
   addAuthenticator: (list) => _totpTransfer.addAccounts(list) });
 // Built-in PDF toolkit: merge, split, extract and rotate pages, all local with pdf-lib (main/pdf-toolkit.js).
 // The window never names a path: it gets tokens from the file picker, and the result goes where the person saves it.
-require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender) });
+require('./main/pdf-toolkit').registerPdfToolkit({ ipcMain, dialog, windowFor: (e) => BrowserWindow.fromWebContents(e.sender), nativeImage });
 
 // === Passkeys: Vex as a WebAuthn authenticator (main/passkeys.js) ===
 // Keys are made and kept here, encrypted like the vault, and only finished

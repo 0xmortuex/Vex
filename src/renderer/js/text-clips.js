@@ -5,8 +5,40 @@
 // (src/main/capture-inbox.js), so a clip lands while Vex is hidden or behind
 // a game. This is the window onto it: copy one, turn one into a note, delete
 // one. Universal search reads the same list.
+//
+// Stamping: a clip kept with the capture box's hotkey has no page of its own, because it was typed
+// into a box. Right after it lands, the page that was in front in Vex becomes its source (address and
+// title, not the page's text) and, as for a clipped selection or a screenshot, it is kept under that
+// page's source in Sources and citations. It follows the same switch ("Also keep a clipped selection
+// and a screenshot under their page's source": Sources autoStamp), so it is off until that is ticked.
+// Never from a private, Tor or routed tab or a bank, mail or sign-in page, and only while Vex is in view
+// (a clip typed over a game says nothing about the tab behind it). The course is tagged by Courses
+// (js/course-spaces.js), not here.
 const TextClips = {
   _items: [],
+
+  stampEnabled() {
+    if (typeof VexSources === 'undefined' || typeof VexSources.prefs !== 'function') return false;
+    try { const p = VexSources.prefs(); return p.enabled === true && p.autoStamp === true; }
+    catch (err) { window.VexProblems?.note('Clips inbox', 'The sources setting could not be read', err); return false; }
+  },
+
+  // payload: what main sent with clips-inbox:changed. Stamps a clip that was just kept; returns the stamp or null.
+  async stampNew(payload) {
+    if (!payload || payload.source !== 'capture' || typeof payload.id !== 'string') return null;
+    if (!this.stampEnabled()) return null;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return null;
+    const tab = await VexSources.sourceTab();
+    if (!tab.url) return null;
+    if (!window.vex || typeof window.vex.clipsInboxStamp !== 'function') throw new Error('The clips inbox cannot be stamped here');
+    const meta = { url: tab.url, title: tab.title || '' };
+    const r = await window.vex.clipsInboxStamp(payload.id, meta);
+    if (!r || !r.ok) throw new Error('Could not stamp the clip');
+    if (!r.stamped) return null;
+    const item = (await this.list()).find(i => i.id === payload.id);
+    if (item) await VexSources.keepPassage({ text: item.text, kind: 'clip' });
+    return meta;
+  },
 
   async list() {
     if (!window.vex || typeof window.vex.clipsInboxList !== 'function') throw new Error('The clips inbox is not available');
@@ -53,7 +85,7 @@ const TextClips = {
         row.innerHTML = `
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;color:var(--text);white-space:pre-wrap;word-break:break-word">${esc(item.text)}</div>
-            <div style="font-size:10.5px;color:var(--text-muted)">${esc(this.describe(item))}</div>
+            <div style="font-size:10.5px;color:var(--text-muted)">${esc(this.describe(item))}${item.from ? ' · from ' + esc(item.from.title || item.from.url) : ''}</div>
           </div>
           <button data-copy type="button" style="${btn}">Copy</button>
           <button data-note type="button" style="${btn}">To a note</button>
@@ -66,7 +98,7 @@ const TextClips = {
           try {
             if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
             const words = item.text.split(/\s+/);
-            AgentTools.saveNote(words.slice(0, 7).join(' ').slice(0, 60) + (words.length > 7 ? '…' : ''), item.text);
+            AgentTools.saveNote(words.slice(0, 7).join(' ').slice(0, 60) + (words.length > 7 ? '…' : ''), item.text, undefined, { origin: 'clips' });
             window.showToast?.('Saved to Notes');
           } catch (err) { window.showToast?.(err.message, 'error'); }
         });
@@ -91,7 +123,8 @@ const TextClips = {
 
   init() {
     if (!window.vex || typeof window.vex.onClipsInboxChanged !== 'function') return false;
-    window.vex.onClipsInboxChanged(() => {
+    window.vex.onClipsInboxChanged((payload) => {
+      this.stampNew(payload).catch(err => window.VexProblems?.note('Clips inbox', 'Could not stamp the clip with its page', err));
       this.list().catch(err => window.VexProblems?.note('Clips inbox', 'Could not refresh', err));
       if (window.UniversalSearch) window.UniversalSearch.refreshClips().catch(err => window.VexProblems?.note('Search', 'Could not refresh the clips', err));
     });

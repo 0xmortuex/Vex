@@ -219,7 +219,10 @@ const AgentTools = {
   },
 
   // ---------------------------------------------------------- Vex features --
-  saveNote(title, content, sourceUrl) {
+  // opts.origin: which Vex feature is writing this note (a short id such as 'quick-capture'); it is kept as a "from:<id>"
+  // tag so the Inbox can name where a note came from. Every feature that saves into Notes goes through here.
+  saveNote(title, content, sourceUrl, opts) {
+    const origin = opts && opts.origin ? String(opts.origin).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30) : '';
     const body = String(content || '').trim();
     const name = String(title || '').trim();
     if (!body && !name) throw new Error('A note needs a title or some content');
@@ -229,12 +232,13 @@ const AgentTools = {
       if (kept) return { id: kept.id, title: name, content: body, tags: ['read-later'], sourceUrl: String(sourceUrl), routed: 'read-later' };
     }
     const now = new Date().toISOString();
-    const note = { id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: name.slice(0, 200), content: body, pinned: false, tags: ['agent'], sourceUrl: String(sourceUrl || ''), sourceTitle: '', createdAt: now, updatedAt: now };
+    const note = { id: 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: name.slice(0, 200), content: body, pinned: false, tags: origin ? ['agent', 'from:' + origin] : ['agent'], sourceUrl: String(sourceUrl || ''), sourceTitle: '', createdAt: now, updatedAt: now };
     let notes = [];
     try { const a = JSON.parse(localStorage.getItem('vex.notes') || '[]'); if (Array.isArray(a)) notes = a; } catch { notes = []; }
     notes.unshift(note);
     localStorage.setItem('vex.notes', JSON.stringify(notes));
     try { if (typeof NotesPanel !== 'undefined' && NotesPanel.reloadSyncedState) NotesPanel.reloadSyncedState(); } catch {}
+    try { document.dispatchEvent(new CustomEvent('vex:note-saved', { detail: { id: note.id, origin } })); } catch (err) { console.error('[AgentTools] vex:note-saved failed:', err); }
     return note;
   },
 

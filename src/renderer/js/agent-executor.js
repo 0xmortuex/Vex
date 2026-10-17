@@ -407,6 +407,7 @@ const AgentExecutor = {
           const url = (wv && wv.getURL && wv.getURL()) || (tab && tab.url) || '';
           if (!wv || !/^https:/i.test(url)) return { ok: false, error: 'Open the site’s sign-in page first (and it must be https)' };
           if (typeof PasswordVault === 'undefined') return { ok: false, error: 'The logins hub is not available' };
+          if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('agent')) return { ok: false, error: 'The user is sharing their screen and Vex holds sign-in fills meanwhile. Use hand_over so they sign in themselves, or wait' };
           let host = '';
           try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
           const saved = await window.vex.vaultGet(host);
@@ -416,7 +417,7 @@ const AgentExecutor = {
         }
 
         case 'save_note': {
-          const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl);
+          const note = AgentTools.saveNote(params.title, params.content, params.sourceUrl, { origin: 'agent' });
           const back = AgentTools.searchNotes(note.title).some(n => n.id === note.id);
           if (!back) return { ok: false, error: 'The note did not save — check Memory panel › Health for the reason' };
           return { ok: true, result: 'Saved and verified the note "' + (note.title || 'Untitled') + '" (Notes panel)', undo: { kind: 'note', id: note.id, label: 'the note "' + (note.title || 'Untitled') + '"' } };

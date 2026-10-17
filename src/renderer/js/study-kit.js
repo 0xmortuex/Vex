@@ -115,10 +115,10 @@ const VexStudyKit = {
   // Saves a note the way the rest of Vex does (AgentTools.saveNote), or says why it cannot.
   saveNote(title, content, tag) {
     if (typeof AgentTools === 'undefined' || typeof AgentTools.saveNote !== 'function') throw new Error('Notes are not available here');
-    const n = AgentTools.saveNote(title, content);
+    const n = AgentTools.saveNote(title, content, undefined, { origin: 'study' });
     if (tag && n && Array.isArray(n.tags)) {
       let all = this.notes();
-      all = all.map(x => (x.id === n.id ? { ...x, tags: [tag] } : x));
+      all = all.map(x => (x.id === n.id ? { ...x, tags: [tag, 'from:study'] } : x));
       localStorage.setItem('vex.notes', JSON.stringify(all));
       if (typeof NotesPanel !== 'undefined' && NotesPanel.reloadSyncedState) NotesPanel.reloadSyncedState();
     }

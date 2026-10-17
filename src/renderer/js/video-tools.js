@@ -342,7 +342,7 @@ const VideoTools = {
         const parts = [];
         if (ch.list.length) parts.push('## Chapters', ...ch.list.map(c => '- ' + link(c.s) + ' ' + c.t), '');
         if (lines.length) parts.push('## Transcript', ...lines.map(l => link(l.s) + ' ' + l.t));
-        AgentTools.saveNote(String(probe.title || 'Video').slice(0, 60) + ' (transcript)', parts.join('\n'));
+        AgentTools.saveNote(String(probe.title || 'Video').slice(0, 60) + ' (transcript)', parts.join('\n'), undefined, { origin: 'video-transcript' });
         say('Saved to Notes.');
       } catch (err) { say(err.message); }
     });

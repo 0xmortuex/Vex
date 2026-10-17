@@ -44,6 +44,7 @@ const VexPdfTools = {
     { id: 'fill', label: 'Fill a form', needs: 'one PDF with form fields' },
     { id: 'sign', label: 'Place a signature picture', needs: 'one PDF' },
     { id: 'compress', label: 'Compress (repack)', needs: 'one PDF' },
+    { id: 'shrink', label: 'Shrink pictures', needs: 'one PDF' },
   ],
   KINDS: ['text', 'highlight', 'rect'],
   COLORS: ['black', 'red', 'blue', 'green', 'yellow', 'orange'],
@@ -88,6 +89,11 @@ const VexPdfTools = {
     if (f.op === 'extract') {
       if (!String(f.spec || '').trim()) throw new Error('Say which pages to keep, for example 1-3, 5, 8-');
       return { op: 'extract', tokens, spec: String(f.spec).trim() };
+    }
+    if (f.op === 'shrink') {
+      const level = f.level || 'balanced';
+      if (!['small', 'balanced', 'high'].includes(level)) throw new Error('Pick how small to make the pictures');
+      return { op: 'shrink', tokens, level };
     }
     if (f.op === 'rotate') {
       const degrees = Number(f.degrees);
@@ -243,6 +249,15 @@ const VexPdfTools = {
         field('Turn', deg);
         field('Pages (empty is all)', text('spec', 'all, odd, even, or 1-3, 5'));
       }
+      if (form.op === 'shrink') {
+        const lvl = document.createElement('select');
+        lvl.className = 'vexsr-input';
+        lvl.setAttribute('aria-label', 'Picture quality');
+        for (const [v, l] of [['small', 'Smallest file (pictures up to 1200 px, quality 50)'], ['balanced', 'Balanced (1600 px, quality 70)'], ['high', 'Best quality (2400 px, quality 85)']]) { const o = document.createElement('option'); o.value = v; o.textContent = l; o.selected = v === (form.level || 'balanced'); lvl.appendChild(o); }
+        lvl.addEventListener('change', () => { form.level = lvl.value; });
+        field('Pictures', lvl);
+        body.appendChild(VexSettingsGroups.note('Re-encodes photos and scans as JPEG and scales large ones down. Pictures that would not get at least 10% smaller are left alone.'));
+      }
       if (form.op === 'split') {
         const mode = document.createElement('select');
         mode.className = 'vexsr-input';
@@ -380,7 +395,7 @@ const VexPdfTools = {
   },
 
   group(el) {
-    el.appendChild(VexSettingsGroups.note('Merge, split, extract or reorder, and rotate pages of PDF files, all on this computer with nothing uploaded. Your originals are never changed. Also fills forms, marks up pages, places a signature picture (not a digital signature) and repacks a file. Not included: OCR, and PDFs protected by a password.'));
+    el.appendChild(VexSettingsGroups.note('Merge, split, extract or reorder, and rotate pages of PDF files, all on this computer with nothing uploaded. Your originals are never changed. Also fills forms, marks up pages, places a signature picture (not a digital signature) repacks a file and shrinks the pictures inside it. Not included: OCR, and PDFs protected by a password.'));
     el.appendChild(VexSettingsGroups.button('Open the PDF toolkit', () => this.open(), { primary: true }));
   },
 };

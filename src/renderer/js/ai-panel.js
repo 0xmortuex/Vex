@@ -966,7 +966,7 @@ const AIPanel = {
       });
       tool('To note', 'Save the whole conversation as a note', () => {
         const text = r.msgs.filter(m => m.role !== 'system').map(m => `**${m.role === 'user' ? 'You' : 'Vex AI'}:** ${m.content}`).join('\n\n');
-        try { AgentTools.saveNote((r.meta.title || (r.first && r.first.content) || 'AI chat').replace(/\s+/g, ' ').slice(0, 80), text); window.showToast?.('Saved to Notes'); }
+        try { AgentTools.saveNote((r.meta.title || (r.first && r.first.content) || 'AI chat').replace(/\s+/g, ' ').slice(0, 80), text, undefined, { origin: 'ai-chat' }); window.showToast?.('Saved to Notes'); }
         catch (err) { window.showToast?.((err && err.message) || 'Could not save the note', 'error'); }
       });
       b.addEventListener('click', () => {
@@ -1149,7 +1149,7 @@ const AIPanel = {
         let ask = '';
         for (let i = index - 1; i >= 0; i--) if (conv[i] && conv[i].role === 'user') { ask = conv[i].content; break; }
         try {
-          AgentTools.saveNote((ask || 'AI answer').replace(/\s+/g, ' ').trim().slice(0, 80), m.content);
+          AgentTools.saveNote((ask || 'AI answer').replace(/\s+/g, ' ').trim().slice(0, 80), m.content, undefined, { origin: 'ai-answer' });
           b.innerHTML = this._icon('check', 13); b.title = 'Saved to Notes';
           window.showToast?.('Saved to Notes');
         } catch (err) { window.showToast?.((err && err.message) || 'Could not save the note', 'error'); }

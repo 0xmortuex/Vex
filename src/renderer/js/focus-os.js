@@ -243,16 +243,19 @@ const FocusOS = {
     s.blocks = s.blocks.filter(b => !(b.goalId === goalId && b.state === 'proposed'));
     const remaining = P.remainingMinutes(g, s.blocks);
     const ctx = await this.context(now, g.deadline);
+    // The length the person really stays with something in this workspace (js/focus-calibration.js), when they asked
+    // for proposals to use it; the setting's length otherwise. For this proposal only: the setting is not changed.
+    const calibrated = typeof VexFocusCal !== 'undefined' ? VexFocusCal.blockFor() : 0;
     const plan = P.planBlocks({
       remainingMin: remaining, deadline: g.deadline, now, goalId,
       busy: ctx.busy, blocked: ctx.blocked, existing: s.blocks.filter(b => b.state === 'planned' || b.state === 'active'),
-      workFrom: st.workFrom, workTo: st.workTo, blockMin: st.blockMin, breakMin: st.breakMin, maxPerDay: st.maxPerDay,
+      workFrom: st.workFrom, workTo: st.workTo, blockMin: calibrated || st.blockMin, breakMin: st.breakMin, maxPerDay: st.maxPerDay,
     });
     const made = plan.blocks.map(b => ({ id: this._id('b'), goalId, start: b.start, end: b.end, state: 'proposed' }));
     s.blocks.push(...made);
     this._write();
     this._changed();
-    return { ...plan, blocks: made, remainingMin: remaining, sources: ctx.sources, warnings: ctx.warnings };
+    return { ...plan, blocks: made, remainingMin: remaining, sources: ctx.sources, warnings: ctx.warnings, calibratedBlockMin: calibrated && calibrated !== st.blockMin ? calibrated : 0 };
   },
   proposed(goalId) { return this.blocks(goalId).filter(b => b.state === 'proposed'); },
   async discard(goalId) {

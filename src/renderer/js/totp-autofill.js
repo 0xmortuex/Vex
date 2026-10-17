@@ -320,6 +320,7 @@ const TotpAutofill = {
   WAIT_INTERVAL_MS: 1500,
 
   async _fill(webview, url, host, matches) {
+    if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('totp')) return;
     const origin = new URL(url).origin;
     const here = () => { try { return new URL(webview.getURL()).origin === origin; } catch { return false; } };
     let match = matches[0];
@@ -539,6 +540,7 @@ const TotpAutofill = {
   async fillFromAuthenticator(webview, opts = {}) {
     const say = (message, kind) => { try { window.showToast?.(message, kind); } catch { /* no toast host */ } };
     const refuse = (reason, message, kind = 'error') => { say(message, kind); return { ok: false, reason }; };
+    if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('totp')) return refuse('share-safe', this._t('totpShareHeld', VexShareHold.MESSAGE), 'info');
     if (!webview) return refuse('no-page', this._t('totpOpenPage', 'Open a web page first'));
     if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) {
       return refuse('private', this._t('totpPrivate', 'Authenticator codes are never filled in a private or Tor tab'));
@@ -638,6 +640,7 @@ const TotpAutofill = {
   // The emptied field was clicked: the current code, never the one from before.
   async _refill(webview, url, account) {
     if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
+    if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('totp')) return;
     let origin = '';
     try { origin = new URL(url).origin; } catch { return; }
     const here = () => { try { return webview.isConnected !== false && new URL(webview.getURL()).origin === origin; } catch { return false; } };

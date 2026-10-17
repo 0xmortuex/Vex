@@ -1357,7 +1357,7 @@ const AgentLoop = {
     bar.querySelector('[data-act="mail"]').addEventListener('click', () => this.toMail(goal, summary).catch(err => window.showToast?.('Could not open your mail app: ' + ((err && err.message) || ''), 'error')));
     bar.querySelector('[data-act="note"]').addEventListener('click', (e) => {
       const btn = e.currentTarget;
-      try { AgentTools.saveNote(String(goal || 'Agent answer').slice(0, 120), String(summary)); btn.textContent = 'Saved to Notes'; btn.disabled = true; }
+      try { AgentTools.saveNote(String(goal || 'Agent answer').slice(0, 120), String(summary), undefined, { origin: 'agent-answer' }); btn.textContent = 'Saved to Notes'; btn.disabled = true; }
       catch (err) { window.showToast?.((err && err.message) || 'Could not save the note', 'error'); }
     });
     bar.querySelector('[data-act="copy"]').addEventListener('click', async (e) => {

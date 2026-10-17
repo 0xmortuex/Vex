@@ -171,6 +171,7 @@ define('devbench:pkg', [oneOf(['npm', 'pypi', 'crates']), string(220)]);
 define('clips-inbox:list clips-inbox:clear', []);
 define('clips-inbox:add', [string(4000)]);
 define('clips-inbox:remove', [string(80)]);
+define('clips-inbox:stamp', [string(80), shape({ url: string(1000), title: optional(string(300)) })]);
 // The interface's answer to one captured line (js/quick-capture.js). It was
 // declared with no arguments, so every answer was refused and the box sat on
 // "Saving…" until "Vex did not answer" (found 2026-09-29).
@@ -622,12 +623,13 @@ const pdfValues = value => object(value) && Object.keys(value).length >= 1 && Ob
   && Object.entries(value).every(([k, v]) => k.length <= 200 && (typeof v === 'boolean' || (typeof v === 'string' && v.length <= 2000)));
 define('pdftool:inspect', [pdfToken]);
 define('pdftool:run', [shape({
-  op: oneOf(['merge', 'extract', 'rotate', 'split', 'annotate', 'fill', 'compress']),
+  op: oneOf(['merge', 'extract', 'rotate', 'split', 'annotate', 'fill', 'compress', 'shrink']),
   items: optional(value => Array.isArray(value) && value.length >= 1 && value.length <= 100 && value.every(pdfMark)),
   signature: optional(value => value instanceof Uint8Array && value.length > 0 && value.length <= 400 * 1024),
   values: optional(pdfValues),
   flatten: optional(boolean),
   ascii: optional(boolean),
+  level: optional(oneOf(['small', 'balanced', 'high'])),
   tokens: value => Array.isArray(value) && value.length >= 1 && value.length <= 20 && value.every(pdfToken),
   spec: optional(string(200)),
   degrees: optional(oneOf([90, 180, 270])),

@@ -70,7 +70,7 @@ const QuickCapture = {
     // A captured line is a thought, not a document: the first few words are the
     // title and the whole line is the body, so nothing is lost either way.
     const title = text.split(/\s+/).slice(0, 7).join(' ').slice(0, 60) + (text.split(/\s+/).length > 7 ? '…' : '');
-    AgentTools.saveNote(title, text);
+    AgentTools.saveNote(title, text, undefined, { origin: 'quick-capture' });
     return 'Saved to Notes';
   },
 };

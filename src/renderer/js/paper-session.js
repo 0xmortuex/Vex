@@ -222,7 +222,7 @@ const VexPaperSession = {
         const r = document.createElement('div'); r.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
         r.append(
           G.button('Mistakes to FlashMind (CSV)', () => this.exportCards(s)),
-          G.button('Save as a note', () => { try { AgentTools.saveNote((s.paper || 'Past paper') + ' review', this.toMarkdown(s)); window.showToast?.('Saved to Notes'); } catch (e) { window.showToast?.(e.message, 'error'); } }),
+          G.button('Save as a note', () => { try { AgentTools.saveNote((s.paper || 'Past paper') + ' review', this.toMarkdown(s), undefined, { origin: 'paper-session' }); window.showToast?.('Saved to Notes'); } catch (e) { window.showToast?.(e.message, 'error'); } }),
           G.button('Delete', async () => { if (await window.vexConfirm({ title: 'Delete this record?', message: s.paper || '', okLabel: 'Delete', danger: true })) { this.remove(s.id); draw(); } }, { danger: true }),
         );
         box.appendChild(r);

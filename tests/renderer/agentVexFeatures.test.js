@@ -164,6 +164,6 @@ describe('an unattended (scheduled) run', () => {
     }
     const saved = await AgentExecutor.executeTool('save_note', { title: 'Prices', content: 'GPU 499' }, { webview: wv, scheduled: true });
     expect(saved.ok).toBe(true);
-    expect(JSON.parse(localStorage.getItem('vex.notes'))[0]).toMatchObject({ title: 'Prices', tags: ['agent'] });
+    expect(JSON.parse(localStorage.getItem('vex.notes'))[0]).toMatchObject({ title: 'Prices', tags: ['agent', 'from:agent'] });
   });
 });

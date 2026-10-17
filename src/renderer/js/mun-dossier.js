@@ -142,9 +142,9 @@ const VexMunDossier = {
     const d = this.get(id);
     if (!d) throw new Error('That dossier is gone');
     const made = [];
-    for (const [k, label] of this.SECTIONS) made.push({ key: k, label, note: AgentTools.saveNote(d.country + ': ' + label, this.sectionMarkdown(d, k)) });
+    for (const [k, label] of this.SECTIONS) made.push({ key: k, label, note: AgentTools.saveNote(d.country + ': ' + label, this.sectionMarkdown(d, k), undefined, { origin: 'mun' }) });
     const links = this.unLinks(d.country, d.topic);
-    const index = AgentTools.saveNote(d.country + ': dossier', ['# ' + d.country + ' dossier', '', (d.committee || '') + (d.topic ? ' | ' + d.topic : ''), '', '## Sections', '', ...made.map(m => '- ' + d.country + ': ' + m.label + ' (' + (d.sections[m.key] || []).length + ' items)'), '', '## UN Digital Library searches', '', ...links.map(l => '- ' + l.label + ': ' + l.url)].join('\n'));
+    const index = AgentTools.saveNote(d.country + ': dossier', ['# ' + d.country + ' dossier', '', (d.committee || '') + (d.topic ? ' | ' + d.topic : ''), '', '## Sections', '', ...made.map(m => '- ' + d.country + ': ' + m.label + ' (' + (d.sections[m.key] || []).length + ' items)'), '', '## UN Digital Library searches', '', ...links.map(l => '- ' + l.label + ': ' + l.url)].join('\n'), undefined, { origin: 'mun' });
     if (typeof ProjectSpaces !== 'undefined') {
       let space = ProjectSpaces.list().find(s => s.name === 'MUN: ' + d.country);
       if (!space) space = await ProjectSpaces.create('MUN: ' + d.country);
