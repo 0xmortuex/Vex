@@ -2224,6 +2224,8 @@ function vexOwnTextFocused(doc) {
       container.setAttribute('aria-live', 'polite');
       document.body.appendChild(container);
       watchToastPlacement(container);
+      // Known to the layer manager (js/vex-layer.js); closing it clears the toasts, the container stays for the next one.
+      if (typeof VexLayer !== 'undefined') VexLayer.track(container, { tier: 'toast', id: 'toast-container', close: () => { container.textContent = ''; if (!container.isConnected) document.body.appendChild(container); } });
     }
     // Skip exact duplicates of a toast that is still visible. One with a
     // button is about one thing that happened, so two of them are two things.

@@ -182,6 +182,7 @@
     renderMenu();
     if (!menu) return;
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'toolbar-overflow-menu');
     const r = more.getBoundingClientRect();
     const w = menu.offsetWidth;
     menu.style.top = (r.bottom + 6) + 'px';

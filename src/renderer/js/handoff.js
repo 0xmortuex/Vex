@@ -284,6 +284,7 @@ const Handoff = {
         </div>`;
     }
     document.body.appendChild(pop);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(pop, 'handoff-menu');
     this._place(pop, anchor);
 
     const close = () => this.closeMenu();

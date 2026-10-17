@@ -146,6 +146,8 @@
           </div>
         </div>`;
       document.body.appendChild(overlay);
+      // Known to the layer manager (js/vex-layer.js): closed by "Close all overlays", seen by the click sweep.
+      if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id, close: () => overlay._vexCancel() });
 
       const input = overlay.querySelector('.vex-dialog-input');
       if (input) input.value = opts.input.value != null ? String(opts.input.value) : '';

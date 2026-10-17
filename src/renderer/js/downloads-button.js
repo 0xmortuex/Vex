@@ -146,6 +146,7 @@ const DownloadsButton = {
     menu.style.top = Math.round(r.bottom + 6) + 'px';
     menu.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'downloads-menu');
     this._open = menu;
     this._auto = !!(opts && opts.auto);
     this._fill();

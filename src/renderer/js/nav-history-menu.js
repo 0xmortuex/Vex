@@ -76,6 +76,7 @@ const VexNavHistoryMenu = {
       menu.appendChild(b);
     });
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'nav-history-menu');
     const r = button.getBoundingClientRect();
     menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 340)) + 'px';
     menu.style.top = (r.bottom + 4) + 'px';

@@ -157,6 +157,7 @@
     menu.style.left = r.left + 'px';
     menu.style.top = (r.bottom + 4) + 'px';
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'look-sidebar-menu');
     if (typeof TabManager !== 'undefined' && TabManager._clampMenuToViewport) TabManager._clampMenuToViewport(menu, r.left, r.bottom + 4);
     setTimeout(() => {
       document.addEventListener('pointerdown', onDown, true);

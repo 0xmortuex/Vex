@@ -685,6 +685,7 @@ const VexTasks = {
       ? `<div class="vextasks-menu-note">${this._esc(it.note)}</div>`
       : `<button data-i="${i}">${this._esc(it.label)}</button>`).join('');
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'tasks-menu');
     this._menu = menu;
     const r = btn.getBoundingClientRect();
     menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
