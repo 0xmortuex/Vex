@@ -508,8 +508,8 @@
       permissions: { reads: ['whether each file Vex downloaded still carries the "downloaded from the internet" mark'], writes: ['nothing'], sends: [] } },
     { id: 'screen-share-safe', title: 'Screen-share safe mode', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.shareSafe'], commands: ['safeweb:share-safe-off'], events: ['vex:media-capture'],
       permissions: { reads: ['whether a tab or panel is sharing the screen, and the address of each tab'], writes: ['holds non-urgent notices and blurs private tab titles while the share lasts'], sends: [] } },
-    { id: 'vault-hygiene', title: 'Vault hygiene', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.vaultHygiene', 'vex.vaultHygiene.week'], commands: ['safeweb:vault-hygiene'],
-      jobs: ['Vault hygiene'], permissions: { reads: ['which logins are reused, weak or old, and your authenticator list; never a password'], writes: ['the week the quiet line was last offered'], sends: [] } },
+    { id: 'vault-hygiene', title: 'Vault hygiene', group: 'Safer browsing helpers', maturity: 'new', storageKeys: ['vex.vaultHygiene', 'vex.vaultHygiene.week', 'vex.vaultHygiene.rollup', 'vex.vaultHygiene.rollWeek'], commands: ['safeweb:vault-hygiene', 'safeweb:safety-rollup'],
+      jobs: ['Vault hygiene'], permissions: { reads: ['which logins are reused, weak or old, which login names are email addresses, your authenticator list, when site permissions end and the names of files in Downloads; never a password'], writes: ['the weeks the quiet lines were last offered'], sends: [] } },
 
     // ---- Wave 3 security helpers: every one opt-in (off in every tier), maturity new -------------------
     // Their limits, and what was NOT built, are in docs/security-tier3-threat-notes.md.

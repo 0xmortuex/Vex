@@ -598,7 +598,7 @@ Passwords, 2FA codes, and forms — filled for you.
 - **Say why a sign-in was lost** (`signout-why`): When a site signed you out, says which rule or setting ended the sign-in, read from cookie names and dates only.
   - Open: Ctrl+K: "Why was I signed out?"; Settings > Sign-in.
 - **Vault hygiene** (`vault-hygiene`): Shows saved logins in the order worth acting on: up to 3 passwords to change this week, which accounts share a password, which logins lack 2FA, and how old each is. Open it from Ctrl+K, Vault hygiene. On an existing profile it starts off; turn it on in Settings > Safer browsing helpers.
-  - Open: Ctrl+K: "Vault hygiene"; Settings > Safer browsing helpers.
+  - Open: Ctrl+K: "Vault hygiene", "Weekly safety check"; Settings > Safer browsing helpers.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Form assistant** (`form-assist`): Looks at the form in front of you and proposes a value for each box from your Form Fill profile. A box is filled only when you press its own Fill button. Open it from Ctrl+K, "Form assistant (confirm each field)". On an existing profile it starts off; turn it on in Settings > Form assistant.
   - Open: Ctrl+K: "Form assistant (confirm each field)"; Settings > Security helpers.

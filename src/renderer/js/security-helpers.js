@@ -127,6 +127,8 @@ const VexSecurityHelpers = {
     if (typeof VexVaultHygiene !== 'undefined') {
       this._toggle(body, 'Vault hygiene', 'A calm view of reused, weak and old passwords and missing 2FA, and once a week one quiet line when there is something to change. No password is shown.', () => VexVaultHygiene.enabled(), (on) => VexVaultHygiene.setEnabled(on));
       this._button(body, 'Open the vault hygiene view', () => VexVaultHygiene.open());
+      this._toggle(body, 'Weekly safety check', 'Once a week, one quiet card when something needs a look: passwords and the mailbox that recovers them, permissions that end soon, odd files in Downloads. Counts and names only.', () => VexVaultHygiene.rollupEnabled(), (on) => VexVaultHygiene.setRollupEnabled(on));
+      this._button(body, 'Run the weekly safety check now', () => VexVaultHygiene.openRollup());
     }
   },
 
@@ -148,7 +150,8 @@ const VexSecurityHelpers = {
         if (!tab || !tab.chatLink || !tab.chatLink.throwaway) throw new Error('This tab is not a throwaway one from a chat');
         return VexChatLinks.moveToDaily(tab);
       }) },
-      { id: 'safeweb:vault-hygiene', label: 'Vault hygiene', hint: 'What to rotate this week, reuse blast radius, 2FA coverage', icon: 'shield', action: run(() => VexVaultHygiene.open()) },
+      { id: 'safeweb:vault-hygiene', label: 'Vault hygiene', hint: 'What to rotate this week, reuse blast radius, 2FA coverage, recovery email', icon: 'shield', action: run(() => VexVaultHygiene.open()) },
+      { id: 'safeweb:safety-rollup', label: 'Weekly safety check', hint: 'Vault, permissions and downloads in one roll-up', icon: 'shield', action: run(() => VexVaultHygiene.openRollup()) },
       { id: 'safeweb:download-marks', label: 'Check the marks on my downloads', hint: 'Which downloaded files lost the "from the internet" mark (read-only)', icon: 'shield', action: run(() => VexMotwCheck.show()) },
       { id: 'safeweb:share-safe-off', label: 'Share-safe mode: off for this share', hint: 'Shows notices and titles again until the screen share ends', icon: 'shield', action: run(() => {
         if (!VexScreenShareSafe.sharing()) throw new Error('Your screen is not being shared');
