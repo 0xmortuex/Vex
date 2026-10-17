@@ -33,7 +33,7 @@ const Automations = {
     window.addEventListener('vex:tab-activated', () => this._tickUrl());
     window.addEventListener('vex:tab-url-changed', () => this._tickUrl());
     this._tickUrl();
-    setInterval(() => this._tickTime(), 30000);
+    VexJobs.every('Automations time triggers', 30000, () => this._tickTime(), { when: 'background', feature: 'automations' });
   },
   _activeUrl() { try { const t = TabManager.getActiveTab(); return (t && t.url) || ''; } catch { return ''; } },
   _tickUrl() {

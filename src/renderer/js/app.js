@@ -620,13 +620,13 @@ function vexOwnTextFocused(doc) {
     // restart the switch read ON and nothing was ever auto-saved. Start it from
     // the stored value at boot, and clear any previous one before re-arming.
     const applyAutoSave = (on) => {
-      clearInterval(window._autoSaveInterval);
-      window._autoSaveInterval = on
+      if (window._autoSaveJob) window._autoSaveJob.stop();
+      window._autoSaveJob = on
         // Not in a private window: its tabs are never saved, and the save
         // refuses there (found 2026-09-29).
-        ? (window.VexTabPolicy?.isPrivateWindow ? null : setInterval(() => {
+        ? (window.VexTabPolicy?.isPrivateWindow ? null : VexJobs.every('Auto-save sessions', 10 * 60 * 1000, () => {
           SessionManager.saveCurrentSession('Auto-saved ' + new Date().toLocaleString(), null, { auto: true });
-        }, 10 * 60 * 1000))
+        }, { when: 'background' }))
         : null;
     };
     autosaveToggle.checked = settings.autoSaveSessions || false;
@@ -1770,12 +1770,16 @@ function vexOwnTextFocused(doc) {
   if (typeof AIRouter !== 'undefined') {
     AIRouter.init().catch(err => console.error('[AIRouter] init failed:', err));
   }
-  window.addEventListener('online', () => showToast('Back online', 'success'));
+  // Nobody asked for these two: they go through the attention gate (useful, so the quiet switch and Game mode hold them).
+  const sayConnection = (id, text, kind) => (typeof VexAttention !== 'undefined'
+    ? VexAttention.toast({ feature: 'connection', urgency: 'useful', id, title: text }, text, kind)
+    : showToast(text, kind));
+  window.addEventListener('online', () => sayConnection('online', 'Back online', 'success'));
   window.addEventListener('offline', () => {
     if (typeof AIRouter !== 'undefined' && AIRouter.isOllamaAvailable()) {
-      showToast('Offline — AI switching to local', 'info');
+      sayConnection('offline-local', 'Offline — AI switching to local', 'info');
     } else {
-      showToast('Offline — AI unavailable until connection returns', 'warn');
+      sayConnection('offline', 'Offline — AI unavailable until connection returns', 'warn');
     }
   });
 
@@ -1867,15 +1871,15 @@ function vexOwnTextFocused(doc) {
     // Re-poll a few times so a slow first-run CDM download flips to "ready"
     // without the user reopening Settings.
     let polls = 0;
-    const t = setInterval(async () => {
-      if (++polls > 10) return clearInterval(t);
+    const t = VexJobs.every('Widevine status', 3000, async () => {
+      if (++polls > 10) return t.stop();
       try {
         const r = await window.vex.widevineStatus?.();
         const s = r?.status || 'unknown';
         paint(s);
-        if (/ready|loaded/.test(s)) clearInterval(t);
-      } catch {}
-    }, 3000);
+        if (/ready|loaded/.test(s)) t.stop();
+      } catch (err) { window.VexProblems?.note('Widevine', 'Could not read the Widevine status', err); }
+    });
   })();
   // Check-updates button
   document.getElementById('btn-check-updates')?.addEventListener('click', async () => {

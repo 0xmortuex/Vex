@@ -432,7 +432,7 @@ const VexClock = {
   _renderTab() {
     const body = this._container && this._container.querySelector('#clock-body');
     if (!body) return;
-    clearInterval(this._clockTimer); this._clockTimer = null;
+    if (this._clockTimer) this._clockTimer.stop(); this._clockTimer = null;
     if (this._tab === 'alarms') this._renderAlarms(body);
     else if (this._tab === 'timers') this._renderTimers(body);
     else if (this._tab === 'stopwatch') this._renderStopwatch(body);
@@ -671,11 +671,11 @@ const VexClock = {
     // old one running on its old city list and slider, so a removed city came
     // back and the slider was undone a second later (found 2026-09-29). It
     // also stops once the World tab is no longer showing.
-    clearInterval(this._clockTimer);
-    const timer = this._clockTimer = setInterval(() => {
-      if (!body.isConnected || !body.querySelector('#ck-world')) { clearInterval(timer); return; }
+    if (this._clockTimer) this._clockTimer.stop();
+    const timer = this._clockTimer = VexJobs.every('World clock repaint', 1000, () => {
+      if (!body.isConnected || !body.querySelector('#ck-world')) { timer.stop(); return; }
       if (offsetMin == null) paint();
-    }, 1000);
+    });
   },
 };
 

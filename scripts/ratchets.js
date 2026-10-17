@@ -10,6 +10,11 @@
 //   no-raw-interval  T0-020  src/renderer/js: no setInterval outside VexJobs
 //                            (jobs.js holds the Game / battery / hidden-window
 //                            pauses a raw timer skips)
+//   no-ungated-toast T0-019  src/renderer/js: no showToast(...) that does not sit inside a VexAttention call
+//                            (notify / request / gate). A toast the person asked for (they pressed the
+//                            button) is listed in the allowlist; one nobody asked for goes through
+//                            VexAttention so the quiet switch, Game mode and the caps apply. Only the direct
+//                            call is counted; the tolerant wrapper forms (showToast?.(...)) are button results.
 //   no-silent-catch  T0-008  src/**: no empty catch and no .catch(() => {});
 //                            report with VexProblems.note(...) or rethrow.
 //                            A deliberate one carries, inside the block,
@@ -75,6 +80,19 @@ function findRawIntervals(src) {
   return hits;
 }
 
+// A showToast( call with no VexAttention in the 700 characters of code before it. Definitions of showToast itself
+// (function showToast(, window.showToast = ) are not calls.
+function findUngatedToasts(src) {
+  const code = mask(src);
+  const hits = [];
+  for (const m of code.matchAll(/(?<![\w$.])(?:(?:window|root|globalThis)\.)?showToast\s*\(/g)) {
+    if (/function\s+$/.test(code.slice(Math.max(0, m.index - 12), m.index))) continue;
+    if (/VexAttention/.test(code.slice(Math.max(0, m.index - 700), m.index))) continue;
+    hits.push({ line: lineOf(src, m.index), text: 'showToast' });
+  }
+  return hits;
+}
+
 function findSilentCatches(src) {
   const code = mask(src);
   const hits = [];
@@ -101,6 +119,11 @@ const RULES = {
     why: 'use VexJobs.every(...) (js/jobs.js) so Game mode, battery and a hidden window pause it',
     dirs: ['src/renderer/js'],
     find: findRawIntervals,
+  },
+  'no-ungated-toast': {
+    why: 'unasked messages go through VexAttention.notify(opts, () => showToast(...)); a toast for something the person just pressed is listed in the allowlist',
+    dirs: ['src/renderer/js'],
+    find: findUngatedToasts,
   },
   'no-silent-catch': {
     why: 'report with VexProblems.note(area, message, err) or let the error propagate; a deliberate one needs "' + MARKER + ' <reason>" inside the block',
@@ -185,7 +208,7 @@ function init(root = ROOT) {
   return next;
 }
 
-module.exports = { mask, findRawIntervals, findSilentCatches, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
+module.exports = { mask, findRawIntervals, findUngatedToasts, findSilentCatches, scan, compare, check, tighten, init, RULES, ALLOWLIST, MARKER };
 
 if (require.main === module) {
   const arg = process.argv[2];

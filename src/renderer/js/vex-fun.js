@@ -163,8 +163,8 @@ const VexFun = {
     document.body.appendChild(root);
 
     let closed = false;
-    const poll = setInterval(() => onState(), 2000);   // GameMode.gaming has no event of its own
-    const stop = () => { clearInterval(poll); try { document.removeEventListener('vex:game-mode', onState); document.removeEventListener('vex:play-changed', onState); } catch { /* gone */ } };
+    const poll = VexJobs.every('Fun panel game state ' + Math.random().toString(36).slice(2, 8), 2000, () => onState());   // GameMode.gaming has no event of its own
+    const stop = () => { poll.stop(); try { document.removeEventListener('vex:game-mode', onState); document.removeEventListener('vex:play-changed', onState); } catch { /* gone */ } };
     const close = () => {
       if (closed) return;
       closed = true;

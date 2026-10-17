@@ -6,6 +6,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { VexMemoryTools: M } = require('../../src/renderer/js/memory-tools.js');
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 
 const day = (y, m, d, h = 12) => new Date(y, m - 1, d, h).getTime();
 

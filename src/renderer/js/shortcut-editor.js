@@ -215,7 +215,7 @@ const ShortcutEditor = (() => {
       window.removeEventListener('blur', onWindowBlur);
       btn.classList.remove('capturing');
       btn.innerHTML = originalHTML;
-      clearInterval(keepCapturing);
+      keepCapturing.stop();
       window.vex?.setShortcutCapturing?.(false);
     }
 
@@ -227,7 +227,7 @@ const ShortcutEditor = (() => {
     window.vex?.setShortcutCapturing?.(true);
     // Main lets go by itself after 15 s; a capture left waiting longer got
     // Ctrl+T back as a new tab (found 2026-09-29). Renewed while it lasts.
-    const keepCapturing = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
+    const keepCapturing = VexJobs.every('Shortcut capture keep-alive', 10000, () => window.vex?.setShortcutCapturing?.(true));
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('blur', onWindowBlur);

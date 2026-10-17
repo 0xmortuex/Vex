@@ -84,7 +84,8 @@ const Onboarding = {
     if (told) {
       setTimeout(() => {
         if (typeof window.showToast !== 'function') { console.error('[setup] could not say where suggestions now come from: no toast'); return; }
-        window.showToast(told, 'info', 10000);
+        if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'setup', urgency: 'useful', id: 'suggestions-source', title: told }, told, 'info', 10000);
+        else window.showToast(told, 'info', 10000);
       }, 6000);
     }
     return told;

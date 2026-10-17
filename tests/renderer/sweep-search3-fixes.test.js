@@ -17,6 +17,8 @@ window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => (
 const { ToolboxPacks } = require('../../src/renderer/js/toolbox-packs.js');
 globalThis.ToolboxPacks = ToolboxPacks;
 const { Toolbox, ToolboxLib } = require('../../src/renderer/js/toolbox.js');
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 const PACK_FILES = ['toolbox-pack-text.js', 'toolbox-pack-units-math-science.js', 'toolbox-pack-money-date-health.js',
   'toolbox-pack-dev-data-web.js', 'toolbox-pack-encoding-net-css.js', 'toolbox-pack-formats-text.js'];
 beforeAll(() => {

@@ -252,13 +252,13 @@ const ExtensionsSettings = (() => {
     };
     const onDown = (ev) => { if (ev.target !== btn) stop(); };
     const onBlur = () => stop();
-    const keep = setInterval(() => window.vex?.setShortcutCapturing?.(true), 10000);
+    const keep = VexJobs.every('Extension shortcut capture keep-alive', 10000, () => window.vex?.setShortcutCapturing?.(true));
     function stop() {
       if (_cancelCmdCapture === stop) _cancelCmdCapture = null;
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('blur', onBlur);
-      clearInterval(keep);
+      keep.stop();
       btn.classList.remove('capturing');
       btn.innerHTML = original;
       window.vex?.setShortcutCapturing?.(false);

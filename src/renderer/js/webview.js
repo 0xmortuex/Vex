@@ -493,7 +493,9 @@ const WebviewManager = {
       if (e.channel === 'vex-media-frozen' && !window.__vexFrozenMediaToastShown) {
         window.__vexFrozenMediaToastShown = true;
         if (typeof window.showToast === 'function') {
-          window.showToast('A video on this page is frozen (decoder failure) — see console for details', 'warning');
+          const frozen = 'A video on this page is frozen (decoder failure) — see console for details';
+          if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'media-health', urgency: 'useful', id: 'frozen', title: frozen }, frozen, 'warning');
+          else window.showToast(frozen, 'warning');
         }
       }
     });

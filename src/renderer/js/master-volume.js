@@ -574,7 +574,7 @@ const MasterVolume = {
     if (pct > 100) this._refreshStatus();
     // A page can change what it plays (the next video, a protected one that
     // could not be boosted): the line follows it while the slider is open.
-    this._statusPoll = setInterval(() => { if (this._el && +slider.value > 100) this._refreshStatus(); }, 2500);
+    this._statusPoll = VexJobs.every('Master volume status', 2500, () => { if (this._el && +slider.value > 100) this._refreshStatus(); }, { feature: 'master-volume' });
 
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };
     this._onDoc = (e) => { if (this._el && !this._el.contains(e.target)) this.close(); };
@@ -590,7 +590,7 @@ const MasterVolume = {
 
   close() {
     clearTimeout(this._statusTimer);
-    clearInterval(this._statusPoll);
+    if (this._statusPoll) { this._statusPoll.stop(); this._statusPoll = null; }
     if (this._el) {
       this._el.remove(); this._el = null;
       // Back to what had the focus (the page, a button), unless it already went

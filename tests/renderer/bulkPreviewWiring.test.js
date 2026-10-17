@@ -4,6 +4,8 @@
 // agent run with several changes, on top of tab closes and command chains (see undoConversions /
 // chainSteps tests).
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 
 beforeEach(() => {
   vi.resetModules();

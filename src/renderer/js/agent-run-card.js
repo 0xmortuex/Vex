@@ -104,7 +104,7 @@ const AgentRunCard = (() => {
       el.classList.toggle('open', open);
     });
 
-    const timer = replay ? null : setInterval(() => { q('.arc-time').textContent = clock(Date.now() - started); }, 1000);
+    const timer = replay ? null : VexJobs.every('Agent run clock ' + started + '-' + Math.random().toString(36).slice(2, 6), 1000, () => { q('.arc-time').textContent = clock(Date.now() - started); }, { feature: 'agent-task' });
 
     function paintChips() {
       const chips = q('.arc-chips');
@@ -258,7 +258,7 @@ const AgentRunCard = (() => {
       finish(endText) {
         if (finished) return;
         finished = true;
-        if (timer) clearInterval(timer);
+        if (timer) timer.stop();
         if (pending) { pending.li.classList.remove('pending'); pending = null; }
         live('');
         el.classList.remove('running');

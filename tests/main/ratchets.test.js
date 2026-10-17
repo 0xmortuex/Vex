@@ -59,3 +59,24 @@ describe('the real tree', () => {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+describe('unasked toasts (T0-019)', () => {
+  it('flags a direct showToast, in every spelling, but not a definition or a method of something else', () => {
+    expect(R.findUngatedToasts('showToast("a");')).toHaveLength(1);
+    expect(R.findUngatedToasts('window.showToast("a", "info");')).toHaveLength(1);
+    expect(R.findUngatedToasts('root.showToast("a");')).toHaveLength(1);
+    expect(R.findUngatedToasts('function showToast(a) {}\nwindow.showToast = showToast;\nx.showToast(1);')).toHaveLength(0);
+    expect(R.findUngatedToasts('// showToast("a")\nconst s = "showToast(b)";')).toHaveLength(0);
+  });
+  it('accepts a toast that sits inside a VexAttention call and refuses one that does not', () => {
+    expect(R.findUngatedToasts('VexAttention.notify({ feature: "x", urgency: "useful" }, () => window.showToast("a"));')).toHaveLength(0);
+    expect(R.findUngatedToasts('if (typeof VexAttention !== "undefined") VexAttention.toast(o, "a");\nelse window.showToast("a");')).toHaveLength(0);
+    expect(R.findUngatedToasts('const x = 1;\n' + 'y();\n'.repeat(200) + 'window.showToast("a");')).toHaveLength(1);
+  });
+  it('the unsolicited notices that were migrated are no longer in the allowlist counts', () => {
+    const allow = require('../../scripts/ratchet-allowlist.json')['no-ungated-toast'];
+    for (const f of ['search-again.js', 'onboarding.js', 'discord-theme.js', 'webview.js']) {
+      expect(allow['src/renderer/js/' + f] || 0).toBe(0);
+    }
+  });
+});
