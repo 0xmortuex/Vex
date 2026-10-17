@@ -186,6 +186,79 @@ const VexTos = {
     }
   },
 
+  // ---- reading mode: "simplify to a level" (opt in) ----------------------------------------
+  // Reader view gets a Wording menu: Original, Plain language, Simple, Simplest. The paragraphs are
+  // rewritten by YOUR LOCAL MODEL in batches and written into the reader page; the original text is
+  // kept in that page, so choosing Original puts it back with no model call. Nothing goes to the cloud.
+  SIMPLIFY_KEY: 'vex.reader.simplify',
+  LEVELS: [['original', 'Original'], ['plain', 'Plain language'], ['simple', 'Simple (about age 12)'], ['simplest', 'Simplest (short words)']],
+  BATCH: 4,
+  simplifyEnabled() { try { return localStorage.getItem(this.SIMPLIFY_KEY) === 'on'; } catch { return false; } },
+  setSimplifyEnabled(on) {
+    try { localStorage.setItem(this.SIMPLIFY_KEY, on ? 'on' : 'off'); }
+    catch (err) { throw new Error('Could not save that setting: ' + err.message); }
+    return !!on;
+  },
+  // Pure: the prompt for one batch of paragraphs (numbered [1], [2] ...).
+  simplifyPrompt(level, paragraphs) {
+    const how = {
+      plain: 'Rewrite each paragraph in plain language: remove jargon and legal wording, keep sentences under 25 words.',
+      simple: 'Rewrite each paragraph so a 12-year-old can follow it: common words, short sentences, explain a hard word in a few words.',
+      simplest: 'Rewrite each paragraph with very short sentences and the most common words. One idea per sentence.',
+    }[level];
+    if (!how) throw new Error('Unknown wording level: ' + level);
+    const body = paragraphs.map((p, i) => '[' + (i + 1) + '] ' + p).join('\n\n');
+    return how + ' Keep every fact, number, name and date. Do not add anything. Do not summarise or drop a paragraph. Answer with the same numbering, [1], [2] and so on, and nothing else.\n\n' + body;
+  },
+  // Pure: the model's numbered answer -> an array of `count` strings; a paragraph it skipped is null.
+  parseNumbered(out, count) {
+    const res = new Array(count).fill(null);
+    const parts = String(out || '').split(/(?:^|\n)\s*\[(\d{1,2})\]\s*/);
+    for (let i = 1; i + 1 < parts.length; i += 2) {
+      const n = Number(parts[i]);
+      const t = parts[i + 1].trim();
+      if (n >= 1 && n <= count && t && res[n - 1] == null) res[n - 1] = t.slice(0, 2400);
+    }
+    return res;
+  },
+  // Rewrites the reader page of `tabId` at `level`. Returns { done, skipped }.
+  async simplifyReader(tabId, level) {
+    if (!this.simplifyEnabled()) throw new Error('Simplify is switched off in Settings, Terms of service highlighter');
+    if (!this.LEVELS.some(l => l[0] === level && level !== 'original')) throw new Error('Unknown wording level: ' + level);
+    if (typeof WebTaming === 'undefined' || typeof WebviewManager === 'undefined') throw new Error('The reader tools are not loaded');
+    const wv = WebviewManager.webviews && WebviewManager.webviews.get(tabId);
+    if (!wv) throw new Error('That reader tab is gone');
+    const note = (m) => wv.executeJavaScript('window.__vrNote&&window.__vrNote(' + JSON.stringify(m) + ')');
+    if (!WebTaming.localAiReady()) { await note(WebTaming.NO_LOCAL_AI); throw new Error(WebTaming.NO_LOCAL_AI); }
+    const run = async () => {
+      const list = await wv.executeJavaScript('window.__vrCollect ? window.__vrCollect() : []');
+      if (!Array.isArray(list) || !list.length) { await note('No paragraphs long enough to rewrite.'); return { done: 0, skipped: 0 }; }
+      let done = 0, skipped = 0;
+      for (let at = 0; at < list.length; at += this.BATCH) {
+        const batch = list.slice(at, at + this.BATCH);
+        await note('Rewriting on this computer: ' + Math.min(at + this.BATCH, list.length) + ' of ' + list.length);
+        const out = await WebTaming.askLocal(this.simplifyPrompt(level, batch.map(b => String(b.text))), { maxTokens: 1400, timeoutMs: 90000 });
+        const got = this.parseNumbered(out, batch.length);
+        for (let k = 0; k < batch.length; k++) {
+          if (got[k] == null) { skipped++; continue; }
+          await wv.executeJavaScript('window.__vrPut(' + JSON.stringify(level) + ',' + Number(batch[k].i) + ',' + JSON.stringify(got[k]) + ')');
+          done++;
+        }
+      }
+      await note(done + ' paragraph' + (done === 1 ? '' : 's') + ' rewritten' + (skipped ? ', ' + skipped + ' left as written' : '') + '. Choose Original to see the page as it was.');
+      return { done, skipped };
+    };
+    let r;
+    try {
+      r = typeof VexJobs !== 'undefined' && typeof VexJobs.heavy === 'function'
+        ? await VexJobs.heavy('Simplify article', run, { kind: 'ai-ask', feature: 'tos-highlighter' })
+        : { ran: true, value: await run() };
+    } catch (err) { await note('Could not rewrite: ' + err.message); throw err; }
+    if (!r.ran) { await note('Not now: ' + r.reason); throw new Error('The rewrite did not run: ' + r.reason); }
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('tos-highlighter');
+    return r.value;
+  },
+
   // ---- switch ----------------------------------------------------------------
   KEY: 'vex.tosHighlighter',
   enabled() { try { return localStorage.getItem(this.KEY) !== 'off'; } catch { return true; } },
@@ -198,6 +271,12 @@ const VexTos = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('Marks the sentences in terms of service and privacy policies that most often cost people something: automatic renewal, data sharing, giving up the right to sue, terms that can change, broad licences, tracking. Press Ctrl+K and choose "Highlight unusual terms" on the page you are reading. ' + this.NOT_ADVICE));
     el.appendChild(VexSettingsGroups.button('Highlight this page', () => { this.run().catch(err => window.showToast?.(err.message, 'error')); }, { primary: true }));
+    const row = document.createElement('label');
+    row.className = 'vexsr-rule';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = this.simplifyEnabled();
+    cb.addEventListener('change', () => { try { this.setSimplifyEnabled(cb.checked); } catch (err) { cb.checked = !cb.checked; window.showToast?.(err.message, 'error'); } });
+    row.append(cb, document.createTextNode(' Reader view: offer a Wording menu that rewrites the article in plainer words (your local model only; the original is one choice away)'));
+    el.appendChild(row);
   },
 };
 
