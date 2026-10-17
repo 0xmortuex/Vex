@@ -10302,15 +10302,19 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
   } catch (err) {
     console.warn('[WhatsNew] local changelog unavailable, falling back to GitHub:', err.message);
   }
-  const fetchJson = async (url) => {
+  // Through the GitHub vault (T1-040): its fixed list of read endpoints, the owner's read-only token when there is
+  // one (60 reads an hour without), the polite fetch's pacing, and the egress ledger. A failure is logged, not hidden.
+  const fetchJson = async (apiPath) => {
     try {
-      const response = await boundedNetFetch(url, { maxBytes: 1024 * 1024, timeoutMs: 8000,
-        headers: { 'User-Agent': 'Vex', Accept: 'application/vnd.github+json' } });
-      return response.ok ? await response.json() : null;
-    } catch { return null; }
+      const r = await _githubVault.get(apiPath);
+      return r.ok ? JSON.parse(r.text) : null;
+    } catch (err) {
+      console.warn('[WhatsNew] GitHub release lookup failed:', err.message);
+      return null;
+    }
   };
-  let rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/tags/' + encodeURIComponent(ver));
-  if (!rel || !rel.tag_name) rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/latest');
+  let rel = await fetchJson('/repos/0xmortuex/Vex/releases/tags/' + ver);
+  if (!rel || !rel.tag_name) rel = await fetchJson('/repos/0xmortuex/Vex/releases/latest');
   if (!rel || !rel.tag_name) return null;
   return { version: rel.tag_name, name: rel.name || rel.tag_name, body: rel.body || '', url: rel.html_url, publishedAt: rel.published_at };
 });
