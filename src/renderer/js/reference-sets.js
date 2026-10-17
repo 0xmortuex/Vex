@@ -12,10 +12,12 @@
 // What is kept (this computer only, in vex.referenceSets): set names, page addresses
 // and titles, snippet text you typed or pasted. Nothing is fetched, indexed or sent.
 //
-// Not built (needs the knowledge base and offline pages to take a set, which is a
-// larger change): an offline copy of every page in a set, and searching only inside
-// a set. Pages can still be marked available offline one by one (Ctrl+K > Make This
-// Page Available Offline).
+// Offline copies and search (T1-016): "Keep offline" opens each page of a set one after the other (a tab that is
+// closed again when it is done), keeps a copy of it in the archive library exactly as "Make This Page Available
+// Offline" does for one page (the same refusals: private, Tor, sign-in, bank, mail and health pages), and marks it
+// in the offline list. "Search this set" looks only inside the copies of the pages of one set (the archive
+// library's own index, nothing new is indexed) and in the snippets you typed. A page of the set that has no copy
+// yet is said to be missing from the search, never silently skipped.
 //
 // Pure functions are tested in tests/renderer/referenceSets.test.js.
 const VexReferenceSets = {
@@ -171,6 +173,104 @@ const VexReferenceSets = {
     window.showToast?.('Pinned to "' + set.name + '"');
   },
 
+  // ---- offline copies and search inside a set (T1-016) ------------------------------------------------
+  // The address as the archive library keeps it: no fragment, no trailing slash, lower-case host.
+  urlKey(url) {
+    try { const u = new URL(String(url)); u.hash = ''; return (u.origin.toLowerCase() + u.pathname.replace(/\/+$/, '') + u.search); } catch { return String(url || ''); }
+  },
+  pagesOf(set) { return set.items.filter(i => i.kind === 'page'); },
+  inSet(set, url) { const k = this.urlKey(url); return this.pagesOf(set).some(p => this.urlKey(p.url) === k); },
+  // -> { total, kept, missing: [item] }
+  offlineStatus(set) {
+    const pages = this.pagesOf(set);
+    const kept = typeof VexOfflinePages !== 'undefined' ? pages.filter(p => VexOfflinePages.isOffline(p.url)) : [];
+    return { total: pages.length, kept: kept.length, missing: pages.filter(p => !kept.includes(p)) };
+  },
+  _settle(tabId, ms = 30000) {
+    return new Promise((resolve, reject) => {
+      const done = (fn, v) => { clearTimeout(timer); document.removeEventListener('vex:tab-settled', on); fn(v); };
+      const on = (e) => { if (e.detail && e.detail.tabId === tabId) done(resolve); };
+      const timer = setTimeout(() => done(reject, new Error('The page did not finish loading in ' + Math.round(ms / 1000) + ' seconds')), ms);
+      document.addEventListener('vex:tab-settled', on);
+    });
+  },
+  // Keeps a copy of every page of the set that has none, one at a time. -> { kept, already, failed: [{ title, reason }] }
+  async keepOffline(id, { onProgress, settleMs } = {}) {
+    const set = this.get(id);
+    if (!set) throw new Error('That set is gone');
+    if (typeof TabManager === 'undefined' || typeof VexOfflinePages === 'undefined') throw new Error('Offline pages are not available here');
+    if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) throw new Error('A private window keeps no copies');
+    const { missing, total } = this.offlineStatus(set);
+    if (!total) throw new Error('"' + set.name + '" has no pages yet');
+    const result = { kept: 0, already: total - missing.length, failed: [] };
+    const front = TabManager.activeTabId;
+    let n = 0;
+    for (const page of missing) {
+      n++;
+      if (onProgress) onProgress(n, missing.length, page);
+      const before = new Set(TabManager.tabs.map(t => t.id));
+      let tabId = null, opened = false;
+      try {
+        tabId = TabManager.createTab(page.url, true, null, { allowDuplicate: true });
+        opened = !before.has(tabId);
+        if (!opened) TabManager.switchTab(tabId);
+        await this._settle(tabId, settleMs);
+        await VexOfflinePages.markActive();
+        result.kept++;
+      } catch (err) {
+        result.failed.push({ title: page.title, reason: err.message });
+      } finally {
+        if (opened && tabId) TabManager.closeTab(tabId);
+      }
+    }
+    if (front && TabManager.tabs.some(t => t.id === front)) TabManager.switchTab(front);
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('reference-sets');
+    return result;
+  },
+  // Words of the query that must all appear (case-insensitive) in a snippet.
+  searchSnippets(set, query) {
+    const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    return set.items.filter(i => i.kind === 'snippet').filter(i => { const t = (i.title + ' ' + i.text).toLowerCase(); return words.every(w => t.includes(w)); });
+  },
+  // Only inside this set: its page copies (the archive library's index) and its snippets.
+  // -> { pages: [{ id, title, url, snippet }], snippets: [item], missing: [item] }
+  async searchSet(id, query) {
+    const set = this.get(id);
+    if (!set) throw new Error('That set is gone');
+    const q = String(query == null ? '' : query).trim();
+    if (!q) throw new Error('Type what to look for');
+    if (!window.vex || typeof window.vex.pageArchiveSearch !== 'function') throw new Error('The archive library is not available here');
+    const r = await window.vex.pageArchiveSearch(q);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'The search did not work');
+    const hits = ((r.result && r.result.hits) || []).filter(h => this.inSet(set, h.url));
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('reference-sets');
+    return { pages: hits.map(h => ({ id: h.id, title: h.title, url: h.url, snippet: Array.isArray(h.snippet) ? h.snippet.join(' ... ') : String(h.snippet || '') })), snippets: this.searchSnippets(set, q), missing: this.offlineStatus(set).missing };
+  },
+  async searchDialog(id) {
+    const set = this.get(id);
+    if (!set) throw new Error('That set is gone');
+    const q = await window.vexPrompt({ title: 'Search "' + set.name + '"', label: 'Look for', placeholder: 'a word or phrase' });
+    if (q == null) return null;
+    const r = await this.searchSet(id, q);
+    const { body } = VexSettingsGroups.dialog({ id: 'vex-refsets-search', title: 'In "' + set.name + '": ' + q, sub: 'Only the copies of this set\'s pages and its snippets were searched.' });
+    for (const p of r.pages) {
+      const row = document.createElement('div'); row.className = 'vexsr-rule';
+      const t = document.createElement('span'); t.className = 'vexsr-host'; t.style.wordBreak = 'normal'; t.textContent = p.title + (p.snippet ? ' - ' + p.snippet : '');
+      row.append(t, VexSettingsGroups.button('Open copy', () => { (typeof ArchiveLibrary !== 'undefined' ? ArchiveLibrary.openCopy(p.id) : Promise.reject(new Error('The archive library is not available here'))).catch(err => window.showToast?.(err.message, 'error')); }));
+      body.appendChild(row);
+    }
+    for (const s of r.snippets) {
+      const row = document.createElement('div'); row.className = 'vexsr-rule';
+      const t = document.createElement('span'); t.className = 'vexsr-host'; t.style.wordBreak = 'normal'; t.textContent = 'Snippet: ' + s.title;
+      row.append(t, VexSettingsGroups.button('Copy', () => { this.copySnippet(s).catch(err => window.showToast?.(err.message, 'error')); }));
+      body.appendChild(row);
+    }
+    if (!r.pages.length && !r.snippets.length) body.appendChild(VexSettingsGroups.note('Nothing in this set matched.'));
+    if (r.missing.length) body.appendChild(VexSettingsGroups.note(r.missing.length + ' page' + (r.missing.length === 1 ? ' has' : 's have') + ' no offline copy yet, so ' + (r.missing.length === 1 ? 'it was' : 'they were') + ' not searched: ' + r.missing.map(m => m.title).slice(0, 5).join(', ') + '. Press Keep offline on the set.'));
+    return r;
+  },
+
   // ---- Ctrl+K ----------------------------------------------------------------------------------
   registerCommands() {
     if (typeof VexModuleCommands === 'undefined') return false;
@@ -179,6 +279,7 @@ const VexReferenceSets = {
     if (this.enabled()) {
       list.push(
         { id: 'refsets:manage', label: 'Reference sets', icon: 'book', hint: 'Doc pages and snippets pinned to a project', action: () => this.open() },
+        { id: 'refsets:search', label: 'Search inside a reference set', icon: 'search', hint: 'Looks only in the offline copies and snippets of one set', action: () => { const sc = this.scope(); const s = (sc ? this.forScope(sc.id) : null) || this.sets()[0]; if (!s) throw new Error('There is no reference set yet'); this.searchDialog(s.id).catch(fail); } },
         { id: 'refsets:add', label: 'Pin this page to the reference set', icon: 'pin', hint: 'Adds the page in front to this project\'s set', action: () => { this.addCurrentPage().catch(fail); } },
         {
           id: 'refsets:open', label: 'Open the reference set of this project', icon: 'book-open', hint: 'All its pages, together in a group',
@@ -228,6 +329,18 @@ const VexReferenceSets = {
         const act = (text, fn) => h.appendChild(VexSettingsGroups.button(text, () => { Promise.resolve().then(fn).catch(fail); }));
         act('Open all', () => this.openAll(s.id));
         act('Open in split', () => this.openAll(s.id, { split: true }));
+        const st = this.offlineStatus(s);
+        if (st.total) {
+          act(st.kept === st.total ? 'Offline: all kept' : 'Keep offline (' + st.kept + ' of ' + st.total + ')', async () => {
+            if (!st.missing.length) { window.showToast?.('Every page of this set already has an offline copy'); return; }
+            const ok = await window.vexConfirm({ title: 'Keep ' + st.missing.length + ' page' + (st.missing.length === 1 ? '' : 's') + ' offline?', message: 'Vex opens each page of "' + s.name + '" that has no copy yet, one after the other, keeps a copy of it in the archive library, and closes it again. Pages that are private, sign-in, bank, mail or health pages are refused. The copies stay on this computer.', okLabel: 'Keep them' });
+            if (!ok) return;
+            const r = await this.keepOffline(s.id, { onProgress: (n, of, p) => window.showToast?.('Keeping ' + n + ' of ' + of + ': ' + String(p.title).slice(0, 50)) });
+            window.showToast?.(r.kept + ' kept' + (r.failed.length ? ', ' + r.failed.length + ' not kept: ' + r.failed.map(f => f.title.slice(0, 30) + ' (' + f.reason + ')').join('; ').slice(0, 300) : ''), r.failed.length ? 'error' : 'success', 9000);
+            draw();
+          });
+          act('Search this set', () => this.searchDialog(s.id));
+        }
         act('Add snippet', async () => {
           const text = await window.vexPrompt({ title: 'Add a snippet to ' + s.name, label: 'Text', multiline: true, wide: true });
           if (text == null) return;

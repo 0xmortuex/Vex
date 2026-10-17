@@ -223,8 +223,8 @@
       permissions: { reads: ['the text you select'], writes: ['the clipboard, when you press Copy'], sends: [] } },
     { id: 'selection-decoder', title: 'Decode selection', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.selectionDecoder.enabled'],
       permissions: { reads: ['the text you select'], writes: ['the clipboard, when you press Copy'], sends: [] } },
-    { id: 'reference-sets', title: 'Reference sets', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.referenceSets', 'vex.referenceSets.enabled'], commands: ['refsets:manage', 'refsets:add', 'refsets:open'],
-      permissions: { reads: ['the page in front, when you pin it'], writes: ['your sets of pages and snippets; tabs and a group when you open one'], sends: [] } },
+    { id: 'reference-sets', title: 'Reference sets', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.referenceSets', 'vex.referenceSets.enabled'], commands: ['refsets:manage', 'refsets:add', 'refsets:open', 'refsets:search'],
+      permissions: { reads: ['the page in front, when you pin it', 'the archive library, when you search inside a set'], writes: ['your sets of pages and snippets; tabs and a group when you open one', 'offline copies in the archive library, only when you press Keep offline'], sends: [] } },
     // ---- Wave 1: the daily flow (new: staged off on a profile that already exists) ----------
     { id: 'dueness', title: 'What is due', group: 'What is due', maturity: 'new', storageKeys: ['vex.dueness.enabled'], commands: ['due-now'],
       permissions: quiet({ reads: ['your reminders, @dated tasks in notes, calendar events and scheduled tasks'], writes: ['its own switch'] }) },
