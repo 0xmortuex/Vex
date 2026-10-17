@@ -78,6 +78,15 @@
   flex-shrink: 0;
 }
 
+/* The one line saying why the highlighted result is where it is. */
+#command-why {
+  padding: 6px 16px 8px;
+  font-size: 11px;
+  color: var(--vex-text-muted);
+  border-top: 1px solid var(--vex-border-subtle);
+}
+#command-why[hidden] { display: none; }
+
 #command-results {
   max-height: 360px;
   overflow-y: auto;
