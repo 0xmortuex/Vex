@@ -220,7 +220,7 @@ const VexJobs = {
   },
 
   _pluggedIn() {
-    if (typeof BatteryMode === 'undefined' || !BatteryMode.hw) return true;     // no battery information: a desktop
+    if (!window.BatteryMode || !window.BatteryMode.hw) return true;     // no battery information: a desktop
     return BatteryMode.hw.hasBattery === false || BatteryMode.hw.onBattery === false;
   },
   _overnight(now = new Date()) { const h = now.getHours(); return h >= this.BACKLOG_FROM && h < this.BACKLOG_TO; },
