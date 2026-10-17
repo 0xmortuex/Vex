@@ -1,0 +1,103 @@
+{
+  "format": "vex-pack",
+  "version": 1,
+  "id": "vex-builtin.student-portals",
+  "name": "Student discounts and portal recipes",
+  "author": "Vex",
+  "description": "Where student offers usually live, with a link to each company's own page, and four short recipes for common student portals. Last checked 2026-10-17. Offers, prices and menus change: open the page and verify before you rely on anything here.",
+  "items": [
+    {
+      "type": "brief-section",
+      "id": "student-discounts",
+      "title": "Student discounts (verify each one)",
+      "blocks": [
+        {
+          "kind": "text",
+          "text": "Last checked 2026-10-17. Each link goes to the company's own page. Who qualifies, the price and how you prove you are a student change often, so read the page before you apply."
+        },
+        {
+          "kind": "link",
+          "label": "GitHub Student Developer Pack",
+          "url": "https://education.github.com/pack"
+        },
+        {
+          "kind": "link",
+          "label": "JetBrains tools for students",
+          "url": "https://www.jetbrains.com/community/education/#students"
+        },
+        {
+          "kind": "link",
+          "label": "Microsoft education offers",
+          "url": "https://www.microsoft.com/en-us/education"
+        },
+        {
+          "kind": "link",
+          "label": "Canva for Education",
+          "url": "https://www.canva.com/education/"
+        },
+        {
+          "kind": "link",
+          "label": "Figma for Education",
+          "url": "https://www.figma.com/education/"
+        },
+        {
+          "kind": "link",
+          "label": "Adobe Creative Cloud for students",
+          "url": "https://www.adobe.com/creativecloud/buy/students.html"
+        },
+        {
+          "kind": "link",
+          "label": "Autodesk education software",
+          "url": "https://www.autodesk.com/education/edu-software/overview"
+        },
+        {
+          "kind": "link",
+          "label": "Apple education",
+          "url": "https://www.apple.com/education/"
+        },
+        {
+          "kind": "link",
+          "label": "Spotify Premium Student",
+          "url": "https://www.spotify.com/student/"
+        },
+        {
+          "kind": "link",
+          "label": "UNiDAYS student offers",
+          "url": "https://www.myunidays.com/"
+        },
+        {
+          "kind": "link",
+          "label": "Student Beans offers",
+          "url": "https://www.studentbeans.com/"
+        }
+      ]
+    },
+    {
+      "type": "snippets",
+      "id": "portal-recipes",
+      "name": "Student portal recipes (verify on the portal)",
+      "entries": [
+        {
+          "label": "e-Devlet: student certificate",
+          "text": "Open https://www.turkiye.gov.tr/ and sign in. Search for \"Öğrenci Belgesi\", choose your university, and download the PDF (it has a verification barcode). Menu and service names change: verify on the portal. Last checked 2026-10-17."
+        },
+        {
+          "label": "ÖSYM: sign in to your candidate account",
+          "text": "Open https://ais.osym.gov.tr/ from your own bookmark, never from a link in a message. Sign in with the details you set there; applications, the exam entry document and results sit under your account. Menu names change each season: verify on the portal. Last checked 2026-10-17."
+        },
+        {
+          "label": "Apply for a student discount",
+          "text": "Open the company's own student page. Sign in with your school email if it asks. Proof usually goes through UNiDAYS, SheerID or your school address; keep your student certificate PDF ready. Most offers must be renewed each year. Terms change: verify on the company's page. Last checked 2026-10-17."
+        },
+        {
+          "label": "University portal: password reset",
+          "text": "Use the portal's own \"forgot password\" link; the reset goes to the email on your account. Open the portal from your own bookmark, never from a message, and do not type your university password on a page you reached from one. Steps differ per university: verify on yours. Last checked 2026-10-17."
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "opens:links"
+  ],
+  "hash": "5a92f07decf9da27c71c9752136195c989cad0aee42c7549789d0bbb6fa263b5"
+}

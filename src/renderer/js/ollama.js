@@ -418,6 +418,19 @@ const Ollama = (() => {
     return true;
   }
 
+  // Load a model now and keep it for `minutes` (js/local-model-tools.js: a window the person set). An empty
+  // prompt loads the model without asking it anything; the keep-alive ends with the window, so Ollama
+  // unloads it by itself afterwards even if Vex is gone.
+  async function warm(model, minutes) {
+    const m = Math.round(Number(minutes));
+    if (!model) throw new Error('Which model should be loaded?');
+    if (!Number.isFinite(m) || m < 1 || m > 480) throw new Error('A model can be kept for 1 to 480 minutes');
+    _forgetHealth();
+    const r = await _post('/api/generate', { model, prompt: '', keep_alive: m + 'm' }, null, LOAD_TIMEOUT_MS);
+    if (!r.ok) throw new Error(await _errorText(r, model));
+    return true;
+  }
+
   // Remove a model from disk entirely (Settings › AI › the model manager).
   async function deleteModel(model) {
     _forgetHealth();
@@ -487,7 +500,7 @@ const Ollama = (() => {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   }
 
-  return { setBaseUrl, getBaseUrl, ping, ready, listModels, generate, chat, show, running, unload, deleteModel, pullModel, keepAlive, setKeepAlive, KEEP_ALIVE_CHOICES };
+  return { setBaseUrl, getBaseUrl, ping, ready, listModels, generate, chat, show, running, unload, warm, deleteModel, pullModel, keepAlive, setKeepAlive, KEEP_ALIVE_CHOICES };
 })();
 
 if (typeof window !== 'undefined') window.Ollama = Ollama;

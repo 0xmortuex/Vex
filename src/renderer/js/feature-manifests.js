@@ -522,6 +522,9 @@
     { id: 'clipboard-tripwire', title: 'Paste-and-run tripwire', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.clipTripwire.enabled', 'vex.clipTripwire.log'],
       tiers: { minimal: false, standard: false },
       permissions: { reads: ['clipboard writes a page makes with no click or key press'], writes: ['a short log of site, time, kind and your choice (never the command); empties the clipboard only when you press Clear'], sends: [] } },
+    // Wave 5: which local model fits the person's own tasks (on request) and a warm model inside their own windows (opt-in).
+    { id: 'local-model-tools', title: 'Local model: fit and warm-up', group: 'Local model: fit and warm-up', maturity: 'new', storageKeys: ['vex.modelFit', 'vex.warmModel'], commands: ['model-fit'], jobs: ['Warm model'],
+      permissions: { reads: ['the tasks you typed, your installed local models, which models are loaded and your weekly windows'], writes: ['your tasks and ratings, your windows; loads a local model for the rest of a window you set, and unloads the ones it tried'], sends: [] } },
     { id: 'startup-check', title: 'Startup check', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.startupCheck.enabled', 'vex.startupCheck.last'],
       commands: ['startup:check'], tiers: { minimal: false, standard: false },
       permissions: { reads: ['the Windows Run keys, the Startup folders and the names of scheduled tasks; when you press the button, the signature of each program found'], writes: ['the list you last reviewed'], sends: [] } },
