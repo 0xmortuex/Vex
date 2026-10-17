@@ -64,6 +64,9 @@ const VexToday = {
           .map(e => ({ url: e.url, text: e.title || e.url, at: e.timestamp || e.at || e.visitedAt || null, favicon: e.favicon || null }));
       }
     } catch (err) { snap.errors.push('recent pages: ' + ((err && err.message) || 'unavailable')); }
+    // While the screen is shared the Recent (history) list is not handed to the page at all
+    // (js/screen-share-safe.js); the page also empties what it already drew.
+    if (typeof VexScreenShareSafe !== 'undefined' && VexScreenShareSafe.historyHeld()) { snap.recent = []; snap.hideRecent = true; }
 
     try {
       if (typeof Scheduler !== 'undefined' && Scheduler.getAllTasks) {

@@ -254,6 +254,7 @@ const PasswordVault = {
   // submitted; 'vex-pwgen-used' marks that the person really used it.
   _onSuggestMessage(webview, channel, d, actualHost) {
     if (this._host(d.host) !== actualHost || typeof d.id !== 'string' || !d.id || d.id.length > 64) return;
+    if (channel === 'vex-pwgen-ask' && typeof VexScreenShareSafe !== 'undefined' && VexScreenShareSafe.vaultHeld()) { VexScreenShareSafe.noteHeld(); return; }
     if (channel === 'vex-pwgen-used') {
       const s = webview._vexPwSuggestion;
       if (!s || s.id !== d.id || s.host !== actualHost) return;
@@ -358,6 +359,9 @@ const PasswordVault = {
 
   // The page side asks after a real click in a login field.
   async _onLoginWant(webview, d, actualHost) {
+    // While the screen is shared, a user name or an account list must not appear on it
+    // (js/screen-share-safe.js). The click is not lost: the next one after the share works.
+    if (typeof VexScreenShareSafe !== 'undefined' && VexScreenShareSafe.vaultHeld()) { VexScreenShareSafe.noteHeld(); return; }
     const arm = webview._vexLoginArm;
     if (!arm || arm.host !== actualHost || this._host(d.host) !== actualHost) return;
     if (typeof d.id !== 'string' || !d.id || d.id.length > 64) return;
@@ -410,6 +414,7 @@ const PasswordVault = {
   // (passwordless login). Pre-fill ONLY a genuine login email/username field —
   // never a password, never a search box — on load and on click-to-fill.
   _autofillEmailOnly(webview, host, url) {
+    if (typeof VexScreenShareSafe !== 'undefined' && VexScreenShareSafe.vaultHeld()) { VexScreenShareSafe.noteHeld(); return; }
     if (!url) { try { url = webview.getURL(); } catch { return; } }
     // `host` is the canonical (www-stripped) form; compare like for like or this
     // bails out on every www. site.

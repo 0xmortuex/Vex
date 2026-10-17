@@ -122,6 +122,8 @@ const VexSecurityHelpers = {
 
     if (typeof VexScreenShareSafe !== 'undefined') {
       this._toggle(body, 'Screen-share safe mode', 'While a tab or panel shares your screen, non-urgent notices wait, toasts are hidden, and the titles of bank, sign-in, mail and chat tabs are blurred.', () => VexScreenShareSafe.enabled(), (on) => VexScreenShareSafe.setEnabled(on));
+      this._toggle(body, 'Also hold sign-in offers while sharing', 'The saved-login fill, the account list, the remembered email and the strong-password card wait until the share ends, so no user name appears on the shared screen.', () => VexScreenShareSafe.vaultOn(), (on) => VexScreenShareSafe.setVault(on));
+      this._toggle(body, 'Also hide the New Tab history list while sharing', 'The Recent list of the New Tab page is emptied while a share lasts and comes back when it ends.', () => VexScreenShareSafe.historyOn(), (on) => VexScreenShareSafe.setHistory(on));
     }
 
     if (typeof VexVaultHygiene !== 'undefined') {
