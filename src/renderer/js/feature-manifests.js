@@ -73,7 +73,7 @@
 
     // ---- Fun and progress (js/fun/*) and Play (js/vex-fun.js) ------------------
     { id: 'fun-pet', title: 'Vex Pet', ...fun, usesKeys: [], storageKeys: ['vex.fun', 'vex.fun.medals', 'vex.fun.quiet'], permissions: quiet({ writes: ['pet and medal records'] }) },
-    { id: 'play-room', title: 'Play room', group: 'Play: fun and progress', storageKeys: ['vex.playRoom'], commands: ['play-room'], permissions: quiet({ writes: ['local drawings, ideas, souvenirs and daily activity rewards'] }) },
+    { id: 'play-room', title: 'Play room', killSwitch: 'none', group: 'Play: fun and progress', storageKeys: ['vex.playRoom'], commands: ['play-room'], permissions: quiet({ writes: ['local drawings, ideas, souvenirs and daily activity rewards'] }) },
     { id: 'fun-discovery', title: 'Discovery log', ...fun, permissions: quiet({ writes: ['what you discovered'] }) },
     { id: 'fun-levels', title: 'Browser levels', ...fun, permissions: quiet({ writes: ['your level'] }) },
     { id: 'fun-challenge', title: 'Daily challenge', ...fun, permissions: quiet({ writes: ['today’s challenge'] }) },

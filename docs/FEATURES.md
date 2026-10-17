@@ -844,6 +844,7 @@ Features no other browser has, built out of the parts above.
   - Open: Settings > Fun and progress.
 - **Play room** (`play-room`): Pop bubble wrap, make impossible choices, match memory tiles, echo patterns, draw pixel postcards or keep silly ideas. Collect souvenirs and small rewards in your existing profile. All local, untimed and playable without animation.
   - Open: Ctrl+K: "Play room"; Settings > Play: fun and progress.
+  - Default: always on, no switch.
 - **Discovery log** (`fun-discovery`): A collectible list of the Vex features you have found, filled from what you already used. Off by default: turn it on in Settings > Fun and progress.
   - Open: Settings > Fun and progress.
 - **Browser levels** (`fun-levels`): Points for useful things, never for time on screen, adding up to a browser level. Off by default: turn it on in Settings > Fun and progress.
