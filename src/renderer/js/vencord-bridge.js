@@ -1,7 +1,7 @@
 // === Vencord bridge: mentions, replies and channel catch-up (T3-005) ================
 //
 // THE HOST SIDE ONLY. Vex does not read Discord and does not change Vencord. The
-// owner's OWN Vencord plugin (not written yet; the contract is docs/vencord-bridge.md)
+// owner's OWN Vencord plugin (source in tools/vencord-bridge, built in the owner's Vencord repo; the contract is docs/vencord-bridge.md)
 // may write one small JSON file, "vex-bridge.json", into a folder he chooses. This reads
 // that file, and only when asked:
 //
