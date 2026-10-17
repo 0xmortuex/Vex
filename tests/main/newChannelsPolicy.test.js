@@ -9,7 +9,7 @@ const read = (...p) => fs.readFileSync(path.resolve(__dirname, '../..', ...p), '
 const { UI_ONLY_CHANNELS } = require('../../src/main/ipc-policy.js');
 
 const CHANNELS = ('clips-inbox:add clips-inbox:clear clips-inbox:list clips-inbox:remove companion:publish companion:start companion:status companion:stop '
-  + 'downloads:set-media-names downloads:set-ask-types downloads:release-assist downloads:mods-plan downloads:mods-apply downloads:mods-undo downloads:mods-history downloads:tidy-apply downloads:tidy-history downloads:tidy-plan downloads:tidy-undo downloads:motw-check downloads:open-defender extensions:usage-audit health:fix health:scan health:undo '
+  + 'downloads:set-media-names downloads:set-ask-types downloads:release-assist downloads:mods-plan downloads:mods-apply downloads:mods-undo downloads:mods-history downloads:extract-here downloads:tidy-apply downloads:tidy-history downloads:tidy-plan downloads:tidy-undo downloads:motw-check downloads:open-defender extensions:usage-audit health:fix health:scan health:undo '
   + 'journal:at journal:configure journal:diff journal:forget journal:list journal:note-version journal:note-versions journal:push journal:stats '
   + 'kb:context kb:forget kb:keep-out kb:keep-out-clear kb:plan kb:put kb:related kb:related-page kb:search kb:status kb:step kb:sync-archive '
   + 'packs:discard packs:export packs:generate-key packs:install packs:items packs:list packs:pick-file packs:preview packs:set-enabled packs:set-global '

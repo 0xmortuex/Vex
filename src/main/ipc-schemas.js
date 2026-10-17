@@ -95,6 +95,9 @@ define('downloads:mods-apply', [string(64)]);
 // file Vex downloaded itself. Neither builds an address or a command from what is sent.
 define('downloads:motw-check', []);
 define('downloads:open-defender', [optional(string(4096))]);
+// Extract here (src/main/download-files.js, T3-111): a path, honoured only for a file Vex downloaded itself; the folder it
+// is unpacked into is chosen by main, and main shows the confirmation.
+define('downloads:extract-here', [string(4096)]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

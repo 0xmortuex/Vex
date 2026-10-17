@@ -583,6 +583,8 @@ contextBridge.exposeInMainWorld('vex', {
   // Which downloaded files lost the "from the internet" mark (read-only), and the Windows Security shortcut.
   downloadsMotwCheck:    () => ipcRenderer.invoke('downloads:motw-check'),
   downloadsOpenDefender: (filePath) => ipcRenderer.invoke('downloads:open-defender', filePath),
+  // Unpack a downloaded .zip/.tar/.tgz/.tar.gz into a new folder beside it, after main's own confirmation.
+  downloadsExtractHere:  (filePath) => ipcRenderer.invoke('downloads:extract-here', filePath),
   // Pause / resume / cancel a transfer that is still running, and re-request one
   // that failed. `action` is 'pause' | 'resume' | 'cancel'.
   downloadsControl:      (id, action) => ipcRenderer.invoke('downloads:control', id, action),

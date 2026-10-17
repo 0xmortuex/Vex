@@ -9241,6 +9241,18 @@ ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
 // (src/main/download-files.js); only a file Vex downloaded, as Open.
 const _downloadFiles = require('./main/download-files').createDownloadFiles({
   fs, shell, getFileIcon: (p, o) => app.getFileIcon(p, o), isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+  // Extract here (T3-111): the archive checks, the mark of the web, and a confirmation the MAIN process shows.
+  archive: require('./main/archive-security'), motw: _downloadService.markOfTheWeb,
+  confirm: async ({ title, detail, ok, cancel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'question', title: 'Vex', message: title, detail, buttons: [ok || 'OK', cancel || 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+});
+ipcMain.handle('downloads:extract-here', async (_e, filePath) => {
+  try { return await _downloadFiles.extractHere(filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:delete-file', async (_e, filePath) => {
   try { return await _downloadFiles.deleteFile(filePath); }
