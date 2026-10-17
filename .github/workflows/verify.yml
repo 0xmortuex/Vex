@@ -10,7 +10,9 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # The whole sequence now takes about an hour: the full tests (~9 min), check:ui
+    # (~30 min with every look and settings layout), the smoke matrix and the package.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
