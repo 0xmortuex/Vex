@@ -407,6 +407,7 @@ const AgentExecutor = {
           const url = (wv && wv.getURL && wv.getURL()) || (tab && tab.url) || '';
           if (!wv || !/^https:/i.test(url)) return { ok: false, error: 'Open the site’s sign-in page first (and it must be https)' };
           if (typeof PasswordVault === 'undefined') return { ok: false, error: 'The logins hub is not available' };
+          if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('agent')) return { ok: false, error: 'The user is sharing their screen and Vex holds sign-in fills meanwhile. Use hand_over so they sign in themselves, or wait' };
           let host = '';
           try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
           const saved = await window.vex.vaultGet(host);

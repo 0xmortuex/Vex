@@ -626,6 +626,7 @@ const EmailCodeAutofill = {
   // request tells that watch to fill now instead of being dropped.
   async tryFill(loginWv, url, { manual = false } = {}) {
     if (!loginWv) return;
+    if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('emailcode')) { if (manual) globalThis.window?.showToast?.(VexShareHold.MESSAGE, 'info'); return; }
     // "Fill now" is set only on a page a watch runs on (this one, or the one
     // that starts below): set before the early returns, it stayed on the tab
     // and a later automatic watch there skipped its 15-30 s wait.
@@ -904,6 +905,7 @@ const EmailCodeAutofill = {
   // Mail is not involved; nothing is submitted, even with auto-submit on.
   async fillFromClipboard(loginWv, url) {
     if (!loginWv || !/^https:/i.test(url || '')) return false;
+    if (typeof VexShareHold !== 'undefined' && VexShareHold.holds('emailcode')) { globalThis.window?.showToast?.(VexShareHold.MESSAGE, 'info'); return false; }
     if (globalThis.window?.VexTabPolicy && !globalThis.window.VexTabPolicy.canFillWebview(loginWv)) return false;
     let text = '';
     try { text = await navigator.clipboard.readText(); }

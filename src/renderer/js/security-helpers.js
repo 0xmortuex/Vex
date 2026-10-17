@@ -122,6 +122,7 @@ const VexSecurityHelpers = {
 
     if (typeof VexScreenShareSafe !== 'undefined') {
       this._toggle(body, 'Screen-share safe mode', 'While a tab or panel shares your screen, non-urgent notices wait, toasts are hidden, and the titles of bank, sign-in, mail and chat tabs are blurred.', () => VexScreenShareSafe.enabled(), (on) => VexScreenShareSafe.setEnabled(on));
+      if (typeof VexShareHold !== 'undefined') this._toggle(body, 'Also hold the passkey chooser, 2FA codes, emailed codes and the AI sign-in while sharing', 'During a share the passkey chooser is not shown, authenticator and emailed codes are not filled, and the AI agent\'s sign-in step is told to hand the page over, so none of them appears on the shared screen. Off until you tick it.', () => VexShareHold.enabled(), (on) => VexShareHold.setEnabled(on));
     }
 
     if (typeof VexVaultHygiene !== 'undefined') {

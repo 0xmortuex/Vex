@@ -298,6 +298,7 @@
     on('ipc-message', (e) => {
       if (e.channel !== 'vex-passkey-field' && e.channel !== 'vex-passkey-field-hide' && e.channel !== 'vex-passkey-field-key') return;
       if (window.VexTabPolicy && !window.VexTabPolicy.canFillWebview(webview)) return;
+      if (e.channel === 'vex-passkey-field' && typeof VexShareHold !== 'undefined' && VexShareHold.holds('passkey')) return;
       if (e.channel === 'vex-passkey-field-hide') { hideChooser(false); return; }
       if (e.channel === 'vex-passkey-field-key') { chooserKey(String((e.args && e.args[0] && e.args[0].key) || '')); return; }
       showChooser(webview, (e.args && e.args[0]) || null);
