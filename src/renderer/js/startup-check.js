@@ -57,6 +57,8 @@ const VexStartupCheck = {
       else if (r.status === 'NotSigned') text = 'Not signed: nobody has put their name to this program';
       else if (r.status === 'unchecked') text = 'Not checked: ' + (r.why || 'no program to read');
       else text = 'The signature is ' + r.status + (r.signer ? ' (' + r.signer + ')' : '') + ': Windows does not trust it as it stands';
+      // A task or a shortcut is judged by the program it leads to, and the line says so.
+      if (r.via && r.status !== 'unchecked') text += ' (the program ' + (r.via === 'task' ? 'this scheduled task runs' : 'this shortcut starts') + ')';
       m.set(r.id, { text, unsigned: r.status === 'NotSigned' || (r.status !== 'Valid' && r.status !== 'unchecked' && r.status !== 'unknown') });
     }
     return m;
