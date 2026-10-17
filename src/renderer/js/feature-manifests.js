@@ -213,8 +213,8 @@
     // New: each arrives OFF on a profile that already existed and is offered ("try it").
     { id: 'repo-registry', title: 'Repository registry and groups', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.repos', 'vex.repos.enabled'], commands: ['repos:manage'],
       permissions: { reads: ['the address of the tab in front'], writes: ['your repository list and the folder paths you chose; a tab group you accept'], sends: [] } },
-    { id: 'search-bangs', title: 'Search bangs for docs, packages and games', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.searchBangs', 'vex.searchBangs.enabled'],
-      permissions: { reads: ['what you type in the address bar'], writes: ['your bang table'], sends: ['The words you type, to the site whose bang you used'] } },
+    { id: 'search-bangs', title: 'Search bangs for docs, packages and games', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.searchBangs', 'vex.searchBangs.enabled', 'vex.searchBangs.uses', 'vex.searchBangs.offered'],
+      permissions: { reads: ['what you type in the address bar'], writes: ['your bang table, and the times you used each bang this week (to offer a shorter word)'], sends: ['The words you type, to the site whose bang you used'] } },
     { id: 'copy-as-request', title: 'Copy as cURL, fetch or PowerShell', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.copyAs.enabled'], commands: ['copy-as-request'],
       permissions: { reads: ['a link you right-click'], writes: ['the clipboard, when you press Copy'], sends: [] } },
     { id: 'github-helpers', title: 'GitHub page helpers', group: 'Developer helpers', maturity: 'new', storageKeys: ['vex.githubHelpers.enabled'],

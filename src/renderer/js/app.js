@@ -153,6 +153,10 @@ function vexOwnTextFocused(doc) {
     // same answer Ctrl+K and the New Tab box give).
     const where = VexTypedAddress.resolve(val);
     const url = where.url;
+    // A bang of the table counts toward the short word offer (js/search-bangs.js).
+    if (where.kind === 'keyword' && typeof VexBangs !== 'undefined') {
+      try { VexBangs.noteUse(val); } catch (err) { window.VexProblems?.note('Search bangs', 'could not count a bang use', err.message); }
+    }
 
     // An address already open in another tab: go there instead of opening it a
     // second time, and count the site as one you type (js/tabs-nav.js).

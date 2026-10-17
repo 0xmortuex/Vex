@@ -15,12 +15,18 @@
 // What is kept (this computer only): your rows in vex.searchBangs, and the switch
 // in vex.searchBangs.enabled. Nothing is sent anywhere but the page you open.
 //
-// Not built: suggesting a shortcut word after you type the same prefix three
-// times in a week (js/command-aliases.js already learns command words; a bang
-// is not a command).
+// A shorter word after three uses (T1-005): when you submit the same bang three times
+// within a week, one line waits in the Attention Inbox offering a short word of your own
+// ("!n" for "!npm") that goes to the same place. The button adds that row to your table;
+// nothing is added by itself. The uses are counted from what you SUBMIT (noteUse, called
+// by the address bar), not from what you type, and only their times are kept.
 const VexBangs = {
   KEY: 'vex.searchBangs',
   ENABLED_KEY: 'vex.searchBangs.enabled',
+  USES_KEY: 'vex.searchBangs.uses',
+  OFFERED_KEY: 'vex.searchBangs.offered',
+  USES_NEEDED: 3,
+  USES_WINDOW_MS: 7 * 24 * 3600 * 1000,
   NAME: /^[a-z0-9][a-z0-9._-]{0,15}$/,
   MAX_USER: 60,
 
@@ -129,6 +135,59 @@ const VexBangs = {
     return { url: row.url.replace('%s', encodeURIComponent(query)), name: row.name, query, bang: row.bang };
   },
 
+  // ---- the short word offer (T1-005) -----------------------------------------------------------
+  _json(key, fallback) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== 'object') throw new Error(key + ' is not readable');
+    return v;
+  },
+  // A short word for a bang that is free: its first letter, then its first two, then a digit.
+  suggestAlias(bang) {
+    const taken = new Set(this.table().map(r => r.bang));
+    const b = String(bang || '').toLowerCase();
+    const tries = [b.slice(0, 1), b.slice(0, 2), b.slice(0, 1) + '1', b.slice(0, 1) + '2'];
+    return tries.find(w => w && w.length < b.length && !taken.has(w) && this.NAME.test(w)) || null;
+  },
+  // A line was submitted: count it when it used a bang of the table. On the third time in a week
+  // one Attention Inbox row offers a short word, once per bang. -> the alias offered, or null.
+  noteUse(text, now = Date.now()) {
+    if (!this.enabled()) return null;
+    const hit = this.resolve(text);
+    if (!hit) return null;
+    const uses = this._json(this.USES_KEY, {});
+    const fresh = (Array.isArray(uses[hit.bang]) ? uses[hit.bang] : []).filter(t => now - t < this.USES_WINDOW_MS);
+    fresh.push(now);
+    uses[hit.bang] = fresh.slice(-10);
+    localStorage.setItem(this.USES_KEY, JSON.stringify(uses));
+    if (fresh.length < this.USES_NEEDED) return null;
+    const offered = this._json(this.OFFERED_KEY, {});
+    if (offered[hit.bang]) return null;
+    const alias = this.suggestAlias(hit.bang);
+    if (!alias) return null;
+    if (typeof VexAttention === 'undefined') throw new Error('VexAttention is not loaded, so the short word cannot be offered');
+    offered[hit.bang] = now;
+    localStorage.setItem(this.OFFERED_KEY, JSON.stringify(offered));
+    VexAttention.suggest({
+      feature: 'search-bangs', id: 'alias:' + hit.bang, label: 'Search bangs',
+      title: 'You used !' + hit.bang + ' ' + fresh.length + ' times this week',
+      body: 'Add !' + alias + ' as a shorter word for it? It goes to ' + hit.name + ' like !' + hit.bang + ' does.',
+      action: { label: 'Add !' + alias, key: 'alias:' + hit.bang + ':' + alias },
+    });
+    return alias;
+  },
+  // The inbox button.
+  takeAlias(key) {
+    const m = /^alias:([a-z0-9._-]+):([a-z0-9._-]+)$/.exec(String(key || ''));
+    if (!m) throw new Error('That is not a short word offer');
+    const row = this.lookup(m[1]);
+    if (!row) throw new Error('!' + m[1] + ' is no longer in your table');
+    this.set(m[2], row.url);
+    window.showToast?.('!' + m[2] + ' now searches ' + row.name);
+    return m[2];
+  },
+
   // ---- pack-compatible data ------------------------------------------------------------
   // The shape of an "aliases" item in a plugin pack (src/main/packs.js): each word runs
   // the Ctrl+K command bang:<word>, which asks what to search for. So a pack can ship
@@ -202,6 +261,11 @@ const VexBangs = {
 if (typeof window !== 'undefined') {
   window.VexBangs = VexBangs;
   VexBangs.registerCommands();
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle('search-bangs', (key) => { try { VexBangs.takeAlias(key); } catch (err) { window.showToast?.(err.message, 'error'); } });
+    }
+  });
   document.addEventListener('DOMContentLoaded', () => VexBangs.registerCommands());
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexBangs };
