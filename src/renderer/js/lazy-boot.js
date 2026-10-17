@@ -50,7 +50,7 @@ const VexBoot = {
     // Wave 6: features that sit in the usage record and that nothing reads while the window comes up. Each registers its
     // switch when it arrives and the staging pass runs again (VexRegistry.restageLate), so a profile that already existed
     // still gets them switched off.
-    { src: 'js/links-windows.js', usage: ['mini-window'] },
+    { src: 'js/links-windows.js', usage: ['mini-window', 'window-set'] },
     { src: 'js/embedding-manager.js', usage: ['embedding-manager'] },
     { src: 'js/response-overrides-ui.js', usage: ['response-overrides'] },
     { src: 'js/selection-tools.js', usage: ['selection-tools'] },
