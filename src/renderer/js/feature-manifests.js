@@ -406,7 +406,7 @@
     { id: 'break-prompts', title: 'Breaks', group: 'Breaks', maturity: 'new', storageKeys: ['vex.breaks', 'vex.breaks.enabled', 'vex.breaks.prefs'], jobs: ['Break prompts'],
       permissions: { reads: ['whether you are using Vex (not what you type)'], writes: ['how many breaks you took each day'], sends: [] } },
     { id: 'orders-hub', title: 'Orders', group: 'Orders', maturity: 'new', storageKeys: ['vex.orders', 'vex.orders.enabled'], commands: ['orders-hub'],
-      permissions: { reads: ['your parcels'], writes: ['your parcels and reminders you asked for'], sends: ['Nothing itself: Track opens the carrier’s page in a tab'] } },
+      permissions: { reads: ['your parcels', 'the carrier’s public tracking page, only for a parcel you pressed Watch on (through Page watch)'], writes: ['your parcels, each parcel’s short timeline, and reminders you asked for'], sends: ['Track opens the carrier’s page in a tab; Watch asks that same public page now and then through Page watch'] } },
     { id: 'exam-calendar', title: 'Exam and registration dates', group: 'Exam and registration dates', maturity: 'new', storageKeys: ['vex.examDates', 'vex.examDates.enabled', 'vex.examDates.prefs'], commands: ['exam-calendar'],
       permissions: { reads: ['the dates you typed or imported from a file you chose'], writes: ['those dates and reminders you asked for'], sends: [] } },
     { id: 'receipt-locker', title: 'Receipts and warranties', group: 'Receipts and warranties', maturity: 'new', storageKeys: ['vex.receipts', 'vex.receipts.enabled'], commands: ['receipt-locker'],
