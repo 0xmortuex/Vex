@@ -333,7 +333,7 @@
     { id: 'log-reader', title: 'Log reader', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.logReader.enabled'],
       commands: ['logreader:tab', 'logreader:file'], permissions: { reads: ['a log file you pick, or the page in front (never a private or routed tab)'], writes: ['nothing'], sends: [] } },
     { id: 'plugin-dev', title: 'Plugin dev loop', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.pluginDev.enabled'],
-      commands: ['plugindev:open'], permissions: { reads: ['the source of the extension folder you picked; the installed Vencord builds (read-only)'], writes: ['loads that extension into the profile until you stop it'], sends: [] } },
+      commands: ['plugindev:open'], permissions: { reads: ['the source of the extension folder you picked; the installed Vencord builds; the browser.js of your own Vencord checkout, if you pick it; the Discord panel console lines, only while the console tray is on (redacted, in memory)'], writes: ['loads that extension into the profile until you stop it; replaces the bundle of the installed Vencord with your own build when you press Reload (the original is kept)'], sends: [] } },
     { id: 'electron-ticker', title: 'Electron ticker', group: 'Developer desk', maturity: 'new', storageKeys: ['vex.electronTicker', 'vex.electronTicker.enabled'],
       jobs: ['Electron ticker'], commands: ['electronticker:check'], budget: { fetchesPerHour: 2 },
       permissions: { reads: ['the public castLabs release list'], writes: ['which behind-number it already told you'], sends: ['One GET to api.github.com (no account, no data from you)'] } },

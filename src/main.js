@@ -7107,6 +7107,38 @@ ipcMain.handle('devext:reload', async () => { await _devExt.reload(); return _de
 ipcMain.handle('devext:stop', () => _devExt.stop());
 ipcMain.handle('devext:status', () => _devExt.status());
 ipcMain.handle('devext:vencord', () => _devExt.vencordStatus(extensionsDir));
+// Vencord dev reload and the Discord panel's console tray (main/discord-dev.js): the owner's own local build only.
+const _discordPanelContents = () => {
+  const ses = secureSessions.fromPartition('persist:discord');
+  return webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.session === ses);
+};
+const _discordDev = require('./main/discord-dev').createDiscordDev({
+  fs, path, crypto: require('crypto'), protectedDir: userDataPath,
+  installed: () => _installedVencord(),
+  reloadExtension: async (dir) => {
+    if (_boot.safeMode) throw new Error('Vex started in safe mode, which loads no extensions');
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
+    _unloadFromAllSessions(dir);
+    await _loadExtensionEverywhere(dir, manifest);
+  },
+  reloadPanel: () => { const list = _discordPanelContents().filter(wc => wc.getType() === 'webview'); for (const wc of list) wc.reloadIgnoringCache(); return list.length; },
+  panelContents: () => _discordPanelContents().filter(wc => wc.getType() === 'webview'),
+  redact: require('./renderer/js/redact').redactText,
+});
+ipcMain.handle('devext:vencord-pick', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const opts = { title: 'The dist/browser.js of your own Vencord checkout', buttonLabel: 'Use this build', properties: ['openFile'], filters: [{ name: 'browser.js', extensions: ['js'] }] };
+  const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
+  return { canceled: false, ..._discordDev.grant(r.filePaths[0]) };
+});
+ipcMain.handle('devext:vencord-status', () => _discordDev.status());
+ipcMain.handle('devext:vencord-reload', () => _discordDev.reload());
+ipcMain.handle('devext:vencord-restore', () => _discordDev.restore());
+ipcMain.handle('devext:console-start', () => _discordDev.trayStart());
+ipcMain.handle('devext:console-stop', () => _discordDev.trayStop());
+ipcMain.handle('devext:console-clear', () => _discordDev.trayClear());
+ipcMain.handle('devext:console-list', (_event, level, since) => _discordDev.trayList({ level: level || 'verbose', since: since || 0 }));
 app.on('before-quit', () => { _devExt.stop().catch((err) => console.error('[DevExtension] could not unload on quit:', err.message)); });
 ipcMain.handle('cloud:token-save', (_event, token) => {
   if (typeof token !== 'string' || token.length < 24 || token.length > 512) throw new Error('Use a token of 24–512 characters');

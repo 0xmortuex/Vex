@@ -554,6 +554,9 @@ define('devfeeds:notes', [oneOf(['npm', 'pypi']), string(120), string(60), strin
 // ticker (main/castlabs-ticker.js). Folders come only from main's folder dialog; a path to open
 // is checked against the granted folders in main.
 define('devdesk:config devdesk:grant-root devext:pick devext:reload devext:stop devext:status devext:vencord', []);
+// The owner's own Vencord build and the Discord panel's console tray (main/discord-dev.js): no path comes from a window.
+define('devext:vencord-pick devext:vencord-status devext:vencord-reload devext:vencord-restore devext:console-start devext:console-stop devext:console-clear', []);
+define('devext:console-list', [optional(oneOf(['verbose', 'info', 'warning', 'error'])), optional(value => Number.isSafeInteger(value) && value >= 0)]);
 define('devdesk:set-config', [shape({ enabled: optional(boolean), editor: optional(string(20)), terminal: optional(string(20)) })]);
 define('devdesk:revoke-root devdesk:open-terminal devdesk:branch', [string(500)]);
 define('devdesk:open-file', [shape({ path: string(500), line: optional(integer), col: optional(integer) })]);
