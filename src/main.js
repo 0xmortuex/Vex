@@ -1702,7 +1702,7 @@ ipcMain.handle('clips-inbox:remove', (_e, id) => ({ ok: _captureInbox().remove(i
 // The page and course a clip was kept from, sent by the window right after the clip landed (js/text-clips.js).
 ipcMain.handle('clips-inbox:stamp', (_e, id, meta) => {
   const entry = _captureInbox().stamp(id, meta);
-  if (entry) { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count: _captureInbox().list().length, id: entry.id, source: 'stamp' }); } catch { /* window gone */ } }
+  if (entry) { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count: _captureInbox().list().length, id: entry.id, source: 'stamp' }); } catch { /* vex-allow-empty-catch: the window is gone, there is nobody to tell */ } }
   return { ok: true, stamped: !!entry };
 });
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });

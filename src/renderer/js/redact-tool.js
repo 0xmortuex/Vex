@@ -13,7 +13,12 @@
 // solid black), not by a filter that could be undone. An optional watermark line ("For
 // the bank only, 2026-10-16") is drawn across the picture.
 //
-// Not done here: redacting inside PDFs and documents (it is pictures only for now).
+// Text documents (Wave 6): "Redact a text document" does the same for a plain-text file (.txt, .md, .csv, .log, .json
+// and the like): the same patterns are found in the text, you tick what to cover, and a copy is saved with each covered
+// piece replaced by a tag such as [email]. The original is never changed.
+//
+// Not done here: redacting inside PDFs. A PDF page would have to be turned into a picture first (a PDF keeps covered
+// text underneath a black box), and Vex has no PDF renderer of its own to do that with; the tool needs one added.
 
 const VexPictureRedact = {
   PREF_KEY: 'vex.redact.enabled',
@@ -70,6 +75,86 @@ const VexPictureRedact = {
       }
     }
     return out;
+  },
+  // The sensitive pieces of plain text. -> [{ kind, start, end, text }] in order; the stronger kind wins an overlap.
+  MAX_DOC_CHARS: 2000000,
+  findInText(text) {
+    const s = String(text == null ? '' : text);
+    if (s.length > this.MAX_DOC_CHARS) throw new Error('That document is larger than ' + (this.MAX_DOC_CHARS / 1000000) + ' million characters');
+    const hits = [];
+    // The stronger kinds first, so a key is not taken for a phone number made of its last ten digits.
+    const byKind = Object.fromEntries(this.PATTERNS.map(p => [p[0], p]));
+    for (const kind of ['email', 'token', 'iban', 'card', 'hex', 'phone']) {
+      const [, re, ok] = byKind[kind];
+      const rx = new RegExp(re.source, re.flags);
+      let m;
+      while ((m = rx.exec(s))) {
+        if (m[0].length === 0) { rx.lastIndex++; continue; }
+        const a = m.index;
+        let b = m.index + m[0].length;
+        while (b > a && /[\s-]/.test(s[b - 1])) b--;               // a number pattern may swallow the space after it
+        if (b === a || (ok && !ok(s.slice(a, b)))) continue;
+        if (hits.some(h => a < h.end && b > h.start)) continue;
+        hits.push({ kind, start: a, end: b, text: s.slice(a, b) });
+      }
+    }
+    return hits.sort((x, y) => x.start - y.start);
+  },
+  // The text with every hit whose index is in `on` (a Set or array of indexes into the hits) replaced by [kind].
+  redactText(text, hits, on) {
+    const s = String(text == null ? '' : text);
+    const chosen = new Set(on);
+    let out = '', at = 0;
+    hits.forEach((h, i) => {
+      if (!chosen.has(i)) return;
+      if (h.start < at) throw new Error('Two covered pieces overlap');
+      out += s.slice(at, h.start) + '[' + h.kind + ']';
+      at = h.end;
+    });
+    return out + s.slice(at);
+  },
+  async openDocument(file) {
+    if (typeof VexSettingsGroups === 'undefined') throw new Error('The dialog helpers are not loaded');
+    const f = file || await new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.txt,.md,.csv,.tsv,.log,.json,.xml,.html,.htm,.yml,.yaml,.ini,text/plain';
+      input.addEventListener('change', () => resolve(input.files && input.files[0]), { once: true });
+      input.click();
+    });
+    if (!f) return null;
+    if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') throw new Error('PDFs cannot be redacted here: a covered area of a PDF keeps its text underneath. Redact a picture of the page instead');
+    if (f.size > this.MAX_DOC_CHARS * 2) throw new Error('That file is too large to redact here');
+    const text = await f.text();
+    if (text.indexOf('\u0000') >= 0) throw new Error('That does not look like a text file');
+    const hits = this.findInText(text);
+    const S = VexSettingsGroups;
+    const { body } = S.dialog({ id: 'vex-redact-doc', title: 'Redact a text document', sub: f.name + ': ' + hits.length + ' piece' + (hits.length === 1 ? '' : 's') + ' that look sensitive. Tick what to cover; the original file is not changed.' });
+    const on = new Set(hits.map((h, i) => i));
+    if (!hits.length) body.appendChild(S.note('Nothing sensitive was recognised. The patterns miss things: read the document yourself before you share it.'));
+    hits.slice(0, 300).forEach((h, i) => {
+      const row = document.createElement('label');
+      row.className = 'setting-toggle-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true;
+      cb.addEventListener('change', () => { if (cb.checked) on.add(i); else on.delete(i); });
+      const around = text.slice(Math.max(0, h.start - 24), h.start).replace(/\s+/g, ' ') + '[' + h.kind + ']' + text.slice(h.end, h.end + 24).replace(/\s+/g, ' ');
+      row.append(cb, document.createTextNode(' ' + h.kind + ': ' + h.text.slice(0, 12) + (h.text.length > 12 ? '...' : '') + '   (' + around.trim() + ')'));
+      body.appendChild(row);
+    });
+    if (hits.length > 300) body.appendChild(S.note('Showing the first 300 of ' + hits.length + '; the rest are covered as well.'));
+    body.appendChild(S.button('Save a redacted copy', () => {
+      try {
+        const out = this.redactText(text, hits, on);
+        const url = URL.createObjectURL(new Blob([out], { type: 'text/plain;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = f.name.replace(/(\.[^.]+)?$/, '-redacted$1');
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        window.showToast?.('Saved ' + a.download + ' with ' + on.size + ' piece' + (on.size === 1 ? '' : 's') + ' covered');
+      } catch (err) { window.showToast?.(err.message, 'error'); }
+    }, { primary: true }));
+    if (typeof VexUsage !== 'undefined') VexUsage.touch('redact-tool');
+    return { hits: hits.length };
   },
   pad(r, n, W, H) {
     const x = Math.max(0, Math.floor(r.x - n)), y = Math.max(0, Math.floor(r.y - n));
@@ -264,5 +349,13 @@ const VexPictureRedact = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexPictureRedact = VexPictureRedact;
+if (typeof window !== 'undefined') {
+  window.VexPictureRedact = VexPictureRedact;
+  // vex-extras.js loads after this file, so the command is added once the page is parsed.
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
+      VexExtras.registerCommand({ id: 'redact-document', label: 'Redact a text document', hint: 'Cover emails, phone numbers, card numbers and tokens in a text file; saves a copy', icon: 'shield', action: () => VexPictureRedact.openDocument().catch(err => window.showToast?.(err.message, 'error')) });
+    }
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { VexPictureRedact };

@@ -52,7 +52,7 @@ function readSystemFont({ fsImpl = nodeFs, platform, env } = {}) {
     if (!bytes.length || bytes.length > MAX_FONT_BYTES) throw new Error('The system font ' + nodePath.basename(p) + ' has an unusable size');
     return { path: p, bytes };
   }
-  throw new Error('No system font that can draw these letters was found (looked for ' + paths.map(p => nodePath.basename(p)).join(', ') + ')');
+  throw new Error('No system font that can draw these letters was found (looked for ' + [...new Set(paths.map(p => nodePath.basename(p)))].join(', ') + ' in the system font folder)');
 }
 
 // Embeds the font as a subset. doc: a pdf-lib PDFDocument. -> the PDFFont.

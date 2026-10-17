@@ -57,6 +57,7 @@ const CaptureTools = {
           body.append(check(text, m.enabled(), (v) => m.setEnabled(v)), G.note(hint));
           if (extra) body.append(check(extra.label, extra.get(m), (v) => extra.set(m, v)));
         }
+        if (window.VexPictureRedact) body.append(G.button('Redact a text document…', () => window.VexPictureRedact.openDocument().catch(err => window.showToast?.(err.message, 'error'))));
         if (window.VexPictureRedact) body.append(G.button('Remove metadata from a picture file…', () => window.VexPictureRedact.pickAndStrip().catch(err => window.showToast?.(err.message, 'error'))));
       },
     });
