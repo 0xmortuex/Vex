@@ -315,7 +315,7 @@ const VexPhotoPrep = {
       out.appendChild(copy);
       if (typeof AgentTools !== 'undefined' && typeof AgentTools.saveNote === 'function') {
         const note = this._el('button', 'btn-secondary', 'Save as a note'); note.type = 'button';
-        note.addEventListener('click', () => { try { AgentTools.saveNote('Checklist', this.checklistText(items, limits)); window.showToast?.('Saved as a note', 'success'); } catch (err) { fail(err); } });
+        note.addEventListener('click', () => { try { AgentTools.saveNote('Checklist', this.checklistText(items, limits), undefined, { origin: 'photo-prep' }); window.showToast?.('Saved as a note', 'success'); } catch (err) { fail(err); } });
         out.appendChild(note);
       }
     };

@@ -130,7 +130,7 @@ describe('the final answer', () => {
     const [note, copy] = document.querySelectorAll('.agent-final .agent-final-btn');
     note.click();
     const saved = JSON.parse(localStorage.getItem('vex.notes'))[0];
-    expect(saved).toMatchObject({ title: 'capital of Australia?', tags: ['agent'] });
+    expect(saved).toMatchObject({ title: 'capital of Australia?', tags: ['agent', 'from:agent-answer'] });
     expect(saved.content).toContain('https://a.example');
     expect(note.disabled).toBe(true);
     expect(note.textContent).toBe('Saved to Notes');

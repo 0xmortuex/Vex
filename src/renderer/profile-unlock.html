@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="darkreader-lock">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Unlock Vex</title>
@@ -17,7 +18,7 @@
   input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-primary, #fff); }
   button:disabled { opacity: .55; cursor: default; }
   #msg { min-height: 20px; margin-top: 12px; color: var(--bad); }
   .link { border: 0; padding: 0; color: var(--accent); text-decoration: underline; }

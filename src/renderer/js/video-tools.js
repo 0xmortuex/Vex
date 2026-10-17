@@ -381,7 +381,7 @@ const VideoTools = {
         if (!results) throw new Error('Grab slides or make a brief first');
         if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
         const text = results.kind === 'slides' ? this.slidesNote(results.slides, linkFor) : this.briefNote(results.items, linkFor);
-        AgentTools.saveNote(String(probe.title || 'Video').slice(0, 60) + (results.kind === 'slides' ? ' (slides)' : ' (brief)'), text);
+        AgentTools.saveNote(String(probe.title || 'Video').slice(0, 60) + (results.kind === 'slides' ? ' (slides)' : ' (brief)'), text, undefined, { origin: 'video-tools' });
         say('Saved to Notes.');
       })));
 

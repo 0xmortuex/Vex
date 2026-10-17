@@ -57,6 +57,16 @@ const VexI18nUI = {
       'Fake update guard': 'Sahte güncelleme koruması',
       'Local model: fit and warm-up': 'Yerel model: uygunluk ve ısınma',
       'Reading aids': 'Okuma yardımları',
+      // --- Wave 6 headings and commands ---
+      'AI quality history': 'Yapay zeka kalite geçmişi',
+      'Measure Discord over 10 minutes': 'Discord\'u 10 dakika boyunca ölç',
+      'Plugin memory: which Vencord plugin costs how many MB': 'Eklenti belleği: hangi Vencord eklentisi kaç MB tutuyor',
+      'Redact a text document': 'Bir metin belgesinin gizli kısımlarını karart',
+      'Slot watcher: keep looking at this tab': 'Zaman aralığı gözcüsü: bu sekmeye bakmaya devam et',
+      'Slot watcher: look at this tab': 'Zaman aralığı gözcüsü: bu sekmeye bak',
+      'AI spend cap: money budget and prices': 'Yapay zeka harcama sınırı: para bütçesi ve fiyatlar',
+      'Encrypted profile lock': 'Şifreli profil kilidi',
+      'Meeting transcript': 'Toplantı dökümü',
       // --- toolbar and navigation ---
       'Back': 'Geri', 'Forward': 'İleri', 'Reload': 'Yenile', 'Stop': 'Durdur',
       'New Tab': 'Yeni sekme', 'Close tab': 'Sekmeyi kapat', 'Close': 'Kapat',
