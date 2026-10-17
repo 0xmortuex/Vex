@@ -1,5 +1,5 @@
 {
-  "scripts": 675,
+  "scripts": 662,
   "bytes": 11511508,
   "note": "Re-baselined on integration-6 (Waves 0-3 + version review merged): the previous figures (502 scripts, 9020885 bytes) were taken when only Wave 0 and part of Wave 1 existed. Waves 1-3 added about 180 blocking scripts for features that are off for existing profiles. This is a measured baseline, not an allowance: the 15 percent growth limit applies from here, and moving the off-by-default features to VexBoot.LATE_MODULES (each needs its app.js bootStep to run after the module loads) is the way to bring it down.",
   "domNodes": 18299,

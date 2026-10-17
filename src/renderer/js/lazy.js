@@ -30,7 +30,8 @@ const VexLazy = {
   // the window is coming up: it costs no parse time before first paint. Waits for
   // the window's load event, then `delayMs`, then an idle moment (or `timeoutMs`).
   //   usage: ids in VexUsageRegistry to register once the file is in, since the registry's
-  //          pass at the end of index.html ran without it.
+  //          pass at the end of index.html ran without it. The staging pass (VexRegistry.restageLate) runs
+  //          again after that, so a profile that already existed does not get the feature switched on.
   // Resolves true when loaded. A failure is reported to VexProblems and rejects.
   _idle: new Map(),
   afterIdle(src, { delayMs = 2500, timeoutMs = 8000, usage = [] } = {}) {
@@ -38,12 +39,13 @@ const VexLazy = {
     const p = new Promise((resolve, reject) => {
       const run = () => {
         this.ensure(src).then(() => {
-          if (usage.length) {
-            if (typeof VexUsageRegistry === 'undefined') throw new Error('The usage registry is not loaded, so ' + src + ' could not register its switch');
-            VexUsageRegistry.register(undefined, usage);
-          }
-          resolve(true);
-        }).catch(reject);
+          if (!usage.length) return undefined;
+          if (typeof VexUsageRegistry === 'undefined') throw new Error('The usage registry is not loaded, so ' + src + ' could not register its switch');
+          VexUsageRegistry.register(undefined, usage);
+          // The stage pass at start-up could not hold this feature off: run it again now it is in the record (T3-066).
+          if (typeof VexRegistry === 'undefined') throw new Error('The feature registry is not loaded, so ' + src + ' could not be staged');
+          return VexRegistry.restageLate();
+        }).then(() => resolve(true), reject);
       };
       const idle = () => {
         if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: timeoutMs });

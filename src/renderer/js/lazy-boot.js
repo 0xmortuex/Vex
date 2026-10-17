@@ -47,6 +47,28 @@ const VexBoot = {
     { src: 'js/quiet-hours-ui.js', usage: [] },
     { src: 'js/tabs-nav-settings.js', usage: [] },
     { src: 'js/capture-tools.js', usage: [] },
+    // Wave 6: features that sit in the usage record and that nothing reads while the window comes up. Each registers its
+    // switch when it arrives and the staging pass runs again (VexRegistry.restageLate), so a profile that already existed
+    // still gets them switched off.
+    { src: 'js/links-windows.js', usage: ['mini-window'] },
+    { src: 'js/embedding-manager.js', usage: ['embedding-manager'] },
+    { src: 'js/response-overrides-ui.js', usage: ['response-overrides'] },
+    { src: 'js/selection-tools.js', usage: ['selection-tools'] },
+    { src: 'js/log-tailer.js', usage: ['log-tailer'] },
+    { src: 'js/docs-pin.js', usage: ['docs-pin'] },
+    { src: 'js/pkg-card.js', usage: ['pkg-card'] },
+    { src: 'js/code-library.js', usage: ['code-library'] },
+    { src: 'js/paper-brief.js', usage: ['paper-brief'] },
+    { src: 'js/mun-dossier.js', usage: ['mun-dossier'] },
+    { src: 'js/game-scenes.js', usage: ['game-scenes'] },
+    { src: 'js/second-screen.js', usage: ['second-screen'] },
+    { src: 'js/receipt-locker.js', usage: ['receipt-locker'] },
+    { src: 'js/day-shape.js', usage: ['day-shape'] },
+    { src: 'js/whats-new-me.js', usage: ['whats-new-me'] },
+    { src: 'js/media-control.js', usage: ['media-control'] },
+    { src: 'js/pdf-highlights.js', usage: ['pdf-highlights'] },
+    { src: 'js/pdf-tools-ui.js', usage: ['pdf-tools'] },
+    { src: 'js/reading-aids.js', usage: ['reading-aids'] },
   ],
   marks: {},
   failed: [],      // late modules that could not load (also in the Problems log)
