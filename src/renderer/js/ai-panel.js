@@ -1602,7 +1602,7 @@ const AIPanel = {
       const shown = String(this._live.tabId) === String(this._viewingId || this._getTabId());
       this._live = null;
       if (shown && retry) this._renderMessages();
-      else if (shown) this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model }, { msg: answer, index: conv.indexOf(answer) });
+      else if (shown) this._renderResponse(action, parsed, { backend: aiResult.backend, model: aiResult.model, because: aiResult.because }, { msg: answer, index: conv.indexOf(answer) });
       // Answered while you were somewhere else: say so, rather than leaving it
       // sitting in a closed panel. The answer is already saved either way.
       if (!this.isOpen()) {
@@ -2054,7 +2054,7 @@ const AIPanel = {
       this._live = null;
       if (String(shownIn) === String(this._viewingId || this._getTabId())) {
         if (retry) this._renderMessages();
-        else this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model }, { msg: answer, index: conv.indexOf(answer) });
+        else this._renderMultiTabResponse(parsed, tabs, { backend: aiResult.backend, model: aiResult.model, because: aiResult.because }, { msg: answer, index: conv.indexOf(answer) });
       }
       return true;
     } catch (err) {
@@ -2827,8 +2827,10 @@ const AIPanel = {
     // 'local' was special-cased \u2014 the badge claimed the opposite of the truth.
     const label = info.backend === 'local' ? 'local'
       : info.backend === 'ondevice' ? 'on-device'
-        : info.backend === 'cloud' ? 'cloud' : String(info.backend);
+        : info.backend === 'cloud' ? 'cloud' : info.backend === 'extractive' ? 'extracted' : String(info.backend);
     tag.textContent = info.model ? `${label} \u00b7 ${info.model}` : label;
+    // "Answered by X because Y" on the answer itself (T3-093): the reason the route control recorded.
+    if (info.because) { tag.textContent += ` \u2014 ${info.because}`; tag.title = info.because; }
     msgEl.appendChild(tag);
   },
 

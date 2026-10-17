@@ -24,8 +24,11 @@ function validateZip(zip, limits = LIMITS) {
   }
   return entries;
 }
-async function extractTar(file, destination, limits = LIMITS) {
-  const tar = require('tar'); let count = 0, total = 0; const names = new Set(), paths = [];
+// motw (main/mark-of-the-web.js), when given, copies the archive's "downloaded from the internet" mark onto every
+// extracted file, so SmartScreen still looks at a program that came out of a downloaded archive.
+// -> { files: number, motw: the propagate() result or null }
+async function extractTar(file, destination, limits = LIMITS, { motw = null } = {}) {
+  const tar = require('tar'); let count = 0, total = 0; const names = new Set(), paths = [], fileNames = [];
   const compressed = (await fs.promises.stat(file)).size;
   await new Promise((resolve, reject) => {
     const input = fs.createReadStream(file);
@@ -41,6 +44,7 @@ async function extractTar(file, destination, limits = LIMITS) {
       if (names.has(name)) throw new Error('Duplicate archive path');
       names.add(name);
       paths.push(entry.path);
+      if (entry.type === 'File') fileNames.push(entry.path);
       if (!['File', 'Directory'].includes(entry.type)) throw new Error('Archive links/devices are forbidden');
       if (++count > limits.entries || entry.size > limits.entry || (total += entry.size) > limits.expanded || total / Math.max(1, compressed) > limits.ratio) throw new Error('Archive expansion limit exceeded');
       entry.resume();
@@ -64,5 +68,8 @@ async function extractTar(file, destination, limits = LIMITS) {
   }
   await fs.promises.mkdir(destination, { recursive: true });
   await tar.x({ file, cwd: path.resolve(destination), strict: true, preservePaths: false, noChmod: true, maxDecompressionRatio: limits.ratio });
+  const result = { files: fileNames.length, motw: null };
+  if (motw) result.motw = motw.propagate(file, fileNames.map(n => path.resolve(destination, n)));
+  return result;
 }
 module.exports = { verifyDigest, safeEntry, validateZip, extractTar, LIMITS };

@@ -191,15 +191,33 @@ const VexPacks = {
   _skillFromPack(packId, itemId) {
     return typeof VexSkills !== 'undefined' && VexSkills.skills.find(s => s.fromPack === packId + ':' + itemId) || null;
   },
-  addSkillToMine(packName, packId, item) {
+  addSkillToMine(packName, packId, item, { quiet = false } = {}) {
     if (typeof VexSkills === 'undefined') throw new Error('AI Skills are not available here');
     if (this._skillFromPack(packId, item.id)) throw new Error('"' + item.name + '" is already in your skills. Use "Compare with my copy" to see how it differs.');
     // The same checks as importing a skills file: prompt text only, variables checked, sites cleaned.
     const [checked] = VexSkills.parseImport(JSON.stringify({ vexSkills: 1, skills: [{ name: item.name, icon: item.icon, prompt: item.prompt, output: item.output, sites: item.sites }] }));
     VexSkills.skills.push({ id: vexId('sk_'), ...checked, imported: true, fromPack: packId + ':' + item.id });
     if (!VexSkills.save()) throw new Error('The skill could not be saved');
-    this._toast('Added "' + item.name + '" to your skills (from "' + packName + '")');
+    if (!quiet) this._toast('Added "' + item.name + '" to your skills (from "' + packName + '")');
     if (typeof VexUsage !== 'undefined') VexUsage.touch('pack-content');
+  },
+  // Every prompt of a pack at once (Wave 5). Prompts already in your skills are left as they are, with a count of
+  // how many of your copies differ from the pack (use "Compare with my copy" on those). One that cannot be added stops
+  // nothing else: the failures are listed in the error at the end.
+  addAllSkills(packName, packId) {
+    const all = this._items.filter(x => x.packId === packId && x.item.type === 'skills');
+    if (!all.length) throw new Error('This pack has no prompts');
+    let added = 0, kept = 0, differ = 0;
+    const failed = [];
+    for (const x of all) {
+      const mine = this._skillFromPack(packId, x.item.id);
+      if (mine) { kept++; if (mine.prompt !== x.item.prompt) differ++; continue; }
+      try { this.addSkillToMine(packName, packId, x.item, { quiet: true }); added++; }
+      catch (err) { failed.push(x.item.name + ' (' + err.message + ')'); }
+    }
+    this._toast('Added ' + added + ' prompt' + (added === 1 ? '' : 's') + ' to your skills' + (kept ? '; ' + kept + ' were already there' + (differ ? ', ' + differ + ' of them worded differently from the pack' : '') : ''));
+    if (failed.length) throw new Error('Could not add: ' + failed.join('; '));
+    return { added, kept, differ };
   },
   async compareSkill(packId, item) {
     const mine = this._skillFromPack(packId, item.id);
@@ -325,6 +343,11 @@ const VexPacks = {
     const items = this._el('details', 'vex-packs-items');
     items.appendChild(this._el('summary', '', p.items.length + ' item' + (p.items.length === 1 ? '' : 's')));
     const ul = this._el('ul');
+    if (p.items.filter(i => i.type === 'skills').length > 1) {
+      const all = this._el('li', '');
+      all.appendChild(this._btn('Add all prompts to my skills', async () => this.addAllSkills(p.name, p.id)));
+      ul.appendChild(all);
+    }
     for (const it of p.items) {
       const li = this._el('li', '', it.type + ': ' + it.name);
       if (it.type === 'theme') {

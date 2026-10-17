@@ -197,7 +197,47 @@ const TR_HOLIDAYS = {
   items: [{ type: 'dates', id: 'tr-public', name: 'Public holidays', region: 'TR', entries: holidays() }],
 };
 
-const ALL = [PROMPTS, PLAYBOOKS, MUN, TR_HOLIDAYS];
+// Student discounts and portal recipes (Wave 5). Data only: fixed, public https addresses to the companies' and
+// the government's own pages, and short steps. Nothing here is fetched, scraped or signed in to by Vex. Offers and
+// menu names change, so every part says it was last checked on STUDENT_CHECKED and tells the reader to verify there.
+const STUDENT_CHECKED = '2026-10-17';
+const link = (label, url) => ({ kind: 'link', label, url });
+const STUDENT = {
+  id: 'vex-builtin.student-portals',
+  name: 'Student discounts and portal recipes',
+  author: AUTHOR,
+  description: 'Where student offers usually live, with a link to each company\'s own page, and four short recipes for common student portals. Last checked ' + STUDENT_CHECKED + '. Offers, prices and menus change: open the page and verify before you rely on anything here.',
+  items: [
+    {
+      type: 'brief-section', id: 'student-discounts', title: 'Student discounts (verify each one)',
+      blocks: [
+        { kind: 'text', text: 'Last checked ' + STUDENT_CHECKED + '. Each link goes to the company\'s own page. Who qualifies, the price and how you prove you are a student change often, so read the page before you apply.' },
+        link('GitHub Student Developer Pack', 'https://education.github.com/pack'),
+        link('JetBrains tools for students', 'https://www.jetbrains.com/community/education/#students'),
+        link('Microsoft education offers', 'https://www.microsoft.com/en-us/education'),
+        link('Canva for Education', 'https://www.canva.com/education/'),
+        link('Figma for Education', 'https://www.figma.com/education/'),
+        link('Adobe Creative Cloud for students', 'https://www.adobe.com/creativecloud/buy/students.html'),
+        link('Autodesk education software', 'https://www.autodesk.com/education/edu-software/overview'),
+        link('Apple education', 'https://www.apple.com/education/'),
+        link('Spotify Premium Student', 'https://www.spotify.com/student/'),
+        link('UNiDAYS student offers', 'https://www.myunidays.com/'),
+        link('Student Beans offers', 'https://www.studentbeans.com/'),
+      ],
+    },
+    {
+      type: 'snippets', id: 'portal-recipes', name: 'Student portal recipes (verify on the portal)',
+      entries: [
+        { label: 'e-Devlet: student certificate', text: 'Open https://www.turkiye.gov.tr/ and sign in. Search for "Öğrenci Belgesi", choose your university, and download the PDF (it has a verification barcode). Menu and service names change: verify on the portal. Last checked ' + STUDENT_CHECKED + '.' },
+        { label: 'ÖSYM: sign in to your candidate account', text: 'Open https://ais.osym.gov.tr/ from your own bookmark, never from a link in a message. Sign in with the details you set there; applications, the exam entry document and results sit under your account. Menu names change each season: verify on the portal. Last checked ' + STUDENT_CHECKED + '.' },
+        { label: 'Apply for a student discount', text: 'Open the company\'s own student page. Sign in with your school email if it asks. Proof usually goes through UNiDAYS, SheerID or your school address; keep your student certificate PDF ready. Most offers must be renewed each year. Terms change: verify on the company\'s page. Last checked ' + STUDENT_CHECKED + '.' },
+        { label: 'University portal: password reset', text: 'Use the portal\'s own "forgot password" link; the reset goes to the email on your account. Open the portal from your own bookmark, never from a message, and do not type your university password on a page you reached from one. Steps differ per university: verify on yours. Last checked ' + STUDENT_CHECKED + '.' },
+      ],
+    },
+  ],
+};
+
+const ALL = [PROMPTS, PLAYBOOKS, MUN, TR_HOLIDAYS, STUDENT];
 
 function build() {
   const files = {};

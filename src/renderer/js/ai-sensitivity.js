@@ -42,7 +42,7 @@ const VexSensitivity = {
   },
 
   // Features that nobody is waiting for: they never get to ask.
-  BACKGROUND: ['historyIndex'],
+  BACKGROUND: ['historyIndex', 'aiRecipe'],
   HISTORY_FEATURES: ['historySearch', 'historyIndex'],
 
   MAIL_HOSTS: /(^|\.)(mail\.google\.com|outlook\.live\.com|outlook\.office\.com|outlook\.office365\.com|mail\.yahoo\.com|mail\.proton\.me|proton\.me|protonmail\.com|mail\.zoho\.com|fastmail\.com|icloud\.com|mail\.ru|yandex\.com|mail\.yandex\.com|hotmail\.com|webmail\.[a-z0-9.-]+)$/i,

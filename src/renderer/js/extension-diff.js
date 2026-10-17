@@ -15,9 +15,19 @@
 //   Pause here     For a bank or an email page: the extensions that can read THIS site,
 //                  each with a tick; "Pause" switches the ticked ones off with the
 //                  existing Settings > Extensions switch (extensions:set-enabled), and
-//                  "Put them back" switches exactly those on again. It is a global switch
-//                  for those extensions while paused, not a per-site rule (Vex has no way
-//                  to stop one extension's scripts on one page only).
+//                  "Put them back" switches exactly those on again. Pausing is a global
+//                  switch for those extensions while paused: Vex has no way to stop one
+//                  extension's scripts on one page only.
+//
+//   Always on this site  (Wave 5) A per-site RULE built on that switch: "always pause the
+//                  ticked extensions while I am on this site". When the page in front is on
+//                  that site they are switched off, and when you go to another site they are
+//                  switched back on, by the same switch. The honest cost is that those
+//                  extensions are off in your other tabs too while you are on that site.
+//                  Rules are yours alone, off until you make one, and removable.
+//
+//   Suggestion     On a bank or mail page (the list below, plus the bank and mail words the AI
+//                  sensitivity gate already knows), a quiet card offers the dialog once.
 //
 // What it does not do: it compares what the manifest declares, not the extension's
 // files (Vex does not keep the old package), and it cannot see what an extension does with
@@ -26,6 +36,7 @@ const VexExtDiff = {
   ENABLED_KEY: 'vex.extDiff.enabled',
   SNAP_KEY: 'vex.extDiff.snapshots',
   PAUSE_KEY: 'vex.extSitePause',
+  RULES_KEY: 'vex.extSiteRules',   // { host: [folders] }: pause these while a tab is on that host
   FEATURE: 'extension-diff',
   // Hosts a person usually does not want a stranger's extension to read. A hint for the
   // suggestion only; the dialog works on any site.
@@ -88,6 +99,14 @@ const VexExtDiff = {
     if (snap.level !== 'some') return false;
     return snap.hosts.some(x => { const y = String(x).toLowerCase(); return h === y || h.endsWith('.' + y); });
   },
+  // The host list above, or the bank and mail words the AI sensitivity gate uses.
+  looksSensitive(host) {
+    const h = String(host || '').toLowerCase();
+    if (!h) return false;
+    if (this.SENSITIVE.test(h)) return true;
+    return typeof VexSensitivity !== 'undefined' && !!VexSensitivity.MAIL_HOSTS && !!VexSensitivity.BANK_HEALTH_WORDS
+      && (VexSensitivity.MAIL_HOSTS.test(h) || VexSensitivity.BANK_HEALTH_WORDS.test(h));
+  },
   hostOf(url) {
     try { const u = new URL(String(url)); return u.protocol === 'http:' || u.protocol === 'https:' ? u.hostname.toLowerCase() : ''; }
     catch { return ''; }
@@ -149,7 +168,7 @@ const VexExtDiff = {
     if (!r || r.ok === false) throw new Error((r && r.error) || 'The extension could not be switched');
   },
   // folders: the ones to switch off. Remembered per host so exactly they are put back.
-  async pause(host, folders) {
+  async pause(host, folders, { auto = false } = {}) {
     if (!this.enabled()) throw new Error('Extension tools are switched off in Settings');
     if (!folders.length) throw new Error('Tick at least one extension');
     const done = [];
@@ -158,7 +177,7 @@ const VexExtDiff = {
       if (done.length) {
         const all = this._pauses();
         const cur = all[host] || { folders: [] };
-        all[host] = { folders: [...new Set([...cur.folders, ...done])], at: Date.now() };
+        all[host] = { folders: [...new Set([...cur.folders, ...done])], at: Date.now(), ...(auto || cur.auto ? { auto: true } : {}) };
         localStorage.setItem(this.PAUSE_KEY, JSON.stringify(all));
       }
     }
@@ -173,6 +192,51 @@ const VexExtDiff = {
     if (failed.length) throw new Error('Could not switch back on: ' + failed.join('; '));
     delete all[host];
     localStorage.setItem(this.PAUSE_KEY, JSON.stringify(all));
+  },
+  // ---- always pause on a site (a rule) -----------------------------------------------------------------
+  _rules() {
+    const raw = localStorage.getItem(this.RULES_KEY);
+    if (!raw) return {};
+    const v = JSON.parse(raw);
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('The saved site rules are not readable, so they were not changed');
+    return v;
+  },
+  rules() { return this._rules(); },
+  setRule(host, folders) {
+    if (!host) throw new Error('A rule needs a site');
+    const r = this._rules();
+    if (folders && folders.length) r[host] = [...new Set(folders.map(String))].slice(0, 20);
+    else delete r[host];
+    localStorage.setItem(this.RULES_KEY, JSON.stringify(r));
+    this.registerCommands();
+    return r[host] || [];
+  },
+  // The tab in front changed. Pause what a rule says for its site, and put back what a rule paused
+  // for a site we have left. Only what a rule paused is put back (entries made by hand are left to the person).
+  async applyRules(tab) {
+    if (!this.enabled()) return { paused: [], restored: [] };
+    const rules = this._rules();
+    const host = tab && tab.url ? this.hostOf(tab.url) : '';
+    const out = { paused: [], restored: [] };
+    const pauses = this._pauses();
+    for (const h of Object.keys(pauses)) {
+      if (pauses[h] && pauses[h].auto && h !== host && !(host && host.endsWith('.' + h))) { await this.restore(h); out.restored.push(h); }
+    }
+    const match = Object.keys(rules).find(h => host === h || host.endsWith('.' + h));
+    if (match && !(this._pauses()[match] && this._pauses()[match].auto)) {
+      const live = (await this._list()).filter(e => e.enabled && e.loaded !== false && rules[match].includes(e.folder)).map(e => e.folder);
+      if (live.length) {
+        const done = await this.pause(match, live, { auto: true });
+        out.paused = done;
+        if (done.length && typeof VexLedger !== 'undefined') VexLedger.note({ feature: this.FEATURE, what: 'Paused ' + done.length + ' extension' + (done.length === 1 ? '' : 's') + ' while you are on ' + match, why: 'You made a rule for this site; they come back when you leave it' });
+      }
+    }
+    return out;
+  },
+  // After a restart: whatever a rule paused is put back first, then the rule is applied to the tab in front.
+  async restoreStale() {
+    const pauses = this._pauses();
+    for (const h of Object.keys(pauses)) if (pauses[h] && pauses[h].auto) await this.restore(h);
   },
   pausedHosts() { try { return Object.keys(this._pauses()); } catch (err) { console.error('[ExtDiff]', err.message); return []; } },
 
@@ -247,9 +311,16 @@ const VexExtDiff = {
       lab.append(cb, this._el('span', '', ' ' + e.name + ' (' + (this.LEVEL_WORDS[snap.level] || snap.level) + ')'));
       body.appendChild(lab);
     }
+    const rule = this._rules()[h];
+    const always = this._el('label', 'setting-toggle-row');
+    const acb = document.createElement('input'); acb.type = 'checkbox'; acb.checked = !!rule; acb.setAttribute('aria-label', 'Always pause the ticked extensions on ' + h);
+    always.append(acb, this._el('span', '', ' Always pause the ticked ones on ' + h + ' (they are off in your other tabs while you are here, and back when you leave)'));
+    body.appendChild(always);
     const go = this._el('button', 'btn-primary', 'Pause the ticked ones'); go.type = 'button';
     go.addEventListener('click', () => {
-      this.pause(h, boxes.filter(b => b.cb.checked).map(b => b.folder)).then((done) => { window.showToast?.('Paused ' + done.length + (done.length === 1 ? ' extension' : ' extensions')); close(); }).catch((e) => this._fail(e));
+      const chosen = boxes.filter(b => b.cb.checked).map(b => b.folder);
+      Promise.resolve().then(() => { this.setRule(h, acb.checked ? chosen : []); return this.pause(h, chosen); })
+        .then((done) => { window.showToast?.('Paused ' + done.length + (done.length === 1 ? ' extension' : ' extensions') + (acb.checked ? ' and made a rule for ' + h : '')); close(); }).catch((e) => this._fail(e));
     });
     body.appendChild(go);
   },
@@ -261,7 +332,7 @@ const VexExtDiff = {
     if (!this.enabled() || !tab || !tab.url || typeof VexAttention === 'undefined') return false;
     if (window.VexTabPolicy && window.VexTabPolicy.isPrivateWindow) return false;
     const host = this.hostOf(tab.url);
-    if (!host || !this.SENSITIVE.test(host) || this._suggested.has(host)) return false;
+    if (!host || !this.looksSensitive(host) || this._suggested.has(host)) return false;
     this._suggested.add(host);
     const cands = await this.candidatesFor(host);
     if (!cands.length) return false;
@@ -303,7 +374,16 @@ if (typeof window !== 'undefined') {
   window.VexExtDiff = VexExtDiff;
   VexExtDiff.registerCommands();
   document.addEventListener('DOMContentLoaded', () => VexExtDiff.registerCommands());
-  const check = () => { try { if (typeof TabManager !== 'undefined' && TabManager.getActiveTab) VexExtDiff.suggestFor(TabManager.getActiveTab()).catch((err) => console.error('[ExtDiff] could not check the tab:', err)); } catch (err) { console.error('[ExtDiff] could not check the tab:', err); } };
+  const check = () => {
+    try {
+      if (typeof TabManager !== 'undefined' && TabManager.getActiveTab) {
+        const tab = TabManager.getActiveTab();
+        VexExtDiff.suggestFor(tab).catch((err) => console.error('[ExtDiff] could not check the tab:', err));
+        VexExtDiff.applyRules(tab).catch((err) => window.VexProblems?.note('Extension tools', 'A site rule could not be applied', err));
+      }
+    } catch (err) { console.error('[ExtDiff] could not check the tab:', err); }
+  };
+  document.addEventListener('DOMContentLoaded', () => { VexExtDiff.restoreStale().catch((err) => window.VexProblems?.note('Extension tools', 'Extensions paused by a site rule could not be put back', err)); });
   window.addEventListener('vex:tab-activated', check);
   if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle(VexExtDiff.FEATURE, (key) => { VexExtDiff._onAction(key).catch((e) => VexExtDiff._fail(e)); });
   if (typeof VexSettingsGroups !== 'undefined') {

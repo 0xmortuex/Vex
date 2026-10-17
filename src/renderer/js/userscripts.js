@@ -62,7 +62,8 @@ const VexUserscripts = {
         danger: true,
       });
     }
-    const r = await api.install({ source, anyHost, sourceUrl, replaceId: p.replaces ? p.replaces.id : '' });
+    // The confirm above listed what each permission lets the script do, so this install counts as reviewed.
+    const r = await api.install({ source, anyHost, sourceUrl, replaceId: p.replaces ? p.replaces.id : '', reviewed: true });
     await this.refresh();
     window.showToast?.((r.replaced ? 'Updated ' : 'Installed ') + r.name + '. Reload a page to run it there.');
     return true;
@@ -264,7 +265,7 @@ const VexUserscripts = {
       };
       act(s.enabled ? 'Turn off' : 'Turn on', async () => {
         if (!s.enabled) {
-          const ok = await vexConfirm({ title: 'Turn on ' + s.name + '?', message: 'It will run on: ' + (s.matches.join(', ') || 'only the sites you added') + (s.grants.length ? '\nPermissions: ' + s.grants.join(', ') : ''), okLabel: 'Turn on' });
+          const ok = await vexConfirm({ title: 'Turn on ' + s.name + '?', message: 'It will run on: ' + (s.matches.join(', ') || 'only the sites you added') + (s.grants.length ? '\nPermissions: ' + s.grants.join(', ') : '') + ((s.review || []).length ? '\n\nWhat each permission lets it do:\n' + s.review.map(r => '  ' + (r.risk === 'high' ? '[high] ' : '') + r.id + ': ' + r.says).join('\n') : ''), okLabel: 'Turn on', danger: (s.review || []).some(r => r.risk === 'high') });
           if (!ok) return;
         }
         await this._api().setEnabled(s.id, !s.enabled);

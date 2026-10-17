@@ -7,4 +7,5 @@ module.exports = Object.freeze({
   'vex-builtin.incident-extra': '58b2eb551a54eac220a7166af0de5003d73ce5e157460df466c2609a1a88a3a8',
   'vex-builtin.mun-phrases': '223cd9a9ff89f2870f2527eb03c174b41752759358f067c1d7c72605710bb19c',
   'vex-builtin.tr-holidays': 'd34b0df9c0f14de7c6ff0deabaeeef1093d7150c3f14839f9dd455682ca99664',
+  'vex-builtin.student-portals': '5a92f07decf9da27c71c9752136195c989cad0aee42c7549789d0bbb6fa263b5',
 });

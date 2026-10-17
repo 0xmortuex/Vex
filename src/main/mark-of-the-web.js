@@ -9,7 +9,14 @@
 //   - carries the mark across a move or rename Vex does itself (the holding folder
 //     to the final place, the downloads tidy-up and its undo), by reading the
 //     stream first and, if the move lost it, putting back the very same text;
-//   - reports, read-only, which of Vex's downloaded files no longer have one.
+//   - reports, read-only, which of Vex's downloaded files no longer have one;
+//   - (Wave 5) carries the archive's mark onto the files Vex itself unpacks from it (propagate), so
+//     SmartScreen still looks at a program that came out of a downloaded .zip or .tar. Windows' own
+//     "Extract all" does the same; a tool that does not is the usual way the mark gets lost.
+//     Today the only unpacking Vex does to a folder is extractTar (main/archive-security.js), which
+//     passes its files here; Vex lists a .zip without unpacking it, and its pinned ByeDPI component is
+//     unpacked from a buffer it verified by SHA-256 and launches itself, which has no archive file to
+//     take a mark from and is not given one.
 //
 // A rename on the same drive keeps the stream with the file, so this is normally a
 // no-op that proves it. It earns its keep across drives (a copy), on a target that
@@ -83,7 +90,24 @@ function createMarkOfTheWeb({ fs, platform = process.platform, log = () => {} })
     return { ...out, supported: true };
   }
 
-  return { move, check, read, zoneOf, hasMark, STREAM };
+  // Put the archive's mark on every file unpacked from it. Only ever COPIES a mark that is there (zone 3 or
+  // higher): an archive with none, or a platform without streams, marks nothing. A file that cannot take
+  // the stream (a non-NTFS target) is listed in `failed` with the reason, not hidden.
+  // -> { carried: false } | { carried: true, marked: n, failed: [{ file, error }] }
+  function propagate(archive, files) {
+    const text = read(archive);
+    if (text === null || !hasMark(text)) return { carried: false };
+    const failed = [];
+    let marked = 0;
+    for (const file of Array.isArray(files) ? files : []) {
+      if (typeof file !== 'string' || !file) continue;
+      try { fs.writeFileSync(streamPath(file), text); marked++; }
+      catch (err) { failed.push({ file, error: (err && err.message) || String(err) }); log('[MarkOfTheWeb] could not mark ' + file + ': ' + ((err && err.message) || err)); }
+    }
+    return { carried: true, marked, failed };
+  }
+
+  return { move, check, read, zoneOf, hasMark, propagate, STREAM };
 }
 
 module.exports = { createMarkOfTheWeb, STREAM };

@@ -2010,6 +2010,32 @@ const SyncEngine = (() => {
   // what this returns. Throws when the server could not be asked: it used to
   // answer [] for a down server, a refused session and an empty mailbox
   // alike, and a 401 here never signed the device out.
+  // A share from a phone that is not a link (docs/PHONE_SHARE.md, Wave 5): { kind: 'text', text } or
+  // { kind: 'image', image: { mime, data } } with data base64 and small (the mailbox holds 16 KB in all).
+  // -> the part to keep, or null when the payload is neither. Everything is checked here: the sender is
+  // another of the person's devices, but the mailbox is a place text arrives from outside the window.
+  const SHARE_TEXT_MAX = 4000;
+  const SHARE_IMAGE_MAX = 9000;
+  const IMAGE_MAGIC = { 'image/png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47, 'image/jpeg': (b) => b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF, 'image/gif': (b) => b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38, 'image/webp': (b) => b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50 };
+  function shareFromPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (payload.kind === 'text') {
+      if (typeof payload.text !== 'string') return null;
+      const text = payload.text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, SHARE_TEXT_MAX);
+      return text ? { kind: 'text', text } : null;
+    }
+    if (payload.kind === 'image') {
+      const im = payload.image;
+      if (!im || typeof im.mime !== 'string' || !IMAGE_MAGIC[im.mime] || typeof im.data !== 'string') return null;
+      if (!im.data || im.data.length > SHARE_IMAGE_MAX || !/^[A-Za-z0-9+/]+={0,2}$/.test(im.data)) return null;
+      let head;
+      try { head = Uint8Array.from(atob(im.data.slice(0, 24)), (c) => c.charCodeAt(0)); } catch (err) { return null; }
+      if (!IMAGE_MAGIC[im.mime](head)) return null;
+      return { kind: 'image', image: { mime: im.mime, data: im.data } };
+    }
+    return null;
+  }
+
   async function dropFetch() {
     if (privateWindow()) return [];
     if (!state.enabled || !state.sessionToken || !syncWorkerUrl()) return [];
@@ -2031,7 +2057,11 @@ const SyncEngine = (() => {
       // consumed them, so skip only the bad one and say so in the log.
       try {
         const payload = await SyncCrypto.decrypt(item.encryptedBlob, state.encryptionKey);
-        if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) {
+        const share = typeof payload.url === 'string' ? null : shareFromPayload(payload);
+        if (share) {
+          // A shared piece of text or a small picture, with the optional title the phone gave it.
+          items.push({ ...item, ...share, title: String(payload.title || '').slice(0, 300) });
+        } else if (typeof payload.url === 'string' && /^https?:$/.test(new URL(payload.url).protocol)) {
           const got = { ...item, url: payload.url, title: String(payload.title || '') };
           // Optional text shared along with the link from a phone's share sheet (docs/PHONE_SHARE.md).
           if (typeof payload.note === 'string' && payload.note.trim()) got.note = payload.note.slice(0, 1000);

@@ -17,7 +17,7 @@ const pins = require('../../src/main/builtin-packs/pins.js');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dirOf = path.join(root, 'src', 'main', 'builtin-packs');
 
-const IDS = ['vex-builtin.prompts', 'vex-builtin.incident-extra', 'vex-builtin.mun-phrases', 'vex-builtin.tr-holidays'];
+const IDS = ['vex-builtin.prompts', 'vex-builtin.incident-extra', 'vex-builtin.mun-phrases', 'vex-builtin.tr-holidays', 'vex-builtin.student-portals'];
 const loaded = () => loadBuiltinPacks({ fs });
 
 describe('the built-in packs', () => {

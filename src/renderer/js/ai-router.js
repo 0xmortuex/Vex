@@ -320,17 +320,28 @@ const AIRouter = (() => {
     }
     // The reply language / formality / keep-names profile (Settings › Turkish and English) shapes summaries and chat.
     if (typeof window !== 'undefined' && window.VexLocaleTranslate) request = window.VexLocaleTranslate.shapeRequest(feature, request);
-    const primary = await resolveBackend(feature);
-    if (primary === 'skip') {
+    const primary0 = await resolveBackend(feature);
+    if (primary0 === 'skip') {
       _dbg(`[AIRouter] skipping ${feature} — no local backend`);
       if (BACKGROUND_FEATURES.includes(feature)) return null;
       throw new Error(`Local AI is selected for "${feature}" but Ollama isn't running. Start Ollama, or switch this feature to Auto/Cloud in Settings › AI Backend › Advanced: Per-Feature Routing.`);
+    }
+    // Spend routing (T3-093, off until switched on): a feature left on Auto, in neither "Fast cloud"
+    // nor "Private local", is sent where the task size and the past results say. Pins always win.
+    let primary = primary0;
+    let routedBecause = '';
+    if (typeof VexAISpend !== 'undefined' && VexAISpend.routing() && (primary === 'cloud' || primary === 'local')
+        && !forceCloud && !preferLocal && (routingPrefs[feature] || 'auto') === 'auto') {
+      const adv = VexAISpend.advise(feature, request, { localUp: isOllamaAvailable(), cloudOk: isOnline() && !!cloudWorkerUrl() });
+      if (adv && adv.backend !== primary) { primary = adv.backend; routedBecause = adv.because; }
+      else if (adv) routedBecause = adv.because;
     }
     const fallback = primary === 'cloud' ? 'local' : 'cloud';
     _dbg(`[AIRouter] callAI(${feature}) → using backend: ${primary}`);
     try {
       const out = await callBackend(primary, feature, request);
       _dbg(`[AIRouter] ${primary} succeeded for ${feature}`);
+      if (routedBecause && out && typeof out === 'object') return { ...out, routedBecause };
       return out;
     } catch (err) {
       // Stopped by the user: that is not a failure to fall back from.
@@ -370,7 +381,7 @@ const AIRouter = (() => {
           throw new Error(`${err.message} (Not retried on the cloud: this request holds something that is only sent to the cloud when you say so.)`);
         }
         if (typeof VexAISpend !== 'undefined' && VexAISpend.reached()) {
-          throw new Error(`${err.message} (Not retried on the cloud: today's cloud limit of ${VexAISpend.cap()} calls is used up.)`);
+          throw new Error(`${err.message} (Not retried on the cloud: ${VexAISpend.reachedWhich() === 'month' ? "this month's cloud budget of " + VexAISpend.monthCap() + ' calls' : "today's cloud limit of " + VexAISpend.cap() + ' calls'} is used up.)`);
         }
       }
       console.warn(`[AIRouter] falling back to ${fallback} for ${feature}`);
@@ -424,7 +435,7 @@ const AIRouter = (() => {
         VexAISpend.noteDowngrade(feature);
         return await callLocal(feature, request);
       }
-      const capErr = new Error(`Today's limit of ${VexAISpend.cap()} cloud AI calls is used up, and no local model is running. Start Ollama, or raise the limit in Settings › AI spend cap.`);
+      const capErr = new Error(`${VexAISpend.limitText()}, and no local model is running. Start Ollama, or raise the limit in Settings › AI spend cap.`);
       capErr.code = 'vex-spend-cap';
       throw capErr;
     }

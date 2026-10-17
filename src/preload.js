@@ -604,6 +604,7 @@ contextBridge.exposeInMainWorld('vex', {
   applockReset: (confirm) => ipcRenderer.invoke('applock:reset', confirm),
   // Startup-persistence check (T3-122): read-only.
   startupList: () => ipcRenderer.invoke('startup:list'),
+  startupSignatures: () => ipcRenderer.invoke('startup:signatures'),
   // Photo preparer (T3-105): the two dialogs; the work is done in the window.
   photoprepOpen: () => ipcRenderer.invoke('photoprep:open'),
   photoprepSave: (bytes, suggestedName) => ipcRenderer.invoke('photoprep:save', bytes, suggestedName),

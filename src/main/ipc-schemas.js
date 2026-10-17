@@ -268,7 +268,7 @@ define('clipboard:write-secret', [value => typeof value === 'string' && value.le
 define('clipboard:clear-if', [value => typeof value === 'string' && value.length > 0 && value.length <= 4000]);
 // Tier 3 security helpers: the startup check is read-only; the app lock makes a scrypt record, reports the secure
 // stores and does the typed-confirmation reset; the photo preparer's two dialogs.
-define('startup:list applock:stores', []);
+define('startup:list startup:signatures applock:stores', []);
 define('applock:make-record', [string(128)]);
 define('applock:lock-on-minimize', [boolean]);
 define('applock:reset', [string(64)]);
@@ -618,7 +618,7 @@ const profileLook = value => object(value) && Object.keys(value).every(k => ['na
 define('userscripts:page userscripts:list', []);
 define('userscripts:gm', [shape({ id: string(64), op: oneOf(['setValue', 'deleteValue', 'xhr', 'xhr-abort', 'clipboard', 'notification', 'openTab']), args: value => Array.isArray(value) && value.length <= 4 })]);
 define('userscripts:preview', [string(450000), optional(string(64))]);
-define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)) })]);
+define('userscripts:install', [shape({ source: string(450000), anyHost: optional(boolean), sourceUrl: optional(string(2000)), replaceId: optional(string(64)), reviewed: optional(boolean) })]);
 define('userscripts:set-enabled', [string(64), boolean]);
 define('userscripts:remove userscripts:clear-values', [string(64)]);
 define('userscripts:set-global', [boolean]);

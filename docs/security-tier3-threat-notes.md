@@ -16,7 +16,8 @@ Not built: catching ClickFix pages that copy inside the click on their fake "ver
 
 ## T3-122 Startup check
 Built: read-only listing of Run/RunOnce keys (fixed `reg query` argument lists), both Startup folders (fs), and non-Microsoft scheduled-task names (`schtasks /query /fo csv /nh`), Vex's own entries marked, "new since last review" flagged.
-Not built: any write, removal or disable; signature or publisher checks (would need PowerShell); service, WMI, IFEO or AppInit inspection; Microsoft tasks (counted only).
+Wave 5 added the unsigned flag: a button (never automatic) asks Windows for the signature of each program a registry value or Startup-folder entry points to (the same read-only Get-AuthenticodeSignature call the download check uses, path passed in an environment variable), bounded to 40 programs; scheduled tasks and shortcuts are reported as not checked, not guessed.
+Not built: any write, removal or disable; service, WMI, IFEO or AppInit inspection; Microsoft tasks (counted only).
 
 ## T3-123 Secure lock options
 Built: scrypt-hashed PIN or 8-128 character passphrase made in main (old PBKDF2 PINs still work); main-side wrong-try counting as before; lock on minimize (main event); a report of which secret files are encrypted by Windows and what is not; an explicit forgot-it reset on the lock screen (type ERASE SECURE DATA: erases the secret files, then drops the lock record, then restarts).

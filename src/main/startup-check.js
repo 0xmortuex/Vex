@@ -19,6 +19,15 @@
 //
 // "New since last time" is worked out by the window from the ids returned here
 // (js/startup-check.js keeps the previous list); main keeps no history.
+//
+// Unsigned flag (Wave 5): a second, separate step (startup:signatures) works out which program each
+// entry starts and asks Windows who signed it, the same read-only Get-AuthenticodeSignature call the
+// download check uses (main/file-check.js; the file path travels in an environment variable, never in a
+// script). It runs only when the person presses "Check who signed these", never in the background. A
+// registry value and a Startup-folder program have a path; a Scheduled Task's program is not in the
+// list `schtasks` prints and a shortcut (.lnk) is not itself signed, so those are reported as not
+// checked rather than guessed. "Unsigned" is a fact about the file, not a verdict: plenty of honest
+// small tools are unsigned.
 const fs = require('fs');
 const path = require('path');
 
@@ -34,6 +43,9 @@ const SCHTASKS_ARGS = Object.freeze(['/query', '/fo', 'csv', '/nh']);
 const EXEC_TIMEOUT_MS = 15000;
 const EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 const MAX_ENTRIES = 400;
+const MAX_SIGNATURE_CHECKS = 40;
+const SIGNATURE_CONCURRENCY = 4;
+const PROGRAM_EXT = '(?:exe|com|scr|bat|cmd|ps1|vbs|js|msi|dll|cpl)';
 
 // `reg query` prints the key, then one line per value:
 //     Name    REG_SZ    data
@@ -164,9 +176,70 @@ async function scan({ execFile = require('child_process').execFile, env = proces
   return { ok: true, platform, at: now(), items: items.slice(0, MAX_ENTRIES), truncated: items.length > MAX_ENTRIES, microsoftTasks, errors };
 }
 
-// Policy lives in ipc-policy.js (UI_ONLY, closed in a private window).
-function registerStartupCheck({ ipcMain, scanFn = scan }) {
-  ipcMain.handle('startup:list', () => scanFn());
+// The program an entry starts, as an absolute path of a file that exists, or { why } when it cannot be known.
+// Registry data looks like  "C:\Program Files\X\x.exe" --background  or  C:\X\x.exe /s  or use %APPDATA%.
+function targetOf(item, { env = process.env, fsMod = fs } = {}) {
+  if (item.kind === 'task') return { why: "a scheduled task's program is not in the list Windows prints" };
+  let candidate = '';
+  if (item.kind === 'folder') {
+    if (/\.lnk$/i.test(item.name)) return { why: 'a shortcut is not signed itself; the program it points to is not read here' };
+    candidate = path.join(String(item.data || ''), item.name);
+  } else if (item.kind === 'registry') {
+    const text = String(item.data || '').replace(/%([^%]+)%/g, (m, v) => env[v] || env[v.toUpperCase()] || m).trim();
+    const quoted = /^"([^"]+)"/.exec(text);
+    if (quoted) candidate = quoted[1];
+    else {
+      const m = new RegExp('^(.+?\\.' + PROGRAM_EXT + ')(?=\\s|$|,)', 'i').exec(text);
+      if (m) candidate = m[1];
+    }
+    if (!candidate) return { why: 'no program path could be read from its value' };
+  } else return { why: 'unknown kind of entry' };
+  if (!/^[A-Za-z]:[\\/]/.test(candidate)) return { why: 'the program is not given with a full path' };
+  try {
+    if (!fsMod.statSync(candidate).isFile()) return { why: 'the path is not a file' };
+  } catch (err) {
+    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return { why: 'the program is not there any more' };
+    throw new Error('Could not look at ' + candidate + ': ' + err.message, { cause: err });
+  }
+  return { path: candidate };
 }
 
-module.exports = { scan, parseRegQuery, parseSchtasks, parseCsvLine, isVexEntry, isMicrosoftTask, listStartupFolder, registerStartupCheck, RUN_KEYS, SCHTASKS_ARGS };
+// -> { ok, results: [{ id, name, path, status, signer, unsigned, why }], checked, unsigned }
+// status is Windows' own word (Valid, NotSigned, HashMismatch, ...) or 'unchecked'. Bounded and cached per path.
+async function checkSignatures({ scanFn = scan, signatureOf, env = process.env, fsMod = fs } = {}) {
+  if (typeof signatureOf !== 'function') throw new Error('There is no way to read signatures here');
+  const listed = await scanFn();
+  if (!listed.ok) return { ok: false, error: listed.error || 'The startup places could not be read', results: [], checked: 0, unsigned: 0 };
+  const results = [];
+  const jobs = [];
+  for (const item of listed.items) {
+    const t = targetOf(item, { env, fsMod });
+    if (!t.path) { results.push({ id: item.id, name: item.name, path: t.path || '', status: 'unchecked', signer: '', unsigned: false, why: t.why }); continue; }
+    if (jobs.length >= MAX_SIGNATURE_CHECKS) { results.push({ id: item.id, name: item.name, path: t.path, status: 'unchecked', signer: '', unsigned: false, why: 'only the first ' + MAX_SIGNATURE_CHECKS + ' programs are checked' }); continue; }
+    jobs.push({ item, path: t.path });
+  }
+  const cache = new Map();
+  const ask = (p) => { if (!cache.has(p)) cache.set(p, Promise.resolve().then(() => signatureOf(p))); return cache.get(p); };
+  let next = 0;
+  const worker = async () => {
+    while (next < jobs.length) {
+      const j = jobs[next++];
+      const s = await ask(j.path);
+      const status = String((s && s.status) || 'unknown');
+      results.push({ id: j.item.id, name: j.item.name, path: j.path, status, signer: String((s && s.signer) || ''), unsigned: status === 'NotSigned', why: (s && s.why) || '' });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SIGNATURE_CONCURRENCY, jobs.length) }, worker));
+  return { ok: true, results, checked: jobs.length, unsigned: results.filter(r => r.unsigned).length };
+}
+
+// Policy lives in ipc-policy.js (UI_ONLY, closed in a private window).
+function registerStartupCheck({ ipcMain, scanFn = scan, signatureOf = null }) {
+  ipcMain.handle('startup:list', () => scanFn());
+  ipcMain.handle('startup:signatures', () => {
+    const sig = signatureOf || require('./file-check').createFileCheck({ fs, crypto: require('crypto'), execFile: require('child_process').execFile, platform: process.platform }).signature;
+    return checkSignatures({ scanFn, signatureOf: sig });
+  });
+}
+
+module.exports = { checkSignatures, targetOf, scan, parseRegQuery, parseSchtasks, parseCsvLine, isVexEntry, isMicrosoftTask, listStartupFolder, registerStartupCheck, RUN_KEYS, SCHTASKS_ARGS };

@@ -118,6 +118,7 @@ const Handoff = {
     if (!this.ready()) return [];
     this._busy = true;
     let fresh = [];
+    let shared = [];
     try {
       const items = await SyncEngine.dropFetch();
       if (!items.length) { this._lastError = ''; return []; }
@@ -129,7 +130,14 @@ const Handoff = {
         if (it.to && it.to !== me) await this._forward(it);
         else mine.push(it);
       }
-      fresh = this.add(mine);
+      // Text and small pictures a phone shared are not tabs: they go to the phone-share list (js/phone-share.js).
+      const links = mine.filter(it => it.kind !== 'text' && it.kind !== 'image');
+      const shares = mine.filter(it => it.kind === 'text' || it.kind === 'image');
+      fresh = this.add(links);
+      if (shares.length) {
+        if (typeof VexPhoneShare === 'undefined') window.VexProblems?.note?.('Send to your devices', shares.length + ' shared text or picture item' + (shares.length === 1 ? ' was' : 's were') + ' fetched but could not be kept', new Error('Phone share is not loaded'));
+        else shared = VexPhoneShare.addShared(shares);
+      }
       this._lastError = '';
     } catch (err) {
       const msg = (err && err.message) || String(err);
@@ -147,6 +155,7 @@ const Handoff = {
       const filed = await VexPhoneShare.onFresh(fresh);
       fresh = fresh.filter(i => !filed.includes(i.id));
     }
+    if (shared.length) await VexPhoneShare.onSharedFresh(shared);
     if (fresh.length) {
       this.pushAll();
       this.notify(fresh);
