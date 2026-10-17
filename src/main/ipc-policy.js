@@ -165,6 +165,16 @@ function validatePayload(channel, args) {
   if (/^storage-(?:load|save)$/.test(channel) && (typeof args[0] !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(args[0]))) throw new Error('Invalid storage key');
   if (/^persist-(?:set|delete)$/.test(channel) && (typeof args[0] !== 'string' || !/^(?:vex[._-])[\w.:-]{1,160}$/.test(args[0]))) throw new Error('Invalid preference key');
 }
+// The last refusals, for the diagnostics bundle (js/diagnostics-bundle.js): when, which channel and the
+// refusal's own reason, never the payload. Bounded; oldest first out.
+const MAX_REFUSALS = 50;
+const _refusals = [];
+function noteRefusal(channel, err) {
+  _refusals.push({ at: Date.now(), channel: String(channel).slice(0, 80), reason: String((err && err.message) || err).slice(0, 120) });
+  while (_refusals.length > MAX_REFUSALS) _refusals.shift();
+}
+function recentRefusals() { return _refusals.slice().reverse(); }
+
 function installIpcPolicy(ipcMain, security) {
   const handle = ipcMain.handle.bind(ipcMain), on = ipcMain.on.bind(ipcMain);
   function authorize(channel, event, args) {
@@ -206,7 +216,8 @@ function installIpcPolicy(ipcMain, security) {
   }
   ipcMain.handle = (channel, callback) => handle(channel, async (event, ...args) => {
     if (adBlockerNotHere(channel, event)) return channel.endsWith('/is-mutation-observer-enabled') ? false : undefined;
-    const host = authorize(channel, event, args);
+    let host;
+    try { host = authorize(channel, event, args); } catch (err) { noteRefusal(channel, err); throw err; }
     if (host?.privatePartition) {
       if (channel === 'storage-load') return host.data[args[0]] ?? null;
       if (channel === 'storage-save') { host.data[args[0]] = structuredClone(args[1]); return true; }
@@ -234,6 +245,7 @@ function installIpcPolicy(ipcMain, security) {
       callback(event, ...args);
     }
     catch (err) {
+      noteRefusal(channel, err);
       if (channel === 'privacy:config-sync') { event.returnValue = { farble: false }; return; }
       if (channel === 'compatibility:get') { event.returnValue = { suppressPasskeys: false }; return; }
       // A page's alert / confirm / prompt waits on this answer (sendSync), so a
@@ -256,4 +268,4 @@ function installIpcPolicy(ipcMain, security) {
     }
   });
 }
-module.exports = { installIpcPolicy, validatePayload, UI_ONLY_CHANNELS };
+module.exports = { installIpcPolicy, validatePayload, UI_ONLY_CHANNELS, recentRefusals, noteRefusal };

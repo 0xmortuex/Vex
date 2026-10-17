@@ -1730,7 +1730,7 @@ ipcMain.handle('app:safe-mode', () => {
   return { ..._boot, updateBackup: undefined, updateBackupFailed };
 });
 
-ipcMain.handle('app:diagnostics', () => {
+ipcMain.handle('app:diagnostics', async () => {
   let update = null;
   try { update = require('./main/updates').state; } catch {}
   let scheduled = null;
@@ -1747,6 +1747,11 @@ ipcMain.handle('app:diagnostics', () => {
     widevine: _widevineStatus,
     // The Windows build, for a problem report (js/report-problem.js).
     os: process.getSystemVersion(), arch: process.arch,
+    // The graphics card (nvidia-smi when there is one; null otherwise) and what Chromium decided to accelerate.
+    gpu: await _gpuProbe.read(),
+    gpuFeatures: app.getGPUFeatureStatus(),
+    // The last messages the IPC policy refused: channel and reason, never the payload.
+    ipcRefusals: require('./main/ipc-policy').recentRefusals(),
   };
 });
 

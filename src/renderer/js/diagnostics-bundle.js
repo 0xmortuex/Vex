@@ -3,7 +3,8 @@
 // "It is slow" or "it broke" needs no back and forth when one button puts the
 // facts in a text you can read, edit and paste: Vex's version and tier, which
 // features are on, the job table, what Vex did by itself (the ledger), its
-// recent problems and crashes, the crash trend, and where the storage went.
+// recent problems and crashes, the crash trend, the graphics card, the last messages the IPC
+// policy refused (channel and reason, never the payload), and where the storage went.
 //
 // What is NOT in it, by construction: web addresses (every one becomes
 // "[url]"), page titles or text, notes, names, anything the ledger said in
@@ -19,6 +20,7 @@ const VexDiagBundle = {
   MAX_PROBLEMS: 40,
   MAX_CRASHES: 20,
   MAX_JOBS: 40,
+  MAX_REFUSALS: 30,
   MAX_STORAGE_OWNERS: 12,
 
   // ---- scrubbing ------------------------------------------------------------
@@ -69,6 +71,15 @@ const VexDiagBundle = {
     if (env.widevine) out.push('- Widevine: ' + s(typeof env.widevine === 'string' ? env.widevine : JSON.stringify(env.widevine)).slice(0, 160));
     out.push('');
 
+    const gpu = p.gpu;
+    out.push('## Graphics');
+    if (gpu && typeof gpu === 'object') {
+      out.push('- Card: ' + s(gpu.name || 'GPU') + (Number.isFinite(gpu.totalMB) ? ', ' + gpu.usedMB + ' of ' + gpu.totalMB + ' MB in use (' + gpu.usedPercent + '%)' : '') + (Number.isFinite(gpu.utilization) ? ', ' + gpu.utilization + '% busy' : ''));
+    } else out.push('- No NVIDIA card was reported (or its tool is not installed).');
+    const gf = p.gpuFeatures && typeof p.gpuFeatures === 'object' ? Object.entries(p.gpuFeatures).slice(0, 30) : [];
+    if (gf.length) out.push('- Chromium: ' + gf.map(([k, v]) => s(k) + ' ' + s(v)).join(', '));
+    out.push('');
+
     const features = Array.isArray(p.features) ? p.features : [];
     out.push('## Features (' + features.length + ')');
     const off = features.filter(f => f.running && f.on === false);
@@ -114,6 +125,12 @@ const VexDiagBundle = {
     }
     out.push('');
 
+    const refusals = (Array.isArray(p.ipcRefusals) ? p.ipcRefusals : []).slice(0, this.MAX_REFUSALS);
+    out.push('## Messages Vex refused (' + refusals.length + ' newest)');
+    if (!refusals.length) out.push('- None.');
+    for (const r of refusals) out.push('- ' + this._when(r.at) + ' ' + s(r.channel) + ': ' + s(r.reason).slice(0, 120));
+    out.push('');
+
     const storage = (Array.isArray(p.storage) ? p.storage : []).slice(0, this.MAX_STORAGE_OWNERS);
     out.push('## Where the stored data is (largest first)');
     if (!storage.length) out.push('- Not measured.');
@@ -145,6 +162,9 @@ const VexDiagBundle = {
       problems: typeof VexProblems !== 'undefined' ? VexProblems.all() : [],
       crashes: Array.isArray(d.crashHistory) ? d.crashHistory : [],
       trend: d.crashTrend || null,
+      gpu: d.gpu || null,
+      gpuFeatures: d.gpuFeatures || null,
+      ipcRefusals: Array.isArray(d.ipcRefusals) ? d.ipcRefusals : [],
       storage: typeof VexStorageLedger !== 'undefined' ? VexStorageLedger.byOwner() : [],
     };
     return parts;
