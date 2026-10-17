@@ -109,7 +109,13 @@
         V.runChecks && V.runChecks();
       } catch (err) { e.target.value = displayName(); window.showToast?.('Could not save the profile name: ' + err.message, 'error'); }
     });
-    q('#vm-play-room').addEventListener('click', () => { close(); window.VexPlayRoom?.open(); });
+    q('#vm-play-room').addEventListener('click', async () => {
+      try {
+        if (!window.VexPlayRoom) await window.VexLazy?.ensure('js/play-room.js');
+        if (!window.VexPlayRoom) throw new Error('Play room is not loaded');
+        close(); window.VexPlayRoom.open();
+      } catch (err) { window.showToast?.(err.message, 'error'); }
+    });
     q('#vm-browser-profiles').addEventListener('click', () => { close(); window.ProfilesUI?.openManager(); });
     rootEl.querySelectorAll('[data-avatar]').forEach(b => b.addEventListener('click', () => { V.setProfile({ avatar: b.dataset.avatar }); window.ProfilesUI?.paint(); render(); const n = rootEl.querySelector('[data-avatar="' + b.dataset.avatar + '"]'); if (n) n.focus(); }));
     rootEl.querySelectorAll('[data-tier]').forEach(b => b.addEventListener('click', () => { state.tier = b.dataset.tier; render(); const n = rootEl.querySelector('[data-tier="' + state.tier + '"]'); if (n) n.focus(); }));

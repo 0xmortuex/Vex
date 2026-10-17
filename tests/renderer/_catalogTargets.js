@@ -11,7 +11,7 @@ const path = require('path');
 const jsDir = path.join(__dirname, '../../src/renderer/js');
 const commandIds = new Set();
 const groupSections = new Set();
-for (const f of fs.readdirSync(jsDir)) {
+for (const f of fs.readdirSync(jsDir, { recursive: true })) {
   if (!f.endsWith('.js') || /^feature-(catalog|details|manifests)\.js$/.test(f)) continue;
   const src = fs.readFileSync(path.join(jsDir, f), 'utf8');
   for (const m of src.matchAll(/\{\s*id:\s*'([^']+)',\s*label:/g)) commandIds.add(m[1]);

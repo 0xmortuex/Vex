@@ -16,6 +16,7 @@
 // does not do, and keep it to two or three sentences — this is the paragraph
 // after the headline, not a manual.
 const FeatureDetails = {
+  'play-room': 'Open Play room from Ctrl+K or your profile when you want a small creative break. Six local activities keep souvenirs, your latest ten silly ideas and a pixel postcard you can export as PNG. Each activity adds five existing profile points once per day; replay has no limit or timer.',
   // ---- Tabs & windows ------------------------------------------------------
   'battery-mode': 'Vex asks Windows whether the PC is on its battery. If it is, the idle-tab timer shortens to 10 minutes (5 when the charge is low), Vex’s own checks for page changes, calendars, GitHub, Read later and tabs from other devices wait, background AI waits, and its animations stop. Anything playing sound, on a call, being recorded or kept awake is never put to sleep, and nothing you typed is lost. Plugging in runs the waiting work once. On a PC with no battery it does nothing, and Settings says so.',
   'find-in-page': 'Vex counts the matches and keeps its own bar, so a site that has hijacked Ctrl+F for its own search still gives you the browser one. Enter jumps to the next match, Shift+Enter to the previous.',
@@ -621,6 +622,7 @@ const FeatureDetails = {
 // when the code changes, change the words here. tests/renderer/
 // libraryOpenButtons.test.js fails for a manual entry that has none.
 const FeatureHow = {
+  'play-room': 'Press Ctrl+K, type Play room and choose an activity, or open your profile and click Play room. Calm or Full playfulness must be enabled; game and quiet modes can pause it.',
   // page-watch.js, page-watch-ui.js: the page context menu, Ctrl+K and the badge
   // ai-news.js, ai-news-ui.js, main/news-toast.js: Settings › AI news and the toolbar badge
   'ai-news': 'Open Settings › AI news and turn on “Tell me about AI news”; the first check only sets a baseline, nothing is announced from it. Tick Follow or Mute next to the topics, companies and sources you care about (or add your own words, models and rules), then choose how you are told: a Windows notification, a pop-up inside Vex, the toolbar badge, or a daily digest at a time you pick. “Send a test notification” shows a real Windows notification so you can see the path works. Quiet hours hold pop-ups and tell you once afterwards; the limits per hour turn a busy hour into one line. A Windows notification has Open (the story opens in a new tab and is marked read) and “Mute this source”. The badge shows how many stories you follow that you have not looked at; the panel groups them by day, and “Why was I notified?” names the rule. “Toolbar badge” in the same block switches the badge off while the panel keeps listing the stories. “Languages” keeps English only by default (Turkish, Chinese and other languages are ticks you can add; nothing is translated), and the panel says how many stories were left out.',

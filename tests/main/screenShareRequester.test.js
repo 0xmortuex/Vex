@@ -14,8 +14,8 @@ function load() {
   expect(start).toBeGreaterThan(-1);
   const end = MAIN.indexOf('\nfunction wireDisplayMediaOnSession', start);
   expect(end).toBeGreaterThan(start);
-  // The function is pure (frame object + a URL string), so it can be run on its own.
-  return new Function(MAIN.slice(start, end).replace(/\r/g, '') + '\nreturn _sameRequester;')();
+  // Supply the same validation module used by the main-process wrapper.
+  return new Function('_sharePreflight', MAIN.slice(start, end).replace(/\r/g, '') + '\nreturn _sameRequester;')(require('../../src/main/share-preflight.js'));
 }
 
 describe('the screen-share requester check', () => {
@@ -44,8 +44,8 @@ describe('the screen-share requester check', () => {
   });
 
   it('is what the picker uses, before it opens and when the choice arrives (no whole-URL comparison left)', () => {
-    expect(MAIN).toContain('!_sameRequester(requestingFrame, requestingUrl)');
-    expect(MAIN).toContain('!_sameRequester(p.frame, p.url)');
+    expect(MAIN).toContain('!_sameRequester(requestingFrame, requestingUrl, identity)');
+    expect(MAIN).toContain('!_sameRequester(p.frame, p.url, p.identity)');
     expect(MAIN).not.toMatch(/p\.frame\.url !== p\.url/);
     expect(MAIN).not.toMatch(/requestingFrame\.url !== requestingUrl/);
   });

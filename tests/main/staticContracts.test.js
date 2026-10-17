@@ -99,7 +99,6 @@ const EVENTS_DISPATCHED_NEVER_USED = new Map([
   ['vex:study-glossary', 'the study glossary changed; no in-window consumer yet'],
   ['vex:study-ledger', 'the study ledger changed; no in-window consumer yet'],
   ['vex:quiet-defaults-changed', 'VexQuietDefaults.reveal/showAll/quietAgain; the Clock panel and the site panel read hidden() each time they open, so no in-window consumer needs it yet'],
-  ['vex:playfulness-changed', 'VexPlayfulness.setLevel(); the Play flags already tell their followers through vex:play-changed'],
 ]);
 // Used but never dispatched under that literal name.
 // (Empty since Wave 0 integration: vex:streak-updated is now dispatched by brief-extras/streaks.js, vex:newtab-profile by

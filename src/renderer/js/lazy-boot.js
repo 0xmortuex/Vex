@@ -35,6 +35,7 @@ const VexBoot = {
     { src: 'js/dev-loop-ui.js', usage: [] },
     { src: 'js/clipboard-pipeline.js', usage: [] },
     { src: 'js/vex-mini-games.js', usage: [] },
+    { src: 'js/play-room.js', usage: [] },
     { src: 'js/vex-tab-tetris.js', usage: [] },
     { src: 'js/vex-medals-profile.js', usage: [] },
     { src: 'js/privacy-report-card.js', usage: [] },
