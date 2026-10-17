@@ -11,8 +11,8 @@ server, no new endpoint and no new key.** The phone side is not in this reposito
    `text/plain` (and, if wanted, `ACTION_SEND` of a web page from a browser, which also
    arrives as `text/plain` with the address in `EXTRA_TEXT` and the page title in
    `EXTRA_SUBJECT`).
-2. Take the first `http:` or `https:` address out of `EXTRA_TEXT`. If there is none,
-   tell the person that Vex can only receive links from the share sheet and stop.
+2. Take the first `http:` or `https:` address out of `EXTRA_TEXT`. If there is one, send a link
+   as in step 3. If there is none, send the text itself (step 3b); an image share is step 3c.
 3. Build the payload, exactly as the desktop does for "Send to my devices":
 
    ```json
@@ -28,6 +28,15 @@ server, no new endpoint and no new key.** The phone side is not in this reposito
    the desktop recognises a phone by its device name (`Handoff.looksLikePhone`) and
    only lists items from such a device under "Shared from my phone".
 
+3b. **Text with no link** (Wave 5): `{ "kind": "text", "text": "<EXTRA_TEXT, 4000 characters at most>", "title": "<EXTRA_SUBJECT, 300 at most, optional>" }`
+    (no `url`). Encrypt and `POST /sync/drop` exactly as in step 4.
+
+3c. **A picture** (Wave 5): `{ "kind": "image", "image": { "mime": "image/jpeg", "data": "<base64>" }, "title": "<optional>" }`.
+    `mime` is one of `image/png`, `image/jpeg`, `image/gif`, `image/webp`. `data` is at most 9000 base64 characters
+    (about 6.5 KB of picture) because the whole encrypted item must fit the server's 16 384-character limit. So the app
+    scales the picture down first (for example the longest side 160 px as JPEG at quality 60, repeating at lower
+    quality until it fits) and tells the person it is sending a small copy. If it cannot be made to fit, say so and stop.
+
 Do not send `to` unless the share is meant for one particular desktop.
 
 ## What the desktop does with it
@@ -38,14 +47,18 @@ Do not send `to` unless the share is meant for one particular desktop.
 * With Settings, "Shared from my phone", "File links my phone shares straight into Clips"
   turned on (it is off by default), the item goes into the text Clips inbox as one clip
   (title, link, note) instead of a card, with a Ledger line and an Undo.
+* Text and small pictures (Wave 5) wait in the same "Shared from my phone" list (20 items, 14 days): text can be
+  copied or saved to Clips (or filed automatically with the same switch, with an Undo), a picture can be copied.
+  A picture is never filed automatically because the Clips inbox holds text. The desktop checks a picture's first
+  bytes against its `mime` and drops anything that does not match.
 * A private window never fetches the mailbox.
 
 ## What this cannot do, and what it would take
 
-* **Images and files.** The mailbox holds 16 KB and needs an http(s) address. Sharing a
-  screenshot from the phone needs a new, size-bounded, encrypted attachment endpoint on
+* **Full-size images and files.** The mailbox holds 16 KB, so only a thumbnail fits (step 3c). Sharing a
+  screenshot or a photo at its real size needs a new, size-bounded, encrypted attachment endpoint on
   the sync worker. That is a server change and was not made.
-* **Text with no link.** Same reason: the receive rule drops an item without an
-  http(s) `url`. A `kind: "text"` payload would need a protocol bump (level) and a
-  matching change in `SyncEngine.dropFetch`.
+* **Text and thumbnails need the Wave 5 desktop.** An older desktop skips an item with no `url`
+  ("not a web address") and the mailbox has already let go of it, so the phone should send these only
+  to a signed-in account whose desktop is up to date.
 * **iOS.** A share extension can do the same as step 1 to 4; nothing here is Android specific.
