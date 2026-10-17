@@ -105,3 +105,45 @@ describe('the feeds', () => {
     expect(() => VexDropsDesk.addSource('https://more.example/f')).toThrow(/At most 10/);
   });
 });
+
+describe('the code list (the Roblox code list of the price tracker fold-in)', () => {
+  it('reads one code per line with an optional reward and end, and names the line that cannot be read', () => {
+    const r = VexDropsDesk.parseCodeLines('# spring\nSPRING2026 | 500 coins | 2026-11-02 18:00\n\nFREE_HAT\n');
+    expect(r).toEqual([{ code: 'SPRING2026', note: '500 coins', endsAt: new Date(2026, 10, 2, 18, 0).getTime() }, { code: 'FREE_HAT', note: '', endsAt: 0 }]);
+    expect(() => VexDropsDesk.parseCodeLines('OK1\nbad code here\n')).toThrow(/Line 2: .*not a code/);
+    expect(() => VexDropsDesk.parseCodeLines('OK1 | x | 2026-13-45')).toThrow(/Line 1: /);
+    expect(() => VexDropsDesk.parseCodeLines('  \n# only a comment')).toThrow(/one code per line/);
+    expect(() => VexDropsDesk.parseCodeLines(Array.from({ length: 41 }, (_, i) => 'CODE' + i).join('\n'))).toThrow(/at most 40/);
+  });
+  it('lists them for a game with a reminder before the end, skips one already listed, and adds nothing when a line is bad', async () => {
+    const r = await VexDropsDesk.addCodes('ABC123 | 100 gems | 2026-10-20 18:00\nXYZ99', { game: 'Adopt Me', remind: 60 });
+    expect(r).toEqual({ added: 2, skipped: 0 });
+    expect(VexDropsDesk.items().map(i => [i.title, i.kind, i.code, i.game])).toEqual([['Adopt Me code ABC123', 'code', 'ABC123', 'Adopt Me'], ['Adopt Me code XYZ99', 'code', 'XYZ99', 'Adopt Me']]);
+    expect(reminders).toHaveLength(1);
+    expect(await VexDropsDesk.addCodes('ABC123', { game: 'Adopt Me' })).toEqual({ added: 0, skipped: 1 });
+    expect(await VexDropsDesk.addCodes('ABC123', { game: 'Other' })).toEqual({ added: 1, skipped: 0 });
+    await expect(VexDropsDesk.addCodes('GOOD1\nnot ok', { game: 'G' })).rejects.toThrow(/Line 2/);
+    expect(VexDropsDesk.items().some(i => i.code === 'GOOD1')).toBe(false);
+  });
+  it('shows the live ones first: not claimed, not ended, soonest end first', async () => {
+    await VexDropsDesk.addCodes('LATE1 | | 2026-12-01 10:00\nSOON1 | | 2026-10-20 10:00\nNOEND1\nGONE1 | | 2026-01-01 10:00', { game: 'G' });
+    const claim = VexDropsDesk.items().find(i => i.code === 'SOON1');
+    expect(VexDropsDesk.liveCodes(NOW).map(i => i.code)).toEqual(['SOON1', 'LATE1', 'NOEND1']);
+    await VexDropsDesk.setClaimed(claim.id, true);
+    expect(VexDropsDesk.liveCodes(NOW).map(i => i.code)).toEqual(['LATE1', 'NOEND1']);
+  });
+  it('copies a code on the click only, and never redeems or opens anything', async () => {
+    await VexDropsDesk.addCodes('COPYME1', { game: 'G' });
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const id = VexDropsDesk.items()[0].id;
+    expect(await VexDropsDesk.copyCode(id)).toBe('COPYME1');
+    expect(writeText).toHaveBeenCalledWith('COPYME1');
+    await expect(VexDropsDesk.copyCode('nope')).rejects.toThrow(/no code/);
+    const src = require('fs').readFileSync(require('path').resolve(__dirname, '../../src/renderer/js/drops-desk.js'), 'utf8');
+    expect(src).not.toMatch(/executeJavaScript|vexGuestEval|sendInputEvent|\bfetch\(/);
+  });
+  it('refuses a code with odd characters', async () => {
+    await expect(VexDropsDesk.add({ title: 'x', kind: 'code', code: 'a b;c' })).rejects.toThrow(/letters, digits/);
+  });
+});

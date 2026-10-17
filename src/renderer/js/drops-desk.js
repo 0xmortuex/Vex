@@ -19,8 +19,12 @@
 //
 // Going-live notices already exist (js/live-channels.js: Twitch and YouTube channels, one
 // notification when one goes live, held while a game runs), so none is duplicated here.
-// Deferred: gathering Roblox codes automatically from code-list pages (it would mean
-// scraping third-party pages for a game with anti-cheat); a code is a line you type.
+// Codes (Roblox and other games) are a list of your own: a code, the game, what it gives, when it
+// ends. "Add codes" takes one per line ("CODE | what it gives | 2026-11-02 18:00", the last two
+// optional), "Copy" puts a code on the clipboard for you to paste into the game, and "Claimed" is your
+// tick. Vex never redeems a code, never opens the game and never reads a code list from a
+// third-party site: no such site is fixed or checked by Vex, so you type or paste what you found
+// (or list a feed you trust under Sources, which gives lines without a code).
 const VexDropsDesk = {
   KEYS: { on: 'vex.drops.enabled', data: 'vex.drops', poll: 'vex.drops.poll' },
   FEATURE: 'drops-desk',
@@ -57,7 +61,55 @@ const VexDropsDesk = {
     if (input.url) url = VexMediaKit.webUrl(input.url);
     const endsAt = Number(input.endsAt) || 0;
     if (endsAt < 0) throw new Error('That is not a real end time');
-    return { id: input.id || VexMediaKit.uid('dr'), title, kind, url, endsAt, claimed: !!input.claimed, source: String(input.source || '').slice(0, 40), note: String(input.note || '').slice(0, 200), reminderId: String(input.reminderId || ''), at: Number(input.at) || this._now() };
+    const code = String(input.code == null ? '' : input.code).trim();
+    if (code && !this.CODE_RE.test(code)) throw new Error('A code is letters, digits and - _ ! . only, 2 to 60 characters');
+    const game = String(input.game == null ? '' : input.game).replace(/\s+/g, ' ').trim().slice(0, 40);
+    return { id: input.id || VexMediaKit.uid('dr'), title, kind, url, endsAt, claimed: !!input.claimed, source: String(input.source || '').slice(0, 40), note: String(input.note || '').slice(0, 200), reminderId: String(input.reminderId || ''), at: Number(input.at) || this._now(), ...(code ? { code } : {}), ...(game ? { game } : {}) };
+  },
+  CODE_RE: /^[A-Za-z0-9][A-Za-z0-9_\-!.]{1,59}$/,
+
+  // ---- codes you type ------------------------------------------------------------------------------------
+  // "CODE | what it gives | 2026-11-02 18:00" per line (the last two optional; a # line is a comment).
+  // -> [{ code, note, endsAt }]. A line that cannot be read stops the whole paste, naming the line.
+  parseCodeLines(text) {
+    const out = [];
+    String(text == null ? '' : text).split(/\r?\n/).forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      const [code, note = '', when = ''] = line.split('|').map(s => s.trim());
+      try {
+        if (!this.CODE_RE.test(code)) throw new Error('"' + code.slice(0, 30) + '" is not a code (letters, digits and - _ ! . only)');
+        out.push({ code, note: note.slice(0, 120), endsAt: when ? VexMediaKit.parseLocal(when) : 0 });
+      } catch (err) { throw new Error('Line ' + (i + 1) + ': ' + err.message, { cause: err }); }
+    });
+    if (!out.length) throw new Error('Write one code per line, for example: SPRING2026 | 500 coins | 2026-11-02 18:00');
+    if (out.length > 40) throw new Error('Add at most 40 codes at a time');
+    return out;
+  },
+  // Add codes for a game. -> { added, skipped } (skipped: the same code for the same game was already listed).
+  async addCodes(text, { game = '', remind = 0 } = {}) {
+    const specs = this.parseCodeLines(text);
+    const g = String(game || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    let added = 0, skipped = 0;
+    for (const s of specs) {
+      const same = this.items().some(i => i.code === s.code && (i.game || '') === g);
+      if (same) { skipped++; continue; }
+      await this.add({ title: (g ? g + ' code ' : 'Code ') + s.code, kind: 'code', code: s.code, game: g, note: s.note, endsAt: s.endsAt }, { remind: s.endsAt ? remind : 0 });
+      added++;
+    }
+    return { added, skipped };
+  },
+  // The codes still worth trying: not claimed and not past their end. Soonest end first, no end last.
+  liveCodes(now = this._now()) {
+    return this.items().filter(i => i.code && !i.claimed && (!i.endsAt || i.endsAt > now))
+      .sort((a, b) => (a.endsAt || Infinity) - (b.endsAt || Infinity));
+  },
+  async copyCode(id) {
+    const it = this.items().find(i => i.id === id);
+    if (!it || !it.code) throw new Error('That line has no code');
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') throw new Error('Copying is not available here');
+    await navigator.clipboard.writeText(it.code);
+    return it.code;
   },
   async add(input, { remind = 0 } = {}) {
     const d = this.data();
@@ -210,7 +262,8 @@ const VexDropsDesk = {
       if (!items.length) body.appendChild(K.info('Nothing listed. Add one below, or use "Remind me before this ends" on any page from Ctrl+K.'));
       for (const i of soon.concat(rest)) {
         const r = K.el('div', 'setting-row');
-        r.appendChild(K.el('span', '', i.title + ' (' + i.kind + ') ' + (i.endsAt > now ? 'ends in ' + K.span(i.endsAt - now) : (i.endsAt ? 'ended' : 'no end time')) + (i.claimed ? ', claimed' : '')));
+        if (i.code) r.appendChild(K.button('Copy ' + i.code, async () => { await this.copyCode(i.id); K.toast('Copied. Paste it into the game yourself.'); }, { label: 'Copy the code ' + i.code }));
+        r.appendChild(K.el('span', '', i.title + (i.note ? ' - ' + i.note : '') + ' (' + i.kind + ') ' + (i.endsAt > now ? 'ends in ' + K.span(i.endsAt - now) : (i.endsAt ? 'ended' : 'no end time')) + (i.claimed ? ', claimed' : '')));
         r.appendChild(K.switchRow('Claimed', i.claimed, async (on) => { await this.setClaimed(i.id, on); draw(); }));
         if (i.url) r.appendChild(K.button('Open', () => TabManager.createTab(i.url, true), { label: 'Open ' + i.title }));
         r.appendChild(K.button('Delete', async () => { await this.remove(i.id); draw(); }, { danger: true, label: 'Delete ' + i.title }));
@@ -223,6 +276,14 @@ const VexDropsDesk = {
       for (const k of this.KINDS) kind.appendChild(new Option(k, k));
       body.appendChild(K.row('Add one', title, url, ends, kind, K.button('Add', async () => {
         await this.add({ title: title.value, url: url.value, kind: kind.value, endsAt: ends.value.trim() ? K.parseLocal(ends.value) : 0 }, { remind: ends.value.trim() ? this.LEAD_MIN : 0 });
+        draw();
+      })));
+      const codesGame = K.input('Game for the codes', { placeholder: 'Roblox game name', max: 40 });
+      body.appendChild(K.row('Add codes', codesGame, K.button('Paste codes...', async () => {
+        const text = await window.vexPrompt({ title: 'Add codes', message: 'One per line: CODE | what it gives | 2026-11-02 18:00 (the last two are optional). Vex only lists them; you redeem them yourself in the game.', multiline: true, wide: true, okLabel: 'Add' });
+        if (!text) return;
+        const r = await this.addCodes(text, { game: codesGame.value, remind: this.LEAD_MIN });
+        K.toast('Added ' + r.added + (r.skipped ? ', ' + r.skipped + ' already listed' : ''));
         draw();
       })));
       body.appendChild(K.button('Add the free games', async () => { const n = await this.addFreeGames(); K.toast(n ? 'Added ' + n : 'Nothing new to add'); draw(); }));
