@@ -277,6 +277,24 @@
     return true;
   }
 
+  // ---- where Shift+Enter opens the address (T2-065) -----------------------------------------------
+  // 'app': a small window of its own, in the tab's own profile (as before). 'private': a full Vex window with
+  // its tabs, toolbar and sidebar, but private: it keeps nothing and has none of this profile's logins (a second
+  // window of the normal profile does not exist in Vex). Remembered; 'app' until chosen.
+  const SHIFT_ENTER_KEY = 'vex.tabsNav.shiftEnter';
+  const SHIFT_ENTER_TARGETS = ['app', 'private'];
+  function shiftEnterTarget() {
+    let v = null;
+    try { v = localStorage.getItem(SHIFT_ENTER_KEY); } catch (err) { warn('storage is not readable (' + SHIFT_ENTER_KEY + ')', err); }
+    return SHIFT_ENTER_TARGETS.includes(v) ? v : 'app';
+  }
+  function setShiftEnterTarget(value) {
+    if (!SHIFT_ENTER_TARGETS.includes(value)) throw new Error('Shift+Enter opens a small app window or a full private window');
+    localStorage.setItem(SHIFT_ENTER_KEY, value);
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('vex:tabs-nav-changed', { detail: { name: 'shiftEnter', value } }));
+    return value;
+  }
+
   // ---- address bar extras (T2-065) -------------------------------------------------------------
   // One URL level up: /a/b/c -> /a/b -> /a -> / ; the query and fragment go with
   // the first step. null at the top of a site.
@@ -554,6 +572,7 @@
     titleCount, noteTitle, clearActivity, activityOf, decorateStrip,
     rateStep, formatRate, etaText,
     syncOnTop, setKeepOnTop, onTopState: () => ({ ...onTopState }),
+    SHIFT_ENTER_KEY, SHIFT_ENTER_TARGETS, shiftEnterTarget, setShiftEnterTarget,
   };
 
   if (typeof window !== 'undefined') {

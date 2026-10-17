@@ -325,7 +325,7 @@
     // the ones that change Enter or the address bar are off until chosen, and a profile that existed before this
     // release has the module held off and offered. Minimal Vex switches the whole module off and puts it back.
     { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation', maturity: 'new',
-      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom', 'vex.smoothScroll'], commands: ['tabsnav:keep-on-top', 'search-selection', 'address-levels'],
+      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom', 'vex.tabsNav.shiftEnter', 'vex.smoothScroll'], commands: ['tabsnav:keep-on-top', 'search-selection', 'address-levels'],
       permissions: { reads: ['the selected words on the page, the address of your tabs, the titles of background tabs'], writes: ['your switches, the last 20 find-bar searches, how often you typed each site; keeps the Vex window on top when you ask; the title of a page while it prints (put back after); opens a finished PDF in a tab when you chose that'], sends: ['The words you select, to your search engine, when you use the search-selection key'] } },
     // ---- Wave 2: the developer desk (js/dev-desk.js and the files it draws Settings for) -----------
     // All 'new': off for an existing profile until tried. The editor/terminal switch itself lives in the main process.
@@ -415,7 +415,7 @@
       permissions: { reads: ['the address of the tab in front'], writes: ['your answers, for two weeks'], sends: [] } },
     { id: 'break-prompts', title: 'Breaks', group: 'Breaks', maturity: 'new', storageKeys: ['vex.breaks', 'vex.breaks.enabled', 'vex.breaks.prefs'], jobs: ['Break prompts'],
       permissions: { reads: ['whether you are using Vex (not what you type)'], writes: ['how many breaks you took each day'], sends: [] } },
-    { id: 'orders-hub', title: 'Orders', group: 'Orders', maturity: 'new', storageKeys: ['vex.orders', 'vex.orders.enabled'], commands: ['orders-hub'],
+    { id: 'orders-hub', title: 'Orders', group: 'Orders', maturity: 'new', storageKeys: ['vex.orders', 'vex.orders.enabled', 'vex.orders.carrierMemory'], commands: ['orders-hub'],
       permissions: { reads: ['your parcels', 'the carrier’s public tracking page, only for a parcel you pressed Watch on (through Page watch)'], writes: ['your parcels, each parcel’s short timeline, and reminders you asked for'], sends: ['Track opens the carrier’s page in a tab; Watch asks that same public page now and then through Page watch'] } },
     { id: 'exam-calendar', title: 'Exam and registration dates', group: 'Exam and registration dates', maturity: 'new', storageKeys: ['vex.examDates', 'vex.examDates.enabled', 'vex.examDates.prefs'], commands: ['exam-calendar'],
       permissions: { reads: ['the dates you typed or imported from a file you chose'], writes: ['those dates and reminders you asked for'], sends: [] } },

@@ -44,6 +44,19 @@ const TabsNavSettings = {
     toggle('Tabs and navigation extras', N.enabled(), (v) => N.setEnabled(v));
     for (const [key, label] of this.ROWS) toggle(label, N.prefs()[key], (v) => N.setPref(key, v), !N.enabled());
 
+    // Where Shift+Enter in the address bar opens the address (needs the address bar extras).
+    const seRow = el('div', 'setting-toggle-row');
+    const seSel = document.createElement('select');
+    seSel.className = 'set-input';
+    seSel.setAttribute('aria-label', 'Shift+Enter in the address bar opens');
+    seSel.disabled = !N.enabled() || !N.prefs().addressExtras;
+    for (const [v, l] of [['app', 'a small app window (this profile\'s logins)'], ['private', 'a full private window (nothing kept, no logins)']]) {
+      const o = document.createElement('option'); o.value = v; o.textContent = l; o.selected = v === N.shiftEnterTarget(); seSel.appendChild(o);
+    }
+    seSel.addEventListener('change', () => { try { N.setShiftEnterTarget(seSel.value); } catch (err) { fail(err); } });
+    seRow.append(el('span', 'setting-label-text', 'Shift+Enter in the address bar opens'), seSel);
+    body.appendChild(seRow);
+
     // Installers ask where to save (a main-process choice: downloads:set-ask-types).
     const askRow = el('div', 'setting-toggle-row');
     const askLab = el('label', 'toggle');

@@ -10119,7 +10119,7 @@ async function openPrivateWindow({ clean = false, url = '', look = '', uiMode = 
     }
   });
   secureSessions.registerHost(privWin, privatePartition);
-  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : {}), ...(guest ? { guest: 'true' } : {}) } });
+  privWin.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { private: 'true', partition: privatePartition, ...(look ? { look } : {}), ...(uiMode ? { uiMode } : {}), ...(clean ? { clean: 'true', url } : (url ? { url } : {})), ...(guest ? { guest: 'true' } : {}) } });
   return true;
 }
 // `look` is the opener's GUI style: a private window keeps its own storage,
@@ -10141,7 +10141,7 @@ ipcMain.handle('overlay:open', (_e, url, opacity, partition) => {
 });
 ipcMain.handle('overlay:close', () => { if (_overlay && !_overlay.isDestroyed()) _overlay.close(); _overlay = null; return { ok: true }; });
 // `uiMode` likewise carries the opener's Simple/Full mode (js/simple-mode.js).
-ipcMain.handle('open-private-window', (_e, look, uiMode) => openPrivateWindow({ look: look || '', uiMode: uiMode || '' }));
+ipcMain.handle('open-private-window', (_e, look, uiMode, url) => openPrivateWindow({ look: look || '', uiMode: uiMode || '', url: /^https?:\/\//i.test(url || '') ? url : '' }));
 ipcMain.handle('open-clean-window', (_e, url, look, uiMode) => openPrivateWindow({ clean: true, url, look: look || '', uiMode: uiMode || '' }));
 // Guest session (T3-116, js/guest-session.js): the same private window, marked so the window shows
 // its Guest banner and the wipe receipt. It is not a new kind of storage: nothing is kept, as before.

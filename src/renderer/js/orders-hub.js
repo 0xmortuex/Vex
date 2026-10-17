@@ -14,6 +14,10 @@
 //   * "Detect from the number" tells UPS (1Z...), USPS, PTT (...TR), DHL Express (10 digits) and
 //     FedEx (12 or 15 digits) apart. Digits alone are ambiguous, so the carrier it picked is shown
 //     on the order and it never guesses a carrier it has no pattern for.
+//   * A number that is only digits can belong to several carriers (a 10-digit one is DHL Express, but
+//     also what other carriers print), so "Detect from the number" does not pick one for it: it asks you
+//     to choose, and remembers the answer for numbers of the same length and start, so the next one
+//     is detected. A number with letters in it (UPS 1Z, PTT ...TR, USPS ...US) is still detected at once.
 //   * "Watch" hands the carrier's public page to Page watch (js/page-watch.js), which asks it on its
 //     own slow schedule and tells you when it changes. Only when you press Watch; Page watch's own
 //     rules (no private tabs, no sign-in pages) apply. It never reads the page into the order.
@@ -37,6 +41,7 @@ const OrdersHub = {
     other: { label: 'Other carrier (paste its link)', url: null },
   },
   MAX_EVENTS: 30,
+  MEMORY_KEY: 'vex.orders.carrierMemory',      // { 'length:first three digits': carrier id }
 
   enabled() { return VexLifeKit.flag(this.ON_KEY, true); },
   setEnabled(on) { VexLifeKit.setFlag(this.ON_KEY, !!on); },
@@ -54,6 +59,34 @@ const OrdersHub = {
     return '';
   },
 
+  // ---- digit-only numbers: ask once, remember --------------------------------------------------
+  digitsOnly(number) { return /^\d+$/.test(String(number == null ? '' : number).replace(/\s+/g, '')); },
+  memoryKey(number) { const n = String(number).replace(/\s+/g, ''); return n.length + ':' + n.slice(0, 3); },
+  _memory() {
+    const raw = localStorage.getItem(this.MEMORY_KEY);
+    if (raw == null) return {};
+    let v;
+    try { v = JSON.parse(raw); } catch (err) { throw new Error('The remembered carriers are not readable: ' + err.message, { cause: err }); }
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  },
+  // The carrier chosen earlier for a number that looks like this one, or ''.
+  remembered(number) {
+    const c = this._memory()[this.memoryKey(number)];
+    return typeof c === 'string' && this.CARRIERS[c] && c !== 'other' ? c : '';
+  },
+  remember(number, carrier) {
+    if (!this.CARRIERS[carrier] || carrier === 'other') throw new Error('Unknown carrier');
+    if (!this.digitsOnly(number)) return false;
+    const m = this._memory();
+    const keys = Object.keys(m);
+    if (keys.length >= 100 && !(this.memoryKey(number) in m)) delete m[keys[0]];
+    m[this.memoryKey(number)] = carrier;
+    localStorage.setItem(this.MEMORY_KEY, JSON.stringify(m));
+    return true;
+  },
+  // Forget what was remembered (Settings, Orders).
+  forgetCarriers() { localStorage.removeItem(this.MEMORY_KEY); },
+
   // The page to open for an order. Throws for an "other" order with no usable link.
   trackUrl(order) {
     const c = this.CARRIERS[order.carrier];
@@ -66,9 +99,20 @@ const OrdersHub = {
 
   clean(input) {
     let carrier = this.CARRIERS[input.carrier] ? input.carrier : '';
+    let carrierBy = 'chosen';
     if (input.carrier === 'auto') {
-      carrier = this.guessCarrier(input.number);
-      if (!carrier) throw new Error('The number does not match one carrier’s format; choose the carrier');
+      if (this.digitsOnly(input.number)) {
+        carrier = this.remembered(input.number);
+        if (!carrier) {
+          const usual = this.guessCarrier(input.number);
+          throw new Error('That number is only digits, so more than one carrier could own it. Choose the carrier from the list' + (usual ? ' (' + this.CARRIERS[usual].label + ' is the usual one for this length)' : '') + '. Vex asks once and remembers your answer for numbers that look the same.');
+        }
+        carrierBy = 'remembered';
+      } else {
+        carrier = this.guessCarrier(input.number);
+        if (!carrier) throw new Error('The number does not match one carrier’s format; choose the carrier');
+        carrierBy = 'detected';
+      }
     }
     if (!carrier) throw new Error('Choose a carrier');
     const number = String(input.number || '').trim();
@@ -88,7 +132,7 @@ const OrdersHub = {
     if (label.length > 100) throw new Error('The description is up to 100 characters');
     const day = (v, name) => { const s = String(v || '').trim(); return s ? VexLifeKit.dayString(VexLifeKit.parseDay(s)) : ''; };
     return {
-      id: input.id || VexLifeKit.uid('or'), carrier, number, link, label,
+      id: input.id || VexLifeKit.uid('or'), carrier, carrierBy: input.carrierBy || carrierBy, number, link, label,
       added: input.added || Date.now(), status: input.status === 'delivered' ? 'delivered' : 'open',
       holdDay: day(input.holdDay), refundDay: day(input.refundDay), remindIds: Array.isArray(input.remindIds) ? input.remindIds : [],
       watchId: typeof input.watchId === 'string' ? input.watchId : '',
@@ -155,6 +199,8 @@ const OrdersHub = {
     const orders = this.all();
     if (orders.length >= this.MAX) throw new Error('The hub holds ' + this.MAX + ' orders; delete some');
     const o = this.clean(input);
+    // A digit-only number the person assigned to a carrier teaches the next one that looks the same.
+    if (o.carrierBy === 'chosen' && o.carrier !== 'other') this.remember(o.number, o.carrier);
     const failed = [];
     if (o.holdDay) {
       // The day before, so there is still a day to fetch it.
@@ -166,7 +212,7 @@ const OrdersHub = {
       try { const r = await VexLifeKit.remind('Has the refund for "' + o.label + '" arrived? You expected it by ' + o.refundDay + '.', VexLifeKit.parseDay(o.refundDay), { now }); if (r.id) o.remindIds.push(r.id); }
       catch (err) { failed.push('Refund reminder: ' + err.message); }
     }
-    this._event(o, 'Added (' + this.CARRIERS[o.carrier].label + ')', now);
+    this._event(o, 'Added (' + this.CARRIERS[o.carrier].label + (o.carrierBy === 'remembered' ? ', the carrier you chose for a number like it' : '') + ')', now);
     if (o.holdDay) this._event(o, 'Held at a pick-up point until ' + o.holdDay, now);
     orders.push(o);
     this._save(orders);
@@ -325,6 +371,7 @@ if (typeof window !== 'undefined') {
       build: (el) => {
         el.appendChild(VexSettingsGroups.note('A list of your parcels. Track opens the carrier’s own page in a tab; reminders for a hold deadline and an expected refund. No sign-in, no scraping.'));
         el.appendChild(VexSettingsGroups.button('Open the orders', () => OrdersHub.open(), { primary: true }));
+        el.appendChild(VexSettingsGroups.button('Forget the carriers I chose for digit-only numbers', () => { try { OrdersHub.forgetCarriers(); window.showToast?.('Vex will ask again for a number that is only digits'); } catch (err) { window.showToast?.(err.message, 'error'); } }));
       },
     });
   }
