@@ -349,6 +349,7 @@ define('spellcheck:set-languages', [value => value === 'auto' || value === 'en' 
 define('spellcheck:state', []);
 define('spellcheck:add-word', [integer, string(64)]);
 define('vex:set-bg-throttling', [integer, boolean]);
+define('panelguard:throttle', [integer, boolean]);
 define('app:tab-memory', [value => Array.isArray(value) && value.length <= 10000 && value.every(integer)]);
 // Every key the renderer's shortcut registry answers to, as written combos.
 define('shortcuts:guest-keys', [value => Array.isArray(value) && value.length <= 300 && value.every(v => string(64)(v))]);
