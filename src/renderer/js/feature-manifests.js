@@ -318,7 +318,7 @@
     // the ones that change Enter or the address bar are off until chosen, and a profile that existed before this
     // release has the module held off and offered. Minimal Vex switches the whole module off and puts it back.
     { id: 'tabs-nav', title: 'Tabs and navigation extras', group: 'Tabs and navigation', maturity: 'new',
-      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom', 'vex.smoothScroll'], commands: ['tabsnav:keep-on-top', 'search-selection', 'address-levels'],
+      storageKeys: ['vex.tabsNav.prefs', 'vex.tabsNav.findHistory', 'vex.tabsNav.typed', 'vex.tabsNav.defaultZoom', 'vex.tabsNav.shiftEnter', 'vex.smoothScroll'], commands: ['tabsnav:keep-on-top', 'search-selection', 'address-levels'],
       permissions: { reads: ['the selected words on the page, the address of your tabs, the titles of background tabs'], writes: ['your switches, the last 20 find-bar searches, how often you typed each site; keeps the Vex window on top when you ask; the title of a page while it prints (put back after); opens a finished PDF in a tab when you chose that'], sends: ['The words you select, to your search engine, when you use the search-selection key'] } },
     // ---- Wave 2: the developer desk (js/dev-desk.js and the files it draws Settings for) -----------
     // All 'new': off for an existing profile until tried. The editor/terminal switch itself lives in the main process.

@@ -101,6 +101,11 @@ function vexOwnTextFocused(doc) {
     const look = new URLSearchParams(location.search).get('look');
     if (look && look !== VexGuiStyle.get()) await VexGuiStyle.set(look);
   }
+  // A private window opened for an address (Shift+Enter, when it is set to open a private window) starts on it.
+  if (window.VexTabPolicy.isPrivateWindow && !window.VexTabPolicy.isCleanWindow) {
+    const wanted = new URLSearchParams(location.search).get('url');
+    if (wanted && /^https?:\/\//i.test(wanted)) TabManager.createTab(wanted, true);
+  }
   // A clean window (for sharing) shows the one page it was opened for, and
   // none of the bookmarks bar, sidebar or other chrome that says whose it is.
   if (window.VexTabPolicy.isCleanWindow) {
@@ -168,8 +173,12 @@ function vexOwnTextFocused(doc) {
     // Shift+Enter: the address opens in a window of its own (Address bar extras).
     if (newWindow && typeof VexTabsNav !== 'undefined' && VexTabsNav.on('addressExtras') && /^https?:\/\//i.test(url)) {
       const tab = TabManager.getActiveTab();
-      window.vex.openAsApp(url, '', (tab && tab.partition) || '')
-        .then((r) => { if (!r || !r.ok) window.showToast?.((r && r.error) || 'Could not open a new window', 'error'); },
+      // A full private window, if that is what Shift+Enter was set to open (Settings, Tabs and navigation).
+      const opened = VexTabsNav.shiftEnterTarget() === 'private'
+        ? window.vex.openPrivateWindow(VexGuiStyle.get(), VexSimpleMode.mode(), url)
+        : window.vex.openAsApp(url, '', (tab && tab.partition) || '');
+      Promise.resolve(opened)
+        .then((r) => { if (r === false || (r && r.ok === false)) window.showToast?.((r && r.error) || 'Could not open a new window', 'error'); },
           (err) => window.showToast?.('Could not open a new window: ' + ((err && err.message) || err), 'error'));
       urlInput.blur();
       return;

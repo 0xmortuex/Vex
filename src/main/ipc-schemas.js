@@ -216,7 +216,7 @@ define('mail:compose', [shape({ subject: string(300), body: string(8000), to: op
 const finite = value => typeof value === 'number' && Number.isFinite(value);
 // The opener's look and its Simple/Full mode (js/simple-mode.js): a private
 // window keeps its own storage, so it has neither unless it is told.
-define('open-private-window', [optional(string(40)), optional(oneOf(['simple', 'full']))]);
+define('open-private-window', [optional(string(40)), optional(oneOf(['simple', 'full'])), optional(web)]);
 define('open-guest-window', [optional(string(40)), optional(oneOf(['simple', 'full']))]);
 define('open-clean-window', [web, optional(string(40)), optional(oneOf(['simple', 'full']))]);
 define('open-pip-window', [web, optional(shape({
