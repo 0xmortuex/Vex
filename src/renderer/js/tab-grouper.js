@@ -284,6 +284,8 @@ const TabGrouper = (() => {
       const response = await AIRouter.callAI('groupTabs', request);
       if (stale()) return;
       const parsed = _parseGroupsReply(response.result, toReal);
+      // Who proposed these names (T3-107); kept with the cached proposal.
+      if (typeof VexProvenance !== 'undefined' && response && response.backend) parsed.by = VexProvenance.fromResult(response, { read: 'the titles and addresses of the tabs you chose' });
 
       parsed.groups = (parsed.groups || []).filter(g => g && g.name && Array.isArray(g.tabIds) && g.tabIds.length >= 2);
 
@@ -486,6 +488,10 @@ const TabGrouper = (() => {
       </div>
     `;
     document.body.appendChild(overlay);
+    if (proposal.by && typeof VexProvenance !== 'undefined') {
+      const head = overlay.querySelector('.preview-header');
+      if (head) head.appendChild(VexProvenance.chip(proposal.by));
+    }
     wirePreviewHandlers(overlay, proposal, sourceTabs);
   }
 

@@ -86,6 +86,8 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
       if (!bits.length) { out.textContent = activeNote || 'Nothing to do — no open tab matched that.'; btn.disabled = false; btn.textContent = 'Plan'; return; }
       const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       out.innerHTML = '<strong style="color:var(--text)">Plan:</strong> ' + esc(bits.join(' · ')) + (keptActive ? '<br>' + esc('The tab you are on stays open.') : plan.explanation ? '<br>' + esc(plan.explanation) : '');
+      // What wrote this plan (T3-107): the person reads it before pressing Apply.
+      if (typeof VexProvenance !== 'undefined' && data && data.backend) { out.appendChild(document.createTextNode(' ')); out.appendChild(VexProvenance.chip(VexProvenance.fromResult(data, { read: 'the titles and addresses of your open tabs' }))); }
       btn.disabled = false; btn.textContent = 'Apply';
       m._applyPlan = () => {
         const HEX = { indigo: '#6366f1', cyan: '#06b6d4', green: '#22c55e', amber: '#f59e0b', red: '#ef4444', violet: '#8b5cf6', rose: '#f43f5e', teal: '#14b8a6' };

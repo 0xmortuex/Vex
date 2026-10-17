@@ -14,12 +14,9 @@ const read = (f) => fs.readFileSync(path.join(JS, f), 'utf8');
 const NOT_A_SURFACE = {
   'agent-loop.js': 'its final answer is stored on the chat message and the AI panel draws the chip (ai-panel.js _agentBackend)',
   'agent-model-test.js': 'a settings self-test that prints pass or fail, not model prose',
-  'ai-restyle.js': 'the model writes CSS that is applied as a Boost, which is listed and editable; no prose is shown',
   'history-indexer.js': 'stores summaryBy on the history entry; history-panel.js draws the chip',
   'longdoc-engine.js': 'an engine; thread-digest.js shows its output with the chip',
   'project-compiler.js': 'the document it saves carries its own "written by <model>" footer (assemble)',
-  'tab-ai-media.js': 'turns a sentence into tab commands that are shown as actions, not as prose',
-  'tab-grouper.js': 'proposes group names that the person confirms in the grouper dialog',
   'vencord-bridge.js': 'returns text to comms-tools-ui.js, which shows it with the chip',
 };
 
@@ -64,5 +61,22 @@ describe('the surfaces draw it', () => {
     expect(VexToday.brief(now)).toMatchObject({ text: 'Busy day.', by: 'Local AI · llama3.2:3b' });
     localStorage.setItem(VexToday.BRIEF_KEY, JSON.stringify({ day: VexToday._day(now), text: 'Old brief', at: now }));
     expect(VexToday.brief(now).by).toBe('');
+  });
+});
+
+describe('Wave 6: the surfaces that were on the exemption list now say what wrote them', () => {
+  it('the tab plan, the group proposal and the restyle notice name the backend', () => {
+    expect(read('tab-ai-media.js')).toMatch(/data && data\.backend\) \{[^}]*VexProvenance\.chip\(VexProvenance\.fromResult\(data/);
+    expect(read('tab-grouper.js')).toMatch(/parsed\.by = VexProvenance\.fromResult\(response/);
+    expect(read('tab-grouper.js')).toMatch(/head\.appendChild\(VexProvenance\.chip\(proposal\.by\)\)/);
+    expect(read('ai-restyle.js')).toMatch(/written by ' \+ VexProvenance\.label\(VexProvenance\.fromResult\(reply/);
+  });
+  it('no exemption is left for a surface that shows model-written text', () => {
+    for (const f of ['ai-restyle.js', 'tab-ai-media.js', 'tab-grouper.js']) expect(NOT_A_SURFACE[f]).toBeUndefined();
+  });
+  it('the chip a proposal carries is the one the backend earns', () => {
+    const P = require('../../src/renderer/js/provenance-chip.js').VexProvenance;
+    expect(P.fromResult({ result: 'x', backend: 'local', model: 'llama3.2:3b' }, { read: 'tabs' })).toEqual({ kind: 'local', model: 'llama3.2:3b', read: 'tabs' });
+    expect(P.fromResult({ result: 'x', backend: 'cloud' }, { read: 'tabs' }).kind).toBe('ai');
   });
 });
