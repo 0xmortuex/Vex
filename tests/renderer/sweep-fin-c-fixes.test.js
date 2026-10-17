@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 
 const { VexIcons } = require('../../src/renderer/js/vex-icons.js');
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 globalThis.VexIcons = VexIcons; global.window.VexIcons = VexIcons;
 
 const flush = () => new Promise(r => setTimeout(r, 0));

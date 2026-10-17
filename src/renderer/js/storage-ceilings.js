@@ -91,7 +91,10 @@ const StorageCeilings = {
   //      index trims), unless the person pressed "Keep for 30 days" in Settings > Storage;
   //   3. every trim is written to the ledger with an undo, and the removed part is kept in
   //      vex.storage.trimmed (the last trim of each feature, up to 256 KB) so Undo puts it back.
-  // A curated list (AI memory: facts the person wrote) is only ever trimmed by "Trim now", never by a review.
+  // A curated list (AI memory: facts the person wrote) is only ever trimmed by "Trim now", never by a review for SIZE.
+  // Its AGE limit is opt-in (Wave 6): left at 0 days nothing ages out; once the person sets a number of days, a review
+  // that warned and waited the grace period forgets the facts not used or edited for that long (age only, never the
+  // size cap), with the ledger line and Undo like any trim.
   // Off by default on an existing profile (feature 'storage-retention', staged); the numbers stay on show.
   //
   //   StorageCeilings.policies()          -> [{ id, title, key, retainDays, maxKB, curated, shape }]
@@ -121,12 +124,16 @@ const StorageCeilings = {
     { id: 'timeline', title: 'Session timeline', key: 'vex.timeline.log', shape: 'list', time: 't', retainDays: 90, maxKB: 1024 },
     { id: 'captures', title: 'Screenshots and capture log', key: 'vex.captureLog', shape: 'list', time: 'start', retainDays: 90, maxKB: 512 },
     { id: 'digest-cache', title: 'Reading digest cache', key: 'vex.readingDigestCache', shape: 'map', time: (k, v) => (v && v.at) || 0, retainDays: 90, maxKB: 1024 },
-    { id: 'ai-memory', title: 'AI memory', key: 'vex.aiMemory', shape: 'listIn', path: 'facts', time: 'at', retainDays: 0, maxKB: 256, curated: true,
+    { id: 'ai-memory', title: 'AI memory', key: 'vex.aiMemory', shape: 'listIn', path: 'facts', retainDays: 0, maxKB: 256, curated: true, ageOptIn: true,
+      // Age is the last time a fact was used or changed, not only when it was written: a fact still in use stays.
+      time: (k, f) => Math.max((f && f.at) || 0, (f && f.lastUsed) || 0),
       load: () => (typeof AIMemory !== 'undefined' && AIMemory.data && Array.isArray(AIMemory.data.facts) ? AIMemory.data.facts.slice() : null),
       store: (list) => { AIMemory.data.facts = list; AIMemory.save(); } },
   ],
-  // Features that keep nothing of the kind: clipboard history is in memory only (its pins are capped at 100 by the
-  // module), and OCR text is shown and copied, never stored (it lands in Notes or Recall, which have their own limits).
+  // Features that keep nothing of the kind (checked in Wave 6, tests/renderer/storageCeilings.test.js): clipboard history
+  // keeps the 60 recent copies in memory only (only the on/off switch and the pins the person made are stored: at most 100
+  // pins of 10000 characters, capped by the module), and OCR text is shown and copied, never stored (it lands in Notes or
+  // Recall, which have their own limits).
 
   retentionEnabled() { try { return localStorage.getItem(this.RETENTION_KEY) !== '0'; } catch (err) { throw new Error('The retention switch could not be read: ' + err.message, { cause: err }); } },
   setRetentionEnabled(on) { localStorage.setItem(this.RETENTION_KEY, on ? '1' : '0'); },
@@ -144,7 +151,7 @@ const StorageCeilings = {
     const st = this._state();
     return this._POLICIES.map((p) => {
       const l = st.limits[p.id] || {};
-      return { id: p.id, title: p.title, key: p.key, shape: p.shape, curated: !!p.curated,
+      return { id: p.id, title: p.title, key: p.key, shape: p.shape, curated: !!p.curated, ageOptIn: !!p.ageOptIn,
         retainDays: Number.isFinite(l.retainDays) ? l.retainDays : p.retainDays, maxKB: Number.isFinite(l.maxKB) ? l.maxKB : p.maxKB };
     });
   },
@@ -160,7 +167,7 @@ const StorageCeilings = {
     if (!Number.isInteger(next.maxKB) || next.maxKB < this.RANGE_POLICY.maxKB[0] || next.maxKB > this.RANGE_POLICY.maxKB[1]) throw new Error('The size limit is between ' + this.RANGE_POLICY.maxKB.join(' and ') + ' KB');
     const st = this._state();
     st.limits[id] = next;
-    delete st.warned[id];
+    delete st.warned[id]; delete st.warned['age:' + id];
     this._saveState(st);
     return next;
   },
@@ -168,7 +175,7 @@ const StorageCeilings = {
     this._policy(id);
     const st = this._state();
     st.keepUntil[id] = now + days * 86400000;
-    delete st.warned[id];
+    delete st.warned[id]; delete st.warned['age:' + id];
     this._saveState(st);
     return st.keepUntil[id];
   },
@@ -210,7 +217,7 @@ const StorageCeilings = {
   // What a trim would do to one feature. Oldest first: first what is older than the retention, then the oldest of the
   // rest until the size is under the cap. An item with no timestamp counts as the oldest for the size cap and is never
   // dropped by age. Read only: nothing is changed.
-  plan(id, now = Date.now()) {
+  plan(id, now = Date.now(), { ageOnly = false } = {}) {
     const p = this._policy(id);
     const r = this._read(p);
     if (!r) return { id, bytes: 0, count: 0, dropAge: 0, dropSize: 0, drop: [], keep: [], policy: p };
@@ -223,7 +230,7 @@ const StorageCeilings = {
     const cap = p.maxKB * 1024;
     let size = this._bytes(rest.map(x => [x.k, x.it]), r.isMap);
     let dropSize = 0;
-    while (rest.length > 1 && size > cap) {
+    while (!ageOnly && rest.length > 1 && size > cap) {
       const out = rest.shift();
       size -= JSON.stringify(out.it).length + (r.isMap ? String(out.k).length + 4 : 1);
       drop.push(out); dropSize++;
@@ -232,9 +239,9 @@ const StorageCeilings = {
   },
 
   // Writes the kept part back, and keeps the removed part for Undo.
-  _apply(id, now = Date.now()) {
+  _apply(id, now = Date.now(), opts = {}) {
     const p = this._policy(id);
-    const pl = this.plan(id, now);
+    const pl = this.plan(id, now, opts);
     if (!pl.drop.length) return { dropped: 0, bytesBefore: pl.bytes, bytesAfter: pl.bytes, undoable: false };
     const r = this._read(p);
     const gone = new Set(pl.drop);
@@ -267,9 +274,16 @@ const StorageCeilings = {
   // The person asked: trims now, curated or not.
   trim(id, now = Date.now()) {
     const st = this._state();
-    delete st.warned[id]; delete st.keepUntil[id];
+    delete st.warned[id]; delete st.warned['age:' + id]; delete st.keepUntil[id];
     this._saveState(st);
     return this._apply(id, now);
+  },
+  // The person asked to forget what is past their own age limit (and nothing else).
+  trimByAge(id, now = Date.now()) {
+    const st = this._state();
+    delete st.warned['age:' + id]; delete st.keepUntil[id];
+    this._saveState(st);
+    return this._apply(id, now, { ageOnly: true });
   },
   undoTrim(id) {
     const p = this._policy(id);
@@ -294,10 +308,13 @@ const StorageCeilings = {
     if (!this.retentionEnabled()) return out;
     const st = this._state();
     for (const p of this.policies()) {
+      if (p.curated && p.ageOptIn && p.retainDays > 0) this._reviewAge(p, st, now, out);
       let pl;
       try { pl = this.plan(p.id, now); }
       catch (err) { this._note('Could not check ' + p.title, err); continue; }
-      if (!pl.drop.length) { delete st.warned[p.id]; continue; }
+      // With an age limit set, the age part has its own warning above; this one speaks only of size.
+      const ageOpt = !!(p.curated && p.ageOptIn && p.retainDays > 0);
+      if (!pl.drop.length || (ageOpt && !pl.dropSize)) { delete st.warned[p.id]; continue; }
       if (st.keepUntil[p.id] && st.keepUntil[p.id] > now) continue;
       if (!st.warned[p.id]) {
         this._warn(p, pl);
@@ -312,13 +329,27 @@ const StorageCeilings = {
     this._saveState(st);
     return out;
   },
-  _warn(p, pl) {
+  // The opt-in age limit of a curated list (AI memory): the person set a number of days, so what has not been used or
+  // changed for that long is forgotten, after its own warning and the same grace period, never for size.
+  _reviewAge(p, st, now, out) {
+    const key = 'age:' + p.id;
+    let ap;
+    try { ap = this.plan(p.id, now, { ageOnly: true }); }
+    catch (err) { this._note('Could not check the age limit of ' + p.title, err); return; }
+    if (!ap.drop.length) { delete st.warned[key]; return; }
+    if (st.keepUntil[p.id] && st.keepUntil[p.id] > now) return;
+    if (!st.warned[key]) { this._warn(p, ap, { age: true }); st.warned[key] = now; out.warned.push(key); return; }
+    if (now - st.warned[key] < this.GRACE_DAYS * 86400000) return;
+    try { this._apply(p.id, now, { ageOnly: true }); out.trimmed.push(p.id); delete st.warned[key]; }
+    catch (err) { this._note('Could not trim ' + p.title, err); }
+  },
+  _warn(p, pl, { age: byAge = false } = {}) {
     const age = pl.dropAge ? pl.dropAge + ' older than ' + p.retainDays + ' days' : '';
     const size = pl.dropSize ? pl.dropSize + ' over the ' + p.maxKB + ' KB limit' : '';
     const text = p.title + ' keeps ' + this.fmt(pl.bytes) + '. ' + [age, size].filter(Boolean).join(' and ') + ' would be removed, oldest first'
-      + (p.curated ? ' (only if you press Trim now)' : ', in ' + this.GRACE_DAYS + ' days') + '. Settings > Storage can keep it.';
+      + (byAge ? ', in ' + this.GRACE_DAYS + ' days, because you set an age limit' : p.curated ? ' (only if you press Trim now)' : ', in ' + this.GRACE_DAYS + ' days') + '. Settings > Storage can keep it.';
     if (typeof VexAttention === 'undefined') throw new Error('VexAttention is not loaded, so the warning for ' + p.title + ' cannot be shown');
-    VexAttention.suggest({ feature: this.FEATURE, label: 'Storage', id: 'trim-' + p.id, title: p.title + ' is over its limit', body: text, action: { label: 'Trim now', key: 'trim:' + p.id } });
+    VexAttention.suggest({ feature: this.FEATURE, label: 'Storage', id: (byAge ? 'trim-age-' : 'trim-') + p.id, title: p.title + ' is over its limit', body: text, action: byAge ? { label: 'Forget them now', key: 'trim-age:' + p.id } : { label: 'Trim now', key: 'trim:' + p.id } });
   },
 
   fmt(bytes) { return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB'; },
@@ -412,8 +443,8 @@ const StorageCeilings = {
     this.sendLimits().catch((err) => this._note('Could not send the Recall limits', err));
     // The warn-then-trim review (T2-004): the inbox button, the undo, and a pass every few hours.
     if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle(this.FEATURE, (key) => {
-      if (!key.startsWith('trim:')) throw new Error('Unknown storage action: ' + key);
-      try { const r = this.trim(key.slice(5)); window.showToast?.('Removed ' + r.dropped + ' older entr' + (r.dropped === 1 ? 'y' : 'ies')); }
+      if (!key.startsWith('trim:') && !key.startsWith('trim-age:')) throw new Error('Unknown storage action: ' + key);
+      try { const r = key.startsWith('trim-age:') ? this.trimByAge(key.slice(9)) : this.trim(key.slice(5)); window.showToast?.('Removed ' + r.dropped + ' older entr' + (r.dropped === 1 ? 'y' : 'ies')); }
       catch (err) { this._note('Could not trim', err); window.showToast?.(err.message, 'error'); }
     });
     if (typeof VexLedger !== 'undefined') VexLedger.registerUndo('storage-trim', (token) => { const n = this.undoTrim(token.id); return 'Put back ' + n + ' entr' + (n === 1 ? 'y' : 'ies'); });

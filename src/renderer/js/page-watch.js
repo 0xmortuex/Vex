@@ -879,6 +879,7 @@ const PageWatch = {
         <div style="overflow-y:auto;padding:0 18px 16px">${rows}${github}</div>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'page-watch' });
     // Escape closes it the way Done does. Capture phase, so nothing underneath
     // takes the same key; an Escape meant for a Vex dialog on top is left to it.
     const onKey = (e) => {

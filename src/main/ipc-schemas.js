@@ -98,6 +98,9 @@ define('downloads:open-defender', [optional(string(4096))]);
 // "Scan now" (src/main/defender-scan.js): a download's path (honoured only for a file Vex downloaded) or "pick", where main
 // opens the dialog. No program name, no argument and no folder can be sent.
 define('downloads:defender-scan', [shape({ source: oneOf(['download', 'pick']), path: optional(string(4096)) })]);
+// Extract here (src/main/download-files.js, T3-111): a path, honoured only for a file Vex downloaded itself; the folder it
+// is unpacked into is chosen by main, and main shows the confirmation.
+define('downloads:extract-here', [string(4096)]);
 define('web-suggest qr:make qr:generate permissions:revoke totp:delete extensions:uninstall downloads:open-file downloads:show-in-folder vault:get', [string()]);
 define('hotkeys:set', [object]);
 define('game:watch', [boolean]);

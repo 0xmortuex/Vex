@@ -123,6 +123,7 @@ const FreeGames = {
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'free-games' });
 
     let games;
     try { games = await this.list(); }

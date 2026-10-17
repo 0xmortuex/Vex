@@ -64,6 +64,7 @@ const WebSafetyUI = {
     overlay.querySelector('[data-close]').addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'web-safety-ui' });
 
     const btn = 'background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text);cursor:pointer;font:inherit;font-size:11.5px';
     const list = (items, kind, empty) => items.length

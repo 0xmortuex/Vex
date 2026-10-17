@@ -398,6 +398,7 @@ const DocExtract = {
         <textarea id="de-text" readonly spellcheck="false" style="flex:1;min-height:0;resize:none;border:none;outline:none;padding:16px;background:var(--bg);color:var(--text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.55"></textarea>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'doc-extract' });
     const ta = m.querySelector('#de-text');
     ta.value = text;
     const close = () => m.remove();

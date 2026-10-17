@@ -410,6 +410,7 @@ const TotpAutofill = {
       overlay.querySelector('[data-cancel]').addEventListener('click', () => done(null));
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(overlay);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'totp-autofill' });
       list.querySelector('button')?.focus();
     });
   },

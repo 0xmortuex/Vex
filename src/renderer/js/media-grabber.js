@@ -68,6 +68,7 @@ const MediaGrabber = {
       <div class="mediagrab-list">${rows}</div>
       ${items.some(i => i.kind === 'hls' || i.kind === 'dash') ? '<div class="mediagrab-hint">HLS/DASH streams: paste the link into VLC or yt-dlp to save.</div>' : ''}`;
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(el, 'media-grabber');
     this._el = el;
 
     el.querySelector('.mediagrab-refresh').addEventListener('click', () => { this.close(); this.run(); });

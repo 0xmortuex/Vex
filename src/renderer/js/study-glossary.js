@@ -1,4 +1,5 @@
 // === Glossary harvest and hover cards (T3-027) ==================================
+// vex-layer-exempt: a hover card drawn inside the guest page (injected script)
 //
 // Collect the terms a page or a note defines into one glossary per subject, with the
 // definition YOU confirm, and show them as small cards when the same words turn up on a

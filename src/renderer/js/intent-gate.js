@@ -115,6 +115,7 @@ const IntentGate = {
       overlay.appendChild(card);
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(overlay);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'intent-gate' });
       row.firstChild.focus();
     });
   },

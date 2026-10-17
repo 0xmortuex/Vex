@@ -665,14 +665,17 @@ const DiscordTheme = {
 
   _announceOthers() {
     if (!this.others.length || typeof window.showToast !== 'function') return;
-    window.showToast(this.othersMessage(), 'info', 15000, {
+    const extra = {
       action: {
         label: 'Pause my other themes while matching',
         run: () => this.pauseOthers().then(
           () => window.showToast?.('Your other Discord themes are paused until matching is turned off'),
           (err) => window.showToast?.('Not paused: ' + err.message, 'error')),
       },
-    });
+    };
+    // Said without being asked, so it goes through the attention gate.
+    if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'discord-theme', urgency: 'useful', id: 'others', title: this.othersMessage() }, this.othersMessage(), 'info', 15000, extra);
+    else window.showToast(this.othersMessage(), 'info', 15000, extra);
   },
 
   _chain: Promise.resolve(),

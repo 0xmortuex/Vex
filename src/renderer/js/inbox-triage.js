@@ -142,6 +142,7 @@ const InboxTriage = {
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'inbox-triage' });
 
     let accounts;
     try { accounts = await this.accounts(); }

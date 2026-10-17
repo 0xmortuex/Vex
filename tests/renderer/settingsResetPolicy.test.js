@@ -118,6 +118,7 @@ describe('settings applied at boot, not only on click', () => {
     const block = appSrc.slice(appSrc.indexOf("const autosaveToggle ="), appSrc.indexOf("// Settings buttons"));
     expect(block).toMatch(/applyAutoSave\(autosaveToggle\.checked\);/);
     // and clears any previous timer before re-arming, so toggling cannot leak one
-    expect(block).toMatch(/clearInterval\(window\._autoSaveInterval\)/);
+    expect(block).toMatch(/window\._autoSaveJob\.stop\(\)/);
+    expect(block).toMatch(/VexJobs\.every\('Auto-save sessions'/);
   });
 });

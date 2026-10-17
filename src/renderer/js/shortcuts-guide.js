@@ -58,6 +58,7 @@ const ShortcutsGuide = {
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'shortcuts-guide' });
     // Escape did nothing here (found 2026-09-29); every other overlay closes on it.
     const onKey = (e) => {
       if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }

@@ -84,7 +84,8 @@ const Onboarding = {
     if (told) {
       setTimeout(() => {
         if (typeof window.showToast !== 'function') { console.error('[setup] could not say where suggestions now come from: no toast'); return; }
-        window.showToast(told, 'info', 10000);
+        if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'setup', urgency: 'useful', id: 'suggestions-source', title: told }, told, 'info', 10000);
+        else window.showToast(told, 'info', 10000);
       }, 6000);
     }
     return told;
@@ -337,6 +338,7 @@ const Onboarding = {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'onboarding' });
     overlay.firstElementChild.setAttribute('role', 'dialog');
     overlay.firstElementChild.setAttribute('aria-modal', 'true');
     overlay.firstElementChild.setAttribute('aria-label', s.title);

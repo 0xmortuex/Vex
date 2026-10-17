@@ -26,6 +26,7 @@ const ImageZoom = {
       </div>
       <img class="vex-imgzoom-img" draggable="false" alt="">`;
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'dialog', id: 'image-zoom' });
     this._el = el;
     this._img = el.querySelector('.vex-imgzoom-img');
     this._pct = el.querySelector('.vex-imgzoom-pct');

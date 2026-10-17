@@ -648,6 +648,7 @@ const ListenReader = {
       try { this.setRate(e.target.value); } catch (err) { window.showToast?.(err.message, 'error'); }
     });
     document.body.appendChild(panel);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(panel, { tier: 'panel', id: 'listen-reader', keep: true });
   },
 
   // ---- Settings and the command bar -------------------------------------

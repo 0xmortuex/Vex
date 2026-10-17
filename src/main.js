@@ -4694,8 +4694,8 @@ function _extUpdater() {
       }));
     },
     find: (item) => item.source.webstore
-      ? _extUpdates.findWebStoreUpdate({ id: item.source.webstore, installedVersion: item.version, fetch: boundedNetFetch, chromeVersion: process.versions.chrome, AdmZip: require('adm-zip'), validateZip })
-      : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, AdmZip: require('adm-zip'), validateZip }),
+      ? _extUpdates.findWebStoreUpdate({ id: item.source.webstore, installedVersion: item.version, fetch: boundedNetFetch, checkFetch: _politeNetFetch, chromeVersion: process.versions.chrome, AdmZip: require('adm-zip'), validateZip })
+      : _extUpdates.findCatalogUpdate({ catalogId: item.source.catalog, installedVersion: item.version, fetch: boundedNetFetch, checkFetch: _politeNetFetch, AdmZip: require('adm-zip'), validateZip }),
     install: async (item, found) => {
       const previous = _extEntriesOnDisk().find(e => e.folder === item.folder && e.manifest);
       if (!previous || _readRemovingFolders()[item.folder]) return { ok: false, error: 'It was uninstalled during the check' };
@@ -7141,7 +7141,12 @@ const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath, { codec: _profileCrypt.codec, codecKeys: require('./main/profile-lock-ipc').STORAGE_KEYS });
 // The data schema version of the files main reads itself (main/file-store.js stamps it as `v`). A file at an
 // older version is migrated on its next read; one written by a newer Vex is refused, not overwritten.
-for (const key of ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style']) dataStore.schema(key, { version: 1 });
+// T0-012: every key the main process or the window saves through this store has a schema version, so a file
+// written by a newer Vex is refused instead of overwritten and an older file can be migrated. The other JsonStore
+// instances (the reminders, and the protect modules' store) register theirs where they are created.
+const STORE_KEYS = ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style',
+  'sync-tombstones', 'sync-known-devices', 'tabs', 'theme', 'userscripts', 'devdesk'];
+for (const key of STORE_KEYS) dataStore.schema(key, { version: 1 });
 const secretStore = new SecretStore(safeStorage);
 // Developer desk (main/dev-desk.js): open the file a stack trace points to, open a
 // terminal and read a branch, only inside folders picked in the folder dialog, only
@@ -9240,7 +9245,19 @@ const _fileCheck = require('./main/file-check').createFileCheck({
 // through the same guards that protect an extract (src/main/archive-security.js).
 ipcMain.handle('archive:list', async (_e, filePath) => {
   try {
-    if (!/\.zip$/i.test(String(filePath || ''))) return { ok: false, error: 'Vex can look inside .zip files only' };
+    // .rar and .7z (Wave 6): only their headers are read, in plain JavaScript (main/archive-list.js); nothing is unpacked.
+    const other = /\.(rar|7z)$/i.exec(String(filePath || ''));
+    if (other) {
+      const list = require('./main/archive-list');
+      const fd = fs.openSync(filePath, 'r');
+      let r;
+      try { r = list.listArchive(list.fileReader(fs, fd, fs.fstatSync(fd).size), other[1].toLowerCase()); }
+      finally { fs.closeSync(fd); }
+      if (!r.ok) return { ok: false, error: r.error };
+      if (r.encrypted) return { ok: false, error: r.note };
+      return { ok: true, count: r.entries.length, entries: r.entries.slice(0, 200), format: r.format, truncated: r.truncated };
+    }
+    if (!/\.zip$/i.test(String(filePath || ''))) return { ok: false, error: 'Vex can look inside .zip, .rar and .7z files only' };
     const AdmZip = require('adm-zip');
     const zip = new AdmZip(filePath);
     const { validateZip } = require('./main/archive-security');
@@ -9280,6 +9297,18 @@ ipcMain.handle('downloads:show-in-folder', (_e, filePath) => {
 // (src/main/download-files.js); only a file Vex downloaded, as Open.
 const _downloadFiles = require('./main/download-files').createDownloadFiles({
   fs, shell, getFileIcon: (p, o) => app.getFileIcon(p, o), isDownloadedFile: (p) => _downloadService.isDownloadedFile(p),
+  // Extract here (T3-111): the archive checks, the mark of the web, and a confirmation the MAIN process shows.
+  archive: require('./main/archive-security'), motw: _downloadService.markOfTheWeb,
+  confirm: async ({ title, detail, ok, cancel }) => {
+    const win = BrowserWindow.getFocusedWindow() || undefined;
+    const opts = { type: 'question', title: 'Vex', message: title, detail, buttons: [ok || 'OK', cancel || 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return r.response === 0;
+  },
+});
+ipcMain.handle('downloads:extract-here', async (_e, filePath) => {
+  try { return await _downloadFiles.extractHere(filePath); }
+  catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('downloads:delete-file', async (_e, filePath) => {
   try { return await _downloadFiles.deleteFile(filePath); }
@@ -10369,15 +10398,19 @@ ipcMain.handle('updates:notes', async (_e, tag) => {
   } catch (err) {
     console.warn('[WhatsNew] local changelog unavailable, falling back to GitHub:', err.message);
   }
-  const fetchJson = async (url) => {
+  // Through the GitHub vault (T1-040): its fixed list of read endpoints, the owner's read-only token when there is
+  // one (60 reads an hour without), the polite fetch's pacing, and the egress ledger. A failure is logged, not hidden.
+  const fetchJson = async (apiPath) => {
     try {
-      const response = await boundedNetFetch(url, { maxBytes: 1024 * 1024, timeoutMs: 8000,
-        headers: { 'User-Agent': 'Vex', Accept: 'application/vnd.github+json' } });
-      return response.ok ? await response.json() : null;
-    } catch { return null; }
+      const r = await _githubVault.get(apiPath);
+      return r.ok ? JSON.parse(r.text) : null;
+    } catch (err) {
+      console.warn('[WhatsNew] GitHub release lookup failed:', err.message);
+      return null;
+    }
   };
-  let rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/tags/' + encodeURIComponent(ver));
-  if (!rel || !rel.tag_name) rel = await fetchJson('https://api.github.com/repos/0xmortuex/Vex/releases/latest');
+  let rel = await fetchJson('/repos/0xmortuex/Vex/releases/tags/' + ver);
+  if (!rel || !rel.tag_name) rel = await fetchJson('/repos/0xmortuex/Vex/releases/latest');
   if (!rel || !rel.tag_name) return null;
   return { version: rel.tag_name, name: rel.name || rel.tag_name, body: rel.body || '', url: rel.html_url, publishedAt: rel.published_at };
 });
@@ -10737,7 +10770,8 @@ function startReminders() {
     log: (m) => console.log(m),
   });
   reminders = require('./main/reminders').createReminders({
-    store: new JsonStore(userDataPath),
+    // T0-012: the reminders and their bookkeeping are versioned like every other store file.
+    store: new JsonStore(userDataPath).schema('reminders', { version: 1 }).schema('reminders_meta', { version: 1 }),
     notifier,
     osScheduler,
     log: (m) => console.log(m),
@@ -10763,7 +10797,13 @@ const _protect = require('./main/protect').registerProtect({
   notifier,
   getSession: () => secureSessions.fromPartition('persist:main'),
   watchedSessions: () => ({ 'persist:main': () => secureSessions.fromPartition('persist:main'), 'persist:discord': () => secureSessions.fromPartition('persist:discord') }),
-  jsonStore: new (require('./main/file-store').JsonStore)(userDataPath),
+  // T0-012: the keys the protect modules keep here (cookie tally, sign-out reasons, extension usage, quiet hours and what it
+  // held, the tab snapshot index) are versioned like every other store file.
+  jsonStore: (() => {
+    const st = new (require('./main/file-store').JsonStore)(userDataPath);
+    for (const key of ['privacy-cookie-tally', 'signout-why', 'extension-usage', 'quiet-hours', 'quiet-hours-held', require('./main/tab-snapshots').PLAIN_KEY]) st.schema(key, { version: 1 });
+    return st;
+  })(),
   secretStore,
   secretsDir: userDataPath,
   encryptionAvailable: () => safeStorage.isEncryptionAvailable(),

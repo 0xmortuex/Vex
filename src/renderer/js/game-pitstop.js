@@ -376,6 +376,7 @@ const GamePitstop = {
     done.addEventListener('click', () => this.hide());
 
     document.body.appendChild(root);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(root, { tier: 'panel', id: 'game-pitstop', keep: true });
     this._ui = root;
     this._onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.vex-dialog-overlay')) this.hide(); };
     document.addEventListener('keydown', this._onKey, true);

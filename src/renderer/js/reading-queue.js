@@ -225,6 +225,7 @@ const ReadingQueue = {
     overlay.querySelector('[data-close]').addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'reading-queue' });
     if (minutes > 0) inputEl.value = String(Math.min(this.MAX_BUDGET, Math.round(minutes)));
     draw();
     inputEl.focus();

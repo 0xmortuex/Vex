@@ -35,6 +35,7 @@ const SetupGallery = {
       </div>
       <div id="sg-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'setup-gallery' });
     // Escape closes it, heard on the document (found 2026-09-29: it did
     // nothing). A dialog on top keeps its own Escape.
     const onKey = (e) => {

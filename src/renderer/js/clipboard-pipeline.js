@@ -222,6 +222,7 @@ const ClipboardPipeline = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'clipboard-pipeline' });
     const q = (s) => m.querySelector(s);
     const stepBoxes = () => [...m.querySelectorAll('[data-step]')];
     const chosen = () => stepBoxes().filter(b => b.checked).map(b => b.dataset.step);

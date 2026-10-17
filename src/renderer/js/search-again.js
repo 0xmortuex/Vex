@@ -173,6 +173,8 @@ const VexSearchAgain = {
     const actions = [];
     if (found.opened) actions.push({ label: 'Open it', title: found.opened.url, run: () => TabManager.createTab(found.opened.url, true) });
     actions.push({ label: 'Show that search', title: found.url, run: () => TabManager.createTab(found.url, true) });
+    // An offer nobody asked for, so it goes through the attention gate.
+    if (typeof VexAttention !== 'undefined') return VexAttention.toast({ feature: 'search-again', urgency: 'useful', id: found.url, title: this.describe(found) }, this.describe(found), 'info', 12000, { actions });
     return window.showToast(this.describe(found), 'info', 12000, { actions });
   },
 

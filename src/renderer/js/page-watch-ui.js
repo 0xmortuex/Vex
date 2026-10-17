@@ -175,6 +175,7 @@ const PageWatchUI = {
       <div class="pw-actions"><button type="button" class="pw-btn" id="pw-cancel">Cancel</button><button type="submit" class="pw-btn pw-primary">Watch it</button></div>
     </form>`;
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'page-watch-ui-2' });
     const q = (s) => wrap.querySelector(s);
     const form = q('form');
     const sync = () => {
@@ -309,6 +310,7 @@ const PageWatchUI = {
       <div class="pw-actions"><button type="button" class="pw-btn" id="pw-diff-open">Open the page</button><button type="button" class="pw-btn pw-primary" id="pw-diff-close">Done</button></div>
     </div>`;
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'page-watch-ui' });
     const q = (s) => wrap.querySelector(s);
     const draw = () => {
       if (snaps.length < 2) return;

@@ -273,6 +273,7 @@ const VexTl = {
     );
     card.appendChild(bar);
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'tl-equivalent', keep: true });
   },
 
   async run() {

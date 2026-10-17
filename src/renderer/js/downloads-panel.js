@@ -633,7 +633,7 @@ const DownloadsPanel = {
       // is in the address — the file itself is never uploaded.
       // An archive: what is in it, before it is unpacked. Otherwise the
       // fingerprint check, which is what matters for a program.
-      ...(info.verdict === 'archive' && /\.zip$/i.test(filePath)
+      ...(info.verdict === 'archive' && /\.(zip|rar|7z)$/i.test(filePath)
         ? { extra: { label: 'Look inside', run: () => this.peekArchive(filePath) } }
         : /^[a-f0-9]{64}$/i.test(info.sha256 || '') ? { extra: { label: 'Check on VirusTotal', run: () => this.checkOnVirusTotal(filePath, info.sha256) } } : {}),
     });
@@ -703,6 +703,9 @@ const DownloadsPanel = {
     }));
     rowEl.querySelectorAll('[data-action="scan-now"]').forEach(b => b.addEventListener('click', () => {
       VexDefenderShortcut.scan('download', b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
+    }));
+    rowEl.querySelectorAll('[data-action="extract-here"]').forEach(b => b.addEventListener('click', () => {
+      this._extractHere(b.dataset.path).catch(err => window.showToast?.(err.message, 'error'));
     }));
     rowEl.querySelectorAll('[data-action="show-in-folder"]').forEach(b => b.addEventListener('click', () => window.vex.downloadsShowInFolder?.(b.dataset.path)));
     rowEl.querySelectorAll('[data-action="pause"]').forEach(b => b.addEventListener('click', () => this._control(b.dataset.id, 'pause')));
@@ -804,6 +807,25 @@ const DownloadsPanel = {
     return `${size} &middot; ${date}${label}`;
   },
 
+  // "Extract here" (T3-111): only for a finished archive Vex can unpack (.zip, .tar, .tgz, .tar.gz).
+  ARCHIVE_RE: /\.(zip|tar|tgz|tar\.gz)$/i,
+  _extractButton(dl) {
+    if (!dl.path || !this.ARCHIVE_RE.test(dl.filename || dl.path)) return '';
+    return `<button class="dl-btn" data-action="extract-here" data-path="${this._esc(dl.path)}" title="Extract here, into a new folder" aria-label="Extract here">${typeof VexIcons !== 'undefined' ? VexIcons.svg('archive', { size: 14 }) : 'Extract'}</button>`;
+  },
+
+  async _extractHere(filePath) {
+    if (!window.vex || typeof window.vex.downloadsExtractHere !== 'function') throw new Error('Unpacking is not available in this window');
+    const r = await window.vex.downloadsExtractHere(filePath);
+    if (r && r.cancelled) return r;
+    if (!r || !r.ok) { window.showToast?.((r && r.error) || 'Could not extract it', 'error'); return r; }
+    const marked = r.motw && r.motw.carried ? ' The "downloaded from the internet" mark was kept on them.' : '';
+    window.showToast?.('Extracted ' + r.files + ' file' + (r.files === 1 ? '' : 's') + '.' + marked, 'success', 8000, {
+      action: { label: 'Show', title: 'Show the new folder', run: () => window.vex.downloadsShowInFolder?.(r.folder) },
+    });
+    return r;
+  },
+
   _scanButton(dl) {
     if (typeof VexDefenderShortcut === 'undefined' || !VexDefenderShortcut.offers(dl.filename)) return '';
     const now = VexDefenderShortcut.offersScan(dl.filename)
@@ -834,6 +856,7 @@ const DownloadsPanel = {
       actions = `<button class="dl-btn" data-action="open-file" data-path="${this._esc(dl.path)}" data-from="${this._esc(dl.url || '')}" title="Open file">Open</button>
             <button class="dl-btn" data-action="show-in-folder" data-path="${this._esc(dl.path)}" title="Show in folder" aria-label="Show in folder">${this.ICONS.folder}</button>
             ${this._scanButton(dl)}
+            ${this._extractButton(dl)}
             <button class="dl-btn" data-action="delete-file" data-id="${id}" title="Delete the file" aria-label="Delete the file">${this.ICONS.trash}</button>`;
     } else if (dl.state === 'interrupted' && this.activeDownloads.has(dl.id)) {
       // The connection dropped but the download is still open in Vex: it can

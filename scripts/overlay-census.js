@@ -24,6 +24,9 @@ const DIRS = ['src/renderer/js', 'src/renderer/css'];
 const BASELINE = path.join(__dirname, 'overlay-census.json');
 const FIXED = /position\s*:\s*fixed/g;
 const HELPERS = /\bVexLayer\b/;
+// A script whose position:fixed element is not a window overlay says so in a comment: `vex-layer-exempt: <reason>`
+// (drawn inside the guest page by an injected script, a pointer-events:none veil, a hidden off-screen webview).
+const EXEMPT = /vex-layer-exempt:/;
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -39,11 +42,13 @@ function census(root = ROOT) {
   for (const d of DIRS) {
     for (const file of walk(path.join(root, d))) {
       const src = fs.readFileSync(file, 'utf8');
-      const n = (src.match(FIXED) || []).length;
+      // A comment that merely mentions the rule is not an overlay.
+      const code = src.split(/\r?\n/).filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+      const n = (code.match(FIXED) || []).length;
       if (!n) continue;
       const rel = path.relative(root, file).replace(/\\/g, '/');
       const isJs = rel.endsWith('.js');
-      rows.push({ file: rel, fixed: n, onLayer: isJs && HELPERS.test(src) });
+      rows.push({ file: rel, fixed: n, onLayer: isJs && HELPERS.test(src), exempt: isJs && EXEMPT.test(src) });
     }
   }
   const sum = (f) => rows.filter(f).reduce((a, r) => a + r.fixed, 0);
@@ -51,8 +56,9 @@ function census(root = ROOT) {
     total: sum(() => true),
     onLayer: sum(r => r.onLayer),
     // JS files that build an overlay and are not on the layer manager, and stylesheets (the rules those overlays use).
-    remainingJs: sum(r => !r.onLayer && r.file.endsWith('.js')),
-    remainingJsFiles: rows.filter(r => !r.onLayer && r.file.endsWith('.js')).length,
+    remainingJs: sum(r => !r.onLayer && !r.exempt && r.file.endsWith('.js')),
+    remainingJsFiles: rows.filter(r => !r.onLayer && !r.exempt && r.file.endsWith('.js')).length,
+    exempt: sum(r => !r.onLayer && r.exempt),
     css: sum(r => r.file.endsWith('.css')),
     rows,
   };
@@ -70,8 +76,9 @@ if (require.main === module) {
   } else {
     console.log(`position:fixed in the renderer: ${c.total} (${c.css} in stylesheets)`);
     console.log(`script files that reference VexLayer (position:fixed counted there): ${c.onLayer}`);
+    console.log(`exempt (not a window overlay, marked vex-layer-exempt): ${c.exempt}`);
     console.log(`not on the layer manager yet: ${c.remainingJs} in ${c.remainingJsFiles} script files (overlays built through the shared dialog, toast and context-menu helpers are on it at the helper)`);
-    for (const r of c.rows.filter(x => !x.onLayer && x.file.endsWith('.js')).sort((a, b) => b.fixed - a.fixed)) console.log(`  ${String(r.fixed).padStart(3)}  ${r.file}`);
+    for (const r of c.rows.filter(x => !x.onLayer && !x.exempt && x.file.endsWith('.js')).sort((a, b) => b.fixed - a.fixed)) console.log(`  ${String(r.fixed).padStart(3)}  ${r.file}`);
   }
 }
 

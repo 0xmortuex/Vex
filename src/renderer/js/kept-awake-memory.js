@@ -146,6 +146,8 @@ const KeptAwakeMemory = {
         actions.push({ label: 'Let it sleep', title: 'Turn off keep-awake, so it sleeps when you are not using it', run: () => this.letSleep(items) });
       }
     }
+    // Said without being asked, so it goes through the attention gate.
+    if (typeof VexAttention !== 'undefined') return VexAttention.toast({ feature: 'kept-awake-memory', urgency: 'useful', id: String(group.pid), title: this.message(group) }, this.message(group), 'warn', 20000, { actions });
     return window.showToast(this.message(group), 'warn', 20000, { actions });
   },
 

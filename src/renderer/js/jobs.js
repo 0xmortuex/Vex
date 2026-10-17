@@ -229,7 +229,7 @@ const VexJobs = {
     if (typeof GameWarmdown !== 'undefined' && GameWarmdown.active) return 'a game launcher is open';
     const mem = this.memoryLow();
     if (mem) return mem;
-    if (item.feature && typeof VexBreaker !== 'undefined' && VexBreaker.isTripped(item.feature)) return 'it was switched off after repeated failures';
+    if (item.breaker !== false && item.feature && typeof VexBreaker !== 'undefined' && VexBreaker.isTripped(item.feature)) return 'it was switched off after repeated failures';
     if (item.kind === 'ai-ask') return '';           // a question you asked: not held for idleness or power
     if (typeof BatteryMode !== 'undefined' && BatteryMode.holdingJobs && BatteryMode.holdingJobs()) return 'saving battery';
     if (item.backlog) {
@@ -241,13 +241,15 @@ const VexJobs = {
     return '';
   },
 
-  heavy(name, fn, { kind = 'index', feature = '', backlog = false } = {}) {
+  // breaker:false is for an ask the person made (a local model call): its failure is shown to them by the caller, and a
+  // run of failures (Ollama not running) must not switch the next ask off.
+  heavy(name, fn, { kind = 'index', feature = '', backlog = false, breaker = true } = {}) {
     if (typeof name !== 'string' || !name) throw new Error('VexJobs.heavy needs a name');
     if (typeof fn !== 'function') throw new Error('VexJobs.heavy: ' + name + ' has no function');
     if (!this.HEAVY_KINDS.includes(kind)) throw new Error('VexJobs.heavy: unknown kind ' + kind);
     const owner = feature || (typeof VexRegistry !== 'undefined' ? VexRegistry.forJob(name) : null) || '';
     return new Promise((resolve, reject) => {
-      const item = { name, fn, kind, feature: owner, backlog: !!backlog, wait: kind === 'ai-ask' || !!backlog, resolve, reject, at: Date.now() };
+      const item = { name, fn, kind, feature: owner, backlog: !!backlog, breaker: !!breaker, wait: kind === 'ai-ask' || !!backlog, resolve, reject, at: Date.now() };
       const why = this._heavyBlock(item);
       // A refusal that does not wait is answered at once, and never queued.
       if (why && !item.wait && why !== 'you are using Vex') { resolve({ ran: false, reason: why }); return; }
@@ -263,6 +265,10 @@ const VexJobs = {
     if (!r.ran) throw new Error('Not now: ' + r.reason + '. Try again in a moment.');
     return r.value;
   },
+
+  // True while a heavy job holds the slot: work started from inside it (or beside it) is already covered by the checks
+  // that let it start, and queueing it behind itself would never finish.
+  inHeavy() { return this._heavyRunning; },
 
   heavyQueue() { return this._heavy.map(i => ({ name: i.name, kind: i.kind, feature: i.feature, backlog: i.backlog, waitingMs: Date.now() - i.at })); },
 
@@ -298,10 +304,12 @@ const VexJobs = {
       if (typeof VexCost !== 'undefined') VexCost.job(item.feature, ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0);
       this._pumpHeavy();
     };
-    const ok = (value) => { if (typeof VexBreaker !== 'undefined') VexBreaker.ok(key); finish(); item.resolve({ ran: true, value }); };
+    const ok = (value) => { if (item.breaker !== false && typeof VexBreaker !== 'undefined') VexBreaker.ok(key); finish(); item.resolve({ ran: true, value }); };
     const bad = (err) => {
-      window.VexProblems?.note('Background job', item.name + ' failed', err);
-      if (typeof VexBreaker !== 'undefined') VexBreaker.fail(key, err);
+      if (item.breaker !== false) {
+        window.VexProblems?.note('Background job', item.name + ' failed', err);
+        if (typeof VexBreaker !== 'undefined') VexBreaker.fail(key, err);
+      }
       finish();
       item.reject(err);
     };

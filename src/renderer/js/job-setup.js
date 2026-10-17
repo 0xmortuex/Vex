@@ -17,6 +17,7 @@ const JobSetup = {
       <div id="jsx-body" style="padding:6px 20px 20px;overflow:auto;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'job-setup' });
     // Escape closes it the way the X does; it did nothing (found 2026-09-29).
     // Capture phase, so nothing underneath takes the same key; an Escape meant
     // for a Vex dialog on top is left to that dialog. The listener goes with

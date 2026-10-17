@@ -31,7 +31,10 @@
 //     the limit for most of a full minute of samples;
 //   - OFF until switched on.
 // What picks a panel is the processor figure. Electron reports no graphics use per panel,
-// so none is guessed.
+// so none is guessed. Checked again for Wave 6 against Electron 42's ProcessMetric (app.getAppMetrics): it has cpu,
+// memory, pid and type, no graphics field, and Chromium draws every page in the one GPU process, so a per-panel figure
+// cannot be read from the process list or from a process id mapping either (tests/main/electronGpuMetric.test.js fails
+// the day Electron adds one).
 //
 // It samples on its own timer chain, not VexJobs: VexJobs holds every job while a game
 // runs, and a game is exactly when this is wanted (as the memory guard does).

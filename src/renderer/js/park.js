@@ -143,6 +143,7 @@ const VexPark = {
     const no = VexSettingsGroups.button('Dismiss', () => { try { this._patch(card.id, { dismissedAt: Date.now() }); } catch (err) { window.showToast?.(err.message, 'error'); } this.hideBanner(); }, { label: 'Dismiss the parked card' });
     el.append(text, go, no);
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'panel', id: 'park', keep: true });
     return true;
   },
 

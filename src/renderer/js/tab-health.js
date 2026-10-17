@@ -52,6 +52,7 @@ const TabHealth = {
       </div>
       <div id="th-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tab-health' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#th-close').addEventListener('click', () => m.remove());
     // Escape closes it; it did nothing (found 2026-09-29). A keep-awake

@@ -80,6 +80,7 @@ const Dictionary = {
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onAway, true);
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'dictionary', keep: true });
     return card;
   },
 

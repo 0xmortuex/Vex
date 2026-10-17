@@ -180,6 +180,17 @@ const VexAttention = {
     return d;
   },
 
+  // notify() and the toast in one call, for a message nobody asked for. -> the toast element, or null when the gate
+  // refused (a useful one then waits in the Attention Inbox when it has a title).
+  toast(opts, text, kind, ms, extra) {
+    let shown = null;
+    this.notify(opts, () => {
+      if (typeof window.showToast !== 'function') throw new Error('The toast system is not loaded');
+      shown = window.showToast(text, kind, ms, extra);
+    });
+    return shown;
+  },
+
   // A suggestion that never needed a toast: it goes straight to the Attention
   // Inbox. The person's verbs still apply (Never, Show less); the toast caps do not.
   // -> true when it was added.

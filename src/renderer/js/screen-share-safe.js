@@ -128,6 +128,7 @@ const VexScreenShareSafe = {
     b.addEventListener('click', () => this.pauseForThisShare());
     pill.append(t, b);
     document.body.appendChild(pill);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(pill, { tier: 'panel', id: 'screen-share-safe', keep: true });
     this._pill = pill;
   },
 

@@ -378,6 +378,7 @@ const ResearchProjects = {
     document.addEventListener('keydown', onKey, true);
     project ? drawOne() : drawList();
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'research-projects' });
     return overlay;
   },
 

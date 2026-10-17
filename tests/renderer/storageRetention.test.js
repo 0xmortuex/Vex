@@ -156,3 +156,58 @@ describe('wiring', () => {
     expect(js('storage-ceilings.js')).toMatch(/Remove the oldest entries of a feature once it stays over its limit/);
   });
 });
+
+describe('Wave 6: the opt-in age limit of AI memory', () => {
+  const facts = () => [
+    { id: 'old', text: 'a', at: NOW - 200 * DAY, lastUsed: 0 },
+    { id: 'old-but-used', text: 'b', at: NOW - 200 * DAY, lastUsed: NOW - 2 * DAY },
+    { id: 'new', text: 'c', at: NOW - DAY, lastUsed: 0 },
+  ];
+  beforeEach(() => { globalThis.AIMemory = { data: { facts: facts() }, save: vi.fn() }; });
+
+  it('is off by default: nothing ages out, a review does not even warn about age', () => {
+    expect(S.policies().find(p => p.id === 'ai-memory')).toMatchObject({ retainDays: 0, ageOptIn: true });
+    expect(S.review(NOW)).toEqual({ warned: [], trimmed: [] });
+    expect(S.review(NOW + 30 * DAY)).toEqual({ warned: [], trimmed: [] });
+    expect(AIMemory.data.facts).toHaveLength(3);
+  });
+
+  it('once the person sets days, warns first, then after the grace period forgets what was not used or changed for that long', () => {
+    S.setPolicy('ai-memory', { retainDays: 90 });
+    expect(S.review(NOW).warned).toEqual(['age:ai-memory']);
+    expect(inbox[0].action).toMatchObject({ label: 'Forget them now', key: 'trim-age:ai-memory' });
+    expect(AIMemory.data.facts).toHaveLength(3);
+    expect(S.review(NOW + DAY)).toEqual({ warned: [], trimmed: [] });                 // inside the grace period
+    globalThis.VexLedger = { note: vi.fn() };
+    expect(S.review(NOW + 4 * DAY).trimmed).toEqual(['ai-memory']);
+    expect(AIMemory.data.facts.map(f => f.id)).toEqual(['old-but-used', 'new']);     // the used one stays
+    expect(VexLedger.note.mock.calls[0][0].undo).toEqual({ kind: 'storage-trim', id: 'ai-memory' });
+    expect(S.undoTrim('ai-memory')).toBe(1);
+    expect(AIMemory.data.facts.map(f => f.id).sort()).toEqual(['new', 'old', 'old-but-used']);
+  });
+
+  it('never trims for SIZE by itself, even with an age limit set', () => {
+    AIMemory.data.facts = Array.from({ length: 20 }, (_, i) => ({ id: 'm' + i, text: 'y'.repeat(20000), at: NOW - i * 1000 }));
+    S.setPolicy('ai-memory', { retainDays: 90 });
+    S.review(NOW); S.review(NOW + 10 * DAY);
+    expect(AIMemory.data.facts).toHaveLength(20);
+  });
+
+  it('"Keep for 30 days" stops the age trim, and trimByAge takes only the aged facts', () => {
+    S.setPolicy('ai-memory', { retainDays: 90 });
+    S.review(NOW);
+    S.keepFor('ai-memory', 30, NOW);
+    expect(S.review(NOW + 5 * DAY).trimmed).toEqual([]);
+    expect(S.trimByAge('ai-memory', NOW + 40 * DAY).dropped).toBe(1);
+  });
+
+  it('clipboard history keeps its recent copies in memory only; only the switch and the pins are stored', () => {
+    const { ClipboardHistory } = require('../../src/renderer/js/clipboard-history.js');
+    localStorage.clear();
+    ClipboardHistory.recent = []; ClipboardHistory.pinned = [];
+    ClipboardHistory.record({ text: 'secret copy', host: 'example.com', title: 't' });
+    expect(ClipboardHistory.recent).toHaveLength(1);
+    expect(Object.keys(localStorage).filter(k => /clip/i.test(k))).toEqual([]);
+    expect(JSON.stringify(Object.entries(localStorage))).not.toContain('secret copy');
+  });
+});

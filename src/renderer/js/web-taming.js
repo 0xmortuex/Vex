@@ -75,6 +75,7 @@ const WebTaming = {
     wrap.setAttribute('aria-modal', 'true');
     wrap.innerHTML = '<div class="wt-card">' + html + '</div>';
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'web-taming-3' });
     const onKey = (e) => {
       if (!wrap.isConnected) { document.removeEventListener('keydown', onKey, true); return; }
       if (e.key !== 'Escape' || document.querySelector('.vex-dialog-overlay')) return;
@@ -478,6 +479,7 @@ const PageChangelog = {
     chip.innerHTML = `<div><strong>${WebTaming.esc(sum.headline)}</strong> since you last looked (${WebTaming.esc(new Date(before.at).toLocaleDateString())})</div>
       <div class="wt-row"><button class="wt-btn wt-primary" data-show>Highlight what changed</button><button class="wt-btn" data-x>Dismiss</button></div>`;
     document.body.appendChild(chip);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(chip, { tier: 'panel', id: 'web-taming-2', keep: true });
     chip.querySelector('[data-x]').addEventListener('click', () => chip.remove());
     chip.querySelector('[data-show]').addEventListener('click', async () => {
       chip.remove();
@@ -713,6 +715,7 @@ const ShotToNote = {
     box.hidden = true;
     layer.appendChild(box);
     document.body.appendChild(layer);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(layer, { tier: 'dialog', id: 'web-taming' });
     WebTaming.toast('Drag over the part of the page to capture. Esc cancels.');
     const done = (rect) => {
       document.removeEventListener('keydown', onKey, true);

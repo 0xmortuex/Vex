@@ -338,6 +338,7 @@ const SmartBookmarks = {
     overlay.querySelector('[data-close]').addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'smart-bookmarks-2' });
     draw();
     return overlay;
   },
@@ -375,6 +376,7 @@ const SmartBookmarks = {
     const seen = box.querySelector('[data-seen]');
     if (seen) seen.addEventListener('click', () => { this.markSeen(id); close(); });
     document.body.appendChild(box);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(box, { tier: 'dialog', id: 'smart-bookmarks' });
     return box;
   },
 

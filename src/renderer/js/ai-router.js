@@ -416,9 +416,17 @@ const AIRouter = (() => {
     throw new Error('The sensitivity gate is not loaded (js/ai-sensitivity.js), so nothing is sent to the cloud');
   }
 
+  // A model that runs on this machine loads its processor and graphics card: it goes through the heavy-job queue as an
+  // 'ai-ask' (T0-007), which waits out a game and low memory instead of competing with them. Started from inside a heavy
+  // job (an indexer, a digest) it runs at once, because that job already passed the same checks.
+  function heavyOnThisMachine(name, run) {
+    if (typeof VexJobs === 'undefined' || typeof VexJobs.heavy !== 'function' || VexJobs.inHeavy()) return run();
+    return VexJobs.heavyOrThrow(name, run, { kind: 'ai-ask', feature: 'ai-router', breaker: false });
+  }
+
   async function callBackend(backend, feature, request) {
-    if (backend === 'ondevice') return await callOnDevice(feature, request);
-    if (backend === 'local') return await callLocal(feature, request);
+    if (backend === 'ondevice') return await heavyOnThisMachine('On-device AI: ' + feature, () => callOnDevice(feature, request));
+    if (backend === 'local') return await heavyOnThisMachine('Local AI: ' + feature, () => callLocal(feature, request));
     // Nothing reaches the cloud without passing the sensitivity gate (T1-042):
     // history, mail, bank and health pages, vault pages and private tabs, and
     // any secret in the text. This is the one place every cloud request passes

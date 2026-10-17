@@ -132,12 +132,12 @@ const VexPet = {
     evs.forEach(n => document.addEventListener(n, onEvent));
     window.addEventListener('storage', onEvent);
     // Mood follows the clock; a minute is fine-grained enough.
-    const timer = setInterval(onEvent, 60000);
+    const timer = VexJobs.every('Pet mood ' + Math.random().toString(36).slice(2, 8), 60000, onEvent, { feature: 'pet' });
     update();
     return {
       update,
       destroy() {
-        clearInterval(timer);
+        timer.stop();
         evs.forEach(n => document.removeEventListener(n, onEvent));
         window.removeEventListener('storage', onEvent);
         box.remove();

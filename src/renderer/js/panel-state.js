@@ -1,4 +1,5 @@
 // === Panel state strip and unread ledger ========================================
+// vex-layer-exempt: a pointer-events:none strip; only its small buttons take clicks and it must stay up
 //
 // The sidebar icon of a panel already carries its unread count (js/panel-badges.js
 // reads the "(5)" at the front of the page title). This adds what a person who

@@ -119,6 +119,7 @@ const ExtensionsMenu = {
       menu.appendChild(row);
     });
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'extensions-menu-2');
 
     // Position under the button, clamped to the viewport.
     const r = btn.getBoundingClientRect();
@@ -259,6 +260,7 @@ const ExtensionsMenu = {
     menu.style.top = ev.clientY + 'px';
     WebviewManager._renderMenu(menu, items);
     document.body.appendChild(menu);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(menu, 'extensions-menu');
     if (typeof TabManager !== 'undefined') {
       TabManager._clampMenuToViewport?.(menu, ev.clientX, ev.clientY);
       TabManager._attachMenuDismissal?.(menu);

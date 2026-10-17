@@ -24,10 +24,14 @@
 // entry starts and asks Windows who signed it, the same read-only Get-AuthenticodeSignature call the
 // download check uses (main/file-check.js; the file path travels in an environment variable, never in a
 // script). It runs only when the person presses "Check who signed these", never in the background. A
-// registry value and a Startup-folder program have a path; a Scheduled Task's program is not in the
-// list `schtasks` prints and a shortcut (.lnk) is not itself signed, so those are reported as not
-// checked rather than guessed. "Unsigned" is a fact about the file, not a verdict: plenty of honest
-// small tools are unsigned.
+// registry value and a Startup-folder program have a path. Wave 6: a shortcut (.lnk) is resolved to its
+// target with Electron's shell.readShortcutLink (it only reads the file), and a Scheduled Task's program is
+// read from the "Task To Run" column of one more read-only `schtasks /query /fo csv /v /nh` (fixed arguments,
+// no task name sent anywhere); the program they lead to is checked like the others, and the result says
+// which way it was found (via: 'shortcut' | 'task'). A task that runs a COM handler or several actions, a
+// shortcut to a folder or a web address, and anything that cannot be read are still reported as not
+// checked, with the reason, rather than guessed. "Unsigned" is a fact about the file, not a verdict: plenty
+// of honest small tools are unsigned.
 const fs = require('fs');
 const path = require('path');
 
@@ -176,22 +180,41 @@ async function scan({ execFile = require('child_process').execFile, env = proces
   return { ok: true, platform, at: now(), items: items.slice(0, MAX_ENTRIES), truncated: items.length > MAX_ENTRIES, microsoftTasks, errors };
 }
 
+// The program a command line starts: "C:\X\x.exe" --a, C:\X\x.exe /s, or one that uses %APPDATA%. '' when none can be read.
+function programFromCommand(command, env = process.env) {
+  const text = String(command || '').replace(/%([^%]+)%/g, (m, v) => env[v] || env[v.toUpperCase()] || m).trim();
+  const quoted = /^"([^"]+)"/.exec(text);
+  if (quoted) return quoted[1];
+  const m = new RegExp('^(.+?\\.' + PROGRAM_EXT + ')(?=\\s|$|,)', 'i').exec(text);
+  return m ? m[1] : '';
+}
+
 // The program an entry starts, as an absolute path of a file that exists, or { why } when it cannot be known.
 // Registry data looks like  "C:\Program Files\X\x.exe" --background  or  C:\X\x.exe /s  or use %APPDATA%.
-function targetOf(item, { env = process.env, fsMod = fs } = {}) {
-  if (item.kind === 'task') return { why: "a scheduled task's program is not in the list Windows prints" };
-  let candidate = '';
-  if (item.kind === 'folder') {
-    if (/\.lnk$/i.test(item.name)) return { why: 'a shortcut is not signed itself; the program it points to is not read here' };
-    candidate = path.join(String(item.data || ''), item.name);
+// Wave 6: readShortcut(file) -> { target } (Electron's shell.readShortcutLink, which only reads the shortcut) resolves a
+// .lnk, and taskCommand is the "Task To Run" text of the verbose task list for a scheduled task. Without them the answer
+// is still "not checked" with the reason, never a guess. { path, via } says how the program was found.
+function targetOf(item, { env = process.env, fsMod = fs, readShortcut = null, taskCommand = '' } = {}) {
+  let candidate;
+  let via = '';
+  if (item.kind === 'task') {
+    if (!taskCommand) return { why: "a scheduled task's program is not in the list Windows prints" };
+    if (/^(com handler|n\/a|multiple actions)/i.test(String(taskCommand).trim())) return { why: 'the task runs ' + String(taskCommand).trim().toLowerCase() + ', not one program Vex can name' };
+    candidate = programFromCommand(taskCommand, env);
+    if (!candidate) return { why: 'no program path could be read from what the task runs' };
+    via = 'task';
+  } else if (item.kind === 'folder') {
+    if (/\.lnk$/i.test(item.name)) {
+      if (typeof readShortcut !== 'function') return { why: 'a shortcut is not signed itself; the program it points to is not read here' };
+      let info;
+      try { info = readShortcut(path.join(String(item.data || ''), item.name)); }
+      catch (err) { return { why: 'the shortcut could not be read (' + ((err && err.message) || err) + ')' }; }
+      candidate = programFromCommand(info && info.target ? '"' + info.target + '"' : '', env);
+      if (!candidate) return { why: 'the shortcut does not point to a program (a folder, a web address or a Windows feature)' };
+      via = 'shortcut';
+    } else candidate = path.join(String(item.data || ''), item.name);
   } else if (item.kind === 'registry') {
-    const text = String(item.data || '').replace(/%([^%]+)%/g, (m, v) => env[v] || env[v.toUpperCase()] || m).trim();
-    const quoted = /^"([^"]+)"/.exec(text);
-    if (quoted) candidate = quoted[1];
-    else {
-      const m = new RegExp('^(.+?\\.' + PROGRAM_EXT + ')(?=\\s|$|,)', 'i').exec(text);
-      if (m) candidate = m[1];
-    }
+    candidate = programFromCommand(item.data, env);
     if (!candidate) return { why: 'no program path could be read from its value' };
   } else return { why: 'unknown kind of entry' };
   if (!/^[A-Za-z]:[\\/]/.test(candidate)) return { why: 'the program is not given with a full path' };
@@ -201,22 +224,50 @@ function targetOf(item, { env = process.env, fsMod = fs } = {}) {
     if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return { why: 'the program is not there any more' };
     throw new Error('Could not look at ' + candidate + ': ' + err.message, { cause: err });
   }
-  return { path: candidate };
+  return via ? { path: candidate, via } : { path: candidate };
+}
+
+// The "Task To Run" column of the verbose task list: name -> command text. One read-only query with a fixed
+// argument list; no task name from anywhere. Column 2 is the task name and column 9 what it runs (the order Windows
+// uses in every language; with /nh there is no header row to read it from).
+const SCHTASKS_VERBOSE_ARGS = Object.freeze(['/query', '/fo', 'csv', '/v', '/nh']);
+function parseSchtasksCommands(output) {
+  const out = new Map();
+  for (const raw of String(output == null ? '' : output).split(/\r?\n/)) {
+    if (!raw.trim()) continue;
+    const cells = parseCsvLine(raw);
+    const name = (cells[1] || '').trim();
+    if (!name.startsWith('\\') || name === 'TaskName') continue;
+    const command = (cells[8] || '').trim();
+    if (command && !out.has(name)) out.set(name, command);
+  }
+  return out;
+}
+async function taskCommands({ execFile = require('child_process').execFile } = {}) {
+  const r = await runQuery(execFile, 'schtasks', SCHTASKS_VERBOSE_ARGS.slice());
+  if (!r.ok) throw new Error('The programs the scheduled tasks run could not be read: ' + r.error);
+  return parseSchtasksCommands(r.out);
 }
 
 // -> { ok, results: [{ id, name, path, status, signer, unsigned, why }], checked, unsigned }
 // status is Windows' own word (Valid, NotSigned, HashMismatch, ...) or 'unchecked'. Bounded and cached per path.
-async function checkSignatures({ scanFn = scan, signatureOf, env = process.env, fsMod = fs } = {}) {
+async function checkSignatures({ scanFn = scan, signatureOf, env = process.env, fsMod = fs, readShortcut = null, taskCommandsFn = null } = {}) {
   if (typeof signatureOf !== 'function') throw new Error('There is no way to read signatures here');
   const listed = await scanFn();
   if (!listed.ok) return { ok: false, error: listed.error || 'The startup places could not be read', results: [], checked: 0, unsigned: 0 };
   const results = [];
   const jobs = [];
+  // Scheduled tasks and shortcuts are resolved to the program they start (Wave 6), so they are checked like the rest.
+  let commands = new Map();
+  if (taskCommandsFn && listed.items.some(i => i.kind === 'task')) {
+    try { commands = await taskCommandsFn(); }
+    catch (err) { return { ok: false, error: err.message, results: [], checked: 0, unsigned: 0 }; }
+  }
   for (const item of listed.items) {
-    const t = targetOf(item, { env, fsMod });
+    const t = targetOf(item, { env, fsMod, readShortcut, taskCommand: item.kind === 'task' ? commands.get(item.name) || '' : '' });
     if (!t.path) { results.push({ id: item.id, name: item.name, path: t.path || '', status: 'unchecked', signer: '', unsigned: false, why: t.why }); continue; }
     if (jobs.length >= MAX_SIGNATURE_CHECKS) { results.push({ id: item.id, name: item.name, path: t.path, status: 'unchecked', signer: '', unsigned: false, why: 'only the first ' + MAX_SIGNATURE_CHECKS + ' programs are checked' }); continue; }
-    jobs.push({ item, path: t.path });
+    jobs.push({ item, path: t.path, via: t.via || '' });
   }
   const cache = new Map();
   const ask = (p) => { if (!cache.has(p)) cache.set(p, Promise.resolve().then(() => signatureOf(p))); return cache.get(p); };
@@ -226,7 +277,7 @@ async function checkSignatures({ scanFn = scan, signatureOf, env = process.env, 
       const j = jobs[next++];
       const s = await ask(j.path);
       const status = String((s && s.status) || 'unknown');
-      results.push({ id: j.item.id, name: j.item.name, path: j.path, status, signer: String((s && s.signer) || ''), unsigned: status === 'NotSigned', why: (s && s.why) || '' });
+      results.push({ id: j.item.id, name: j.item.name, path: j.path, via: j.via, status, signer: String((s && s.signer) || ''), unsigned: status === 'NotSigned', why: (s && s.why) || '' });
     }
   };
   await Promise.all(Array.from({ length: Math.min(SIGNATURE_CONCURRENCY, jobs.length) }, worker));
@@ -238,8 +289,12 @@ function registerStartupCheck({ ipcMain, scanFn = scan, signatureOf = null }) {
   ipcMain.handle('startup:list', () => scanFn());
   ipcMain.handle('startup:signatures', () => {
     const sig = signatureOf || require('./file-check').createFileCheck({ fs, crypto: require('crypto'), execFile: require('child_process').execFile, platform: process.platform }).signature;
-    return checkSignatures({ scanFn, signatureOf: sig });
+    // Shortcuts are read with Electron's shell.readShortcutLink (it only reads the .lnk); where Electron is not there (a
+    // test) they stay "not checked" with their reason.
+    const e = require('electron');
+    const readShortcut = e && e.shell && typeof e.shell.readShortcutLink === 'function' ? (f) => e.shell.readShortcutLink(f) : null;
+    return checkSignatures({ scanFn, signatureOf: sig, readShortcut, taskCommandsFn: () => taskCommands({}) });
   });
 }
 
-module.exports = { checkSignatures, targetOf, scan, parseRegQuery, parseSchtasks, parseCsvLine, isVexEntry, isMicrosoftTask, listStartupFolder, registerStartupCheck, RUN_KEYS, SCHTASKS_ARGS };
+module.exports = { checkSignatures, targetOf, programFromCommand, taskCommands, parseSchtasksCommands, SCHTASKS_VERBOSE_ARGS, scan, parseRegQuery, parseSchtasks, parseCsvLine, isVexEntry, isMicrosoftTask, listStartupFolder, registerStartupCheck, RUN_KEYS, SCHTASKS_ARGS };

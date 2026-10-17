@@ -1,4 +1,5 @@
 // === Middle-click autoscroll (T3-042) ===========================================
+// vex-layer-exempt: drawn inside the guest page (injected script), pointer-events:none
 //
 // Windows browsers scroll a page by itself when you press the wheel: a small
 // mark appears where you pressed, and the page moves toward wherever you take the

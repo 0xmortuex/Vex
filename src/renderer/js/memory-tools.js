@@ -311,6 +311,7 @@ const VexMemoryTools = {
     wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(); });
     x.addEventListener('click', close);
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'memory-tools' });
     return { wrap, box, body, close };
   },
   _btn(label, onClick, { primary = false, title } = {}) {
@@ -900,7 +901,7 @@ const VexMemoryTools = {
       // GameMode keeps the sleep count on its report; the object is kept so the
       // number is still there after GameMode has put everything back.
       const grab = () => { try { if (typeof GameMode !== 'undefined' && GameMode._gamingReport) g.report = GameMode._gamingReport; } catch { /* no report */ } };
-      g.poll = setInterval(grab, 3000);
+      g.poll = VexJobs.every('Game report grab', 3000, grab, { when: 'background', feature: 'memory-tools' });
       grab();
       this._game = g;
     } else if (on && this._game) {
@@ -908,7 +909,7 @@ const VexMemoryTools = {
     } else if (!on && this._game) {
       const g = this._game;
       this._game = null;
-      clearInterval(g.poll);
+      g.poll.stop();
       try { if (!g.report && typeof GameMode !== 'undefined' && GameMode._gamingReport) g.report = GameMode._gamingReport; } catch { /* no report */ }
       const end = Date.now();
       if (end - g.start < this.MIN_GAME_MS) return null;
@@ -1127,7 +1128,7 @@ const VexMemoryTools = {
   // ============================================================================
   start() {
     const later = (fn, ms) => this._timers.push(setTimeout(fn, ms));
-    const every = (fn, ms) => this._timers.push(setInterval(fn, ms));
+    const every = (fn, ms, name) => this._timers.push(VexJobs.every(name, ms, fn, { when: 'background', feature: 'memory-tools' }));
     if (this._started) return false;
     this._started = true;
     const guard = (what, fn) => () => { try { const r = fn(); if (r && typeof r.catch === 'function') r.catch(err => this._note(what, err)); } catch (err) { this._note(what, err); } };
@@ -1136,11 +1137,11 @@ const VexMemoryTools = {
     const journal = () => VexJobs.heavy('Journal', () => this.tickJournal(), { kind: 'summary', feature: 'memory-tools' });
     const links = () => VexJobs.heavy('Link memory', () => this.scanLinks(), { kind: 'index', feature: 'memory-tools' });
     later(guard('journal', journal), 15000);
-    every(guard('journal', journal), 15 * 60000);
+    every(guard('journal', journal), 15 * 60000, 'Memory journal');
     later(guard('links', links), 25000);
-    every(guard('links', links), 10 * 60000);
+    every(guard('links', links), 10 * 60000, 'Memory links');
     later(guard('backup', () => this.maybeNudge()), 60000);
-    every(guard('backup', () => this.maybeNudge()), 60 * 60000);
+    every(guard('backup', () => this.maybeNudge()), 60 * 60000, 'Memory backup nudge');
     return true;
   },
 

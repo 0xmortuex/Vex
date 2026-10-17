@@ -49,12 +49,15 @@ const VexLayer = {
     return this._add(el, { tier, id, dismissible, close: () => { el.remove(); if (typeof onClose === 'function') onClose(); } });
   },
 
-  track(el, { tier = 'dialog', id = '', close = null } = {}) {
+  // keep:true is for a surface that has to stay up while its state lasts (a recording pill, the exam bar, a player):
+  // it is listed and the sweep knows it is deliberate, but "Close all overlays", a double Escape and sweep() leave it
+  // alone. Closing it by its id still works.
+  track(el, { tier = 'dialog', id = '', close = null, keep = false } = {}) {
     if (!el || el.nodeType !== 1) throw new Error('VexLayer.track needs an element');
     this._check(tier);
     this._prune();
     if (this._layers.some(l => l.el === el)) return el;
-    return this._add(el, { tier, id, dismissible: false, close: typeof close === 'function' ? close : () => el.remove() });
+    return this._add(el, { tier, id, dismissible: false, keep: !!keep, close: typeof close === 'function' ? close : () => el.remove() });
   },
 
   // A menu or popover that closes itself on a press outside it, which every one of them does (a capture-phase
@@ -71,7 +74,7 @@ const VexLayer = {
   },
 
   _add(el, rec) {
-    this._layers.push({ el, id: rec.id || el.id || '', tier: rec.tier, close: rec.close, dismissible: rec.dismissible, seq: ++this._seq });
+    this._layers.push({ el, id: rec.id || el.id || '', tier: rec.tier, close: rec.close, dismissible: rec.dismissible, keep: !!rec.keep, seq: ++this._seq });
     return el;
   },
 
@@ -98,7 +101,9 @@ const VexLayer = {
 
   closeAll() {
     this._prune();
-    const all = this._layers.splice(0);
+    const kept = this._layers.filter(l => l.keep);
+    const all = this._layers.filter(l => !l.keep);
+    this._layers = kept;
     const failed = [];
     for (const l of all.reverse()) {
       try { l.close(); } catch (err) { failed.push(l.id + ': ' + err.message); }

@@ -469,6 +469,7 @@ const LayoutEditor = {
         '<button id="le-done" class="le-btn le-primary">Done</button>' +
       '</div>';
     document.body.appendChild(bar);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'layout-editor', keep: true });
     this._bar = bar;
     bar.querySelector('#le-done').addEventListener('click', () => this.exit());
     bar.querySelector('#le-reset').addEventListener('click', () => this._resetToolbar());

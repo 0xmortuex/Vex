@@ -162,6 +162,7 @@ const ScreenRecorder = {
       if (await vexConfirm({ title: 'Discard this recording?', message: 'It is deleted, not saved.', okLabel: 'Discard', danger: true })) stop(true);
     });
     document.body.appendChild(pill);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(pill, { tier: 'panel', id: 'screen-recorder', keep: true });
     rec.pill = pill;
   },
 

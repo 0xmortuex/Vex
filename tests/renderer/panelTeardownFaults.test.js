@@ -5,6 +5,8 @@
 // driving the real app; the tests pin the behaviour rather than the mechanism
 // wherever they can.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 
 require('../../src/renderer/js/vex-utils.js');
 require('../../src/renderer/js/vex-icons.js');

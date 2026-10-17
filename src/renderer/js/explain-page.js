@@ -168,6 +168,7 @@ const ExplainPage = {
     });
     src.textContent = source;
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'panel', id: 'explain-page', keep: true });
     return {
       el,
       done: (res) => {

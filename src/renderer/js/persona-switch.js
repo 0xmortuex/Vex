@@ -37,6 +37,7 @@ const PersonaSwitch = {
       <div style="padding:0 18px 16px;font-size:11px;color:var(--text-muted)"><a id="ps-manage" style="color:var(--primary,var(--accent));cursor:pointer">Manage personas…</a></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'persona-switch' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelectorAll('#ps-list [data-id]').forEach(b => b.addEventListener('click', () => {
       try { PersonasManager.setActiveForTab(tabId, b.dataset.id); } catch {}

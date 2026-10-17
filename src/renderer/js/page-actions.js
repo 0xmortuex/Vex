@@ -355,6 +355,7 @@ const PageActions = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'page-actions' });
     const q = (s) => m.querySelector(s);
     const check = () => {
       const r = this.parse(q('#pa-source').value);

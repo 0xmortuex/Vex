@@ -636,6 +636,7 @@ const VexSkills = {
         <button id="skm-save" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Save</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'skills' });
     m.querySelector('#skm-name').focus();
     m.querySelectorAll('.skm-ico').forEach(b => b.addEventListener('click', () => {
       current = b.dataset.icon;

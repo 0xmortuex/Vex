@@ -143,6 +143,22 @@ function inspectFile({ fs, file, name, maxHead = HEAD } = {}) {
       out.note = z.note;
       judgeZip(z.entries, out.findings);
     }
+    // RAR and 7z (Wave 6): their headers are read in plain JavaScript (main/archive-list.js) and judged the same way.
+    if (sig && (sig.kind === 'rar' || sig.kind === '7z')) {
+      const { listArchive, fileReader } = require('./archive-list');
+      const listed = listArchive(fileReader(fs, fd, st.size), sig.kind);
+      if (!listed.ok) out.note = 'The file list of this ' + sig.kind.toUpperCase() + ' archive could not be read: ' + listed.error;
+      else if (listed.encrypted) {
+        out.note = 'This ' + sig.kind.toUpperCase() + ' archive hides its file names behind a password.';
+        out.findings.push({ level: 'medium', kind: 'locked-names', text: 'This archive is locked with a password, even for the names of what is inside. Password-locked archives are used to hide malware from scanners, so open it only if the person who sent it gave you the password and you expected it.' });
+      } else {
+        const entries = listed.entries.map(e => ({ name: e.dir ? e.name.replace(/\/?$/, '/') : e.name, flags: 0, method: 0, packed: 0, size: e.size }));
+        const found = [];
+        judgeZip(entries, found);
+        for (const f of found) out.findings.push({ ...f, text: f.text.replace(/\b(The|This|the|this) zip\b/g, '$1 archive') });
+        if (listed.truncated) out.note = 'Only the first ' + listed.entries.length + ' files of the archive were read.';
+      }
+    }
   } catch (err) {
     out.checked = false;
     out.note = 'The file could not be checked: ' + err.message;

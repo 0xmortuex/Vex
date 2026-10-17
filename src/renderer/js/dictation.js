@@ -240,6 +240,7 @@ const Dictation = {
     const onKey = (e) => { if (e.key === 'Escape' && this._session) { e.preventDefault(); this.cancel(); } };
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'panel', id: 'dictation', keep: true });
     const bar = el.querySelector('[data-bar] span');
     return {
       say: (t) => { el.querySelector('[data-text]').textContent = t; },

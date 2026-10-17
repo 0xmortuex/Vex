@@ -110,6 +110,7 @@ const TrackerReceipts = {
       <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Tracker Receipts</span><button id="tr-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="overflow-y:auto;padding:4px 20px 20px;color:var(--text)">${body}</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tracker-receipts' });
     // Escape closes it, like every other Vex overlay.
     const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };

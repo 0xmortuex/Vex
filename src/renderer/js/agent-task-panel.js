@@ -177,10 +177,10 @@ const AgentTaskPanel = {
     this._run = run;
     this._plan = null;
     this._renderRun();
-    this._tick = setInterval(() => this._renderMeta(), 1000);
+    this._tick = VexJobs.every('Agent task clock', 1000, () => this._renderMeta(), { feature: 'agent-task' });
     try { await run.run(); }
     finally {
-      clearInterval(this._tick); this._tick = null;
+      if (this._tick) this._tick.stop(); this._tick = null;
       if (this._pending) this._pending.resolve('stop');
       this._persist(run);
       this._renderRun();
@@ -209,7 +209,7 @@ const AgentTaskPanel = {
     if (this._planning) this._planning.abort();
     if (this._pending) this._pending.resolve('stop');
     if (this._offKill) { this._offKill(); this._offKill = null; }
-    clearInterval(this._tick); this._tick = null;
+    if (this._tick) this._tick.stop(); this._tick = null;
     this._el?.remove();
     this._el = null;
   },

@@ -33,7 +33,7 @@ const Automations = {
     window.addEventListener('vex:tab-activated', () => this._tickUrl());
     window.addEventListener('vex:tab-url-changed', () => this._tickUrl());
     this._tickUrl();
-    setInterval(() => this._tickTime(), 30000);
+    VexJobs.every('Automations time triggers', 30000, () => this._tickTime(), { when: 'background', feature: 'automations' });
   },
   _activeUrl() { try { const t = TabManager.getActiveTab(); return (t && t.url) || ''; } catch { return ''; } },
   _tickUrl() {
@@ -128,6 +128,7 @@ const Automations = {
         <button id="au-add" style="${this._primary()};width:100%">Add automation</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'automations' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#au-close').addEventListener('click', () => m.remove());
     // Escape closes it like every other Vex window; it did nothing (found

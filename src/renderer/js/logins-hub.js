@@ -17,6 +17,7 @@ const LoginsHub = {
       </div>
       <div id="lh-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'logins-hub' });
     // Escape closes it the way the X does; it did nothing (found 2026-09-29).
     // Capture phase, so nothing underneath takes the same key; an Escape meant
     // for a Vex dialog, or for Password Health opened from here on top, is left

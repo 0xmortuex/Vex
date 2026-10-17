@@ -39,6 +39,7 @@ const ContainerRouting = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'container-routing' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#rt-close').addEventListener('click', () => m.remove());
     const msg = (t, ok) => { const e = m.querySelector('#rt-msg'); if (e) { e.innerHTML = t; e.style.color = ok ? '#4caf50' : 'var(--text-muted)'; } };

@@ -29,6 +29,7 @@ const FocusFlows = {
         </div>
         <div id="ff-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)"></div></div>`;
       document.body.appendChild(m);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'focus-flows' });
       m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
       m.querySelector('#ff-close').addEventListener('click', () => m.remove());
       // Escape closes it like every other Vex window; it did nothing (found
@@ -225,6 +226,7 @@ const FocusFlows = {
       bar.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:100001;display:flex;align-items:center;gap:12px;background:var(--surface,#222);color:var(--text,#eee);border:1px solid var(--border,#444);border-radius:11px;padding:8px 14px;box-shadow:0 8px 30px rgba(0,0,0,.4);font-family:'Outfit',sans-serif;font-size:12.5px";
       bar.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">${flow.emoji ? this._esc(flow.emoji) : VexIcons.svg('target', { size: 15 })}<b>${this._esc(flow.name)}</b> flow active</span><button id="ff-endbtn" style="${this._chip()}">End flow</button>`;
       document.body.appendChild(bar);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'focus-flows-2', keep: true });
       bar.querySelector('#ff-endbtn').addEventListener('click', () => this.end());
     } catch {}
   },

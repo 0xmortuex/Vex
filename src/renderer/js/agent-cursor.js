@@ -1,4 +1,5 @@
 // === Watching the AI work ===================================================
+// vex-layer-exempt: the cursor host is pointer-events:none and never takes a click
 //
 // The agent used to act on a page invisibly: a click was a script that found
 // the element and fired its events at once, and typing arrived all at once.

@@ -182,6 +182,7 @@ const WorkspaceSnapshots = {
       </div>
       <div id="vex-wsnap-body" style="overflow-y:auto;padding:4px 14px 14px"></div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'workspace-snapshots' });
     m.addEventListener('click', (e) => { if (e.target === m) this._close(); });
     m.querySelector('#wsnap-close').addEventListener('click', () => this._close());
     // Escape closes it like every other window of Vex; it did nothing (found 2026-09-29).

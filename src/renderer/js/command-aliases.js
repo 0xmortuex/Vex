@@ -212,9 +212,13 @@ const VexAliases = {
 
   _told(l) {
     if (typeof window === 'undefined' || typeof window.showToast !== 'function') return;
-    window.showToast('Shortcut learned: type "' + l.word + '" to get ' + l.label, 'info', 7000, {
+    const text = 'Shortcut learned: type "' + l.word + '" to get ' + l.label;
+    const extra = {
       action: { label: 'Undo', title: 'Forget the shortcut word "' + l.word + '"', run: () => { try { this.remove(l.word); } catch (err) { window.showToast('That could not be undone: ' + err.message, 'error'); } } },
-    });
+    };
+    // Learned without being asked, so it goes through the attention gate.
+    if (typeof VexAttention !== 'undefined') VexAttention.toast({ feature: 'command-aliases', urgency: 'ambient', id: l.word }, text, 'info', 7000, extra);
+    else window.showToast(text, 'info', 7000, extra);
   },
 
   // ---- commands and the Settings group ----

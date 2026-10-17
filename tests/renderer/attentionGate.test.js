@@ -269,3 +269,23 @@ describe('the Attention Inbox', () => {
     expect(I.dotVisible()).toBe(false);
   });
 });
+
+describe('VexAttention.toast (Wave 6, T0-019)', () => {
+  it('shows the toast and returns it when the gate lets the message through', () => {
+    window.showToast = vi.fn(() => 'el');
+    const t = A.toast({ feature: 'connection', urgency: 'asked', id: 'o' }, 'Back online', 'success', 3000, { a: 1 });
+    expect(window.showToast).toHaveBeenCalledWith('Back online', 'success', 3000, { a: 1 });
+    expect(t).toBe('el');
+  });
+  it('shows nothing, and returns null, while the moment is quiet', () => {
+    window.showToast = vi.fn(() => 'el');
+    localStorage.setItem('vex.fun.quiet', '1');
+    const t = A.toast({ feature: 'connection', urgency: 'ambient', id: 'o' }, 'Back online', 'success');
+    expect(window.showToast).not.toHaveBeenCalled();
+    expect(t).toBe(null);
+  });
+  it('says so when there is no toast system, instead of dropping the message', () => {
+    delete window.showToast;
+    expect(() => A.toast({ feature: 'connection', urgency: 'asked', id: 'o' }, 'x')).toThrow(/toast system is not loaded/);
+  });
+});

@@ -1,4 +1,5 @@
 // === Light and dark (automatic theme switching) ===
+// vex-layer-exempt: a pointer-events:none, opacity-0 transition veil that takes no click
 //
 // The user keeps one LIGHT theme and one DARK theme, and Vex wears whichever
 // fits right now:

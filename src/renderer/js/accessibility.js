@@ -139,6 +139,7 @@ const AccessibilityPack = {
         <button id="rsvp-close" aria-label="Close speed reader" title="Close" style="background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center">${window.VexIcons?.svg('x', { size: 14 }) || 'Close'}</button>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'accessibility' });
     let i = 0, playing = true, wpm = 400, timer = null;
     const wordEl = m.querySelector('#rsvp-word'), prog = m.querySelector('#rsvp-prog');
     const tick = () => {

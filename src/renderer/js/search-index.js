@@ -22,9 +22,18 @@
 // Memory only. Nothing is written to disk and nothing leaves the window. The cap
 // (vex.searchIndex.capMB) is the only stored setting.
 //
-// Consumers using it: UniversalSearch (js/universal-search.js) and the open-tab text search
-// (TabContentIndex.searchText, source 'tabs:text').
-// Deliberately NOT moved, because moving would change what they find or hold the same corpus twice:
+// Consumers using it: UniversalSearch (js/universal-search.js), the open-tab text search
+// (TabContentIndex.searchText, source 'tabs:text') and, since Wave 6, the History panel's keyword filter
+// (HistoryPanel._keywordCandidates, source 'history:panel'): the index names the entries that could match and the
+// panel's own test then decides, so the answer is the one a full scan gives (tests/renderer/historyIndexEquivalence.test.js
+// compares the two over hundreds of queries, Turkish letters included).
+// Looked at again in Wave 6 and still NOT moved, each for a reason that cannot be engineered away:
+//   - Recall and the knowledge base are inverted indexes already (stemmed BM25 posting lists, plus embeddings), kept in
+//     the main process; a gram index in renderer memory in front of them would copy their corpus across the process
+//     boundary and filter nothing they do not already filter;
+//   - tab title search (js/tab-search.js) searches tens of open tabs, and its last tier matches the letters of a word in
+//     order ("ghb" in "GitHub"), which no 3-letter gram filter can keep;
+// The reasons given when this was first written:
 //   - Recall (src/main/recall-index.js) and the knowledge base (src/main/knowledge-base.js) live in the main
 //     process, are saved to disk, rank by stemmed BM25 (and by meaning, with embeddings) and hold tens of
 //     thousands of pages; this index is renderer memory, 3-letter grams and capped at 24 MB;

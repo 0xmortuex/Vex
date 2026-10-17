@@ -1,4 +1,5 @@
 // === Vex email-code autofill ===
+// vex-layer-exempt: a hidden off-screen webview, never painted over the window
 // When a site asks for a verification code it emailed you, and you have Gmail
 // (web) open in Vex, read the newest code from the open inbox and fill it — so
 // you don't have to switch tabs, open the email, and copy it.
@@ -284,17 +285,17 @@ const EmailCodeAutofill = {
   READER_IDLE_MS: 4 * 60 * 1000,
   _armReaderCleanup() {
     if (this._readerCleanupTimer) return;
-    this._readerCleanupTimer = setInterval(() => {
+    this._readerCleanupTimer = VexJobs.every('Gmail reader cleanup', 60000, () => {
       try {
         const wv = document.getElementById('vex-gmail-reader');
-        if (!wv) { clearInterval(this._readerCleanupTimer); this._readerCleanupTimer = null; return; }
+        if (!wv) { this._readerCleanupTimer.stop(); this._readerCleanupTimer = null; return; }
         if (this._running) return; // never tear down mid-poll
         if (Date.now() - (this._readerLastUse || 0) >= this.READER_IDLE_MS) {
           try { wv.remove(); } catch {}
-          clearInterval(this._readerCleanupTimer); this._readerCleanupTimer = null;
+          this._readerCleanupTimer.stop(); this._readerCleanupTimer = null;
         }
       } catch {}
-    }, 60000);
+    }, { when: 'background', feature: 'email-code-autofill' });
   },
 
   // Read Gmail's inbox: report whether it has actually loaded (any rows), and the

@@ -54,8 +54,8 @@ describe('the real boot against the budget (T3-066)', () => {
     expect(fs.readFileSync(path.join(ROOT, 'scripts', 'verify-smoke-boot.js'), 'utf8')).toMatch(/checkBoot/);
     expect(fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8')).toMatch(/SMOKE: BOOT /);
   });
-  it('more than twenty modules load after start-up, and none is also a blocking tag', () => {
-    expect(sb.lateModules(ROOT).length).toBeGreaterThanOrEqual(21);
-    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(681);
+  it('more than forty modules load after start-up, and none is also a blocking tag', () => {
+    expect(sb.lateModules(ROOT).length).toBeGreaterThanOrEqual(40);
+    expect(sb.measure(ROOT).scripts).toBeLessThanOrEqual(667);
   });
 });

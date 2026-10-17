@@ -145,6 +145,7 @@ const LinkTriage = {
     const no = btn('No thanks', () => this._dismiss());
     bar.append(label, add, no);
     document.body.appendChild(bar);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'link-triage', keep: true });
     this._bar = bar;
     this._timer = setTimeout(() => this._dismiss(), this.OFFER_MS);
     return bar;

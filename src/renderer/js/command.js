@@ -199,6 +199,7 @@ const CommandBar = {
       document.addEventListener('keydown', onKey, true);
       m.addEventListener('click', close);
       document.body.appendChild(m);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'command' });
     } },
     { id: 'pinsite', label: 'Pin Site to Sidebar', hint: 'Keep the current site as a sidebar web panel (Vivaldi-style)', icon: 'pin', action: () => SidebarManager.pinCurrentSite() },
     { id: 'editlayout', label: 'Edit Layout', hint: 'Rearrange or hide the toolbar buttons and sidebar icons in place', icon: 'puzzle', action: () => { if (typeof LayoutEditor !== 'undefined') LayoutEditor.enter(); } },

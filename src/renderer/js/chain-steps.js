@@ -164,6 +164,7 @@ const VexChainSteps = {
         <button type="button" class="btn-primary" id="cs-save">Save chain</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'chain-steps' });
     const close = () => m.remove();
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
     m.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });

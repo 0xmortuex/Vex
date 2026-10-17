@@ -260,17 +260,36 @@ const VexRegistry = {
   //     is existing for it.
   // A new or beta feature is switched off on an existing profile unless its manifest says
   // existingProfileDefault: 'on'. A brand-new profile keeps each module's own default.
-  async stage({ existing, now = Date.now() } = {}) {
+  stage(opts = {}) {
+    const p = this._stage(opts);
+    // Only for ordering: restageLate() waits for the run in progress. The caller of stage() still gets the failure.
+    this._staging = p.then(() => undefined, () => undefined);
+    return p;
+  },
+
+  // A module that loads after start-up (VexLazy.afterIdle) and joins the usage record late: the boot-time stage() could
+  // not hold it off (it was not there to switch off), so it did not mark it as seen either. This runs the pass again,
+  // after the run in progress, with the same answer to "is this profile an existing one?" that run gave, so an existing
+  // profile is never switched on by a feature that happened to arrive late, and a new profile keeps the defaults.
+  async restageLate() {
+    await (this._staging || Promise.resolve());
+    return this.stage({ existing: this._existingThisSession });
+  },
+
+  async _stage({ existing, now = Date.now() } = {}) {
     const u = this._usage();
     const st = this._load();
     const first = !st.profile;
     let isExisting = existing;
     if (isExisting == null) isExisting = first ? this.hasProfileEvidence() : true;
     if (first) st.profile = { at: now, kind: isExisting ? 'existing' : 'new' };
+    this._existingThisSession = isExisting;
     const heldOff = [];
     for (const m of this.all()) {
       if (m.maturity === 'stable' || st.staged[m.id]) continue;
       const live = u ? u.get(m.id) : null;
+      // Its switch is not in the usage record yet (the module loads after start-up): leave it unseen for restageLate().
+      if (u && m.killSwitch === 'usage' && !live) continue;
       st.staged[m.id] = { at: now, off: false };
       // Experimental: off on every profile; new or beta: off on an existing one. Either waits for the person.
       const hold = m.maturity === 'experimental' || (isExisting && m.existingProfileDefault !== 'on');

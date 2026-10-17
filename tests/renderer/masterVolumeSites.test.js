@@ -9,6 +9,8 @@ globalThis.VexIcons = VexIcons; window.VexIcons = VexIcons;
 require('../../src/renderer/js/vex-utils.js');
 require('../../src/renderer/js/site-volume.js');
 const { MasterVolume } = require('../../src/renderer/js/master-volume.js');
+// Wave 6: the periodic work these modules start goes through VexJobs (T0-020); a stand-in that never ticks.
+globalThis.VexJobs = globalThis.VexJobs || { every: () => ({ stop() {} }), stop() {} };
 
 const wvAt = (url) => ({ getURL: () => url, isConnected: true });
 

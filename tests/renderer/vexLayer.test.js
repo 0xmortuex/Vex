@@ -155,4 +155,25 @@ describe('adoption of the shared overlay helpers (T2-014)', () => {
     expect(c.remainingJs).toBeLessThanOrEqual(base.remainingJs);
     expect(c.onLayer).toBeGreaterThanOrEqual(5);
   });
+  it('Wave 6: every position:fixed script is on the layer manager or says why it is not, and the baseline is zero', () => {
+    const { census } = require('../../scripts/overlay-census.js');
+    const c = census();
+    expect(c.rows.filter(r => !r.onLayer && !r.exempt && r.file.endsWith('.js')).map(r => r.file)).toEqual([]);
+    expect(require('../../scripts/overlay-census.json').remainingJs).toBe(0);
+    // an exemption carries a reason, not a bare marker
+    const fs = require('fs');
+    for (const r of c.rows.filter(x => x.exempt)) expect(fs.readFileSync(r.file, 'utf8')).toMatch(/vex-layer-exempt: \S+ \S+/);
+  });
+  it('track(keep) is listed but left alone by closeAll, a double Escape and sweep, and still closes by its id', () => {
+    const pill = L.track(document.body.appendChild(div('pill')), { tier: 'toast', id: 'pill', keep: true });
+    const modal = L.track(document.body.appendChild(div('modal')), { tier: 'dialog', id: 'modal' });
+    expect(L.closeAll()).toBe(1);
+    expect(modal.isConnected).toBe(false);
+    expect(pill.isConnected).toBe(true);
+    expect(L.list().map(l => l.id)).toEqual(['pill']);
+    expect(L.sweep().closed).toBe(0);
+    expect(pill.isConnected).toBe(true);
+    expect(L.close('pill')).toBe(true);
+    expect(pill.isConnected).toBe(false);
+  });
 });

@@ -69,6 +69,7 @@ const JsonApiViewer = {
         </div>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'devtools-pack' });
     // Escape closes it the way the X does; it did nothing (found 2026-09-29).
     // Capture phase, so nothing underneath takes the same key; an Escape meant
     // for a Vex dialog on top is left to that dialog.
@@ -160,6 +161,7 @@ const ResponsivePreview = {
       </div>
       <div style="flex:1;overflow:auto;display:flex;gap:26px;padding:24px;align-items:flex-start">${frames}</div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'devtools-pack-2' });
     // Escape closes it the way Close does; it did nothing (found 2026-09-29).
     // Capture phase, so nothing underneath takes the same key; an Escape meant
     // for a Vex dialog on top is left to that dialog. Focus moves in, or with

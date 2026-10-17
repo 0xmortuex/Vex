@@ -334,8 +334,8 @@ const Authenticator = {
   },
 
   _startTicking() {
-    if (this._timer) clearInterval(this._timer);
-    this._timer = setInterval(() => this._tick(), 1000);
+    if (this._timer) this._timer.stop();
+    this._timer = VexJobs.every('Authenticator codes', 1000, () => this._tick(), { feature: 'authenticator' });
   },
 
   _esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); },

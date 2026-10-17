@@ -55,6 +55,7 @@ const ScreenshotToCode = {
         </div>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'screenshot-to-code' });
     // Escape closes it, like every other Vex dialog — it did nothing here
     // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
     const onKey = (e) => {
