@@ -33,6 +33,22 @@ describe('VexJobs.heavy', () => {
     expect(r).toEqual({ ran: true, value: 7 });
   });
 
+  it('heavyOrThrow hands back the value, or an Error that says why it did not run (for things the person asked for)', async () => {
+    expect(await VexJobs.heavyOrThrow('ocr', () => 'text', { kind: 'ocr' })).toBe('text');
+    globalThis.GameMode = { gaming: true };
+    await expect(VexJobs.heavyOrThrow('ocr', () => 'text', { kind: 'ocr' })).rejects.toThrow(/Not now: a game is running/);
+  });
+
+  it('OCR, the page-watch sentence and the reading digest summary go through the queue (T0-007)', () => {
+    const fs = require('fs'), path = require('path');
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'renderer', 'js', f), 'utf8');
+    expect(read('doc-extract.js')).toMatch(/heavyOrThrow\('Page OCR'[\s\S]*kind: 'ocr'/);
+    expect(read('doc-extract.js')).toMatch(/heavyOrThrow\('Picture OCR'/);
+    expect(read('web-taming.js')).toMatch(/heavyOrThrow\('Screenshot OCR'/);
+    expect(read('page-watch.js')).toMatch(/VexJobs\.heavy\('Page watch sentence'[\s\S]*kind: 'local-ai'/);
+    expect(read('reading-digest.js')).toMatch(/heavyOrThrow\('Reading digest summary'[\s\S]*kind: 'summary'/);
+  });
+
   it('refuses index, OCR, local AI, summary and audio work in Game mode', async () => {
     globalThis.GameMode = { gaming: true };
     const fn = vi.fn();

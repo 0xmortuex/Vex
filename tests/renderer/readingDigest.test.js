@@ -37,7 +37,7 @@ beforeEach(() => {
   document.body.innerHTML = '';
   window.escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   window.showToast = vi.fn();
-  globalThis.VexJobs = { every: () => ({ stop: () => {} }) };
+  globalThis.VexJobs = { every: () => ({ stop: () => {} }), heavyOrThrow: async (_n, fn) => fn() };
   delete window.VexTabPolicy;
   fetched = [];
   globalThis.AgentTools = {

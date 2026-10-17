@@ -16,6 +16,7 @@ const html = (price, extra = '') => `<html><body><nav>Home</nav><main><h1>Card</
 
 beforeEach(() => {
   localStorage.clear();
+  globalThis.VexJobs = { heavy: async (_n, fn) => ({ ran: true, value: await fn() }) };
   page = { body: html('$299.00'), status: 200, headers: { etag: '"v1"' } };
   window.vex = {
     notify: vi.fn(),
@@ -31,7 +32,7 @@ beforeEach(() => {
   globalThis.VexProblems = { note: vi.fn() };
   window.showToast = vi.fn();
 });
-afterEach(() => { delete globalThis.TabManager; delete globalThis.Ollama; delete globalThis.AIRouter; });
+afterEach(() => { delete globalThis.TabManager; delete globalThis.Ollama; delete globalThis.AIRouter; delete globalThis.VexJobs; });
 
 describe('what a change comes with', () => {
   it('says which lines were added and removed, and keeps the history', async () => {
@@ -381,5 +382,18 @@ describe('a watch from before this version', () => {
     const w = PageWatch.add({ url: 'https://a.example/' });
     expect(w.source).toBe('user');
     expect(PageWatch.add({ url: 'https://b.example/', source: 'radar:steam-news' }).source).toBe('radar:steam-news');
+  });
+});
+
+describe('the local sentence is heavy work (T0-007)', () => {
+  it('asks the heavy-job queue, kind local-ai, and gives no sentence when the queue refuses', async () => {
+    const heavy = vi.fn(async () => ({ ran: false, reason: 'a game is running' }));
+    globalThis.VexJobs = { heavy };
+    globalThis.AIRouter = { isOllamaAvailable: () => true, getModel: () => 'm', callAI: vi.fn() };
+    globalThis.Ollama = { generate: vi.fn() };
+    const sentence = await PageWatch.aiSentence({ url: 'https://x.example/' }, { changed: true });
+    expect(sentence).toBe('');
+    expect(heavy).toHaveBeenCalledWith('Page watch sentence', expect.any(Function), expect.objectContaining({ kind: 'local-ai' }));
+    expect(Ollama.generate).not.toHaveBeenCalled();
   });
 });
