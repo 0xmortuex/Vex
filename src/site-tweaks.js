@@ -41,17 +41,28 @@ const SITE_TWEAKS = [
     hosts: /(^|\.)(discord\.com|discordapp\.com)$/i,
     mechanism: 'dom-script',
     code: '(function(){try{' +
-      'var vis=function(){return "visible";};' +
+      // "Discord rest mode" (js/discord-memory.js, off by default): while the
+      // panel is hidden and not in a call the host calls window.__vexRest(true),
+      // and the page then tells Discord the TRUTH (hidden), so it can go into
+      // its own idle mode. __vexRest(false) puts the spoof back at once.
+      'var rest=false,pass=false;' +
+      'var D=(typeof Document!=="undefined")?Document.prototype:null;' +
+      'var real=function(n){try{var d=D&&Object.getOwnPropertyDescriptor(D,n);return d&&d.get?d.get.call(document):undefined;}catch(e){return undefined;}};' +
+      'var realFocus=D&&D.hasFocus;' +
+      'var vis=function(){return rest?(real("visibilityState")||"hidden"):"visible";};' +
+      'var hid=function(){if(!rest)return false;var h=real("hidden");return h===undefined?true:h;};' +
       'Object.defineProperty(document,"visibilityState",{get:vis,configurable:true});' +
       'Object.defineProperty(document,"webkitVisibilityState",{get:vis,configurable:true});' +
-      'Object.defineProperty(document,"hidden",{get:function(){return false;},configurable:true});' +
-      'Object.defineProperty(document,"webkitHidden",{get:function(){return false;},configurable:true});' +
-      'var block=function(e){e.stopImmediatePropagation();};' +
+      'Object.defineProperty(document,"hidden",{get:hid,configurable:true});' +
+      'Object.defineProperty(document,"webkitHidden",{get:hid,configurable:true});' +
+      'var block=function(e){if(!rest&&!pass)e.stopImmediatePropagation();};' +
       'window.addEventListener("visibilitychange",block,true);' +
       'document.addEventListener("visibilitychange",block,true);' +
       'window.addEventListener("webkitvisibilitychange",block,true);' +
       'document.addEventListener("webkitvisibilitychange",block,true);' +
-      'try{Object.defineProperty(document,"hasFocus",{value:function(){return true;},configurable:true,writable:true});}catch(e){}' +
+      'try{Object.defineProperty(document,"hasFocus",{value:function(){return (rest&&realFocus)?realFocus.call(document):true;},configurable:true,writable:true});}catch(e){}' +
+      'try{Object.defineProperty(window,"__vexRest",{value:function(on){on=!!on;if(on===rest)return rest;rest=on;' +
+        'try{pass=true;document.dispatchEvent(new Event("visibilitychange"));}catch(e){}finally{pass=false;}return rest;},configurable:true});}catch(e){}' +
       '}catch(e){}})();',
   },
   {

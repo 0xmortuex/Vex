@@ -726,6 +726,9 @@ const SidebarManager = {
       // What one of its notifications said (title and body, cut short), kept in
       // the list of Notifications from panels only when that site was opted in.
       if (e.channel === 'vex-notification-seen') {
+        // Discord resting (rest mode) wakes for five minutes when it has just spoken: it is connected, so its
+        // follow-up messages and a call ring should not wait for the next look.
+        if (panelName === 'discord') this._wakeDiscordFor(5 * 60000);
         if (typeof PanelCapture !== 'undefined') PanelCapture.fromHost(panelName, e.args && e.args[0], wv);
         return;
       }
@@ -1563,8 +1566,11 @@ const SidebarManager = {
     if (!wv) return null;
     const visible = this.activePanel === 'discord' || this.sidePanel === 'discord';
     const prefs = this.discordRestPrefs();
+    // The page learns whether it is in sight (preload-webview.js stops its video scan while it is not).
+    this._tellDiscordHidden(wv, !visible);
     if (visible || !prefs.enabled) {
       await this._setDiscordThrottle(false);
+      if (this._discordResting) await this._setDiscordResting(false);
       return { visible, inCall: null, throttled: false };
     }
     let usage = {};
@@ -1572,7 +1578,36 @@ const SidebarManager = {
     if (now - (Number(usage.discord) || 0) < prefs.afterMs) return { visible, inCall: null, throttled: !!this._discordThrottled };
     const inCall = await this._discordInCall(wv);
     await this._setDiscordThrottle(!inCall);
-    return { visible, inCall, throttled: !inCall };
+    // Discord rest mode (off by default, js/discord-memory.js): hidden and not in a call, the page is
+    // told the truth about being hidden so it can idle. A call, or a notification that just arrived,
+    // puts the always-visible spoof back.
+    const rest = !inCall && typeof DiscordMemory !== 'undefined' && DiscordMemory.restModeOn() && now >= (this._discordWakeUntil || 0);
+    if (rest || this._discordResting) await this._setDiscordResting(rest);
+    return rest ? { visible, inCall, throttled: true, resting: true } : { visible, inCall, throttled: !inCall };
+  },
+
+  // The page-world half is window.__vexRest in site-tweaks.js (the visibility spoof). Idempotent there,
+  // so it is simply asked again on every look: a reloaded page starts spoofed and is brought back in line.
+  async _setDiscordResting(on) {
+    const wv = this.panelWebviews.discord;
+    if (!wv || typeof wv.executeJavaScript !== 'function') return false;
+    try {
+      await wv.executeJavaScript('(function(){var f=window.__vexRest;if(typeof f!=="function")return null;return f(' + (on ? 'true' : 'false') + ');})()', true);
+    } catch (err) { window.VexProblems?.note('Discord rest', 'Could not set the page’s visibility', err); return false; }
+    this._discordResting = !!on;
+    return true;
+  },
+
+  _tellDiscordHidden(wv, hidden) {
+    if (typeof wv.send !== 'function') return;
+    try { wv.send('vex-hidden', !!hidden); }
+    catch (err) { window.VexProblems?.note('Discord rest', 'Could not tell the page it is hidden', err); }
+  },
+
+  // A Discord notification just arrived: the page is awake for a while whatever the rest mode says.
+  _wakeDiscordFor(ms) {
+    this._discordWakeUntil = Date.now() + ms;
+    if (this._discordResting) this._setDiscordResting(false).catch(err => window.VexProblems?.note('Discord rest', 'Could not wake the page', err));
   },
 
   // Both on the shared job timer (js/jobs.js). Resting Discord matters most
@@ -2510,6 +2545,23 @@ const SidebarManager = {
             } catch (e) { window.showToast?.('Vencord install failed: ' + (e && e.message || 'error'), 'error'); }
           }
         });
+        // Vencord off / on: the Vencord extension's own switch (the same call as the On checkbox in
+        // Settings > Extensions), then Discord reloads so it takes effect. The label follows the state
+        // last read; the action reads it again, so a stale label never does the opposite of what it says.
+        if (window.DiscordMemory) {
+          const label = DiscordMemory.vencordMenuLabel(DiscordMemory._vencord);
+          if (label) {
+            items.push({
+              label,
+              action: () => {
+                DiscordMemory.toggleVencord().then(
+                  (msg) => window.showToast?.(msg),
+                  (err) => window.showToast?.(err.message, 'error'));
+              }
+            });
+          }
+          DiscordMemory.vencordState().catch(err => window.VexProblems?.note('Discord memory', 'Vencord state unknown', err));
+        }
         items.push({ separator: true });
         // Block bypass: a single "auto-configure" action that sweeps every method
         // and an off switch (for people running Zapret). js/discord-bypass.js
