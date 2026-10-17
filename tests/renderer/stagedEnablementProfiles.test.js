@@ -49,6 +49,13 @@ beforeEach(() => {
 });
 
 describe('a brand-new profile', () => {
+  it('is still new once the first start has applied and saved the default theme', async () => {
+    localStorage.setItem('vex.theme', 'oxford');
+    expect(R.hasProfileEvidence()).toBe(false);
+    expect(await R.stage()).toEqual([]);
+    expect(R._load().profile.kind).toBe('new');
+  });
+
   it('has no evidence and keeps every module default', async () => {
     expect(R.hasProfileEvidence()).toBe(false);
     expect(await R.stage()).toEqual([]);

@@ -246,7 +246,9 @@ const VexRegistry = {
   // did not exist in older releases, so on an upgrade its "since" is today and says nothing about the
   // profile's age: evidence comes from what the person has saved. Any one of these is enough. A storage
   // that cannot be read is an error, not "a new profile".
-  PROFILE_EVIDENCE: ['vex.hasRunBefore', 'vex.onboardingDone', 'vex.legalAcceptedVersion', 'vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.history', 'vex.notes', 'vex.theme', 'vex.userName', 'vex.aiWorkerUrl', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'],
+  // vex.theme is NOT evidence: ThemeManager.applyTheme writes it on the very first start, before stage() runs
+  // (found 2026-10-17 in the real app: every brand-new profile was classed 'existing' and got its new features switched off).
+  PROFILE_EVIDENCE: ['vex.hasRunBefore', 'vex.onboardingDone', 'vex.legalAcceptedVersion', 'vex.tabs', 'vex.sessions', 'vex.bookmarks', 'vex.history', 'vex.notes', 'vex.userName', 'vex.aiWorkerUrl', 'vex.githubUsername', 'vex.weatherLoc', 'vex.personas'],
   hasProfileEvidence() {
     if (typeof localStorage === 'undefined') throw new Error('Saved settings are not available, so a new profile cannot be told from an old one');
     return this.PROFILE_EVIDENCE.some(k => localStorage.getItem(k) != null);
