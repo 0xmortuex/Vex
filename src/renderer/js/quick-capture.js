@@ -60,6 +60,12 @@ const QuickCapture = {
     // "call the bank #2min" is a chore for the two-minute drawer (js/quick-tasks.js), not a note.
     if (typeof VexTwoMinute !== 'undefined' && VexTwoMinute.enabled() && VexTwoMinute.isTagged(text)) return VexTwoMinute.addFromCapture(text);
 
+    // A promise in your own words may be offered to the follow-up ledger (js/follow-ups.js; off until switched on).
+    if (typeof VexFollowUps !== 'undefined') {
+      try { VexFollowUps.offerFromTyped(text, 'the quick-capture box'); }
+      catch (err) { window.VexProblems?.note('Quick capture', 'Could not check the line for a promise', err); }
+    }
+
     if (typeof AgentTools === 'undefined') throw new Error('Notes are not available');
     // A captured line is a thought, not a document: the first few words are the
     // title and the whole line is the body, so nothing is lost either way.

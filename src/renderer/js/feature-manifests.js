@@ -600,8 +600,8 @@
     // ---- Wave 3: daily life (all new: off on a profile that already existed, offered to try) -----------
     { id: 'rituals', title: 'Rituals', group: 'Rituals', maturity: 'new', storageKeys: ['vex.rituals', 'vex.rituals.enabled'], commands: ['rituals'],
       permissions: quiet({ reads: ['the commands you list as steps'], writes: ['your rituals and the days you finished them', 'runs a step\'s command only when you press Run'] }) },
-    { id: 'follow-ups', title: 'Follow-ups: I owe, waiting on', group: 'Follow-ups', maturity: 'new', storageKeys: ['vex.followUps', 'vex.followUps.enabled'], commands: ['follow-ups'], jobs: ['Follow-up ledger'],
-      permissions: quiet({ reads: ['the sentences the deadline finder found on the page in front, when you ask'], writes: ['your follow-up entries', 'a reminder, only when you press Remind me'] }) },
+    { id: 'follow-ups', title: 'Follow-ups: I owe, waiting on', group: 'Follow-ups', maturity: 'new', storageKeys: ['vex.followUps', 'vex.followUps.enabled', 'vex.followUps.promises', 'vex.followUps.offers'], commands: ['follow-ups'], jobs: ['Follow-up ledger'],
+      permissions: quiet({ reads: ['the sentences the deadline finder found on the page in front, when you ask', 'the line you just typed in the quick-capture box, only when you switched promise offers on'], writes: ['your follow-up entries', 'a reminder, only when you press Remind me', 'up to 10 waiting offers to add a promise'] }) },
     { id: 'two-minute', title: 'Two-minute drawer', group: 'Two-minute drawer', maturity: 'new', storageKeys: ['vex.twoMinute.enabled'], usesKeys: ['vex.notes'], commands: ['two-minute'],
       permissions: quiet({ reads: ['checklist lines in your notes tagged #2min'], writes: ['a checklist line in your To-do note when you tag a capture, and the tick when you press Done'] }) },
     { id: 'weekday-set', title: 'Weekday first-open tabs', group: 'Weekday first-open tabs', maturity: 'new', storageKeys: ['vex.weekdaySet', 'vex.weekdaySet.enabled'], commands: ['weekday-set'],
