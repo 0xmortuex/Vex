@@ -15,7 +15,7 @@
 //
 // Not done here: redacting inside PDFs and documents (it is pictures only for now).
 
-const VexRedact = {
+const VexPictureRedact = {
   PREF_KEY: 'vex.redact.enabled',
   MAX_SIDE: 6000,
   BLOCK: 14,           // pixelate block, in picture pixels, never less than this
@@ -37,9 +37,9 @@ const VexRedact = {
   },
   PATTERNS: [
     ['email', /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g],
-    ['card', /\b(?:\d[ -]?){13,19}\b/g, (m) => /(?:\d[ -]?){13,19}/.test(m) && VexRedact.luhn(m)],
+    ['card', /\b(?:\d[ -]?){13,19}\b/g, (m) => /(?:\d[ -]?){13,19}/.test(m) && VexPictureRedact.luhn(m)],
     ['iban', /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b/g],
-    ['phone', /(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?){2,5}\d{2,4}/g, (m) => { const n = m.replace(/\D/g, '').length; return n >= 9 && n <= 15 && !VexRedact.luhn(m); }],
+    ['phone', /(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?){2,5}\d{2,4}/g, (m) => { const n = m.replace(/\D/g, '').length; return n >= 9 && n <= 15 && !VexPictureRedact.luhn(m); }],
     ['hex', /\b[0-9a-fA-F]{32,}\b/g],
     ['token', /\b(?:ghp_|gho_|github_pat_|sk-|xox[bp]-|AKIA)[A-Za-z0-9_-]{10,}\b|\b(?=[A-Za-z0-9+/_=-]*[A-Z])(?=[A-Za-z0-9+/_=-]*[a-z])(?=[A-Za-z0-9+/_=-]*\d)[A-Za-z0-9+/_=-]{32,}\b/g],
   ],
@@ -264,5 +264,5 @@ const VexRedact = {
   },
 };
 
-if (typeof window !== 'undefined') window.VexRedact = VexRedact;
-if (typeof module !== 'undefined' && module.exports) module.exports = { VexRedact };
+if (typeof window !== 'undefined') window.VexPictureRedact = VexPictureRedact;
+if (typeof module !== 'undefined' && module.exports) module.exports = { VexPictureRedact };

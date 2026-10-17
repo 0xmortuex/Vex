@@ -31,7 +31,7 @@ const CaptureTools = {
       ['Video transcript, chapters and loop', 'Right-click a page with a video. Captions the page already has only; nothing is downloaded.', 'VideoTools', null],
       ['Newsletter lane', 'Gathers newsletters from your Mail accounts (read-only). Unsubscribe only opens the sender’s page.', 'NewsletterLane', { label: 'Also check once a week and tell me in the Attention Inbox', get: (m) => m.weekly(), set: (m, v) => m.setWeekly(v) }],
       ['Bring back old highlights and notes', 'Highlights return after 1, 3, 7 and 21 days; a note from last week returns once. Through the Attention Inbox, never a pop-up.', 'HighlightResurface', null],
-      ['Redact pictures', 'A "Redact" button on screenshots: OCR suggests what to cover, you decide. Metadata is stripped.', 'VexRedact', null],
+      ['Redact pictures', 'A "Redact" button on screenshots: OCR suggests what to cover, you decide. Metadata is stripped.', 'VexPictureRedact', null],
     ];
   },
 
@@ -57,7 +57,7 @@ const CaptureTools = {
           body.append(check(text, m.enabled(), (v) => m.setEnabled(v)), G.note(hint));
           if (extra) body.append(check(extra.label, extra.get(m), (v) => extra.set(m, v)));
         }
-        if (window.VexRedact) body.append(G.button('Remove metadata from a picture file…', () => window.VexRedact.pickAndStrip().catch(err => window.showToast?.(err.message, 'error'))));
+        if (window.VexPictureRedact) body.append(G.button('Remove metadata from a picture file…', () => window.VexPictureRedact.pickAndStrip().catch(err => window.showToast?.(err.message, 'error'))));
       },
     });
   },

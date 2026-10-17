@@ -124,8 +124,8 @@ const ScreenshotTool = {
 
     overlay.querySelector('.ss-redact')?.addEventListener('click', () => {
       this.hidePreview();
-      if (typeof VexRedact === 'undefined' || !VexRedact.enabled()) { window.showToast?.('Redaction is switched off', 'error'); return; }
-      VexRedact.open(dataUrl).catch(err => window.showToast?.('Could not open the redaction tool: ' + ((err && err.message) || ''), 'error'));
+      if (typeof VexPictureRedact === 'undefined' || !VexPictureRedact.enabled()) { window.showToast?.('Redaction is switched off', 'error'); return; }
+      VexPictureRedact.open(dataUrl).catch(err => window.showToast?.('Could not open the redaction tool: ' + ((err && err.message) || ''), 'error'));
     });
 
     overlay.querySelector('.ss-ocr')?.addEventListener('click', () => {

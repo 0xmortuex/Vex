@@ -10,7 +10,7 @@ const { VideoTools } = require('../../src/renderer/js/video-tools.js');
 const { NewsletterLane } = require('../../src/renderer/js/newsletter-lane.js');
 const { HighlightResurface } = require('../../src/renderer/js/highlight-resurface.js');
 const { FormRescue } = require('../../src/renderer/js/form-rescue.js');
-const { VexRedact } = require('../../src/renderer/js/redact-tool.js');
+const { VexPictureRedact } = require('../../src/renderer/js/redact-tool.js');
 
 beforeEach(() => { localStorage.clear(); document.body.innerHTML = ''; delete window.__vexSnip; });
 
@@ -277,9 +277,9 @@ describe('unfinished-form rescue', () => {
 describe('redaction', () => {
   const W = (text, x0, x1 = x0 + text.length * 10) => ({ text, bbox: { x0, y0: 0, x1, y1: 10 } });
   it('checks card numbers with Luhn', () => {
-    expect(VexRedact.luhn('4242 4242 4242 4242')).toBe(true);
-    expect(VexRedact.luhn('4242 4242 4242 4243')).toBe(false);
-    expect(VexRedact.luhn('123')).toBe(false);
+    expect(VexPictureRedact.luhn('4242 4242 4242 4242')).toBe(true);
+    expect(VexPictureRedact.luhn('4242 4242 4242 4243')).toBe(false);
+    expect(VexPictureRedact.luhn('123')).toBe(false);
   });
   it('suggests emails, valid cards, phones and long tokens, and merges the words of a match', () => {
     const lines = [
@@ -289,7 +289,7 @@ describe('redaction', () => {
       { words: [W('key', 0), W('x'.repeat(20) + 'Y'.repeat(12) + '1234', 50)] },
       { words: [W('Order', 0), W('number', 60), W('12', 140)] },
     ];
-    const found = VexRedact.findSensitive(lines);
+    const found = VexPictureRedact.findSensitive(lines);
     const kinds = found.map(f => f.kind).sort();
     expect(kinds).toEqual(['card', 'email', 'phone', 'token']);
     const card = found.find(f => f.kind === 'card');
@@ -297,15 +297,15 @@ describe('redaction', () => {
     expect(card.x + card.w).toBe(240);
   });
   it('does not flag an invalid card number as a card', () => {
-    const f = VexRedact.findSensitive([{ words: [W('1111', 0), W('2222', 50), W('3333', 100), W('4445', 150)] }]);
+    const f = VexPictureRedact.findSensitive([{ words: [W('1111', 0), W('2222', 50), W('3333', 100), W('4445', 150)] }]);
     expect(f.some(x => x.kind === 'card')).toBe(false);
   });
   it('pads a region inside the picture and writes the watermark line', () => {
-    expect(VexRedact.pad({ x: 2, y: 2, w: 10, h: 10 }, 5, 100, 14)).toMatchObject({ x: 0, y: 0, w: 17, h: 14 });
-    expect(VexRedact.watermarkText('the bank', new Date('2026-10-16T10:00:00Z'))).toBe('For the bank only, 2026-10-16');
-    expect(VexRedact.watermarkText('  ')).toBe('');
+    expect(VexPictureRedact.pad({ x: 2, y: 2, w: 10, h: 10 }, 5, 100, 14)).toMatchObject({ x: 0, y: 0, w: 17, h: 14 });
+    expect(VexPictureRedact.watermarkText('the bank', new Date('2026-10-16T10:00:00Z'))).toBe('For the bank only, 2026-10-16');
+    expect(VexPictureRedact.watermarkText('  ')).toBe('');
   });
   it('refuses a file that is not a picture', async () => {
-    await expect(VexRedact.stripFile({ type: 'application/pdf', name: 'a.pdf' })).rejects.toThrow(/PNG, JPEG/);
+    await expect(VexPictureRedact.stripFile({ type: 'application/pdf', name: 'a.pdf' })).rejects.toThrow(/PNG, JPEG/);
   });
 });
