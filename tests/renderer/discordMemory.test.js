@@ -24,6 +24,8 @@ beforeEach(() => {
   SleepConsent._quiet = {};
   // The refresh on its own: idle sleep (tested below) would otherwise act first.
   localStorage.setItem('vex.discordIdleSleepMin', '0');
+  // These are the tests of the plain notice; the Wave 6 care features (tests/renderer/discordCare.test.js) are off here.
+  localStorage.setItem('vex.discordCare', JSON.stringify({ on: false }));
   document.body.innerHTML = '<div id="panel-discord"></div>';
   DiscordMemory._lastRefresh = 0;
   DiscordMemory._raisedTo = 0;

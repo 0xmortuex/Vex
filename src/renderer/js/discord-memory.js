@@ -37,6 +37,64 @@ const DiscordMemory = {
   GROWTH_MB: 512,
   _toldMB: 0,
 
+  // ---- care (Wave 6): a notice that stays, an automatic refresh of its own, rest mode --------
+  // Measured by the owner 2026-10-17: the Discord panel held 1.6 GB against 750 MB in the real Discord
+  // app (which has no Vencord). The 30 s notice was easy to miss and the refresh by itself waited for
+  // the global sleep choice, which is "never" until changed. One record, vex.discordCare:
+  //   on       the master switch (the feature registry's switch; staged OFF for an existing profile)
+  //   auto     refresh by itself when hidden, idle and over the limit (OFF until the person turns it on)
+  //   rest     Discord rest mode (OFF): hidden and not in a call, the page is told it is hidden
+  //   offered  when the automatic refresh was offered, once, in the Attention Inbox
+  //   lastAuto when it last refreshed by itself
+  //   abPending the Vencord extension folder an A/B measurement turned off and must turn back on
+  // Nothing here changes SleepConsent, and the global visibility spoof is unchanged unless rest is on.
+  CARE_KEY: 'vex.discordCare',
+  CARE_FEATURE: 'discord-memory-care',
+  CARE_QUIET_MS: 60 * 60000,                 // "Not now" on the persistent notice: one hour, not four
+  AUTO_GAP_MS: 6 * 3600000,                  // the automatic refresh: at most once in six hours
+  AUTO_IDLE_MS: 10 * 60000,                  // hidden at least this long first
+  MENTION_QUIET_MS: 30 * 60000,              // no unread count or mention showing in the title for this long
+  _lastMentionAt: 0,
+  care() {
+    let raw = null;
+    try { raw = localStorage.getItem(this.CARE_KEY); }
+    catch (err) { throw new Error('The Discord memory care choices could not be read', { cause: err }); }
+    let v = {};
+    if (raw != null && raw !== '') {
+      try { v = JSON.parse(raw); }
+      catch (err) { throw new Error('The saved Discord memory care choices are not readable', { cause: err }); }
+    }
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('The saved Discord memory care choices have an unknown shape');
+    return { on: v.on !== false, auto: v.auto === true, rest: v.rest === true, offered: Number(v.offered) || 0,
+      lastAuto: Number(v.lastAuto) || 0, abPending: typeof v.abPending === 'string' ? v.abPending : '' };
+  },
+  _saveCare(patch) {
+    const c = Object.assign(this.care(), patch);
+    localStorage.setItem(this.CARE_KEY, JSON.stringify(c));
+    try { document.dispatchEvent(new CustomEvent('vex:discord-care')); } catch { /* vex-allow-empty-catch: no document: a test */ }
+    return c;
+  },
+  careOn() { return this.care().on; },
+  // The feature registry's switch (VexUsage): off, nothing below acts, and the old 30 s notice is back.
+  enabled() { return this.care().on; },
+  setEnabled(on) {
+    this._saveCare({ on: !!on });
+    if (!on) { this._closeNotice('refresh'); this._removeInboxRows(); }
+    return !!on;
+  },
+  setAuto(on) { this._saveCare({ auto: !!on }); return !!on; },
+  setRest(on) {
+    this._saveCare({ rest: !!on });
+    const sb = this._sidebar();
+    if (sb && typeof sb.checkDiscordThrottle === 'function') sb.checkDiscordThrottle().catch(err => window.VexProblems?.note('Discord memory', 'Rest mode could not be applied now', err));
+    return !!on;
+  },
+  restModeOn() { const c = this.care(); return c.on && c.rest; },
+  autoOn() { const c = this.care(); return c.on && c.auto; },
+  noteUnread(counts, now = Date.now()) { if (counts && Number(counts.discord) > 0) this._lastMentionAt = now; },
+  _inboxRows() { return typeof AttentionInbox === 'undefined' ? [] : AttentionInbox.list().filter(r => r.feature === this.CARE_FEATURE); },
+  _removeInboxRows(sub) { for (const r of this._inboxRows()) if (!sub || r.sub === sub) AttentionInbox.remove(r.id); },
+
   // ---- asleep when idle ------------------------------------------------------------
   // A hidden Discord, not in a call, for this long, is put to sleep: it frees
   // all its memory, and wakes when you open it. The cost is said in Settings:
@@ -136,7 +194,7 @@ const DiscordMemory = {
   async collect() {
     const d = { problems: [], mode: this.mode(), pid: null, wsMB: null, privMB: null, sharedWith: 0, cpu: null,
       heap: null, domNodes: null, plugins: null, spoofed: null, keepAwake: null, throttled: null,
-      lite: this.lite(), extensions: null, limit: null };
+      lite: this.lite(), extensions: null, limit: null, vencord: null, profiler: null, care: null, restFn: null };
     const sb = this._sidebar();
     const wv = this.webview();
     if (!wv) { d.problems.push('Discord is not loaded (asleep, or not opened yet), so there is nothing to measure'); return d; }
@@ -174,6 +232,14 @@ const DiscordMemory = {
               heavy: p ? ${JSON.stringify(this.HEAVY_PLUGINS)}.filter(n => p[n] && p[n].enabled) : [],
               enabledPlugins: p ? Object.keys(p).filter(n => p[n] && p[n].enabled).length : 0,
               spoofed: !!(own && own.get),
+              restFn: typeof window.__vexRest === 'function',
+              profiler: (() => {
+                const b = window.VexPluginProfiler;
+                if (!b || typeof b.snapshot !== 'function') return null;
+                const rows = b.snapshot().slice().sort((x, y) => (y.totalMs || 0) - (x.totalMs || 0)).slice(0, 5);
+                return { seconds: typeof b.measuredFor === 'function' ? b.measuredFor() : 0,
+                  rows: rows.map(r => ({ name: String(r.name).slice(0, 40), totalMs: Math.round(r.totalMs || 0), fluxCalls: r.fluxCalls || 0, worstEvent: String(r.worstEvent || '').slice(0, 40) })) };
+              })(),
             };
           })()`, false, 5000);
           if (page) {
@@ -182,6 +248,8 @@ const DiscordMemory = {
             d.domNodes = page.nodes;
             d.plugins = page.vencord ? { heavy: page.heavy, enabled: page.enabledPlugins } : null;
             d.spoofed = page.spoofed;
+            d.restFn = page.restFn;
+            d.profiler = page.profiler || null;
           }
         } catch (err) { d.problems.push('The page could not be asked: ' + err.message); }
       }
@@ -198,6 +266,8 @@ const DiscordMemory = {
         d.extensions = (Array.isArray(list) ? list : []).filter(e => e.enabled && Array.isArray(e.where) && e.where.includes(this.PARTITION)).map(e => e.name || e.folder);
       } catch (err) { d.problems.push('The extension list could not be read: ' + err.message); }
     }
+    try { d.vencord = await this.vencordState(); } catch (err) { d.problems.push('Whether Vencord is on could not be read: ' + err.message); }
+    try { d.care = this.care(); } catch (err) { d.problems.push('The care choices could not be read: ' + err.message); }
     let why = null;
     try { why = await this.reasonToWait(Date.now(), { ignoreGap: false }); } catch (err) { d.problems.push('Why no notice came could not be worked out: ' + err.message); }
     d.limit = { savedMB: this.limitMB(), effectiveMB: this.effectiveLimitMB(), consent: this.consent(), blockedBy: why,
@@ -237,17 +307,47 @@ const DiscordMemory = {
     else if (d.throttled === true) out.push('  Background throttling is on while it is hidden (normal).');
     if (d.spoofed === true) out.push('  Discord is told it is always visible (built in, so it does not drop its connection when hidden). It therefore never goes into its own idle mode. Removing it would cost reconnects and loading screens.');
     else if (d.spoofed === false) out.push('  Discord is not being told it is always visible.');
+    if (d.vencord) out.push('  Vencord is ' + (d.vencord.installed ? (d.vencord.enabled ? 'ON' : 'OFF') + ' (the extension ' + d.vencord.folder + '). The real Discord app has none, so with it on the page carries Vencord, its plugins and their data on top of Discord. Right-click the Discord button > Turn Vencord off.' : 'not installed.'));
+    if (d.profiler) {
+      out.push('  Where the plugins spend time (the PluginProfiler plugin, over ' + Math.round(d.profiler.seconds) + ' s; time, not memory):');
+      for (const r of d.profiler.rows) out.push('    ' + r.name + ': ' + r.totalMs + ' ms' + (r.fluxCalls ? ', ' + r.fluxCalls + ' events' : '') + (r.worstEvent ? ', slowest on ' + r.worstEvent : ''));
+    } else if (d.plugins) out.push('  Per-plugin cost: not available. Turn on the PluginProfiler plugin in Vencord (Plugins > PluginProfiler), use Discord for a while, then run this again. It measures time spent, not memory; a plugin that holds data (message loggers) is better judged by turning it off and using Measure.');
     out.push('  Lighter Discord is ' + (d.lite ? 'on' : 'off') + (d.lite ? '.' : ': turning it on keeps avatars, emoji and stickers still.'));
     if (d.extensions) out.push('  Extensions loaded into Discord’s session: ' + (d.extensions.length ? d.extensions.length + ' (' + d.extensions.join(', ') + '). Each one adds its own scripts to Discord’s page; Extensions can limit where one runs.' : 'none.'));
+    if (d.care) {
+      out.push('  Discord memory care is ' + (d.care.on ? 'on' : 'off') + ': ' + (d.care.on ? 'the over-limit notice stays until answered' : 'the old 30 second notice is used') + '. Automatic refresh when hidden and idle: ' + (d.care.on && d.care.auto ? 'on' : 'off') + '. Rest mode: ' + (d.care.on && d.care.rest ? 'on' + (d.restFn === false ? ' (the page has not loaded the helper yet; reload Discord)' : '') : 'off') + '.');
+    }
     if (d.limit) {
       out.push('', 'Why no notice came:');
+      if (d.limit.savedMB === 0) out.push('  WARNING: the limit is set to Never, so no memory notice will ever come and nothing is refreshed. Settings > Performance > "Tell me when Discord grows past".');
+      else if (d.limit.savedMB >= 2000) out.push('  WARNING: the limit is ' + size(d.limit.savedMB) + ', so no notice comes until Discord is already past that. Lower it in Settings > Performance.');
       out.push('  Limit ' + (d.limit.effectiveMB ? size(d.limit.effectiveMB) + (d.limit.effectiveMB > d.limit.savedMB ? ' (raised from ' + size(d.limit.savedMB) + ' this session)' : '') : 'Never') + '; sleep choice "' + d.limit.consent + '" (only "auto" refreshes by itself).');
       if (d.limit.blockedBy) out.push('  Right now it would wait because: ' + d.limit.blockedBy + '.');
       if (d.limit.quiet) out.push('  You pressed Later / Not now less than four hours ago.');
       if (d.limit.toldMB) out.push('  It already asked at ' + size(d.limit.toldMB) + ' and asks again only after another ' + this.GROWTH_MB + ' MB of growth.');
     }
+    const recs = this.recommendations(d);
+    if (recs.length) { out.push('', 'What to try, most likely saving first (how much each saves is NOT measured; Measure below shows it for your Discord):'); recs.forEach((r, i) => out.push('  ' + (i + 1) + '. ' + r)); }
     for (const p of d.problems) out.push('', 'Could not read: ' + p);
     return out.join('\n');
+  },
+
+  // One line each, ordered by how likely it is to matter given what was measured. Pure. Vencord comes
+  // first when it is running: the comparison that started this (1.6 GB here, 750 MB in the real Discord
+  // app, which has no Vencord) points at it before anything else.
+  recommendations(d) {
+    const out = [];
+    const vencordOn = !!(d.plugins || (d.vencord && d.vencord.installed && d.vencord.enabled));
+    if (vencordOn) out.push('Vencord and its plugins are the first suspect: the real Discord app runs none of them. Press "Measure with Vencord, then without" to see how many MB they hold in your Discord, or right-click the Discord button > Turn Vencord off.');
+    if (d.plugins && d.plugins.heavy.length) out.push('Turn off the heaviest Vencord plugins that are on (' + d.plugins.heavy.join(', ') + '): message loggers keep up to 2,000 messages per server in memory.');
+    if (d.profiler && d.profiler.rows.length && d.profiler.rows[0].totalMs > 0) out.push('The plugin that spent the most time is ' + d.profiler.rows[0].name + '; try it off first if you do not need it.');
+    const others = (d.extensions || []).filter(n => !/vencord/i.test(n));
+    if (others.length) out.push('Other extensions load into Discord’s session (' + others.join(', ') + '); limit each to where it is needed in Settings > Extensions.');
+    if (d.spoofed === true && !(d.care && d.care.on && d.care.rest)) out.push('Turn on Discord rest mode (Settings > Performance): while hidden and not in a call, Discord is told the truth and can go into its own idle mode. Notifications and unread counts may lag.');
+    if (d.limit && (d.limit.savedMB === 0 || d.limit.savedMB >= 2000)) out.push('Set the memory limit to 1 GB: at ' + (d.limit.savedMB ? d.limit.savedMB + ' MB' : 'Never') + ' you will not be told in time.');
+    else if (d.care && !(d.care.on && d.care.auto) && d.limit && d.limit.consent !== 'auto') out.push('Turn on "Refresh Discord automatically when it is hidden, idle and over the limit" (Settings > Performance): without it a notice is the only thing that happens, and it is easy to miss.');
+    if (d.lite === false) out.push('Turn on Lighter Discord: avatars, emoji and stickers stay still.');
+    return out;
   },
 
   async showWhyBig() {
@@ -400,9 +500,23 @@ const DiscordMemory = {
     if (!limit) { this._closeNotice('refresh'); return { action: 'off' }; }
     const mb = await this.sizeMB();
     if (mb == null) return { action: 'unknown' };
-    if (mb <= limit) { this._toldMB = 0; this._closeNotice('refresh'); return { action: 'fine', mb, limit }; }
+    if (mb <= limit) { this._toldMB = 0; this._closeNotice('refresh'); this._removeInboxRows('over-limit'); return { action: 'fine', mb, limit }; }
+    const care = this.care();
+    if (care.on && !care.auto && !care.offered) this._offerAuto(mb, limit, now);
     const wait = await this.reasonToWait(now);
-    if (wait) return { action: 'waiting', mb, limit, why: wait };
+    if (wait) {
+      // A notice that stays must not stay into a call: it goes, and comes back when it is safe.
+      if (care.on) this._closeNotice('refresh');
+      return { action: 'waiting', mb, limit, why: wait };
+    }
+    if (consent !== 'auto' && care.on && care.auto) {
+      const why = this._autoWait(care, now);
+      if (why) return { action: 'waiting', mb, limit, why };
+      this.refresh(mb);
+      this._saveCare({ lastAuto: now });
+      this._ledgerAuto(mb, limit);
+      return { action: 'refreshed-auto', mb, limit };
+    }
     if (consent !== 'auto') {
       // Once per growth past the limit: an unanswered notice is a no, and
       // the same size is not brought up again.
@@ -413,9 +527,67 @@ const DiscordMemory = {
     return { action: 'refreshed', mb, limit };
   },
 
+  // Why the automatic refresh must wait, or null. The call, screen share and microphone checks are
+  // reasonToWait's; these are the automatic path's own.
+  _autoWait(care, now = Date.now()) {
+    if (now - care.lastAuto < this.AUTO_GAP_MS) return 'it already refreshed Discord by itself less than six hours ago';
+    if (this.hiddenFor(now) < this.AUTO_IDLE_MS) return 'Discord was used less than ten minutes ago';
+    const pb = window.PanelBadges;
+    if ((pb && pb.counts && Number(pb.counts.discord) > 0) || now - this._lastMentionAt < this.MENTION_QUIET_MS) return 'Discord showed an unread count or a mention in the last thirty minutes';
+    return null;
+  },
+
+  _sizeText(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; },
+
+  _ledgerAuto(mb, limit) {
+    if (typeof VexLedger === 'undefined') return;
+    VexLedger.note({ feature: this.CARE_FEATURE, what: 'Refreshed Discord by itself (' + this._sizeText(mb) + ', limit ' + this._sizeText(limit) + ')',
+      why: 'It was hidden, idle, not in a call and over your limit. Discord reconnects and stays signed in; whatever was on screen in it is reloaded.',
+      stop: { kind: 'discord-care-auto-off' } });
+  },
+
+  // The first time the figure passes the limit, the automatic refresh is offered once, quietly, in the Inbox.
+  _offerAuto(mb, limit, now) {
+    if (typeof VexAttention === 'undefined' || typeof AttentionInbox === 'undefined') return false;
+    this._saveCare({ offered: now });
+    return VexAttention.suggest({ feature: this.CARE_FEATURE, id: 'offer-auto', label: 'Discord memory',
+      title: 'Refresh Discord by itself when it is hidden, idle and over the limit?',
+      body: 'Discord is at ' + this._sizeText(mb) + ', over your ' + this._sizeText(limit) + ' limit. Vex would reload the hidden panel at most once every six hours, never in a call and not within half an hour of an unread count. Discord reconnects and stays signed in. It is off until you press this.',
+      action: { label: 'Turn it on', key: 'auto-on' } });
+  },
+
+  // The Inbox row's button.
+  async _inboxAction(key) {
+    if (key === 'auto-on') { this.setAuto(true); window.showToast?.('Discord will refresh by itself when it is hidden, idle and over the limit — Settings > Performance turns it off'); return true; }
+    if (key === 'refresh') return this.refreshNow();
+    throw new Error('Unknown Discord memory action: ' + key);
+  },
+
+  // "Refresh Discord now": the same checks as the automatic path's safety, none of its waiting.
+  async refreshNow() {
+    const why = await this.reasonToWait(Date.now(), { ignoreGap: true });
+    if (why) { window.showToast?.('Not refreshed: ' + why, 'error'); return false; }
+    const mb = await this.sizeMB();
+    this.refresh(mb);
+    this._removeInboxRows('over-limit');
+    return true;
+  },
+
   _closeNotice(what) {
     const bar = document.getElementById('vex-discord-ask');
-    if (bar && (!what || bar.dataset.what === what)) bar.remove();
+    if (bar && (!what || bar.dataset.what === what)) {
+      bar.remove();
+      if (bar.dataset.what === 'refresh') this._removeInboxRows('over-limit');
+    }
+  },
+
+  // The Attention Inbox row that goes with the notice that stays; it also carries the same button.
+  _rowForNotice(info) {
+    if (typeof VexAttention === 'undefined' || typeof AttentionInbox === 'undefined') return false;
+    return VexAttention.suggest({ feature: this.CARE_FEATURE, id: 'over-limit', label: 'Discord memory',
+      title: 'Discord is using ' + this._sizeText(info.mb) + ', over your ' + this._sizeText(info.limit) + ' limit',
+      body: 'Refreshing reloads the hidden panel; it stays signed in and reconnects. Never offered during a call, a screen share or while the microphone or camera is in use.',
+      action: { label: 'Refresh Discord now', key: 'refresh' } });
   },
 
   // Put it to sleep, and say what that cost. Separated from check() so the
@@ -457,7 +629,10 @@ const DiscordMemory = {
       bar.appendChild(b);
       return b;
     };
-    act(what === 'sleep' ? 'Let it sleep' : 'Refresh', 'Free the memory now', () => {
+    // With the care switch on (default for a new profile) the over-limit notice stays until answered,
+    // has the three answers below, and leaves a row in the Attention Inbox. Off: the old 30 s bar.
+    const stays = what === 'refresh' && this.careOn() && !(typeof VexAttention !== 'undefined' && VexAttention.isMuted(this.CARE_FEATURE));
+    act(what === 'sleep' ? 'Let it sleep' : (stays ? 'Refresh Discord now' : 'Refresh'), 'Free the memory now', () => {
       done();
       try {
         if (what === 'sleep') this.sleepNow(info.idle); else this.refresh(info.mb);
@@ -475,6 +650,23 @@ const DiscordMemory = {
           if (!sb.setKeepAwakeMode('discord', 'call')) { window.showToast?.('The setting could not be saved', 'error'); return; }
           window.showToast?.('Discord stays awake for calls only — Settings › Performance changes it back');
         });
+      }
+      if (stays) {
+        act('Turn on automatic refresh', 'Refresh Discord by itself when it is hidden, idle and over the limit (at most every six hours, never in a call)', () => {
+          done();
+          this._removeInboxRows();
+          try { this.setAuto(true); } catch (err) { window.showToast?.(err.message, 'error'); return; }
+          window.showToast?.('Discord will refresh by itself when it is hidden, idle and over the limit — Settings > Performance turns it off');
+        });
+        act('Not now', 'Leave Discord alone — Vex will not bring this up again for an hour', () => {
+          done();
+          this._quietUntil = Date.now() + this.CARE_QUIET_MS;
+          this._toldMB = 0;
+          window.showToast?.('Discord left alone — Vex will not bring this up for an hour');
+        });
+        document.body.appendChild(bar);
+        this._rowForNotice(info);
+        return { action: 'asked', what, persistent: true, ...info };
       }
       act('Later', 'Leave Discord alone — Vex will not bring this up again for four hours', () => {
         done();
@@ -517,6 +709,7 @@ const DiscordMemory = {
     delete sb.panelWebviews.discord;
     document.querySelectorAll('.panel-navbar[data-panel="discord"]').forEach(n => n.remove());
     this._closeNotice('refresh');                                // its number is out of date now
+    this._removeInboxRows('over-limit');
     sb._createPanelWebview('discord', panelEl);
     this._lastRefresh = Date.now();
     const entry = { at: this._lastRefresh, beforeMB: beforeMB || null, afterMB: null };
@@ -582,9 +775,83 @@ const DiscordMemory = {
       window.vex.setDiscordLite(this.lite()).catch(err => window.VexProblems?.note('Discord memory', 'Could not set Lighter Discord', err));
     }
     this._watchHide();
+    this._wireCare();
     clearInterval(this._timer);
     this._timer = setInterval(() => { this.check().catch(err => window.VexProblems?.note('Discord memory', 'Check failed', err)); }, this.CHECK_MS);
     return true;
+  },
+
+  // ---- wiring the care features (Inbox button, stop token, mentions, a leftover A/B) -----------
+  _wireCare() {
+    if (this._careWired) return;
+    this._careWired = true;
+    if (typeof AttentionInbox !== 'undefined') {
+      AttentionInbox.handle(this.CARE_FEATURE, (key) => this._inboxAction(key).catch(err => { window.showToast?.(err.message, 'error'); window.VexProblems?.note('Discord memory', 'Inbox action failed', err); }));
+    }
+    if (typeof VexLedger !== 'undefined') VexLedger.registerStop('discord-care-auto-off', () => this.setAuto(false));
+    window.addEventListener('vex:panel-unread', (e) => this.noteUnread(e.detail && e.detail.counts));
+    // An A/B measurement that was cut off (Vex closed or crashed in the middle) left Vencord off: put it back.
+    let pending = '';
+    try { pending = this.care().abPending; } catch (err) { window.VexProblems?.note('Discord memory', 'The care choices could not be read', err); }
+    if (pending && window.vex && typeof window.vex.extensionsSetEnabled === 'function') {
+      window.vex.extensionsSetEnabled(pending, true).then((r) => {
+        if (r && r.ok) { this._saveCare({ abPending: '' }); window.showToast?.('Vencord was left off by an unfinished measurement; it is back on. Reload Discord to use it'); }
+        else window.VexProblems?.note('Discord memory', 'Vencord could not be turned back on after a cut-off measurement: ' + ((r && r.error) || 'unknown'));
+      }, (err) => window.VexProblems?.note('Discord memory', 'Vencord could not be turned back on', err));
+    }
+    if (window.vex && typeof window.vex.extensionsList === 'function') this.vencordState().catch(err => window.VexProblems?.note('Discord memory', 'Vencord state unknown', err));
+  },
+
+  // ---- Vencord on / off (the Discord button's right-click menu, and the measurement) ----------
+  // The ONE switch is the extension's own enable/disable (extensions:set-enabled), the same call as the
+  // On checkbox in Settings > Extensions. Vencord is the folder vencord-*.
+  VENCORD_RE: /^vencord/i,
+  _vencord: null,                            // { installed, enabled, folder } as last read; null = not read yet
+  async vencordState() {
+    if (!window.vex || typeof window.vex.extensionsList !== 'function') throw new Error('The extension list is not available in this build');
+    const list = await window.vex.extensionsList();
+    const found = (Array.isArray(list) ? list : []).filter(e => e && this.VENCORD_RE.test(String(e.folder || '')));
+    if (!found.length) return (this._vencord = { installed: false, enabled: false, folder: null });
+    const e = found.find(x => x.enabled) || found[0];
+    return (this._vencord = { installed: true, enabled: !!e.enabled, folder: e.folder });
+  },
+  // The menu item's words from a state; null = no item (Vencord is not installed).
+  vencordMenuLabel(state) {
+    if (!state) return 'Turn Vencord off or on';
+    if (!state.installed) return null;
+    return state.enabled ? 'Turn Vencord off' : 'Turn Vencord on';
+  },
+  // The Discord panel (or tab) takes the change: a hidden panel is replaced with a fresh one without being
+  // shown (the refresh path); one in front is reloaded; never in a call.
+  async reloadForVencord() {
+    const sb = this._sidebar();
+    if (this.mode() === 'tab') { if (sb && typeof sb._reopenDiscordTab === 'function') sb._reopenDiscordTab(); return 'tab'; }
+    const wv = sb && sb.panelWebviews && sb.panelWebviews.discord;
+    if (!wv) return 'not-loaded';
+    if (sb.activePanel === 'discord' || sb.sidePanel === 'discord') { wv.reload(); return 'reloaded'; }
+    this.refresh(null);
+    return 'refreshed';
+  },
+  async setVencord(on) {
+    const s = await this.vencordState();
+    if (!s.installed) throw new Error('Vencord is not installed — use Install / Update Vencord first');
+    if (s.enabled === !!on) return { changed: false, state: s };
+    const sb = this._sidebar();
+    const wv = sb && sb.panelWebviews && sb.panelWebviews.discord;
+    if (wv && typeof sb._discordInCall === 'function' && await sb._discordInCall(wv)) throw new Error('You are in a call — reloading Discord would end it. Try again after the call');
+    const r = await window.vex.extensionsSetEnabled(s.folder, !!on);
+    if (!r || !r.ok) throw new Error((on ? 'Turning Vencord on' : 'Turning Vencord off') + ' failed: ' + ((r && r.error) || 'unknown'));
+    this._vencord = { installed: true, enabled: !!on, folder: s.folder };
+    if (r.afterRestart) return { changed: true, afterRestart: true, state: this._vencord };
+    await this.reloadForVencord();
+    return { changed: true, state: this._vencord };
+  },
+  async toggleVencord() {
+    const s = await this.vencordState();
+    const res = await this.setVencord(!s.enabled);
+    const on = res.state.enabled;
+    if (res.afterRestart) return 'Saved — it applies when Vex restarts normally';
+    return on ? 'Vencord is on — Discord is reloading with its themes and plugins' : 'Vencord is off — its themes and plugins are off in Discord until you turn it back on';
   },
 
   renderSetting(host) {
@@ -599,6 +866,13 @@ const DiscordMemory = {
       </div>
       <div class="setting-toggle-row"><span>Tell me when Discord grows past</span><select data-limit aria-label="Tell me when Discord grows past"></select></div>
       <p class="setting-info muted" style="margin:2px 0 10px">A notice with Refresh — it stays signed in and notifying. Never while you are in a call. Vex refreshes it by itself only when “Before Vex puts anything to sleep on its own” is set to just do it.</p>
+      <div class="setting-toggle-row"><span>Discord memory care — the over-limit notice stays until you answer it (with a row in the Inbox), and the two options below</span><label class="toggle"><input type="checkbox" data-care-on aria-label="Discord memory care"><span class="toggle-slider"></span></label></div>
+      <div class="setting-toggle-row"><span>Refresh Discord automatically when it is hidden, idle and over the limit</span><label class="toggle"><input type="checkbox" data-care-auto aria-label="Refresh Discord automatically when it is hidden, idle and over the limit"><span class="toggle-slider"></span></label></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">Off until you turn it on (the notice offers it once). It reloads the hidden Discord panel at most once every six hours, only when it has been hidden ten minutes, is not in a call, a screen share or using the microphone or camera, and showed no unread count or mention in the last half hour. Discord reconnects and stays signed in; every refresh is written to "Why did that happen?". It does not depend on the sleep choice above.</p>
+      <div class="setting-toggle-row"><span>Discord rest mode — while hidden and not in a call, Discord is told it is hidden so it can idle</span><label class="toggle"><input type="checkbox" data-care-rest aria-label="Discord rest mode"><span class="toggle-slider"></span></label></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">Off by default. Builds on "Rest Discord when hidden and not in a call" below. Trade-off: Discord drops its always-visible disguise while it rests, so notifications and unread badges can lag, and it may reconnect when you open it. Calls are never affected: a call, opening Discord, or a notification waking it puts everything back.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px"><button type="button" class="btn-secondary" data-measure>Measure over 10 minutes</button><button type="button" class="btn-secondary" data-measure-ab>Measure with Vencord, then without</button><button type="button" class="btn-secondary" data-why-big>Why is Discord big?</button></div>
+      <p class="setting-info muted" style="margin:2px 0 10px">Measuring samples Discord’s memory every 30 seconds while it is hidden and shows the trend; nothing is sent. "With Vencord, then without" reloads Discord twice and turns the Vencord extension off for ten minutes (it is turned back on by itself, even if you close the window).</p>
       <div class="setting-toggle-row"><span>Lighter Discord — avatars, emoji, stickers and server icons stay still (anything people post still loads)</span><label class="toggle"><input type="checkbox" data-lite aria-label="Lighter Discord"><span class="toggle-slider"></span></label></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px"><button type="button" class="btn-secondary" data-plugins>Turn off the heaviest Vencord plugins</button></div>
       <p class="setting-info muted" style="margin:2px 0 0">MessageLoggerEnhanced, MessageLogger, ShowHiddenChannels, PlatformIndicators and WhoReacted — the biggest memory users in the plugin review. Discord reloads after.</p>
@@ -617,6 +891,30 @@ const DiscordMemory = {
       idleSel.appendChild(o);
     }
     idleSel.addEventListener('change', () => localStorage.setItem(this.IDLE_KEY, idleSel.value));
+    const careState = this.care();
+    const careOn = host.querySelector('[data-care-on]');
+    const careAuto = host.querySelector('[data-care-auto]');
+    const careRest = host.querySelector('[data-care-rest]');
+    careOn.checked = careState.on; careAuto.checked = careState.auto; careRest.checked = careState.rest;
+    const careSync = () => { careAuto.disabled = careRest.disabled = !careOn.checked; };
+    careSync();
+    const careChange = (el, run, say) => el.addEventListener('change', () => {
+      try { run(el.checked); window.showToast?.(say(el.checked)); }
+      catch (err) { el.checked = !el.checked; window.showToast?.(err.message, 'error'); }
+      careSync();
+    });
+    careChange(careOn, (v) => this.setEnabled(v), (v) => v ? 'Discord memory care on' : 'Discord memory care off — the old 30 second notice is back');
+    careChange(careAuto, (v) => this.setAuto(v), (v) => v ? 'Discord will refresh by itself when it is hidden, idle and over the limit' : 'Discord is no longer refreshed by itself');
+    careChange(careRest, (v) => this.setRest(v), (v) => v ? 'Discord rest mode on — notifications and unread badges can lag while it rests' : 'Discord rest mode off');
+    host.querySelector('[data-why-big]').addEventListener('click', () => this.showWhyBig().catch(err => window.showToast?.(err.message, 'error')));
+    host.querySelector('[data-measure]').addEventListener('click', () => {
+      if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; }
+      DiscordMeasure.open({ ab: false }).catch(err => window.showToast?.(err.message, 'error'));
+    });
+    host.querySelector('[data-measure-ab]').addEventListener('click', () => {
+      if (typeof DiscordMeasure === 'undefined') { window.showToast?.('The measuring tool is not loaded', 'error'); return; }
+      DiscordMeasure.open({ ab: true }).catch(err => window.showToast?.(err.message, 'error'));
+    });
     const lite = host.querySelector('[data-lite]');
     lite.checked = this.lite();
     lite.addEventListener('change', () => {

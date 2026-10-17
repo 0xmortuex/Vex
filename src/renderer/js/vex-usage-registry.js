@@ -277,6 +277,7 @@ const VexUsageRegistry = {
       VexHolidays: () => (typeof VexHolidays !== 'undefined' ? VexHolidays : null),
       VexTl: () => (typeof VexTl !== 'undefined' ? VexTl : null),
       PanelCapture: () => (typeof PanelCapture !== 'undefined' ? PanelCapture : null),
+      DiscordMemory: () => (typeof DiscordMemory !== 'undefined' ? DiscordMemory : null),
       VipRules: () => (typeof VipRules !== 'undefined' ? VipRules : null),
       NeedsMe: () => (typeof NeedsMe !== 'undefined' ? NeedsMe : null),
       PanelState: () => (typeof PanelState !== 'undefined' ? PanelState : null),
@@ -547,6 +548,8 @@ const VexUsageRegistry = {
       // Panels and messages (js/panels-comms-ui.js draws them). Turning notifications from panels back on
       // needs the consent the person gave, so it never comes back by itself without it.
       ['panel-capture', A.api(G.PanelCapture, 'enabled', 'setEnabled')],
+      // Discord memory care (js/discord-memory.js): off, the old 30 second notice is back and nothing acts by itself.
+      ['discord-memory-care', A.api(G.DiscordMemory, 'enabled', 'setEnabled')],
       ['vip-rules', A.api(G.VipRules, 'enabled', 'setEnabled')],
       ['needs-me', A.api(G.NeedsMe, 'enabled', 'setEnabled')],
       ['panel-state', A.api(G.PanelState, 'enabled', 'setEnabled')],
