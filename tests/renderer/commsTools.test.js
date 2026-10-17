@@ -296,9 +296,10 @@ describe('T3-013 Discord noise tools', () => {
     expect(DN.ruleCovers(noisy[0])).toBe(true);
   });
 
-  it('touches nothing on the page: the module never calls a webview or injects anything', () => {
+  it('touches the page only by the opt-in stylesheet and one read of the server bar: no script of its own, no input, no network', () => {
     const src = fs.readFileSync(path.join(JS, 'discord-noise.js'), 'utf8');
-    expect(src).not.toMatch(/executeJavaScript|insertCSS|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
+    expect(src).not.toMatch(/executeJavaScript|sendInputEvent|webContents|\.fetch\(|XMLHttpRequest/);
+    expect(src.match(/vexGuestEval\(/g)).toHaveLength(1);       // the server bar, on a click
   });
 });
 

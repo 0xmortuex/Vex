@@ -713,6 +713,11 @@ const DiscordTheme = {
   // it was closed.
   onPageReady(wv) {
     if (!this.isDiscordUrl(this._url(wv))) return;
+    // Discord noise tools (js/discord-noise.js): its stylesheet and the servers you open.
+    if (window.DiscordNoise) {
+      try { window.DiscordNoise.onPageReady(wv); }
+      catch (err) { console.error('[DiscordTheme] the noise tools failed on a page:', err); window.VexProblems?.note('Discord noise', 'The noise tools failed on a Discord page', err); }
+    }
     let applied = false;
     try { applied = localStorage.getItem(this.APPLIED_KEY) === '1'; } catch {}
     if (!this.isOn() && !applied && !this.paused()) return;

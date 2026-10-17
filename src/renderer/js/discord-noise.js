@@ -8,16 +8,32 @@
 //   mute   the conversation is muted in Vex's list for a while, so it does not
 //          count as waiting for you.
 //
-// What this is not: it does not touch Discord, its page, its settings or its
+// What the rules are not: they do not touch Discord, its page, its settings or its
 // toasts. Discord's own notification still shows (that is the page's; Vex does not
-// change it), nothing is muted or left on Discord's side, and no page script or
-// style is injected. A VIP match (js/vip-rules.js) is NEVER hidden or muted, so a
-// rule cannot swallow what the person said matters.
+// change it) and nothing is muted or left on Discord's side. A VIP match
+// (js/vip-rules.js) is NEVER hidden or muted, so a rule cannot swallow what the
+// person said matters.
 //
 // It also looks at the same list for the quiet-worthy: the conversations and servers
 // that notified most while you never marked one as read, offered as "mute" or "hide"
-// rules to accept. Vex cannot see which servers you never open; the counts say only
-// what the kept notifications say. Leaving a server is yours to do on Discord.
+// rules to accept. Leaving a server is yours to do on Discord.
+//
+// Two more things, each with its own switch, both OFF:
+//
+//   Collapse in the Discord page   one stylesheet (bot messages; join, leave, boost and
+//       pin lines) put into the Discord pages through the same path the Discord theme
+//       uses (DiscordTheme.onPageReady, webview.insertCSS). It only shrinks those lines
+//       to a single faded row that opens when the pointer is on it. No page script runs,
+//       nothing is read from a message, no setting of Discord is changed, and turning
+//       the switch off removes the stylesheet at once. The selectors use the stable part
+//       of Discord's class names; if Discord renames them the lines simply stay as they
+//       were.
+//   Servers never opened   while the second switch is on, Vex remembers only the number
+//       of each server whose page you open (from the address of the Discord page, never a
+//       message, a channel name or a person). "Look at my servers" then reads the names
+//       of the servers in Discord's server bar, once, when you press it, and lists the
+//       ones whose number it has never seen you open since it started watching. Vex
+//       cannot know about days before that switch was on, and says so.
 //
 // Every automatic hide or mute is noted in "Why did that happen?" (at most one line
 // per rule per hour) with an Undo that puts the hidden notifications back.
@@ -38,13 +54,25 @@ const DiscordNoise = {
     { label: 'Anything from a bot named "bot"', kind: 'mute', source: 'discord', field: 'title', match: 'bot', ms: 24 * 3600000 },
   ],
 
+  CHANNEL_URL: /^https:\/\/([a-z0-9-]+\.)?discord\.com\/channels\/(\d{15,25})(?:\/|$)/i,
+  MAX_OPENED: 400,
+  // The stable part of Discord's class names (the rest is a changing hash). A match never
+  // changes what a line says: it only limits its height until the pointer is on it.
+  BOT_SELECTOR: 'li[class*="messageListItem"]:has([class*="botTag"])',
+  SYSTEM_SELECTOR: 'li[class*="messageListItem"]:has([class*="systemMessage"])',
+  RAIL_SCRIPT: "(() => { const out = []; for (const el of document.querySelectorAll('[data-list-item-id^=\"guildsnav___\"]')) { const id = String(el.getAttribute('data-list-item-id') || '').slice(12); if (!/^[0-9]{15,25}$/.test(id)) continue; const holder = el.closest('[data-dnd-name]'); out.push({ id, name: String((holder && holder.getAttribute('data-dnd-name')) || el.getAttribute('aria-label') || '').slice(0, 100) }); } return out; })()",
+
   _now() { return Date.now(); },
   _restoring: false,
 
   // ---- state ---------------------------------------------------------------------------
   state() {
-    const s = CommsStore.record(this.KEY, { on: true, rules: [], hidden: [], ledgered: {}, hits: {} }, 'Discord noise rules');
+    const s = CommsStore.record(this.KEY, { on: true, rules: [], hidden: [], ledgered: {}, hits: {}, collapse: {}, track: false, opened: {}, since: 0 }, 'Discord noise rules');
     return {
+      collapse: { bots: !!(s.collapse && s.collapse.bots === true), system: !!(s.collapse && s.collapse.system === true) },
+      track: s.track === true,
+      since: Number(s.since) || 0,
+      opened: s.opened && typeof s.opened === 'object' && !Array.isArray(s.opened) ? s.opened : {},
       on: s.on !== false,
       rules: Array.isArray(s.rules) ? s.rules.filter(r => r && typeof r.id === 'string' && typeof r.match === 'string') : [],
       hidden: Array.isArray(s.hidden) ? s.hidden : [],
@@ -162,6 +190,117 @@ const DiscordNoise = {
       groups.set(key, g);
     }
     return Array.from(groups.values()).filter(g => g.count >= minCount && g.unread === g.count).sort((a, b) => b.count - a.count || b.last - a.last).slice(0, limit);
+  },
+  // ---- collapse bot and system lines in the Discord page ----------------------------------------------------
+  collapse() { return this.state().collapse; },
+  // The stylesheet for these choices, or '' when nothing is chosen. Pure.
+  collapseCss(c = this.collapse()) {
+    const sel = [];
+    if (c && c.bots) sel.push(this.BOT_SELECTOR);
+    if (c && c.system) sel.push(this.SYSTEM_SELECTOR);
+    if (!sel.length) return '';
+    const shut = sel.map(s => s + ':not(:hover):not(:focus-within)').join(',\n');
+    const open = sel.join(',\n');
+    return '/* Vex: Discord noise tools */\n' + shut + ' { max-height: 2.6em !important; overflow: hidden !important; opacity: .55 !important; }\n' + open + ' { transition: opacity .15s; }\n';
+  },
+  setCollapse(patch) {
+    const s = this.state();
+    for (const k of ['bots', 'system']) if (patch && patch[k] !== undefined) s.collapse[k] = !!patch[k];
+    this._save(s);
+    return this.applyAll();
+  },
+  _pages() {
+    if (typeof DiscordTheme === 'undefined' || typeof DiscordTheme.pages !== 'function') throw new Error('The Discord pages are not available in this window');
+    return DiscordTheme.pages();
+  },
+  // One Discord page gets the stylesheet that matches the choices (or loses it). Serialized per page.
+  applyTo(wv) {
+    if (typeof wv.insertCSS !== 'function') throw new Error('This page cannot take a stylesheet');
+    const css = this.enabled() ? this.collapseCss() : '';
+    const run = async () => {
+      const old = wv._vexNoiseCssKey;
+      wv._vexNoiseCssKey = null;
+      if (old && typeof wv.removeInsertedCSS === 'function') {
+        try { await wv.removeInsertedCSS(old); } catch (err) { console.warn('[DiscordNoise] the old stylesheet was already gone:', err && err.message); }
+      }
+      if (css) wv._vexNoiseCssKey = await wv.insertCSS(css);
+    };
+    wv._vexNoiseChain = (wv._vexNoiseChain || Promise.resolve()).then(run);
+    return wv._vexNoiseChain;
+  },
+  async applyAll() {
+    const out = [];
+    for (const wv of this._pages()) out.push(await this.applyTo(wv));
+    return out.length;
+  },
+  // A Discord page finished loading (DiscordTheme.onPageReady calls this): the stylesheet goes in,
+  // and the page's address is followed for "servers never opened".
+  onPageReady(wv) {
+    const c = this.collapseCss();
+    if (c || wv._vexNoiseCssKey) {
+      this.applyTo(wv).catch(err => { console.error('[DiscordNoise] could not update the Discord page:', err); window.VexProblems?.note('Discord noise', 'The Discord page could not take the collapse stylesheet', err); });
+    }
+    if (!wv._vexNoiseNav) {
+      wv._vexNoiseNav = true;
+      const seen = (e) => { try { this.recordUrl(e && e.url); } catch (err) { window.VexProblems?.note('Discord noise', 'Could not note which server you opened', err); } };
+      wv.addEventListener('did-navigate-in-page', seen);
+      wv.addEventListener('did-navigate', seen);
+    }
+    this.recordUrl(typeof vexGuestUrl === 'function' ? vexGuestUrl(wv) : '');
+    return true;
+  },
+
+  // ---- servers never opened ------------------------------------------------------------------------------
+  tracking() { return this.state().track; },
+  setTracking(on) {
+    const s = this.state();
+    s.track = !!on;
+    if (on && !s.since) s.since = this._now();
+    this._save(s);
+  },
+  forgetOpened() { const s = this.state(); s.opened = {}; s.since = s.track ? this._now() : 0; this._save(s); },
+  // The server number in a Discord address, or ''.
+  guildOf(url) { const m = this.CHANNEL_URL.exec(String(url || '')); return m ? m[2] : ''; },
+  // A server's page was opened: its number and when, nothing else. Only while the switch is on.
+  recordUrl(url) {
+    const id = this.guildOf(url);
+    if (!id || CommsStore.privateWindow()) return false;
+    const s = this.state();
+    if (!s.on || !s.track) return false;
+    const now = this._now();
+    const row = s.opened[id];
+    if (row && now - row.last < 60000) return false;
+    s.opened[id] = { last: now, n: (row ? row.n : 0) + 1 };
+    const ids = Object.keys(s.opened);
+    if (ids.length > this.MAX_OPENED) for (const k of ids.sort((a, b) => s.opened[a].last - s.opened[b].last).slice(0, ids.length - this.MAX_OPENED)) delete s.opened[k];
+    this._save(s);
+    return true;
+  },
+  // Pure: the servers (from the server bar) whose number was never seen opened.
+  neverOpened(servers, opened = this.state().opened) {
+    const seen = new Set();
+    const out = [];
+    for (const sv of servers || []) {
+      if (!sv || !/^[0-9]{15,25}$/.test(String(sv.id)) || seen.has(sv.id)) continue;
+      seen.add(sv.id);
+      if (!opened[sv.id]) out.push({ id: sv.id, name: String(sv.name || '').slice(0, 100) || 'A server' });
+    }
+    return out;
+  },
+  // Read the server bar of the Discord page in front (names and numbers only), once, on a click.
+  async serversFromPage(wv) {
+    if (typeof window.vexGuestEval !== 'function') throw new Error('Pages cannot be read in this window');
+    const list = await window.vexGuestEval(wv, this.RAIL_SCRIPT, false, 5000);
+    if (!Array.isArray(list)) throw new Error('Discord did not show its server bar');
+    if (!list.length) throw new Error('No servers were found in the server bar. Open Discord (not a call or a settings page) and try again.');
+    return list;
+  },
+  async findNeverOpened() {
+    if (!this.tracking()) throw new Error('Switch on "Remember which servers I open" first; Vex can only tell from then on');
+    const pages = this._pages();
+    if (!pages.length) throw new Error('Open Discord first (a tab or the panel)');
+    const servers = await this.serversFromPage(pages[0]);
+    return { servers: servers.length, never: this.neverOpened(servers), since: this.state().since };
   },
   ruleCovers(group) { return this.rules().some(r => r.match.toLowerCase() === group.label.toLowerCase() && (r.source === '*' || r.source === group.source)); },
   suggestRule(group, kind = 'mute') {
