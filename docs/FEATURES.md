@@ -537,7 +537,7 @@ Video, audio, screen sharing, streaming services.
 - **Per-panel processor guard** (`panel-guard`): While a game runs, Vex watches how much processor its own side panels use. It puts the heaviest hidden one to sleep if it stays over a limit. On an existing profile it starts off; turn it on in Settings > Games and media.
   - Open: Settings > Games and media.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Network courtesy mode** (`net-courtesy`): While a game runs, Vex pauses its own downloads and tells you afterwards how much network Vex used. When the game ends it resumes the ones it paused. On an existing profile it starts off; turn it on in Settings > Games and media.
+- **Network courtesy mode** (`net-courtesy`): While a game runs, Vex pauses its own downloads and tells you afterwards how much network Vex used. When the game ends it resumes the ones it paused. An opt-in switch also keeps playing YouTube videos in background tabs at a low quality. On an existing profile it starts off; turn it on in Settings > Games and media.
   - Open: Settings > Games and media.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Video watch-later** (`video-later`): Saves the video playing in the front tab into Read Later with its length, channel and how far you got. Use Ctrl+K: Save this video for later, Update progress, or Videos to watch. On an existing profile it starts off; turn it on in Settings > Games and media.
