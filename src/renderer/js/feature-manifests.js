@@ -524,7 +524,7 @@
       permissions: { reads: ['clipboard writes a page makes with no click or key press'], writes: ['a short log of site, time, kind and your choice (never the command); empties the clipboard only when you press Clear'], sends: [] } },
     { id: 'startup-check', title: 'Startup check', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.startupCheck.enabled', 'vex.startupCheck.last'],
       commands: ['startup:check'], tiers: { minimal: false, standard: false },
-      permissions: { reads: ['the Windows Run keys, the Startup folders and the names of scheduled tasks'], writes: ['the list you last reviewed'], sends: [] } },
+      permissions: { reads: ['the Windows Run keys, the Startup folders and the names of scheduled tasks; when you press the button, the signature of each program found'], writes: ['the list you last reviewed'], sends: [] } },
     { id: 'secure-lock', title: 'Secure lock options', group: 'Security helpers', maturity: 'new', storageKeys: ['vex.secureLock.enabled', 'vex.secureLock.minimize'], usesKeys: ['vex.lockPin'],
       tiers: { minimal: false, standard: false },
       permissions: { reads: ['whether a lock exists; which secret files exist and whether they look encrypted'], writes: ['the lock record when you set a passphrase; erases the secret files only after you type the confirmation'], sends: [] } },

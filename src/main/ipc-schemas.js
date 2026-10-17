@@ -267,7 +267,7 @@ define('clipboard:write-secret', [value => typeof value === 'string' && value.le
 define('clipboard:clear-if', [value => typeof value === 'string' && value.length > 0 && value.length <= 4000]);
 // Tier 3 security helpers: the startup check is read-only; the app lock makes a scrypt record, reports the secure
 // stores and does the typed-confirmation reset; the photo preparer's two dialogs.
-define('startup:list applock:stores', []);
+define('startup:list startup:signatures applock:stores', []);
 define('applock:make-record', [string(128)]);
 define('applock:lock-on-minimize', [boolean]);
 define('applock:reset', [string(64)]);

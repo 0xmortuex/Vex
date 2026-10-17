@@ -120,7 +120,7 @@ describe('scan', () => {
   it('registers one handler, startup:list', () => {
     const handlers = new Map();
     sc.registerStartupCheck({ ipcMain: { handle: (c, f) => handlers.set(c, f) }, scanFn: () => 'scanned' });
-    expect([...handlers.keys()]).toEqual(['startup:list']);
+    expect([...handlers.keys()]).toEqual(['startup:list', 'startup:signatures']);
     expect(handlers.get('startup:list')()).toBe('scanned');
   });
 });

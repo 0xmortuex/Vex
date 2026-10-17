@@ -4,9 +4,10 @@
 // Run and RunOnce registry keys, the two Startup folders and the names of Scheduled Tasks.
 // Vex's own entries (Open at login, the reminder wake-up tasks) are shown first and marked.
 // Entries that were not in the list the last time you pressed "Mark as reviewed" are shown
-// as New. Nothing is changed, removed or disabled from here, and nothing is checked for
-// a signature: remove or disable an entry in Task Manager > Startup apps, the Startup
-// folder, or Task Scheduler yourself.
+// as New. Nothing is changed, removed or disabled from here: remove or disable an entry in
+// Task Manager > Startup apps, the Startup folder, or Task Scheduler yourself. "Check who signed
+// these" (a button, never automatic) asks Windows for the publisher of each program it can find and
+// flags the unsigned ones; unsigned is a fact about the file, not a verdict.
 const VexStartupCheck = {
   ENABLED_KEY: 'vex.startupCheck.enabled',
   LAST_KEY: 'vex.startupCheck.last',
@@ -47,6 +48,20 @@ const VexStartupCheck = {
     return r;
   },
 
+  // The signature results laid onto the list. Pure: id -> { text, unsigned }.
+  signatureNotes(results) {
+    const m = new Map();
+    for (const r of Array.isArray(results) ? results : []) {
+      let text;
+      if (r.status === 'Valid') text = 'Signed by ' + (r.signer || 'a publisher Windows trusts');
+      else if (r.status === 'NotSigned') text = 'Not signed: nobody has put their name to this program';
+      else if (r.status === 'unchecked') text = 'Not checked: ' + (r.why || 'no program to read');
+      else text = 'The signature is ' + r.status + (r.signer ? ' (' + r.signer + ')' : '') + ': Windows does not trust it as it stands';
+      m.set(r.id, { text, unsigned: r.status === 'NotSigned' || (r.status !== 'Valid' && r.status !== 'unchecked' && r.status !== 'unknown') });
+    }
+    return m;
+  },
+
   _el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
 
   async open() {
@@ -59,6 +74,7 @@ const VexStartupCheck = {
     const g = this.group(r.items, prev ? prev.ids : null);
     body.textContent = '';
     const fail = (err) => window.showToast?.((err && err.message) || String(err), 'error');
+    const cards = new Map();
     const section = (title, rows, note) => {
       if (!rows.length) return;
       body.appendChild(this._el('div', 'setting-label', title + ' (' + rows.length + ')'));
@@ -69,6 +85,7 @@ const VexStartupCheck = {
         head.append(this._el('strong', '', it.name), this._el('span', 'ad-state', it.where));
         card.appendChild(head);
         if (it.data) card.appendChild(this._el('div', 'ad-url', it.data));
+        cards.set(it.id, card);
         body.appendChild(card);
       }
     };
@@ -76,7 +93,7 @@ const VexStartupCheck = {
     section('New since you last reviewed', g.fresh, 'Not in the list you reviewed last time. If you do not recognise one, look it up before you leave it.');
     section(g.firstLook ? 'Everything else' : 'Unchanged', g.other, g.firstLook ? 'This is the first look, so nothing is marked New yet. Review the list, then press Mark as reviewed.' : '');
     if (!r.items.length) body.appendChild(this._el('p', 'setting-info', 'Nothing was found in these places.'));
-    body.appendChild(this._el('p', 'setting-info', r.microsoftTasks + ' Microsoft scheduled tasks are not listed. Entries are not checked for a publisher or signature.'));
+    body.appendChild(this._el('p', 'setting-info', r.microsoftTasks + ' Microsoft scheduled tasks are not listed. Press "Check who signed these" to ask Windows for the publisher of each program it can find.'));
     for (const e of r.errors || []) body.appendChild(this._el('p', 'setting-info', 'Could not read: ' + e));
     if (r.truncated) body.appendChild(this._el('p', 'setting-info', 'Only the first entries are shown.'));
     const row = this._el('div', 'ad-actions');
@@ -85,8 +102,30 @@ const VexStartupCheck = {
       try { localStorage.setItem(this.LAST_KEY, JSON.stringify({ at: Date.now(), ids: r.items.map(i => i.id) })); window.showToast?.('Saved. Anything new after this will be marked.'); }
       catch (err) { fail(err); }
     });
-    row.appendChild(mark);
+    const sign = this._el('button', 'btn-secondary', 'Check who signed these'); sign.type = 'button';
+    const status = this._el('p', 'setting-info', ''); status.setAttribute('role', 'status');
+    sign.addEventListener('click', async () => {
+      sign.disabled = true;
+      status.textContent = 'Asking Windows who signed each program...';
+      try {
+        if (typeof window.vex.startupSignatures !== 'function') throw new Error('Reading signatures is not available in this window');
+        const res = await window.vex.startupSignatures();
+        if (!res || res.ok === false) throw new Error((res && res.error) || 'The signatures could not be read');
+        const notes = this.signatureNotes(res.results);
+        for (const [id, n] of notes) {
+          const card = cards.get(id);
+          if (!card) continue;
+          const old = card.querySelector('.ad-sig'); if (old) old.remove();
+          const line = this._el('div', 'ad-sig' + (n.unsigned ? ' fresh' : ''), (n.unsigned ? 'Unsigned or untrusted. ' : '') + n.text);
+          card.appendChild(line);
+        }
+        status.textContent = res.checked + ' program' + (res.checked === 1 ? '' : 's') + ' checked; ' + res.unsigned + ' not signed. Unsigned does not mean harmful: look up anything you do not recognise.';
+      } catch (err) { status.textContent = ''; fail(err); }
+      finally { sign.disabled = false; }
+    });
+    row.append(mark, sign);
     body.appendChild(row);
+    body.appendChild(status);
   },
 
   registerCommands() {

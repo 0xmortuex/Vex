@@ -50,7 +50,7 @@ const UI_ONLY_CHANNELS = new Set([
   // Which languages the spell checker uses (main.js, js/spell-lang.js).
   'spellcheck:set-languages', 'spellcheck:state',
   'login-item:get', 'login-item:set', 'clipboard:write-secret', 'clipboard:clear-if', 'open-guest-window',
-  'startup:list', 'applock:make-record', 'applock:stores', 'applock:reset', 'applock:lock-on-minimize', 'photoprep:open', 'photoprep:save','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
+  'startup:list', 'startup:signatures', 'applock:make-record', 'applock:stores', 'applock:reset', 'applock:lock-on-minimize', 'photoprep:open', 'photoprep:save','theme:read-wallpaper', 'vault:export-csv', 'totp:export-backup', 'totp:import-backup',
   'screen-share:preflight', 'signout:why', 'commit:state',
   // Permission hygiene, what am I signed in to, the kill switch, the incident checklist and the password-field interlock.
   'hygiene:perm-config', 'hygiene:perm-summary', 'hygiene:perm-pin', 'hygiene:perm-decide', 'hygiene:perm-live', 'hygiene:perm-stop',
