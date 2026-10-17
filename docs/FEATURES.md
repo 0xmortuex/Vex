@@ -519,8 +519,8 @@ Video, audio, screen sharing, streaming services.
 - **Video transcript, chapters and loop** (`video-tools`): Shows the captions the page has as a transcript, jumps between chapters with N and P, and loops a section of the video from A to B. On an existing profile it starts off; turn it on in Settings > Capture tools.
   - Open: Ctrl+K: "Video Transcript, Chapters and Loop"; Settings > Capture tools.
   - Default: New: starts off on an existing profile until you switch it on.
-- **Volume kept per site** (`site-audio-memory`): Keeps a volume level per site and reminds you when a loud one is left on. On an existing profile it starts off; turn it on in Settings > Volume.
-  - Open: Settings > Volume.
+- **Volume kept per site** (`site-audio-memory`): Keeps a volume level per site and reminds you when a loud one is left on; also keeps the speed, captions and place in a long video, and can even out the loudness of a site. On an existing profile it starts off; turn it on in Settings > Volume.
+  - Open: Ctrl+K: "Even out loudness on this site (toggle)", "Forget speed, captions and place for this site"; Settings > Volume.
   - Default: New: starts off on an existing profile until you switch it on.
 - **Game audio scenes** (`game-scenes`): Lowers or sets Vex’s own volume while a named game runs, and puts it back afterwards. On an existing profile it starts off; turn it on in Settings > Game audio scenes.
   - Open: Settings > Game audio scenes.
