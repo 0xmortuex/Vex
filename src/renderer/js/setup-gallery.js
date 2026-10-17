@@ -12,6 +12,17 @@ const SetupGallery = {
   _decode(code) { try { return (typeof Onboarding !== 'undefined' && Onboarding._decodeSetupCode) ? Onboarding._decodeSetupCode(code) : null; } catch { return null; } },
   _apply(data) { try { if (typeof Onboarding !== 'undefined' && Onboarding._applySetupCode) { Onboarding._applySetupCode(data); return true; } } catch {} return false; },
 
+  // What applying this code would change, shown before it is applied (js/settings-changes.js setupDiff).
+  // -> true to go ahead. Without the reader loaded it goes ahead as it always did.
+  async _confirmApply(code, name) {
+    if (typeof VexChanges === 'undefined') return true;
+    let lines;
+    try { lines = VexChanges.previewSetup(code); }
+    catch (err) { window.showToast?.(err.message, 'error'); return false; }
+    if (!lines.length) { window.showToast?.('\u201c' + name + '\u201d is the setup you already have'); return false; }
+    return window.vexConfirm({ title: 'Apply \u201c' + name + '\u201d?', message: 'It would change:\n' + lines.map(l => '- ' + l).join('\n'), okLabel: 'Apply' });
+  },
+
   async open() {
     document.getElementById('vex-setupgallery')?.remove();
     const m = document.createElement('div');
@@ -79,16 +90,17 @@ const SetupGallery = {
       const code = this._encode(); if (!code) { msg('Could not read the current setup.'); return; }
       const a = this._saved(); a.unshift({ name, code, at: Date.now() }); this._persist(a); this._paint(m);
     });
-    body.querySelector('#sg-apply-code').addEventListener('click', () => {
+    body.querySelector('#sg-apply-code').addEventListener('click', async () => {
       const code = (body.querySelector('#sg-import').value || '').trim();
       const d = this._decode(code);
       if (!d) { msg('That is not a valid setup code (must start with VEXSETUP1.).'); return; }
+      if (!await this._confirmApply(code, 'the shared setup')) { msg('Nothing was changed.'); return; }
       if (this._apply(d)) msg('Applied — your setup was updated.', true); else msg('Could not apply that setup.');
     });
     body.querySelector('#sg-copy-export').addEventListener('click', () => { try { navigator.clipboard.writeText(this._encode()); window.showToast?.('Setup code copied'); } catch {} });
     body.querySelectorAll('#sg-list [data-i]').forEach(row => {
       const i = parseInt(row.dataset.i, 10); const item = this._saved()[i]; if (!item) return;
-      row.querySelector('[data-act="apply"]').addEventListener('click', () => { const d = this._decode(item.code); if (d && this._apply(d)) window.showToast?.('Applied “' + item.name + '”'); });
+      row.querySelector('[data-act="apply"]').addEventListener('click', async () => { const d = this._decode(item.code); if (!d) { window.showToast?.('That saved setup could not be read', 'error'); return; } if (!await this._confirmApply(item.code, item.name)) return; if (this._apply(d)) window.showToast?.('Applied \u201c' + item.name + '\u201d'); });
       row.querySelector('[data-act="copy"]').addEventListener('click', () => { try { navigator.clipboard.writeText(item.code); window.showToast?.('Code copied'); } catch {} });
       row.querySelector('[data-act="del"]').addEventListener('click', () => { const a = this._saved(); a.splice(i, 1); this._persist(a); this._paint(m); });
     });

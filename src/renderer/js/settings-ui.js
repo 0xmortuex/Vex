@@ -437,7 +437,7 @@ const SettingsUI = {
           sub.style.setProperty('--chip-color', cat.color);
           sub.innerHTML = this._svg(cat.icon, 12) + '<span>' + (cat.short || cat.name) + '</span>';
           sub.dataset.tier = tier;
-          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+          sub.addEventListener('click', () => { SettingsUI._wanted = { key: g.dataset.navKey, until: Date.now() + 3000 }; g.scrollIntoView({ behavior: 'smooth', block: 'start' }); SettingsUI._countChip(g.dataset.navKey, cat.short || cat.name); });
           grp.row.appendChild(sub);
         }
       }
@@ -455,7 +455,7 @@ const SettingsUI = {
         navChip.innerHTML = this._svg(look.icon, 13) + '<span>' + look.name + '</span>';
         navChip.dataset.tier = tier;
         navChip.dataset.navKey = key;
-        navChip.addEventListener('click', () => { SettingsUI._wanted = { key, until: Date.now() + 3000 }; target.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        navChip.addEventListener('click', () => { SettingsUI._wanted = { key, until: Date.now() + 3000 }; target.scrollIntoView({ behavior: 'smooth', block: 'start' }); SettingsUI._countChip(key, look.name); });
         nav.appendChild(navChip);
         if (grp) grp.chip = navChip;
       }
@@ -1082,6 +1082,12 @@ const SettingsUI = {
   // element with the given id into view and flash it briefly. Retries over a
   // few animation frames instead of a timing-sensitive setTimeout — the settings
   // markup is static, so the element normally exists on the first frame.
+  // A category chip was pressed: counted for "What I changed" > the sections you open most (js/settings-changes.js).
+  _countChip(key, name) {
+    if (typeof VexChanges === 'undefined') return;
+    try { VexChanges.noteSection(key, name); }
+    catch (err) { window.VexProblems?.note('Settings', 'Could not count a section you opened', err); }
+  },
   openSection(anchorId) {
     if (!anchorId) return;
     const mgr = (typeof SidebarManager !== 'undefined') ? SidebarManager : window.SidebarManager;

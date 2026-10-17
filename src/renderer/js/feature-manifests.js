@@ -472,7 +472,7 @@
       permissions: { reads: ['the text of a page you ask to have summarised, to tell whether it changed'], writes: ['the finished summaries, on this computer, up to 40 for 30 days'], sends: [] } },
     { id: 'tos-highlighter', title: 'Terms of service highlighter', group: 'Terms of service highlighter', maturity: 'new', storageKeys: ['vex.tosHighlighter'], commands: ['tos-highlight'],
       permissions: { reads: ['the text of the page in front, when you ask'], writes: ['yellow marks on that page, until it reloads'], sends: ['A single marked sentence to your local model, only when you press Explain; never to the cloud'] } },
-    { id: 'what-i-changed', title: 'What I changed', group: 'What I changed', maturity: 'new', storageKeys: ['vex.changes.enabled'], commands: ['what-i-changed'],
+    { id: 'what-i-changed', title: 'What I changed', group: 'What I changed', maturity: 'new', storageKeys: ['vex.changes.enabled', 'vex.changes.sections'], commands: ['what-i-changed'],
       permissions: { reads: ['your Settings switches and dropdowns and which features are on'], writes: ['a setting, only when you press Revert'], sends: [] } },
     { id: 'whats-new-me', title: "What's new for me", group: "What's new for me", maturity: 'new', storageKeys: ['vex.whatsNewMe.seen', 'vex.whatsNewMe.enabled'], commands: ['whatsnew-me'],
       permissions: { reads: ['the release notes that ship inside the app'], writes: ['the version you last looked at'], sends: [] } },

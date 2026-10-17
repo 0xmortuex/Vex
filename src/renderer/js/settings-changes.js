@@ -13,16 +13,95 @@
 //      arrived off for an existing profile is not a change you made, so it is not listed. While
 //      Minimal Vex is on nothing is listed from here (it switched them).
 //
-// Not done here (deferred): the "most-used sections" row and the preview of what a Saved Setup
-// would change; the saved-setup gallery does not expose a diff to read yet.
+// Two more parts (Wave 5):
+//   * a row of the Settings sections you open most (the category chips you press are counted, on this
+//     computer, 60 sections at most), at the top of the list, each a button that takes you there;
+//   * a preview of what a Saved Setup would change: setupDiff() compares a setup code with the setup you
+//     have now (theme, look, hidden panels, shortcut bar, skin, fonts), and the Setup Gallery shows the
+//     lines in the confirm before it applies one. Nothing is applied without that press.
 
 const VexChanges = {
   PREF: 'vex.changes.enabled',
+  SECTIONS_KEY: 'vex.changes.sections',    // { [chipKey]: { n, at, name } }
+  MAX_SECTIONS: 60,
   enabled() { try { return localStorage.getItem(this.PREF) !== 'off'; } catch { return true; } },
   setEnabled(on) {
     try { localStorage.setItem(this.PREF, on ? 'on' : 'off'); }
     catch (err) { throw new Error('Could not save that setting: ' + err.message); }
     return !!on;
+  },
+
+  // ---- the sections you open most ---------------------------------------------------------------------
+  sectionsRecord() {
+    const raw = localStorage.getItem(this.SECTIONS_KEY);
+    if (raw == null) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The count of Settings sections could not be read', { cause: err }); }
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  },
+  // A category chip in Settings was pressed.
+  noteSection(key, name, now = Date.now()) {
+    if (!this.enabled() || !key) return false;
+    const all = this.sectionsRecord();
+    const e = all[key] || { n: 0, at: 0, name: '' };
+    e.n = Math.min(9999, e.n + 1); e.at = now; e.name = String(name || key).slice(0, 60);
+    all[key] = e;
+    const keys = Object.keys(all);
+    if (keys.length > this.MAX_SECTIONS) keys.sort((a, b) => all[a].n - all[b].n || all[a].at - all[b].at).slice(0, keys.length - this.MAX_SECTIONS).forEach(k => { delete all[k]; });
+    localStorage.setItem(this.SECTIONS_KEY, JSON.stringify(all));
+    return true;
+  },
+  // -> [{ key, name, n }] most opened first, ties by the one opened last.
+  mostUsed(limit = 5) {
+    const all = this.sectionsRecord();
+    return Object.entries(all).filter(([, e]) => e && e.n >= 2).sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at).slice(0, limit).map(([key, e]) => ({ key, name: e.name || key, n: e.n }));
+  },
+  clearSections() { localStorage.removeItem(this.SECTIONS_KEY); },
+  // Opens Settings at that category.
+  openSectionByKey(key) {
+    const mgr = typeof SidebarManager !== 'undefined' ? SidebarManager : null;
+    if (!mgr || typeof mgr.openPanel !== 'function') throw new Error('Settings cannot be opened from here');
+    mgr.openPanel('settings');
+    let tries = 0;
+    const attempt = () => {
+      const chip = Array.from(document.querySelectorAll('.set-nav-chip')).find(c => c.dataset.navKey === key);
+      if (chip) { chip.click(); return; }
+      if (++tries > 10) { window.showToast?.('That section is no longer in Settings', 'error'); return; }
+      requestAnimationFrame(attempt);
+    };
+    attempt();
+  },
+
+  // ---- what a Saved Setup would change ----------------------------------------------------------------------
+  // cur and next are decoded setup objects (Onboarding._decodeSetupCode). -> [line, ...], [] when they match.
+  setupDiff(cur, next) {
+    if (!cur || !next) throw new Error('There is no setup to compare');
+    const out = [];
+    const list = (a) => (a && a.length ? a.join(', ') : 'none');
+    const nm = (id) => { try { const p = Onboarding._APP_PANELS().find(x => x.id === id); return p ? p.name : id; } catch { return id; } };
+    if (next.theme && next.theme !== cur.theme) out.push('Theme: ' + (cur.theme || 'default') + ' to ' + next.theme);
+    if (!!next.glass !== !!cur.glass) out.push('Look: ' + (cur.glass ? 'Glass' : 'Classic') + ' to ' + (next.glass ? 'Glass' : 'Classic'));
+    const hide = (next.hidden || []).filter(p => !(cur.hidden || []).includes(p));
+    const show = (cur.hidden || []).filter(p => !(next.hidden || []).includes(p));
+    if (hide.length) out.push('Hidden panels: ' + list(hide.map(nm)));
+    if (show.length) out.push('Panels shown again: ' + list(show.map(nm)));
+    const sc = (a) => (a == null ? null : a.map(s => s.name + '|' + s.url).join('\n'));
+    if (sc(next.shortcuts) !== sc(cur.shortcuts)) out.push('Shortcut bar: ' + (cur.shortcuts == null ? 'the stock set' : cur.shortcuts.length + ' shortcuts') + ' to ' + (next.shortcuts == null ? 'the stock set' : next.shortcuts.length + ' shortcuts'));
+    for (const k of ['pattern', 'shape', 'glow', 'strength']) {
+      if (next.skin && next.skin[k] && (!cur.skin || cur.skin[k] !== next.skin[k])) out.push('Skin ' + k + ': ' + ((cur.skin && cur.skin[k]) || 'default') + ' to ' + next.skin[k]);
+    }
+    for (const k of ['ui', 'mono']) {
+      if (next.font && next.font[k] && (!cur.font || cur.font[k] !== next.font[k])) out.push((k === 'ui' ? 'Font' : 'Code font') + ': ' + ((cur.font && cur.font[k]) || 'default') + ' to ' + next.font[k]);
+    }
+    return out;
+  },
+  // The lines for applying `code`, against the setup in front. Throws when the code is not one.
+  previewSetup(code) {
+    if (typeof Onboarding === 'undefined') throw new Error('The setup reader is not loaded');
+    const next = Onboarding._decodeSetupCode(code);
+    if (!next) throw new Error('That is not a valid setup code');
+    const cur = Onboarding._decodeSetupCode(Onboarding._encodeSetupCode());
+    return this.setupDiff(cur, next);
   },
 
   // -> [{ id, label, section, kind, now, nowText, def, defText }]
@@ -109,6 +188,16 @@ const VexChanges = {
     const { body } = VexSettingsGroups.dialog({ id: 'vex-changes', title: 'What I changed', sub: 'Settings that are not at the way Vex ships them. Compared with how Settings is built, so a setting Vex changed for you is not counted.' });
     const draw = () => {
       body.textContent = '';
+      // The sections you open most, one press away.
+      let top = [];
+      try { top = this.mostUsed(); } catch (err) { body.appendChild(VexSettingsGroups.note('Could not read your most used sections: ' + err.message)); }
+      if (top.length) {
+        const rowTop = document.createElement('div');
+        rowTop.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px';
+        rowTop.appendChild(Object.assign(document.createElement('span'), { textContent: 'You open these most:', className: 'vexsr-mode' }));
+        for (const s of top) rowTop.appendChild(VexSettingsGroups.button(s.name + ' (' + s.n + ')', () => { try { this.openSectionByKey(s.key); } catch (err) { window.showToast?.(err.message, 'error'); } }, { label: 'Open the ' + s.name + ' settings' }));
+        body.appendChild(rowTop);
+      }
       let c, f;
       try { c = this.controls(document.getElementById('panel-settings')); f = this.features(); }
       catch (err) { body.appendChild(VexSettingsGroups.note(err.message)); return; }
@@ -146,6 +235,7 @@ const VexChanges = {
   group(el) {
     el.appendChild(VexSettingsGroups.note('Lists every switch and dropdown you have moved from its default, with a Revert for each and one for all. Ctrl+K › What I changed.'));
     el.appendChild(VexSettingsGroups.button('Show what I changed', () => this.open(), { primary: true }));
+    el.appendChild(VexSettingsGroups.button('Forget which sections I open most', () => { try { this.clearSections(); window.showToast?.('Forgotten'); } catch (err) { window.showToast?.(err.message, 'error'); } }));
   },
 };
 
