@@ -8,9 +8,15 @@
 // folder they pick, for a split). An input file is never overwritten or
 // changed: a Save that points at one of the inputs is refused.
 //
-// What it does not do (listed in the Settings group too): fill forms, sign,
-// compress, OCR, or open a password-protected PDF. A PDF with a password is
-// refused with a plain sentence; Vex does not try to remove it.
+// Also here (T3-117): annotate (text, highlight, box), fill form fields, place a SIGNATURE IMAGE, and a light
+// compress. "Sign" means putting the picture of a drawn or typed signature on a page, like a stamp; it is NOT a
+// cryptographic digital signature and proves nothing about who placed it. "Compress" repacks the file's structure
+// (object streams, unused objects dropped, metadata cleared); pictures inside are NOT re-encoded, so a scan
+// stays about as large. The standard PDF font cannot draw every letter (Turkish s-cedilla, g-breve and dotless i
+// are missing from it); text with such letters is refused unless the person asked for them to be replaced.
+//
+// What it does not do (listed in the Settings group too): OCR, or open a password-protected PDF. A PDF with a
+// password is refused with a plain sentence; Vex does not try to remove it.
 //
 // The page-range language is the one people already use for printing:
 //   1-3, 5, 8-      pages 1 to 3, page 5, page 8 to the end
@@ -146,6 +152,157 @@ async function rotate(bytes, { spec, degrees } = {}, name) {
   return { bytes: await save(doc), pages: idx.length };
 }
 
+// ---- inspect, annotate, fill, sign, compress (T3-117) -----------------------------------------------
+const MARK = Object.freeze({ items: 100, text: 500, signatureBytes: 400 * 1024, fields: 300, fieldValue: 2000 });
+const COLORS = Object.freeze({ black: [0, 0, 0], red: [0.8, 0.1, 0.1], blue: [0.1, 0.2, 0.8], green: [0.1, 0.5, 0.2], yellow: [1, 0.92, 0.2], orange: [1, 0.6, 0.1] });
+const TURKISH_ASCII = Object.freeze({ '\u015F': 's', '\u015E': 'S', '\u011F': 'g', '\u011E': 'G', '\u0131': 'i', '\u0130': 'I' });
+
+// Letters the standard PDF font (WinAnsi) cannot draw. -> the offending characters, once each.
+function unsupportedChars(text) {
+  const bad = new Set();
+  for (const ch of String(text)) {
+    const c = ch.codePointAt(0);
+    const ok = c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 126) || (c >= 160 && c <= 255) || [0x20AC, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017D, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x017E, 0x0178].includes(c);
+    if (!ok) bad.add(ch);
+  }
+  return [...bad];
+}
+// Replaces the Turkish letters the font lacks with their plain Latin ones; anything else it cannot draw still throws.
+function drawable(text, ascii, what) {
+  let t = String(text);
+  if (ascii) t = t.replace(/[\u015F\u015E\u011F\u011E\u0131\u0130]/g, (c) => TURKISH_ASCII[c]);
+  const bad = unsupportedChars(t);
+  if (bad.length) throw new Error((what || 'The text') + ' has letters the PDF font cannot draw (' + bad.slice(0, 8).join(' ') + '). Change them' + (bad.every(c => TURKISH_ASCII[c]) ? ', or tick "Replace letters the PDF font cannot draw".' : '.'));
+  return t;
+}
+
+const FIELD_TYPES = { PDFTextField: 'text', PDFCheckBox: 'checkbox', PDFDropdown: 'dropdown', PDFRadioGroup: 'radio', PDFOptionList: 'list', PDFButton: 'button', PDFSignature: 'signature' };
+
+// Page sizes (points) and the form fields of one PDF. -> { pages: [{ w, h }], fields: [{ name, type, value, options }] }
+async function inspect(bytes, name) {
+  const doc = await load(bytes, name);
+  const pages = doc.getPages().slice(0, 500).map(p => { const s = p.getSize(); return { w: Math.round(s.width * 10) / 10, h: Math.round(s.height * 10) / 10, rotation: p.getRotation().angle }; });
+  const fields = [];
+  for (const f of doc.getForm().getFields().slice(0, MARK.fields)) {
+    const type = FIELD_TYPES[f.constructor.name] || 'other';
+    const row = { name: f.getName(), type, value: null, options: undefined };
+    try {
+      if (type === 'text') row.value = f.getText() || '';
+      else if (type === 'checkbox') row.value = f.isChecked();
+      else if (type === 'dropdown' || type === 'list') { row.value = f.getSelected().join(', '); row.options = f.getOptions().slice(0, 100); }
+      else if (type === 'radio') { row.value = f.getSelected() || ''; row.options = f.getOptions().slice(0, 100); }
+    } catch (err) { throw new Error('The form field "' + row.name + '" could not be read: ' + err.message, { cause: err }); }
+    fields.push(row);
+  }
+  return { pages, fields };
+}
+
+// values: { fieldName: string | boolean }. flatten: bake the answers in so they can no longer be edited.
+async function fillForm(bytes, { values, flatten, ascii } = {}, name) {
+  const { StandardFonts } = lib();
+  const doc = await load(bytes, name);
+  const form = doc.getForm();
+  const names = Object.keys(values || {});
+  if (!names.length) throw new Error('Type an answer into at least one field');
+  if (names.length > MARK.fields) throw new Error('That is more than ' + MARK.fields + ' fields');
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  for (const key of names) {
+    let field;
+    try { field = form.getField(key); } catch { throw new Error('This PDF has no form field called "' + key + '"'); }
+    const type = FIELD_TYPES[field.constructor.name] || 'other';
+    const v = values[key];
+    if (type === 'text') field.setText(drawable(String(v), ascii, 'The answer for "' + key + '"').slice(0, MARK.fieldValue));
+    else if (type === 'checkbox') { if (v) field.check(); else field.uncheck(); }
+    else if (type === 'dropdown' || type === 'radio' || type === 'list') field.select(String(v));
+    else throw new Error('"' + key + '" is a ' + type + ' field; it cannot be filled here');
+  }
+  form.updateFieldAppearances(font);
+  if (flatten) form.flatten();
+  return { bytes: await save(doc), fields: names.length };
+}
+
+function checkItem(it, pageCount, i) {
+  const n = i + 1;
+  if (!it || typeof it !== 'object') throw new Error('Mark ' + n + ' is not valid');
+  if (!['text', 'highlight', 'rect', 'signature'].includes(it.kind)) throw new Error('Mark ' + n + ' must be text, a highlight, a box or a signature');
+  if (!Number.isInteger(it.page) || it.page < 1 || it.page > pageCount) throw new Error('Mark ' + n + ' is on page ' + it.page + ', but this PDF has ' + pageCount + ' page' + (pageCount === 1 ? '' : 's'));
+  for (const k of ['x', 'y']) if (!(Number.isFinite(it[k]) && it[k] >= 0 && it[k] <= 1)) throw new Error('Mark ' + n + ' is placed outside the page');
+  const needSize = it.kind !== 'text' || it.w != null;
+  if (needSize && !(Number.isFinite(it.w) && it.w > 0 && it.w <= 1 && it.x + it.w <= 1.001)) throw new Error('Mark ' + n + ' is too wide for the page');
+  if ((it.kind === 'highlight' || it.kind === 'rect') && !(Number.isFinite(it.h) && it.h > 0 && it.h <= 1 && it.y + it.h <= 1.001)) throw new Error('Mark ' + n + ' is too tall for the page');
+  if (it.kind === 'text') {
+    if (typeof it.text !== 'string' || !it.text.trim()) throw new Error('Mark ' + n + ' has no text');
+    if (it.text.length > MARK.text) throw new Error('Mark ' + n + ' has more than ' + MARK.text + ' letters');
+    if (it.size != null && !(Number.isFinite(it.size) && it.size >= 6 && it.size <= 72)) throw new Error('Mark ' + n + ': the text size is 6 to 72');
+  }
+  if (it.color != null && !COLORS[it.color]) throw new Error('Mark ' + n + ': pick one of ' + Object.keys(COLORS).join(', '));
+}
+
+// items: [{ kind: 'text'|'highlight'|'rect'|'signature', page (1-based), x, y, w, h (fractions of the page, from its top left), text, size, color }]
+// signature: the PNG bytes of a drawn or typed signature, placed by a 'signature' item. NOT a digital signature.
+async function annotate(bytes, { items, signature, ascii } = {}, name) {
+  const { StandardFonts, rgb } = lib();
+  const doc = await load(bytes, name);
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) throw new Error('Add at least one mark first');
+  if (list.length > MARK.items) throw new Error('That is more than ' + MARK.items + ' marks');
+  const pages = doc.getPages();
+  list.forEach((it, i) => checkItem(it, pages.length, i));
+  let image = null;
+  if (list.some(it => it.kind === 'signature')) {
+    if (!(signature instanceof Uint8Array) || !signature.length) throw new Error('Draw or type a signature first');
+    if (signature.length > MARK.signatureBytes) throw new Error('The signature picture is larger than ' + Math.round(MARK.signatureBytes / 1024) + ' KB');
+    if (!(signature[0] === 0x89 && signature[1] === 0x50 && signature[2] === 0x4E && signature[3] === 0x47)) throw new Error('The signature has to be a PNG picture');
+    image = await doc.embedPng(signature);
+  }
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  let signed = 0;
+  list.forEach((it, i) => {
+    const page = pages[it.page - 1];
+    if (page.getRotation().angle % 360 !== 0) throw new Error('Page ' + it.page + ' is turned; turn it back to upright first (Rotate), then mark it');
+    const box = page.getMediaBox();
+    const px = box.x + it.x * box.width;
+    const top = box.y + box.height - it.y * box.height;
+    const color = rgb(...(COLORS[it.color || (it.kind === 'highlight' ? 'yellow' : 'black')]));
+    if (it.kind === 'text') {
+      const size = it.size || 12;
+      const text = drawable(it.text, ascii, 'Mark ' + (i + 1));
+      page.drawText(text, { x: px, y: top - size, size, font, color, lineHeight: size * 1.25, ...(it.w ? { maxWidth: it.w * box.width } : {}) });
+    } else if (it.kind === 'highlight') {
+      page.drawRectangle({ x: px, y: top - it.h * box.height, width: it.w * box.width, height: it.h * box.height, color, opacity: 0.35 });
+    } else if (it.kind === 'rect') {
+      page.drawRectangle({ x: px, y: top - it.h * box.height, width: it.w * box.width, height: it.h * box.height, borderColor: color, borderWidth: 1.5 });
+    } else {
+      const w = it.w * box.width;
+      const h = w * (image.height / image.width);
+      page.drawImage(image, { x: px, y: top - h, width: w, height: h });
+      signed++;
+    }
+  });
+  return { bytes: await save(doc), marks: list.length, signed };
+}
+
+// Repacks the structure. Pictures are not re-encoded. Refuses when nothing was gained.
+async function compress(bytes, name) {
+  const { PDFDocument } = lib();
+  const doc = await load(bytes, name);
+  const before = bytes.length;
+  let out;
+  if (doc.getForm().getFields().length) {
+    // A form keeps working only in the original document, so repack that one in place.
+    doc.setProducer('Vex PDF toolkit');
+    out = Buffer.from(await doc.save({ useObjectStreams: true }));
+  } else {
+    const fresh = await PDFDocument.create();
+    for (const p of await fresh.copyPages(doc, doc.getPageIndices())) fresh.addPage(p);
+    fresh.setProducer('Vex PDF toolkit');
+    fresh.setCreator('Vex');
+    out = Buffer.from(await fresh.save({ useObjectStreams: true }));
+  }
+  if (out.length >= before) throw new Error('This PDF is already as compact as Vex can make it (' + before + ' bytes). Its size is mostly pictures, which are not re-encoded here');
+  return { bytes: out, pages: doc.getPageCount(), before, after: out.length };
+}
+
 // ---- the Electron layer ---------------------------------------------------------
 function safeBase(file) {
   const clean = Array.from(nodePath.basename(file, nodePath.extname(file))).filter(c => c.charCodeAt(0) >= 32).join('');
@@ -232,6 +389,15 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
       } else if (req.op === 'rotate') {
         const r = await rotate(first.bytes, { spec: req.spec, degrees: req.degrees }, first.name);
         outputs = [{ name: safeBase(first.file) + '-rotated.pdf', bytes: r.bytes, pages: r.pages }];
+      } else if (req.op === 'annotate') {
+        const r = await annotate(first.bytes, { items: req.items, signature: req.signature, ascii: req.ascii }, first.name);
+        outputs = [{ name: safeBase(first.file) + (r.signed && r.signed === r.marks ? '-signed.pdf' : '-annotated.pdf'), bytes: r.bytes, pages: r.marks }];
+      } else if (req.op === 'fill') {
+        const r = await fillForm(first.bytes, { values: req.values, flatten: req.flatten, ascii: req.ascii }, first.name);
+        outputs = [{ name: safeBase(first.file) + '-filled.pdf', bytes: r.bytes, pages: r.fields }];
+      } else if (req.op === 'compress') {
+        const r = await compress(first.bytes, first.name);
+        outputs = [{ name: safeBase(first.file) + '-compressed.pdf', bytes: r.bytes, pages: r.pages, before: r.before }];
       } else if (req.op === 'split') {
         const parts = await split(first.bytes, { mode: req.mode, n: req.n, spec: req.spec }, first.name);
         outputs = parts.map((p, i) => ({ name: safeBase(first.file) + '-part-' + String(i + 1).padStart(2, '0') + ' (' + p.label + ').pdf', bytes: p.bytes, pages: p.pages }));
@@ -246,7 +412,7 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
         if (!/\.pdf$/i.test(target)) target += '.pdf';
         if (inputs.some(i => samePath(i.file, target))) throw new Error('That would replace one of the PDFs you started from. Save the new one under another name');
         await writeAtomic(target, outputs[0].bytes, fsImpl);
-        written.push({ path: target, name: nodePath.basename(target), pages: outputs[0].pages, bytes: outputs[0].bytes.length });
+        written.push({ path: target, name: nodePath.basename(target), pages: outputs[0].pages, bytes: outputs[0].bytes.length, ...(outputs[0].before ? { before: outputs[0].before } : {}) });
       } else {
         const opts = { title: 'Choose a folder for the ' + outputs.length + ' new PDFs', buttonLabel: 'Save here', defaultPath: dir, properties: ['openDirectory', 'createDirectory'] };
         const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
@@ -262,8 +428,16 @@ function registerPdfToolkit({ ipcMain, dialog, windowFor, fsImpl = nodeFs } = {}
     } catch (err) { return { ok: false, error: err.message }; }
   });
 
+  ipcMain.handle('pdftool:inspect', async (_e, token) => {
+    try {
+      const f = fileOf(token);
+      const info = await inspect(await fsImpl.promises.readFile(f.file), f.name);
+      return { ok: true, name: f.name, ...info };
+    } catch (err) { return { ok: false, error: err.message }; }
+  });
+
   ipcMain.handle('pdftool:forget', () => { picked.clear(); return { ok: true }; });
   return { tokens: () => picked.size };
 }
 
-module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, pageCount, LIMITS };
+module.exports = { registerPdfToolkit, parsePageSpec, merge, extract, split, rotate, pageCount, inspect, fillForm, annotate, compress, unsupportedChars, LIMITS, MARK, COLORS };

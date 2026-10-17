@@ -595,7 +595,7 @@
     { id: 'pdf-highlights', title: 'PDF highlights', group: 'PDF highlights', maturity: 'new', storageKeys: ['vex.pdfHighlights', 'vex.pdfHighlights.prefs'], usesKeys: ['vex.notes'],
       commands: ['pdf-highlight-save', 'pdf-highlights'], permissions: { reads: ['the passage you paste and the page number the PDF viewer shows, when you ask'], writes: ['your PDF highlights and, if you left it on, a PDF highlights note'], sends: [] } },
     { id: 'pdf-tools', title: 'PDF toolkit', group: 'PDF toolkit', maturity: 'new', storageKeys: ['vex.pdfTools.prefs'],
-      commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
+      commands: ['pdf-toolkit'], permissions: { reads: ['the PDF files you choose in the file picker', 'a signature picture you draw or type, kept in the window only while it is open'], writes: ['new PDF files where you choose to save them; the originals are never changed'], sends: [] } },
 
     // ---- Wave 3: daily life (all new: off on a profile that already existed, offered to try) -----------
     { id: 'rituals', title: 'Rituals', group: 'Rituals', maturity: 'new', storageKeys: ['vex.rituals', 'vex.rituals.enabled'], commands: ['rituals'],

@@ -407,6 +407,7 @@ contextBridge.exposeInMainWorld('vex', {
   pdftoolPickFiles: () => ipcRenderer.invoke('pdftool:pick-files'),
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),
   pdftoolForget: () => ipcRenderer.invoke('pdftool:forget'),
+  pdftoolInspect: (token) => ipcRenderer.invoke('pdftool:inspect', token),
 
   // Developer desk, plugin dev loop, Electron ticker (main/dev-desk.js, dev-extension.js, castlabs-ticker.js)
   devdeskPorts: (ports) => ipcRenderer.invoke('devdesk:ports', ports),

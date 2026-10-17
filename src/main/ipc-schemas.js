@@ -563,8 +563,29 @@ define('sources:resolve-doi', [string(300)]);
 // tokens main handed out from its own file picker, and the operation with its small options.
 const pdfToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
 define('pdftool:pick-files pdftool:forget', []);
+// Marks on a page are fractions of it (0 to 1 from the top left); a signature is the PNG of a drawn or typed
+// signature, placed like a stamp (main/pdf-toolkit.js checks everything again).
+const pdfMark = shape({
+  kind: oneOf(['text', 'highlight', 'rect', 'signature']),
+  page: integer,
+  x: value => typeof value === 'number' && value >= 0 && value <= 1,
+  y: value => typeof value === 'number' && value >= 0 && value <= 1,
+  w: optional(value => typeof value === 'number' && value > 0 && value <= 1),
+  h: optional(value => typeof value === 'number' && value > 0 && value <= 1),
+  text: optional(string(500)),
+  size: optional(value => typeof value === 'number' && value >= 6 && value <= 72),
+  color: optional(oneOf(['black', 'red', 'blue', 'green', 'yellow', 'orange'])),
+});
+const pdfValues = value => object(value) && Object.keys(value).length >= 1 && Object.keys(value).length <= 300
+  && Object.entries(value).every(([k, v]) => k.length <= 200 && (typeof v === 'boolean' || (typeof v === 'string' && v.length <= 2000)));
+define('pdftool:inspect', [pdfToken]);
 define('pdftool:run', [shape({
-  op: oneOf(['merge', 'extract', 'rotate', 'split']),
+  op: oneOf(['merge', 'extract', 'rotate', 'split', 'annotate', 'fill', 'compress']),
+  items: optional(value => Array.isArray(value) && value.length >= 1 && value.length <= 100 && value.every(pdfMark)),
+  signature: optional(value => value instanceof Uint8Array && value.length > 0 && value.length <= 400 * 1024),
+  values: optional(pdfValues),
+  flatten: optional(boolean),
+  ascii: optional(boolean),
   tokens: value => Array.isArray(value) && value.length >= 1 && value.length <= 20 && value.every(pdfToken),
   spec: optional(string(200)),
   degrees: optional(oneOf([90, 180, 270])),
