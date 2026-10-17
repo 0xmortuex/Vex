@@ -114,6 +114,9 @@ describe('runTrain with real git in a temp repository', () => {
     const commit = (file, text, msg) => { fs.writeFileSync(path.join(dir, file), text); run(['add', '-A']); run(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', msg]); };
     try {
       run(['init', '-q', '-b', 'base']);
+      // The merges the train makes need a committer identity; a CI runner has no global one.
+      run(['config', 'user.name', 't']);
+      run(['config', 'user.email', 't@t']);
       commit('shared.txt', 'one\n', 'base');
       for (const [name, file, text] of [['a', 'a.txt', 'a\n'], ['conf', 'shared.txt', 'conf\n'], ['bad', 'bad.txt', 'BAD\n'], ['c', 'c.txt', 'c\n']]) {
         run(['checkout', '-q', '-b', name, 'base']); commit(file, text, name); run(['checkout', '-q', 'base']);
