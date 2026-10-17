@@ -460,10 +460,53 @@ const HistoryPanel = {
     });
   },
 
+  // The shared search index (js/search-index.js, T3-108) as a PRE-FILTER for the keyword search: it names the entries that
+  // could contain the typed words, and the very same test below then decides, so the answer is exactly the one a full
+  // scan gives (the index only ever returns a superset of the substring matches). null = scan everything: no index,
+  // a term under three letters, a term with a combining mark, a summary too large to index, or the index dropped it
+  // to stay under its memory limit.
+  INDEX_SOURCE: 'history:panel',
+  _indexSignature() {
+    // The index must be rebuilt when ANYTHING it holds changed (other files write entries and summaries directly), so
+    // the signature is made from the text itself, with two hashes.
+    let a = 2166136261, b = 5381, n = 0;
+    const mix = (s) => {
+      for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619); b = (Math.imul(b, 33) + c) | 0; }
+      a = Math.imul(a ^ 31, 16777619); b = (Math.imul(b, 33) + 31) | 0; n += s.length + 1;
+    };
+    for (const e of this.entries) {
+      mix(String(e.id)); mix(e.title || ''); mix(e.url || ''); mix(e.summary || '');
+      if (Array.isArray(e.tags)) for (const t of e.tags) mix(String(t));
+      mix('|');
+    }
+    return this.entries.length + ':' + n + ':' + (a >>> 0).toString(36) + ':' + (b >>> 0).toString(36);
+  },
+  _keywordCandidates(search) {
+    if (typeof VexSearchIndex === 'undefined' || !globalThis.VexTr || typeof globalThis.VexTr.fold !== 'function') return null;
+    const term = globalThis.VexTr.fold(search);
+    if (term.length < VexSearchIndex.GRAM || /[\u0300-\u036f]/.test(search)) return null;
+    const idx = VexSearchIndex.shared();
+    const sig = this._indexSignature();
+    if (!idx.isCurrent(this.INDEX_SOURCE, sig)) {
+      const items = [];
+      for (let i = 0; i < this.entries.length; i++) {
+        const e = this.entries[i];
+        const body = (e.summary || '') + ' ' + (Array.isArray(e.tags) ? e.tags.map(String).join(' ') : '');
+        if (body.length > 200000) return null;                       // more than the index will hold of one item
+        items.push({ id: String(i), idx: i, title: e.title || '', subtitle: e.url || '', body, bodyMax: body.length });
+      }
+      idx.replace(this.INDEX_SOURCE, items, sig);
+    }
+    const found = idx.candidates(this.INDEX_SOURCE, [term]);
+    return found === null ? null : new Set(found.map(it => this.entries[it.idx]));
+  },
+
   getKeywordFiltered() {
     const search = (document.getElementById('history-search-input')?.value || '').toLowerCase();
-    return this.getTimeFiltered().filter(e => {
-      if (!search) return true;
+    const timed = this.getTimeFiltered();
+    if (!search) return timed;
+    const near = this._keywordCandidates(search);
+    return (near ? timed.filter(e => near.has(e)) : timed).filter(e => {
       return (e.title || '').toLowerCase().includes(search)
         || (e.url || '').toLowerCase().includes(search)
         || (e.summary || '').toLowerCase().includes(search)
