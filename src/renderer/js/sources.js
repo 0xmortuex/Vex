@@ -282,6 +282,13 @@ const VexSources = {
     return { wv, tab, url, title };
   },
 
+  // The page in front as a source for something just kept, WITHOUT reading the page: its address and title,
+  // when it is an ordinary web page (never private, Tor, routed, banking, mail or sign-in). -> { url, title } or { reason }.
+  async sourceTab() {
+    try { const { url, title } = await this._active(); return { url, title }; }
+    catch (err) { return { reason: (err && err.message) || String(err) }; }
+  },
+
   // Reads the page in front and keeps (or updates) its record. -> { record, created }
   async stampActive() {
     const { wv, url, title } = await this._active();

@@ -52,6 +52,25 @@ function createCaptureInbox({ file, fsImpl = fs, now = Date.now, randomId = () =
     return { entry, count: list.length };
   }
 
+  // The page a clip was kept from, filled in shortly after (the window knows which tab was in front when the clip
+  // landed; main does not). Only an entry that has no stamp yet, only for a little while, only a web address.
+  // -> the entry, or null when it was not stamped.
+  function stamp(id, meta, { maxAgeMs = 120000 } = {}) {
+    const list0 = load();
+    const entry = list0.find(x => x.id === id);
+    if (!entry || entry.from) return null;
+    if (now() - entry.at > maxAgeMs) return null;
+    const m = meta && typeof meta === 'object' ? meta : {};
+    if (!m.url) return null;
+    let u;
+    try { u = new URL(String(m.url)); } catch { throw new Error('The page address of that clip is not valid'); }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only a web page can be recorded as the source of a clip');
+    u.username = ''; u.password = ''; u.hash = '';
+    entry.from = { url: u.href.slice(0, 500), title: String(m.title == null ? '' : m.title).replace(/\s+/g, ' ').trim().slice(0, 200) };
+    persist();
+    return entry;
+  }
+
   function list() { return load().slice(); }
 
   function remove(id) {
@@ -65,7 +84,7 @@ function createCaptureInbox({ file, fsImpl = fs, now = Date.now, randomId = () =
 
   function clear() { load(); items = []; persist(); }
 
-  return { add, list, remove, clear, MAX_ITEMS, MAX_TEXT };
+  return { add, list, remove, clear, stamp, MAX_ITEMS, MAX_TEXT };
 }
 
 module.exports = { createCaptureInbox, MAX_ITEMS, MAX_TEXT };

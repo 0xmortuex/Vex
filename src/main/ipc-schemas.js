@@ -157,6 +157,7 @@ define('devbench:pkg', [oneOf(['npm', 'pypi', 'crates']), string(220)]);
 define('clips-inbox:list clips-inbox:clear', []);
 define('clips-inbox:add', [string(4000)]);
 define('clips-inbox:remove', [string(80)]);
+define('clips-inbox:stamp', [string(80), shape({ url: string(1000), title: optional(string(300)) })]);
 // The interface's answer to one captured line (js/quick-capture.js). It was
 // declared with no arguments, so every answer was refused and the box sat on
 // "Saving…" until "Vex did not answer" (found 2026-09-29).

@@ -249,6 +249,7 @@ contextBridge.exposeInMainWorld('vex', {
   clipsInboxAdd: (text) => ipcRenderer.invoke('clips-inbox:add', text),
   clipsInboxRemove: (id) => ipcRenderer.invoke('clips-inbox:remove', id),
   clipsInboxClear: () => ipcRenderer.invoke('clips-inbox:clear'),
+  clipsInboxStamp: (id, meta) => ipcRenderer.invoke('clips-inbox:stamp', id, meta),
   onClipsInboxChanged: (cb) => subscribe('clips-inbox:changed', cb),
   // What is free to keep on Epic and Steam this week.
   freeGames: () => ipcRenderer.invoke('games:free'),

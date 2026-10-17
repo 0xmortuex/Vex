@@ -1672,8 +1672,8 @@ ipcMain.handle('capture:submit', async (_e, entry) => {
   // lands while Vex is hidden, busy or behind a game. The window is only told
   // (never shown or focused) so its inbox and search can refresh.
   if (kind === 'clip') {
-    const { count } = _captureInbox().add(text, { source: 'capture' });
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count }); } catch { /* window gone */ }
+    const { count, entry } = _captureInbox().add(text, { source: 'capture' });
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count, id: entry.id, source: 'capture' }); } catch { /* window gone */ }
     return { said: 'Kept in the clips inbox (' + count + ')' };
   }
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Vex is not running');
@@ -1699,6 +1699,12 @@ ipcMain.handle('clips-inbox:add', (_e, text) => {
   return { ok: true, id: r.entry.id, count: r.count };
 });
 ipcMain.handle('clips-inbox:remove', (_e, id) => ({ ok: _captureInbox().remove(id) }));
+// The page and course a clip was kept from, sent by the window right after the clip landed (js/text-clips.js).
+ipcMain.handle('clips-inbox:stamp', (_e, id, meta) => {
+  const entry = _captureInbox().stamp(id, meta);
+  if (entry) { try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips-inbox:changed', { count: _captureInbox().list().length, id: entry.id, source: 'stamp' }); } catch { /* window gone */ } }
+  return { ok: true, stamped: !!entry };
+});
 ipcMain.handle('clips-inbox:clear', () => { _captureInbox().clear(); return { ok: true }; });
 
 ipcMain.on('app:started', () => _bootGuard.started());
