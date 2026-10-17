@@ -352,7 +352,7 @@ const VexPictureRedact = {
 if (typeof window !== 'undefined') {
   window.VexPictureRedact = VexPictureRedact;
   // vex-extras.js loads after this file, so the command is added once the page is parsed.
-  document.addEventListener('DOMContentLoaded', () => {
+  if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
     if (typeof VexExtras !== 'undefined' && typeof VexExtras.registerCommand === 'function') {
       VexExtras.registerCommand({ id: 'redact-document', label: 'Redact a text document', hint: 'Cover emails, phone numbers, card numbers and tokens in a text file; saves a copy', icon: 'shield', action: () => VexPictureRedact.openDocument().catch(err => window.showToast?.(err.message, 'error')) });
     }

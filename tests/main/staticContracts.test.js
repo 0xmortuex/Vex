@@ -51,6 +51,7 @@ function stripLineComments(src) {
 // future listeners, or a hook another builder is expected to consume; none has
 // a listener today. Remove an entry when it gets one.
 const EVENTS_DISPATCHED_NEVER_USED = new Map([
+  ['vex:note-saved', 'Wave 6: a saved note announces itself (with the feature that saved it) so a count shown anywhere can refresh; src has no listener yet, tests/renderer/inboxOrigins.test.js listens'],
   ['vex:actions-board', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:courses-changed', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],
   ['vex:ci-failure', 'Wave 1/2: the feature announces its state change for later consumers; none listens yet'],

@@ -10,7 +10,7 @@ let D, run, callAI, backend;
 beforeEach(() => {
   localStorage.clear();
   globalThis.Scheduler = fresh('../../src/renderer/js/scheduler.js');
-  globalThis.VexJobs = { every: () => ({ stop: () => {} }) };
+  globalThis.VexJobs = { every: () => ({ stop: () => {} }), heavyOrThrow: (_name, fn) => fn() };
   D = fresh('../../src/renderer/js/reading-digest.js').ReadingDigest;
   backend = 'local';
   callAI = vi.fn(async () => ({ result: '{"summary":"It says things.","why":"w","topic":"t"}', backend, model: 'm' }));

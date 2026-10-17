@@ -66,7 +66,7 @@ const SettingsUI = {
     { name: 'Appearance',      icon: 'palette',  color: '#a855f7', match: ['appearance', 'theme', 'gui style', 'tab layout', 'vex packs'] },
     { name: 'Layout',          icon: 'grid',     color: '#c084fc', match: ['layout'] },
     { name: 'Sidebar',         icon: 'panel',    color: '#818cf8', match: ['sidebar', 'links and panels', 'panels and messages'] },
-    { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['privacy', 'security', 'private routing', 'web safety', 'safer web', 'if something went wrong', 'signed in to', 'paste-and-run', 'containers per site', 'secure lock options', 'safer browsing', 'startup check', 'terms of service'] },
+    { name: 'Privacy',         icon: 'shield',   color: '#22c55e', match: ['privacy', 'security', 'private routing', 'web safety', 'safer web', 'if something went wrong', 'signed in to', 'paste-and-run', 'containers per site', 'secure lock options', 'safer browsing', 'startup check', 'terms of service', 'encrypted profile lock', 'meeting transcript'] },
     { name: 'Autofill',        icon: 'pencil',   color: '#4ade80', match: ['autofill', 'text snippets', 'unfinished forms'] },
     { name: 'Performance',     icon: 'bolt',     color: '#f97316', match: ['performance', 'sleep', 'gaming and streaming', 'game mode', 'discord hotkeys', 'when a game is running', 'on battery', 'loadout cards', 'game audio scenes', 'game control center', 'second screen', 'bypass check', 'held while you played'] },
     { name: 'Sessions',        icon: 'save',     color: '#f59e0b', match: ['session'] },
