@@ -8,7 +8,8 @@ Not built: a new storage engine (the private window already keeps nothing); clea
 
 ## T3-120 Extension update diff and pause
 Built: a read-only "what changed" view (powers, reach, hosts, version, plus the held-update words the updater already writes) against a stored baseline; "pause extensions on this site" using the existing `extensions:set-enabled`, remembering exactly what it paused so only those are restored; a quiet suggestion on bank/mail hosts.
-Not built: a file-level diff (Vex does not keep the old package); userscript @grant review; true per-site disabling (Electron cannot stop one extension's scripts on one page, so pausing is global until restored); automatic pausing.
+Wave 6 (checked, not built): only the NAMED extensions are paused, never a global switch. Pausing one extension on one PAGE is not possible: Electron's session extensions API is four calls (get all, get one, load, remove) for a whole session and loadExtension takes no host or tab restriction, so a paused extension is off in every tab until it is put back (tests/main/electronExtensionsApi.test.js fails the day Electron adds such a control). The only way to keep an extension off one site without touching the others would be to open that site in a separate partition that does not load it, which would also separate the site's cookies and logins; that is a decision for the owner, not something done silently.
+Not built: a file-level diff (Vex does not keep the old package); automatic pausing.
 
 ## T3-121 Paste-and-run tripwire
 Built: a main-world shim (preload-webview.js) that reports clipboard writes made with no user activation; the window classifies shell one-liners and warns, offering "Clear" (only if the clipboard still holds exactly that text) or "Keep". Never blocks, never clears by itself, never stores the command.
@@ -16,7 +17,7 @@ Not built: catching ClickFix pages that copy inside the click on their fake "ver
 
 ## T3-122 Startup check
 Built: read-only listing of Run/RunOnce keys (fixed `reg query` argument lists), both Startup folders (fs), and non-Microsoft scheduled-task names (`schtasks /query /fo csv /nh`), Vex's own entries marked, "new since last review" flagged.
-Wave 5 added the unsigned flag: a button (never automatic) asks Windows for the signature of each program a registry value or Startup-folder entry points to (the same read-only Get-AuthenticodeSignature call the download check uses, path passed in an environment variable), bounded to 40 programs; scheduled tasks and shortcuts are reported as not checked, not guessed.
+Wave 5 added the unsigned flag: a button (never automatic) asks Windows for the signature of each program a registry value or Startup-folder entry points to (the same read-only Get-AuthenticodeSignature call the download check uses, path passed in an environment variable), bounded to 40 programs; Wave 6: a shortcut is resolved with Electron's read-only shell.readShortcutLink and a scheduled task's program is read from the Task To Run column of one more fixed-argument `schtasks /query /fo csv /v /nh`; the program they lead to is checked like the rest and the line says which way it was found. A COM handler, several actions, a shortcut to a folder or a web address, or anything unreadable is still reported as not checked, with the reason.
 Not built: any write, removal or disable; service, WMI, IFEO or AppInit inspection; Microsoft tasks (counted only).
 
 ## T3-123 Secure lock options
