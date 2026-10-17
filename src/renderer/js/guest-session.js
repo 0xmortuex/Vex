@@ -158,6 +158,7 @@ const VexGuest = {
       btn.addEventListener('click', () => { this.eraseThrowaway().catch((err) => window.showToast?.((err && err.message) || String(err), 'error')); });
       el.append(icon, text, add, btn);
       document.body.appendChild(el);
+      VexLayer.track(el, { tier: 'toast', id: 'throwaway-badge' });
     }
     el.querySelector('.vex-tw-text').textContent = 'Throwaway workspace (' + n + (n === 1 ? ' tab' : ' tabs') + '): erased when the last tab closes';
   },
@@ -189,6 +190,7 @@ const VexGuest = {
     btn.addEventListener('click', () => { this.forget().catch((err) => window.showToast?.((err && err.message) || String(err), 'error')); });
     el.append(icon, text, btn);
     document.body.appendChild(el);
+    VexLayer.track(el, { tier: 'toast', id: 'guest-badge' });
   },
 
   async forget() {
