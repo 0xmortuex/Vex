@@ -419,7 +419,7 @@
     { id: 'close-day', title: 'Close the day', group: 'Close the day', maturity: 'new', storageKeys: ['vex.closeDay.enabled', 'vex.closeDay.prefs', 'vex.closeDay.nudged'], commands: ['close-day'], jobs: ['Close the day: evening notice'],
       permissions: quiet({ reads: ['your open tasks, parked contexts and whether a note is unsaved'], writes: ['task dates and new tasks, only when you press the buttons', 'the hour you chose for the evening notice'] }) },
     { id: 'day-shape', title: 'Shape of the day', group: 'Shape of the day', maturity: 'new', storageKeys: ['vex.dayShape.enabled'], commands: ['day-shape'],
-      permissions: quiet({ reads: ['calendar events, timed reminders, Focus OS blocks and dated tasks'] }) },
+      permissions: quiet({ reads: ['calendar events, timed reminders, Focus OS blocks, dated tasks and the work your deadlines ask of each day'] }) },
     { id: 'refind', title: 'Find by time and topic', group: 'Find by time and topic', maturity: 'new', storageKeys: ['vex.refind.enabled'], usesKeys: ['vex.notes', 'vex.readLater', 'vex.annotations'], commands: ['refind'],
       permissions: quiet({ reads: ['history, the text of pages you read, notes, read-later, highlights and clips, when you search'] }) },
     { id: 'tab-intent', title: 'Why is this tab open', group: 'Why is this tab open', maturity: 'new', storageKeys: ['vex.tabIntent.enabled', 'vex.tabIntent.notes'], commands: ['tab-why'],

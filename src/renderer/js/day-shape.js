@@ -9,6 +9,9 @@
 //          each: a reminder is a moment, not a slot) + Focus OS blocks you
 //          confirmed (planned or running)
 //   load of a day = its busy minutes + half an hour for each task dated that day
+//                    + the counted work the Deadline ledger asks of that day: its hours as they are and its
+//                    "tasks" at half an hour each (pages, cards and items cannot be turned into minutes, so
+//                    they are listed next to the day, never added)
 //   Light < 3 h · Steady < 5 h · Heavy < 7 h · Crushed from 7 h
 //
 //   VexDayShape.segments / largestGap / bar / level     pure
@@ -133,13 +136,20 @@ const VexDayShape = {
   },
 
   // One day. `read` is a collect() result for a span that includes it.
-  shapeOf(read, dayStart, now = Date.now()) {
+  // counted: { hours, tasks, pages, ... } from the Deadline ledger for that day (optional).
+  countedMinutes(counted) {
+    return Math.round(((counted && counted.hours) || 0) * 60) + Math.round((counted && counted.tasks) || 0) * this.TASK_MIN;
+  },
+  countedText(counted) {
+    return Object.entries(counted || {}).filter(([, n]) => n > 0).map(([unit, n]) => n + ' ' + unit).join(', ');
+  },
+  shapeOf(read, dayStart, now = Date.now(), counted = {}) {
     const segs = this.segments(read.items, dayStart);
     const tasks = read.taskDays.get(VexPlanKit.isoDay(dayStart)) || 0;
     const busy = this.busyMinutes(segs);
-    const load = busy + tasks * this.TASK_MIN;
+    const load = busy + tasks * this.TASK_MIN + this.countedMinutes(counted);
     const isToday = VexPlanKit.startOfDay(now) === dayStart;
-    return { dayStart, segs, busy, tasks, load, level: this.level(load), bar: this.bar(segs, dayStart), gap: this.largestGap(segs, dayStart, isToday ? now : 0) };
+    return { dayStart, segs, busy, tasks, counted, load, level: this.level(load), bar: this.bar(segs, dayStart), gap: this.largestGap(segs, dayStart, isToday ? now : 0) };
   },
 
   async week(now = Date.now(), src) {
@@ -147,7 +157,11 @@ const VexDayShape = {
     const end = VexPlanKit.addDays(start, 7);
     const read = await this.collect(start, end, now, src);
     const days = [];
-    for (let i = 0; i < 7; i++) days.push(this.shapeOf(read, VexPlanKit.addDays(start, i), now));
+    const ledger = typeof VexDeadlineLedger !== 'undefined' && VexDeadlineLedger.enabled() ? VexDeadlineLedger : null;
+    for (let i = 0; i < 7; i++) {
+      const ds = VexPlanKit.addDays(start, i);
+      days.push(this.shapeOf(read, ds, now, ledger ? ledger.shareOn(ds, now) : {}));
+    }
     return { days, errors: read.errors };
   },
 
@@ -164,6 +178,8 @@ const VexDayShape = {
           text: String(this.FROM_H).padStart(2, '0') + ' ' + t.bar + ' 24',
           detail: t.busy ? 'Busy ' + this.span(t.busy) + (t.gap ? ' · largest free gap ' + this.range(t.gap) + ' (' + this.span(t.gap.minutes) + ')' : ' · no free gap left') : 'Nothing booked today' + (t.gap ? ' · free ' + this.range(t.gap) : ''),
         }];
+        const counted = this.countedText(t.counted);
+        if (counted) lines.push({ text: 'Counted work today', detail: counted + ' (from your deadlines)' });
         lines.push({ text: 'This week', detail: days.map((d, i) => (i === 0 ? 'today' : VexPlanKit.dayName(d.dayStart).split(' ')[0].replace(',', '')) + ' ' + d.level.label.toLowerCase()).join(' · ') });
         const hot = days.filter(d => d.level.key === 'crushed' && d !== days[0]);
         return { summary: hot.length ? VexPlanKit.dayName(hot[0].dayStart) + ' looks crushed.' : '', lines, note: errors.length ? 'Could not read: ' + errors.join('; ') : '' };
@@ -202,7 +218,7 @@ const VexDayShape = {
       const cell = document.createElement('div');
       const strength = { light: 0.15, steady: 0.35, heavy: 0.6, crushed: 0.9 }[d.level.key];
       cell.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:6px;text-align:center;font-size:11.5px;background:color-mix(in srgb, var(--primary) ' + Math.round(strength * 100) + '%, transparent)';
-      cell.setAttribute('aria-label', VexPlanKit.dayName(d.dayStart) + ': ' + d.level.label + ', ' + this.span(d.busy) + ' booked' + (d.tasks ? ', ' + d.tasks + ' tasks' : ''));
+      cell.setAttribute('aria-label', VexPlanKit.dayName(d.dayStart) + ': ' + d.level.label + ', ' + this.span(d.busy) + ' booked' + (d.tasks ? ', ' + d.tasks + ' tasks' : '') + (this.countedText(d.counted) ? ', ' + this.countedText(d.counted) + ' counted' : ''));
       const a = document.createElement('div'); a.textContent = i === 0 ? 'Today' : new Date(d.dayStart).toLocaleDateString(undefined, { weekday: 'short' });
       const b = document.createElement('div'); b.style.fontWeight = '650'; b.textContent = d.level.label;
       const c = document.createElement('div'); c.style.opacity = '0.8'; c.textContent = this.span(d.busy);
@@ -210,6 +226,8 @@ const VexDayShape = {
       grid.appendChild(cell);
     });
     body.appendChild(grid);
+    const countedToday = this.countedText(t.counted);
+    if (countedToday) body.appendChild(VexSettingsGroups.note('Counted work today, from your deadlines: ' + countedToday + '. Hours and tasks are in the load above; pages, cards and items are only listed.'));
     if (res.errors.length) body.appendChild(VexSettingsGroups.note('Could not read: ' + res.errors.join('; ')));
   },
 
