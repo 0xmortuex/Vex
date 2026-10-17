@@ -279,6 +279,31 @@ const ReadingDigest = {
     });
   },
 
+  // ---------------------------------------------- the first open of the day (T1-008) --
+  // With "Also make the reading digest on the first open" switched on (Settings > First
+  // open of the day) the digest follows the same trigger as the brief instead of a
+  // morning hour. Not when the morning task already makes it, not twice in a day, not
+  // in a private window; the AI work waits its turn as a heavy job. -> a promise of the
+  // digest, or null when nothing was started.
+  onFirstOpen() {
+    if (typeof VexFirstOpen === 'undefined' || !VexFirstOpen.prefs().digest) return null;
+    if (this.isPrivate()) return null;
+    const task = this.morningTask();
+    if (task && task.enabled) return null;
+    const d = this.last();
+    if (d && d.day === this._day(Date.now())) return null;
+    if (typeof ReadLater !== 'undefined' && typeof ReadLater.unread === 'function' && ReadLater.unread() === 0) return null;
+    if (typeof VexJobs === 'undefined') throw new Error('VexJobs is not loaded, so the digest cannot wait for a quiet moment');
+    return VexJobs.heavy('reading-digest-first-open', async () => {
+      const made = await this.build();
+      if (typeof VexAttention !== 'undefined') {
+        VexAttention.notify({ feature: 'reading-digest', label: 'Reading digest', urgency: 'useful', id: 'digest:' + this._day(Date.now()), title: 'Your reading digest is ready', body: this.describe(made), action: { label: 'Open the digest', key: 'digest' } },
+          () => window.showToast?.('Your reading digest is ready', 'info', 8000, { action: { label: 'Open', run: () => this.open() } }));
+      }
+      return made;
+    }, { kind: 'ai-ask', feature: 'first-open' });
+  },
+
   // --------------------------------------------------------------- the view --
   open({ build = false } = {}) {
     if (typeof ReadLater !== 'undefined') ReadLater.showTab('digest');
@@ -429,5 +454,16 @@ if (typeof Scheduler !== 'undefined' && Scheduler.ACTIONS) {
   };
 }
 
-if (typeof window !== 'undefined') window.ReadingDigest = ReadingDigest;
+if (typeof window !== 'undefined') {
+  window.ReadingDigest = ReadingDigest;
+  document.addEventListener('vex:first-open', () => {
+    try {
+      const job = ReadingDigest.onFirstOpen();
+      if (job) job.catch(err => window.VexProblems?.note('Reading digest', 'The digest on the first open failed', err));
+    } catch (err) { window.VexProblems?.note('Reading digest', 'The digest on the first open could not start', err); }
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof AttentionInbox !== 'undefined') AttentionInbox.handle('reading-digest', (key) => { if (key !== 'digest') throw new Error('Unknown action ' + key); return ReadingDigest.open(); });
+  });
+}
 if (typeof module !== 'undefined' && module.exports) module.exports = { ReadingDigest };

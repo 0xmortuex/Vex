@@ -228,8 +228,8 @@
     // ---- Wave 1: the daily flow (new: staged off on a profile that already exists) ----------
     { id: 'dueness', title: 'What is due', group: 'What is due', maturity: 'new', storageKeys: ['vex.dueness.enabled'], commands: ['due-now'],
       permissions: quiet({ reads: ['your reminders, @dated tasks in notes, calendar events and scheduled tasks'], writes: ['its own switch'] }) },
-    { id: 'first-open', title: 'First open of the day', group: 'First open of the day', maturity: 'new', storageKeys: ['vex.firstOpen', 'vex.firstOpen.prefs'],
-      permissions: quiet({ reads: ['when this window was last in front'], writes: ['when you were last here and which hours you come back at (24 counts)', 'opens a New Tab, when you chose that, with an Undo in the ledger'] }) },
+    { id: 'first-open', title: 'First open of the day', group: 'First open of the day', maturity: 'new', storageKeys: ['vex.firstOpen', 'vex.firstOpen.prefs', 'vex.review.eveningOffered'], jobs: ['reading-digest-first-open'],
+      permissions: quiet({ reads: ['when this window was last in front'], writes: ['when you were last here and which hours you come back at (24 counts)', 'opens a New Tab, when you chose that, with an Undo in the ledger', 'the reading digest, when you chose that; one offer to move the weekly review to Sunday 18:00'] }) },
     { id: 'inbox-unified', title: 'One inbox', group: 'Inbox', maturity: 'new', storageKeys: ['vex.inbox.enabled', 'vex.inbox.seen'], usesKeys: ['vex.notes', 'vex.readLater', 'vex.annotations', 'vex.stickyNotes'], commands: ['inbox-open'],
       permissions: quiet({ reads: ['your notes, saved pages, highlights, sticky notes and quick captures'], writes: ['when you last opened the inbox'] }) },
     { id: 'next-step', title: 'Next step per workspace', group: 'Next step', maturity: 'new', storageKeys: ['vex.nextStep', 'vex.nextStep.enabled'], commands: ['next-step-set', 'next-step-clear'],

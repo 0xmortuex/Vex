@@ -15,7 +15,10 @@
 //   * Other features that want "first open after being away" listen for the
 //     document event `vex:first-open` ({ detail: { awayMs, at } }) instead of a
 //     morning hour. The reading digest and the weekly review keep their own
-//     schedules; this is the hook to key them from.
+//     schedules; this is the hook to key them from. The reading digest is keyed
+//     from it when you switch on "Also make the reading digest" (js/reading-digest.js
+//     onFirstOpen), and the weekly review is offered a move to Sunday evening
+//     (js/weekly-review.js offerEvening).
 //   * The hours people actually come back at are counted (24 numbers, no
 //     times) so Settings can say "you usually come back around 18:00".
 //
@@ -40,14 +43,15 @@ const VexFirstOpen = {
     try { raw = JSON.parse(localStorage.getItem(this.PREF) || 'null'); } catch { raw = null; }
     const mode = raw && this.MODES.includes(raw.mode) ? raw.mode : 'offer';
     const h = raw && Number(raw.awayHours);
-    return { mode, awayHours: Number.isFinite(h) ? Math.min(this.MAX_HOURS, Math.max(this.MIN_HOURS, h)) : this.DEFAULT_HOURS };
+    return { mode, awayHours: Number.isFinite(h) ? Math.min(this.MAX_HOURS, Math.max(this.MIN_HOURS, h)) : this.DEFAULT_HOURS, digest: !!(raw && raw.digest === true) };
   },
   setPrefs(patch) {
     const next = { ...this.prefs(), ...patch };
     if (!this.MODES.includes(next.mode)) throw new Error('The mode is off, offer or open');
     const h = Number(next.awayHours);
     if (!Number.isFinite(h) || h < this.MIN_HOURS || h > this.MAX_HOURS) throw new Error('Away time is between ' + this.MIN_HOURS + ' and ' + this.MAX_HOURS + ' hours');
-    try { localStorage.setItem(this.PREF, JSON.stringify({ mode: next.mode, awayHours: h })); }
+    if (typeof next.digest !== 'boolean') throw new Error('The reading digest choice is on or off');
+    try { localStorage.setItem(this.PREF, JSON.stringify({ mode: next.mode, awayHours: h, digest: next.digest })); }
     catch (err) { throw new Error('Could not save that setting: ' + err.message); }
     return this.prefs();
   },
@@ -184,6 +188,10 @@ const VexFirstOpen = {
     hrs.setAttribute('aria-label', 'Hours away that count as a new day');
     hrs.addEventListener('change', () => { try { this.setPrefs({ awayHours: Number(hrs.value) }); } catch (err) { window.showToast?.(err.message, 'error'); hrs.value = String(this.prefs().awayHours); } });
     row('Hours away that count', hrs);
+    const dg = document.createElement('input');
+    dg.type = 'checkbox'; dg.checked = p.digest; dg.setAttribute('aria-label', 'Also make the reading digest on the first open');
+    dg.addEventListener('change', () => { try { this.setPrefs({ digest: dg.checked }); } catch (err) { window.showToast?.(err.message, 'error'); dg.checked = this.prefs().digest; } });
+    row('Also make the reading digest on the first open (instead of a morning hour)', dg);
   },
 };
 

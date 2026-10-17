@@ -396,3 +396,42 @@ describe('the Library tab', () => {
     delete globalThis.ReadingDigest;
   });
 });
+
+// ------------------------------------------------- the first open (T1-008) --
+describe('the digest on the first open of the day', () => {
+  let D, heavy;
+  beforeEach(() => {
+    D = loadDigest();
+    heavy = vi.fn((name, fn) => fn());
+    globalThis.VexJobs = { every: () => ({ stop: () => {} }), heavy };
+    globalThis.VexFirstOpen = { prefs: () => ({ mode: 'offer', awayHours: 4, digest: true }) };
+    D.build = vi.fn(async () => ({ at: Date.now(), day: D._day(Date.now()), items: [] }));
+  });
+  afterEach(() => { delete globalThis.VexFirstOpen; delete globalThis.VexJobs; delete globalThis.VexAttention; });
+
+  it('does nothing until the choice is switched on', () => {
+    globalThis.VexFirstOpen = { prefs: () => ({ digest: false }) };
+    expect(D.onFirstOpen()).toBeNull();
+    expect(heavy).not.toHaveBeenCalled();
+  });
+  it('makes the digest as a heavy job and says when it is ready', async () => {
+    const notify = vi.fn();
+    globalThis.VexAttention = { notify };
+    await D.onFirstOpen();
+    expect(heavy.mock.calls[0][0]).toBe('reading-digest-first-open');
+    expect(heavy.mock.calls[0][2]).toMatchObject({ kind: 'ai-ask', feature: 'first-open' });
+    expect(D.build).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0][0]).toMatchObject({ feature: 'reading-digest', urgency: 'useful' });
+  });
+  it('is not made twice in a day, nor when the morning task makes it, nor with nothing to read', () => {
+    D.last = () => ({ day: D._day(Date.now()) });
+    expect(D.onFirstOpen()).toBeNull();
+    D.last = () => null;
+    D.morningTask = () => ({ enabled: true });
+    expect(D.onFirstOpen()).toBeNull();
+    D.morningTask = () => null;
+    globalThis.ReadLater.items.forEach(i => { i.read = true; });
+    expect(D.onFirstOpen()).toBeNull();
+    expect(heavy).not.toHaveBeenCalled();
+  });
+});

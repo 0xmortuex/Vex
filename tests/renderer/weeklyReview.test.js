@@ -100,3 +100,41 @@ describe('scheduling itself', () => {
     expect(document.getElementById('vex-review')).toBeTruthy();
   });
 });
+
+describe('the Sunday-evening offer for a profile that already seeded the review (T1-008)', () => {
+  const sat9 = new Date(2026, 8, 12, 9, 0).getTime();   // an old Saturday-morning review
+  const sun18 = new Date(2026, 8, 13, 18, 0).getTime();
+  let suggest, create, del;
+  beforeEach(() => {
+    localStorage.clear(); localStorage.setItem('vex.review.seeded', '1');
+    suggest = vi.fn(); create = vi.fn(async () => ({})); del = vi.fn(async () => true);
+    globalThis.VexAttention = { suggest };
+    global.window.vex = { reminders: { list: vi.fn(async () => [{ id: 'old', kind: 'review', at: sat9, firedAt: null }]), create, delete: del, onFired: vi.fn() } };
+  });
+
+  it('offers the move once, and does not change anything by itself', async () => {
+    expect(await VexReview.ensureScheduled()).toBe(false);
+    expect(suggest).toHaveBeenCalledTimes(1);
+    expect(suggest.mock.calls[0][0]).toMatchObject({ feature: 'weekly-review', action: { key: 'evening:old' } });
+    expect(create).not.toHaveBeenCalled();
+    await VexReview.ensureScheduled();
+    expect(suggest).toHaveBeenCalledTimes(1);
+  });
+  it('offers nothing when the review is already on Sunday at 18:00, or was deleted', async () => {
+    global.window.vex.reminders.list = vi.fn(async () => [{ id: 'x', kind: 'review', at: sun18, firedAt: null }]);
+    await VexReview.ensureScheduled();
+    localStorage.removeItem('vex.review.eveningOffered');
+    global.window.vex.reminders.list = vi.fn(async () => []);
+    await VexReview.ensureScheduled();
+    expect(suggest).not.toHaveBeenCalled();
+  });
+  it('the button creates the Sunday review and removes the old one', async () => {
+    await VexReview.moveToEvening('old');
+    const [msg, at, extra] = create.mock.calls[0];
+    expect(msg).toBe('Weekly review');
+    expect(new Date(at).getDay()).toBe(0);
+    expect(new Date(at).getHours()).toBe(18);
+    expect(extra).toMatchObject({ kind: 'review', repeat: 'weekly' });
+    expect(del).toHaveBeenCalledWith('old');
+  });
+});
