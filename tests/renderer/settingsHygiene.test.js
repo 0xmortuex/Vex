@@ -81,8 +81,9 @@ describe('preferences', () => {
     // Reviewed: the six brief extras share one record by design; the notes store is
     // written by the notes panel and the weekly note and read by time travel; the
     // mail headers are read (not written) by renewals and universal search; the
-    // archived tabs list is the read-later and tab-snooze handover.
-    const SHARED = new Set(['vex.briefExtras', 'vex.notes', 'vex.mailHeaders', 'vex.archivedTabs']);
+    // archived tabs list is the read-later and tab-snooze handover; the breach-check switch is owned
+    // and written by Password Health, and only read by the weekly re-check in safe-web-extras.js.
+    const SHARED = new Set(['vex.briefExtras', 'vex.notes', 'vex.mailHeaders', 'vex.archivedTabs', 'vex.breachCheck']);
     const clash = [...defs].filter(([k, v]) => v.size > 1 && !SHARED.has(k)).map(([k, v]) => k + ' <- ' + [...v].join(', '));
     expect(clash).toEqual([]);
   });
