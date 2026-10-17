@@ -637,7 +637,7 @@
       jobs: ['Community metrics'], commands: ['community-metrics'], budget: { fetchesPerHour: 12 },
       permissions: { reads: ['public pages you add, without signing in'], writes: ['your numbers and page watches for those pages'], sends: ['A request for each public page you add, every 6 hours for a number and every hour for a name watch'] } },
     { id: 'link-harvester', title: 'Collect links', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.linkHarvester'], events: ['vex:link-harvester'], commands: ['link-harvester'],
-      permissions: quiet({ reads: ['text you paste or select, and kept notifications when you press Collect'], writes: ['the links found; a reminder or a Read Later item when you press it'] }) },
+      permissions: { reads: ['text you paste or select, and kept notifications when you press Collect', 'the addresses of the links on screen in a Discord channel you opted in, when you press the button'], writes: ['the links found; a reminder, a Read Later item or a downloaded file when you press it and confirm'], sends: ['a normal download request to the Discord file address, only after you confirm'] } },
     { id: 'discord-status', title: 'Discord status suggestions', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.discordStatus'], events: ['vex:discord-status'],
       permissions: quiet({ reads: ['whether Game mode or Focus is on'], writes: ['one suggestion in the Attention Inbox; your own status wording. It never changes your Discord status'] }) },
     { id: 'mod-kit', title: 'Moderator kit', group: 'Community and chat tools', maturity: 'new', storageKeys: ['vex.modKit'], events: ['vex:mod-kit'], commands: ['mod-kit'],

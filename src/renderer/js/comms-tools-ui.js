@@ -376,6 +376,24 @@ const CommsToolsUI = {
           draw();
         }),
         this._btn(todayOnly ? 'Show all' : 'Show today only', () => { todayOnly = !todayOnly; draw(); })));
+      this._heading(body, 'Channels you opted in');
+      body.appendChild(this._note('Press the button below to read the links of the messages already on the screen of an opted-in channel that is open. Only the address of each link is read, and only when you press it. A channel you did not opt in is never read.'));
+      const chans = LinkHarvester.channels();
+      if (!chans.length) body.appendChild(this._note('No channel is opted in.'));
+      for (const c of chans) body.appendChild(this._row(this._el('span', '', c.label), this._btn('Remove', () => { LinkHarvester.optOut(c.key); draw(); })));
+      body.appendChild(this._row(
+        this._btn('Opt in the channel that is open now', () => {
+          const open = LinkHarvester.openChannel();
+          if (!open) throw new Error('Open a Discord channel (the panel or a tab) first');
+          const c = LinkHarvester.optIn(open.url, open.label);
+          window.showToast?.('Opted in: ' + c.label);
+          draw();
+        }),
+        this._btn('Collect from the opted-in channels that are open', async () => {
+          const r = await LinkHarvester.harvestOpen();
+          window.showToast?.('Read ' + r.channels + ' channel(s): ' + r.added + ' new link(s), ' + r.seen + ' already known');
+          draw();
+        }, { primary: true })));
       const exp = LinkHarvester.expiring();
       if (exp.length) {
         this._heading(body, 'About to expire');
@@ -404,6 +422,7 @@ const CommsToolsUI = {
     const row = this._row(this._el('span', '', label));
     row.append(this._btn('Open', () => LinkHarvester.open(l.id)));
     row.append(this._btn(l.saved ? 'Saved' : 'Save for later', () => { LinkHarvester.saveForLater(l.id); redraw(); }));
+    if (l.expiresAt && st !== 'expired') row.append(this._btn(l.fileSaved ? 'File saved' : 'Save the file now', async () => { if (await LinkHarvester.saveFile(l.id)) { window.showToast?.('Downloading the file'); redraw(); } }));
     if (l.expiresAt && st !== 'expired') row.append(this._btn('Remind me', async () => { await LinkHarvester.remind(l.id); window.showToast?.('You will be reminded before it runs out'); }));
     row.append(this._btn('Remove', () => { LinkHarvester.remove(l.id); redraw(); }));
     return row;

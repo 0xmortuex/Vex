@@ -536,7 +536,7 @@ describe('T3-060 chat link harvester', () => {
     expect(LH.collectFromNotifications()).toEqual({ added: 1, seen: 0, scanned: 1 });
   });
 
-  it('never reads a chat or goes to the network', () => {
+  it('reads a chat only through the opted-in channel path and never goes to the network by itself', () => {
     const src = fs.readFileSync(path.join(JS, 'link-harvester.js'), 'utf8');
     expect(src).not.toMatch(/executeJavaScript|\bfetch\(|XMLHttpRequest|setInterval|VexJobs/);
   });
