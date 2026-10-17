@@ -377,6 +377,16 @@ function vexOwnTextFocused(doc) {
     }
     // Match case is the find bar's Aa toggle (js/tabs-nav.js).
     const matchCase = typeof VexTabsNav !== 'undefined' && VexTabsNav.on('findOptions') && VexTabsNav.prefs().findMatchCase;
+    // Whole word only (the ab toggle, js/whole-word-find.js): the page is searched by Vex's own finder, with its own count.
+    if (typeof VexWholeWordFind !== 'undefined' && VexWholeWordFind.on()) {
+      VexWholeWordFind.find(wv, text, { matchCase: !!matchCase, forward: !options || options.forward !== false }).then((r) => {
+        if (WebviewManager.getActiveWebview() === wv) findCount.textContent = VexWholeWordFind.countText(r);
+      }).catch((err) => {
+        findCount.textContent = '';
+        VexProblems?.note('Find bar', 'Whole-word find could not search this page', (err && err.message) || String(err));
+      });
+      return;
+    }
     wv.findInPage(text, matchCase ? { ...(options || {}), matchCase: true } : options);
   }
 
@@ -488,6 +498,24 @@ function vexOwnTextFocused(doc) {
     document.addEventListener('vex:tabs-nav-changed', paintCase);
     findCaseBtn.addEventListener('click', () => {
       VexTabsNav.setPref('findMatchCase', !VexTabsNav.prefs().findMatchCase);
+      if (findInput.value) findOnActive(findInput.value);
+      findInput.focus();
+    });
+  }
+
+  // ab: whole word only. A remembered choice; the search is redone with it, and the other finder's marks are cleared.
+  const findWordBtn = document.getElementById('find-word');
+  if (findWordBtn) {
+    const paintWord = () => {
+      const available = typeof VexTabsNav !== 'undefined' && typeof VexWholeWordFind !== 'undefined' && VexTabsNav.on('findOptions');
+      findWordBtn.hidden = !available;
+      findWordBtn.setAttribute('aria-pressed', String(available && VexTabsNav.prefs().findWholeWord));
+    };
+    paintWord();
+    document.addEventListener('vex:tabs-nav-changed', paintWord);
+    findWordBtn.addEventListener('click', () => {
+      VexTabsNav.setPref('findWholeWord', !VexTabsNav.prefs().findWholeWord);
+      WebviewManager.stopFindInPage();
       if (findInput.value) findOnActive(findInput.value);
       findInput.focus();
     });

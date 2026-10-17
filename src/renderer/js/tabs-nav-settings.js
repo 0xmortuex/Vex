@@ -7,7 +7,7 @@ const TabsNavSettings = {
   ID: 'tabs-nav',
 
   ROWS: [
-    ['findOptions', 'Find bar: match case, start from the selection, Up and Down for earlier searches'],
+    ['findOptions', 'Find bar: match case, whole word, start from the selection, Up and Down for earlier searches'],
     ['cleanCopy', 'Copy clean link and Copy as Markdown link (address bar and tab menu)'],
     ['textFragment', 'Copy link to selected text (right-click a selection)'],
     ['typedRanking', 'Finish addresses with the sites you type most, never a lookalike'],

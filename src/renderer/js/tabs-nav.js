@@ -35,6 +35,7 @@
     addressExtras: false,   // Alt+Up one level, drag the padlock as a link, calculator row
     activityDot: true,      // a count in a background tab's title marks a dot
     findMatchCase: false,   // the Aa toggle in the find bar (a remembered choice)
+    findWholeWord: false,   // the ab toggle in the find bar: whole words only (js/whole-word-find.js)
     keepOnTop: false,       // Vex's own window above others (never over a full-screen game)
   });
 

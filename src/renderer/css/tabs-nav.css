@@ -44,3 +44,4 @@
   box-shadow: inset 0 0 0 1px var(--vex-border-strong);
 }
 .find-btn.find-case[hidden] { display: none; }
+.find-btn.find-word { text-decoration: underline; text-underline-offset: 2px; }

@@ -1345,7 +1345,12 @@ const WebviewManager = {
 
   stopFindInPage() {
     const wv = this.getActiveWebview();
-    if (wv) wv.stopFindInPage('clearSelection');
+    if (!wv) return;
+    wv.stopFindInPage('clearSelection');
+    // The whole-word option draws its own highlights (js/whole-word-find.js); they go too.
+    if (typeof VexWholeWordFind !== 'undefined' && wv._vexWwUsed) {
+      VexWholeWordFind.clear(wv).catch((err) => VexProblems?.note('Find bar', 'Could not clear the whole-word highlights', (err && err.message) || String(err)));
+    }
   },
 
   // Save a picture from a page. As = the system Save dialog (name, folder,
