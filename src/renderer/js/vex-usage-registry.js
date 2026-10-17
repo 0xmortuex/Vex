@@ -620,6 +620,7 @@ const VexUsageRegistry = {
       ['mun-dossier', A.api(G.VexMunDossier, 'enabled', 'setEnabled')],
       // Wave 4 fold-ins
       ['study-entry', A.api(G.VexStudyEntry, 'enabled', 'setEnabled')],
+      ['reading-aids', A.api(G.VexReadingAids, 'enabled', 'setEnabled')],
       ['library-links', A.api(G.VexLibraryLinks, 'enabled', 'setEnabled')],
       ['agent-pins', A.api(G.VexAgentPins, 'enabled', 'setEnabled')],
       // Wave 2: games and daily life (each module keeps its own on/off flag)
