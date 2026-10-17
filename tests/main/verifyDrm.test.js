@@ -74,7 +74,8 @@ describe('checkBoot (the built app, in a throwaway profile)', () => {
   it('starts the built exe with the DRM check on and no OS task', () => {
     let seen;
     checkBoot({ exe, run: (c, a, o) => { seen = o.env; return { status: 0, stdout: 'RESULT: PASS — x', stderr: '' }; }, env: {} });
-    expect(seen).toMatchObject({ VEX_SMOKE_EXECUTABLE: exe, VEX_DRM_SMOKE: '1', VEX_NO_OS_SCHEDULE: '1' });
+    // VEX_RELEASE_BOOT lets the probe harness start the build the release has just made in dist\win-unpacked.
+    expect(seen).toMatchObject({ VEX_SMOKE_EXECUTABLE: exe, VEX_RELEASE_BOOT: '1', VEX_DRM_SMOKE: '1', VEX_NO_OS_SCHEDULE: '1' });
   });
 });
 

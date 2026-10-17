@@ -85,7 +85,7 @@ function checkStatic({ dir, run = defaultRun, env = process.env, exists = fs.exi
 function checkBoot({ exe, run = defaultRun, env = process.env, smoke = path.join(__dirname, 'verify-smoke-boot.js') } = {}) {
   refuseNoDrm(env);
   if (!exe || !fs.existsSync(exe)) throw new Error('there is no built Vex.exe at ' + exe);
-  const r = run(process.execPath, [smoke], { timeout: 300000, env: { ...env, VEX_SMOKE_EXECUTABLE: exe, VEX_DRM_SMOKE: '1', VEX_NO_OS_SCHEDULE: '1' } });
+  const r = run(process.execPath, [smoke], { timeout: 300000, env: { ...env, VEX_SMOKE_EXECUTABLE: exe, VEX_RELEASE_BOOT: '1', VEX_DRM_SMOKE: '1', VEX_NO_OS_SCHEDULE: '1' } });
   const out = r.stdout + r.stderr;
   const m = /RESULT:\s+(PASS|FAIL)\s+—?\s*([^\n]*)/.exec(out);
   if (r.status !== 0 || !m || m[1] !== 'PASS') {
