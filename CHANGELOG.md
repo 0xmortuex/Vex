@@ -1,5 +1,226 @@
 # Changelog
 
+## v36.12.6 (2026-10-17) — Netflix, Prime and Disney+ stay signed in, and every new tool from Waves 0 to 6
+
+### Highlights
+This is a very large release: the work of Waves 0 to 6 on top of v22.22.1. **Every new or experimental feature starts OFF on an existing profile** (Vex recognises a profile that already has your data and holds the new features back, offering at most three "try it" suggestions a week). A brand-new profile gets each feature's own default. Everything below is listed in more detail in the wave sections that follow.
+
+### Fixed first (what you will notice)
+- **You stay signed in to Netflix, Prime Video and Disney+ after restarting Vex.** A leftover clean-up deleted the folder that holds their saved login every time Vex started, so all three signed you out at every launch. It is removed, and a test now fails if launch ever deletes a browsing session again.
+- **WhatsApp calls can ask for the microphone.** A never-asked microphone or camera used to read as "denied" in tabs and sidebar panels, so sites such as WhatsApp showed their own "turn the microphone on" box without ever asking. Both now read "ask", and a saved Allow or Block is respected.
+- **A pinned Gmail panel shows its unread count** on the sidebar icon (Gmail's "Inbox (6,693)" title is understood on mail.google.com).
+- **Ctrl+K no longer opens a blurred screen with an invisible bar while Vex is kept still** (from v22.24.6, which was never published).
+- **Copy bug report and Remove metadata from a picture work again.** Two scripts shared the name VexRedact and the wrong one answered.
+- **Lock screen:** saved "Open as App" windows no longer reopen on top of the lock screen; links and quick capture sent from another program while Vex is locked wait until you unlock; many parallel wrong-PIN guesses now each count as a failure; the Discord webhook asks in the main process before an @everyone post; the local-service `uv run` template only accepts a fixed set of commands; a price pattern that could freeze the page on a long run of digits is bounded; the AI spend cap no longer overshoots when requests run at the same time.
+- **"Forgot it?" on the lock screen now also signs you out of every site** (cookies, storage and cache of all sessions), not only the vault, authenticator and passkeys. Notes, bookmarks and history stay. The Settings text says so.
+- **Vex deletes only the Vencord folders it installed itself.** Your own Vencord build, and any folder Vex did not make, is left alone.
+- **A brand-new profile gets its defaults.** The first-boot theme write was counted as saved data, so a new install was treated as an existing profile and had every new feature switched off. Found by the final live check and fixed.
+- **The packaged app starts.** A shared script read a global before it was ready, which stopped the start-up bundle in the packaged build (the source build was not affected). Found by the final packaged check and fixed, with a test.
+
+### Discord memory (new)
+Vex's Discord panel with Vencord uses far more memory than the plain Discord app. This release adds the tools to find out why and to bring it down: "Why is Discord big?" (Ctrl+K), a notice that stays until you answer it, an optional automatic refresh of its own, an optional rest mode, a Vencord on/off item in the Discord button's menu, "Measure over 10 minutes", "Measure with Vencord, then without", and **per-plugin memory** ("Measure plugin memory", with a fast allocation reading and a one-plugin-at-a-time test). The plugin-memory method needs the matching Vencord plugin; see the Vencord branch notes in docs/vencord-bridge.md.
+
+
+### Read this first: things that can remove data or change behaviour
+- **Recall now has caps (Settings > Storage).** Page text kept for Recall search is limited to **12 MB**, **3000 pages** and **90 days**. When a cap is reached or a page is older than 90 days, the OLDEST pages are dropped from the index at the next start and at the next save. This can remove old pages from search results the first time you start this version. Change the three numbers in Settings > Storage (recall:limits); nothing outside the Recall index is deleted.
+- **History search is local by default, and nothing reaches the cloud AI without a sensitivity gate.** History, mail, bank, health and vault pages, private tabs and anything that looks like a secret are held back or sent to the local model; a saved "cloud" choice for history search is moved to local once (written to the ledger). A request is only sent after you say yes or after redaction.
+- **"haftaya Sali" now means the Tuesday of next calendar week** everywhere (it was 11 days away when said on a Friday in one of the two Turkish parsers). "ertesi gun" is the next day.
+- **Settings file checksum with quarantine and rolling copies** (T0-012): a damaged preferences file is set aside and the last good copy is restored, with a line in Health.
+- **The download flash on the taskbar button** goes through the same guard as every other raise: a full-screen game gets a dot on the button instead.
+
+- **Wave 3 defaults.** Essential tabs and Find text in all tabs have no default key (Ctrl+Alt+E and F are Everything and Focus mode); bind them in Settings > Shortcuts. Passphrases for the lock can be up to 128 characters (a PIN stays 4 to 12 digits).
+
+### Wave 0-2 (from the Wave 2 integrator's draft)
+### New: foundations (Wave 0)
+- One manifest per feature (id, storage keys, jobs, commands, permissions, budget, maturity), staged enablement with a "Try it" offer, a per-feature breaker and cost meter, a heavy-job scheduler, and "Why did Vex do that" (the ledger with undo).
+- Attention Budget: four urgency classes, hourly and daily caps, dedupe, and a quiet Attention Inbox (Dismiss / Show less / Never). Playfulness level (Off / Calm / Full) for medals, pet, sounds, streaks, tab games and the living layers.
+- New Tab slots with a render budget (hero, three cards by priority and cost, one footer line). Versioned consent, run-once migrations and defaults that know who chose them.
+- "What left this computer": a bounded ledger of Vex's own outbound requests; start-up crashes are blamed on one feature.
+- Release gates: DRM/Widevine check, release hand-check list, merge train with the full CI sequence, smoke matrix, a probe harness that only stops its own Electron, a gate that refuses heavy runs while a game runs or memory is short.
+- Ctrl+K isolates and times every provider and draws the first rows first; static contract tests for events, globals, IPC and packaged requires.
+- Refused screen shares say why, with a fix button; "Why was I signed out?"; email-code autofill no longer holds a reading slot.
+
+### New: Game mode and AI trust (Wave 1)
+- Vex never raises, focuses, flashes or makes a sound over a full-screen game. Warm-down when a launcher opens, save-my-work when a game starts, an after-game pit-stop card, an opt-in pre-game checklist.
+- Vex Agent safety layer: page text is data, a run goes at a pace, every change is in the ledger.
+- Developer loop: GitHub read-only token vault, CI failure loop, devlog drafter, endpoint health board, dependency radar, deploy desk. Developer helpers: repo registry, search bangs, copy as request, GitHub helpers, command translator, selection decoder, reference sets.
+- Daily flow: what is due, first open of the day, one inbox, next step, park and resume, copy with source, deadline finder. Panels: notifications from panels, VIP rules, Needs me, Away mode, delivery windows, close-protect.
+- Tabs: Ctrl+Tab by recency, tab search, Back/Forward list, strip quick actions, night coach, announcement desk, Turkish text handling.
+
+### New: Wave 2
+- **AI (all local-model only):** long-document engine with a coverage figure, long-thread digest ("since I last read"), draft into the focused field with a word diff, embedding model manager, show-me-where citations checked by exact quote, AI memory with source, scope and expiry, per-site standing instructions and typed skills.
+- **Tabs and navigation:** find options, clean link copy, typed-count completion, switch to an open tab, text-fragment links, activity dot, keep on top, download speed and time left, window recovery, taskbar progress.
+- **Capture:** text snippets (":addr" then Tab or Space), table and list copy, video transcript/chapters/loop, newsletter lane, resurfaced highlights, picture redaction, and unsent form text kept for 7 days encrypted (Unfinished forms).
+- **Developer desk and bench:** dev ports, Actions board, log reader, plugin dev loop, open in editor/terminal, Electron ticker, secret paste guard; bug report, response overrides, MCP selection tools, log tailer, error memory, docs pins, package card, code library.
+- **Gates and security:** permission hygiene, signed-in sites list with a kill switch, a password-page check (warns before you type a password on a lookalike address; it uses the same detector as Web safety), incident checklists, overlay layer sweep, release auto-tick, accessibility gate.
+- **Study and Turkish:** strict study block, exam planner, exam-day mode, past papers, courses, paper brief, Model UN dossier; Turkish dates and amounts in reminders, capture and deadlines (one reading shared by both parsers), Turkish/English translation helpers.
+- **Games and daily life:** second screen, audio scenes, Game Control Center link (Vex reads %APPDATA%\game-control-center\vex-bridge.json; GCC does not write it yet, see docs/gcc-bridge.md), game loadouts, intent gate, break prompts, orders, exam and registration dates, receipts and warranties.
+- **Daily planning:** left-overs (Today, Tomorrow or Drop), one "when" box ("fri 17:00 at school"), close the day, shape of the day, find by time and topic, why is this tab open, what changed per workspace, focus block length from real use, recurring chores and bills, plan the week, weekly triage.
+
+### Fixed
+- Exam dates and text snippets no longer share a storage key with another feature (they would have overwritten each other's lists).
+- Needs me now reads the Autopilot stream (it looked for a global that does not exist).
+- Several lint findings in the new main-process files (error causes kept, a byte-order-mark written as an escape).
+
+---
+### Wave 3 and the version review
+How to read this: nearly every new feature below arrives OFF on a profile that already exists (it is offered in Settings and Ctrl+K), and ON on a brand-new profile, except the ones listed under "Off even on a new profile". Minimal Vex switches every one of them off and puts it back.
+
+### New
+
+**Calm and control**
+- **Attention Budget, quiet Inbox, one Playfulness level (Off / Calm / Full).** Four urgency classes with hourly and daily caps; what is refused lands in the Attention Inbox with Dismiss / Show less / Never. One "attention state" (game, screen sharing, exam, meeting, focus, study, away, quiet hours, wind-down, travel, quiet switch) decides when Vex stays quiet.
+- **One manifest per feature, "Why did Vex do that", a per-feature breaker and a cost meter.** Features that fail to start are named and left out alone; heavy jobs (indexing, OCR, local AI, audio) run one at a time at idle and never in Game mode.
+- **New Tab slots with a render budget**: a hero, three cards by priority and cost, one footer line.
+- **Feature sheet, "New for you", intent search, usage counts, storage ledger, "Your data", provenance chip, diagnostics bundle, preview list** (Wave 3 foundations). A start-up budget check and modules that load after start-up keep launch fast.
+- **Version review.** After an update (and once after the first start following one) a short card asks you to rate the version you ran: 7 categories 1-5, tags, a 500-character comment. It never blocks the update. A finished review earns XP once per version and the medals "Your say" and "Five versions in". Reviews stay on this computer (50 kept; copy as text, forget). Sending to a relay is OFF; it needs your own https relay address and a one-time consent.
+
+**Games and Game mode**
+- Installed games offered to Game mode, pre-game checklist, after-game pit-stop, warm-down when a launcher opens, save-my-work when a game starts, second screen, audio scenes, loadouts, break prompts, GCC bridge status, patch digest, status check ("is it me or the game?"), reset and season timers, drops desk, content board, writing desk, network courtesy.
+- Vex never raises, focuses, flashes or makes a sound over a full-screen game; the download flash and notifications wait.
+
+**AI**
+- Nothing reaches the cloud AI without a sensitivity gate (history, mail, banks, health, vault pages, private tabs, secrets), and history search is local by default.
+- Long-document engine, thread digest, draft into the field (never submits), embedding model manager, show-me-where citations, per-site instructions and typed skills, AI memory with source and expiry, one plain AI route control, AI recipes, watch judgement.
+- Retry once on the other backend (said aloud, never past the sensitivity gate or the cap), a daily cap on cloud AI calls, a summary cache keyed by page text (never for sensitive or private pages).
+
+**Study and Turkish**
+- Strict study block (leave after 60 seconds and a typed reason, never a lock), exam planner and exam-day mode, past papers, courses, paper brief, Model UN dossier and toolkit, speech timer, glossary cards, study ledger, cheat sheet, draft / syllabus / source checks, Turkish dates and amounts ("12 Ekim", "yarin aksam 8'de", "1.250,50 TL") shown as a confirm line before anything is saved, Turkish and English spelling, translation helpers.
+
+**Daily life and planning**
+- Resume workday, focus profiles, Morning Brief sections, left-overs, one "when" box, close the day, shape of the day, weekly triage, week plan, recurring chores, rituals, follow-ups, two-minute drawer, weekday set, deadline ledger, travel mode, containers per site, expense capture, page reminders, holiday planner, TL equivalent (bank rates fetched only when you press Fetch).
+
+**Tabs and navigation**
+- Ctrl+Tab by recency, tab search, Back/Forward list, strip quick actions, scroll memory, essential tabs, autoscroll, pinned home, failed-page options, plain paste, find text in all tabs, pick several tabs, instant wake picture, connect ahead, mini window, held widths, link and tab hints, tab names, split view keys, jump list, restore the whole window set, gesture editor.
+- New keys: Ctrl+Alt+O / Ctrl+Alt+Y (split view next pane / swap), Ctrl+Alt+I (hints for links), Ctrl+Alt+Q (hints for tabs). Essential tabs and Find text in all tabs have no default key (their first choice was taken by Everything and Focus mode): give them one in Settings > Shortcuts.
+
+**Capture, sources and developers**
+- Sources list with citation styles, BibTeX and DOI lookup, archive on cite, media control, phone share, study notes, PDF highlights, a built-in PDF toolkit (merge, extract, rotate, split; no path ever comes from the window).
+- Developer desk (dev ports, Actions board, log reader, plugin dev loop, Electron ticker, secret paste guard), developer bench, GitHub read-only token vault, CI failure loop, repo registry, API playground with OpenAPI import, local-service launcher and webhook inspector, Cloudflare links, Roblox resolver.
+- Community and chat tools: timezone helper, unread to task, meeting links, noise rules, announcement composer, community numbers, link harvester, moderator kit, a webhook vault and a Vencord bridge file reader. Nothing reads a chat or posts without your confirm; Discord status is only suggested and copied.
+
+**Safer browsing and security (all opt-in)**
+- Guest session, extension diff and pause, paste-and-run tripwire, start-up check, secure lock options (passphrases up to 128 characters), slot watcher, photo preparer, form assistant, permission hygiene (kept grants end after N days unless pinned), "what am I signed in to" and a kill switch, password-field interlock, incident checklists, cheat and fake-update guard, cookie-banner reject extras, vault hygiene, marketplace signs, chat-link flag, QR verdict, "Scan with Windows Security", mark-of-the-web check, screen-share safe mode.
+
+### Improved
+- **Recall is now capped: 12 MB, 3000 pages and 90 days.** Once a cap is reached the oldest pages are dropped first. There is no more duplicate .bak, and the numbers are visible in Settings > Storage. Raise or lower the caps there if you want to keep more.
+- The downloads tidy-up and the new mod desk both keep the "downloaded from the internet" mark across their moves; one that cannot be kept is reported.
+- Real file names for saved media, a release-download assistant (size, SHA-256, a hash-only VirusTotal link, older installers), a mod desk that files Minecraft jars by loader and game version (previewed, undoable).
+- Settings file checksum, quarantine and rolling copies; Ctrl+K isolates and times every provider; a refused screen share says why; health shows crashes per version.
+- Package feeds share one polite fetch client.
+- One Turkish reading for dates, clocks and amounts across reminders, capture and the deadline finder.
+
+### Fixed
+- Several storage keys that two features shared (exam dates, text snippets) now have one owner each.
+- Pages closed with unsent text keep it for 7 days, encrypted (Unfinished forms).
+- The price tracker counts every check, not only changes.
+- The element zapper refuses sensitive pages and has a per-element undo.
+- Merge fixes found by running the whole suite (see the commit list).
+
+### Off even on a new profile
+Pre-game checklist, throwaway chat session, guest session, extension diff, paste-and-run tripwire, start-up check, secure lock options, slot watcher, photo preparer, form assistant, local-service launcher, webhook inspector.
+
+### Security-relevant notes
+- Private windows: every new channel that writes to the main profile is closed to them (the IPC policy lists them); the local-service launcher starts a program only with an argument array and no shell, and stops one only after its live path, command line and start time match what Vex started.
+- The version review sends nothing unless you set a relay and consent; the announcement webhook address is sealed by the OS and never handed back to the window.
+- New runtime dependency: pdf-lib (with @pdf-lib/standard-fonts, @pdf-lib/upng, pako and tslib 1.14.1); licences added to THIRD_PARTY_NOTICES.md.
+- Turkish keyboards: Ctrl+Alt is how AltGr is sent on some layouts. Ctrl+Alt+Q and Ctrl+Alt+I (tab hints and link hints) may type "@" or a dotless i on a Turkish Q layout instead of running the command. Rebind them in Settings > Shortcuts if that happens.
+
+### Wave 4: simplify, fold-ins and discoverability (integration-7)
+
+#### Read this first (Wave 4)
+- **Staged enablement now judges a profile by what it has saved, not by the usage record.** An older profile (saved tabs, bookmarks, history, notes, a sign-in or legal acceptance and so on) is an existing profile, decided once and remembered. Every `new` or `beta` feature, including all of Wave 3 and Wave 4, arrives OFF there; a brand-new profile keeps each feature's own default. "Try it" offers are limited to 3 in any rolling 7 days, and that one budget is shared with the "New for you" row and the "hidden until needed" offer, so they never add up to a stream.
+- **Agent screenshots now ask on every call** (the image sensitivity gate): a picture in a request to the cloud AI is asked about, with a thumbnail in the preview.
+- **Download resume is opt-in and OFF** (Settings > Downloads). Only a normal profile's downloads are carried on; with the setting off, partial files kept for a restart are removed.
+- **Built-in packs are unsigned but hash-pinned** (four files, reserved `vex-builtin.` id): prompt library, more incident checklists, Model UN phrases, Turkish holidays.
+- **Chat link hygiene and the weekly breach re-check are OFF by default.** The service-status brief card is off by default and never shown during Game mode.
+- **Jingle slots stay silent** in Simple mode, Focus, a meeting, battery saver, Game mode and reduced motion. No sound is on by default.
+- **Bypass check:** the start-up probe (a request to discord.com after every start) is OFF until you turn it on, on every profile.
+
+#### New (Wave 4)
+- Quiet by default: a NEW profile starts with the timer, stopwatch, Bookmarks, Highlights and Feeds panels, per-site dark mode and boosts out of sight (Settings > Hidden until needed, "Show everything", one offer a week in the Attention Inbox). An existing profile sees everything it saw before. "New for you" brings a hidden part back when it introduces the feature that owns it.
+- Playfulness quarantine: every fun module is listed with its gate; the version review is listed too.
+- Tools from use: job tools offered from what you actually use.
+- FlashMind entry points (study entry), library links, pinned agent tasks, spoken answers.
+- Safer web: Turkish brand list, "why a site asks" line on permission prompts, self-explaining downloads (downloads:explain), chat link hygiene, third-party count, extension session row, weekly breach re-check, backup check.
+- Content: pack holidays and phrases, watch templates (seats, fares, wishlist low, sale date), "held while you played" list, four brief cards, trial capture and monthly admin reminder, tab cleanup reasons with a "Keep" button.
+- Gaps: downloads carry on after a restart (opt-in), a default folder per kind of file, a scheduler can run a named command chain (command-bar steps need an approval of the exact steps), the panel state strip says how many things Autopilot holds, Levels hear of tidying, notes, finished tasks and reading, `api:request` takes an optional `egress` label.
+- Discoverability: a catalogue entry, a long description and a doc line (docs/FEATURES.md, 296 features) for every feature, plus a tour and find-a-feature.
+
+#### Fixed (Wave 4)
+- **Netflix, Prime Video and Disney+ no longer sign you out at every start**: removed the block that deleted the Netflix partition on every launch.
+- Microphone and camera now read "denied" (not "prompt") in tabs and sidebar panels after you refuse them.
+- Gmail's panel badge reads the "Inbox (6,693) - ..." title again.
+- The evening tab-cleanup card is the per-tab list with reasons (one tick per tab).
+
+### Wave 5 (integration-8)
+
+#### Read this first (Wave 5)
+- **Settings files carry a checksum envelope** (`$vexStore`): schema version and checksum in every JSON store, secret files kept aside, newer files refused (T0-012). A damaged file is set aside and the last good copy comes back.
+- **Where AI runs is one saved setting** (`vex.aiRoute`: auto, local or cloud). The two old switches (prefer local, always cloud) are merged once at start; Always cloud wins when both were saved, as the router already did. Every saved choice is kept.
+- **Command ranking by frecency applies to everyone** (Ctrl+K, with a Reset and a "why this is here" line). It reads the old key `vex.commandUsage`.
+- **Watchers ask the internet through one polite client** (per-host rate limit, Retry-After backoff, ETag cache keyed by who asks, quiet on a metered line). GitHub reads go through the token vault when you saved a token, otherwise through the same client as public requests.
+- **Start-up**: 18 more modules load after start (693 to 675 blocking scripts before Wave 5's own); the smoke run now holds a DOM-node cap and boot-mark ceilings. 16 raw timers moved to VexJobs (ratchet allowlist 43 files / 55 sites down to 30 / 39).
+- **Retention caps** for the journal, ledger, game log, timeline, capture log, digest cache and AI memory (Settings > Storage): a warning first, oldest-first trimming, Undo.
+- **Turkish**: 478 more headings, chips and commands, page dialogs, dates and plurals follow the interface language.
+
+#### New (Wave 5)
+- Foundations: Experimental tier with an offer after the crash-free window; a Simple / Standard / Power dial built on usage counts (off by default, never hides what you used, list first, Undo); look matrix test; overlay census ratchet; dialogs, toasts, context menus and popovers on the layer manager; graphics card and refused messages in the diagnostics bundle.
+- AI and security: fallback ladder with an extractive last rung and a "Running on" line; monthly budget, task and quality routing with the reason on each answer; provenance chip on every AI answer, draft and summary; local-model tools (a fit benchmark on your own tasks, a warm model inside your windows); reader view can rewrite plainer (local model only); AI recipes can run by themselves when their reminder fires; list-first approval for bulk tab closes, chains, automations and agent runs; download guard content check and passive warning for fake browser-update overlays; guest session throwaway workspace; vault hygiene with the recovery-email chain and a weekly roll-up; startup check can flag unsigned programs; the mark of the web is carried onto unpacked archive files; screen-share safe mode also holds vault offers and the New Tab history list; screen-share preflight before every picker.
+- Developer tools: API playground with an OS-sealed secrets vault (variables filled in main), copy as request from one tab's requests, selection decoder (errno, NTSTATUS, EFI, HTTP, signals, cron), PDF toolkit (mark up, fill forms, signature picture, repack), plugin dev loop (reload your Vencord build into Discord, console tray), release check ticks, panel guard slow-down and graphics process, richer devlog and release notes in the radar, fake-update guard, webhook inspector on a random free port.
+- Games: after-game pit stop (patch notes, free game, missed Discord, Resume, dossier offer), pre-game checklist (patched lately, servers up, study minutes count), drops list with codes and expiry, reset timers on the second screen, Discord noise tools and link harvester for opted-in channels, Roblox resolver, slot watcher countdown, site volume memory (loudness leveller, opt in).
+- Study: learner reading aids (local gloss hover, known-word grey-out, vocabulary; English and Turkish; off by default), arXiv and ISBN lookups, source check chip with a local predatory-publisher list, reference sets offline, courses subject view, exam fee cutoffs, draft-check rubric, video slides OCR and chapter briefs, Seen before (meaning match from Recall), Setup Gallery previews.
+- Daily: reading triage weighs focus block and finish rate; place in a long article outlives the tab, with a thin progress bar; reminders can skip holidays; two-minute drawer card; day-shape load meter; travel mode shifts timed reminders; orders hub with more carriers and a timeline; follow-up ledger offers promises you typed; move a tab to a new window; drag a tab onto the page to split; staged send-now notice for announcements (never auto-sends); queue-bot add endpoint is BLOCKED-EXTERNAL (docs/queue-bot-add-endpoint.md).
+
+#### Fixed (Wave 5)
+- The picture redaction tool no longer shares the name VexRedact with the URL and text redactor (Copy bug report and Remove metadata work again).
+- The throwaway workspace and guest badges are on the layer manager.
+- Pre-existing test failures from integration-7 (quiet-defaults event, intent search, AI panel shell, locale completeness, settings hygiene) fixed at their cause on final-int7.
+
+#### Off even on a new profile (Wave 5)
+Every new, beta and experimental Wave 5 feature (capability dial, reading aids, local-model tools, storage retention, API playground, fake-update guard, and the rest) starts OFF on an old-style profile; the staged-enablement test proves it.
+
+### Wave 6 (integration-9)
+
+#### Read this first (Wave 6)
+- **Encrypted profile lock (T3-123, opt-in, off by default).** Settings > Security can encrypt the settings file and the personal stores (tabs, groups, stacks, shortcuts, sync records) with a passphrase and a recovery code shown once. A small window asks for the passphrase before Vex reads anything. Before it changes a file it takes a verified snapshot, and every file is decrypted back and compared before any plain text is removed; a switch back to plain files exists. The backups made around updates are plain by design (Vex skips the first-start backup while the profile is encrypted). Two launch flags (Memory saver, Smooth scrolling) are read before the unlock window and are ignored while the profile is encrypted. Lose both the passphrase and the recovery code and the data is gone.
+- **Meeting transcript from your own voice (opt-in).** While a meeting copilot session runs, "Listen to my voice" opens your microphone only (never the call or the screen) after a box you agree to every time, with a bar on top of Vex while it is on. Speech is cut into pieces of up to 30 seconds and turned into text by a local program and model file you chose (whisper.cpp); nothing is sent anywhere.
+- **Discord status can be set by your own Vencord plugin (opt-in).** Vex writes one command file (`vex-status.json`, format vex-status/1) into the bridge folder; the plugin, which you must also allow in its own settings, sets the custom status text and emoji and puts the old one back. Vex never holds a Discord token. Using a client mod is against Discord's terms.
+- **Release check can hold this version's new features off until you tick their lines (opt-in).**
+- **Start-up budget:** 667 blocking scripts (19 more modules moved to the late list, five Wave 6 scripts added).
+
+#### New (Wave 6)
+- Discord memory care: a notice that stays, an automatic refresh of its own, a Vencord switch and recommendations in the report; "Measure over 10 minutes" (also with Vencord off then on); Discord rest mode and a lighter video scan on a hidden Discord page.
+- Whole-word find in the page (the "ab" button in the find bar), with its own highlights, next/previous and count.
+- Scan now: runs Microsoft Defender's scanner on one downloaded or picked file after a confirmation that shows the exact command. "Extract here" for downloaded .zip/.tar/.tgz archives, carrying the mark of the web onto what it writes; the file lists of RAR and 7z archives are read from their headers.
+- Service launcher: your own allowlist of programs and fixed QEMU recipes.
+- Network courtesy can keep background YouTube videos at a low quality (opt-in).
+- Exam calendar ships ÖSYM's published dates for the rest of 2026, each with its source, the day it was read and a "verify" flag.
+- Startup check resolves scheduled tasks and Startup-folder shortcuts to their program and checks signatures. An opt-in age limit for AI memory.
+- The History panel's keyword filter asks the shared search index first.
+
+#### Improved / Fixed (Wave 6)
+- Every local or on-device model call goes through VexJobs.heavy as an "ai-ask"; 14 more timers on VexJobs; a ratchet against direct showToast and nine unasked notices through the gate.
+- A late-loaded module is staged properly: a new feature that arrives after start-up on an existing profile ends OFF (VexRegistry.restageLate).
+- Every remaining position:fixed overlay is on the layer manager or marked as not a window overlay.
+- The extension update check goes through the polite client; the What's New fallback reads GitHub through the vault; schema versions for the other JsonStore files.
+- Sixteen Wave 5 features whose switches never registered after the Wave 5 merge now do.
+- Pausing one extension on one page and the per-panel graphics figure are not possible with Electron; both were checked, documented and pinned by tests.
+- Companion relay handler tests and one owner deploy guide for the three relays (docs/RELAYS_DEPLOY.md).
+
+#### Off even on a new profile / new switches (Wave 6)
+- Encrypted profile lock, Meeting transcript from my voice, Discord memory care (its master defaults on for a brand-new profile and is staged off for an existing one), and the new options on Discord status, Network courtesy, Release check, Local services and Defender shortcut start OFF on an existing profile.
+
+#### Also in Wave 6 (second batch)
+- **Per-plugin RAM in Discord (Vex side):** "Discord plugin restore" job, `discord-plugin-ram` command and three new channels (discord:heap-begin/-end/-usage, Vex window only); `vex.discordCare` gains a pending-restore field so a Vencord plugin switched off for a measurement is put back.
+- **PDF:** Shrink pictures (re-encodes big images at a lower quality, new `pdf-images.js`); a Unicode font (new dependency @pdf-lib/fontkit 1.1.1, see THIRD_PARTY_NOTICES) so Turkish letters can be filled and marked up without being replaced.
+- **Screen-share hold:** the passkey chooser, 2FA codes, emailed codes and the AI sign-in also wait while you share (vex.shareHold). **Slot watcher** can look at a booking tab you already have open (vex.slotTab). Notes saved by the agent tools carry where they came from; Clips inbox entries can be stamped; Focus block plan; reading digest for long documents; text-document redaction.
+- **Study:** bigger English word list and Turkish ending rules (reading-aids-lists.js, turkish-lemma.js), both loaded after start-up.
+- **AI money budget (ai-money, off for existing profiles):** price table, monthly money budget, quality history, recipe destinations, "Use X for ..." in the model-fit tool; provenance chips on the Tab AI plan, group proposal and restyle notice, and a provenance line on notes and Clips entries saved by recipes.
+- **Daily:** YouTube captions, leveller ordering, Shift+Enter opens a private window (vex.tabsNav.shiftEnter), open-private-window takes an optional address, carrier memory (vex.orders.carrierMemory).
+- **English plurals** go through one helper (vex-plural.js): 393 hand-written endings moved by a codemod, guarded by a ratchet.
+- **Start-up budget:** 672 blocking scripts.
+
 ## v22.24.6 (2026-10-16) — Ctrl+K works while Vex is kept still
 
 ### Fixed
