@@ -4,9 +4,12 @@
 // application window opens and closes, the late-fee window, results. They are
 // typed in by you, or read from an .ics file you choose (a calendar you
 // exported, one a school sent). Vex never fetches a government site, never
-// signs in anywhere, and does not know the dates itself: each item carries the
-// body it concerns (OSYM, MEB, YOK) and a "check it on the official site" line
-// with a button that opens that site in a tab, when YOU press it.
+// signs in anywhere. The only dates that ship with Vex are the ones in
+// js/exam-calendar-data.js: OSYM's own published calendar as read on a stated day,
+// added by one button after a confirmation, each with its source link, that day and a
+// "verify on the official site" flag. Each item carries the body it concerns
+// (OSYM, MEB, YOK) and a "check it on the official site" line with a button that
+// opens that site in a tab, when YOU press it.
 //
 // Each dated item gets reminders at 09:00, a week and a day ahead (your choice
 // in the item form is not needed: the lead days are in Settings), and one on the
@@ -71,7 +74,12 @@ const ExamCalendar = {
       url = u.href;
     }
     const note = String(input.note || '').trim().slice(0, 400);
-    return { id: input.id || VexLifeKit.uid('ex'), uid: input.uid ? String(input.uid).slice(0, 200) : '', kind, body, title, day, endDay, url, note, remindIds: Array.isArray(input.remindIds) ? input.remindIds : [] };
+    const out = { id: input.id || VexLifeKit.uid('ex'), uid: input.uid ? String(input.uid).slice(0, 200) : '', kind, body, title, day, endDay, url, note, remindIds: Array.isArray(input.remindIds) ? input.remindIds : [] };
+    // A date that came from a published calendar keeps where and when it was read, and that it still needs checking.
+    if (input.verify === true && /^https:\/\//.test(String(input.source || '')) && /^\d{4}-\d{2}-\d{2}$/.test(String(input.asOf || ''))) {
+      out.verify = true; out.source = String(input.source).slice(0, 300); out.asOf = input.asOf;
+    }
+    return out;
   },
 
   // ---- pure: an .ics file -------------------------------------------------------------------
@@ -181,6 +189,31 @@ const ExamCalendar = {
     }
     return { added, skipped: events.length - fresh.length, failed };
   },
+  // The dates in exam-calendar-data.js: only after the person confirms, only the ones still ahead,
+  // none twice (by uid). -> { added, skipped, failed }.
+  async importOfficial(data = typeof ExamCalendarData !== 'undefined' ? ExamCalendarData : null, now = Date.now()) {
+    if (!data) throw new Error('The official dates are not loaded');
+    const today = VexLifeKit.dayString(now);
+    const have = new Set(this.all().map(i => i.uid).filter(Boolean));
+    const ahead = data.ROWS.filter(r => (r.endDay || r.day) >= today);
+    const fresh = ahead.filter(r => !have.has(r.uid));
+    if (!fresh.length) return { added: 0, skipped: data.ROWS.length, failed: [] };
+    const ok = await window.vexConfirm({
+      title: 'Add ' + fresh.length + ' dates from OSYM?',
+      message: 'Typed from OSYM\'s published calendar (' + data.SOURCE + ') as read on ' + data.READ_ON + '. OSYM says dates can change, so each is marked "verify on the official site". Reminders are set for the ones still ahead. Not listed because no official date exists yet: ' + data.PENDING.join('; ') + '.',
+      okLabel: 'Add them',
+    });
+    if (!ok) return { added: 0, skipped: data.ROWS.length, failed: [] };
+    let added = 0;
+    const failed = [];
+    for (const r of fresh) {
+      try {
+        const res = await this.add({ ...r, body: data.BODY, url: data.SOURCE, source: data.SOURCE, asOf: data.READ_ON, verify: true }, { now });
+        added++; failed.push(...res.failed);
+      } catch (err) { failed.push(r.title + ': ' + err.message); }
+    }
+    return { added, skipped: data.ROWS.length - fresh.length, failed };
+  },
   pickFile() {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
@@ -222,6 +255,10 @@ const ExamCalendar = {
       const report = (r) => { if (r && r.failed && r.failed.length) window.showToast?.(r.failed.length + ' reminder(s) could not be set: ' + r.failed[0], 'error'); };
       bar.append(
         VexSettingsGroups.button('Add a date', async () => { try { report(await this.edit()); draw(); } catch (err) { window.showToast?.(err.message, 'error'); } }, { primary: true }),
+        VexSettingsGroups.button('Add the OSYM dates (read ' + (typeof ExamCalendarData !== 'undefined' ? ExamCalendarData.READ_ON : '?') + ')', async () => {
+          try { const r = await this.importOfficial(); window.showToast?.(r.added + ' added' + (r.skipped ? ', ' + r.skipped + ' already there or past' : '')); report(r); draw(); }
+          catch (err) { window.showToast?.(err.message, 'error'); }
+        }),
         VexSettingsGroups.button('Import an .ics file', async () => {
           try { const t = await this.pickFile(); if (t == null) return; const r = await this.importIcs(t); window.showToast?.(r.added + ' added' + (r.skipped ? ', ' + r.skipped + ' already there' : '')); report(r); draw(); }
           catch (err) { window.showToast?.(err.message, 'error'); }
@@ -236,6 +273,7 @@ const ExamCalendar = {
           i.day + (i.endDay ? ' to ' + i.endDay : '') + ': ' + VexLifeKit.words(i.left) + (i.left < 0 ? ' (passed)' : ''),
           'Verify on ' + (b.site ? b.site.replace(/^https:\/\/(www\.)?|\/$/g, '') : 'the official site') + '. Not checked by Vex.',
         ];
+        if (i.source) lines.push('Source: ' + i.source + ' (read ' + i.asOf + '). Dates can change: verify on the official site.');
         if (i.note) lines.push(i.note);
         const buttons = [];
         const link = i.url || b.site;
