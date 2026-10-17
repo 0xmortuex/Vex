@@ -15,6 +15,11 @@
 // routed tabs. Finding the dictionary form of an inflected word is approximate (English endings and
 // Turkish suffixes are stripped by rule), and says so.
 //
+// Bigger word lists: besides the starter list there is a list of the 3,000 commonest English words
+// (js/reading-aids-lists.js, counted from 40 public-domain books; scripts/build-wordlists.js says how),
+// adopted as "the first 1,000" or "the first 3,000" in one click. Turkish endings are taken off by the
+// harmony-aware rules of js/turkish-lemma.js, on top of the flat suffix list below.
+//
 //   VexReadingAids.candidates(word, lang)     pure: the forms a word may come from, most likely first
 //   VexReadingAids.lookup(word, lang)         { lemma, gloss, source } or null
 //   VexReadingAids.parseList(text)            pure: CSV/TSV "word,gloss[,lemma]" lines -> entries
@@ -97,6 +102,8 @@ const VexReadingAids = {
       }
       // verbs: -mak / -mek forms of a stem
       for (const stem of out.slice(0, 12)) { add(stem + 'mak'); add(stem + 'mek'); }
+      // the harmony-aware rules (js/turkish-lemma.js): endings that fit, softened consonants, dropped vowels
+      if (typeof VexTrLemma !== 'undefined') for (const c of VexTrLemma.candidates(w)) add(c);
       return out;
     }
     return out;
@@ -213,11 +220,20 @@ const VexReadingAids = {
     this._saveKnown(lang, set);
     return removed;
   },
-  adoptCommon(lang) {
+  // level: 'starter' (the few hundred of reading-aids-data.js) or a number of the commonest words of the large list
+  // (English only, see LARGE_LEVELS).
+  LARGE_LEVELS: [1000, 3000],
+  adoptCommon(lang, level = 'starter') {
     this._need();
     if (!this.LANGS.includes(lang) || typeof VexReadingAidsData === 'undefined') throw new Error('The starter list is not available');
+    let words = VexReadingAidsData.COMMON[lang];
+    if (level !== 'starter') {
+      if (lang !== 'en' || !this.LARGE_LEVELS.includes(level)) throw new Error('There is a list of the commonest ' + this.LARGE_LEVELS.join(' or ') + ' English words, and no larger list for ' + lang);
+      if (typeof VexReadingAidsLists === 'undefined') throw new Error('The large English list is not loaded');
+      words = VexReadingAidsLists.EN.slice(0, level);
+    }
     const set = this.knownSet(lang);
-    for (const w of VexReadingAidsData.COMMON[lang]) set.add(this.lower(w, lang));
+    for (const w of words) set.add(this.lower(w, lang));
     this._saveKnown(lang, set);
     return set.size;
   },
@@ -433,6 +449,9 @@ const VexReadingAids = {
       let n = 0; try { n = this.knownCount(lang); } catch (e) { fail(e); }
       el.appendChild(G.note(name + ': ' + n + ' known word' + (n === 1 ? '' : 's')));
       el.appendChild(G.button('I know the common ' + name + ' words', () => { try { const total = this.adoptCommon(lang); window.showToast?.(total + ' ' + name + ' words are marked as known', 'success'); } catch (e) { fail(e); } }));
+      if (lang === 'en') for (const level of this.LARGE_LEVELS) {
+        el.appendChild(G.button('I know the ' + level.toLocaleString('en') + ' commonest English words', () => { try { const total = this.adoptCommon(lang, level); window.showToast?.(total + ' English words are marked as known', 'success'); } catch (e) { fail(e); } }));
+      }
       el.appendChild(G.button('Import a ' + name + ' word list...', async () => {
         try { const t = await this.pickFile(); if (t == null) return; const r = this.importList(t, lang); window.showToast?.(r.added + ' entries added (' + r.total + ' in your ' + name + ' list)', 'success'); } catch (e) { fail(e); }
       }));
