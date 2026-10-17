@@ -5,6 +5,8 @@
 // Minimal Vex off puts back exactly what was there (a feature that was off stays
 // off, a mode comes back as the mode it was).
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+// Modules that register their timers with VexJobs.every (T0-020) start them when they load.
+globalThis.VexJobs ??= { every: () => ({ stop: () => {} }) };
 
 const JS = '../../src/renderer/js/';
 const fresh = (p) => { delete require.cache[require.resolve(p)]; return require(p); };
