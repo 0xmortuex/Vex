@@ -318,6 +318,11 @@ contextBridge.exposeInMainWorld('vex', {
   // Install a LOCAL Vencord build (your custom userplugins/plugins). Optional
   // path points at the build's extension-chrome.zip or its repo/dist folder.
   installVencordLocal: (path) => ipcRenderer.invoke('discord:install-vencord-local', path),
+  // Which Vencord plugin allocates how much (main/discord-heap.js): begin a sampling window on the Discord page, end it
+  // (keep=false throws it away), or read its heap once after a garbage collection. Numbers and plugin names only.
+  discordHeapBegin: (id, names) => ipcRenderer.invoke('discord:heap-begin', id, names),
+  discordHeapEnd: (id, keep) => ipcRenderer.invoke('discord:heap-end', id, keep),
+  discordHeapUsage: (id) => ipcRenderer.invoke('discord:heap-usage', id),
   // Auto-configure sweep progress: { phase:'testing'|'done', label, i, total, ok, via, preset }.
   onDiscordBypassProgress: (cb) => subscribe('discord:bypass-progress', cb),
   // Screen-share source picker (Discord Go Live / Share Screen).
