@@ -19,10 +19,17 @@
 // snapshot() throws, the answer is a rejected promise carrying its message:
 // the action is not run without the safety copy it asked for.
 //
+// Where it stands in front of: the downloads and duplicate-tab tidy-ups, Close Others / Close Tabs to the Right /
+// a group or stack close (three or more tabs; TabManager.closeTabsPreviewed), a command chain's first run and
+// after an edit (confirmSteps), a new automation, and an agent run with three or more changes. The evening tab
+// cleanup card is its own tick list with the same Undo, so it does not use this dialog.
+//
 // snapshotTabs(tabs) is the ready-made snapshot for actions that close tabs:
 // it remembers their addresses and titles so restore() can reopen them.
 const VexPlan = {
   MAX_SHOWN: 200,
+  // A bulk action: this many things at once or more is shown here first (tab closes, chain steps, agent writes).
+  BULK_MIN: 3,
 
   // Pure: the ids ticked, in list order.
   chosen(items, ticked) {
@@ -57,6 +64,17 @@ const VexPlan = {
       if (seen.has(i.id)) throw new Error('Two items in a preview share the id "' + i.id + '"');
       seen.add(i.id);
     }
+  },
+
+  // The same dialog for a list of steps that is all-or-nothing: chain steps, an automation's effect, the
+  // changes an agent plan will ask about. steps: [{ label, detail }]. -> Promise<boolean> (true = go ahead).
+  async confirmSteps({ title, intro, steps, okLabel, noun = 'step', danger = false }) {
+    if (!Array.isArray(steps)) throw new Error('A step preview needs a list of steps');
+    const r = await this.confirm({
+      title, intro, okLabel, noun, danger, selectable: false,
+      items: steps.map((s, i) => ({ id: 's' + i, label: String(s.label || ''), detail: s.detail || '' })),
+    });
+    return r.ok === true;
   },
 
   // -> Promise<{ ok: false } | { ok: true, chosen: string[], snapshot: any }>

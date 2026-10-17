@@ -883,6 +883,9 @@ Features no other browser has, built out of the parts above.
 - **Usage counts and suggestions** (`usage-counters`): Counts on this computer how often each feature is opened, held back or fails, and after two weeks may suggest hiding one you never use or pinning one you use daily. On an existing profile it starts off; turn it on in Settings > Usage counts and suggestions.
   - Open: Settings > Usage counts and suggestions.
   - Default: New: starts off on an existing profile until you switch it on.
+- **Simple, Standard or Power** (`capability-dial`): One dial for how much Vex shows. Simple switches off the features you have never used, after two weeks of counting and with the list shown first. Standard is Vex as it is. Power brings the usage suggestions weekly. On an existing profile it starts off; turn it on in Settings > Simple, Standard or Power.
+  - Open: Ctrl+K: "Simple, Standard or Power"; Settings > Simple, Standard or Power.
+  - Default: New: starts off on an existing profile until you switch it on.
 - **First-use sheet** (`first-use-sheet`): The first time you use a new or beta feature, a small card says what it does, what it touches and how to turn it off. On an existing profile it starts off; turn it on in Settings > First-use sheet.
   - Open: Settings > First-use sheet.
   - Default: New: starts off on an existing profile until you switch it on.

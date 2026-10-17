@@ -158,6 +158,20 @@ const AgentTaskPanel = {
     if (!this._plan) return;
     if (!AgentSafety.enabled()) throw new Error('The Vex agent is off');
     const prefs = AgentSafety.prefs();
+    // Three or more steps that type, choose or click are listed in the shared dry-run dialog before the run starts.
+    // (Each still asks again when it comes up; a read-only run has none to list.)
+    const writes = this._plan.readOnly === true ? [] : this._plan.steps.filter(s => s.kind === 'write');
+    if (writes.length >= (typeof VexPlan !== 'undefined' ? VexPlan.BULK_MIN : 3)) {
+      if (typeof VexPlan === 'undefined') throw new Error('The step preview is not loaded (js/plan-preview.js)');
+      if (this._confirming) return;          // a second press while the list is open
+      this._confirming = true;
+      let go;
+      try { go = await VexPlan.confirmSteps({
+        title: 'This run can change ' + writes.length + ' things on pages', intro: 'Each of these asks you again when it comes up. Tick Read-only in the plan to skip them all.',
+        steps: writes.map(s => ({ label: AgentTaskRunner.describeStep(s), detail: 'asks first' })), okLabel: 'Start the run', noun: 'change', danger: true,
+      }); } finally { this._confirming = false; }
+      if (!go) return;
+    }
     const budget = new AgentBudget({ maxSteps: prefs.maxSteps, maxMs: prefs.maxMinutes * 60000 });
     const run = new TaskRun({ goal: this._plan.goal, steps: this._plan.steps, deps: this._deps(), budget, backend: this._plan.backend, scope: { readOnly: this._plan.readOnly === true } });
     this._run = run;
@@ -263,11 +277,17 @@ const AgentTaskPanel = {
     });
   },
 
+  // What wrote the plan or the answer, as the shared provenance chip (js/provenance-chip.js); '' when it is not loaded.
+  _chipFor(backend, read) {
+    if (typeof VexProvenance === 'undefined' || !backend) return '';
+    return VexProvenance.html({ kind: VexProvenance.kindOfBackend(backend), read });
+  },
+
   _renderPlan() {
     const box = this._el && this._el.querySelector('#vex-at-plan');
     if (!box || !this._plan) return;
     const p = this._plan;
-    box.innerHTML = `<h3 class="vex-at-h">Plan - ${p.steps.length} step${p.steps.length === 1 ? '' : 's'}</h3>
+    box.innerHTML = `<h3 class="vex-at-h">Plan - ${p.steps.length} step${p.steps.length === 1 ? '' : 's'}</h3>${this._chipFor(p.backend, 'your goal')}
       ${p.trimmed ? `<div class="vex-at-note">The plan was longer than your budget; ${p.trimmed} step${p.trimmed === 1 ? ' was' : 's were'} cut.</div>` : ''}
       <ol class="vex-at-steps">${p.steps.map(s => `<li class="vex-at-step vex-at-${s.kind}"><span class="vex-at-badge">${s.kind === 'write' ? 'asks you first' : 'looks only'}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${this._explainBlock(s, null)}</li>`).join('')}</ol>
       ${p.steps.some(s => s.kind === 'write') ? `<label class="vex-at-note"><input type="checkbox" data-act="readonly" ${p.readOnly ? 'checked' : ''}> Read-only run: skip every step that types, chooses or clicks</label>` : ''}
@@ -339,7 +359,7 @@ const AgentTaskPanel = {
           </div></div>` : ''}
         <ol class="vex-at-steps">${r.steps.map(s => `<li class="vex-at-step vex-at-${s.status}"><span class="vex-at-badge">${mark[s.status] || s.status}</span> ${this._esc(AgentTaskRunner.describeStep(s))} ${this._whyButton(s)}${s.result ? `<div class="vex-at-result">${this._esc(s.result)}</div>` : ''}${this._explainBlock(s, r)}</li>`).join('')}</ol>
         ${r.shield && r.shield.hits ? `<div class="vex-at-note">${r.shield.hits} instruction-like phrase${r.shield.hits === 1 ? '' : 's'} on the pages ${r.shield.hits === 1 ? 'was' : 'were'} removed before the model saw ${r.shield.hits === 1 ? 'it' : 'them'}: page text is data, never orders.</div>` : ''}
-        ${r.answer ? `<h3 class="vex-at-h">Answer</h3><div class="vex-at-answer">${this._esc(r.answer)}</div>` : ''}
+        ${r.answer ? `<h3 class="vex-at-h">Answer</h3>${this._chipFor(r.backend, 'the pages the agent read')}<div class="vex-at-answer">${this._esc(r.answer)}</div>` : ''}
         <details class="vex-at-history" ${done ? '' : 'open'}><summary>Live log</summary>
           <ul class="vex-at-livelog" aria-live="polite">${r.log.slice(-40).map(l => `<li>${new Date(l.at).toLocaleTimeString()} ${this._esc(l.text)}</li>`).join('')}</ul></details>
       </div>`;

@@ -129,3 +129,50 @@ describe('polite fetch', () => {
     expect(c.slept).toContain(5000);
   });
 });
+
+describe('who is asking is part of the cache key (T3-030)', () => {
+  const etagged = (u, init) => {
+    const auth = new Headers(init.headers).get('authorization');
+    return res(200, auth ? 'private for ' + auth : 'public', { ETag: '"' + (auth || 'anon') + '"' });
+  };
+
+  it('never serves an authenticated answer to an anonymous request, nor the other way round', async () => {
+    const { polite, calls } = make(etagged);
+    const a = await polite('https://api.test/me', { headers: { Authorization: 'Bearer one' }, polite: { ttlMs: 60000 } });
+    expect(await a.text()).toBe('private for Bearer one');
+    const anon = await polite('https://api.test/me', { polite: { ttlMs: 60000 } });
+    expect(await anon.text()).toBe('public');
+    const other = await polite('https://api.test/me', { headers: { Authorization: 'Bearer two' }, polite: { ttlMs: 60000 } });
+    expect(await other.text()).toBe('private for Bearer two');
+    expect(calls.length).toBe(3);
+    const again = await polite('https://api.test/me', { headers: { Authorization: 'Bearer one' }, polite: { ttlMs: 60000 } });
+    expect(await again.text()).toBe('private for Bearer one');
+    expect(again.headers.get('x-vex-cache')).toBe('fresh');
+    expect(calls.length).toBe(3);
+  });
+
+  it('keeps cookie-less public reads apart from direct reads of the same address', async () => {
+    const { polite, calls } = make((u, init) => res(200, init.publicOnly ? 'public' : 'direct', { ETag: '"x"' }));
+    const p = await polite('https://a.test/p', { publicOnly: true, polite: { ttlMs: 60000, partition: 'public' } });
+    const d = await polite('https://a.test/p', { polite: { ttlMs: 60000, partition: 'net' } });
+    expect(await p.text()).toBe('public');
+    expect(await d.text()).toBe('direct');
+    expect(calls.length).toBe(2);
+  });
+
+  it('does not keep the secret itself anywhere it can be read back', async () => {
+    const { polite } = make(etagged);
+    await polite('https://api.test/me', { headers: { Authorization: 'Bearer SECRET-TOKEN' }, polite: { ttlMs: 60000 } });
+    expect(JSON.stringify(polite.stats())).not.toContain('SECRET-TOKEN');
+  });
+
+  it('leaves a caller who sends its own conditional headers to itself: limited, never cached', async () => {
+    const { polite, calls } = make((u, init, n) => (n === 1 ? res(200, 'body', { ETag: '"v1"' }) : res(304)));
+    const first = await polite('https://a.test/w', { headers: { 'If-None-Match': '"v0"' } });
+    expect(first.status).toBe(200);
+    const second = await polite('https://a.test/w', { headers: { 'If-None-Match': '"v1"' } });
+    expect(second.status).toBe(304);                      // the caller sees the 304, not a cached body
+    expect(calls.length).toBe(2);
+    expect(polite.stats().cacheEntries).toBe(0);
+  });
+});

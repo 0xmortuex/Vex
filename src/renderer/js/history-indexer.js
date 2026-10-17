@@ -145,6 +145,8 @@ const HistoryIndexer = (() => {
         entry.contentType = parsed.contentType || 'other';
         entry.indexed = true;
         entry.indexedAt = new Date().toISOString();
+        // What wrote the summary, so the History list can carry the provenance chip (T3-107).
+        if (aiResult.backend) entry.summaryBy = { backend: aiResult.backend, model: aiResult.model || '' };
         HistoryPanel.save();
       }
     }

@@ -2,6 +2,7 @@ const data = require('../renderer/js/data-contracts');
 const string = (max = 8192) => value => typeof value === 'string' && value.length <= max;
 const optional = check => value => value == null || check(value);
 const boolean = value => typeof value === 'boolean';
+const finiteNumber = value => typeof value === 'number' && Number.isFinite(value);
 const object = value => !!value && typeof value === 'object' && !Array.isArray(value);
 const integer = value => Number.isSafeInteger(value) && value > 0;
 const coordinate = value => Number.isInteger(value) && value >= 0 && value <= 20000;
@@ -532,7 +533,7 @@ define('cloud:request', [shape({ feature: optional(string(80)) })]);
 define('image:for-ai', [integer, web, optional(boolean)]);
 // mcpServer: the id of an MCP server whose token main adds to the request.
 // publicOnly: the AI agent's reads, refused for this machine and the local network.
-define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean), viewer: optional(boolean), allowLocal: optional(boolean), egress: optional(string(40)) })]);
+define('api:request', [shape({ url: web, method: optional(oneOf(['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'])), headers: optional(object), body: optional(string(8 * 1024 * 1024)), binary: optional(boolean), mcpServer: optional(string(80)), publicOnly: optional(boolean), viewer: optional(boolean), allowLocal: optional(boolean), egress: optional(string(40)), polite: optional(shape({ background: optional(boolean), jitterMs: optional(finiteNumber), ttlMs: optional(finiteNumber) })) })]);
 // API playground (main/api-playground.js): one request from the request
 // builder. Headers are name/value text; main checks every name and value.
 // allowLocal: the person switched on "Allow localhost" for this request.

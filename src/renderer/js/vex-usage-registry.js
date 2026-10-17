@@ -300,6 +300,7 @@ const VexUsageRegistry = {
       VexJumpActions: () => (typeof VexJumpActions !== 'undefined' ? VexJumpActions : null),
       VexWindowSet: () => (typeof VexWindowSet !== 'undefined' ? VexWindowSet : null),
       AnnounceDesk: () => (typeof AnnounceDesk !== 'undefined' ? AnnounceDesk : null),
+      VexCapabilityDial: () => (typeof VexCapabilityDial !== 'undefined' ? VexCapabilityDial : null),
       VexLongDoc: () => (typeof VexLongDoc !== 'undefined' ? VexLongDoc : null),
       VexThreadDigest: () => (typeof VexThreadDigest !== 'undefined' ? VexThreadDigest : null),
       VexDraftField: () => (typeof VexDraftField !== 'undefined' ? VexDraftField : null),
@@ -478,6 +479,7 @@ const VexUsageRegistry = {
       ['progressive-disclosure', A.api(G.VexDisclosure, 'enabled', 'setEnabled')],
       ['intent-search', A.api(G.VexIntent, 'enabled', 'setEnabled')],
       ['usage-counters', A.api(G.VexUsageCounters, 'enabled', 'setEnabled')],
+      ['capability-dial', A.api(G.VexCapabilityDial, 'enabled', 'setPref')],
       ['first-use-sheet', A.api(G.VexFeatureSheet, 'enabled', 'setEnabled')],
       // Attention (js/vex-playfulness.js, js/attention-inbox.js). The New Tab layout (js/newtab-slots.js)
       // is deliberately NOT registered: Minimal Vex is the calm layout, so it must never switch it to Everything.

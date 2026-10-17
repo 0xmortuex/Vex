@@ -460,6 +460,8 @@
       permissions: quiet({ reads: ['what you type in Ctrl+K; the settings, feature and command lists'] }) },
     { id: 'usage-counters', title: 'Usage counts and suggestions', group: 'Usage counts and suggestions', maturity: 'new', storageKeys: ['vex.usageCounters', 'vex.usageCounters.enabled', 'vex.usageCounters.state'], jobs: ['Usage suggestions'],
       permissions: quiet({ reads: ['how often each feature is opened, held back, fails or is switched off by Vex'], writes: ['daily counts for 35 days; what it suggested; commands you pinned'] }) },
+    { id: 'capability-dial', title: 'Simple, Standard or Power', group: 'Simple, Standard or Power', maturity: 'new', storageKeys: ['vex.capabilityDial', 'vex.capabilityDial.enabled'], usesKeys: ['vex.usageCounters', 'vex.usageCounters.state'], commands: ['capability-dial'],
+      permissions: quiet({ reads: ['how often each feature is opened (the usage counts), the commands you pinned'], writes: ['which features it switched off, so they can be put back'] }) },
     { id: 'first-use-sheet', title: 'First-use sheet', maturity: 'new', storageKeys: ['vex.firstUse.enabled'],
       permissions: quiet({ reads: ['the first time you use a new or beta feature'], writes: ['which sheets were shown'] }) },
 
@@ -685,7 +687,7 @@
       permissions: { reads: ['how much the journal, ledger, game log, timeline, capture log, digest cache and AI memory keep'], writes: ['those lists, only to remove the oldest entries after a warning (the removed part is kept for Undo)'], sends: [] } },
     { id: 'storage-ceilings', title: 'Storage and Recall limits', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.storage.recallLimits'],
       permissions: { reads: ['how much each feature keeps; the Recall index size'], writes: ['the caps and retention of the Recall index; the oldest pages go first'], sends: [] } },
-    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: [], commands: ['ai-answered-by'],
+    { id: 'ai-route-control', title: 'Where AI runs', killSwitch: 'none', maturity: 'stable', storageKeys: ['vex.aiRoute'], commands: ['ai-answered-by'],
       permissions: { reads: ['your AI mode and which backend answered'], writes: ['the same AI mode switches Settings already has'], sends: [] } },
     { id: 'email-code-autofill', title: 'Email code autofill', killSwitch: 'none', maturity: 'stable',
       storageKeys: ['vex.emailCodeAutoSubmit', 'vex.emailCodeAutofill', 'vex.emailCodeHiddenReader', 'vex.emailCodeTrust'],

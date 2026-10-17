@@ -86,13 +86,38 @@ describe('tab groups: Close tabs and Delete group', () => {
     const before = snapshot(TM);
     TM.activeTabId = 'c';
     const beforeActive = snapshot(TM);
-    TM.closeOtherTabs('x');
+    // Three or more tabs list first (js/plan-preview.js); the person presses the button.
+    globalThis.VexPlan = { BULK_MIN: 3, confirm: vi.fn(async ({ items }) => ({ ok: true, chosen: items.map(i => i.id) })), snapshotTabs: () => null };
+    await TM.closeOtherTabs('x');
+    expect(globalThis.VexPlan.confirm).toHaveBeenCalledTimes(1);
     expect(TM.tabs.map(t => t.id)).toEqual(['p', 'x']);
     expect(TM.activeTabId).toBe('x');
     await undoLast();
     // The tab that was in front before Close Others is in front again.
     expect(snapshot(TM)).toBe(beforeActive);
     expect(JSON.parse(snapshot(TM)).tabs).toEqual(JSON.parse(before).tabs);
+  });
+
+  it('Close Others: pressing Not now closes nothing, and fewer than three close at once (T3-051)', async () => {
+    const TM = await loadTabs();
+    globalThis.VexPlan = { BULK_MIN: 3, confirm: vi.fn(async () => ({ ok: false })), snapshotTabs: () => null };
+    const before = snapshot(TM);
+    await TM.closeOtherTabs('x');
+    expect(snapshot(TM)).toBe(before);
+    TM.tabs = TM.tabs.slice(0, 3);          // pinned p, a, x: closing the others is two tabs
+    globalThis.VexPlan.confirm.mockClear();
+    await TM.closeOtherTabs('x');
+    expect(globalThis.VexPlan.confirm).not.toHaveBeenCalled();
+    expect(TM.tabs.map(t => t.id)).toEqual(['p', 'x']);
+  });
+
+  it('Close Tabs to the Right and a group close list the tabs first, and only the ticked ones close', async () => {
+    const TM = await loadTabs();
+    globalThis.VexPlan = { BULK_MIN: 3, confirm: vi.fn(async ({ items }) => ({ ok: true, chosen: items.slice(1).map(i => i.id) })), snapshotTabs: () => null };
+    await TM.closeTabsToTheRight('p');
+    const shown = globalThis.VexPlan.confirm.mock.calls[0][0].items.map(i => i.id);
+    expect(shown).toEqual(['x', 'a', 'b', 'c']);
+    expect(TM.tabs.map(t => t.id)).toEqual(['p', 'x']);      // the first listed tab was unticked and stays
   });
 
   it('a Tor or private tab cannot come back, and the toast says so', async () => {

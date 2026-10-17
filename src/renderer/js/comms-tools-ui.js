@@ -526,7 +526,7 @@ const CommsToolsUI = {
         for (const c of VencordBridge.channels()) {
           body.appendChild(this._row(this._el('span', '', '#' + (c.name || c.channelId) + (c.guildName ? ' (' + c.guildName + ')' : '') + ': ' + c.messages.length + ' messages'),
             this._btn('Catch me up', () => { const t = VencordBridge.catchUpText(c.channelId); VexSettingsGroups.dialog({ id: 'vencord-catchup-dialog', title: 'Catch-up: #' + (c.name || c.channelId), sub: 'Counted from the file, no AI.' }).body.appendChild(this._el('pre', '', t)); }),
-            this._btn('Summarize with the local AI', async () => { const t = await VencordBridge.summarizeLocal(c.channelId); VexSettingsGroups.dialog({ id: 'vencord-catchup-dialog', title: 'Summary: #' + (c.name || c.channelId), sub: 'Written by your local model; check it against the chat.' }).body.appendChild(this._el('pre', '', t)); })));
+            this._btn('Summarize with the local AI', async () => { const t = await VencordBridge.summarizeLocal(c.channelId); VexSettingsGroups.dialog({ id: 'vencord-catchup-dialog', title: 'Summary: #' + (c.name || c.channelId), sub: 'Written by your local model; check it against the chat.' }).body.append(...(typeof VexProvenance !== 'undefined' ? [VexProvenance.chip({ kind: 'local', read: 'the chat messages in the file' })] : []), this._el('pre', '', t)); })));
         }
         body.appendChild(this._row(this._btn('Mark everything as seen', () => { VencordBridge.markAllSeen(); draw(false); })));
       }

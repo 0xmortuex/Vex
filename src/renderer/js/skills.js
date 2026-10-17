@@ -301,13 +301,14 @@ const VexSkills = {
     const res = await AIRouter.callAI('chat', { message: message + this.formatSuffix(output), pageContext, conversationHistory: history });
     const text = typeof res.result === 'string' ? res.result : String((res.result && (res.result.reply || res.result.text)) || '');
     if (!text.trim()) throw new Error('The AI returned nothing. Try again.');
-    this.showTyped(sk, output, text.trim());
+    this.showTyped(sk, output, text.trim(), res);
   },
 
-  showTyped(sk, output, text) {
+  showTyped(sk, output, text, res) {
     if (typeof VexSettingsGroups === 'undefined') throw new Error('The result view is unavailable.');
     const { body, close } = VexSettingsGroups.dialog({ id: 'vex-skill-result', title: sk.name, sub: this.OUTPUT_LABEL[output] + ' · nothing is saved until you press a button' });
     const el = (tag, cls, t) => { const e = document.createElement(tag); if (cls) e.className = cls; if (t != null) e.textContent = t; return e; };
+    if (res && typeof VexProvenance !== 'undefined') body.appendChild(VexProvenance.chip(VexProvenance.fromResult(res, { read: 'the page, your instructions and this chat' })));
     const msg = el('div', 'vex-platform-note'); msg.setAttribute('role', 'status');
     const bar = el('div'); bar.style.cssText = 'display:flex;gap:8px;margin-top:12px;flex-wrap:wrap';
     const copyBtn = (label, getText) => VexSettingsGroups.button(label, async () => {

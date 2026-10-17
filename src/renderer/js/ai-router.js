@@ -88,7 +88,30 @@ const AIRouter = (() => {
     return { changed: true };
   }
 
+  // Where AI runs is ONE key, vex.aiRoute: 'auto' | 'local' | 'cloud'. It replaces the two booleans
+  // vex.preferLocalAI and vex.forceCloudAI (which could disagree). The migration runs once, before
+  // the first read: Always cloud wins over Prefer local, which is what the router already did when
+  // both were saved, so no one's behaviour changes. The old keys are removed afterwards.
+  const ROUTE_KEY = 'vex.aiRoute';
+  const ROUTE_MODES = ['auto', 'local', 'cloud'];
+  function migrateRouteKey() {
+    const cloud = _load('vex.forceCloudAI', false) === true;
+    const local = _load('vex.preferLocalAI', false) === true;
+    if (localStorage.getItem(ROUTE_KEY) === null) _save(ROUTE_KEY, cloud ? 'cloud' : local ? 'local' : 'auto');
+    localStorage.removeItem('vex.forceCloudAI');
+    localStorage.removeItem('vex.preferLocalAI');
+    return { cloud, local, conflict: cloud && local };
+  }
+  function routeValue() { return preferLocal ? 'local' : forceCloud ? 'cloud' : 'auto'; }
+
   async function init() {
+    // One time, before the route is read.
+    const routeRan = (typeof VexMigrations !== 'undefined')
+      ? VexMigrations.migrateOnce('ai.route-single-key', migrateRouteKey)
+      : { ran: true, result: migrateRouteKey() };
+    if (routeRan.ran && routeRan.result && routeRan.result.conflict && typeof VexLedger !== 'undefined') {
+      VexLedger.note({ feature: 'ai-route-control', what: 'Where AI runs is now one setting: Fast cloud', why: 'Both Prefer local and Always cloud were saved; Vex was already following Always cloud' });
+    }
     // One time, before the table is read.
     const ran = (typeof VexMigrations !== 'undefined')
       ? VexMigrations.migrateOnce('ai.history-search-local', migrateHistoryRouting)
@@ -97,8 +120,10 @@ const AIRouter = (() => {
       VexLedger.note({ feature: 'ai-sensitivity', what: 'History search now uses the local model', why: 'It was still on the old default that sent history to the cloud; a choice you made yourself is never changed' });
     }
     routingPrefs = { ...DEFAULT_ROUTING, ..._load('vex.aiRouting', {}) };
-    preferLocal = _load('vex.preferLocalAI', false) === true;
-    forceCloud = _load('vex.forceCloudAI', false) === true;
+    const route = _load(ROUTE_KEY, 'auto');
+    if (!ROUTE_MODES.includes(route)) throw new Error('Saved AI route "' + route + '" is not auto, local or cloud');
+    preferLocal = route === 'local';
+    forceCloud = route === 'cloud';
     modelChosen = _load('vex.localAIModel', null) !== null;
     localModel = _load('vex.localAIModel', 'llama3.2:3b');
     smallModel = _load('vex.localSmallModel', '');
@@ -810,15 +835,13 @@ You were given an order, so carry it out. "thought" is one short sentence about 
   function setPreferLocal(v) {
     preferLocal = !!v;
     if (preferLocal) forceCloud = false;
-    _save('vex.preferLocalAI', preferLocal);
-    _save('vex.forceCloudAI', forceCloud);
+    _save(ROUTE_KEY, routeValue());
     _dbg('[AIRouter] setPreferLocal:', preferLocal, 'forceCloud:', forceCloud);
   }
   function setForceCloud(v) {
     forceCloud = !!v;
     if (forceCloud) preferLocal = false;
-    _save('vex.forceCloudAI', forceCloud);
-    _save('vex.preferLocalAI', preferLocal);
+    _save(ROUTE_KEY, routeValue());
     _dbg('[AIRouter] setForceCloud:', forceCloud, 'preferLocal:', preferLocal);
   }
   function setModel(name) {
@@ -866,7 +889,7 @@ You were given an order, so carry it out. "thought" is one short sentence about 
     // (js/two-models.js). Everything else should use callAI.
     callOn: (backend, feature, request) => callBackend(backend, feature, request),
     cloudWorkerUrl,
-    migrateHistoryRouting,
+    migrateHistoryRouting, migrateRouteKey,
     _cleanIpcError
   };
 })();

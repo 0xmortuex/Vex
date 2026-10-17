@@ -579,7 +579,7 @@ const AINews = {
       if (st.baselined && st.etag) headers['If-None-Match'] = st.etag;
       if (st.baselined && st.lastModified) headers['If-Modified-Since'] = st.lastModified;
       let r;
-      try { r = await this.io().request({ url, headers, publicOnly: !this._isLoopback(new URL(url).hostname) }); }
+      try { r = await this.io().request({ url, headers, publicOnly: !this._isLoopback(new URL(url).hostname), polite: { background: true } }); }
       catch (err) { return this._fail(st, now, 'Could not ask for the AI news: ' + (err && err.message)); }
       if (!r || r.ok === false) return this._fail(st, now, 'Could not reach the AI news address: ' + ((r && r.error) || 'no answer'));
       st.lastPollAt = now;

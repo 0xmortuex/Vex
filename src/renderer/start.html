@@ -2232,6 +2232,8 @@
         // The morning brief (Ctrl+K › Write my morning brief), first.
         if (snap.brief && snap.brief.text) {
           var p = document.createElement('p'); p.className = 'today-brief'; p.textContent = snap.brief.text;
+          // What wrote it (the chip's words, set by js/today.js), so a generated paragraph is never mistaken for a fact.
+          if (snap.brief.by) { var by = document.createElement('small'); by.style.cssText = 'display:block;margin-top:6px;opacity:0.7;font-size:11px'; by.textContent = snap.brief.by + '. Check it before you rely on it.'; p.appendChild(by); }
           rows.push(p);
         }
         // Today's reading digest (Library › Digest), when the browser made one.

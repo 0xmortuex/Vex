@@ -79,7 +79,7 @@ const VexWeeklyNote = {
 
   // The generated block, markers included.
   build(data) {
-    const day = (ms) => new Date(ms).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
+    const day = (ms) => new Date(ms).toLocaleDateString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { weekday: 'long', day: 'numeric', month: 'short' });
     const L = [this.START, '## Your week', ''];
     L.push('### Clips (' + data.clips.length + ')');
     if (!data.clips.length) L.push('Nothing clipped this week.');

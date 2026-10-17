@@ -208,6 +208,7 @@ const HistoryPanel = {
       ...(e.ownSession === true ? { ownSession: true } : {}),
       visitedAt: when || new Date().toISOString(),
       summary: e.summary, tags: e.tags, contentType: e.contentType, indexed: !!e.indexed,
+      ...(e.summaryBy && typeof e.summaryBy === 'object' ? { summaryBy: { backend: String(e.summaryBy.backend || ''), model: String(e.summaryBy.model || '').slice(0, 60) } } : {}),
     };
   },
 
@@ -295,6 +296,7 @@ const HistoryPanel = {
       ...(ownSession ? { ownSession: true } : {}),
       visitedAt: new Date().toISOString(),
       summary: existing?.summary, tags: existing?.tags, indexed: existing?.indexed || false,
+      ...(existing?.summaryBy ? { summaryBy: existing.summaryBy } : {}),
     });
     this.save();
     this._refreshIfOpen();
@@ -356,7 +358,7 @@ const HistoryPanel = {
 
   // One day's heading, used both to group rows and to clear that group.
   _dayLabel(d) {
-    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   },
 
   // Clearing everything was the only way to remove anything in bulk. These two
@@ -522,7 +524,7 @@ const HistoryPanel = {
       <div class="history-date-group">
         <div class="history-date-label">${date}<button class="history-day-clear" data-day="${this._esc(date)}" title="Remove every entry from this day">Clear day</button></div>
         ${items.slice(0, 100).map(e => {
-          const time = this._when(e).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          const time = this._when(e).toLocaleTimeString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { hour: '2-digit', minute: '2-digit' });
           const favicon = this._iconFor(e);
           return `
             <div class="history-item" data-id="${this._esc(e.id)}" data-url="${this._esc(e.url)}" tabindex="0" role="link">
@@ -530,7 +532,7 @@ const HistoryPanel = {
               <div class="history-item-info">
                 <div class="history-item-title">${this._esc(e.title)}</div>
                 <div class="history-item-url">${this._esc(e.url)}</div>
-                ${e.summary ? `<div class="item-summary">${this._esc(e.summary)}</div>` : ''}
+                ${e.summary ? `<div class="item-summary">${this._esc(e.summary)}${this._summaryChip(e)}</div>` : ''}
               </div>
               <span class="history-item-time">${time}</span>
               <button class="history-item-delete" title="Delete">
@@ -637,7 +639,7 @@ const HistoryPanel = {
           <div class="history-item-info item-content">
             <div class="history-item-title item-title">${this._esc(entry.title || 'Untitled')}</div>
             <div class="history-item-url item-url">${this._esc(entry.url)}</div>
-            ${entry.summary ? `<div class="item-summary">${this._esc(entry.summary)}</div>` : ''}
+            ${entry.summary ? `<div class="item-summary">${this._esc(entry.summary)}${this._summaryChip(entry)}</div>` : ''}
             <div class="item-meta">
               <span class="relevance-badge">${relevancePct}% match</span>
               <span class="why-relevant">${this._esc(match.whyRelevant || '')}</span>
@@ -686,7 +688,13 @@ const HistoryPanel = {
     }, 50);
   },
 
-  _esc(s) { return window.escapeHtml(s); }
+  _esc(s) { return window.escapeHtml(s); },
+  // A summary written by a model carries the provenance chip; one from before Vex kept the source has none.
+  _summaryChip(e) {
+    const by = e && e.summaryBy;
+    if (!by || typeof VexProvenance === 'undefined' || !['cloud', 'local', 'ondevice'].includes(by.backend)) return '';
+    return ' ' + VexProvenance.html(VexProvenance.fromResult(by, { read: 'the page text when you visited it' }));
+  }
 };
 
 window.HistoryPanel = HistoryPanel;

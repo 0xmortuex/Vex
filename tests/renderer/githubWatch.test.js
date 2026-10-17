@@ -12,12 +12,15 @@ beforeEach(() => {
   replies = {};
   notified = [];
   window.showToast = vi.fn();
-  window.vex = { notify: vi.fn(async (t, b) => { notified.push(b); }) };
-  window.VexNet = { fetch: vi.fn(async (url) => {
-    const r = replies[url.replace(G.API, '')];
-    if (!r) return { ok: false, status: 404, json: async () => ({}) };
-    return { ok: true, status: 200, json: async () => r.shift() };
-  }) };
+  window.vex = {
+    notify: vi.fn(async (t, b) => { notified.push(b); }),
+    // GitHub is asked through main's shared polite client (api:request with a polite hint).
+    apiRequest: vi.fn(async (o) => {
+      const r = replies[o.url.replace(G.API, '')];
+      if (!r) return { ok: true, status: 404, body: '{}' };
+      return { ok: true, status: 200, body: JSON.stringify(r.shift()) };
+    }),
+  };
 });
 
 describe('what can be watched', () => {
@@ -44,7 +47,8 @@ describe('a run', () => {
     await G.checkDue(t0);
     expect(notified).toEqual([]);
     await G.checkDue(t0 + 60000);                          // not due yet: two minutes between looks
-    expect(window.VexNet.fetch).toHaveBeenCalledTimes(1);
+    expect(window.vex.apiRequest).toHaveBeenCalledTimes(1);
+    expect(window.vex.apiRequest.mock.calls[0][0]).toMatchObject({ publicOnly: true, polite: { background: true } });
     await G.checkDue(t0 + 2 * 60000 + 1);
     expect(notified).toEqual(['Verify Vex failed — o/r: v2.32.38']);
     expect(G.list()).toEqual([]);

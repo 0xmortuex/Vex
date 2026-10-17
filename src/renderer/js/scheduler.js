@@ -689,7 +689,7 @@ const Scheduler = {
       summary: a => 'Save session "' + (a.sessionName || 'Auto') + '"',
       async run(task) {
         if (typeof SessionManager?.saveCurrentSession !== 'function') throw new Error('Sessions are not available');
-        const stamp = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const stamp = new Date().toLocaleString((window.VexI18n?.dateLocale('en-GB') || 'en-GB'), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
         const name = (task.action.sessionName || 'Auto') + ' - ' + stamp;
         const session = SessionManager.saveCurrentSession(name);
         return 'Saved "' + name + '" (' + (session?.tabs?.length || 0) + ' tabs)';

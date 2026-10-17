@@ -174,7 +174,9 @@ const ExplainPage = {
         body.style.color = 'var(--text)';
         body.textContent = res.text;
         wrap.hidden = false;
-        el.querySelector('[data-meta]').textContent = res.model ? 'Model: ' + res.model + ' · nothing left this machine' : 'Nothing left this machine';
+        const meta = el.querySelector('[data-meta]');
+        meta.textContent = res.model ? 'Model: ' + res.model + ' · nothing left this machine' : 'Nothing left this machine';
+        if (typeof VexProvenance !== 'undefined') meta.append(' ', VexProvenance.chip({ kind: 'local', model: res.model, read: 'the sentence you selected' }));
       },
       fail: (msg) => { body.style.color = 'var(--danger,#e5484d)'; body.textContent = msg; },
       close,

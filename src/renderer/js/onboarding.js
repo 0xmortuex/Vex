@@ -155,6 +155,7 @@ const Onboarding = {
   // Steps have recorded "done" as 'true' in some places and '1' in others
   // (the look and performance steps wrote '1'), so a check for 'true' alone
   // re-showed those two on every relaunch. Both spellings count.
+  _route() { try { return JSON.parse(localStorage.getItem('vex.aiRoute')); } catch { return null; } },
   _flag(k) { try { const v = localStorage.getItem(k); return v === 'true' || v === '1'; } catch { return false; } },
 
   // Is this step already configured? Each AI backend is judged independently, so
@@ -176,7 +177,7 @@ const Onboarding = {
       case 'privacy':        return this._flag('vex.privacyChosen');
       case 'defaultbrowser': return this._flag('vex.defaultBrowserConfigured');
       case 'aicloud':        return this._has('vex.aiWorkerUrl');
-      case 'ollama':         return this._flag('vex.preferLocalAI');
+      case 'ollama':         return this._route() === 'local';
       case 'ondevice':       return this._flag('vex.preferOnDeviceAI');
       case 'sync':           return this._has('vex.syncWorkerUrl');
       case 'passwords':      return this._flag('vex.vaultSeeded');

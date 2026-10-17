@@ -51,18 +51,54 @@ const TabContentIndex = {
     const entry = { url: tab.url, title: tab.title || '', words: this.keywords(text), at: Date.now(), text: String(text).normalize('NFC').replace(/\s+/g, ' ').trim() };
     this._byTab.set(tabId, entry);
     this._trimText();
+    this._syncOne(tabId);
     return entry;
   },
+
+  // ---- the shared search index (js/search-index.js, T3-108) --------------------------------------------------
+  // The page text of each open tab is also kept in the window's one shared index (source 'tabs:text'), so an exact
+  // search names the few tabs that can contain it instead of folding and scanning every page. The index only
+  // NARROWS: each candidate is still checked by the same exact scan, so the answers are the same as a full scan.
+  // It is used only while it holds exactly the tabs that have text; any other state scans everything, as before.
+  INDEX_SOURCE: 'tabs:text',
+  _textual() { return [...this._byTab].filter(([, e]) => e.text); },
+  _item(tabId, e) { return { id: String(tabId), title: '', subtitle: '', body: e.text, bodyMax: 100000 }; },
+  // Keep the index level with one tab (a page read, a tab closed, its text trimmed away).
+  _syncOne(tabId) {
+    if (typeof VexSearchIndex === 'undefined') return;
+    const idx = VexSearchIndex.shared();
+    const e = this._byTab.get(tabId);
+    if (e && e.text) idx.upsert(this.INDEX_SOURCE, this._item(tabId, e));
+    else idx.remove(this.INDEX_SOURCE, String(tabId));
+  },
+  _rebuild() {
+    VexSearchIndex.shared().replace(this.INDEX_SOURCE, this._textual().map(([tabId, e]) => this._item(tabId, e)));
+  },
+  // → Set of tab ids that could contain `needle`, or null when every tab has to be scanned. The index is used only
+  // while it holds exactly the tabs that have text (it is rebuilt once if it does not); anything else scans, as before.
+  _candidateIds(needle) {
+    if (typeof VexSearchIndex === 'undefined' || !globalThis.VexTr || typeof globalThis.VexTr.fold !== 'function') return null;
+    const idx = VexSearchIndex.shared();
+    const want = this._textual().length;
+    if (!want) return null;
+    if (!idx.isIndexed(this.INDEX_SOURCE) || idx.count(this.INDEX_SOURCE) !== want) this._rebuild();
+    if (!idx.isIndexed(this.INDEX_SOURCE) || idx.count(this.INDEX_SOURCE) !== want) return null;
+    // Folded the way the index folds its text, whatever the exact search does with case.
+    const found = idx.candidates(this.INDEX_SOURCE, [globalThis.VexTr.fold(needle)]);
+    return found === null ? null : new Set(found.map(i => i.id));
+  },
+
 
   // The oldest pages lose their text first when all of it is more than MAX_TEXT_CHARS (their words stay).
   _trimText() {
     let total = 0;
     for (const e of this._byTab.values()) total += e.text ? e.text.length : 0;
     if (total <= this.MAX_TEXT_CHARS) return;
-    for (const e of [...this._byTab.values()].sort((a, b) => a.at - b.at)) {
+    for (const [tabId, e] of [...this._byTab.entries()].sort((a, b) => a[1].at - b[1].at)) {
       if (!e.text) continue;
       total -= e.text.length;
       e.text = '';
+      this._syncOne(tabId);
       if (total <= this.MAX_TEXT_CHARS) break;
     }
   },
@@ -79,8 +115,10 @@ const TabContentIndex = {
     const fold = strict || !tr ? (x) => x : (x) => tr.fold(x);
     const needle = fold(q);
     const out = [];
+    const only = this._candidateIds(needle);
     for (const [tabId, e] of this._byTab) {
       if (!e.text) continue;
+      if (only && !only.has(String(tabId))) continue;
       const hay = fold(e.text);
       let at = hay.indexOf(needle), count = 0, first = -1;
       while (at !== -1) { if (first < 0) first = at; count++; at = hay.indexOf(needle, at + needle.length); }
@@ -95,8 +133,8 @@ const TabContentIndex = {
     return out.sort((a, b) => b.count - a.count).slice(0, limit);
   },
 
-  forget(tabId) { this._byTab.delete(tabId); },
-  clear() { this._byTab.clear(); },
+  forget(tabId) { this._byTab.delete(tabId); this._syncOne(tabId); },
+  clear() { this._byTab.clear(); if (typeof VexSearchIndex !== 'undefined') VexSearchIndex.shared().clear(this.INDEX_SOURCE); },
   size() { return this._byTab.size; },
 
   // Which open tabs contain these words? Title and address are already handled

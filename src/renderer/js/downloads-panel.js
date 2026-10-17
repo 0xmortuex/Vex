@@ -754,7 +754,7 @@ const DownloadsPanel = {
 
   _metaText(dl) {
     const isActive = dl.state === 'progressing';
-    const date = new Date(dl.startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const date = new Date(dl.startedAt).toLocaleDateString((window.VexI18n?.dateLocale('en-US') || 'en-US'), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     if (isActive) {
       // With no Content-Length there is no percentage to show — report what has
       // arrived instead of a permanent, meaningless "0%".

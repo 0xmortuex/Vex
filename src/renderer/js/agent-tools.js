@@ -40,9 +40,10 @@ const AgentTools = {
   },
 
   // extraHeaders: a conditional read (If-None-Match) by a page watch.
-  async _get(url, extraHeaders = null) {
+  // polite: { background, jitterMs, ttlMs } asks main for the shared polite client (a watcher's timed read).
+  async _get(url, extraHeaders = null, polite = null) {
     if (!window.vex || typeof window.vex.apiRequest !== 'function') throw new Error('Web access is not available in this build');
-    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9', ...(extraHeaders || {}) } });
+    const r = await window.vex.apiRequest({ url, publicOnly: true, headers: { 'User-Agent': this.UA, 'Accept-Language': 'en-US,en;q=0.9', ...(extraHeaders || {}) }, ...(polite ? { polite } : {}) });
     if (!r || !r.ok) throw new Error((r && r.error) || 'The request failed');
     if (r.status >= 400) throw new Error('HTTP ' + r.status + ' from ' + new URL(url).hostname);
     return r;
@@ -166,11 +167,11 @@ const AgentTools = {
   // headers: a conditional read (a page watch sends If-None-Match); a 304
   // comes back as { notModified: true }, and the validators a page gave are
   // returned as etag / lastModified.
-  async readUrl(url, { maxText = this.MAX_TEXT, headers = null } = {}) {
+  async readUrl(url, { maxText = this.MAX_TEXT, headers = null, polite = null } = {}) {
     // A video: read what was said in it, not the page around it.
     if (this.youtubeId(url)) return this.youtubeTranscript(url);
     const u = this._checkUrl(url);
-    const r = await this._get(u.href, headers);
+    const r = await this._get(u.href, headers, polite);
     if (r.status === 304) return { url: u.href, title: '', text: '', notModified: true };
     const type = String((r.headers && (r.headers['content-type'] || r.headers['Content-Type'])) || '').toLowerCase();
     const validators = { etag: (r.headers && r.headers.etag) || null, lastModified: (r.headers && r.headers['last-modified']) || null };

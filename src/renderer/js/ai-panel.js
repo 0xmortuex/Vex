@@ -341,7 +341,7 @@ const AIPanel = {
       if (current) document.getElementById('ai-stop-agent')?.classList.remove('visible');
       // Keep the outcome with the chat; the steps stay with the saved run.
       const run = (typeof AgentLoop !== 'undefined' && AgentLoop.lastRun && AgentLoop.lastRun.goal === msg) ? AgentLoop.lastRun : null;
-      const answer = { role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', at: Date.now(), ...(run ? { agentRun: run.id } : {}) };
+      const answer = { role: 'assistant', content: (run && run.final) || '*The agent stopped without an answer.*', at: Date.now(), ...(run ? { agentRun: run.id } : {}), ...this._agentBackend(run) };
       // Right after its own question, wherever that is now.
       const at = conv.indexOf(asked);
       if (at >= 0) conv.splice(at + 1, 0, answer); else conv.push(answer);
@@ -1586,6 +1586,8 @@ const AIPanel = {
       // it, switching tab) took them away (found 2026-09-29).
       const answer = {
         role: 'assistant', content: action === 'chat' ? parsed.reply : this._answerText(action, parsed), action, at: Date.now(),
+        // Which backend wrote it, kept so the provenance chip is still on the answer after a redraw (T3-107).
+        backend: aiResult.backend || undefined, model: aiResult.model || undefined,
         thinking: parsed.thinking || undefined,
         ...(action === 'translate' && opts.targetLanguage ? { targetLanguage: opts.targetLanguage } : {}),
         // What a selection Explain/Translate was about, so Retry asks about the
@@ -2046,7 +2048,7 @@ const AIPanel = {
       const parsed = this._parseResponse(aiResult.result);
       // `tabs` marks it as a multi-tab answer, so Retry asks the same tabs
       // again rather than sending the question as a one-page chat.
-      const answer = { role: 'assistant', content: parsed.reply || String(aiResult.result), at: Date.now(), tabs: tabs.map(t => String(t.id)) };
+      const answer = { role: 'assistant', content: parsed.reply || String(aiResult.result), at: Date.now(), tabs: tabs.map(t => String(t.id)), backend: aiResult.backend || undefined, model: aiResult.model || undefined };
       this._placeAnswer(conv, answer, retry);
       this._persistConversations();
       this._live = null;
@@ -2138,7 +2140,7 @@ const AIPanel = {
       });
     });
 
-    this._appendBackendTag(el, backendInfo);
+    this._appendBackendTag(el, backendInfo, 'your open tabs');
     container.appendChild(el);
     container.scrollTop = container.scrollHeight;
   },
@@ -2339,6 +2341,7 @@ const AIPanel = {
         ? this._md(m.content)
         : this._esc(m.content).replace(/\n/g, '<br>');
       el.appendChild(contentEl);
+      if (m.role === 'assistant' && m.backend) this._appendBackendTag(el, { backend: m.backend, model: m.model }, m.tabs ? 'your open tabs' : (m.action === 'historySearch' ? 'your history titles and summaries' : ''));
       // Copy on every message; retry on an answer, edit-and-resend on a question.
       el.appendChild(this._msgActions(m, i, contentEl));
       // Under the latest answer: where to go next.
@@ -2797,10 +2800,29 @@ const AIPanel = {
     container.scrollTop = container.scrollHeight;
   },
 
-  _appendBackendTag(msgEl, info) {
+  // Under an answer: what wrote it, as the shared provenance chip (js/provenance-chip.js).
+  // The agent records its backend as 'cloud · model'; only a known one gets a chip.
+  _agentBackend(run) {
+    const [backend, model] = String(run && run.backend || '').split(' · ');
+    return ['cloud', 'local', 'ondevice'].includes(backend) ? { backend, model: model || undefined } : {};
+  },
+
+  _appendBackendTag(msgEl, info, read = '') {
     if (!info || !info.backend) return;
     const tag = document.createElement('div');
     tag.className = `backend-tag ${info.backend}`;
+    if (typeof VexProvenance !== 'undefined') {
+      try {
+        tag.style.cssText = 'background:none;padding:0';
+        tag.appendChild(VexProvenance.chip(VexProvenance.fromResult(info, { read: read || 'the page and this chat' })));
+        msgEl.appendChild(tag);
+        return;
+      } catch (err) {
+        // An unknown backend name: say so, and fall back to the plain tag below rather than lose the answer.
+        tag.style.cssText = '';
+        window.VexProblems?.note('AI panel', 'Could not draw the provenance chip', err);
+      }
+    }
     // An on-device (WebGPU) answer used to be labelled "cloud" because only
     // 'local' was special-cased \u2014 the badge claimed the opposite of the truth.
     const label = info.backend === 'local' ? 'local'
@@ -2894,14 +2916,14 @@ const AIPanel = {
         return false;
       }
 
-      this._renderHistorySearchResult(parsed, all);
+      this._renderHistorySearchResult(parsed, all, { backend: aiResult.backend, model: aiResult.model });
       // Kept with the chat as a plain answer, or it vanished at the next
       // redraw — switching tab or reopening the panel (found 2026-09-29).
       const found = (parsed.matches || []).slice(0, 5)
         .map(m => all.find(e => e.id === m.id)).filter(Boolean)
         .map(e => '- [' + String(e.title || e.url).replace(/[\[\]]/g, '') + '](' + e.url + ')');
       const conv = this._getConv(this._getTabId());
-      conv.push({ role: 'assistant', action: 'historySearch', at: Date.now(),
+      conv.push({ role: 'assistant', action: 'historySearch', at: Date.now(), backend: aiResult.backend || undefined, model: aiResult.model || undefined,
         content: [parsed.interpretation || 'History search', found.length ? found.join('\n') : 'No matching pages found in your history.'].join('\n\n') });
       this._persistConversations();
       return true;
@@ -2924,7 +2946,7 @@ const AIPanel = {
     }
   },
 
-  _renderHistorySearchResult(parsed, allEntries) {
+  _renderHistorySearchResult(parsed, allEntries, backendInfo) {
     const container = document.getElementById('ai-messages');
     if (!container) return;
     const msgEl = document.createElement('div');
@@ -2962,6 +2984,7 @@ const AIPanel = {
         if (url && typeof TabManager !== 'undefined') TabManager.createTabBesideActive(url, true);
       });
     });
+    this._appendBackendTag(msgEl, backendInfo, 'your history titles and summaries');
     container.appendChild(msgEl);
     container.scrollTop = container.scrollHeight;
   },

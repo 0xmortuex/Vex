@@ -93,7 +93,7 @@ const VexAskTabs = {
     const byId = new Map(plan.use.map(t => [String(t.id), t]));
     const sources = readable.map((c, i) => ({ n: i + 1, tab: byId.get(String(c.tabId)) || null, title: c.title, url: c.url })).filter(s => s.tab);
     this._last = { at: Date.now(), asked: q.length, used: readable.length, left: plan.left.length };
-    return { answer: text.trim(), sources, used: readable.length, left: plan.left };
+    return { answer: text.trim(), sources, used: readable.length, left: plan.left, model: (res && res.model) || '' };
   },
 
   // The answer as DOM: [n] becomes a button that goes to that tab.
@@ -169,6 +169,7 @@ const VexAskTabs = {
         srcs.innerHTML = '<div style="font-weight:600;margin-bottom:4px">Read</div>' + r.sources.map(s => `<div>[${s.n}] ${esc(s.title || s.url)}</div>`).join('')
           + (r.left.length ? '<div style="margin-top:6px;font-weight:600">Left out</div>' + r.left.map(l => `<div>${esc(l.tab.title || l.tab.url)} — ${esc(l.why)}</div>`).join('') : '');
         out.appendChild(srcs);
+        if (typeof VexProvenance !== 'undefined') VexProvenance.attach(out, { kind: 'local', model: r.model, read: 'the text of your open tabs' });
       } catch (err) {
         out.textContent = '';
         const e = document.createElement('div');

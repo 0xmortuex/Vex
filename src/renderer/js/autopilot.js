@@ -288,7 +288,7 @@ const VexAutopilot = {
     const reply = this.plainReply(res && (res.result || res.text || res.message));
     if (!reply) throw new Error('The local AI returned nothing');
     this._learn(item, 'act');
-    return { reply, subject: /^\s*re\s*:/i.test(msg.subject || '') ? msg.subject : 'Re: ' + (msg.subject || ''), to: item.ref.address || '' };
+    return { model: (res && res.model) || '', reply, subject: /^\s*re\s*:/i.test(msg.subject || '') ? msg.subject : 'Re: ' + (msg.subject || ''), to: item.ref.address || '' };
   },
 
   // ---- wording -----------------------------------------------------------------
@@ -527,7 +527,7 @@ const VexAutopilot = {
     catch (err) { holder.remove(); btn.disabled = false; throw err; }
     btn.disabled = false;
     holder.innerHTML = `
-      <div class="ap-s" style="margin-bottom:4px">Draft for you to edit. Vex never sends it.</div>
+      <div class="ap-s" style="margin-bottom:4px">Draft for you to edit. Vex never sends it. ${typeof VexProvenance !== 'undefined' ? VexProvenance.html({ kind: 'local', model: d.model, read: 'the message you are answering' }) : ''}</div>
       <textarea aria-label="Draft reply">${esc(d.reply)}</textarea>
       <div style="display:flex;gap:8px;margin-top:6px">
         <button class="ap-btn" data-copy>${this._icon('copy')} Copy</button>

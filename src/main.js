@@ -130,6 +130,19 @@ const _egressFetch = (impl, defaults) => (url, init) => (_egress ? _egress.wrap(
 const boundedNetFetch = require('./main/network').createBoundedFetch(_egressFetch(net.fetch.bind(net), {}));
 // The AI agent's page reads: public internet only, every redirect re-checked (main/public-fetch.js).
 const boundedPublicFetch = require('./main/network').createBoundedFetch(_egressFetch(require('./main/public-fetch').createPublicFetch({ request: (o) => net.request(o), resolveHost: (h) => net.resolveHost(h) }), { feature: 'Vex Agent page reads', kind: 'fetch' }));
+// The shared polite client (main/polite-fetch.js): per-host rate limit, Retry-After backoff, an ETag cache and
+// "metered connection" awareness. Every watcher goes through it: package feeds, page and price watches, AI news,
+// RSS, the GitHub watch and vault, and the Electron and extension release checks. A request with publicOnly goes
+// through the public-only fetch (no cookies, every hop checked); the cache key includes the request headers
+// (Authorization, Cookie ...) and that choice, so an authenticated answer is never served from a shared entry.
+const _politeNetFetch = require('./main/polite-fetch').createPoliteFetch({
+  fetch: (href, init) => { const { publicOnly, ...rest } = init || {}; return (publicOnly ? boundedPublicFetch : boundedNetFetch)(href, rest); },
+  userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)',
+  metered: () => _extUpdates.isMeteredWindows(),
+  log: (line) => console.warn(line),
+});
+// For code that takes a plain fetch and only ever runs on a timer (release and update checks).
+const _politeBackgroundFetch = (url, init) => _politeNetFetch(url, { ...init, polite: { background: true, ...((init && init.polite) || {}) } });
 require('./main/ipc-policy').installIpcPolicy(ipcMain, secureSessions);
 ipcMain.on('storage:flushed', event => {
   const host = secureSessions.owner(event.sender);
@@ -1752,7 +1765,7 @@ ipcMain.handle('app:safe-mode', () => {
   return { ..._boot, updateBackup: undefined, updateBackupFailed };
 });
 
-ipcMain.handle('app:diagnostics', () => {
+ipcMain.handle('app:diagnostics', async () => {
   let update = null;
   try { update = require('./main/updates').state; } catch {}
   let scheduled = null;
@@ -1769,6 +1782,11 @@ ipcMain.handle('app:diagnostics', () => {
     widevine: _widevineStatus,
     // The Windows build, for a problem report (js/report-problem.js).
     os: process.getSystemVersion(), arch: process.arch,
+    // The graphics card (nvidia-smi when there is one; null otherwise) and what Chromium decided to accelerate.
+    gpu: await _gpuProbe.read(),
+    gpuFeatures: app.getGPUFeatureStatus(),
+    // The last messages the IPC policy refused: channel and reason, never the payload.
+    ipcRefusals: require('./main/ipc-policy').recentRefusals(),
   };
 });
 
@@ -2273,7 +2291,7 @@ ipcMain.handle('net:latency', async () => {
 ipcMain.handle('rss:fetch', async (_e, feedUrl) => {
   try {
     if (!feedUrl || !/^https?:\/\//i.test(feedUrl)) return null;
-    const res = await boundedNetFetch(feedUrl, { headers: { 'User-Agent': 'Vex Browser RSS' } });
+    const res = await _politeNetFetch(feedUrl, { headers: { 'User-Agent': 'Vex Browser RSS' }, polite: { background: true, partition: 'net' } });
     if (!res.ok) return null;
     const text = await res.text();
     return text.length > 2 * 1024 * 1024 ? null : text;
@@ -2323,7 +2341,13 @@ ipcMain.handle('api:request', async (_e, opts = {}) => {
       if (token) init.headers.Authorization = /^bearer\s/i.test(token) ? token : 'Bearer ' + token;
     }
     if (body != null && init.method !== 'GET' && init.method !== 'HEAD') init.body = String(body);
-    const res = await (publicOnly ? boundedPublicFetch : boundedNetFetch)(url, init);
+    // A watcher asks for politeness (the renderer names only three knobs; method must be GET): per-host rate limit,
+    // Retry-After backoff, a cache that is keyed by who is asking, and no background checks on a metered line.
+    const politeAsk = opts && opts.polite && typeof opts.polite === 'object' ? opts.polite : null;
+    const clampMs = (v, max) => (Number.isFinite(v) ? Math.max(0, Math.min(max, v)) : 0);
+    const res = politeAsk && init.method === 'GET' && viewer !== true
+      ? await _politeNetFetch(url, { ...init, publicOnly: publicOnly === true, polite: { background: politeAsk.background === true, jitterMs: clampMs(politeAsk.jitterMs, 60000), ttlMs: clampMs(politeAsk.ttlMs, 3600000), partition: publicOnly ? 'public' : 'net' } })
+      : await (publicOnly ? boundedPublicFetch : boundedNetFetch)(url, init);
     const buf = Buffer.from(await res.arrayBuffer());
     const capped = buf.length > 5 * 1024 * 1024;
     const text = capped ? buf.slice(0, 5 * 1024 * 1024).toString('utf8') : buf.toString('utf8');
@@ -7097,7 +7121,7 @@ ipcMain.handle('devdesk:open-file', (_event, req) => _devDesk.openFile(req));
 ipcMain.handle('devdesk:open-terminal', (_event, dir) => _devDesk.openTerminal(dir));
 ipcMain.handle('devdesk:branch', (_event, dir) => _devDesk.branch(dir));
 // Electron/castLabs ticker (main/castlabs-ticker.js): one bounded GET of a public tag list.
-const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: boundedNetFetch });
+const _castlabs = require('./main/castlabs-ticker').createCastlabsTicker({ fetch: _politeBackgroundFetch });
 ipcMain.handle('castlabs:behind', (_event, force) => _castlabs.check({ force: force === true }));
 // Plugin dev loop (main/dev-extension.js): an unpacked extension folder picked in the
 // folder dialog is loaded from where it is and reloaded when a file in it changes.
@@ -7151,20 +7175,12 @@ ipcMain.handle('mcp:auth-set', (_event, id, token) => {
 // sealed by the OS in github-token.enc, sent only to api.github.com and never
 // handed back to a window. The developer feeds (main/dev-feeds.js) are the
 // public package, advisory and endpoint checks the developer features use.
-const _githubVault = require('./main/github-vault').createGithubVault({ secretStore, file: path.join(userDataPath, 'github-token.enc'), fetch: boundedNetFetch });
+const _githubVault = require('./main/github-vault').createGithubVault({ secretStore, file: path.join(userDataPath, 'github-token.enc'), fetch: _politeNetFetch });
 ipcMain.handle('github:status', () => _githubVault.status());
 ipcMain.handle('github:token-set', (_event, token) => _githubVault.set(token));
 ipcMain.handle('github:token-clear', () => _githubVault.clear());
 ipcMain.handle('github:token-test', () => _githubVault.test());
 ipcMain.handle('github:get', (_event, apiPath, opts) => _githubVault.get(apiPath, opts || {}));
-// The shared polite client (main/polite-fetch.js): per-host rate limit, Retry-After backoff, an ETag cache and
-// "metered connection" awareness for the watchers' background requests. The package feeds use it; others can.
-const _politeNetFetch = require('./main/polite-fetch').createPoliteFetch({
-  fetch: boundedNetFetch,
-  userAgent: 'Vex/' + app.getVersion() + ' (+https://github.com/0xmortuex/Vex)',
-  metered: () => _extUpdates.isMeteredWindows(),
-  log: (line) => console.warn(line),
-});
 const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNetFetch, publicFetch: boundedPublicFetch });
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));

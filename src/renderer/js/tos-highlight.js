@@ -177,7 +177,7 @@ const VexTos = {
       out.className = 'vex-platform-note';
       const ask = VexSettingsGroups.button('Explain in plain words', async () => {
         ask.disabled = true;
-        try { out.textContent = await this.explainLocal(f, page); }
+        try { out.textContent = await this.explainLocal(f, page); if (typeof VexProvenance !== 'undefined') VexProvenance.attach(out, { kind: 'local', read: 'the marked sentence' }); }
         catch (err) { out.textContent = err.message; }
         ask.disabled = false;
       }, { label: 'Explain this sentence in plain words, using your local model' });

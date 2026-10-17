@@ -144,7 +144,7 @@ const Automations = {
     const trig = m.querySelector('#au-trig'), act = m.querySelector('#au-act');
     trig.addEventListener('change', () => { m.querySelector('#au-trigval').placeholder = trig.value === 'time' ? '08:30 (24h)' : 'gmail.com'; });
     act.addEventListener('change', () => { m.querySelector('#au-actval').placeholder = act.value === 'panel' ? 'discord / spotify / notes…' : act.value === 'command' ? 'a command id (see suggestions)' : 'https://calendar.google.com'; });
-    m.querySelector('#au-add').addEventListener('click', () => {
+    m.querySelector('#au-add').addEventListener('click', async () => {
       const name = (m.querySelector('#au-name').value || '').trim();
       const tv = (m.querySelector('#au-trigval').value || '').trim();
       const av = (m.querySelector('#au-actval').value || '').trim();
@@ -152,6 +152,17 @@ const Automations = {
       const time = trig.value === 'time' ? this._normTime(tv) : null;
       if (trig.value === 'time' && !time) { window.showToast?.('"' + tv + '" is not a time — write it as 08:30 (24-hour).', 'error'); return; }
       const val = time || tv;
+      // A rule acts with nobody watching, so say what it would do before it exists, and which open tabs it would already match.
+      const rule = { trigger: { type: trig.value, value: val }, action: { type: act.value, value: av } };
+      const steps = [{ label: this._describe(rule), detail: 'the rule' }];
+      if (trig.value === 'url' && typeof TabManager !== 'undefined') {
+        const q = val.toLowerCase();
+        for (const t of TabManager.tabs.filter(x => String(x.url || '').toLowerCase().includes(q)).slice(0, 20)) steps.push({ label: t.title || t.url, detail: 'open now, would match' });
+      }
+      let go;
+      try { go = await VexPlan.confirmSteps({ title: 'Add this automation?', intro: 'It runs by itself each time it applies. You can switch it off or delete it in this window.', steps, okLabel: 'Add automation', noun: 'item' }); }
+      catch (err) { window.showToast?.(err.message, 'error'); return; }
+      if (!go) return;
       const list = this._load();
       list.push({ id: vexId('a'), name: name || (trig.value === 'time' ? 'At ' + val : 'On ' + val), enabled: true, trigger: { type: trig.value, value: val }, action: { type: act.value, value: av } });
       this._save(list); this.open();
