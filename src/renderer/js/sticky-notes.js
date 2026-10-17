@@ -269,6 +269,7 @@ const StickyNotes = {
           <button data-act="del" title="Delete" style="display:flex;align-items:center;padding:5px 9px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer">${this._icon('trash', 12)}</button>
         </div>`).join('') : '<div style="color:var(--text-muted);padding:12px 0">No sticky notes yet. Open a page and add one.</div>'}</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'sticky-notes' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#vsl-close').addEventListener('click', () => m.remove());
     m.querySelectorAll('#vsl-body [data-key]').forEach(row => {

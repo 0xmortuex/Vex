@@ -147,6 +147,7 @@ const MailTriage = {
     document.addEventListener('keydown', onKey, true);
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'mail-triage-actions' });
     const ta = overlay.querySelector('[data-text]');
     const status = overlay.querySelector('[data-status]');
     const openBtn = overlay.querySelector('[data-open]');

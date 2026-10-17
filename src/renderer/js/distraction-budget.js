@@ -1,4 +1,5 @@
 // === Distraction budget =====================================================
+// vex-layer-exempt: a notice drawn inside the guest page (injected script)
 //
 // A daily time limit per kind of site (social, video, news, shopping, games).
 // Opt-in and local: the seconds are counted here, from the time the active

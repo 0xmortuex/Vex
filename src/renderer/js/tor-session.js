@@ -95,6 +95,7 @@ const TorSession = {
         </div>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tor-session' });
     const api = {
       cancelled: false,
       close: () => m.remove(),
@@ -148,6 +149,7 @@ const TorSession = {
         <button id="tor-cancel" style="padding:8px 14px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12.5px">Close</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tor-session-2' });
     const close = () => m.remove();
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#tor-cancel').addEventListener('click', close);

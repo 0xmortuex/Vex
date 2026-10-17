@@ -206,6 +206,7 @@ const Snippets = {
     document.addEventListener('keydown', onKey, true);
     draw();
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'snippets' });
     return overlay;
   },
 
@@ -267,6 +268,7 @@ const Snippets = {
       });
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(form);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(form, { tier: 'dialog', id: 'snippets-2' });
       form.querySelector('#snip-abbr').focus();
     });
   },

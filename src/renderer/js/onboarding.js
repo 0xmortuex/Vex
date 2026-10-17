@@ -337,6 +337,7 @@ const Onboarding = {
         </div>
       </div>`;
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'onboarding' });
     overlay.firstElementChild.setAttribute('role', 'dialog');
     overlay.firstElementChild.setAttribute('aria-modal', 'true');
     overlay.firstElementChild.setAttribute('aria-label', s.title);

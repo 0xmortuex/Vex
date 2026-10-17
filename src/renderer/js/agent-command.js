@@ -19,6 +19,7 @@ const AgentCommand = {
       <div id="ac-plan"></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'agent-command' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     const input = m.querySelector('#ac-input');
     input.focus();

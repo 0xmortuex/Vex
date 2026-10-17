@@ -1,4 +1,5 @@
 // === Skip sponsor segments on YouTube (SponsorBlock) ========================
+// vex-layer-exempt: a pointer-events:none notice drawn inside the guest page (injected script)
 //
 // SponsorBlock (sponsor.ajay.app) is a public, community-kept list of the
 // parts of YouTube videos that are sponsor reads, self-promotion and "like and

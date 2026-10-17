@@ -26,6 +26,7 @@ Rules: never close the active tab unless explicitly told; "keep only X" means cl
         <button id="tai-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Plan</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tab-ai-media' });
     const q = m.querySelector('#tai-q'); q.focus();
     // Escape closes it, like every other Vex dialog — it did nothing here
     // (found 2026-09-29). Not while a vexConfirm/vexPrompt sits on top.
@@ -139,6 +140,7 @@ const NowPlaying = {
       bar.id = 'vex-nowplaying';
       bar.style.cssText = 'position:fixed;left:14px;bottom:14px;z-index:9000;display:flex;flex-direction:column;gap:6px;max-width:300px';
       document.body.appendChild(bar);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'tab-ai-media-2', keep: true });
     }
     bar.innerHTML = '';
     const esc = (s) => window.escapeHtml(s);
@@ -181,6 +183,7 @@ const ResourceMonitor = {
       </div>
       <div id="rm-body" style="font-size:12px;color:var(--text)">Loading…</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'tab-ai-media-3' });
     // Escape closes it too; it did nothing (found 2026-09-29).
     const onKey = (e) => {
       if (!m.isConnected) { document.removeEventListener('keydown', onKey, true); return; }

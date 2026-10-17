@@ -29,6 +29,7 @@ const BurnerIdentity = {
       <div style="display:flex;justify-content:flex-end;gap:8px"><button id="bi-close2" style="${chip}">Cancel</button><button id="bi-go" style="${prim}">Start burner</button></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'burner-identity' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     const close = () => m.remove();
     m.querySelector('#bi-close').addEventListener('click', close);

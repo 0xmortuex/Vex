@@ -160,6 +160,7 @@ const LiveChannels = {
     });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'live-channels' });
     await draw();
     return overlay;
   },

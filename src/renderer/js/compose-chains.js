@@ -31,6 +31,7 @@ const AICompose = {
         <button id="cmp-go" style="padding:8px 18px;background:var(--primary);color:var(--on-primary,#fff);border:none;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600">Write</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'compose-chains' });
     const instr = m.querySelector('#cmp-instr');
     instr.focus();
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });

@@ -142,6 +142,7 @@ const ClipsInbox = {
     overlay.querySelector('[data-pick]').addEventListener('click', () => draw(true));
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'clips-inbox' });
     await draw(false);
     return overlay;
   },

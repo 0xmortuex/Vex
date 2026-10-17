@@ -1,4 +1,5 @@
 // === Learner reading aids (T3-034) =================================================
+// vex-layer-exempt: a pointer-events:none tip drawn inside the guest page (injected script)
 //
 // For reading a page in a language you are still learning (English or Turkish):
 //

@@ -58,6 +58,7 @@ const ExtensionAuditView = {
       <div style="display:flex;align-items:center;gap:8px;padding:16px 20px 8px"><span style="color:var(--text)">${VexIcons.svg('puzzle', { size: 16 })}</span><span style="font-size:15px;font-weight:700;color:var(--text);flex:1">Extension audit</span><button type="button" id="eaud-close" class="btn-secondary" style="padding:6px 10px;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div id="eaud-body" style="overflow-y:auto;padding:4px 20px 20px;color:var(--text)"><div style="color:var(--text-muted);padding:20px 0">Reading your extensions…</div></div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'extension-audit-view' });
     const close = () => { document.removeEventListener('keydown', onKey, true); m.remove(); };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);

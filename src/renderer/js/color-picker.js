@@ -166,6 +166,7 @@ const ColorPicker = {
     document.addEventListener('keydown', onKey, true);
     draw();
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'color-picker' });
     return overlay;
   },
 };

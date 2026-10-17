@@ -145,6 +145,7 @@ const LostTabFinder = {
     document.addEventListener('keydown', onKey, true);
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'lost-tab-finder' });
     overlay.querySelector('[data-close]').addEventListener('click', close);
     const q = overlay.querySelector('[data-q]');
     const body = overlay.querySelector('[data-body]');

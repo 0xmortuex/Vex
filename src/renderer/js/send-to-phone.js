@@ -26,6 +26,7 @@ const SendToPhone = {
       <div style="font-size:11px;color:var(--text-muted);margin-top:12px">Scan with your phone's camera to open it there.</div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'send-to-phone' });
     // Escape closes it, heard on the document (found 2026-09-29: it did
     // nothing). A dialog on top keeps its own Escape.
     const onKey = (e) => {

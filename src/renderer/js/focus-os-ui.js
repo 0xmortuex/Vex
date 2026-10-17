@@ -95,6 +95,7 @@ const FocusOSUI = {
     const body = this._el('div', 'fo-body'); body.id = 'fo-body';
     box.append(head, body); m.appendChild(box);
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'focus-os-ui' });
     m.addEventListener('click', (e) => { if (e.target === m) this.close(); });
     const onKey = (e) => {
       if (!m.isConnected) { document.removeEventListener('keydown', onKey); return; }

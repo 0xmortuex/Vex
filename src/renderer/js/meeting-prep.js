@@ -214,6 +214,7 @@ const MeetingPrep = {
     }));
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'meeting-prep', keep: true });
     return card;
   },
 

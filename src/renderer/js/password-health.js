@@ -17,6 +17,7 @@ const PasswordHealth = {
       </div>
       <div id="pwh-body" style="overflow-y:auto;padding:4px 20px 20px;font-size:12.5px;color:var(--text)">Analyzing…</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'password-health' });
     // Escape closes it the way the X does; it did nothing (found 2026-09-29).
     // Capture phase, so nothing underneath takes the same key; an Escape meant
     // for a Vex dialog on top is left to that dialog. Focus moves in, or with

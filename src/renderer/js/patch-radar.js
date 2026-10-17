@@ -550,6 +550,7 @@ const ReleaseRadar = {
       </div>
       <div id="rr-body" style="padding:10px 16px 16px;overflow-y:auto"></div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'patch-radar' });
     const body = m.querySelector('#rr-body');
     const close = () => m.remove();
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });

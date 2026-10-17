@@ -510,6 +510,7 @@ const MasterVolume = {
       <div class="mastervol-site"></div>
       <div class="mastervol-status" role="status" aria-live="polite" hidden></div>`;
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(el, 'master-volume');
     this._el = el;
     this._prevFocus = before;
 

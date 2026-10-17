@@ -216,6 +216,7 @@ const VexTools = {
     `;
 
     document.body.appendChild(modal);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(modal, { tier: 'dialog', id: 'tools' });
     modal.querySelector('#tool-modal-name').focus();
 
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });

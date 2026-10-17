@@ -214,6 +214,7 @@ const SiteReadability = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'site-readability' });
 
     const q = (id) => m.querySelector('#' + id);
     const read = () => ({ font: Number(q('rd-font').value), contrast: Number(q('rd-contrast').value), width: Number(q('rd-width').value) });

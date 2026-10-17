@@ -498,6 +498,7 @@ const ProjectCompiler = {
       } finally { build.disabled = false; }
     });
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'project-compiler' });
     return overlay;
   },
 

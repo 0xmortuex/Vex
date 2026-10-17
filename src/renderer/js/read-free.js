@@ -50,6 +50,7 @@ const ReadFree = {
     el.querySelectorAll('.readfree-act').forEach(b =>
       b.addEventListener('click', () => { const a = b.dataset.act; this.close(); this._do(a, tab, url); }));
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.popover(el, 'read-free');
     this._el = el;
 
     this._onKey = (e) => { if (e.key === 'Escape') this.close(); };

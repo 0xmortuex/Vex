@@ -103,6 +103,7 @@ const SelectionAIBar = {
     el.querySelectorAll('button').forEach(b =>
       b.addEventListener('click', () => this._run(b.dataset.act)));
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'panel', id: 'selection-ai-bar', keep: true });
     this._el = el;
   },
 

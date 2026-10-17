@@ -118,6 +118,7 @@ const VexSpeechTimer = {
     hud.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 80)) + 'px';
     this._drag(head, hud);
     document.body.appendChild(hud);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(hud, { tier: 'panel', id: 'speech-timer', keep: true });
     this._hud = hud;
     this._draw();
     this._drawList();

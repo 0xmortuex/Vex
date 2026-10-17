@@ -1,4 +1,5 @@
 // === Table and list extraction (T2-061) ======================================
+// vex-layer-exempt: drawn inside the guest page (injected script), pointer-events:none
 //
 // "Copy a table or list from this page…" (page right-click menu, or the command
 // bar): point at a table, a list or a definition list, click it, and get it as CSV,

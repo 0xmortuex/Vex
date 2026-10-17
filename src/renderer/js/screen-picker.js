@@ -155,5 +155,6 @@
     document.addEventListener('keydown', onEsc);
 
     document.body.appendChild(ov);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(ov, { tier: 'dialog', id: 'screen-picker' });
   });
 })();

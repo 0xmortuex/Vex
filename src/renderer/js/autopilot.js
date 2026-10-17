@@ -418,6 +418,7 @@ const VexAutopilot = {
     overlay.querySelector('[data-close]').addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'autopilot' });
     mailBox.checked = this.state().prefs.mail;
 
     let items = new Map();

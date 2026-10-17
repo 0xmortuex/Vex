@@ -455,6 +455,7 @@ const PageExport = {
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'page-export' });
     return { overlay, head: overlay.querySelector('[data-head]'), body: overlay.querySelector('[data-body]'), close };
   },
 };

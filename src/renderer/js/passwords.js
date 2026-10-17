@@ -146,6 +146,7 @@ const PasswordVault = {
         <button data-never style="padding:8px 12px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Never</button>
       </div>`;
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'passwords', keep: true });
     const close = () => card.remove();
     card.querySelector('[data-save]').addEventListener('click', async () => {
       const r = await window.vex.vaultSave(data);
@@ -232,6 +233,7 @@ const PasswordVault = {
         <button data-not style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">Not now</button>
       </div>`;
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'passwords-2', keep: true });
     const close = () => card.remove();
     card.querySelector('[data-not]').addEventListener('click', close);
     card.querySelector('[data-allow]').addEventListener('click', async () => {
@@ -329,6 +331,7 @@ const PasswordVault = {
       overlay.querySelector('#pwpick-cancel').addEventListener('click', () => done(null));
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(overlay);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'passwords-3' });
       listEl.querySelector('button')?.focus();
     });
   },

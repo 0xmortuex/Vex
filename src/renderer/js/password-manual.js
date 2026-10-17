@@ -202,6 +202,7 @@ const VexPasswordManual = {
         <button type="button" data-not style="padding:8px 12px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px">${esc(this._t('totpNotNow', 'Not now'))}</button>
       </div>`;
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'password-manual', keep: true });
     const close = () => card.remove();
     card.querySelector('[data-not]').addEventListener('click', close);
     card.querySelector('[data-save]').addEventListener('click', () => {

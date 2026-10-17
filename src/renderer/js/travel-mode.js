@@ -230,6 +230,7 @@ const VexTravel = {
     close.addEventListener('click', done);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(ov);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(ov, { tier: 'dialog', id: 'travel-mode' });
     close.focus({ preventScroll: true });
   },
 

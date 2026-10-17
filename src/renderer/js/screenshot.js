@@ -228,6 +228,7 @@ const ScreenshotTool = {
         <canvas id="an-canvas" style="display:block;max-width:92vw;max-height:78vh;cursor:crosshair"></canvas>
       </div>`;
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'screenshot' });
 
     const canvas = wrap.querySelector('#an-canvas');
     const ctx = canvas.getContext('2d');

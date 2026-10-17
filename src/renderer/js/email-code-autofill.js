@@ -1,4 +1,5 @@
 // === Vex email-code autofill ===
+// vex-layer-exempt: a hidden off-screen webview, never painted over the window
 // When a site asks for a verification code it emailed you, and you have Gmail
 // (web) open in Vex, read the newest code from the open inbox and fill it — so
 // you don't have to switch tabs, open the email, and copy it.

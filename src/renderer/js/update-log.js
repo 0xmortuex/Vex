@@ -265,6 +265,7 @@ const VexUpdateNotes = {
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
     document.addEventListener('keydown', onEsc, true);
     document.body.appendChild(ov);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(ov, { tier: 'dialog', id: 'update-log' });
     ov.querySelector('.whatsnew-btn').focus();
   }
 

@@ -243,6 +243,7 @@ const McpClient = (() => {
         <div id="mcp-result" style="flex:1;overflow:auto;padding:10px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;color:var(--text)"><span style="color:var(--text-muted)">Pick a tool, supply JSON arguments, and Run.</span></div>
       </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'mcp-client' });
     const close = () => m.remove();
     m.querySelector('#mcp-close').addEventListener('click', close);
     m.addEventListener('click', (e) => { if (e.target === m) close(); });

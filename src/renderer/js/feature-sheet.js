@@ -174,6 +174,7 @@ const VexFeatureSheet = {
     }
     card.append(head, list, acts);
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'feature-sheet', keep: true });
     return card;
   },
 

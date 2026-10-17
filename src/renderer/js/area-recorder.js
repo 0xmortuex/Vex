@@ -55,6 +55,7 @@ const AreaRecorder = {
       });
       document.addEventListener('keydown', onKey, true);
       document.body.appendChild(ov);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(ov, { tier: 'dialog', id: 'area-recorder' });
     });
   },
 

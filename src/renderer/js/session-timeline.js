@@ -402,6 +402,7 @@ const VexTimeline = {
     overlay.querySelector('[data-close]').addEventListener('click', close);
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'session-timeline' });
     draw();
     try { data = await this.gather(); }
     catch (err) { listEl.textContent = (err && err.message) || 'Could not read your history'; return overlay; }

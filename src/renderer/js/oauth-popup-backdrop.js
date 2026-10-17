@@ -44,6 +44,7 @@ const OAuthPopupBackdrop = {
       try { window.vex?.dismissOAuthPopup?.(); } catch {}
     });
     document.body.appendChild(el);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(el, { tier: 'dialog', id: 'oauth-popup-backdrop' });
     this._el = el;
   },
 

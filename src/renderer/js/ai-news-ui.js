@@ -315,6 +315,7 @@ const AINewsUI = {
     card.append(head, status, langNote, filters, summary, list);
     wrap.appendChild(card);
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'ai-news-ui' });
 
     const onKey = (e) => {
       if (!wrap.isConnected) { document.removeEventListener('keydown', onKey, true); return; }

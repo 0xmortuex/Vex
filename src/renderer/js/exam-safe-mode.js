@@ -187,6 +187,7 @@ const VexExamSafeMode = {
     });
     bar.append(t, end);
     document.body.appendChild(bar);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'exam-safe-mode', keep: true });
     this._bar = bar;
   },
 

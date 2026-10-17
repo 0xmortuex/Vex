@@ -184,6 +184,7 @@ const MeetingLinks = {
     x.addEventListener('click', () => { this.dismiss(item.key); this.hideStrip(); });
     s.append(label, join, x);
     document.body.appendChild(s);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(s, { tier: 'panel', id: 'meeting-links', keep: true });
     this._strip = { el: s, key: item.key };
     return s;
   },

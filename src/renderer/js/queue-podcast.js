@@ -147,6 +147,7 @@ const QueuePodcast = {
       <button id="qp-skip" title="Skip" style="${this._btn()}">${VexIcons.svg('skip', { size: 14 })}</button>
       <button id="qp-stop" title="Stop" style="${this._btn()}">${VexIcons.svg('stop', { size: 14 })}</button>`;
     document.body.appendChild(bar);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'queue-podcast', keep: true });
     this._bar = bar;
     bar.querySelector('#qp-pause').addEventListener('click', () => this.togglePause());
     bar.querySelector('#qp-skip').addEventListener('click', () => this.skip());

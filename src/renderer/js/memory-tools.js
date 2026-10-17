@@ -311,6 +311,7 @@ const VexMemoryTools = {
     wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(); });
     x.addEventListener('click', close);
     document.body.appendChild(wrap);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(wrap, { tier: 'dialog', id: 'memory-tools' });
     return { wrap, box, body, close };
   },
   _btn(label, onClick, { primary = false, title } = {}) {

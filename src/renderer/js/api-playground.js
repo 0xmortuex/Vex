@@ -478,6 +478,7 @@ const ApiPlayground = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'api-playground-3' });
     const q = (s) => m.querySelector(s);
 
     const readForm = () => ({
@@ -639,6 +640,7 @@ const ApiPlayground = {
       <div style="display:flex;gap:8px;justify-content:space-between;margin-top:10px"><button id="co-new" type="button" class="btn-secondary-sm">New collection</button><button id="co-close" type="button" class="btn-secondary-sm">Done</button></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'api-playground' });
     const q = (s) => m.querySelector(s);
     const fail = (err) => { console.error('[ApiPlayground]', err); window.showToast?.(err.message, 'error'); };
     const draw = () => {
@@ -707,6 +709,7 @@ const ApiPlayground = {
       </div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'api-playground-2' });
     const q = (s) => m.querySelector(s);
     const addVar = (v) => {
       const row = document.createElement('div');

@@ -110,6 +110,7 @@ const SiteIdentity = {
         </div>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'site-identity' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#si-close').addEventListener('click', () => m.remove());
     const escKey = (e) => { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', escKey, true); } };

@@ -250,6 +250,7 @@
         </div>
       </div>`;
     document.body.appendChild(ov);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(ov, { tier: 'dialog', id: 'gui-style' });
     let useColor = !!cur.color;
     const colorInput = ov.querySelector('.gsc-ed-color');
     colorInput.addEventListener('input', () => { useColor = true; });

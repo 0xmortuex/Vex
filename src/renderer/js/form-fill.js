@@ -34,6 +34,7 @@ const FormFill = {
         <button id="ff-fill" ${has ? '' : 'disabled'} style="${this._primary()};${has ? '' : 'opacity:.5;cursor:default'}">Fill this form</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'form-fill' });
     m.addEventListener('click', (e) => { if (e.target === m) m.remove(); });
     m.querySelector('#ff-close').addEventListener('click', () => m.remove());
     const collect = () => { const o = {}; m.querySelectorAll('input[data-k]').forEach(i => { const v = i.value.trim(); if (v) o[i.dataset.k] = v; }); return o; };

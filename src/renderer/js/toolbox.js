@@ -448,6 +448,7 @@ const Toolbox = {
       <div id="tb-list" style="overflow:auto;padding:0 18px 18px;flex:1"></div>
     </div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'toolbox' });
     const close = () => m.remove();
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#tb-close').addEventListener('click', close);
@@ -770,6 +771,7 @@ const Toolbox = {
       <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 10px"><span style="font-size:14px;font-weight:700;color:var(--text);flex:1">${title}</span><button id="tbt-close" style="padding:6px 10px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;line-height:0" title="Close" aria-label="Close">${VexIcons.svg('x', { size: 13 })}</button></div>
       <div style="padding:4px 18px 18px;overflow:auto" id="tbt-body">${bodyHtml}</div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'toolbox-2' });
     const close = () => m.remove();
     m.addEventListener('click', (e) => { if (e.target === m) close(); });
     m.querySelector('#tbt-close').addEventListener('click', close);

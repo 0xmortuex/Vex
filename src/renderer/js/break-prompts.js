@@ -129,6 +129,7 @@ const BreakPrompts = {
     row.append(VexSettingsGroups.button('Done', () => end('taken'), { primary: true }), VexSettingsGroups.button('Skip', () => end('skipped')));
     card.append(t, row);
     document.body.appendChild(card);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(card, { tier: 'panel', id: 'break-prompts', keep: true });
     timer = setTimeout(() => { if (card.isConnected) end('ignored'); }, this.CARD_MS);
     return card;
   },

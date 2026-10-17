@@ -1,4 +1,5 @@
 // === Developer bench: the shared parts and the one Settings section ===========
+// vex-layer-exempt: drawn inside the guest page (injected script), not a window overlay
 //
 // Eight small tools for working on code, each its own file and each switchable,
 // all OFF until you turn them on in Settings > Developer bench:

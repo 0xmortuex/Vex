@@ -238,6 +238,7 @@ const SiteData = {
     drawTabs();
     draw();
     document.body.appendChild(overlay);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(overlay, { tier: 'dialog', id: 'site-data' });
     return overlay;
   },
 };

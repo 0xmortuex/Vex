@@ -81,6 +81,7 @@ const VexOverrides = {
     rules.addEventListener('click', () => { this.open().catch(e => VexBench.fail(e)); });
     bar.append(text, rules, off);
     document.body.appendChild(bar);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(bar, { tier: 'panel', id: 'response-overrides-ui', keep: true });
     this._startWatch();
   },
   // Main is the truth about "active"; look again now and then so the bar can never

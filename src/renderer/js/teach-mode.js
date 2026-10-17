@@ -154,6 +154,7 @@ const TeachMode = {
       });
       badge.querySelector('[data-cancel]').addEventListener('click', () => this.cancel());
       document.body.appendChild(badge);
+      if (typeof VexLayer !== 'undefined') VexLayer.track(badge, { tier: 'panel', id: 'teach-mode', keep: true });
     }
     if (!this.recording) { el?.remove(); return; }
     const count = document.querySelector('#teach-badge [data-count]');

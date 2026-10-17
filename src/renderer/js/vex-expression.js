@@ -144,6 +144,7 @@ const VexExpression = {
     back.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)';
     back.innerHTML = `<div class="vex-expr-dialog" role="dialog" aria-modal="true" aria-label="${this.esc(title)}" style="background:var(--bg-elevated, var(--bg));color:var(--text);border:1px solid var(--border);border-radius:12px;padding:18px 20px;width:min(460px,92vw);box-shadow:0 18px 50px var(--vex-shadow-color, rgba(0,0,0,.5))"><div style="font-size:15px;font-weight:650;margin-bottom:10px">${this.esc(title)}</div><div class="vex-expr-body"></div></div>`;
     document.body.appendChild(back);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(back, { tier: 'dialog', id: 'vex-expression' });
     const body = back.querySelector('.vex-expr-body');
     const prev = document.activeElement;
     const close = () => {

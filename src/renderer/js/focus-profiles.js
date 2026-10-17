@@ -279,6 +279,7 @@ const FocusProfiles = {
         <button type="button" class="btn-primary" id="fp-save">Save</button>
       </div></div>`;
     document.body.appendChild(m);
+    if (typeof VexLayer !== 'undefined') VexLayer.track(m, { tier: 'dialog', id: 'focus-profiles' });
     const close = () => m.remove();
     const err = (s) => { m.querySelector('#fp-err').textContent = s; };
     m.addEventListener('mousedown', (e) => { if (e.target === m) close(); });
