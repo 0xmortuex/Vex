@@ -300,7 +300,8 @@ describe('Orders hub (T2-073)', () => {
     expect(() => OrdersHub.clean({ carrier: 'other', number: '', label: 'a', link: 'javascript:1' })).toThrow(/http/);
     expect(() => OrdersHub.clean({ carrier: 'ptt', number: 'RR123456789TR', label: '' })).toThrow(/what it is/);
     expect(OrdersHub.guessCarrier('RR123456789TR')).toBe('ptt');
-    expect(OrdersHub.guessCarrier('1234567890')).toBe('');
+    expect(OrdersHub.guessCarrier('1234567890')).toBe('dhl');
+    expect(OrdersHub.guessCarrier('12345')).toBe('');
   });
   it('sets the reminders asked for, one per date, and removes them with the order', async () => {
     const now = new Date(2026, 9, 16, 8).getTime();
@@ -320,6 +321,7 @@ describe('Orders hub (T2-073)', () => {
   it('Track opens a tab and flags old open parcels', () => {
     globalThis.TabManager = { createTab: vi.fn() };
     const o = OrdersHub.clean({ carrier: 'aras', number: 'ABC12345', label: 'x', added: 1 });
+    localStorage.setItem(OrdersHub.KEY, JSON.stringify({ v: 1, orders: [o] }));
     OrdersHub.track(o);
     expect(TabManager.createTab).toHaveBeenCalledWith(expect.stringContaining('araskargo.com.tr'), true);
     localStorage.setItem(OrdersHub.KEY, JSON.stringify({ v: 1, orders: [{ ...o, added: Date.now() - 20 * DAY }] }));

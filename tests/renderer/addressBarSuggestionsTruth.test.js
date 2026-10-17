@@ -94,7 +94,7 @@ describe('Ctrl+Enter', () => {
 
   it('app.js completes a single word with Ctrl+Enter and opens Alt+Enter in a new tab', () => {
     const src = fs.readFileSync(path.join(__dirname, '../../src/renderer/js/app.js'), 'utf8');
-    expect(src).toMatch(/submitUrlBar\(completeWithCtrlEnter\(urlInput\.value, e\), e\.altKey\)/);
+    expect(src).toMatch(/submitUrlBar\(completeWithCtrlEnter\(urlInput\.value, e\), e\.altKey(?:, [^)]*)?\)/);
     const fn = new Function(src.match(/function completeWithCtrlEnter[\s\S]*?\n {2}\}/)[0] + '; return completeWithCtrlEnter;')();
     expect(fn('example', { ctrlKey: true, altKey: false })).toBe('www.example.com');
     expect(fn('example', { ctrlKey: false })).toBe('example');

@@ -342,7 +342,7 @@ describe('skills and chains: deleting comes with Undo', () => {
       { id: 'bad', label: 'Broken', action: () => { throw new Error('nope'); } },
     ] };
     const { CommandChains } = require('../../src/renderer/js/compose-chains.js');
-    const res = await CommandChains.run({ name: 'C', steps: ['ok', 'bad', 'vanished'] });
+    const res = await CommandChains.run({ name: 'C', steps: ['ok', 'bad', 'vanished'] }, { preview: false });
     expect(res.ok).toBe(false);
     expect(res.problems).toHaveLength(2);
     expect(lastToast().type).toBe('error');

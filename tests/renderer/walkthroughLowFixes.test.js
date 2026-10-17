@@ -11,6 +11,8 @@ const require = createRequire(import.meta.url);
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const fresh = (p) => { const r = require.resolve(path.join(ROOT, p)); delete require.cache[r]; return require(r); };
+// Modules that register their timers with VexJobs.every (T0-020) start them when they run.
+globalThis.VexJobs ??= { every: () => ({ stop: () => {} }) };
 const START = 'file:///C:/Users/x/AppData/Local/Programs/Vex/resources/app.asar/src/renderer/start.html?theme=oxford';
 
 beforeEach(() => {

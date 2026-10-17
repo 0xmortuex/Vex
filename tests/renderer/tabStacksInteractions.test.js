@@ -381,7 +381,10 @@ describe('_handleStackAction — close-tabs', () => {
     const s = TM.createStack(['t1', 't2', 't3']);
     const stackBefore = { ...TM.stacks.find(x => x.id === s.id) };
 
+    // Three tabs close through the shared dry-run list (T3-051): the person confirms every tick.
+    globalThis.VexPlan = { confirm: vi.fn(async ({ items }) => ({ ok: true, chosen: items.map(i => i.id) })), snapshotTabs: () => null };
     TM._handleStackAction('close-tabs', s.id);
+    await vi.waitFor(() => expect(TM.stacks.find(x => x.id === s.id)).toBeUndefined());
 
     expect(TM.stacks.find(x => x.id === s.id)).toBeUndefined();
     // None of the original member ids survive.

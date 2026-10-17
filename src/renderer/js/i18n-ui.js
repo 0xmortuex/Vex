@@ -39,6 +39,24 @@ const VexI18nUI = {
   // English.
   TABLE: {
     tr: {
+      // --- Wave 5 headings, chips and commands ---
+      'Go to a higher level of this address': 'Bu adresin üst düzeyine git',
+      'Move this tab to a new window': 'Bu sekmeyi yeni pencereye taşı',
+      'Reading aids: I know the selected word': 'Okuma yardımları: seçili sözcüğü biliyorum',
+      'Reading aids: clear the marks': 'Okuma yardımları: işaretleri temizle',
+      'Reading aids: mark up this page': 'Okuma yardımları: bu sayfayı işaretle',
+      'Reading aids: save the selected word': 'Okuma yardımları: seçili sözcüğü kaydet',
+      'Requests of this tab: copy one as cURL, fetch or PowerShell': 'Bu sekmenin istekleri: birini cURL, fetch veya PowerShell olarak kopyala',
+      'Reset command order': 'Komut sırasını sıfırla',
+      'Resolve the selected Roblox id': 'Seçili Roblox kimliğini çöz',
+      'Search the web for the selection': 'Seçimi web\'de ara',
+      'Split view: fill the area': 'Bölünmüş görünüm: alanı doldur',
+      'Subject view': 'Konu görünümü',
+      'Weekly safety check': 'Haftalık güvenlik kontrolü',
+      'Which model fits my tasks?': 'Hangi model işlerime uyuyor?',
+      'Fake update guard': 'Sahte güncelleme koruması',
+      'Local model: fit and warm-up': 'Yerel model: uygunluk ve ısınma',
+      'Reading aids': 'Okuma yardımları',
       // --- toolbar and navigation ---
       'Back': 'Geri', 'Forward': 'İleri', 'Reload': 'Yenile', 'Stop': 'Durdur',
       'New Tab': 'Yeni sekme', 'Close tab': 'Sekmeyi kapat', 'Close': 'Kapat',

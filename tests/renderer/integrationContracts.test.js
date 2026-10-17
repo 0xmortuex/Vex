@@ -8,6 +8,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const fs = require('fs');
 const path = require('path');
 
+// Modules that register their timers with VexJobs.every (T0-020) start them when they load.
+globalThis.VexJobs ??= { every: () => ({ stop: () => {} }) };
+
 const JS = path.resolve(__dirname, '../../src/renderer/js');
 const fresh = (rel) => { const p = path.join(JS, rel); delete require.cache[require.resolve(p)]; return require(p); };
 
