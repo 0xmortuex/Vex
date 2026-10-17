@@ -141,12 +141,22 @@ const PAGE_SETUP = `(() => {
       else { if (VexMinimalMode.isOn()) await VexMinimalMode.leave(); VexSimpleMode.set(tier === 'simple' ? 'simple' : 'full'); }
       return tier;
     },
+    // Tabs that were open before the item ran. A command that makes a tab (Container tabs) leaves it behind, and a
+    // tab is a webview plus its strip chip: its nodes and listeners are the item's own doing, not a leak in the
+    // item, so reset() closes every tab the item opened.
+    tabsBefore: null,
     reset() {
       try { if (typeof SidebarManager !== 'undefined') { if (SidebarManager.activePanel) SidebarManager.hideActivePanel(); if (SidebarManager.sidePanel) SidebarManager.closeBeside(); } }
       catch (e) { return 'reset failed: ' + e.message; }
+      try {
+        if (this.tabsBefore && typeof TabManager !== 'undefined') {
+          for (const t of TabManager.tabs.slice()) if (!this.tabsBefore.has(t.id)) TabManager.closeTab(t.id);
+        }
+      } catch (e) { return 'reset failed: ' + e.message; }
       return 'ok';
     },
     async open(plan) {
+      if (!this.tabsBefore && typeof TabManager !== 'undefined') this.tabsBefore = new Set(TabManager.tabs.map(t => t.id));
       if (plan.kind === 'panel') {
         if (typeof SidebarManager === 'undefined') throw new Error('SidebarManager is not loaded');
         SidebarManager.openPanel(plan.panel);

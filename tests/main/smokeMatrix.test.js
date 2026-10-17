@@ -108,6 +108,20 @@ describe('the page helpers', () => {
     const missing = await window.__smoke.open({ kind: 'command', cmd: 'nope' });
     expect(missing).toMatchObject({ opened: false, missing: true });
   });
+  it('reset closes the tabs an item opened (Container tabs) and keeps the ones that were there', async () => {
+    document.body.innerHTML = '';
+    window.eval(M.PAGE_SETUP);
+    window.eval(`window.TabManager = { tabs: [{ id: 'a' }], closed: [], closeTab(id) { this.closed.push(id); this.tabs = this.tabs.filter(t => t.id !== id); } }`);
+    window.eval(`window.CommandBar = { commands: [{ id: 'container-work', action: () => { TabManager.tabs.push({ id: 'c' + TabManager.tabs.length }); } }] }`);
+    const plan = { kind: 'command', cmd: 'container-work' };
+    for (let i = 0; i < 4; i++) {
+      await window.__smoke.open(plan);
+      expect(window.TabManager.tabs.length).toBe(2);
+      expect(window.__smoke.reset()).toBe('ok');
+      expect(window.TabManager.tabs.map(t => t.id)).toEqual(['a']);
+    }
+    expect(window.TabManager.closed.length).toBe(4);
+  });
 });
 
 describe('safety', () => {
