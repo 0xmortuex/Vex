@@ -1168,7 +1168,11 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   // ('video') + getComputedStyle on every mutation is a steady CPU drain. Coalesce
   // bursts into one scan after 600ms of quiet.
   let pipScanTimer = null;
-  const scheduleScan = () => { if (pipScanTimer) return; pipScanTimer = setTimeout(() => { pipScanTimer = null; setupVideoPipButtons(); }, 600); };
+  // The host says when this page is out of sight (sidebar.js checkDiscordThrottle sends 'vex-hidden'
+  // for the Discord panel). A hidden page has no video to put a PiP button on, so its tree is not
+  // watched and the 5 s check does not run; showing it again scans once.
+  let pipHidden = false;
+  const scheduleScan = () => { if (pipScanTimer || pipHidden) return; pipScanTimer = setTimeout(() => { pipScanTimer = null; setupVideoPipButtons(); }, 600); };
   const obs = new MutationObserver(scheduleScan);
   if (document.body) {
     obs.observe(document.body, { childList: true, subtree: true });
@@ -1179,7 +1183,15 @@ if (location.protocol === 'chrome-extension:' && !__vexExtIsolated && vexStorage
   }
 
   // Periodic fallback check (slower now that the observer is the primary path).
-  setInterval(setupVideoPipButtons, 5000);
+  setInterval(() => { if (!pipHidden) setupVideoPipButtons(); }, 5000);
+  ipcRenderer.on('vex-hidden', (_e, hidden) => {
+    const was = pipHidden;
+    pipHidden = !!hidden;
+    if (pipHidden === was) return;
+    if (pipHidden) { obs.disconnect(); clearTimeout(pipScanTimer); pipScanTimer = null; return; }
+    if (document.body) obs.observe(document.body, { childList: true, subtree: true });
+    setupVideoPipButtons();
+  });
 
   // Host asks for a fresh video report when this tab becomes active (a tab
   // switch isn't a video-count change, so checkForVideos wouldn't otherwise
