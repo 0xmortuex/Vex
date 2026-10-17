@@ -34,7 +34,15 @@ async function atomicWrite(file, bytes, { backup = true, retryDelays = RETRY_DEL
 }
 
 class JsonStore {
-  constructor(directory) { this.directory = directory; this.pending = new Map(); }
+  // `codec` (main/profile-crypt.js) encrypts the keys named in `codecKeys` when the profile is
+  // encrypted; the other keys, and every key when there is no codec, are plain files as before.
+  constructor(directory, { codec = null, codecKeys = null } = {}) {
+    this.directory = directory; this.pending = new Map();
+    this.codec = codec; this.codecKeys = codecKeys ? new Set(codecKeys) : null;
+  }
+  _codecFor(key) { return this.codec && (!this.codecKeys || this.codecKeys.has(key)) ? this.codec : null; }
+  _text(key, bytes) { const c = this._codecFor(key); return (c ? c.decode(bytes) : bytes).toString('utf8'); }
+  _out(key, text) { const c = this._codecFor(key); return c ? c.encode(Buffer.from(text, 'utf8')) : text; }
   file(key) {
     if (typeof key !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(key)) throw new Error('Invalid storage key');
     return path.join(this.directory, key + '.json');
@@ -45,15 +53,18 @@ class JsonStore {
   async _read(key) {
     const file = this.file(key);
     let raw;
-    try { raw = await fs.promises.readFile(file, 'utf8'); }
+    try { raw = await fs.promises.readFile(file); }
     catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+    // A locked profile must say so: a key that cannot be opened is not a damaged file to fall back from.
+    if (this._codecFor(key) && this.codec.isEnvelope(raw)) raw = this._text(key, raw);
+    else raw = raw.toString('utf8');
     let parsed;
     try { parsed = JSON.parse(raw); } catch (error) {
       try {
-        const backup = JSON.parse(await fs.promises.readFile(file + '.bak', 'utf8'));
+        const backup = JSON.parse(this._text(key, await fs.promises.readFile(file + '.bak')));
         if (backup?.$vexStore != null && backup.$vexStore !== 1) throw new Error('Unsupported backup version', { cause: error });
         const value = backup?.$vexStore === 1 ? backup.data : backup;
-        await atomicWrite(file, JSON.stringify({ $vexStore: 1, data: value }), { backup: false });
+        await atomicWrite(file, this._out(key, JSON.stringify({ $vexStore: 1, data: value })), { backup: false });
         return value;
       } catch { throw error; }
     }
@@ -62,7 +73,7 @@ class JsonStore {
       return parsed.data;
     }
     // Migration/write errors must not silently revert to an older backup.
-    await atomicWrite(file, JSON.stringify({ $vexStore: 1, data: parsed }));
+    await atomicWrite(file, this._out(key, JSON.stringify({ $vexStore: 1, data: parsed })));
     return parsed;
   }
   enqueue(key, operation) {
@@ -82,14 +93,14 @@ class JsonStore {
       // was saved on every loading event and a sync pull saved every store,
       // each a full rewrite with a forced flush (found 2026-10-09).
       if (before !== null && before === JSON.stringify(data)) return data;
-      await atomicWrite(this.file(key), JSON.stringify({ $vexStore: 1, data }));
+      await atomicWrite(this.file(key), this._out(key, JSON.stringify({ $vexStore: 1, data })));
       return data;
     });
   }
   async write(key, data) { await this.update(key, () => data); return true; }
   clear(key, data = null) {
     return this.enqueue(key, async () => {
-      await atomicWrite(this.file(key), JSON.stringify({ $vexStore: 1, data }), { backup: false });
+      await atomicWrite(this.file(key), this._out(key, JSON.stringify({ $vexStore: 1, data })), { backup: false });
       await fs.promises.rm(this.file(key) + '.bak', { force: true });
       return true;
     });
@@ -103,6 +114,16 @@ class JsonStore {
     });
   }
   async flush() { await Promise.all([...this.pending.values()]); }
+  // Runs `fn` while none of `keys` is being read or written and none can start: each key's queue
+  // is held open until `fn` is done. For changing the files under the store (main/profile-crypt.js).
+  async exclusive(keys, fn) {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const held = keys.map((key) => new Promise((resolve, reject) => {
+      try { this.enqueue(key, () => { resolve(); return gate; }); } catch (e) { reject(e); }
+    }));
+    try { await Promise.all(held); return await fn(); } finally { release(); }
+  }
 }
 
 class SecretStore {

@@ -58,15 +58,22 @@ function decodeText(text) {
   return value;
 }
 
-function decodeFile(target) { return decodeText(fs.readFileSync(target, 'utf8')); }
+// `codec` (see main/profile-crypt.js) turns the bytes on disk into the text and back when the
+// profile is encrypted; without one the file is read and written as plain text, as it always was.
+function decodeFile(target, codec) {
+  const bytes = fs.readFileSync(target);
+  return decodeText((codec ? codec.decode(bytes) : bytes).toString('utf8'));
+}
 
 // Synchronous atomic write for the one-time layout changes at start: the new
 // content is written beside the file, flushed, then renamed over it.
-function writeSync(target, text) {
+// `text` is a string (encoded with the codec when there is one) or bytes already in their final form.
+function writeSync(target, text, codec) {
   const temp = target + '.' + randomUUID() + '.tmp';
+  const out = typeof text === 'string' && codec ? codec.encode(Buffer.from(text, 'utf8')) : text;
   try {
     const fd = fs.openSync(temp, 'wx', 0o600);
-    try { fs.writeFileSync(fd, text); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    try { fs.writeFileSync(fd, out); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(temp, target);
   } finally { fs.rmSync(temp, { force: true }); }
 }
@@ -87,10 +94,14 @@ function createPreferenceStore(file, options = {}) {
     volatileKeys = VOLATILE_KEYS,
     splitEnabled = (data) => data[SPLIT_PREFERENCE] === '1',
     volatileDelayMs = 2000,
+    codec = null,
     now = Date.now,
     log = console,
   } = options;
   const volatileSet = new Set(volatileKeys);
+  const read = (target) => decodeFile(target, codec);
+  const write = (target, text) => writeSync(target, text, codec);
+  const toDisk = (text) => (codec ? codec.encode(Buffer.from(text, 'utf8')) : text);
   const preSplit = file + '.pre-split';
   let cache;
   let pending = Promise.resolve();
@@ -123,11 +134,11 @@ function createPreferenceStore(file, options = {}) {
     let first;
     for (const candidate of [target, target + '.bak', ...generations(target)]) {
       try {
-        const data = decodeFile(candidate);
+        const data = read(candidate);
         if (candidate === target) return { data, from: candidate };
         log.error(`[Storage] ${target} could not be read (${first.message}); recovered from ${candidate}. The damaged file was kept as ${target}.corrupt-*.`);
         keepCorrupt(target);
-        writeSync(target, encode(data));
+        write(target, encode(data));
         return { data, from: candidate };
       } catch (error) {
         if (error.code === 'ENOENT' && candidate !== target) continue;
@@ -179,7 +190,7 @@ function createPreferenceStore(file, options = {}) {
       try { keepCorrupt(volatileFile); } catch (e) { log.error('[Storage] could not keep a copy of it:', e.message); }
       volatile = {};
       if (fs.existsSync(preSplit)) {
-        try { volatile = pick(decodeFile(preSplit), true); log.error('[Storage] its keys were restored from the copy made before the split.'); }
+        try { volatile = pick(read(preSplit), true); log.error('[Storage] its keys were restored from the copy made before the split.'); }
         catch (e) { log.error('[Storage] the copy made before the split could not be read either:', e.message); }
       }
       cleanLoad = false;
@@ -211,15 +222,15 @@ function createPreferenceStore(file, options = {}) {
     const mainPart = { ...pick(cache, false), [MARK]: 1, [SPLIT]: 1 };
     const volatilePart = { ...pick(cache, true), [MARK]: 1 };
     try {
-      writeSync(volatileFile, encode(volatilePart));
-      const back = decodeFile(volatileFile);
+      write(volatileFile, encode(volatilePart));
+      const back = read(volatileFile);
       if (JSON.stringify(back) !== JSON.stringify(volatilePart)) throw new Error('The volatile file did not read back the same');
-      writeSync(file, encode(mainPart));
-      const mainBack = decodeFile(file);
+      write(file, encode(mainPart));
+      const mainBack = read(file);
       if (JSON.stringify(mainBack) !== JSON.stringify(mainPart)) throw new Error('The settings file did not read back the same');
     } catch (error) {
       // Put the old layout back exactly as it was.
-      writeSync(file, original.toString('utf8'));
+      writeSync(file, original);
       fs.rmSync(volatileFile, { force: true });
       throw new Error('could not split the settings file (' + error.message + '); the old file was put back', { cause: error });
     }
@@ -231,8 +242,8 @@ function createPreferenceStore(file, options = {}) {
   function rollback() {
     const merged = { ...cache, [MARK]: 1 };
     delete merged[SPLIT];
-    writeSync(file, encode(merged));
-    const back = decodeFile(file);
+    write(file, encode(merged));
+    const back = read(file);
     if (Object.keys(back).length !== Object.keys(merged).length) throw new Error('The merged settings file did not read back the same');
     split = false;
     volatileDirty = false;
@@ -263,7 +274,7 @@ function createPreferenceStore(file, options = {}) {
   async function writeMain(data, eraseBackup) {
     const out = split ? { ...pick(data, false), [MARK]: 1, [SPLIT]: 1 } : data;
     if (!eraseBackup) rotateGeneration(file);
-    await atomicWrite(file, encode(out), { backup: !eraseBackup });
+    await atomicWrite(file, toDisk(encode(out)), { backup: !eraseBackup });
   }
 
   async function writeVolatile(eraseBackup) {
@@ -271,7 +282,7 @@ function createPreferenceStore(file, options = {}) {
     volatileDirty = false;
     try {
       if (!eraseBackup) rotateGeneration(volatileFile);
-      await atomicWrite(volatileFile, encode({ ...pick(cache, true), [MARK]: 1 }), { backup: !eraseBackup });
+      await atomicWrite(volatileFile, toDisk(encode({ ...pick(cache, true), [MARK]: 1 })), { backup: !eraseBackup });
     } catch (error) { volatileDirty = true; throw error; }
   }
 
@@ -360,6 +371,19 @@ function createPreferenceStore(file, options = {}) {
       return pending;
     },
     isSplit() { load(); return split; },
+    // Runs `fn` when no write is in flight and none can start until it is done, after the
+    // waiting volatile write has been made. The encrypted-profile switch uses this to change every
+    // file under the store without a save landing in between.
+    exclusive(fn) {
+      load();
+      const next = pending.catch(() => { /* vex-allow-empty-catch: an earlier save's failure is reported to its own caller */ }).then(async () => {
+        if (volatileTimer) { clearTimeout(volatileTimer); volatileTimer = null; }
+        if (volatileDirty) await writeVolatile(false);
+        return fn();
+      });
+      pending = next;
+      return next;
+    },
   };
 }
 module.exports = { createPreferenceStore, VOLATILE_KEYS, SPLIT_PREFERENCE, readPreferenceFile: decodeFile };

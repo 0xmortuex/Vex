@@ -602,6 +602,12 @@ contextBridge.exposeInMainWorld('vex', {
   applockStores: () => ipcRenderer.invoke('applock:stores'),
   applockLockOnMinimize: (on) => ipcRenderer.send('applock:lock-on-minimize', !!on),
   applockReset: (confirm) => ipcRenderer.invoke('applock:reset', confirm),
+  // Encrypted profile lock (T3-123, js/profile-lock.js): status, switch on (returns the recovery code once), switch back, new passphrase / code.
+  profileCryptStatus: () => ipcRenderer.invoke('profilecrypt:status'),
+  profileCryptEnable: (passphrase) => ipcRenderer.invoke('profilecrypt:enable', passphrase),
+  profileCryptDisable: (mode, secret) => ipcRenderer.invoke('profilecrypt:disable', mode, secret),
+  profileCryptChange: (current, next) => ipcRenderer.invoke('profilecrypt:change', current, next),
+  profileCryptNewRecovery: (passphrase) => ipcRenderer.invoke('profilecrypt:new-recovery', passphrase),
   // Startup-persistence check (T3-122): read-only.
   startupList: () => ipcRenderer.invoke('startup:list'),
   // Photo preparer (T3-105): the two dialogs; the work is done in the window.

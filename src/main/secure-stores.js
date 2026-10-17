@@ -11,9 +11,9 @@
 // It adds NO cryptography of its own. The lock (src/main/lock-pin.js) is a
 // privacy screen plus a gate main enforces; the files stay encrypted by the
 // operating system whether the lock is on or off. Encrypting more of the
-// profile (notes, clips, history, the whole folder) is deliberately not done:
-// it needs a recovery-code design the owner has not agreed, and a lost key would
-// mean lost data (docs/security-tier3-threat-notes.md).
+// profile (notes, clips, history, journal, ledger, open tabs) is the separate,
+// opt-in encrypted profile lock with a recovery code (src/main/profile-crypt.js,
+// docs/profile-lock.md, owner-approved 2026-10-17); this module does not touch it.
 const fs = require('fs');
 const path = require('path');
 
