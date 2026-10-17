@@ -403,6 +403,7 @@ contextBridge.exposeInMainWorld('vex', {
   devfeedsPing: (url) => ipcRenderer.invoke('devfeeds:ping', url),
   // One Crossref request for a DOI, only when the person asks (main/doi-resolve.js).
   sourcesResolveDoi: (doi) => ipcRenderer.invoke('sources:resolve-doi', doi),
+  sourcesResolveId: (which, id) => ipcRenderer.invoke('sources:resolve-id', which, id),
   // The built-in PDF toolkit (main/pdf-toolkit.js): pick files, run one operation, forget the picked list.
   pdftoolPickFiles: () => ipcRenderer.invoke('pdftool:pick-files'),
   pdftoolRun: (req) => ipcRenderer.invoke('pdftool:run', req),

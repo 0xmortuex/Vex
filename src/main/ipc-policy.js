@@ -66,7 +66,7 @@ const UI_ONLY_CHANNELS = new Set([
   'devdesk:config', 'devdesk:set-config', 'devdesk:grant-root', 'devdesk:revoke-root', 'devdesk:open-file', 'devdesk:open-terminal', 'devdesk:branch', 'devdesk:ports',
   'devext:pick', 'devext:reload', 'devext:stop', 'devext:status', 'devext:vencord', 'castlabs:behind',
   // The sources list's DOI lookup and the PDF toolkit's file picker and writer: Vex's own window only.
-  'sources:resolve-doi', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
+  'sources:resolve-doi', 'sources:resolve-id', 'pdftool:pick-files', 'pdftool:run', 'pdftool:forget', 'pdftool:inspect',
   // The owner's announcement webhook and the Vencord bridge file (main/comms-tools.js): Vex's own window only.
   'comms:webhook-status', 'comms:webhook-set', 'comms:webhook-clear', 'comms:webhook-send', 'comms:bridge-status', 'comms:bridge-pick', 'comms:bridge-read', 'comms:bridge-forget',
   // The local-service launcher and the webhook inspector: starting programs and opening a port are Vex's own window only.

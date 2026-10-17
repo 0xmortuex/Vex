@@ -7144,6 +7144,13 @@ const _devFeeds = require('./main/dev-feeds').createDevFeeds({ fetch: _politeNet
 ipcMain.handle('devfeeds:latest', (_event, ecosystem, name) => _devFeeds.latest(ecosystem, name));
 ipcMain.handle('devfeeds:advisories', (_event, ecosystem, name, version) => _devFeeds.advisories(ecosystem, name, version));
 ipcMain.handle('devfeeds:ping', (_event, url) => _devFeeds.ping(url));
+// arXiv and ISBN lookup for the sources list (main/source-lookup.js): one request to arxiv.org or openlibrary.org, only when the
+// person presses the button, through the polite client.
+const _sourceLookup = require('./main/source-lookup').createSourceLookup({ fetch: _politeNetFetch });
+ipcMain.handle('sources:resolve-id', async (_event, which, id) => {
+  try { return { ok: true, record: await (which === 'arxiv' ? _sourceLookup.arxiv(id) : _sourceLookup.isbn(id)) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
 // DOI lookup for the sources list (main/doi-resolve.js): one Crossref request, only when the person presses the button.
 const _doiResolver = require('./main/doi-resolve').createDoiResolver({ fetch: boundedNetFetch });
 ipcMain.handle('sources:resolve-doi', async (_event, doi) => {

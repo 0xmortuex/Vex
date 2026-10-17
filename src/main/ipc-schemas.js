@@ -559,6 +559,7 @@ define('castlabs:behind', [optional(boolean)]);
 define('devdesk:ports', [value => Array.isArray(value) && value.length <= 12 && value.every(p => Number.isInteger(p) && p >= 1024 && p <= 65535)]);
 // The sources list (main/doi-resolve.js): the DOI is checked again in main; this only bounds it.
 define('sources:resolve-doi', [string(300)]);
+define('sources:resolve-id', [oneOf(['arxiv', 'isbn']), string(120)]);
 // The PDF toolkit (main/pdf-toolkit.js). No path ever comes from the window: it names the
 // tokens main handed out from its own file picker, and the operation with its small options.
 const pdfToken = value => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);

@@ -66,6 +66,7 @@ const ScreenshotTool = {
   },
 
   showPreview(dataUrl) {
+    try { document.dispatchEvent(new CustomEvent('vex:capture-taken', { detail: { kind: 'screenshot', text: 'Screenshot of this page taken ' + new Date().toLocaleString() } })); } catch (err) { window.VexProblems?.note('Screenshot', 'Could not tell Sources about the screenshot', err); }
     let overlay = document.getElementById('screenshot-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
