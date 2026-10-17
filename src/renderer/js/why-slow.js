@@ -285,6 +285,7 @@ const WhySlow = {
     const bar = document.createElement('div');
     bar.id = 'vex-slow-notice';
     bar.className = 'vexslow-notice';
+    bar.setAttribute('data-avoid-toasts', 'above');   // the toast stack sits above this bar, never on its buttons (app.js placeToasts)
     bar.innerHTML = '<span>' + esc(f.title) + '</span>';
     const act = (label, title, run) => {
       const b = document.createElement('button');

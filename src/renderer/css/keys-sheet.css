@@ -75,7 +75,7 @@
 @keyframes vexslow-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .vexslow-notice > span { flex: 1; min-width: 0; line-height: 1.45; }
 .vexslow-notice button {
-  flex: none; padding: 4px 10px; font-size: 11.5px; font-family: inherit; cursor: pointer;
+  flex: none; min-width: 24px; min-height: 24px; padding: 4px 10px; font-size: 11.5px; font-family: inherit; cursor: pointer;
   background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
 }
 .vexslow-notice button:hover { border-color: var(--primary); color: var(--primary); }

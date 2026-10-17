@@ -60,6 +60,18 @@ describe('check:ui settingsLayout', () => {
     expect(run()).toEqual(['settings-gap']);
   });
 
+  // CI (windows-latest) measured 23.4px above sections whose limit was 22.8px:
+  // the whole-pixel offsetHeight SettingsUI reads gives a section up to half a
+  // CSS pixel extra room. That is rounding, not spacing: it passes; a gap a
+  // full pixel past the 16px margin + one 4px row (+ the 1px allowance) still fails.
+  it('lets the half pixel of offsetHeight rounding through, and still flags a real extra pixel', () => {
+    // b ends at 200; margin 16 + one row 4 = 20, + 2 + 1 allowed = 23.
+    lay([['a', 32, 100, 600, 300], ['b', 650, 100, 600, 100], ['c', 650, 222.6, 600, 100]]);
+    expect(run()).toEqual([]);
+    lay([['a', 32, 100, 600, 300], ['b', 650, 100, 600, 100], ['c', 650, 223.5, 600, 100]]);
+    expect(run()).toEqual(['settings-gap']);
+  });
+
   it('flags a switch squeezed beside a long label', () => {
     const root = lay([['a', 32, 100, 600, 300, '<label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>']]);
     const t = root.querySelector('.toggle');

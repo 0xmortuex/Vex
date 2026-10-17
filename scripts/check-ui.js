@@ -674,7 +674,14 @@ window.__vexCheckUi = (function () {
       // one grid row (4px) of rounding, in screen pixels.
       if (above) {
         var gap = R[i].t - above.b;
-        var most = (above.mb + 4) * zoom + 2;
+        // + 1px for the height SettingsUI._layout reads: offsetHeight is a whole
+        // number, so a section can be given up to half a CSS pixel (times the
+        // zoom) more room than it needs. On GitHub's windows-latest fonts, whose
+        // line heights are fractional, that put 12 sections 0.1-0.6px past the
+        // old limit (23.4px against 22.8px at Larger text) with identical CSS
+        // and a local run clean (CI run 39035219543). A real fault is a whole
+        // grid row or more beyond this.
+        var most = (above.mb + 4) * zoom + 3;
         if (gap > most) add('settings-gap', R[i].e, 'a ' + n(gap) + 'px gap above it (most ' + n(most) + 'px)', { px: n(gap) });
       }
     }

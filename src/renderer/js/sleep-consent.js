@@ -189,6 +189,7 @@ const SleepConsent = {
     const bar = document.createElement('div');
     bar.id = 'vex-sleep-ask';
     bar.className = 'vexslow-notice';
+    bar.setAttribute('data-avoid-toasts', 'above');   // the toast stack sits above this bar, never on its buttons (app.js placeToasts)
     bar.dataset.ask = key;
     bar.innerHTML = '<span>' + esc(title) + (detail ? '<br><small style="opacity:.75">' + esc(detail) + '</small>' : '') + '</span>';
     const done = () => bar.remove();

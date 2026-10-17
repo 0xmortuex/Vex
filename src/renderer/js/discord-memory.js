@@ -617,6 +617,7 @@ const DiscordMemory = {
     const bar = document.createElement('div');
     bar.id = 'vex-discord-ask';
     bar.className = 'vexslow-notice';
+    bar.setAttribute('data-avoid-toasts', 'above');   // the toast stack sits above this bar, never on its buttons (app.js placeToasts)
     bar.dataset.what = what;
     const line = what === 'sleep'
       ? 'Discord has been hidden for ' + info.idle + ' minutes. Let it sleep and hand its memory back?'
