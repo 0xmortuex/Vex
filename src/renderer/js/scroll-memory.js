@@ -20,8 +20,13 @@
 // The position is kept in the tab's own record (so it follows the existing
 // session file), never read from a private or Tor tab, and never sent anywhere.
 //
-// Not built: a thin reading-progress bar and a per-article position that
-// outlives the tab (see the Wave 3 report).
+// Two more parts (Wave 5), each its own switch under "Remember where I was on a page":
+//   * a per-article place that outlives the tab: for a long page (three screens or more) the place is
+//     also kept by address (vex.scrollMemory.articles, 200 addresses, 60 days), so an article you closed
+//     weeks ago and open again from History or a link comes back where you stopped. A place within a
+//     screen of the end is forgotten, since you finished it. On by default with the module.
+//   * a thin reading-progress bar along the top of the page area for a long page: how far down you are,
+//     read every two seconds for the tab in front only. Off until chosen.
 
 // Runs INSIDE the page (stringified): where is the view, and what text is at its top.
 function vexScrollSample() {
@@ -76,6 +81,13 @@ function vexScrollRestore(pos) {
 
 const VexScrollMemory = {
   KEY: 'vex.scrollMemory',           // '0' = off
+  ARTICLES_KEY: 'vex.scrollMemory.articles',   // { [address]: { y, anchor, off, at } }
+  ARTICLES_PREF: 'vex.scrollMemory.articlesOn', // '0' = the per-article place is off
+  BAR_PREF: 'vex.scrollMemory.bar',            // '1' = the progress bar is on
+  MAX_ARTICLES: 200,
+  ARTICLE_DAYS: 60,
+  LONG_PAGES: 3,                     // a page is an article from this many screens
+  BAR_MS: 2000,
   SAMPLE_MS: 8000,
   MIN_MOVE: 60,                      // px of change before the session file is written again
   _handled: new WeakSet(),           // webviews whose first page has been dealt with
@@ -87,6 +99,95 @@ const VexScrollMemory = {
     localStorage.setItem(this.KEY, on ? '1' : '0');
     if (!on && this._job) { this._job.stop(); this._job = null; }
     if (on) this._startJob();
+  },
+
+  articlesEnabled() { return this.enabled() && localStorage.getItem(this.ARTICLES_PREF) !== '0'; },
+  setArticlesEnabled(on) { localStorage.setItem(this.ARTICLES_PREF, on ? '1' : '0'); },
+  barEnabled() { return this.enabled() && localStorage.getItem(this.BAR_PREF) === '1'; },
+  setBarEnabled(on) {
+    localStorage.setItem(this.BAR_PREF, on ? '1' : '0');
+    if (!on) this._drawBar(null);
+    else this._startBarJob();
+  },
+
+  // ---- the place of an article, by address ------------------------------------------------------------
+  // The address a place belongs to: no #fragment.
+  _articleKey(url) {
+    try { const u = new URL(url); if (u.protocol !== 'http:' && u.protocol !== 'https:') return ''; u.hash = ''; return u.href; } catch { return ''; }
+  },
+  articles() {
+    const raw = localStorage.getItem(this.ARTICLES_KEY);
+    if (raw == null) return {};
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { throw new Error('The places kept for articles could not be read', { cause: err }); }
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  },
+  // A place found while reading: kept for a long page, forgotten within a screen of its end.
+  rememberArticle(url, s, now = Date.now()) {
+    if (!this.articlesEnabled()) return false;
+    const key = this._articleKey(url);
+    if (!key || !s || !(s.vh > 0) || !(s.h >= this.LONG_PAGES * s.vh)) return false;
+    const all = this.articles();
+    if (s.y + s.vh >= s.h - s.vh) { if (key in all) { delete all[key]; localStorage.setItem(this.ARTICLES_KEY, JSON.stringify(all)); return true; } return false; }
+    if (!(s.y > 20)) return false;
+    all[key] = { x: s.x || 0, y: s.y, anchor: String(s.anchor || ''), off: Number.isFinite(s.off) ? s.off : 0, at: now };
+    const keys = Object.keys(all);
+    const stale = now - this.ARTICLE_DAYS * 86400000;
+    for (const k of keys) if (all[k].at < stale) delete all[k];
+    const left = Object.keys(all);
+    if (left.length > this.MAX_ARTICLES) left.sort((a, b) => all[a].at - all[b].at).slice(0, left.length - this.MAX_ARTICLES).forEach(k => { delete all[k]; });
+    localStorage.setItem(this.ARTICLES_KEY, JSON.stringify(all));
+    return true;
+  },
+  articlePlace(url, now = Date.now()) {
+    if (!this.articlesEnabled()) return null;
+    const key = this._articleKey(url);
+    const p = key ? this.articles()[key] : null;
+    return p && now - p.at < this.ARTICLE_DAYS * 86400000 ? p : null;
+  },
+
+  // ---- the reading-progress bar ------------------------------------------------------------------------
+  // How far down the page is: 0..1, or null for a page that is not long enough to need a bar.
+  progress(s) {
+    if (!s || !(s.vh > 0) || !(s.h >= this.LONG_PAGES * s.vh)) return null;
+    const room = s.h - s.vh;
+    return room > 0 ? Math.max(0, Math.min(1, s.y / room)) : null;
+  },
+  _drawBar(fraction) {
+    if (typeof document === 'undefined') return;
+    let bar = document.getElementById('vex-read-progress');
+    if (fraction == null) { if (bar) bar.hidden = true; return; }
+    if (!bar) {
+      const host = document.getElementById('content-area') || document.body;
+      bar = document.createElement('div');
+      bar.id = 'vex-read-progress';
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-label', 'How far down this page you are');
+      bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100');
+      bar.appendChild(document.createElement('div'));
+      host.appendChild(bar);
+    }
+    bar.hidden = false;
+    const pct = Math.round(fraction * 100);
+    bar.setAttribute('aria-valuenow', String(pct));
+    bar.firstChild.style.width = pct + '%';
+  },
+  async updateBar() {
+    if (!this.barEnabled() || typeof TabManager === 'undefined' || !TabManager.activeTabId) { this._drawBar(null); return null; }
+    const id = TabManager.activeTabId;
+    const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(id) : null;
+    const tab = TabManager.tabs.find(t => t.id === id);
+    if (!tab || !wv || !/^https?:/i.test(tab.url || '') || !this._handled.has(wv) || !this._canRead(wv) || tab.sleeping) { this._drawBar(null); return null; }
+    const s = await window.vexGuestEval(wv, this._call(vexScrollSample), false, 3000);
+    const f = this.progress(s);
+    this._drawBar(f);
+    return f;
+  },
+  _startBarJob() {
+    if (this._barJob || typeof VexJobs === 'undefined') return;
+    this._barJob = VexJobs.every('Reading progress bar', this.BAR_MS, () => this.updateBar().catch(err => {
+      if (typeof VexProblems !== 'undefined') VexProblems.note('Scroll memory', 'Could not read how far down the page is', err);
+    }), { when: 'ui', feature: 'scroll-memory' });
   },
 
   _call(fn, ...args) { return '(' + fn.toString() + ')(' + args.map(a => JSON.stringify(a)).join(',') + ')'; },
@@ -114,6 +215,9 @@ const VexScrollMemory = {
   // Keep what read() found with the tab.
   note(tab, s) {
     if (!s || !Number.isFinite(s.y) || !Number.isFinite(s.x)) return false;
+    // The article's place outlives the tab (kept by address; see rememberArticle).
+    try { this.rememberArticle(tab.url, s); }
+    catch (err) { if (typeof VexProblems !== 'undefined') VexProblems.note('Scroll memory', 'Could not keep the place in an article', err); }
     const before = tab.scrollPosition;
     if (s.y <= 0) {
       if (!before) return false;
@@ -147,9 +251,15 @@ const VexScrollMemory = {
     const wv = typeof WebviewManager !== 'undefined' ? WebviewManager.webviews.get(tabId) : null;
     if (!tab || !wv || this._handled.has(wv)) return null;
     this._handled.add(wv);
-    const pos = tab.scrollPosition;
+    let pos = tab.scrollPosition;
     // A position without the address it was taken on is a sleep's (js/tabs.js wakeTab puts that one back).
-    if (!pos || !pos.url || !(pos.y > 0) || !this._canRead(wv) || !this._samePage(pos.url, tab.url)) return null;
+    if (pos && (!pos.url || !(pos.y > 0) || !this._samePage(pos.url, tab.url))) pos = null;
+    // A tab with no place of its own: the one kept for this article by address, if there is one.
+    if (!pos && this._canRead(wv) && /^https?:/i.test(tab.url || '')) {
+      const kept = this.articlePlace(tab.url);
+      if (kept) pos = { ...kept, url: tab.url };
+    }
+    if (!pos || !(pos.y > 0) || !this._canRead(wv)) return null;
     try { return await window.vexGuestEval(wv, this._call(vexScrollRestore, { x: pos.x || 0, y: pos.y, anchor: pos.anchor || '', off: pos.off || 0 }), false, 9000); }
     catch (err) {
       if (typeof VexProblems !== 'undefined') VexProblems.note('Scroll memory', 'Could not put a page back where it was', err);
@@ -180,6 +290,9 @@ const VexScrollMemory = {
       if (this.enabled() && prev && prev !== this._lastActive) this.sample(prev);
     });
     if (this.enabled()) this._startJob();
+    if (this.barEnabled()) this._startBarJob();
+    // A tab change or a settled page moves the bar at once instead of waiting for the next look.
+    window.addEventListener('vex:tab-activated', () => { if (this.barEnabled()) this.updateBar().catch(err => { if (typeof VexProblems !== 'undefined') VexProblems.note('Scroll memory', 'Could not read how far down the page is', err); }); });
     return true;
   },
 };

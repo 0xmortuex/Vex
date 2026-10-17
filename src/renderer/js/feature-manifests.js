@@ -539,8 +539,8 @@
       permissions: { reads: ['the kind of each box on the form in front of you (never what is typed in it); your Form Fill profile'], writes: ['one box at a time, when you press Fill on it'], sends: [] } },
 
     // ---- Wave 3: tab comforts (all new: off on a profile that already existed, offered to try) ----
-    { id: 'scroll-memory', title: 'Scroll position across restart and reopen', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.scrollMemory'], jobs: ['Scroll memory'],
-      permissions: { reads: ['where the tab in front is scrolled to, and the first words at the top of its view'], writes: ['that position, kept with the tab in your saved session'], sends: [] } },
+    { id: 'scroll-memory', title: 'Scroll position across restart and reopen', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.scrollMemory', 'vex.scrollMemory.articles', 'vex.scrollMemory.articlesOn', 'vex.scrollMemory.bar'], jobs: ['Scroll memory', 'Reading progress bar'],
+      permissions: { reads: ['where the tab in front is scrolled to, and the first words at the top of its view'], writes: ['that position, kept with the tab in your saved session, and for a long article by its address (200 at most, 60 days)'], sends: [] } },
     { id: 'essentials', title: 'Essential tabs in every workspace', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.essentials'], commands: ['essentials'],
       permissions: { reads: ['your open tabs'], writes: ['which tabs are essential, kept with the tab in your saved session; pins them'], sends: [] } },
     { id: 'spell-lang', title: 'English and Turkish spelling', group: 'Tab comforts', maturity: 'new', storageKeys: ['vex.spellLang', 'vex.spellLang.menu'],

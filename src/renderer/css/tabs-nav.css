@@ -71,3 +71,9 @@ body.fullscreen.chrome-autohide.chrome-reveal .top-tab-bar { transform: none; po
   box-shadow: inset 0 0 0 1px var(--vex-border-strong);
 }
 .find-btn.find-case[hidden] { display: none; }
+
+/* A thin reading-progress bar along the top of the page area (js/scroll-memory.js, T3-003). It floats over the
+   page and takes no room, so no layout moves. */
+#vex-read-progress { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 40; pointer-events: none; background: transparent; }
+#vex-read-progress[hidden] { display: none; }
+#vex-read-progress > div { height: 100%; width: 0; background: var(--vex-accent, var(--primary, #4f8cff)); transition: width 0.4s ease; }
