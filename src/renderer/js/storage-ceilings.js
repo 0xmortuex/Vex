@@ -17,6 +17,14 @@
 // itself, because it is rebuilt from the pages read.
 const StorageCeilings = {
   KEY: 'vex.storage.recallLimits',
+  // The preference store's volatile split (T0-012, src/main/storage.js): history-like keys in a second file so the
+  // settings file stays small. Read by main at start, so a change takes effect the next time Vex starts.
+  SPLIT_KEY: 'vex.volatileSplit',
+  splitOn() { return localStorage.getItem(this.SPLIT_KEY) === '1'; },
+  setSplit(on) {
+    if (on) localStorage.setItem(this.SPLIT_KEY, '1'); else localStorage.removeItem(this.SPLIT_KEY);
+    return this.splitOn();
+  },
   DEFAULT_LIMITS: { days: 90, maxMB: 12, maxPages: 3000 },
   RANGE: { days: [7, 3650], maxMB: [1, 64], maxPages: [100, 10000] },
 
@@ -82,6 +90,16 @@ const StorageCeilings = {
     const draw = async () => {
       el.textContent = '';
       el.appendChild(mk('p', 'setting-info muted', 'What each feature keeps in this window\'s storage, against the budget its record gives it. A feature over its budget is shown, not trimmed: trim it where it lives.'));
+      // The preference file layout (applied at the next start)
+      const splitRow = mk('label', 'setting-toggle-row', 'Keep history-like data in a second file ');
+      const splitBox = mk('input'); splitBox.type = 'checkbox'; splitBox.checked = this.splitOn(); splitBox.setAttribute('aria-label', 'Keep history-like data in a second file');
+      splitBox.addEventListener('change', () => {
+        try { this.setSplit(splitBox.checked); window.showToast?.(splitBox.checked ? 'The second file is used from the next start' : 'The two files are merged again at the next start'); }
+        catch (err) { this._note('Could not change the file layout', err); window.showToast?.(err.message, 'error'); splitBox.checked = this.splitOn(); }
+      });
+      splitRow.appendChild(splitBox);
+      el.appendChild(splitRow);
+      el.appendChild(mk('p', 'setting-info muted', 'Browsing history, downloads, caches and logs go to vex-persist-volatile.json, so your settings file is not rewritten every time a page loads. Applied at the next start; switching it off merges the files again. A copy of the old file is kept until the new layout has read back cleanly.'));
       // Recall's index
       const recall = mk('div', 'storage-recall');
       el.appendChild(recall);
@@ -133,7 +151,7 @@ if (typeof window !== 'undefined') {
   if (typeof VexSettingsGroups !== 'undefined') {
     VexSettingsGroups.register({
       id: 'storage-ceilings', title: 'Storage',
-      keywords: 'storage space size disk recall index cap retention days megabytes budget how much',
+      keywords: 'storage space size disk recall index cap retention days megabytes budget how much split file volatile history settings file layout',
       before: 'about',
       build: (el) => StorageCeilings.group(el),
     });

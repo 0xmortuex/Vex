@@ -7041,6 +7041,9 @@ function handleDictateShortcut(event, input) {
 const storagePath = path.join(userDataPath, 'vex-storage');
 const { JsonStore, SecretStore, atomicWrite } = require('./main/file-store');
 const dataStore = new JsonStore(storagePath);
+// The data schema version of the files main reads itself (main/file-store.js stamps it as `v`). A file at an
+// older version is migrated on its next read; one written by a newer Vex is refused, not overwritten.
+for (const key of ['settings', 'history', 'sync-records', 'sync-tiles-joined', 'gui-style']) dataStore.schema(key, { version: 1 });
 const secretStore = new SecretStore(safeStorage);
 // Developer desk (main/dev-desk.js): open the file a stack trace points to, open a
 // terminal and read a branch, only inside folders picked in the folder dialog, only
